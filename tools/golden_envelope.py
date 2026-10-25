@@ -190,11 +190,10 @@ def build(entry, limit=None):
 
 def status(entry, envelope):
     if envelope['samples'] < 3:
-        return 'unverified'
+        return 'unqualified'
     if not envelope['stats']['varying_count']:
-        return 'exact'
-    previous = build(entry, envelope['samples'] - 1)
-    return ('envelope' if previous['stats']['varying_count'] == envelope['stats']['varying_count'] else 'growing')
+        return 'qualified'
+    return 'enveloped'
 
 
 def compare(envelope, actual):

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Original-game cache and strict offline/one-game comparisons (stdlib only).
+"""Original-game cache and candidate-only comparisons (stdlib only).
 
 record / compare share the original-input key; the candidate DLL and replacement
 keys are deliberately excluded. record --rerun verifies an existing key without
 overwriting its artifacts. A differing repeat is retained and marked NONDETERMINISTIC.
-No statistical tolerance or automatically learned ignore mask is applied.
+Identical originals require exact results; varying originals supply observed
+envelopes by default. --strict requires exact results. No gameplay mask is applied.
 """
 import argparse
 import datetime as dt
@@ -206,22 +207,30 @@ def qualification(entry):
     return 'reproduced' if audits else 'unverified'
 
 
-def compare_cached(entry, run, *, rule='exact'):
-    """Suite API: byte-exact comparison unless ranges are explicitly requested.
+def compare_cached(entry, run, *, rule='auto'):
+    """Suite API: exact for identical originals, observed ranges otherwise.
 
     Only the candidate runs. Rebuild derived ranges from verified originals;
     a candidate result never changes the cache or widens its envelope.
     """
-    if rule not in ('exact', 'envelope'):
-        raise ValueError('comparison rule must be exact or envelope')
+    if rule not in ('auto', 'exact', 'envelope'):
+        raise ValueError('comparison rule must be auto, exact or envelope')
     _baseline_intact(entry)
     envelope = golden_envelope.build(entry)
     mode = golden_envelope.status(entry, envelope)
-    use_exact = rule == 'exact' or mode in ('exact', 'unverified')
-    report = (compare_artifacts(entry, run) if use_exact
+    exact_report = compare_artifacts(entry, run)
+    is_exact = artifacts_exact(exact_report)
+    use_exact = rule == 'exact' or not envelope['stats']['varying_count'] or is_exact
+    report = (exact_report if use_exact
               else golden_envelope.compare(envelope, run))
     report.update(comparison_rule='exact' if use_exact else 'observed-envelope',
                   envelope_status=mode, envelope_samples=envelope['samples'], envelope_stats=envelope['stats'])
+    report['verdict'] = 'exact' if is_exact else ('within-envelope' if artifacts_exact(report) else 'outside')
+    first = report['first_digest_difference']
+    records = report['save']['records']
+    report['first_outside'] = ({'date': first['date'], 'digest_fields': first['fields']} if first else
+                               {'date': load_json(Path(run) / 'verdict.json').get('save_date'),
+                                'record': records[0]} if records else None)
     return report
 
 
@@ -247,7 +256,7 @@ def input_script(path, until):
             raise ValueError(f'script line {number} is invalid or after --until')
         # An early pause or speed 0 can be intentional, but cannot silently pass:
         # the completed terminal save and exact end date are validated in the log.
-    return text + f'\n{until} pause\n{until} digest\n{until} save\n{until} mark GOLDEN_FULL_SAVE_COMPLETE\n'
+    return text + f'\n{until} digest\n{until} save\n{until} mark GOLDEN_FULL_SAVE_COMPLETE\n'
 
 
 def prepare(args):
@@ -264,7 +273,8 @@ def prepare(args):
                 'timeout_seconds': args.seconds, 'cpu_count': 1,
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
                 'full_save': True, 'environment': 'explicit switches; FC4_* removed in direct backend',
-                'backend': args.backend, 'autotest_end': 'terminate', 'window': 'minimized after load'}
+                'backend': args.backend, 'autotest_end': 'quit', 'window': 'minimized after load',
+                'reach': reach_supported(root) if args.backend == 'queue' else False}
     settings['queue_parallel'] = args.backend == 'queue'
     generated = input_script(args.script, args.until)
     settings['effective_script_sha256'] = hashlib.sha256(generated.encode('utf-8')).hexdigest()
@@ -332,7 +342,10 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
                    f'session_seed = {SEED}\npacing = original\nsim_turbo = {int(args.turbo)}\n'
                    f'sim_fixed_step = {int(args.clock == "fixed")}\n'
                    f'sim_turbo_frame_ms = 250\npopup_dialogs = 0\nautotest_unpause = 2\n'
-                   f'autotest_end = terminate\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
+                   f'autotest_end = quit\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
+    if args.backend == 'queue' and reach_supported(args.harness_root):
+        with ini.open('a', encoding='utf-8') as stream:
+            stream.write('reach = 1\n')
     # Explicitly turn every known shadow/compare off, also for a queue worker
     # whose environment may contain developer overrides.
     config = (args.harness_root / 'engine/plugin/FC4Config.cpp').read_text(encoding='utf-8')
@@ -376,9 +389,12 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
                'replacements': selected, 'dll_sha256': sha256(dll), 'staged_dll': str(dll.resolve()),
                'source_dll': str(source_dll), 'warnings': warnings}
     write_json(result / 'summary.json', summary)
-    # A future reach-enabled harness may export alongside the plugin log.
-    # Never copy a stale shared slot reach file into this run.
     return result
+
+
+def reach_supported(root):
+    """Main's labelled queue export is the capability, never a shared slot file."""
+    return 'reach_output =' in (Path(root) / 'tools/game_queue.ps1').read_text(encoding='utf-8')
 
 
 def validate_harness_sources(args):
@@ -435,6 +451,9 @@ def run_queued(args, dll, ini, result, work):
     log = verdict_file.with_suffix('.log')
     if log.exists():
         shutil.copyfile(log, result / 'game.log')
+    reach = verdict_file.with_suffix('.reach.tsv')
+    if reach.is_file():
+        shutil.copyfile(reach, result / 'reach.tsv')
     if not verdict.startswith('verdict: clean'):
         raise ValueError(f'queue did not finish cleanly; see {result / "harness.txt"}')
     slot_match = re.search(r'in slot (\d+) after', verdict)
@@ -486,6 +505,8 @@ def wait_snapshot(args, verdict_file, result, work):
 
 def print_comparison(report, args):
     envelope_mode = report.get('comparison_rule') == 'observed-envelope'
+    if 'verdict' in report:
+        print('outcome: ' + report['verdict'])
     if 'envelope_stats' in report:
         print('comparison rule: ' + report['comparison_rule'] + '; sampling: ' + report['envelope_status'])
         print_envelope({'samples': report['envelope_samples'], 'stats': report['envelope_stats']})
@@ -506,6 +527,11 @@ def print_comparison(report, args):
             print(f'    {field}: {value["expected"]!r} -> {value["actual"]!r}')
     if save['different_records'] > 20:
         print('  remaining records are in comparison.json')
+    outside = report.get('first_outside')
+    if outside and 'record' in outside:
+        record = outside['record']
+        print(f'first outside save record: {record["tgi"]} on {outside["date"] or args.until}; '
+              f'field {next(iter(record.get("fields", {})), "byte " + str(record.get("first_byte", "-")))}')
     if not artifacts_exact(report):
         until = first['date'] if first else args.until
         print('localize (replay from original start save through failing month): ' +
@@ -522,6 +548,9 @@ def print_envelope(envelope):
           f'{st["varying_decoded_fields"]} decoded/structure fields, {st["varying_opaque_bytes"]} opaque byte fields, '
           f'{st["varying_digest_fields"]} digest fields vary; median decoded numeric spread '
           f'{st["median_decoded_numeric_spread"]}', flush=True)
+    print(f'typical opaque byte spread: {st["median_opaque_byte_spread"]}; '
+          f'digest numeric spreads: {json.dumps(st["digest_spreads"], sort_keys=True)}', flush=True)
+    print('Observed ranges do not prove determinism or preserve correlations.', flush=True)
 
 
 def parser():
@@ -546,19 +575,23 @@ def parser():
         sub.add_argument('--turbo', action='store_true', help='request turbo (only our simulator supports it)')
         sub.add_argument('--clock', choices=('fixed', 'original'), default='original',
                          help='original scheduler (default); fixed replaces only the scheduler for an explicit experiment')
-        sub.add_argument('--comparison', choices=('exact', 'envelope'), default='exact',
-                         help='exact (default); envelope is an exploratory range diagnostic, not determinism')
+        sub.add_argument('--comparison', choices=('auto', 'exact', 'envelope'), default='auto',
+                         help='auto (default): exact for identical originals, envelope for varying originals')
+        sub.add_argument('--strict', action='store_true',
+                         help='require exact comparison; known original nondeterminism returns 3')
         sub.add_argument('--dll', type=Path, help='candidate worktree or DLL (compare only)')
         sub.add_argument('--replace', default='simulator,budget')
         sub.add_argument('--rerun', action='store_true', help='record: independently repeat an existing key')
         sub.add_argument('--repeats', type=int, default=3, help='determinism: independent original runs')
         sub.add_argument('--max-repeats', type=int, default=9,
-                         help='extend originals until the varying-field set stops growing (default 9)')
+                         help='upper bound for --repeats (default 9); no implicit extra games')
     return p
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.strict:
+        args.comparison = 'exact'
     try:
         if args.seconds < 30 or args.seconds > 3600 or not 3 <= args.repeats <= args.max_repeats <= 50:
             raise ValueError('--seconds must be 30..3600 and 3 <= --repeats <= --max-repeats <= 50')
@@ -582,9 +615,7 @@ def main(argv=None):
             if fingerprint(files, manifest['settings'])[0] != key:
                 raise ValueError(f'input changed during comparison; no verdict: {run}')
             report = compare_cached(entry, run, rule=args.comparison)
-            compatible = 'within-envelope' if report['comparison_rule'] == 'observed-envelope' else 'exact'
-            report.update(key=key, baseline_repeatability=qualification(entry), run=str(run),
-                          verdict=compatible if artifacts_exact(report) else 'different')
+            report.update(key=key, baseline_repeatability=qualification(entry), run=str(run))
             window = load_json(run / 'verdict.json')
             report['window_exact'] = window['window_exact']
             report['save_date'] = window['save_date']
@@ -600,9 +631,6 @@ def main(argv=None):
             if args.comparison == 'exact' and report['baseline_repeatability'] == 'nondeterministic':
                 print('originals are nondeterministic; differences are diagnostic, no regression verdict')
                 return 3
-            if args.comparison == 'envelope' and report['envelope_status'] in ('unverified', 'growing'):
-                print('sampling incomplete; run determinism to qualify the cached comparison')
-                return 3
             return 0 if artifacts_exact(report) else 1
         if entry.exists() and args.command == 'record' and not args.rerun:
             _baseline_intact(entry)
@@ -612,11 +640,9 @@ def main(argv=None):
             print_envelope(envelope)
             if args.comparison == 'exact':
                 return 3 if qualification(entry) == 'nondeterministic' else 0
-            return 0 if mode in ('exact', 'envelope') else 3
+            return 0
         count = args.repeats if args.command == 'determinism' else 1
-        limit = args.max_repeats if count > 1 and args.comparison == 'envelope' else count
-        mode = 'unverified'
-        for attempt in range(limit):
+        for attempt in range(count):
             run = run_game(args, generated, [], args.original_dll, 'original')
             # Reject runs if a source changed underneath the slot mirror or DLL copy.
             if fingerprint(files, manifest['settings'])[0] != key:
@@ -631,12 +657,10 @@ def main(argv=None):
             write_json(entry / 'envelope.json', envelope)
             print_envelope(envelope)
             print('sampling: ' + mode, flush=True)
-            if attempt + 1 >= count and (args.comparison == 'exact' or mode in ('exact', 'envelope') or count == 1):
-                break
         print('baseline repeatability: ' + qualification(entry))
         if args.comparison == 'exact':
             return 3 if qualification(entry) == 'nondeterministic' else 0
-        return 0 if mode in ('exact', 'envelope') else 3
+        return 0
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print('golden: ' + str(exc), file=sys.stderr)
         return 2

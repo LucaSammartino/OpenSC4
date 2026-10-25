@@ -188,7 +188,7 @@ class GoldenTests(unittest.TestCase):
         key, manifest = 'c' * 64, {'settings': {}}
         common = ['--city', 'Test', '--until', '2026-03-01', '--output', str(self.root)]
         defaults = golden.parser().parse_args(['record'] + common)
-        self.assertEqual((defaults.clock, defaults.comparison), ('original', 'exact'))
+        self.assertEqual((defaults.clock, defaults.comparison, defaults.strict), ('original', 'auto', False))
         with patch.object(golden, 'prepare', return_value=(key, manifest, '', {})), \
                 patch.object(golden, 'fingerprint', return_value=(key, manifest)), \
                 patch.object(golden, 'run_game', return_value=run) as game, \
@@ -203,12 +203,15 @@ class GoldenTests(unittest.TestCase):
             self.assertEqual(game.call_count, 2)
             self.assertEqual(game.call_args.args[2], ['budget', 'simulator'])
             golden.cache_record(self.root / 'golden', key, manifest, self.make_run('drift', b'different'))
-            self.assertEqual(golden.main(candidate), 3)
+            self.assertEqual(golden.main(candidate), 0)
             self.assertEqual(game.call_count, 3)
+            self.assertEqual(golden.main(candidate + ['--strict']), 3)
+            self.assertEqual(game.call_count, 4)
 
     def test_script_has_a_full_save_and_replay_preserves_history(self):
         generated = golden.input_script(None, '2026-04-01')
-        self.assertIn('2026-04-01 pause\n2026-04-01 digest\n2026-04-01 save\n', generated)
+        self.assertIn('2026-04-01 digest\n2026-04-01 save\n2026-04-01 mark GOLDEN_FULL_SAVE_COMPLETE\n', generated)
+        self.assertNotIn('pause', generated)
         command = golden.shadow_command('FC4 Test', 'Konradshohe', '2026-03-01', Path('candidate'))
         self.assertIn('--profile shadows', command)
         self.assertIn('--until 2026-03-01', command)
