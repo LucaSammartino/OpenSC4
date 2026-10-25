@@ -11198,6 +11198,7 @@ int main(int argc, char** argv) {
     if (mode == "--ini-disable-disasters") return DisastersFactoryTest(dll, ini, false);
     if (mode == "--ini-netocc-shadow-factories") return NetOccShadowRegistrationTest(dll, ini);
     if (mode == "--ini-netocc-line-factory") return NetOccLineRegistrationTest(dll, ini);
+    if (mode == "--ini-netocc-pole-factory") return NetOccPoleRegistrationTest(dll, ini);
     if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
     if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
     if (mode == "--ini-lotrec-boundary") return LotrecBoundaryTest(dll, ini, log, true);

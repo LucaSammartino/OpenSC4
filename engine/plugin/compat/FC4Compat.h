@@ -81,6 +81,10 @@ enum class Direct : unsigned {
     // advisors.md §4.2 native calls (AD10): plain cdecl, the caller pops.
     UpdateResourcesFromDirectory,  // int32 (uint32 group, const char* dir), pops 8, EAX ignored
     LoadPackageScripts,            // int32 (cISCLua* lua, uint32 group, uint32 firstPackage), pops 12, EAX ignored
+    // The occupant's lazy placeable object (prop-occupant.md §6.1, occupant-manager.md §13.1 slot 20):
+    PlaceablePoolAllocate,  // FUN_005EBDF0, the placeable pool's allocate: cdecl void* (uint32_t size = 0x30,
+                            //   unread), the caller pops
+    PlaceableConstruct,     // cSC43DPlaceableObject constructor 0x005EC370: thiscall (), pop 0, EAX = this
     Count
 };
 
