@@ -425,6 +425,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotrecview_shadow",
                                   // Private native draft planning vs read-only Rust replay.
                                   "nettool_plan_shadow", "powerline_plan_shadow",
+                                  // Isolated GZ buffers and read-only command parsing, default off.
+                                  "gzfw_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
