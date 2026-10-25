@@ -679,21 +679,46 @@ first record.
 
 **Solve** *[compat]*:
 
-1. Propagate all constraints once. Any empty range fails.
+1. Propagate from **all unsolved vertices until no affected vertices remain**, before the first pick. This is
+   not one sweep in hash order; the ordered work sets and equality rule are below. Any empty range fails.
 2. Repeat while vertices remain:
-   1. **Pick** a vertex (`0x0065ED80`): the unsolved vertex with the **narrowest** range, in the iteration order of
+   1. **Pick** a vertex (`0x0065ED80`): first pop a pending `(vertex, height)` pair from the stack at `+0x50`, if
+      present. Otherwise choose the unsolved vertex with the **narrowest** range, in the iteration order of
       the unsolved set (below). A width (max − min) below 0 fails the solve (the vertex id is stored at `+0x10`); a
       width strictly below the best so far becomes the new best, so **the first of equal widths wins**; a NaN width
-      is skipped; the scan stops as soon as the best width is exactly 0. *(The pick first pops a pending
-      (vertex, height) pair from a stack at `+0x50`, but nothing ever pushes onto that stack: the only writes are the
-      pop, the clear at `0x0065FD7F`–`0x0065FDA4` and the constructor. It is always empty.)*
-   2. **Choose its height**: the preferred value, if set and inside the range. Otherwise, if a preferred range is set
+      is skipped; the scan stops as soon as the best width is exactly 0.
+   2. **Choose its height**, for a hash pick: the preferred value, if set and inside the range. Otherwise, if a preferred range is set
       and overlaps the range (within 0.01), narrow the range to the overlap; then clamp the **initial height** into
-      the range.
-   3. Pin it and propagate through its slope, smoothness and equality constraints. Any empty range fails.
+      that picking window. This preference does not become a hard constraint on the other vertices. A stack pop
+      already supplies its height.
+   3. Pin a hash-picked vertex at the chosen height and propagate through its slope, smoothness and equality
+      constraints until the affected work sets are empty. Record the solution and erase the picked/popped vertex
+      from the unsolved set. Any empty range fails.
 3. The result is true when every vertex got a height.
 
 A failed solve dumps its constraints (debug only) and returns false.
+
+**Propagation order and equalities (NT36, Tempelhof draft).** The initial pass (`0x006606E0`, called at
+`0x00660B49`) inserts every unsolved id into an ordered set. The propagator (`0x00660390`) alternates two ordered
+sets: visit the current set in **ascending signed vertex-id order**, using the ranges as changed by earlier
+visits; collect affected ids in the other set; clear the current set; swap and repeat. Duplicates in a work set
+are suppressed. Stop when the next current set is empty. After a non-singleton hash pick the same propagator
+starts with just that id (`0x00660B84`–`0x00660B9E`).
+
+Equality insertion merges the pair into an ordered **equivalence group** (`0x0065FDB0`); propagation is over
+the group's ascending ids, not just the most recently inserted pair. For a non-singleton source vertex, intersect
+each other group member's allowed range with the source's current allowed range. Enqueue each member whose
+bounds change, and reject an intersection inverted by more than 0.01 (`0x0065F440`–`0x0065F4A7`, range helper
+`0x0065EC40`–`0x0065EC84`, `0x0065E6A0`–`0x0065E701`). Equality propagates **allowed bounds**, not initial heights,
+preferred values or preferred ranges. Thus before the first pick an isolated equality group has the common
+intersection of its allowed ranges, but each vertex still has its own initial height and preferences.
+
+A singleton source instead propagates its fixed height through the group (`0x006601C0`, `0x0065F2C0`). When a
+propagation visit first finds a singleton not already marked as selected/queued, mark it and **append its
+`(id,height)` to the pending stack** (`0x006604B7`–`0x006604F5`, append helper `0x006600D0`–`0x0066011A`). Subsequent
+picks pop those pairs last-in, first-out before scanning hash buckets (`0x0065ED8F`–`0x0065EDB9`). This corrects
+the former claim that nothing pushes onto this stack. The initial Tempelhof ranges are non-singletons, so this
+stack is empty at its first hash pick; §9.8.1 traces both phases.
 
 **Iteration order of the unsolved set** (answers NG1) *[compat]*. The unsolved vertices are an SGI
 `hash_map<int, …>` at `+0x28`, with the identity hash. To reproduce the tie-break exactly:
