@@ -4,11 +4,6 @@ The coordinator's queue runs each worktree's DLL in an isolated game slot and wr
 The [lane prompt](../.claude/workflows/fc4-lane.js) owns request cadence, labels, waiting and acceptance.
 <!-- Stable function-compare interface is documented at the end of this file. -->
 
-The coordinator runs a **game queue**: it watches every worktree for request files, runs each request in the real
-game with that worktree's `FreeCity4.dll`, and writes the result back into the same worktree. Several games run at
-once (one per *slot*), each with its own copy of the test region, so your run does not disturb anyone
-else's and nobody else's run disturbs yours. You never start the game yourself.
-
 ## Submit a request
 
 Build your DLL, then write `build-runs/game-queue/<label>.req` in one go or rename a temporary file.
@@ -110,7 +105,6 @@ After the request's `timeout` plus 15 minutes without a verdict, return `blocked
   else WM_CLOSE; Yes/No remains open/reported. `dialog:` records title/text; "Error" before attach is `failed-start`.
 - Each slot starts from a fresh copy of the test region, so a city changed or saved by your run does not carry over
   to the next run.
-- Do not start the game yourself and do not write to `Documents\SimCity 4\`; the queue owns the game.
 
 ## Stable function compare interface (run 7)
 
