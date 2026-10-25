@@ -29,6 +29,7 @@ except ImportError:
 
 REPO = Path(__file__).resolve().parents[1]
 SEED = 0x5EED1234
+SAVE_GRACE_MS = 60000
 SCHEMA = 1
 
 
@@ -272,7 +273,8 @@ def prepare(args):
                 'session_seed': SEED, 'slot': args.slot if args.backend == 'direct' else 'queue-selected',
                 'timeout_seconds': args.seconds, 'cpu_count': 1,
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
-                'full_save': True, 'environment': 'explicit switches; FC4_* removed in direct backend',
+                'full_save': True, 'script_save_grace_ms': SAVE_GRACE_MS,
+                'environment': 'explicit switches; FC4_* removed in direct backend',
                 'backend': args.backend, 'autotest_end': 'quit', 'window': 'minimized after load',
                 'reach': reach_supported(root) if args.backend == 'queue' else False}
     settings['queue_parallel'] = args.backend == 'queue'
@@ -341,6 +343,7 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     ini.write_text(f'disable = {disable}\nenable = {",".join(selected)}\nobserve = 1\n'
                    f'session_seed = {SEED}\npacing = original\nsim_turbo = {int(args.turbo)}\n'
                    f'sim_fixed_step = {int(args.clock == "fixed")}\n'
+                   f'script_save_grace_ms = {SAVE_GRACE_MS}\n'
                    f'sim_turbo_frame_ms = 250\npopup_dialogs = 0\nautotest_unpause = 2\n'
                    f'autotest_end = quit\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
     if args.backend == 'queue' and reach_supported(args.harness_root):
@@ -370,6 +373,8 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
             raise ValueError(f'game harness failed ({process.returncode}); see {work / "transport.txt"}')
     text = (result / 'game.log').read_text(encoding='utf-8-sig', errors='replace')
     verdict = _validate_log(text, args.until, selected, result)
+    if f'script: full-save watchdog grace {SAVE_GRACE_MS} ms (script_save_grace_ms)' not in text:
+        raise ValueError(f'DLL did not acknowledge script_save_grace_ms; not cached: {result}')
     if args.clock == 'fixed' and 'sim_fixed_step ON: 64 agent deliveries/frame' not in text:
         raise ValueError(f'DLL did not acknowledge sim_fixed_step; not cached: {result}')
     digests = parse_digests(text)
@@ -446,14 +451,15 @@ def run_queued(args, dll, ini, result, work):
     result.mkdir()
     temporary.rename(queue / (label + '.req'))
     verdict_file = args.output / 'game-results' / (label + '.verdict')
-    verdict = wait_snapshot(args, verdict_file, result, work)
+    try:
+        verdict = wait_snapshot(args, verdict_file, result, work)
+    finally:
+        # Preserve labelled diagnostics even when validation/export fails.
+        for suffix, name in (('.log', 'game.log'), ('.reach.tsv', 'reach.tsv')):
+            source = verdict_file.with_suffix(suffix)
+            if source.is_file():
+                shutil.copyfile(source, result / name)
     (result / 'harness.txt').write_text(verdict, encoding='utf-8')
-    log = verdict_file.with_suffix('.log')
-    if log.exists():
-        shutil.copyfile(log, result / 'game.log')
-    reach = verdict_file.with_suffix('.reach.tsv')
-    if reach.is_file():
-        shutil.copyfile(reach, result / 'reach.tsv')
     if not verdict.startswith('verdict: clean'):
         raise ValueError(f'queue did not finish cleanly; see {result / "harness.txt"}')
     slot_match = re.search(r'in slot (\d+) after', verdict)

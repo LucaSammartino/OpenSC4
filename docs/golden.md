@@ -25,6 +25,10 @@ digest, full save and completion mark are appended on the end date, with
 before quitting; no terminal pause or later game day is requested. Both the log and the
 saved simulator date must reach exactly `--until`. Stalled, incomplete, overshot
 or wrong-subsystem runs cannot be published.
+Golden explicitly requests `script_save_grace_ms = 60000` (plugin default 0/off)
+to allow the original full save to complete past the normal ten-second watchdog
+limit. The DLL must acknowledge this switch. The allowance applies only during
+scripted full saves and remains bounded; it changes no simulation data.
 
 The default `--clock original` leaves **every subsystem original**, with no
 shadows or compares. `record` launches one original, then reuses that immutable

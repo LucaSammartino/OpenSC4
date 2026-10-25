@@ -18,6 +18,7 @@
 #include "FC4DiagLogic.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
+#include "FC4Script.h"
 #include "fc4.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -386,6 +387,11 @@ DWORD WINAPI ThreadProc(void*) {
         // Under autotest, a stall outside FreeCity4 is sampled after stallMs
         // too, so the evidence is in the log before the 10 s verdict.
         in.noTickMs = AutotestEnabled() && noTickMs > stallMs ? stallMs : noTickMs;
+        // Full saves may take longer than autotest's normal ten-second stall
+        // limit. This explicit, bounded script-only allowance defaults to zero.
+        const DWORD saveGrace = ScriptSaveGraceMs();
+        if (saveGrace > in.stallMs) in.stallMs = saveGrace;
+        if (saveGrace > in.noTickMs) in.noTickMs = saveGrace;
         const StallResult st = EvaluateStall(in);
         if (st.kind != StallKind::None) {
             const DWORD key = st.kind == StallKind::InsideFC4 ? (st.since | 1u) : (st.since & ~1u);

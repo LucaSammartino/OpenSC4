@@ -736,6 +736,13 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      on the existing lot at (x,z) to state 0 or 1. It logs filter counts, setter calls and before/after states,
      and calls no port-developer method.
 
+     `script_save_grace_ms = 0` is **off by default**. An explicit positive value
+     (clamped to 10000..120000 ms) raises the watchdog's stall threshold only while
+     a scripted full `SaveCity` executes. Golden runs request 60000 ms because the
+     original full save can exceed autotest's ten-second stall limit. Fast saves
+     and all other activity keep the ordinary watchdog rules; a full save exceeding
+     the grace still fails. No simulation steps or saved fields are changed.
+
      `save_as <name>` is not available (a parse error that says so). The interface exists
      (`SaveCity(cIGZString const& path, bool fast)`, slot 15, pop 8), but what saving under another path does is
      not documented: whether the city's save path and its region entry move to the new file, and what the region
