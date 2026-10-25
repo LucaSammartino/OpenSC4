@@ -97,7 +97,8 @@ std::vector<Input> LoadCorpus(Function& fn) {
     return result;
 }
 bool Record(Function& fn,const Input& input) {
-    if (!persist||source>=2||fn.records>=recordLimit) return false;
+    const bool recording=persist||(modeOverride.empty()&&std::string(fn.mode)=="record");
+    if (!recording||source>=2||fn.records>=recordLimit) return false;
     Input clean;if (!Canonical(fn,input,clean,true)) return false;
     Bytes payload;U32(payload,fn.argCount);for (auto arg:clean.args) U32(payload,arg);
     U32(payload,uint32_t(clean.windows.size()));
@@ -350,7 +351,6 @@ void InplaceStartup() {
     const auto mutations=Setting("inplace_mutate",nullptr);
     for (auto& fn:functions) {
         if (!Selected(selection,fn)) continue;fn.selected=true;fn.mutate=Selected(mutations,fn);
-        if (std::string(fn.mode)=="record") persist=true;
         try {fn.specs=fc4::compare::Parse(fn.windows,fn.argCount);fn.valid=true;}
         catch (const std::exception&) {Log("inplace install name=%s installed=0 reason=invalid-window-schema",fn.name);continue;}
         fn.records=unsigned(LoadCorpus(fn).size());
@@ -366,6 +366,10 @@ void InplaceReport() {
 }
 void InplaceCityLoaded() {
     if (!active) return;
+    // Getters can arrive on another game thread during this batch. Serialize
+    // exports and counters with natural dispatch; nested hooks inherit depth.
+    const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
+    ++depth;
     if (fixtures) {
         source=1;
         for (unsigned sample=0;sample<16;++sample) for (auto& fn:functions) {
@@ -387,6 +391,7 @@ void InplaceCityLoaded() {
             for (unsigned i=0;i<denseCount;++i) {Input perturbed=input;if (Perturb(fn,perturbed,i)) {source=3;Replay(fn,perturbed);} }
         }
     }
-    source=0;InplaceReport();
+    source=0;--depth;
+    if (locking) {ReleaseSRWLockExclusive(&sampleLock);InplaceReport();}
 }
 } // namespace fc4
