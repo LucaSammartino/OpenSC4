@@ -76,6 +76,33 @@ plus `-LuaScript:"<slot script>"` only for scripts. No command-line difference
 eliminated DirectDraw failure. The first measured change that enabled progress
 after Lua entry was the wait algorithm; no renderer workaround is claimed.
 
+The no-script house controls used the literal regress shadows profile, turbo,
+`close_dialogs=1`, end date 2026-06-01 and the same DLL. Both reached the target
+and quit cleanly with zero exception/stall/RTC/overrun/ref counts:
+
+| Control | Final date | Days/s | Exact shadow lines | Findings |
+|---|---|---|---|---|
+| `luacmd27-house-noext-r6`, slot 12 | 2026-06-15 | 0.93 | 867/873 | occmgr 0/5; landvalue 5/6 |
+| `luacmd27-house-ext-r8`, slot 11 | 2026-06-16 | 0.89 | 879/884 | occmgr 0/5; landvalue exact |
+
+**Same verdict, different shadow exactness: the extension control criterion is
+not fully met.** These differently paced runs do not establish causation for
+the extra landvalue mismatch without the extension. First mismatches are
+`occmgr`: noext log line **3557**, ext log line **3559** (2026-02-01), and
+`landvalue`: noext log line **5760** (2026-06-07, intrinsic/total mismatch at
+tract 22,58). No engine fix was attempted. The existing `run_summary.ps1` reader
+provided these counts; raw evidence, `summary.tsv`, `per_key.tsv` and the full
+per-key JSON are in `build-runs/suite/luacmd27-r2/`. Empty proof-run shadow counts
+give no exactness credit. The 180-second house attempt r5 failed before city load
+and is retained separately from the completed 600-second controls.
+
+Round-two gate: `python -m pytest tools/tests -q --tb=short` printed **6 failed,
+344 passed in 89.54s**. All six failures now expose `spawnSync cmd.exe EPERM`
+with null process status; no other failure remains. The launcher/evidence tests
+passed **10/10**. The once-only final `qbuild.py --wt <WT> all` printed Cargo
+**7844 passed**, clippy **0 diagnostics**, native **46/46 edges**, CTest
+**117/117**, `qbuild: PASS`. No binaries, saves or ABI changes are committed.
+
 Use reserved slots 11/12 for this lane. Never write to the original Regions
 folder. All nine candidate rows use region `FC4 Test`, city `Konradshohe`, a
 2028-02-01 end date, and set `full`; none is a smoke test. The round trip also
@@ -148,7 +175,7 @@ The one required `qbuild.py --wt <WT> all` invocation passed: **7,844 Cargo
 tests**, **0 clippy diagnostics**, native build **302/302 edges**, CTest
 **117/117**, final **`qbuild: PASS`**. The full Python gate remains failed.
 
-**I/O remains unknown.** The first probes try `io.open`, then Lua 4's
+**Round-one I/O was unknown; round two proved io.open above.** The first probes tried `io.open`, then Lua 4's
 `openfile/write/closefile`. Neither an entry marker, text log nor snapshot was
 produced before the graphics failure. This does not prove the I/O library is
 missing. `fc4.log` uses those backends when available; otherwise the documented
