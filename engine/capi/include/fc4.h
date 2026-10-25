@@ -13025,4 +13025,22 @@ uint32_t fc4_helicopter_shadow_fixture(const fc4_ostream* output);
 }
 #endif
 
+/* Owned replacement configuration geometry; the host copies callback data into
+ * its game-vector ABI view. No native configuration factory is involved.
+ * free requires the owner to exclude concurrent calls. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_lot_configuration fc4_lot_configuration;
+fc4_lot_configuration* fc4_lot_configuration_new(void);
+void fc4_lot_configuration_free(fc4_lot_configuration* config);
+bool fc4_lot_configuration_load(const fc4_lot_configuration* config,
+    const fc4_props* exemplar, uint32_t detail);
+bool fc4_lot_configuration_snapshot(const fc4_lot_configuration* config,
+    fc4_lot_configuration_fields* out,
+    fc4_lotdev_cfg_object_callback visit, void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

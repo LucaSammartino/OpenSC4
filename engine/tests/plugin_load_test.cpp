@@ -11097,6 +11097,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
 #include "plugin_netocc_registration_test.inc"
 #include "plugin_lotrec_boundary_test.inc"
+#include "plugin_lotconf_ownership_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11205,6 +11206,7 @@ int main(int argc, char** argv) {
     if (mode.rfind("--ini-netrules-", 0) == 0) return NetRulesRegistrationTest(dll, ini, log, mode);
     if (mode == "--ini-lotrec-boundary") return LotrecBoundaryTest(dll, ini, log, true);
     if (mode == "--ini-lotrec-default") return LotrecBoundaryTest(dll, ini, log, false);
+    if (mode == "--ini-lotconf-ownership") return LotConfigurationOwnershipTest(dll, ini);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

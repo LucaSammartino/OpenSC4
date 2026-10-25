@@ -22,6 +22,7 @@
 #include "FC4GameContainers.h"
 #include "FC4GameList.h"
 #include "FC4Properties.h"
+#include "FC4CoreProps.h"
 #include "FC4RefAudit.h"
 #include "cRZBaseString.h"
 
@@ -37,45 +38,9 @@ namespace {
 
 // 3.2: the exemplar properties.
 constexpr uint32_t kPropName = 0x20;
-constexpr uint32_t kPropVersion = 0x88EDC789;
-constexpr uint32_t kPropSize = 0x88EDC790;           // LotConfigPropertySize
 constexpr uint32_t kPropFamily = 0x88EDC791;         // LotConfigPropertyFamily
-constexpr uint32_t kPropMaxSlopeFoundation = 0x88EDC792;
-constexpr uint32_t kPropMaxSlope = 0xE99B068C;       // MaxSlopeAllowed
-constexpr uint32_t kPropMinSlope = 0x699B08A4;       // MinSlopeAllowed
-constexpr uint32_t kPropGrowthStage = 0x27812837;
-constexpr uint32_t kPropWater = 0x89136440;
-constexpr uint32_t kPropZoneTypes = 0x88EDC793;
-constexpr uint32_t kPropWealthTypes = 0x88EDC795;
-constexpr uint32_t kPropPurposeTypes = 0x88EDC796;
-constexpr uint32_t kPropDoConstruction = 0xE99B068D;
 constexpr uint32_t kPropWalls = 0x88EDC798;
 constexpr uint32_t kPropFences = 0x88EDC797;
-constexpr uint32_t kPropRoads = 0x4A4A88F0;
-constexpr uint32_t kPropFoundation = 0x88FCD877;
-constexpr uint32_t kPropObjectBase = 0x88EDC900;     // 0x88EDC900 + k
-constexpr uint32_t kPropObjectEnd = 0x88EDCE00;      // 3.5: the scan's end
-
-// 3.5: at most 1280 objects (the shipped international airport).
-constexpr uint32_t kMaxObjects = 1280;
-// 3.5: the record's value count (an object with fewer is skipped).
-constexpr size_t kMinObjectValues = 10;
-
-// 3.6: the position correction's float constant (0.040000003) and 3.7's box
-// floats, as their bit patterns (the values the original stores).
-constexpr float kPositionEpsilon = 0.040000003f;   // 0x3D23D70B
-constexpr float kFoundationRectMax = 0.6f;         // 0x3F19999A
-constexpr float kFoundationRectMin = 0.4f;         // 0x3ECCCCCD
-
-// foundations 18: one rounding to 24-bit precision (f64 -> f32), as the
-// original's every arithmetic step does on the x87 at PC 24-bit.
-inline float R24(double x) { return static_cast<float>(x); }
-
-// 3.5: one signed 16.16 fixed-point value as a float: `fild`, multiply by
-// the double 2^-16, store float (lot-developer.md 17.1).
-inline float Fixed16(uint32_t v) {
-    return R24(static_cast<double>(static_cast<int32_t>(v)) * (1.0 / 65536.0));
-}
 
 // 5.1 slot 4: the caller's string is assigned through its own operator=
 // (string slot 13) and the reference to it is returned.
@@ -90,7 +55,15 @@ cFC4LotConfiguration::cFC4LotConfiguration() {
     Reset();
 }
 
-cFC4LotConfiguration::~cFC4LotConfiguration() {}
+cFC4LotConfiguration::~cFC4LotConfiguration() {
+    fc4_lot_configuration_free(core_);
+}
+
+cIGZUnknown* CreateFC4LotConfiguration() {
+    auto* config = new cFC4LotConfiguration();
+    config->AddRef();
+    return static_cast<cFC4ISC4LotConfiguration*>(config);
+}
 
 // 3.1 step 3: every field back to its default (2).
 void cFC4LotConfiguration::Reset() {
@@ -313,76 +286,6 @@ SC4Vector<int8_t>* cFC4LotConfiguration::GetFenceSegmentPositionArray() {
     return reinterpret_cast<SC4Vector<int8_t>*>(&fencePositions_);  // 5.1 slot 30
 }
 
-void cFC4LotConfiguration::SetBits(std::vector<bool>& set, size_t size, const std::vector<uint8_t>& values) {
-    set.assign(size, false);
-    // 3.3: each value below the set's size sets that bit; others are
-    // dropped without a message. An absent or empty list sets nothing.
-    for (uint8_t v : values) {
-        if (v < size) set[v] = true;
-    }
-}
-
-void cFC4LotConfiguration::CorrectPositions() {
-    // 3.6: the position correction with the lot box (0, 0) to (16*width,
-    // 16*depth), 24-bit arithmetic (foundations 18).
-    const float minX = 0.0f, minZ = 0.0f;
-    const float maxX = R24(16.0 * static_cast<double>(width_));
-    const float maxZ = R24(16.0 * static_cast<double>(depth_));
-    const float loX = R24(minX + kPositionEpsilon);
-    const float hiX = R24(maxX - kPositionEpsilon);
-    const float loZ = R24(minZ + kPositionEpsilon);
-    const float hiZ = R24(maxZ - kPositionEpsilon);
-    for (cSC4LotConfigurationObject& o : objects_) {
-        float d;
-        if (o.x < loX) {
-            d = R24(loX - o.x);
-        } else if (o.x > hiX) {
-            d = R24(hiX - o.x);
-        } else {
-            d = 0.0f;
-        }
-        if (d != 0.0f) {
-            o.x = R24(o.x + d);
-            o.rectMinX = R24(o.rectMinX + d);
-            o.rectMaxX = R24(o.rectMaxX + d);
-        }
-        if (o.z < loZ) {
-            d = R24(loZ - o.z);
-        } else if (o.z > hiZ) {
-            d = R24(hiZ - o.z);
-        } else {
-            d = 0.0f;
-        }
-        if (d != 0.0f) {
-            o.z = R24(o.z + d);
-            o.rectMinZ = R24(o.rectMinZ + d);
-            o.rectMaxZ = R24(o.rectMaxZ + d);
-        }
-    }
-}
-
-void cFC4LotConfiguration::AppendFoundation(uint32_t type) {
-    // 3.7: the foundation record, appended after the correction (neither
-    // clamped nor filtered).
-    cSC4LotConfigurationObject o{};
-    o.type = cSC4LotConfigurationObject::Type::Foundation;  // 3
-    o.flags = 0;
-    o.rotation = cSC4LotConfigurationObject::Rotation::R0;
-    o.mirrored = false;
-    o.x = 0.5f;
-    o.y = 0.0f;
-    o.z = 0.5f;
-    o.rectMaxX = kFoundationRectMax;
-    o.rectMaxZ = kFoundationRectMax;
-    o.rectMinX = kFoundationRectMin;
-    o.rectMinZ = kFoundationRectMin;
-    o.foundationIID = type;
-    // 3.7 [choice]: the object ID is 0 (the original leaves stack garbage;
-    // nothing reads a foundation object's ID).
-    o.objectID = 0;
-    objects_.push_back(o);
-}
-
 bool cFC4LotConfiguration::Load(cGZPersistResourceKey const& key, uint8_t detail) {
     // 3.1: the whole load.
     FC4_X87_CHECK("lot configuration Load");
@@ -406,45 +309,45 @@ bool cFC4LotConfiguration::Load(cGZPersistResourceKey const& key, uint8_t detail
         id_ = key.instance;
     }
 
-    // 3.1 step 5: the version. Absent or 0 -> release and return false (the
-    // name and ID stay set).
-    {
-        std::vector<uint32_t> v;
-        uint32_t version = 0;
-        if (fc4::props::GetU32s(holder, kPropVersion, v) && !v.empty()) version = v[0];
-        if (version == 0) return false;
-    }
+    // Rust owns the parsed fields and geometry. Only the ABI adapter's arrays
+    // are projected here; no native cSC4LotConfiguration is constructed.
+    fc4::props::CoreProps properties(fc4::props::ToCoreAll(ex));
+    fc4_lot_configuration_fields fields{};
+    if (!fc4_lot_configuration_load(core_, properties.Get(), detail)) return false;
+    if (!fc4_lot_configuration_snapshot(core_, &fields,
+        [](void* ctx, const fc4_lotdev_cfg_object* v) {
+            auto& objects = *static_cast<std::vector<cSC4LotConfigurationObject>*>(ctx);
+            cSC4LotConfigurationObject o{};
+            o.type = static_cast<cSC4LotConfigurationObject::Type>(v->object_type);
+            o.flags = v->flags;
+            o.rotation = static_cast<cSC4LotConfigurationObject::Rotation>(v->orientation);
+            o.mirrored = v->byte3 != 0;
+            o.x = v->offset[0]; o.y = v->offset[1]; o.z = v->offset[2];
+            o.rectMaxX = v->footprint_max[0]; o.rectMaxZ = v->footprint_max[1];
+            o.rectMinX = v->footprint_min[0]; o.rectMinZ = v->footprint_min[1];
+            o.foundationIID = v->foundation;
+            o.objectID = v->tag;
+            for (size_t i = 0; i < v->n_ids; ++i) fc4::PushTrivial(o.data, v->ids[i]);
+            objects.push_back(o);
+        }, &objects_)) return false;
+    width_ = static_cast<uint8_t>(fields.width);
+    depth_ = static_cast<uint8_t>(fields.depth);
+    maxSlope_ = fields.max_slope;
+    minSlope_ = fields.min_slope;
+    maxSlopeFoundation_ = fields.foundation_slope;
+    growthStage_ = static_cast<uint8_t>(fields.growth_stage);
+    water_ = static_cast<uint8_t>(fields.water);
+    doConstruction_ = static_cast<uint8_t>(fields.construction);
+    roadSides_ = static_cast<uint8_t>(fields.roads);
+    for (size_t i = 0; i < zones_.size(); ++i) zones_[i] = ((fields.zones >> i) & 1u) != 0;
+    for (size_t i = 0; i < wealths_.size(); ++i) wealths_[i] = ((fields.wealths >> i) & 1u) != 0;
+    for (size_t i = 0; i < purposes_.size(); ++i) purposes_[i] = ((fields.purposes >> i) & 1u) != 0;
 
     // 3.2: the lot-level properties, in the table's order.
     {
-        std::vector<uint8_t> bytes;
         std::vector<uint32_t> u32s;
-        std::vector<float> f32s;
-        if (fc4::props::GetRawArrayBytes(holder, kPropSize, bytes) && bytes.size() >= 2) {
-            width_ = bytes[0];
-            depth_ = bytes[1];
-        }
         families_.clear();
         if (fc4::props::GetU32s(holder, kPropFamily, u32s)) families_ = u32s;
-        if (fc4::props::GetF32s(holder, kPropMaxSlopeFoundation, f32s) && !f32s.empty()) {
-            maxSlopeFoundation_ = f32s[0];
-        }
-        if (fc4::props::GetF32s(holder, kPropMaxSlope, f32s) && !f32s.empty()) maxSlope_ = f32s[0];
-        if (fc4::props::GetF32s(holder, kPropMinSlope, f32s) && !f32s.empty()) minSlope_ = f32s[0];
-        if (fc4::props::GetU32s(holder, kPropGrowthStage, u32s) && !u32s.empty()) {
-            growthStage_ = static_cast<uint8_t>(u32s[0] & 0xFFu);
-        }
-        water_ = 0;
-        if (fc4::props::GetU32s(holder, kPropWater, u32s) && !u32s.empty()) {
-            water_ = u32s[0] != 0 ? 1 : 0;
-        }
-        if (fc4::props::GetRawArrayBytes(holder, kPropZoneTypes, bytes)) SetBits(zones_, 16, bytes);
-        if (fc4::props::GetRawArrayBytes(holder, kPropWealthTypes, bytes)) SetBits(wealths_, 4, bytes);
-        if (fc4::props::GetRawArrayBytes(holder, kPropPurposeTypes, bytes)) SetBits(purposes_, 9, bytes);
-        doConstruction_ = 0;
-        if (fc4::props::GetU32s(holder, kPropDoConstruction, u32s) && !u32s.empty()) {
-            doConstruction_ = u32s[0] != 0 ? 1 : 0;
-        }
         walls_.clear();
         if (fc4::props::GetU32s(holder, kPropWalls, u32s)) walls_ = u32s;
         // 3.4: fences (no shipped configuration has any; [choice] bounded
@@ -469,57 +372,8 @@ bool cFC4LotConfiguration::Load(cGZPersistResourceKey const& key, uint8_t detail
                 }
             }
         }
-        roadSides_ = 8;
-        if (fc4::props::GetU32s(holder, kPropRoads, u32s) && !u32s.empty()) {
-            roadSides_ = static_cast<uint8_t>(u32s[0] & 0xFFu);
-        }
-        // 3.3: bit 3 is forced on.
-        roadSides_ |= 0x08u;
     }
 
-    // 3.5: the object array.
-    {
-        uint32_t k = 0;
-        for (; k < kMaxObjects; ++k) {
-            std::vector<uint32_t> v;
-            if (!fc4::props::GetU32s(holder, kPropObjectBase + k, v)) break;
-            if (v.size() < kMinObjectValues) continue;
-            const uint8_t type = static_cast<uint8_t>(v[0] & 0xFFu);
-            // 3.5: an object is kept when its type is 0 or its level of
-            // detail bits are below the city detail.
-            const uint32_t lod = (v[1] >> 4) & 3u;
-            if (type != 0 && lod >= detail) continue;
-            cSC4LotConfigurationObject o{};
-            o.type = static_cast<cSC4LotConfigurationObject::Type>(type);
-            o.flags = static_cast<uint8_t>(v[1] & 0xFFu);
-            o.rotation = static_cast<cSC4LotConfigurationObject::Rotation>(v[2] & 0xFFu);
-            o.mirrored = (v[2] & 0x80000000u) != 0;
-            o.x = Fixed16(v[3]);
-            o.y = Fixed16(v[4]);
-            o.z = Fixed16(v[5]);
-            o.rectMinX = Fixed16(v[6]);
-            o.rectMinZ = Fixed16(v[7]);
-            o.rectMaxX = Fixed16(v[8]);
-            o.rectMaxZ = Fixed16(v[9]);
-            o.foundationIID = v[10];
-            // 3.5: version >= 2: the object ID is v11 and the ID list starts
-            // at v12. (Every shipped configuration is version 2; the
-            // version-1 serial is not reproduced - see the Save note.)
-            o.objectID = v[11];
-            for (size_t i = 12; i < v.size(); ++i) fc4::PushTrivial(o.data, v[i]);
-            objects_.push_back(o);
-        }
-        (void)k;
-    }
-
-    // 3.6: the position correction; 3.1 step 8: the foundation object.
-    CorrectPositions();
-    {
-        std::vector<uint32_t> u32s;
-        if (fc4::props::GetU32s(holder, kPropFoundation, u32s) && !u32s.empty()) {
-            AppendFoundation(u32s[0]);
-        }
-    }
     // 3.1 steps 9-11: the capacity trim has no observable effect; Save is
     // never reached (version 2); the exemplar releases with `ex`.
     return true;
