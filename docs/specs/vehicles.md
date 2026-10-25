@@ -1129,8 +1129,8 @@ direction vector, zero, head colour byte, zero. A null result or failure to quer
 `0x4A416254` returns false without appending. A successful queried reference is
 released locally after the list has retained its own reference.
 
-Before appending, clear the new car's flag 2, copy the previous car's speed
-(slot 49), MoveTo the cached point with the previous direction, and place it
+Before appending, clear the new car's flag 2, set the previous car/head as its
+leader (slot 49, SetLeader), MoveTo the cached point with the previous direction, and place it
 through slot 132 with cached network/path, null point collection and true.
 If the head is in state 16, push state 16 on the car with timeout −1 and other
 arguments zero. No fill-to-target loop is permitted. Evidence:
@@ -1186,8 +1186,10 @@ through slot 132 with true. Let D=front−rear. If its length is below
 `f32(0.00001)`, use saved direction unless it is componentwise within
 `f32(0.0001)` of the unset vector or also shorter than that length threshold;
 otherwise use the head direction. Centre is `front − D × 0.5` **before**
-normalizing D; MoveTo with normalized D and save that direction. Copy the head's
-speed through slot 49. In a complete consist, when the last car leaves a
+normalizing D; MoveTo with normalized D and save that direction. Set each car's
+leader through slot 49 to the preceding car, or the head for the first car,
+then use this car as the preceding object for the next list entry. This rebuilds
+the leader chain; it does not copy speed. In a complete consist, when the last car leaves a
 different non-null previous network, query that old network's cell and notify
 the newly selected path interface's slot 39 with `(head, cellX, cellZ)` before
 placing the car. Evidence: `0x0055A53E–0x0055A894`.
@@ -1200,6 +1202,11 @@ automaton slot 33; any other result requests `(0, f32(0.6))`. Release the query
 reference. Unclassified cars, no network or failed QI add no opacity request.
 This override changes visibility, not the chosen path or car length.
 Instruction evidence: `0x00557320–0x005573BC`.
+
+Leader-chain vector: after creation or a following pass, a head H with cars
+A, B, C has leaders `A→H`, `B→A`, `C→B`, regardless of their current speeds.
+Evidence: creation `0x0055AA26–0x0055AA2D`, following
+`0x0055A83F–0x0055A861`; inherited slot name [automata.md](automata.md) §11.
 
 #### StartTrip and the independent rail-accident check
 
@@ -1344,7 +1351,7 @@ audit is tracked with VH1; this subsection does not close that portion.
 | Curve triggers and T exceeds duration limit | Observe two collision/flag/event sequences. |
 | T equals duration limit and curve fails | No duration derail. |
 
-### 12.13 Tank firing and interface boundary (VH1, partial)
+### 12.13 Tank player drive, firing and interface boundary (VH1)
 
 Tank Init calls inherited Vehicle Init before its owner model setup. Initial
 turret yaw is zero, barrel elevation `f32(0.2)`, shot power 65 and owner activity
@@ -1355,12 +1362,73 @@ configures gauges `[0,f32(0.4),elevation]`, `[0,2π,2π−yaw]` and `[30,100,pow
 sets channel-7 action limit 12, action count zero, key `0xAC0ECE77`, and repeat
 delay 2000 ms. Evidence: `0x0054C880`, `0x0054A780`.
 
-The tank translator falls straight through to Vehicle translation when slot 18
-is true. Otherwise owner aiming/firing precedes that Vehicle call. The target
-for mouse aiming comes from unprojecting drive-state screen coordinates
-`+0x214/+0x218`; yaw uses the horizontal target/body directions. The exact aim
-rate/elevation/power arithmetic remains in VH1 pending its final instruction
-audit; do not infer projectile velocity from these screen coordinates.
+The translator sets owner activity byte `+0x340` true. When slot 18 is true,
+only Vehicle translation follows. Otherwise the owner performs the following
+aiming, firing, adjustment and gauge operations before Vehicle translation.
+
+Yaw is first brought into the **inclusive** interval `[0,P]`, where
+`P=bits(0x40C90FDB)` (binary32 2π), by repeated subtraction/addition of P.
+An existing yaw equal to P remains P. Aim command timer `state+0x9C >=0`
+requests unprojection of integer screen coordinates `+0x214/+0x218` through
+the view interface, slot 36, with final argument zero. Failure leaves yaw
+unchanged. Let U be the normalized horizontal vector from body position to
+the returned world point and V the normalized horizontal body direction.
+Compute `A=f32(acos(V·U))`; if `U.z×V.x−V.z×U.x >0`, replace A by
+`f32(P−A)`. The dot-product helper is acos: the export's TransformDirection
+name is misleading (`0x009F0090`, acos instructions `0x009F00C8–0x009F0118`).
+These normalizations have no zero-length guard or dot clamp in this owner.
+
+Let `d=A−yaw` and `step=clamp(d,−r×dt,r×dt)`, with
+`r=bits(0x3B09421E)` radians/ms. If `abs(d)>bits(0x40490FDB)` (binary32 π),
+subtract step from yaw; otherwise add it. Store the result binary32. There is
+no second wrap in this translation, and the step magnitude is bounded using
+`abs(d)`, not the smaller wrapped angular distance. Evidence:
+`0x0054B074–0x0054B33D`.
+
+The power-cycle command (`+0xA0`) acts when its timer is **at least 250 ms**:
+reset that timer to zero, add 5 to power, wrap a result **greater than 100**
+to 30, and clamp to `[30,100]`. This occurs before firing. After firing, apply
+the adjustment pairs below in table order. Each acts only if its current
+timer is nonnegative and `current−history >0`. Add/subtract that difference
+times the binary32 rate, then clamp/store the owner's value before processing
+the next pair. Thus simultaneous adjustments can differ from a single net sum.
+
+| Current/history timer | Adjustment | Bounds |
+|---|---|---|
+| `+0x90/+0xC4`, then `+0x94/+0xC8` | Elevation + then −, rate `bits(0x3983126F)` radians/ms | `[0,f32(0.4)]` |
+| `+0xA8/+0xDC`, then `+0xAC/+0xE0` | Power + then −, rate `f32(0.02)` per ms | `[30,100]` |
+
+The shot therefore uses the power before these last two adjustments; its
+barrel transform is the model's current transform. Gauge values become
+`[elevation,P−yaw,power]` at state `+0x250/+0x25C/+0x268`, and owner
+`+0x344/+0x348` retain binary32 screen coordinates. Two process-wide sound
+timers, one each for yaw/elevation, accumulate dt while **at most 50 ms**;
+only a later call seeing a timer **greater than 50** resets it and evaluates
+the current call's absolute angle change. Yaw change >`f32(0.0017453292)`
+starts AEMS event 12, otherwise stops it; elevation change >`f32(0.004)`
+starts event 15, otherwise stops it. This is not accumulated angular change
+over the timer interval. Evidence: `0x0054B4AB–0x0054B7AB`.
+
+Tank's tick calls Vehicle's tick first and normally preserves its return.
+With a drive state, both pedal timers exactly −1, and either no current
+network or reverse-enable byte true, it can pivot in place. Missing
+parameter service/AEMS in that eligible branch returns false. A steering
+timer different from −1 selects the pivot: negative-steering timer wins;
+otherwise use the positive-steering timer with opposite sign. Let θ be the
+selected timer times parameter `+0x58` (negated for positive steering), and
+reset that selected timer to zero. Start AEMS event 19. For body direction D,
+normalize `D×(D.z,0,−D.x)` and form a quaternion with that axis,
+`sin(−θ/2)` and `cos(−θ/2)`; apply its row-vector rotation to D and store
+the resulting direction. For a horizontal D this is
+`(D.x cosθ+D.z sinθ,0,D.z cosθ−D.x sinθ)`.
+There is no stationary-speed test: pedal inactivity is the criterion.
+Rebuild front/rear anchors as `position±0.5×length×D`, copy D into both
+drive-state direction vectors, MoveTo at the unchanged position and refresh
+slot 100 with `(0,true)`. No collision check is added by this pivot branch.
+With active pedals or no steering timer, stop event 19. A missing drive
+state, or the eligible pedal condition on a network with reversing disabled,
+returns the inherited result without the pivot. Evidence:
+`0x0054AAE0–0x0054AC86`, quaternion/anchors `0x0054AC86–0x0054AFF7`.
 
 Firing requires fire timer `+0x98 >= 0`, a non-null barrel model (`+0x360`),
 and channel-7 ready byte (`state+0x1FF`) true. On firing, zero channel elapsed
@@ -1413,6 +1481,15 @@ do not serialize a renderer pointer or active projectile to replace those fields
 | After a shot, elapsed 0, dt=2000 | Inherited phase increases elapsed to 2000 but does not make ready true yet. |
 | Next held-fire translation with elapsed 2000, ready false | No shot in owner phase; inherited phase makes ready true and resets elapsed. |
 | Action count already 12 | Inherited phase cannot re-arm even after 2000 ms. |
+| Power 100, cycle timer 249 / 250 | Remain 100 / become 30 and reset timer. |
+| Power 65, fire ready, power-increase difference 100 ms | Shot attribute uses 65×0.01; final gauge power is f32(65+100×f32(0.02)). |
+| Elevation f32(0.4), both elevation differences 100 ms | Increase clamps first; final elevation f32(f32(0.4)−100×f32(0.00025)). |
+| Adjustment current timer −1, or current equals history | No adjustment for that command. |
+| Yaw exactly P, aim inactive | Preserve P; yaw gauge is zero. |
+| Sound timer 50, dt=1 | Accumulate to 51; no sound decision yet. |
+| Sound timer 51, yaw/elevation change exactly its threshold | Reset timer; stop the corresponding event. |
+| Pivot eligible, horizontal D=(1,0,0), negative-steering timer t | Direction (cosθ,0,−sinθ), θ=t×parameter(+0x58); position unchanged; selected timer becomes zero. |
+| Both pedals inactive, current network present, reversing disabled | No pivot and no additional MoveTo. |
 
 ### 12.14 Concrete-owner method and interface inventory
 
