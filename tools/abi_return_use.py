@@ -71,7 +71,7 @@ def caller_read(call, f, reg, access, functions, limit=4000):
     return {'reads': sorted(set(reads)), 'complete': complete, 'read_mask': read_bits}
 
 
-def exit_sources(f, reg, access):
+def exit_sources(f, reg, access, preserved=frozenset()):
     """Last definition on every reachable return path, including tail exits.
 
     The used bit distinguishes a terminal value from one consumed as scratch
@@ -96,7 +96,12 @@ def exit_sources(f, reg, access):
     for va in reachable:
         ins = f.insns[va]
         if ins.mnemonic == 'jmp' and ins.target in f.tails:
-            sources.add(('tail', ins.target, False))
+            if ins.target in preserved:
+                todo.extend((p, False) for p in predecessors[va])
+                if va == f.address:
+                    sources.add(('entry', va, False))
+            else:
+                sources.add(('tail', ins.target, False))
         elif not f.edges[va] and ins.pop is None:
             sources.add(('unknown', va, False))
     while todo:
@@ -105,7 +110,7 @@ def exit_sources(f, reg, access):
             continue
         seen.add((va, used))
         ins = f.insns[va]
-        if ins.mnemonic == 'call':
+        if ins.mnemonic == 'call' and ins.target not in preserved:
             sources.add(('call', ins.target or 0, used))
             continue
         rs, ws = access(ins)
@@ -200,6 +205,28 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
                           'edx_exits': exit_sources(f, 'edx', access),
                           'x87_exit_depths': sorted(depths[addr][1])}
 
+    # Runtime epilogue helpers preserve a caller's return registers. Treating
+    # their unchanged values as new results contaminates every void cleanup
+    # wrapper that shares the helper. Follow provenance *through* those calls.
+    preserves = {}
+    for reg in ('eax', 'edx'):
+        known = {a for a, ev in evidence.items() if ev[reg + '_exits'] and
+                 all(kind == 'entry' for kind, _, _ in ev[reg + '_exits'])}
+        changed = True
+        while changed:
+            added = {a for a, ev in evidence.items() if a not in known and ev[reg + '_exits'] and
+                     all(kind == 'entry' or kind in ('call', 'tail') and dst in known
+                         for kind, dst, _ in ev[reg + '_exits']) and
+                     all(reg not in access(i)[1] and
+                         (i.mnemonic != 'call' or i.target in known)
+                         for i in functions[a].insns.values())}
+            changed = bool(added)
+            known |= added
+        preserves[reg] = known
+        for addr, f in functions.items():
+            evidence[addr][reg + '_exits'] = exit_sources(f, reg, access, known)
+            evidence[addr]['preserves_' + reg] = addr in known
+
     result = {addr: ('unknown', 'low', 'unresolved') for addr in functions}
     # Reviewed definite channels seed forwarding; ambiguous source labels do not.
     seeds = {}
@@ -241,8 +268,8 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
             masks[dst] |= masks[addr]
             if addr in edx_demand:
                 edx_demand.add(dst)
-            if addr in fp_demand:
-                fp_demand.add(dst)
+            # ST0 demand cannot use the GPR provenance graph: a caller may
+            # already have produced its floating result before this cleanup.
             if before != (masks[dst], dst in edx_demand, dst in fp_demand):
                 forwarded[dst].add(addr)
                 if dst not in queued:
@@ -285,6 +312,8 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
             decided = seeds[addr]
         elif fp or ev['x87_exit_depths'] == [1]:
             decided = ('x87', 'high', 'caller-st0-read' if fp else 'body-x87-exit')
+        elif ev['preserves_eax']:
+            decided = ('void', 'high', 'body-preserved+caller-value-preexists')
         elif eax:
             read_bits = masks[addr]
             observed = ('al' if read_bits == 1 else 'ax' if read_bits <= 3 else body_channel)

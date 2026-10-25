@@ -168,6 +168,20 @@ def test_loop_cursor_is_scratch_on_the_exit_iteration_too():
     assert ev[0x1000]['ret'] == 'void'
 
 
+def test_preserving_epilogue_does_not_export_other_callers_return_channels():
+    _, ev = run('''00001000\te8fb0f0000\tCALL 0x2000
+00001005\t85c0\tTEST EAX,EAX
+00001007\t85d2\tTEST EDX,EDX
+00001009\tc3\tRET''', '''00002000\tb801000000\tMOV EAX,0x1
+00002005\tba02000000\tMOV EDX,0x2
+0000200a\te8f10f0000\tCALL 0x3000
+0000200f\tc3\tRET''', '00003000\tc3\tRET',
+                '''00004000\te8fbefffff\tCALL 0x3000
+00004005\tc3\tRET''')
+    assert ev[0x2000]['ret'] == 'edx:eax'
+    assert ev[0x3000]['ret'] == ev[0x4000]['ret'] == 'void'
+
+
 def test_empty_leaf_is_void_and_fpu_store_pop_is_not_a_float_return():
     _, ev = run('00001000\tc3\tRET', '''00002000\td901\tFLD dword ptr [ECX]
 00002002\td91a\tFSTP dword ptr [EDX]
