@@ -309,4 +309,45 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn binary32_stores_round_signed_ties_independently_of_precision_control() {
+        for precision in [RingPrecision::Bits24, RingPrecision::Bits53, RingPrecision::Bits64] {
+            for rounding in [
+                RingRounding::Nearest,
+                RingRounding::Down,
+                RingRounding::Up,
+                RingRounding::TowardZero,
+            ] {
+                let context = RingContext { precision, rounding };
+                for neg in [false, true] {
+                    for lower in [0x800000u64, 0x800001] {
+                        // Exact midpoints between consecutive binary32 values near one.
+                        // A store uses 24 bits even when arithmetic retains 53 or 64.
+                        let midpoint = F {
+                            sig: lower * 2 + 1,
+                            exp: -24,
+                            neg,
+                        };
+                        let increment = match rounding {
+                            RingRounding::Nearest => lower & 1 != 0,
+                            RingRounding::Down => neg,
+                            RingRounding::Up => !neg,
+                            RingRounding::TowardZero => false,
+                        };
+                        let expected = F {
+                            sig: lower + u64::from(increment),
+                            exp: -23,
+                            neg,
+                        };
+                        assert_eq!(
+                            context.store(midpoint).cmp(expected),
+                            Ordering::Equal,
+                            "{context:?}, {midpoint:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
