@@ -709,7 +709,12 @@ public:
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 InplaceCityLoaded();
-                ReachStart(static_cast<int32_t>(PublishedJulian()));  // entry hooks installed
+                if (SettingInt("reach", nullptr, 0) == 1) {
+                    // The first day message has not published a date at city load.
+                    auto* reachCity = CurrentCity();
+                    auto* reachSim = reachCity ? AsGame(reachCity->GetSimulator()) : nullptr;
+                    ReachStart(reachSim ? reachSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
+                }
                 break;
             case kMsgPreSave:
                 DbpfShadowBeforeSave();
