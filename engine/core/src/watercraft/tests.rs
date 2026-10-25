@@ -7,7 +7,7 @@ use crate::stream::{ByteReader, ByteWriter};
 use std::sync::Arc;
 
 #[test]
-fn wc9_literal_simultaneous_steering_pending_spec_resolution() {
+fn wc9_ordered_simultaneous_steering_keeps_both_channels() {
     let mut b = boat();
     let mut command = DriveCommand {
         left: 100.0,

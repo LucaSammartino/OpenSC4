@@ -48,6 +48,8 @@ mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
 #[cfg(test)]
+mod command_vector_tests;
+#[cfg(test)]
 mod collision_vector_tests;
 #[cfg(test)]
 mod edge_tests;
