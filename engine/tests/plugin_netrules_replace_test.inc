@@ -32,28 +32,34 @@ int NetRulesRegistrationTest(const std::string& dll, const std::string& ini, con
         if (enabled && obj) {
             auto* manager = static_cast<cFC4ISC4NetworkManager*>(obj);
             CHECK(manager->Init());
-            // The cache owns one reference; these two lookups borrow it.
-            auto* tool = static_cast<cIGZUnknown*>(manager->GetNetworkTool(0, false));
-            CHECK(tool != nullptr);
-            CHECK(manager->GetNetworkTool(0, false) == tool);
+            // Every type has a distinct cache entry; retained tools must survive
+            // manager destruction, including the underground and highway types.
+            std::vector<cIGZUnknown*> retainedTools;
+            for (int32_t type = 0; type < 13; ++type) {
+                auto* tool = static_cast<cIGZUnknown*>(manager->GetNetworkTool(type, false));
+                CHECK(tool != nullptr);
+                CHECK(manager->GetNetworkTool(type, false) == tool);
+                CHECK(std::find(retainedTools.begin(), retainedTools.end(), tool) == retainedTools.end());
+                auto* privateTool = static_cast<cIGZUnknown*>(manager->GetNetworkTool(type, true));
+                CHECK(privateTool != nullptr && privateTool != tool);
+                if (privateTool) {
+                    CHECK(privateTool->AddRef() == 1); // native factory returns count zero
+                    CHECK(privateTool->Release() == 0);
+                }
+                if (tool) {
+                    tool->AddRef();
+                    retainedTools.push_back(tool);
+                }
+            }
             CHECK(manager->GetNetworkTool(-1, true) == nullptr);
             CHECK(manager->GetNetworkTool(13, true) == nullptr);
-            auto* privateTool = static_cast<cIGZUnknown*>(manager->GetNetworkTool(0, true));
-            CHECK(privateTool != nullptr && privateTool != tool);
-            if (privateTool) {
-                CHECK(privateTool->AddRef() == 1); // native factory returns count zero
-                CHECK(privateTool->Release() == 0);
-            }
+            CHECK(manager->GetNetworkTool(-1, false) == nullptr);
+            CHECK(manager->GetNetworkTool(13, false) == nullptr);
             auto* created = static_cast<cIGZUnknown*>(manager->GetNetworkTool(0, true));
             CHECK(created != nullptr);
             if (created) CHECK(created->Release() == 0); // created-pointer disposal, no retained reference
-            if (tool) {
-                tool->AddRef(); // our reference must survive the manager/cache
-                CHECK(manager->Release() == 0);
-                CHECK(tool->Release() == 0);
-            } else {
-                manager->Release();
-            }
+            CHECK(manager->Release() == 0);
+            for (auto* tool : retainedTools) CHECK(tool->Release() == 0);
         } else {
             CHECK(obj == nullptr);
         }
