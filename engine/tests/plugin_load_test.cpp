@@ -11091,6 +11091,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
 #include "plugin_advisors_replace_test.inc"
+#include "plugin_netrules_replace_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
 #include "plugin_disasters_test.inc"
 #include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
@@ -11201,6 +11202,7 @@ int main(int argc, char** argv) {
     if (mode == "--ini-netocc-pole-factory") return NetOccPoleRegistrationTest(dll, ini);
     if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
     if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
+    if (mode.rfind("--ini-netrules-", 0) == 0) return NetRulesRegistrationTest(dll, ini, log, mode);
     if (mode == "--ini-lotrec-boundary") return LotrecBoundaryTest(dll, ini, log, true);
     if (mode == "--ini-lotrec-default") return LotrecBoundaryTest(dll, ini, log, false);
 
