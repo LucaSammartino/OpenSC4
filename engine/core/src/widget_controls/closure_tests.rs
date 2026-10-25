@@ -7,6 +7,42 @@ fn selection_messages(f: &Recording, id: u32) -> usize {
 }
 
 #[test]
+fn tree_accepted_drag_requires_graphics_before_allocating_or_clearing_selection() {
+    let (mut t, mut f, a, _) = tree();
+    t.paint([0, 0, 200, 100], &mut f).unwrap();
+    t.select(a, true, &mut f);
+    f.no_graphics = true;
+    f.drag_return = true;
+    f.drag_accept = 0;
+    f.refs.clear();
+    f.messages.clear();
+    f.image_attempts.clear();
+    f.access_calls.clear();
+    f.draws.clear();
+    let nodes = t.nodes.clone();
+    let buffer = t.working_buffer;
+    let invalidations = f.invalidations;
+
+    // WC-T44: refusing the request never reaches the required GS dependency.
+    assert_eq!(t.mouse_move(199, 90, 0x10, &mut f), Ok(true));
+    f.drag_accept = 1;
+    assert_eq!(
+        t.mouse_move(199, 90, 0x10, &mut f),
+        Err(Unsupported::Precondition("TreeView drag graphics service"))
+    );
+    assert_eq!(t.selection, [a]);
+    assert_eq!(t.nodes, nodes);
+    assert_eq!(t.working_buffer, buffer);
+    assert!(!t.insertion_side);
+    assert_eq!(f.invalidations, invalidations);
+    assert_eq!(f.drag_runs, 0);
+    assert!(f.refs.is_empty());
+    assert!(f.messages.is_empty());
+    assert!(f.image_attempts.is_empty());
+    assert!(f.access_calls.is_empty());
+}
+
+#[test]
 fn wc_l19_l22_literal_removal_and_page_notifications() {
     for (selected, expected, messages) in [(1, 1, 0), (2, 1, 1)] {
         let (mut l, mut f) = list(false);
