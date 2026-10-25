@@ -79,6 +79,20 @@ class ScenarioEvidenceTests(unittest.TestCase):
             self.assertEqual(dps, "17.25")
             self.assertTrue(complete)
 
+    def test_watchdog_reports_stay_distinct_from_startup_banners(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "actions.script").write_text("2026-01-01 mark test\n", encoding="utf-8")
+            log = root / "stalled.log"
+            log.write_text("2026-10-25 [pid 1] watchdog: started for main thread 2\n"
+                           "2026-10-25 [pid 1] WATCHDOG: main thread stalled for 10625 ms\n"
+                           "2026-10-25 [pid 1] AUTOTEST VERDICT: stalled (date=2026-02-01)\n", encoding="utf-8")
+            run = dict(scenario="stalled", seed=2, mix="churn", city="fixture", script="actions.script")
+            with patch.object(runs, "ROOT", root):
+                _, _, issues, _, _, _ = runs.analyze(log, run)
+            self.assertEqual([r["key"] for r in issues], ["WATCHDOG:", "AUTOTEST VERDICT: stalled"])
+            self.assertEqual([r["log_line"] for r in issues], [2, 3])
+
     def test_profile_uses_regress_combined_settings(self):
         profile = runs.shadow_profile()
         self.assertIn("disable = budget,ordinance", profile)

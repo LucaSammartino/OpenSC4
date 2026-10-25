@@ -204,7 +204,7 @@ def analyze(log, run):
             # Record each exception family once; a crash can occur inside an
             # action before its completion line, so previous is context only.
             issue = re.search(r"structured exception in|first-chance exception OUTSIDE FreeCity4\.dll|"
-                              r"\b(?:Rust )?panic(?: at|:)|AUTOTEST VERDICT: (?:crash|corrupt)", line)
+                              r"\b(?:Rust )?panic(?: at|:)|WATCHDOG:|AUTOTEST VERDICT: (?:crash|corrupt|stalled)", line)
             if issue and issue[0] not in first:
                 first[issue[0]] = (number, previous, line.strip())
             heartbeat = re.search(r"heartbeat \(periodic\): (\d{4}-\d\d-\d\d)", line)
