@@ -1,2 +1,6 @@
 # network-manager: open questions
 <!-- Questions about [network-manager.md](../network-manager.md). Append new entries at the END; when one is answered, move it to answered/network-manager.md. Rules: README.md. -->
+
+<!-- from: replace-netlot28 (2026-10-26) -->
+- **NM14 - section 7.12:** What creates a construction crew (factory/CLSID or manager path), which interfaces does it expose, and what are the six arguments, return contract, ownership, subscriptions and state transitions of crew slot 4 Init? The current spec defines only registration and slot-5 shutdown; ABI rows give a 24-byte argument pop but no argument meanings. [Leave native crew creation/Init in place; retain the specified opaque-crew registration/shutdown bridge. Complete only the lot and configuration class registrations under netlotobj, with netlot providing the live manager.]
+- **NM15 - sections 2.4 and 8.6:** What IID identifies cISC4NetworkLotConfiguration, and what exact container layout, comparator, allocator and ownership contract does GetNetworkLotConfigurationSet(set&) require? Are lot/configuration objects ever created through native GZCOM class IDs? [Keep unknown-only configuration QueryInterface and the inactive set bridge; register manager-created lot/configuration views under explicit FreeCity4-only IDs under netlotobj.]

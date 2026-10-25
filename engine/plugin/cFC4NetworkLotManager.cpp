@@ -887,6 +887,11 @@ cIGZUnknown* CreateFC4NetworkLotManager() {
     return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4NetworkLotManager*>(new cFC4NetworkLotManager()));
 }
 
+// The live manager builds these same classes with occupant/configuration data.
+// Their local class entries also expose empty views through the director.
+cIGZUnknown* CreateFC4NetworkLot() { return cFC4NetworkLot::CreateEntry(); }
+cIGZUnknown* CreateFC4NetworkLotConfiguration() { return cFC4NetworkLotConfiguration::CreateEntry(); }
+
 intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
     if (first == nullptr || second == nullptr) return -1;
     // Only the unknown prefix of these fake occupants is used (AddRef/Release).

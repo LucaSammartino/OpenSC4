@@ -1396,3 +1396,14 @@ if(TARGET FreeCity4)
     add_test(NAME compare_dispatch_modes COMMAND fc4_compare_runtime_test)
     set_tests_properties(compare_dispatch_modes PROPERTIES TIMEOUT 20)
 endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_netlot_default_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-defaults)
+    add_test(NAME plugin_netlot_disabled_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-disabled)
+    add_test(NAME plugin_netlot_object_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-object-factories)
+    set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
+        PROPERTIES RUN_SERIAL TRUE)
+endif()

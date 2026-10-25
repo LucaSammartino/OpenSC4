@@ -52,6 +52,9 @@ class cSC4LotConfigurationObject;
 static const uint32_t kFC4_CLSID_cSC4NetworkLotManager = 0xE9A6CD3B;
 static const uint32_t kFC4_IID_cISC4NetworkLotManager = 0x89A5BA3F;
 static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
+// SPEC-GAP: native lot/configuration CLSIDs are unspecified; these FreeCity4 IDs register manager-created views.
+static const uint32_t kFC4_CLSID_cFC4NetworkLot = 0x4E4C3030;  // "NL00"
+static const uint32_t kFC4_CLSID_cFC4NetworkLotConfiguration = 0x4E4C4330;  // "NLC0"
 
 // One network lot configuration of ours (§2.4): the core's copy (fc4_netlot)
 // plus the game's view the callers reach: the configuration's objects as
@@ -70,6 +73,11 @@ class cFC4NetworkLotConfiguration final : public cISC4NetworkLotConfiguration {
 public:
     static std::shared_ptr<cFC4NetworkLotConfiguration> Create(uint64_t token) {
         return {new cFC4NetworkLotConfiguration(token), [](cFC4NetworkLotConfiguration* p) { p->Release(); }};
+    }
+    static cIGZUnknown* CreateEntry() {
+        auto* config = new cFC4NetworkLotConfiguration(0);
+        config->refs_ = 0;  // The director's QueryInterface takes the first reference.
+        return config;
     }
     bool QueryInterface(uint32_t riid, void** out) override;
     uint32_t AddRef() override;
@@ -149,6 +157,11 @@ private:
 class cFC4NetworkLot final : public cISC4NetworkLot {
 public:
     cFC4NetworkLot(cISC4NetworkOccupant* occ, std::shared_ptr<cFC4NetworkLotConfiguration> config);
+    static cIGZUnknown* CreateEntry() {
+        auto* lot = new cFC4NetworkLot(nullptr, {});
+        lot->refs_ = 0;  // Live manager-owned views instead start with their owner's reference.
+        return lot;
+    }
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
     uint32_t AddRef() override;
@@ -240,6 +253,8 @@ private:
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4NetworkLotManager();
+cIGZUnknown* CreateFC4NetworkLot();
+cIGZUnknown* CreateFC4NetworkLotConfiguration();
 
 // Test seam: exercise retained lot dependencies and the manager's borrowed cache.
 intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second);
