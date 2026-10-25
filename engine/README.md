@@ -2542,6 +2542,9 @@ preserves incoming and outgoing integer registers, flags, x87/SSE state and
 control modes, including nested entries. Seven synthetic machine-state cases
 and a completed mutation fixture cover that correction. The experiment still
 has outside-change signals, refused aliases and unsupported entry encodings.
+Final measured result: INCONCLUSIVE. Both corrected runs are clean; all 18,278
+comparisons are exact, 33/33 mutations are detected, and 14/20 functions qualify
+without outside signals or refusals. Measured throughput misses 11 KB/hour.
 See `tests/spike-evidence/spike-inplace26/` for measured values and rejections.
 Capture observes net changes in containing writable private committed regions
 (64 MiB cap). It misses undone writes, unrelated allocations and image/global

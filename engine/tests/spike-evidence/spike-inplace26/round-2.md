@@ -22,8 +22,9 @@ Natural counters: 155248 calls, 8312 samples, 8305 comparisons, 8252 exact,
 53 boolean differences, 6 outside-change samples, 1 refused alias. Float-only=0.
 Fixture counters: 512 calls/comparisons/exact, 18 one-value mutations detected
 and located in 18 functions. Includes nested calls; top-level fixtures are 16
-per installed function. The three naturally unvisited entries are reached by
-fixtures (view-viewport/world-viewport; viewport-world is naturally reached here).
+per installed function. Two entries remain naturally unvisited in this run:
+view-viewport and world-viewport. Both are reached by fixtures; viewport-world,
+unvisited in round 1, is also naturally reached here.
 
 Across natural-2 and fixture-2's fixture source, 14/20 functions have only exact
 comparisons and no outside signal (2423 body bytes). Requiring no refused call

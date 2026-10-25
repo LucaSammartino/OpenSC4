@@ -13,11 +13,12 @@ sizes = {r["name"]: int(r["body_bytes"]) for r in csv.DictReader((folder / "func
 for round_id in (2, 3):
     pair = {}
     mutations = []
-    for source in ("natural", "fixture"):
-        path = folder / f"{source}-{round_id}.csv"
+    for variant in ("natural", "fixture", "fixture-natural"):
+        source = "fixture" if variant == "fixture" else "natural"
+        path = folder / f"{variant}-{round_id}.csv"
         if not path.exists():
             continue
-        label = f"inplace26-{source}-{round_id}"
+        label = f"inplace26-{'fixture' if variant == 'fixture-natural' else variant}-{round_id}"
         latest = {}
         for line in (args.log_dir / f"{label}.log").read_text(errors="replace").splitlines():
             if "inplace summary " in line:
@@ -31,10 +32,20 @@ for round_id in (2, 3):
         for row in saved:
             for key, value in row.items():
                 assert value == latest[row["name"]][key], (label, row["name"], key, value)
-        pair[source] = saved
+        mutation_path = folder / f"fixture-{round_id}-mutations.csv"
+        if source == "fixture" and mutation_path.exists():
+            logged = {}
+            for line in mutations:
+                event = dict(re.findall(r"([a-z_]+)=([a-z0-9-]+)", line))
+                logged[event["name"], event["source"]] = event
+            located = list(csv.DictReader(mutation_path.open()))
+            assert sum(r["source"] == "fixture" for r in located) == sum(s == "fixture" for _, s in logged)
+            for row in located:
+                assert all(value == logged[row["name"], row["source"]][key] for key, value in row.items())
+        pair[variant] = saved
         fields = "calls sampled compared exact float_only different outside refused mutation detected".split()
-        print(label, json.dumps({k: sum(int(r[k]) for r in saved) for k in fields}))
-    if len(pair) != 2:
+        print(label, source, json.dumps({k: sum(int(r[k]) for r in saved) for k in fields}))
+    if len(pair) < 2:
         continue
     by_name = {}
     for rows in pair.values():

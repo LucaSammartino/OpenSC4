@@ -1,4 +1,8 @@
-# Measured runs (source through 33875e28d)
+# Initial measured runs (source through 33875e28d; historical)
+
+Superseded acceptance result: see final-summary.md for corrected-source runs,
+and round-2.md for the intermediate bridge-only measurements. Values below are
+retained as originally measured; their WIP verdict describes that initial source.
 
 | Label | Final verdict | Reference warnings | Detail |
 |---|---|---:|---|
