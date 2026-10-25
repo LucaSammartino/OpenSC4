@@ -3,6 +3,7 @@
 #include <cassert>
 int main() {
     using namespace fc4::compare;
+    assert(Parse("-",4).empty());
     const auto specs=Parse("this+0/16/r/4:u32:1,8:image:1;arg1+0/span0,2,12/r/0:f32!:3@2",3);
     uint32_t args[16]={2,0,16};
     assert(specs[1].Size(args)==28);

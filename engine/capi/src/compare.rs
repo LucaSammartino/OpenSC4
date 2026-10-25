@@ -34,7 +34,11 @@ unsafe extern "C" fn fc4_compare_adapter(
         return false;
     };
     let args = &*args.cast::<[u32; 16]>();
-    let buffers = std::slice::from_raw_parts_mut(buffers, count);
+    let buffers = if count == 0 {
+        &mut []
+    } else {
+        std::slice::from_raw_parts_mut(buffers, count)
+    };
     let result = &mut *result;
     let get = |base: u32| {
         buffers
@@ -385,5 +389,22 @@ mod tests {
                 &mut result
             ));
         }
+    }
+
+    #[test]
+    fn scalar_arguments_need_no_memory_windows() {
+        let mut args = [0u32; 16];
+        args[0] = 9;
+        let mut result = ResultValue::default();
+        unsafe {
+            assert!(fc4_compare_adapter(
+                c"language-from-system".as_ptr(),
+                args.as_ptr(),
+                std::ptr::null_mut(),
+                0,
+                &mut result
+            ));
+        }
+        assert_eq!(result.eax, 1); // Published English system-language mapping.
     }
 }

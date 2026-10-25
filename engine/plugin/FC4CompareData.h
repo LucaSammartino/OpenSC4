@@ -38,6 +38,7 @@ inline uint32_t Number(const std::string& text) {
 }
 inline std::vector<WindowSpec> Parse(const char* text, unsigned argCount) {
     std::vector<WindowSpec> specs;
+    if (std::string(text)=="-") return specs; // Argument/return-only functions.
     for (const auto& item:Split(text,';')) {
         const auto parts=Split(item,'/');if (parts.size()!=4) throw std::invalid_argument("window");
         WindowSpec w;

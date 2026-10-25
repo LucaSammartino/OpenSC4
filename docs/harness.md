@@ -163,7 +163,8 @@ supplies sizes and validates concrete entry facts. Until then published spike
 CSV sizes are used; zero means unpublished, never inferred from address spacing.
 
 Windows are separated by `;`: `base+offset/size/access/fields`. Bases are `this`
-or `argN` (zero-based); offsets/sizes are decimal. Access is `r`, `w`, `rw`.
+or `argN`; `-` alone means no memory windows (argument/return-only functions).
+Argument indexes are zero-based; offsets/sizes are decimal. Access is `r`, `w`, `rw`.
 Size may be `spanC,S,T`: `(args[C]-1)*args[S]+T`, bounded to 4096 elements and
 stride, with stride >= T. Example: `arg1+0/span0,2,12/r/0:f32!:3@2` captures
 three normal floats per element, with count arg0 and stride arg2. Fields are
