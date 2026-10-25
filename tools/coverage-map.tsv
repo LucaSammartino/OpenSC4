@@ -528,7 +528,7 @@ cSC4NewsTickerWinProc	windows and panels	ui	news-ticker.md	-	-	-
 cSC4TutorialUIWinProc	windows and panels	ui	tutorial-window.md	-	-	-
 cSC4GamePreferencesWinProc	windows and panels	ui	game-preferences.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
-cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
+cSC4WinMapView	windows and panels	ui	map-view.md	core/src/map_view	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinLotConfigurationChooser	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinMiniMap*	windows and panels	ui	minimap.md	-	-	-
