@@ -84,6 +84,9 @@ int main(int argc, char** argv) {
         }
         reader.join();
         CHECK(owner->Remove(id));
+        CHECK(!owner->IsShown(id) && !owner->IsSelfLit(id));
+        CHECK(!owner->SetShown(id, true));
+        CHECK(!owner->EnableSelfLighting(id, 1));
         owner->Shutdown();
         CHECK(!owner->IsInitialized());
         CHECK(owner->Init(64, 64, 16, false, false));
@@ -91,6 +94,12 @@ int main(int argc, char** argv) {
         CHECK(owner->Alpha(UINT32_MAX) == 0);
         CHECK(owner->IsShown(id) && !owner->IsSelfLit(id));
         CHECK(!owner->IsShown(UINT32_MAX) && !owner->IsSelfLit(UINT32_MAX));
+        // The no-handle sentinel succeeds without modifying the live record.
+        CHECK(owner->SetShown(UINT32_MAX, false));
+        CHECK(owner->EnableSelfLighting(UINT32_MAX, 1));
+        CHECK(owner->IsShown(id) && !owner->IsSelfLit(id));
+        CHECK(!owner->SetShown(UINT32_MAX - 1, true));
+        CHECK(!owner->EnableSelfLighting(UINT32_MAX - 1, 1));
         owner->Shutdown();
         CHECK(owner->Release() == 0);
     }

@@ -103,11 +103,19 @@ void OverlayOwnerGameCheck() {
     check(owner->Alpha(id) == 0.51f);
     check(owner->SetAlpha(id, 0.52f));
     check(owner->Alpha(id) == 0.51f);
+    check(owner->IsShown(id) && owner->IsSelfLit(id));
+    // The no-handle sentinel is a successful no-op, not an invalid arena index.
+    check(owner->SetShown(UINT32_MAX, true));
+    check(owner->EnableSelfLighting(UINT32_MAX, 1));
+    check(!owner->SetShown(UINT32_MAX - 1, true));
+    check(!owner->EnableSelfLighting(UINT32_MAX - 1, 1));
     check(owner->Remove(id));
+    check(!owner->IsShown(id) && !owner->IsSelfLit(id));
     owner->Shutdown();
     check(!owner->IsInitialized());
     check(owner->Init(64, 64, 16, false, false));
     check(owner->AddDecal(64, 32, 128, 128, 32, 0) == id);
+    check(owner->IsShown(id) && !owner->IsSelfLit(id));
     owner->Shutdown();
     FC4_RELEASE_CREATED(owner);
     Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner native_interception=0",
