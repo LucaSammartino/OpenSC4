@@ -657,7 +657,7 @@ audio (INVENTORY-M6 §5). None of them needs a section in a UI window spec.
 
 **Corrects:** nothing in `docs/specs/` claims these are UI classes — the coverage map is already right. What *is* owed
 is an old HANDOFF item ("split the catch-all owners … into map rows", the coverage2 lane;
-docs/history/handoff-2026-10.md), which is a coverage-tooling task, not a spec
+the retired HANDOFF, available in Git history), which is a coverage-tooling task, not a spec
 task. Two small gaps in **data-formats.md §4.3** are worth noting for whoever picks that up: it never names
 `InterpretEntry`/`WriteEntry`/`cSCResProperty` (addresses only), and it does not record that the `ParentCohort`
 **writer** `0x0067C590` prints the key as `instance, type, group` while the **reader** `0x0067DFD0` reads

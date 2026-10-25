@@ -8,8 +8,8 @@
 // A gate agent (label gate:*) is simulated faithfully: the Bash command in its prompt is run for real against this
 // checkout's .claude/lane-bin/laneguard.py with FC4_LANEGUARD_MAIN=guardMain, and its first word becomes the verdict.
 // A lane agent (label lane:*) returns the next entry of `lanes`. Prints one JSON object: {result, agents, logs}.
-import { readFileSync, writeFileSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { closeSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -27,15 +27,21 @@ async function agent(prompt, opts) {
   if (opts.label.startsWith('gate:')) {
     const m = prompt.match(/python (\S+)\/\.claude\/lane-bin\/laneguard\.py (preflight .*)$/m)
     if (!m) throw new Error('gate prompt has no preflight command')
-    let out
+    // File-backed stdout avoids Node's denied pipe creation in Windows lane sandboxes.
+    // The preflight still runs for real; a nonzero STOP/PARK exit is a normal verdict.
+    const output = resolve(sc.guardMain, 'build-runs', `${opts.label.replace(/[^a-z0-9-]/gi, '_')}.out`)
+    const fd = openSync(output, 'w')
     try {
-      out = execSync(`python "${resolve(REPO, '.claude/lane-bin/laneguard.py')}" ${m[2]} --no-handshake`,
-        { env: { ...process.env, FC4_LANEGUARD_MAIN: sc.guardMain }, encoding: 'utf8' })
+      execFileSync(process.env.FC4_TEST_PYTHON || 'python',
+        [resolve(REPO, '.claude/lane-bin/laneguard.py'), ...m[2].split(/\s+/), '--no-handshake'],
+        { env: { ...process.env, FC4_LANEGUARD_MAIN: sc.guardMain }, stdio: ['ignore', fd, 'inherit'], windowsHide: true })
     } catch (e) {
-      if (!e.stdout?.length) throw e
-      out = String(e.stdout || '')
+      if (!Number.isInteger(e.status)) throw e
+    } finally {
+      closeSync(fd)
     }
-    const line = out.trim()
+    const line = readFileSync(output, 'utf8').trim()
+    rmSync(output)
     const w = line.split(/\s+/)[0]
     return { verdict: ['GO', 'STOP', 'PARK', 'REA-DOWN'].includes(w) ? w : 'ERROR', line }
   }
