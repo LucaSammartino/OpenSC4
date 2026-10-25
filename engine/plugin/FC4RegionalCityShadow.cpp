@@ -88,6 +88,28 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         case 31: c->GetMayorName(text); name = "mayorName"; break;
         case 32: c->GetUtilityAdvisorName(text); name = "utilityAdvisorName"; break;
         case 33: c->GetCityDescription(text); name = "description"; break;
+        case 60: {
+            fc4::GameVector<FC4PointOfInterest> points;
+            const FC4PointOfInterest sentinel{{0x3f800000, 0xc0000000, 0x40400000}};
+            if (!points.push_back(sentinel)) return false;
+            c->GetPointsOfInterest(arg, points);
+            name = "pointsOfInterest";
+            actual = static_cast<double>(points.size());
+            expected = static_cast<double>(len / sizeof(FC4PointOfInterest));
+            equal = len == points.size() * sizeof(FC4PointOfInterest) &&
+                (len == 0 || std::memcmp(bytes, points.begin(), len) == 0);
+            if (!equal) {
+                char detail[160];
+                size_t offset = 0;
+                const auto* actualBytes = reinterpret_cast<const uint8_t*>(points.begin());
+                const size_t actualLen = points.size() * sizeof(FC4PointOfInterest);
+                while (offset < len && offset < actualLen && bytes[offset] == actualBytes[offset]) ++offset;
+                snprintf(detail, sizeof(detail), " poi[%u] nativeBytes=%zu coreBytes=%u firstDifference=%zu;",
+                    arg, actualLen, len, offset);
+                ctx.differences += detail;
+            }
+            break;
+        }
         case 40: actual = c->GetTaxRate(arg); name = "tax"; break;
         case 41: actual = c->GetPopulationOfType(arg); name = "populationByType"; break;
         case 42: actual = c->GetExtrapolatedPopulation(arg); name = "extrapolated"; break;
@@ -113,7 +135,7 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         default: return false;
     }
     if (field >= 30 && field <= 33) equal = text.Strlen() == len && (len == 0 || memcmp(text.Data(), bytes, len) == 0);
-    else if (field != 100) equal = actual == expected || (std::isnan(actual) && std::isnan(expected));
+    else if (field != 100 && field != 60) equal = actual == expected || (std::isnan(actual) && std::isnan(expected));
     if (!equal && ctx.listed++ < 8) {
         char detail[192];
         snprintf(detail, sizeof(detail), " %s[%u] native=%.17g core=%.17g;", name, arg, actual, expected);
@@ -152,6 +174,14 @@ void Observe(void* raw) {
         ++decoded;
         fields += static_cast<uint32_t>(result >> 32);
         mismatches += static_cast<uint32_t>(result);
+        // The differential must not change a native record. In particular,
+        // allowable-extrapolation and commodity getters can insert map entries.
+        fc4::WriteCapture after;
+        ++fields;
+        if (!after.Capture(record) || after.Bytes() != capture.Bytes()) {
+            ++mismatches;
+            ctx.differences += " observation-changed-record;";
+        }
         if (!ctx.differences.empty() && differences.size() < 1500) {
             differences += " serial=" + std::to_string(ctx.city->GetCitySerialNumber()) + ctx.differences;
         }
@@ -168,7 +198,7 @@ void Observe(void* raw) {
 namespace fc4 {
 void RegionalCityShadowObserve(int32_t julian, bool load) {
     if (SettingInt("regionalcity_shadow", nullptr, 0) == 0) return;
-    if (load) Log("regionalcity shadow: ON; native live record -> core decode; exact numeric/string getters and record roundtrip; no cache refresh/save/mutations");
+    if (load) Log("regionalcity shadow: ON; native live record -> core decode; exact numeric/string/point getters and record roundtrip; observation preserves native record");
     Observation obs{julian, load};
     SehGuard("regionalcity shadow", &Observe, &obs);
 }

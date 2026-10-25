@@ -85,8 +85,26 @@ fn compare(c: &mut RegionalCity, mut probe: impl FnMut(u32, u32, f64, &[u8]) -> 
             check(id, t as u32, value, &[]);
         }
     }
+    // regional-city §7.3: a present type replaces the caller's list, while an
+    // absent type leaves it alone. The host seeds every output with this point.
+    // Compare float bits so signed zero and NaN payloads survive this boundary.
+    let sentinel = [0x3f80_0000_u32, 0xc000_0000, 0x4040_0000];
+    for (&t, points) in &c.points {
+        let bytes: Vec<_> = points
+            .iter()
+            .flatten()
+            .flat_map(|value| value.to_bits().to_le_bytes())
+            .collect();
+        check(60, t, 0.0, &bytes);
+    }
+    // There is a free key among 0..=len, even when the saved types are sparse.
+    let absent = (0..=c.points.len() as u32)
+        .find(|t| !c.points.contains_key(t))
+        .expect("one more candidate than present keys");
+    let bytes: Vec<_> = sentinel.into_iter().flat_map(u32::to_le_bytes).collect();
+    check(60, absent, 0.0, &bytes);
     // This independently exercises all decoded fields, including the pending
-    // changes, connection/deal records, unknown strings and POIs without getters.
+    // changes, connection/deal records and unknown strings without getters.
     let mut out = ByteWriter::new();
     if !c.write_record(&mut out) {
         check(100, 0, 0.0, &[]);
@@ -127,6 +145,49 @@ unsafe extern "C" fn fc4_regionalcity_shadow_compare(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn points_compare_present_empty_and_absent_lists_without_changing_record() {
+        let mut c = RegionalCity::new(2);
+        c.points.insert(0, vec![[1.25, -0.0, f32::from_bits(0x7fc0_1234)]]);
+        c.points.insert(7, vec![]);
+        let mut before = ByteWriter::new();
+        assert!(c.write_record(&mut before));
+        let mut seen = Vec::new();
+        let result = compare(&mut c, |id, t, _, bytes| {
+            if id == 60 {
+                seen.push(t);
+                match t {
+                    0 => assert_eq!(
+                        bytes,
+                        [0x3fa0_0000_u32, 0x8000_0000, 0x7fc0_1234]
+                            .into_iter()
+                            .flat_map(u32::to_le_bytes)
+                            .collect::<Vec<_>>()
+                    ),
+                    7 => assert!(bytes.is_empty()),
+                    1 => assert_eq!(
+                        bytes,
+                        [0x3f80_0000_u32, 0xc000_0000, 0x4040_0000]
+                            .into_iter()
+                            .flat_map(u32::to_le_bytes)
+                            .collect::<Vec<_>>()
+                    ),
+                    _ => panic!("unexpected point type {t}"),
+                }
+            }
+            if id == 100 {
+                assert_eq!(bytes, before.bytes());
+            }
+            true
+        });
+        assert_eq!(result as u32, 0);
+        assert_eq!(seen, [0, 7, 1]);
+        assert_eq!(compare(&mut c, |id, _, _, _| id != 60) as u32, 3);
+        let mut after = ByteWriter::new();
+        assert!(c.write_record(&mut after));
+        assert_eq!(before.bytes(), after.bytes());
+    }
 
     #[test]
     fn independent_getters_detect_altered_native_values() {
