@@ -5,6 +5,7 @@
 #include "cIGZSerializable.h"
 #include <windows.h>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 namespace {
@@ -61,7 +62,7 @@ struct Construction : cIGZSerializable {
     uint32_t refs = 1;
     std::vector<cIGZUnknown*> ground, roof, sparks, crew;
     cIGZUnknown* current = nullptr;
-    bool failCallback = false;
+    bool failCallback = false, shortRecord = false;
     std::vector<cIGZSerializable*> callbacks;
     bool QueryInterface(uint32_t iid, void** out) override {
         *out = nullptr;
@@ -93,6 +94,7 @@ struct Construction : cIGZSerializable {
             for (auto* ref : *list) WriteReference(out, ref, callbacks);
         }
         const bool ok = WriteReference(out, current, callbacks, failCallback);
+        if (shortRecord) return ok; // fail Read after it acquired the field refs
         // All 22 scalar members, in specified order, with distinct values.
         out.SetSint8(-1);
         for (int i = 0; i < 5; ++i) out.SetUint32(100 + i);
@@ -108,14 +110,71 @@ struct Construction : cIGZSerializable {
         return ok;
     }
 };
+
+int RecordFactoryTests(FC4TestSeamFn seam) {
+    int failures = 0;
+    auto require = [&](bool ok, const char* name) {
+        if (!ok) { ++failures; std::printf("construction factory: %s\n", name); }
+    };
+    cIGZSerializable* record = nullptr;
+    require(seam(kFC4SeamConstructionRecordFactory, nullptr, nullptr) == -1, "null output");
+    require(seam(kFC4SeamConstructionRecordFactory, nullptr, &record) == 1 && record,
+            "constructor record factory");
+    if (record) {
+        require(record->GetGZCLSID() == 0xA97F909E, "class identity");
+        require(seam(kFC4SeamConstructionCapture, record, nullptr) == 1, "constructor record round trip");
+        void* view = nullptr;
+        require(record->QueryInterface(GZIID_cIGZSerializable, &view) && view == record, "serializable view");
+        if (view) static_cast<cIGZUnknown*>(view)->Release();
+        // Staging record must not be mistaken for an activated occupant.
+        view = reinterpret_cast<void*>(1);
+        require(!record->QueryInterface(0x496E7636, &view) && !view, "no unfinished construction view");
+        require(!record->QueryInterface(GZIID_cIGZSerializable, nullptr), "null QI output");
+        require(record->Release() == 0, "factory reference ownership");
+    }
+    Construction source;
+    Effect effect, ground, roof, crew;
+    ground.fieldIid = roof.fieldIid = kProp;
+    ground.cls = roof.cls = 0x2977AA47;
+    crew.fieldIid = kCrew; crew.cls = 0x896E75AF;
+    source.ground = {ground.Class()}; source.roof = {roof.Class()};
+    source.sparks = {effect.Prop(), effect.Prop()};
+    source.current = effect.Serial(); source.crew = {crew.Class()};
+    record = nullptr;
+    require(seam(kFC4SeamConstructionRecordFactory, &source, &record) == 1 && record, "Read factory");
+    if (record) {
+        // Two list fields and the current-effect field retain three literal
+        // class-view references to this one effect. Capture pins are gone.
+        require(effect.refs == 4 && ground.refs == 2 && roof.refs == 2 && crew.refs == 2,
+                "one reference per field, including duplicates");
+        require(seam(kFC4SeamConstructionCapture, record, nullptr) == 1, "loaded record round trip");
+        require(record->Release() == 0, "loaded owner destroyed");
+    }
+    source.shortRecord = true;
+    record = reinterpret_cast<cIGZSerializable*>(1);
+    require(seam(kFC4SeamConstructionRecordFactory, &source, &record) == 0 && !record,
+            "late failure rejects incomplete record");
+    for (auto* object : {&effect, &ground, &roof, &crew}) {
+        require(object->refs == 1 && object->adds == object->releases,
+                "success and partial-read failure release every acquisition");
+    }
+    require(source.refs == 1, "source owner borrowed");
+    std::printf("construction record factory: %d failures\n", failures);
+    return failures ? 1 : 0;
+}
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) return 1;
+    if (argc != 2 && argc != 3) return 1;
     HMODULE dll = LoadLibraryA(argv[1]);
     if (!dll) return 2;
     auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(dll, "FC4TestSeam"));
     if (!seam) return 3;
+    if (argc == 3) {
+        const int result = std::strcmp(argv[2], "--record-factory") == 0 ? RecordFactoryTests(seam) : 1;
+        FreeLibrary(dll);
+        return result;
+    }
     int failures = 0;
     auto check = [&](const char* name, Construction& record, intptr_t expected) {
         const auto got = seam(kFC4SeamConstructionCapture, &record, nullptr);

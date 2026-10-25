@@ -15,6 +15,7 @@
 #include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
 #include "FC4OrdinanceShadow.h"
+#include "cFC4ConstructionRecord.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
@@ -279,6 +280,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b)));
         case kFC4SeamConstructionCapture:
             return fc4::ConstructionCaptureTest(static_cast<cIGZUnknown*>(a));
+        case kFC4SeamConstructionRecordFactory:
+            return fc4::ConstructionRecordFactoryTest(static_cast<cIGZUnknown*>(a), b);
         default:
             return 0;
     }

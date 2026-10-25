@@ -1210,3 +1210,11 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_construction_identity_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME construction_identity_test COMMAND fc4_construction_identity_test)
 endif()
+
+# Construction record-owner staging factory: no subsystem registration yet.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4ConstructionRecord.cpp plugin/cFC4ConstructionRecord.h)
+    add_test(NAME construction_record_factory_test
+        COMMAND fc4_construction_capture_test "$<TARGET_FILE:FreeCity4>" --record-factory)
+    set_tests_properties(construction_record_factory_test PROPERTIES RUN_SERIAL TRUE)
+endif()
