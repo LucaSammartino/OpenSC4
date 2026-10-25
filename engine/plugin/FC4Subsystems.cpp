@@ -613,6 +613,10 @@ void Resolve() {
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
     const char* enableSource = "";
     const std::string enable = Lower(Setting("enable", "FC4_ENABLE", &enableSource));
+    // SPEC-GAP: lot-records §13 does not settle the live lot's full ABI (e.g.
+    // GetLandValue's return channel). Keep the native factory until it does.
+    if (ListContains(enable, "lotrec"))
+        Log("subsystem 'lotrec': replacement unavailable (incomplete live lot ABI); original cSC4Lot retained");
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
         if (!s.defaultOn && !ListContains(enable, s.key)) {

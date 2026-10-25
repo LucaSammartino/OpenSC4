@@ -1201,3 +1201,15 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_advisor_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
 endif()
+
+# Lot-record replacement boundary and specified live getter projection.
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_lotrec_registration_boundary
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotrec-boundary)
+    add_test(NAME plugin_lotrec_default_off
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotrec-default)
+    add_executable(fc4_lot_record_view_test tests/lot_record_view_test.cpp)
+    target_include_directories(fc4_lot_record_view_test PRIVATE plugin)
+    target_compile_options(fc4_lot_record_view_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME lot_record_view_test COMMAND fc4_lot_record_view_test)
+endif()
