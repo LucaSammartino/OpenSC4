@@ -10,15 +10,18 @@ public:
     virtual bool IsPreview() = 0;
     virtual bool SetPreview(bool) = 0;
 };
-class NetOccTestPole final : public cIGZUnknown {
+class NetOccTestPole final : public cIGZSerializable {
 public:
     uint32_t refs = 1;
     bool QueryInterface(uint32_t iid, void** out) override {
-        if (!out || (iid != 1 && iid != 0xA8C86142)) return false;
+        if (!out || (iid != 1 && iid != 0xA8C86142 && iid != 0xE4FDA3D4)) return false;
         *out = this; AddRef(); return true;
     }
     uint32_t AddRef() override { return ++refs; }
     uint32_t Release() override { return --refs; }
+    bool Write(cIGZOStream&) override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+    uint32_t GetGZCLSID() override { return 0x09C05C6A; }
 };
 
 int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
@@ -111,6 +114,54 @@ int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
                     if (queried) static_cast<cIGZSerializable*>(queried)->Release();
                 }
                 CHECK(serial->GetGZCLSID() == 0xC9C05C5D);
+                if (serial == nativeView) {
+                    // Exercise the exact call native pole Write makes, including
+                    // dispatch past QI to the stream methods at primary+8.
+                    ResidentialSegOStream saved;
+                    CHECK(nativeView->Write(saved));
+                    CHECK(saved.nullRefs == 2 && saved.bytes.size() >= 8);
+                    if (saved.bytes.size() >= 8) {
+                        // Replace the two null ref IDs with the same pole. The
+                        // segment reader acquires each occurrence independently.
+                        auto bytes = saved.bytes;
+                        const uint32_t id = 1;
+                        std::memcpy(bytes.data() + bytes.size() - 8, &id, 4);
+                        std::memcpy(bytes.data() + bytes.size() - 4, &id, 4);
+                        CHECK(line->SetConnectedPoles(&pole, &pole, true));
+                        CHECK(pole.refs == 3);
+                        for (size_t n = 0; n < bytes.size(); ++n) {
+                            SavedSegIStream truncated(std::vector<uint8_t>(bytes.begin(), bytes.begin() + n));
+                            truncated.objs = {&pole};
+                            CHECK(!nativeView->Read(truncated));
+                            // Even a failure after the first acquired ref must
+                            // release only the new refs, preserving the old pair.
+                            CHECK(pole.refs == 3);
+                            cIGZUnknown* first = nullptr; cIGZUnknown* second = nullptr;
+                            bool heldFlag = false;
+                            CHECK(line->GetConnectedPoles(first, second, heldFlag));
+                            CHECK(first == &pole && second == &pole && heldFlag);
+                            if (first) first->Release();
+                            if (second) second->Release();
+                        }
+                        SavedSegIStream restored(bytes);
+                        restored.objs = {&pole};
+                        CHECK(nativeView->Read(restored));
+                        CHECK(restored.at == bytes.size() && pole.refs == 3);
+                        cIGZUnknown* first = nullptr; cIGZUnknown* second = nullptr;
+                        bool heldFlag = true;
+                        CHECK(line->GetConnectedPoles(first, second, heldFlag));
+                        CHECK(first == &pole && second == &pole && !heldFlag);
+                        if (first) first->Release();
+                        if (second) second->Release();
+                        SavedSegOStream refs;
+                        refs.objs = {&pole};
+                        CHECK(nativeView->Write(refs));
+                        CHECK(refs.ids == std::vector<uint32_t>({1, 1}));
+                        CHECK(pole.refs == 3);
+                        CHECK(line->SetConnectedPoles(nullptr, nullptr, false));
+                        CHECK(pole.refs == 1);
+                    }
+                }
                 serial->Release();
             }
             line->Release(); CHECK(pole.refs == 1);
