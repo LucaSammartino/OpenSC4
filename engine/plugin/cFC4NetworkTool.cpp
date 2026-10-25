@@ -150,7 +150,8 @@ bool cFC4NetworkTool::QueryInterface(uint32_t riid, void** ppvObj) {
 uint32_t cFC4NetworkTool::AddRef() { return ++refCount_; }
 
 uint32_t cFC4NetworkTool::Release() {
-    const uint32_t n = --refCount_;
+    // network-manager.md 7.1: an unretained newly created tool is deletable at zero.
+    const uint32_t n = refCount_.load() == 0 ? 0 : --refCount_;
     if (n == 0 && !destroying_) {
         destroying_ = true;
         fc4::Log("cFC4NetworkTool type %u destroyed", networkType_);

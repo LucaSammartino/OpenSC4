@@ -36,6 +36,17 @@ int NetRulesRegistrationTest(const std::string& dll, const std::string& ini, con
             auto* tool = static_cast<cIGZUnknown*>(manager->GetNetworkTool(0, false));
             CHECK(tool != nullptr);
             CHECK(manager->GetNetworkTool(0, false) == tool);
+            CHECK(manager->GetNetworkTool(-1, true) == nullptr);
+            CHECK(manager->GetNetworkTool(13, true) == nullptr);
+            auto* privateTool = static_cast<cIGZUnknown*>(manager->GetNetworkTool(0, true));
+            CHECK(privateTool != nullptr && privateTool != tool);
+            if (privateTool) {
+                CHECK(privateTool->AddRef() == 1); // native factory returns count zero
+                CHECK(privateTool->Release() == 0);
+            }
+            auto* created = static_cast<cIGZUnknown*>(manager->GetNetworkTool(0, true));
+            CHECK(created != nullptr);
+            if (created) CHECK(created->Release() == 0); // created-pointer disposal, no retained reference
             if (tool) {
                 tool->AddRef(); // our reference must survive the manager/cache
                 CHECK(manager->Release() == 0);
