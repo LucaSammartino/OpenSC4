@@ -577,6 +577,7 @@ cSC4PanelUIWinProc	windows and panels	ui	small-windows.md	-	-	-
 cSC4SituationUIImageWinProc	windows and panels	ui	advisor-face.md	-	-	-
 cSC4LegendDialogWinProc	windows and panels	ui	widget-misc2.md	-	-	-
 cSC4QueryDialogWinProc	windows and panels	ui	city-tools-input.md, widget-misc2.md	-	-	-
+cSC4VideoPreferencesWinProc	windows and panels	ui	video-preferences.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	core/src/map_view	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
