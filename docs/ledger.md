@@ -53,5 +53,40 @@ KERNEL32 allowlist is preserved. Library bodies are scanned as well as game
 bodies so a transitive effect is not lost. These are static planning classes,
 not proofs of runtime equivalence; unknown indirect calls are `vtable`.
 
-The summary lists the ten largest owners by implemented-but-unmatched bytes,
-with the oracle-class byte split, for selecting binding lanes.
+`boundary_class` measures only the function's own body, with precedence
+`import` > `indirect` > `direct` > `globals` > `leaf`. Unlike `oracle_class`,
+it propagates no effects from callees and applies no benign-import allowlist.
+The appended boundary columns are:
+
+- `direct_game_callees`, `direct_library_callees`, `direct_other_callees`:
+  distinct direct targets, with JSON address lists in the corresponding
+  `direct_*_targets` fields. Game entries come from coverage; library/compiler
+  entries are the remaining Ghidra-exported functions. This export has no
+  separate library flag. Unknown targets remain explicit in `other`.
+- `import_calls` and JSON `import_names`: call-site count and distinct PE IAT
+  names. `indirect_calls` counts register and memory-indirect call sites,
+  including absolute pointers outside the IAT. Resolved computed-call targets
+  in `calls.tsv` do not convert these sites to direct calls.
+- JSON `indirect_slots`: distinct candidate byte displacements for calls
+  through a single register plus a nonnegative dword-aligned offset (zero
+  included; ESP/EBP, indexed and negative offsets excluded). These patterns do
+  not establish a vtable's identity. Calls lacking this pattern still count
+  as indirect sites.
+- `global_reads`, `global_writes`: memory accesses to the PE's actual `.data`
+  and `.rdata` virtual ranges, including indexed globals. Stores set writes,
+  read-modify-write instructions set both, and LEA/immediate addresses set
+  neither. These flags do not describe memory reached through dynamic pointers.
+
+Both class tables show implemented functions, implemented bytes and their share
+of all implemented bytes, alongside the whole-game counts. Answering cost is
+the distinct direct targets, import names and candidate slot displacements
+used by implemented code. The summary also reports implemented bytes whose
+direct targets are all implemented game functions: library/unknown targets
+fail this test, while functions without direct targets satisfy it. A second
+subtotal requires at least one direct target. This is an immediate-callee
+measure, not a recursive closure or a claim that indirect/import calls need
+no answers.
+
+The ten largest owners remain ranked by implemented-but-unmatched bytes. Both
+class splits in that table cover all implemented owner bytes, including matched
+functions; the separate unmatched-byte column determines the rank.
