@@ -10,15 +10,24 @@ function fc4.lot_sweep(name, flatten)
     local suffix = ''
     if width == 128 then suffix = '-128' end
     local lots = dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/lot-sweep-catalog' .. suffix .. '.lua')
-    if flatten then
-        fc4.try_city('SetCellAltitude', {0, 0, 255, 255, 280})
-        fc4.try_city('GetCellAltitude', {8, 8})
-        fc4.try_city('GetCellAltitude', {32, 32})
-        -- Single-cell read-back distinguishes command acceptance from terrain effect.
-        fc4.try_city('SetCellAltitude', {32, 32, 280})
-        fc4.try_city('GetCellAltitude', {32, 32})
-    end
     fc4.try_city('SetCityEstablished')
+    if flatten then
+        -- The companion dated plugin script prepares terrain. Check its effect
+        -- before plopping: Maxis SetCellAltitude accepted calls without changing it.
+        fc4.city('SimSpeedFast')
+        local altitude = fc4.city('GetCellAltitude', {32, 32})
+        local polls = 0
+        while altitude ~= 280 and polls < 120 do
+            fc4.delay(1)
+            altitude = fc4.city('GetCellAltitude', {32, 32})
+            polls = polls + 1
+        end
+        if altitude ~= 280 then error('flat terrain companion did not run') end
+        if fc4.city('GetCellAltitude', {8, 8}) ~= 280 or
+           fc4.city('GetCellAltitude', {240, 240}) ~= 280 then error('flat terrain read-back failed') end
+        fc4.log('flat-terrain verified 280m')
+        fc4.city('SimSpeedPause')
+    end
     local i = 1
     local batch = 0
     while lots[i] do
@@ -30,15 +39,24 @@ function fc4.lot_sweep(name, flatten)
         local status = fc4.try_city('PlaceLot', {fc4.iid(lot[1]), x, z, 0, false, false})
         fc4.log('lot-result iid=' .. lot[1] .. ' category=' .. lot[6] .. ' status=' .. fc4.text(status))
         batch = batch + 1
-        if batch == 8 then fc4.delay(1); batch = 0 end
+        if batch == 8 then
+            -- GameDelay(frames) stalled in paused West Weburg after exactly
+            -- three batches. Advance a running frame, then pause construction.
+            if not flatten then fc4.city('SimSpeedFast') end
+            fc4.delay(1)
+            if not flatten then fc4.city('SimSpeedPause') end
+            batch = 0
+        end
         i = i + 1
     end
     -- Landfill is a zone, not a catalog ploppable lot.
     fc4.try_city('PlaceZone', {14, width - 6, depth - 6, width - 2, depth - 2})
     fc4.city('SaveCityQuick', {true})
     fc4.log('placement-complete')
+    if not flatten then fc4.city('SimSpeedFast') end
     fc4.delay(10)
-    fc4.log('settled-frames 10 paused')
+    if not flatten then fc4.city('SimSpeedPause') end
+    fc4.log('settled-frames 10')
     -- Demolish part of the placed catalog with all three documented flags.
     i = 1
     local flags = {'None', 'Sim', 'Explode'}

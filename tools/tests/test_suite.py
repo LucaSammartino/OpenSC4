@@ -105,6 +105,20 @@ class SuiteParsingTests(unittest.TestCase):
 
 
 class SuiteQueueTests(unittest.TestCase):
+    def test_lua_can_stage_a_dated_terrain_companion_without_replacing_lua_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            row['script'] = 'probe.lua'
+            (root / 'probe.lua').write_text('-- Lua fixture\n')
+            setup = '2000-01-01 terrain 0 0 256 256 280 1\n'
+            (root / 'probe.script').write_text(setup)
+            directory, manifest = suite.make_batch(root, [row], 'plain', str(root), 'companion')
+            body = manifest['requests'][0]['request']
+            self.assertIn('lua_script = build-runs/suite/companion/scripts/case.one.lua', body)
+            self.assertIn('\nscript = build-runs/suite/companion/scripts/case.one.script', body)
+            self.assertEqual((directory / 'scripts/case.one.script').read_text(), setup)
+
     def test_lua_request_and_harvested_command_evidence_round_trip(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
