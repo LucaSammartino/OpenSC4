@@ -5,38 +5,42 @@ before it stops and moves the stop note it replaces, verbatim, to [docs/history/
 lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state — USER STOP, 2026-10-23 11:10 BST
+## 0. Current state — RUN 5 END (Codex lane trial), 2026-10-25 10:00 BST
 
-**STOP is set** (`python tools/lanes.py stop`). Nothing runs: the nine stopped workers are landed and
-the refiller has exited. Clear STOP only when the user explicitly resumes.
+**STOP is set** (`python tools/lanes.py stop`); the watcher and heartbeat are stopped. Live Codex rounds were
+killed at the stop; their worktrees and queue entries are kept. Verified reads 27.6 on the train238 report because
+landvalue flickered 71/72 there (27.7-27.8 on clean reports). Clear STOP only when the user resumes.
 
-**Main:** the nine stopped workers were finished and landed as train124 (8 lanes, [run 301](runs/train124-301.md))
-and train125 (`core-my-street-sim4`, [run 302](runs/train125-302.md)); both gates and regresses were clean (the
-train124 netmgr 72/73 -> 71/73 dip was run noise, back to 72/73 in train125). Every lane tip is an ancestor of
-main. The new core modules are unwired, so coverage did not move. No batch is in flight.
+**Coverage** (`tools/coverage.py`): specified 89.2%, implemented 60.2%, verified 27.6%, replaced 27.8%
+(run 5 started at 57.8 / 36.1 / 19.7 / 18.1). Trains 126-238 landed (96 batches), plus tloriato/OpenSC4#16
+(amarret, 65 RE spec lanes, merged locally, specified +6.7).
 
-**Coverage** (`tools/coverage.py`): specified 57.8%, implemented 36.1%, verified 19.7%, replaced 18.1%
-(3,226,906 / 2,018,463 / 1,099,943 / 1,012,661 of 5,584,842 bytes). Over the 12 hours ending at this stop
-(trains 103-123, ~590 commits, +103k lines) this moved by +8.4 KB implemented, +64 KB verified and 0 replaced.
-The exact-function credit path (76 B, self-reviewed) was removed in the 2026-10-23 trim. Bounded/partial deliveries earn no owner credit; on resume, prefer finishing owners over
-parallel partial slices.
+**First thing next run:**
+- `infra-subsysreg23` (ready, 196f4e2ef) splits `FC4Subsystems.cpp`/CMake/`plugin_load_test.cpp` into per-owner
+  fragments. It needs one more merge of main (keys added in trains 231-238), then land it **alone**. It removes
+  the hotspot conflicts that forced most recuts this run.
+- Shadow summary labels: `nettool_plan_shadow`, `powerline_plan_shadow`, `dbpf_bounds_shadow`, `formats_shadow`
+  ran exact in the train237 house shadows run (log lines `nettool plan shadow ... mismatches=0`,
+  `dbpf_bounds shadow ... clean`, `formats shadow: total ... EXACT`), but the regress summary emits no
+  `<key> N lines` row for them, so coverage.py cannot credit them (cSC4NetworkTool 1.9%, cSC4PowerLineTool 0.26%,
+  cGZDBSegment*, exemplar rows). Fix the log prefixes or the summary, then credit. `gzfw_shadow` is credited.
+- The merge train's regress runs **main's** `tools/regress.ps1`: shadow-profile keys must be on main before the
+  batch whose regress should measure them.
 
-**Unlanded work** (worktrees removed 2026-10-23; every unlanded branch is pushed to origin, and each removed
-worktree's build-runs text is in `build-runs/worktree-archive-2026-10-23.tar.gz`, local only):
-- `re-curve-editor-views4`: spec transliterates x87 instruction sequences (CONTRIBUTING.md "Specs"); rewrite
-  as behaviour before landing.
-- Held Codex lanes (`git branch --no-merged main`, about 35): mostly blocked on unpublished contracts; review
-  one by one before reviving. `tools-build-singleflight4` and `tools-refill-rea-admission4` extend the removed
-  swarm tooling.
-- Pre-run parked branches (`glue25`, `glue26`, `glue-terrain3`, `verify-netmgrfix4`, `integration/*`,
-  `coordinator/*`) are unchanged.
+**Ready, unlanded** (queue entries, no credit claimed): harvest-orphans16 (view3d conflicts; r7 merging main),
+glue-floraocc-replace22, glue-regionalcity-replace23 (r5: FFI handle owner; Claude review found the replace key
+needs an owned RegionalCity ABI, >1k lines, save path), glue-overlays-replace17 (r6: native manager interception),
+glue-netlotobj-replace22, glue-netocc-factories24, core-textedit-close14 (newer tip), core-vehicles-close21,
+glue-viewlight-shadow25, glue-watercraft-shadow25, glue-cfgrule-shadow25.
 
-**Known issues:** train121 really worsened LandValue (72/72 to 71/72) and the coordinator landed it anyway
-([incident](ops/acceptance-incident-train121.md)); every landing must read the full comparison delta, not just
-the verdict. Native per-step LandValue capture is still 0. C: is 68% full after the worktree cleanup.
+**Parked:** glue-lotrec-replace18 (spec §15.1 boundary), fix-shadowcrash23 (Codex cyber filter refused it).
+
+**Known issues:** landvalue 71/72 and propmgr 219/220 flicker one month in some house shadows runs (each costs
+~0.2 verified on that report); `plugin_autotest_test` watchdog timings fail under 13-lane load (re-gate passes);
+lane worktrees' `engine/build-x86` can hold stale objects whose ninja deps point at `../train-integration`.
 
 The stop note this replaces is archived verbatim in
-[handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
+[handoff-user-stop-2026-10-23-1110.md](history/handoff-user-stop-2026-10-23-1110.md).
 
 <!-- BEGIN GENERATED: latest-run -->
 - **Latest in-game run:** 659 (modelinst partial shadow landed (run 5); renderprops and app exact in the house regress; demand and landvalue flaked.); 652 (partial shadow method audit landed (run 5): 44 functions, 4,070 bytes.); 651 (map view answers complete; render property and application partial shadows landed (run 5).); 649 (renderprops registry and owned fixture exact 73/73 through 2032); 645 (graphics driver partial shadow landed and the 48-key replace list confirmed clean in the house run (run 5).). See `docs/manual-checks.md`.
