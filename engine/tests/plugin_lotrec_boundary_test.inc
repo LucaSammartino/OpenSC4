@@ -3,7 +3,7 @@
 int LotrecBoundaryTest(const std::string& dll, const std::string& ini, const std::string& log, bool requested) {
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
-    WriteTextFile(ini, requested ? "[subsystems]\nenable = lotrec\n" : "[subsystems]\n");
+    WriteTextFile(ini, requested ? "[subsystems]\nenable = lotrec\nlotrecview_shadow = 1\n" : "[subsystems]\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (!hd) return 1;
@@ -21,6 +21,7 @@ int LotrecBoundaryTest(const std::string& dll, const std::string& ini, const std
     FreeLibrary(hd);
     const auto text = ReadFile(log);
     CHECK((text.find("subsystem 'lotrec': replacement unavailable") != std::string::npos) == requested);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
     CHECK(text.find("WARNING: released last reference") == std::string::npos);
     CHECK(text.find("WARNING: over-release") == std::string::npos);
     return g_failures == 0 ? 0 : 1;

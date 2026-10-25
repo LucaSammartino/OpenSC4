@@ -421,6 +421,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "viewutil_shadow",
                                   // MI14 finite isolated model-instance fixture, default off.
                                   "modelinst_shadow",
+                                  // Specified live lot getter comparison, independently default off.
+                                  "lotrecview_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
