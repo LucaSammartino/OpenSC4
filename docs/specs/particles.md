@@ -21,6 +21,8 @@ geometry sources, decals, dynamic-particle hosting, the 2D body helper and seque
 It uses the Windows export and local decompilation for navigation, with instruction checks for the
 numeric contracts explicitly settled below; no REA session or game execution was used.
 Detailed mesh generation, pixel results and collision/shock-wave numerics remain partial (PT8–PT11).
+The 2026-10-25 supplement (§20) specifies the three attributed `cSC4EffectMaps` methods;
+§17 delegates the expanded body admission/integration rules to rigid-body-2d.md.
 
 ## 0. What this spec settles and what it leaves open
 
@@ -1241,3 +1243,151 @@ friction; PO33–34 assume the foreign stream successfully supplies the listed v
 mesh and renderer vectors remain PT8–PT11; additional admission/integration fixtures are in
 rigid-body-2d.md §8.4. Existing §§5–8 and the linked effects/helper
 specs retain their own fixtures and normative behavior.
+
+## 20. Effect-map initialization and diagnostic drawing *[compat]*
+
+### 20.1 Inventory, state and initialization
+
+`cSC4EffectMaps` is a map/mesh owner, not an emitted-particle component.
+The export attributes exactly three bodies to it:
+
+| Entry | Size | Contract |
+|---|---|---|
+| `00585C20–00586027` UpdateMapsMesh | 1032 bytes | rebuild diagnostic boxes from the first map, §20.2 |
+| `00586720–005867A0` DrawTerrainMaps | 129 bytes | dirty rebuild, packed render state and mesh submission, §20.3 |
+| `005869C0–00586AB0` Init | 241 bytes | lazy map/terrain setup, below |
+
+These concrete calls use ECX as receiver. The mesh builder is embedded at +4C.
+The owner also dispatches virtual callbacks at +1C and +20; this evidence does
+not establish its whole vtable, constructor/destructor or message subscriptions.
+No Start/Stop, particle pool, persistence writer or file-IO contract is established
+on these three bodies. Terrain interface meanings are in [terrain.md](terrain.md)
+and mesh construction is in [geometry-utilities.md](geometry-utilities.md) §6.
+
+| Owner offset | State used here |
+|---|---|
+| +0C, +10 | retained terrain interface, cached binary32 sea level |
+| +14/+18 | outer map-sequence begin/end; the first element is a float-map vector |
+| +20/+24 | terrain cell counts X/Z, integer words |
+| +28/+2C | vertex counts X/Z, **integer words**, not float dimensions |
+| +30/+34 | truncated cell-width word, binary32 reciprocal of its unsigned value |
+| +38/+3C/+40/+44 | bounds (0,0,cellCountX,cellCountZ) |
+| +48 | dirty byte consulted/cleared by drawing |
+
+Init returns true. If the outer map sequence is nonempty it returns immediately,
+without refreshing terrain or dimensions. Otherwise it replaces terrain +0C with
+the shared terrain pointer at `00B43CF8`: when different, retain the new nonnull
+pointer, store it, then release the old nonnull pointer. Equality avoids both
+refcount calls. It then queries terrain, in order, for sea level (virtual +74),
+cell counts X (+1C), Z (+20), and CellWidth (+18). Sea level is stored to
+binary32; counts are stored as integer words. CellWidth is passed directly from
+x87 to `_ftol2`; its low 32-bit result is stored at +30. For finite positive
+representable widths this truncates toward zero, rather than preserving a
+fractional width. +34 is `F(1/unsigned(widthWord))`, with unsigned conversion
+implemented by signed FILD and adding binary32 2^32 when the sign bit is set.
+Do not replace this with the reciprocal of the original fractional CellWidth.
+
+Init sets vertex counts to cell counts plus one (32-bit integer additions), sets
+the bounds above, inserts one empty float map into the outer sequence and resizes
+that first map to vertexCountX*vertexCountZ entries filled with positive-zero
+binary32. The element-count multiplication is 32-bit; this wrapper performs no
+overflow, width-zero, missing-terrain or allocation validation. It does not set
+or clear dirty +48. Valid dependencies and successful foreign allocation are
+preconditions for normal initialization; there is no local false-return adapter
+or rollback guarantee (`005869C7–00586AA9`).
+
+### 20.2 Diagnostic mesh rebuilding
+
+An empty outer map sequence makes UpdateMapsMesh a no-op, preserving the old
+builder. Otherwise reset the embedded builder, set light direction (0.25,0.5,1),
+colour yellow (1,1,0), and initial normal (0,1,0). Traverse integer Z from zero
+to vertexCountZ−1 and, within it, X from zero to vertexCountX−1. Only the first
+float map is read, at row-major index Z*vertexCountX+X. A +0 or −0 value skips
+that vertex and its callbacks. The map word is a presence test here, not the
+height passed to the box builder. Evidence: `00585C31–00585CF2`,
+`00586000–0058601A`; the unsigned loop comparisons do not reinterpret dimensions
+as floating-point values.
+
+Let F mean a binary32 store and E retained x87 arithmetic. Drawing width W is
+the unsigned +30 word converted to binary32 once. For each present vertex:
+
+* Query terrain virtual +38 with the integer X,Z; store its height H to binary32.
+  Query owner virtual +1C with `(mapIndex=0, X, Z)`; store the scalar result V
+  to binary32 but compare its retained result against stored H. If the retained
+  V is below H, choose red (1,0,0) and endpoint T=`F(E((H−storedV)*2+storedV))`;
+  otherwise choose yellow and T=storedV. This draws a reflected upward magnitude
+  for a negative difference; it does not construct a downward box.
+* Form world center Xc=`F(E(integerX*W))`, Zc=`F(E(integerZ*W))`. The first
+  half width A=`F(E(W*0.45))`, where 0.45 is **binary64**, bits
+  `3FDCCCCCCCCCCCCD` at `00A9EFE8`. Build a box with lower corner
+  `(F(E(Xraw−A)), H, F(E(Zraw−A)))` and upper corner
+  `(F(E(Xc+A)), T, F(E(Zc+A)))`. Xraw/Zraw are the retained products before
+  their center stores: minima use those retained values, maxima the stored centers.
+  Call GetBoxCorners, then AddBoxMesh. Equal heights still submit a degenerate box.
+* Change colour to blue (0,0,1). Call owner virtual +20 with a writable vec3
+  output, map index 0 and **binary32 world center Xc,Zc**, not integer indices.
+  Treat its returned components Gx,Gy,Gz as foreign supplied values; this method
+  does not normalize them. Construct a flat second box at height T, with X/Z
+  limits `F(E(Xc±B))`, `F(E(Zc±B))`, where retained B=`E(W*0.1)` and 0.1 is
+  **binary64**, bits `3FB999999999999A` at `00A9EFE0`.
+* Get its eight corners in geometry-utilities.md §6.2 order. Displace upper-Y
+  corners 2,3,6,7 by `(Gx*W,Gy*W,Gz*W)` and submit a second AddBoxMesh.
+  Other corners remain unchanged. Each changed coordinate is stored to binary32.
+
+Displacement has asymmetric staging: first retain Dx=E(Gx*W), Dy=E(Gy*W),
+Dz=E(Gz*W), also storing Dx and Dz to binary32. The exact addends are:
+
+| Corner | X addend | Y addend | Z addend |
+|---|---|---|---|
+| 2 | stored Dx | retained Dy | retained Dz |
+| 3 | retained Dx | retained Dy | stored Dz |
+| 6 | retained Dx | retained Dy | stored Dz |
+| 7 | stored Dx | retained Dy | stored Dz |
+
+Do not round all three displacements identically before every addition.
+Height/reflection evidence is `00585CF2–00585D4C`; first box staging
+`00585D51–00585E4A`; callback/second box `00585E52–00585EDA`; displacement
+`00585EDF–00585FF8`. Colours are the three binary32 triples at
+`00B0A230/00B0A23C/00B0A248`. The builder/box helper's face order, normals,
+vertex-counter wrapping and failure domain remain the linked geometry contract.
+UpdateMapsMesh itself does not clear dirty +48 and performs no draw submission,
+resource lookup or lock. It has no boolean failure adapter.
+
+### 20.3 Draw submission and failures
+
+DrawTerrainMaps(context) is a void concrete method taking one stack pointer and
+popping four bytes. With an empty outer map sequence it makes no calls and
+preserves dirty/builder/context state. Otherwise, if dirty +48 is nonzero, first
+call UpdateMapsMesh; after normal return clear dirty to zero. A clean map skips
+rebuilding, but still draws. Initialize a zeroed packed render-state record and
+pack the following arguments in the order of [draw-context.md](draw-context.md) §5.1:
+
+| Field group | Values |
+|---|---|
+| colour write, depth write, depth test, alpha test, blending | 1,1,1,1,1 |
+| texture count, culling | 0,0 |
+| depth function, source blend, destination blend, alpha function | 3,4,5,4 |
+| alpha reference, stage-0 mode, stage-1 mode | binary32 `3F666666` (about 0.9), 1, −1 |
+
+Then SetRenderState(context,packed), Mesh(embedded builder), and
+RenderMesh(context,returned mesh), in that order (`00586726–00586794`). No
+texture is acquired, prior render state restored, dirty retry scheduled or mesh
+null check performed locally. If rebuilding does not return normally, the
+subsequent dirty-clear and submission are not reached. Foreign builder/context
+exceptions and invalid pointers do not acquire a recoverable local false return.
+
+### 20.4 Proposed conformance vectors (unexecuted)
+
+Use valid foreign interfaces and trace their call arguments. These are static
+instruction-derived fixtures, not measured game/pixel outputs.
+
+| ID | Input | Required observations |
+|---|---|---|
+| PM01 | empty outer sequence, terrain counts (2,1), sea 100, CellWidth 16.75 | Init true; vertex counts integer (3,2), width word 16, reciprocal 0.0625, bounds (0,0,2,1), first map six positive-zero floats; queries sea, countX, countZ, width |
+| PM02 | repeat Init after PM01, shared terrain changed | true, no queries/refcount calls or map changes |
+| PM03 | empty outer sequence, dirty 7, existing builder | UpdateMapsMesh and DrawTerrainMaps make no builder/context calls; dirty remains 7 |
+| PM04 | nonempty map, all entries ±0 | rebuild resets/configures builder, no height/owner callbacks and no boxes; direct rebuild preserves dirty |
+| PM05 | only vertex (1,0) present, W=10, terrain H=10, owner scalar V=6, gradient (0,1,0) | red first box min (5.5,10,−4.5), max (14.5,14,4.5); blue second box X 9..11/Z −1..1, lower-Y corners 14 and upper-Y corners 24; two AddBoxMesh calls |
+| PM06 | PM05 but owner V=10 | yellow first box with both heights 10, still submitted; blue box heights 10 and 20 |
+| PM07 | nonempty map, dirty 0 | no rebuild; pack listed state, SetRenderState, Mesh, RenderMesh; no state restore |
+| PM08 | nonempty map, dirty 2, rebuild returns normally | rebuild once, dirty becomes 0 before state packing/submission; next draw skips rebuild |
