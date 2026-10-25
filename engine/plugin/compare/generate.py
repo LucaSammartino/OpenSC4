@@ -63,6 +63,11 @@ def generate(root, output):
         if contract:
             # Unknown facts stay unasserted; concrete conflicts fail the build.
             for column in ("convention", "callee_pop", "stack_arg_dwords"):
+                # A method whose body never reads ECX publishes as stdcall/this=none; its callers still pass this,
+                # so a thiscall row with the same cleanup describes the same boundary.
+                if (column == "convention" and row[column] == "thiscall" and contract[column] == "stdcall"
+                        and contract["this"] == "none"):
+                    continue
                 if contract[column] not in ("", "unknown", "?", row[column]):
                     raise ValueError(f'{row["name"]}: functions.tsv {column} conflicts')
         fingerprint = int.from_bytes(hashlib.sha256("\t".join(row[c] for c in COLUMNS if c != "mode").encode()).digest()[:4], "little")
