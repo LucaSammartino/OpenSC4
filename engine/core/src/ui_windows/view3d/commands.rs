@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Panel state and the fully identified motion/query commands (§§6g, 6h).
-//! Exact registration table and grouped command IDs remain open as VW9.
+//! Registration order is the settled VW9 table in `registry`.
 
 use super::{ControlCall, InputHost, View3DWin, ViewChange};
 
@@ -88,14 +88,7 @@ impl View3DWin {
             return;
         }
         if !self.owner.panels.mayor_none_shown {
-            for panel in [
-                0x49ED_F9B7,
-                0x41,
-                0x9988_7755,
-                0x1520_0002,
-                0x1520_0003,
-                0xABC5_4125,
-            ] {
+            for panel in [0x49ED_F9B7, 0x41, 0x9988_7755, 0x1520_0002, 0x1520_0003, 0xABC5_4125] {
                 host.mayor_subpanel(panel, panel == id);
             }
         }
@@ -132,24 +125,11 @@ impl View3DWin {
         host.panel_buttons(panel, false);
         match panel {
             1 => {
-                self.owner.panels.mayor_none_shown = ![
-                    0x49ED_F9B7,
-                    0x41,
-                    0x9988_7755,
-                    0x1520_0002,
-                    0x1520_0003,
-                    0xABC5_4125,
-                ]
-                .into_iter()
-                .any(|id| host.mayor_subpanel_visible(id));
-                for id in [
-                    0x49ED_F9B7,
-                    0x41,
-                    0x9988_7755,
-                    0x1520_0002,
-                    0x1520_0003,
-                    0xABC5_4125,
-                ] {
+                self.owner.panels.mayor_none_shown =
+                    ![0x49ED_F9B7, 0x41, 0x9988_7755, 0x1520_0002, 0x1520_0003, 0xABC5_4125]
+                        .into_iter()
+                        .any(|id| host.mayor_subpanel_visible(id));
+                for id in [0x49ED_F9B7, 0x41, 0x9988_7755, 0x1520_0002, 0x1520_0003, 0xABC5_4125] {
                     host.mayor_subpanel(id, false);
                 }
                 self.owner.panels.mayor_shown = false;
@@ -167,8 +147,7 @@ impl View3DWin {
     pub fn panel_command(&mut self, host: &mut impl CommandHost, command: u32) {
         let (tab, panel) = match command {
             0x6A93_5C34 => {
-                let god = !host.city_established()
-                    || (self.owner.view.god_override && self.owner.modifiers & 7 == 7);
+                let god = !host.city_established() || (self.owner.view.god_override && self.owner.modifiers & 7 == 7);
                 (0x2988_BC85, if god { 0 } else { 4 })
             }
             0x6A93_5CA4 => (0xC988_BC79, 1),
@@ -182,13 +161,7 @@ impl View3DWin {
     }
 
     /// The child filter receives an already toggled tab, unlike ProcessCommand.
-    pub fn apply_panel_tab(
-        &mut self,
-        host: &mut impl CommandHost,
-        _tab: u32,
-        panel: u32,
-        on: bool,
-    ) {
+    pub fn apply_panel_tab(&mut self, host: &mut impl CommandHost, _tab: u32, panel: u32, on: bool) {
         self.close_owner_secondary(host);
         if on {
             if let Some(old) = self.owner.panels.current {
@@ -247,8 +220,8 @@ impl View3DWin {
         }
     }
 
-    /// Numeric IDs explicitly given in §6g. Unidentified grouped commands still
-    /// need VW9; unknown/unhandled IDs return false, just like handled IDs.
+    /// Motion and panel commands from §6g. Grouped tool commands are dispatched
+    /// by `process_command`; unknown IDs also return false.
     pub fn process_motion_panel_command(&mut self, host: &mut impl CommandHost, id: u32) -> bool {
         match id {
             0x6A93_5C34 | 0x6A93_5CA4 | 0x6A93_5CA8 | 0x6A93_5CAB => self.panel_command(host, id),

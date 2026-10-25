@@ -84,6 +84,7 @@ impl Default for Lifecycle {
                 (0x280, [0x31, 0]),
                 (0x288, [0x29, 0]),
                 (0x290, [0x2992_37BF, 0]),
+                (0x2A0, [0, 0]),
                 (0x2A8, [0x6A33_E1BA, 0]),
                 (0x2B0, [0x2A33_E1A3, 0]),
                 (0x2B8, [0xEA35_3064, 0]),
@@ -139,7 +140,7 @@ pub struct LifecycleReply {
     pub object: Option<u32>,
 }
 
-pub trait LifecycleHost: InputHost {
+pub trait LifecycleHost: InputHost + super::CoverageHost {
     fn lifecycle(&mut self, call: LifecycleCall) -> LifecycleReply;
     fn cheat_manager_exists(&self) -> bool;
     fn development_cheats(&self) -> bool;
@@ -203,7 +204,10 @@ impl View3DWin {
             return true;
         }
         host.lifecycle(LifecycleCall::Subscribe);
-        host.lifecycle(LifecycleCall::RegisterCommands);
+        assert!(
+            host.lifecycle(LifecycleCall::RegisterCommands).success,
+            "required command registry"
+        );
         for (id, name) in super::COMMANDS {
             host.register_view_command(id, name, 0);
         }
@@ -223,6 +227,7 @@ impl View3DWin {
         host.lifecycle(LifecycleCall::VisibleEnabled);
         host.set_cursor(0xC16C_4E1B);
         host.lifecycle(LifecycleCall::InitCoverage);
+        self.owner.coverage.recalculate(host);
         host.lifecycle(LifecycleCall::StartTimer);
         self.owner.motion.paint_enabled = true;
         let resource = host
@@ -265,11 +270,26 @@ impl View3DWin {
         }
         self.remove_all_controls(host, false);
         self.remove_all_persistent_controls(host);
+        self.owner.coverage.clear(host);
         for (offset, token) in std::mem::take(&mut self.owner.lifecycle.objects) {
-            if matches!(offset, 0x184 | 0x188 | 0x410) {
-                // VW8: unidentified helper. Preserve the specified stop/release.
+            if offset == 0x410 {
+                // §6m: this dormant reference belongs to destruction, rather
+                // than Shutdown's helper teardown.
+                self.owner.lifecycle.objects.insert(offset, token);
+                continue;
+            }
+            if matches!(offset, 0x184 | 0x188) {
+                // §6m: Stop asks whether running before invoking slot 5(false).
                 host.lifecycle(LifecycleCall::Stop(token));
             }
+            host.lifecycle(LifecycleCall::Release(token));
+        }
+    }
+
+    /// Destruction-only reference from §6m. No creator or active operation is
+    /// assigned to this field; base-window destruction remains the host's job.
+    pub fn destroy(&mut self, host: &mut impl LifecycleHost) {
+        if let Some(token) = self.owner.lifecycle.objects.remove(&0x410) {
             host.lifecycle(LifecycleCall::Release(token));
         }
     }

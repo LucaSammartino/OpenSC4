@@ -122,10 +122,7 @@ impl RawExemplar {
         } else {
             &[]
         };
-        let scale = match self.optional_u32(SCALE)? {
-            Some(s) if s > 1 && s < (1 << 24) => s,
-            _ => 256,
-        };
+        let scale = self.optional_u32(SCALE)?.unwrap_or(256);
         Ok(SelectionFields {
             source,
             scale,

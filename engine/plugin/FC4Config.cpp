@@ -406,6 +406,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_drag_shadow", "nettool_wide_drag_shadow",
                                   // LR15 scoped record inventories, independently default off.
                                   "lotunit_shadow", "lotbasetexture_shadow", "lotwall_shadow",
+                                  // Read-only regional-city live-record differential, default off.
+                                  "regionalcity_shadow",
                                   // Application path and message-mode observation, default off (AP17).
                                   "app_shadow",
                                   // Unresolved native lazy-path cache diagnostics only (AP18).

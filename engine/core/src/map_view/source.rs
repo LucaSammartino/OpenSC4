@@ -109,9 +109,7 @@ pub fn select_source(source: u32, layer: u32, debug: bool) -> Result<SourceSelec
                 3 | 4 => DeveloperGrid::Signed16Slot13,
                 5 => DeveloperGrid::CapacityPercentage,
                 6 => DeveloperGrid::DebugEntriesTimes12,
-                // [literal, QV4] Even the documented default layer 1 has no
-                // published grid selection. Do not infer one from its name.
-                _ => return Err(Unsupported::DeveloperLayer(layer)),
+                _ => return Ok(SourceSelection::DrawNothing),
             };
             Ok(SourceSelection::Developer {
                 developer_type: TYPES[(source - 64) as usize],

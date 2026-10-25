@@ -39,9 +39,18 @@ pub enum GuiCall {
         id: u32,
         iid: u32,
     },
+    RecursivePanelChild {
+        parent: u32,
+        id: u32,
+        iid: u32,
+    },
     Filter(u32, bool),
     Flag(u32, u32, bool),
     ClearFocus(u32),
+    SendToBack(u32),
+    BmpFlag(u32, u32, bool),
+    /// Base window shutdown destroys parent-owned children, including overlay.
+    BaseShutdown,
     Move(u32, i32, i32),
     Align(u32, u32),
     AddChild(u32),
@@ -81,7 +90,7 @@ pub enum GuiCall {
 /// Query, child lookup, script/create/image/buffer and helper calls return an
 /// owned reference or None. Other operations return None. Width/height are
 /// foreign window geometry; script keys always have type 0/group 96A006B0.
-pub trait GuiHost: CommandHost + LifecycleHost + super::StateHost {
+pub trait GuiHost: CommandHost + LifecycleHost + super::StateHost + super::GraphHost {
     fn gui(&mut self, call: GuiCall) -> Option<u32>;
     fn client_size(&self) -> (i32, i32);
     fn window_size(&self, window: u32) -> (i32, i32);
@@ -94,8 +103,6 @@ pub struct GuiState {
     /// One owned reference per entry. Per-panel lists borrow these tokens.
     pub windows: Vec<u32>,
     pub panels: [Vec<u32>; 5],
-    /// Borrowed stable window handle: the parent owns its lifetime.
-    pub overlay: Option<u32>,
 }
 
 impl View3DWin {
@@ -104,10 +111,9 @@ impl View3DWin {
     }
 
     fn gui_helper(&mut self, host: &mut impl GuiHost, offset: u32, kind: HelperKind, window: Option<u32>) {
-        if let Some(object) = host.gui(GuiCall::Helper(kind)) {
-            self.owner.gui.fields.insert(offset, object);
-            host.gui(GuiCall::Init(object, window));
-        }
+        let object = host.gui(GuiCall::Helper(kind)).expect("required GUI helper allocation");
+        self.owner.gui.fields.insert(offset, object);
+        host.gui(GuiCall::Init(object, window));
     }
 
     fn gui_align(&self, host: &mut impl GuiHost, window: u32) {
@@ -127,16 +133,16 @@ impl View3DWin {
     }
 
     /// There is deliberately no second-run guard (§6b). Normal lifetime is one
-    /// AddGUI/RemoveGUI pair; a foreign allocation failure leaves a null field.
-    /// VW14: the spec does not settle all null-creation paths; skip dependent
-    /// configuration instead of calling through a missing foreign object.
+    /// AddGUI/RemoveGUI pair. Required allocation/QI failures are fatal (§6m);
+    /// optional scripts, images, buffers and extra lookups keep their guards.
     pub fn add_gui(&mut self, host: &mut impl GuiHost) {
         let (width, height) = host.client_size();
         if let Some(main) = self.gui_script(host, 0xC973_B411, 0x0987_B48F, 0x22BA_0121) {
             self.owner.gui.fields.insert(0x18C, main);
-            if let Some(generator) = host.gui(GuiCall::Query(main, 0x5386_D516)) {
-                self.owner.gui.fields.insert(0x190, generator);
-            }
+            let generator = host
+                .gui(GuiCall::Query(main, 0x5386_D516))
+                .expect("required main-panel QI");
+            self.owner.gui.fields.insert(0x190, generator);
             host.gui(GuiCall::Filter(main, true));
             let (_, panel_height) = host.window_size(main);
             let x = 5 + if width > height.saturating_mul(3) { width / 3 } else { 0 };
@@ -179,9 +185,10 @@ impl View3DWin {
         }
         self.gui_helper(host, 0x2D8, HelperKind::PanelList, None);
         // NewsTicker::Init is delayed until its script window exists.
-        if let Some(ticker) = host.gui(GuiCall::Helper(HelperKind::NewsTicker)) {
-            self.owner.gui.fields.insert(0x2DC, ticker);
-        }
+        let ticker = host
+            .gui(GuiCall::Helper(HelperKind::NewsTicker))
+            .expect("required news ticker allocation");
+        self.owner.gui.fields.insert(0x2DC, ticker);
         for (i, (script, id, extra)) in [
             (0x69E3_D347, 0xC991_EDA8, None),
             (0x2BC9_0671, 0x69E4_0A1F, Some(0xE988_9775)),
@@ -195,7 +202,10 @@ impl View3DWin {
             if let Some(window) = self.gui_script(host, script, id, 0x22BA_0121) {
                 self.owner.gui.windows.push(window);
                 self.owner.gui.panels[i].push(window);
-                if let Some(generator) = host.gui(GuiCall::Query(window, 0x5386_D516)) {
+                {
+                    let generator = host
+                        .gui(GuiCall::Query(window, 0x5386_D516))
+                        .expect("required panel QI");
                     self.owner.gui.fields.insert(0x1E0 + i as u32 * 4, generator);
                     if let Some(&proc) = self.owner.gui.fields.get(&0x2D8) {
                         host.gui(GuiCall::SetWinProc(generator, proc));
@@ -204,22 +214,41 @@ impl View3DWin {
                 self.gui_panel(host, window);
                 self.gui_align(host, window);
                 if let Some(id) = extra {
-                    if let Some(child) = host.gui(GuiCall::Child {
-                        parent: u64::from(window),
+                    if let Some(child) = host.gui(GuiCall::RecursivePanelChild {
+                        parent: window,
                         id,
                         iid: 0x5386_D516,
                     }) {
                         self.owner.gui.windows.push(child);
                         self.owner.gui.panels[i].push(child);
+                        if let Some(&proc) = self.owner.gui.fields.get(&0x2D8) {
+                            host.gui(GuiCall::SetWinProc(child, proc));
+                        }
+                        host.gui(GuiCall::Filter(child, true));
+                        host.gui(GuiCall::Flag(child, 0x800, true));
+                        host.gui(GuiCall::SendToBack(child));
+                        host.gui(GuiCall::Flag(child, 0x800, false));
+                        host.gui(GuiCall::ClearFocus(child));
+                        self.gui_align(host, child);
                     }
                 }
-                if i == 3 {
+                if i == 2 {
                     self.gui_helper(host, 0x2E4, HelperKind::MySim, Some(window));
+                    host.gui(GuiCall::SetWinProc(window, self.owner.gui.fields[&0x2E4]));
                 }
+                host.gui(GuiCall::Visible(window, false));
             }
         }
         for (offset, parent, id) in [
-            (0x310, self.owner.gui.fields.get(&0x18C).copied().map(u64::from), 1),
+            // §6m: failed main script skips immediate setup, but the later
+            // unconditional child lookup requires the main panel to exist.
+            (
+                0x310,
+                Some(u64::from(
+                    *self.owner.gui.fields.get(&0x18C).expect("required main panel"),
+                )),
+                1,
+            ),
             (0x314, Some(self.as_igzwin()), 0x09E4_18FE),
             (0x318, Some(self.as_igzwin()), 0xC9E4_1918),
         ] {
@@ -256,6 +285,9 @@ impl View3DWin {
                 self.gui_align(host, window);
                 if let Some((offset, kind)) = helper {
                     self.gui_helper(host, offset, kind, Some(window));
+                    if kind == HelperKind::Graphs {
+                        self.setup_graph(host);
+                    }
                 }
             }
         }
@@ -271,7 +303,10 @@ impl View3DWin {
     }
 
     fn add_gui_auxiliary(&mut self, host: &mut impl GuiHost, width: i32, height: i32) {
-        if let Some(callout) = host.gui(GuiCall::Helper(HelperKind::Callout)) {
+        {
+            let callout = host
+                .gui(GuiCall::Helper(HelperKind::Callout))
+                .expect("required callout allocation");
             self.owner.gui.fields.insert(0x3D8, callout);
             host.gui(GuiCall::CalloutStyle(callout, 11, 0xA85F_1A83));
             host.gui(GuiCall::CalloutStyle(callout, 10, 0xE9C8_6C9D));
@@ -291,10 +326,20 @@ impl View3DWin {
             group: 0x46A0_06B0,
             instance: 0x1441_6160,
         }) {
-            self.owner.gui.fields.insert(0x3E0, image);
+            if let Some(old) = self.owner.gui.fields.insert(0x3E0, image) {
+                host.gui(GuiCall::Release(old));
+            }
         }
-        if let Some(bmp) = host.gui(GuiCall::Helper(HelperKind::Bmp)) {
+        {
+            let bmp = host
+                .gui(GuiCall::Helper(HelperKind::Bmp))
+                .expect("required BMP allocation");
             self.owner.gui.fields.insert(0x3D4, bmp);
+            host.gui(GuiCall::BmpFlag(bmp, 6, true));
+            host.gui(GuiCall::Flag(bmp, 0x200000, true));
+            host.gui(GuiCall::Flag(bmp, 4, true));
+            host.gui(GuiCall::Visible(bmp, false));
+            self.gui_release_field(host, 0x3D0, false, false);
             if let Some(surface) = host.gui(GuiCall::CreateBuffer) {
                 self.owner.gui.fields.insert(0x3D0, surface);
                 host.gui(GuiCall::SurfaceSize(surface, 128, 32, [1, 0]));
@@ -314,7 +359,6 @@ impl View3DWin {
                 host.gui(GuiCall::Flag(overlay, flag, on));
             }
             host.gui(GuiCall::AddChild(overlay));
-            self.owner.gui.overlay = Some(overlay);
             host.gui(GuiCall::Release(overlay));
         }
         if let Some(window) = host.gui(GuiCall::RecursiveChild {
@@ -370,7 +414,7 @@ impl View3DWin {
             (0x2EC, true),
             (0x2F0, false),
         ] {
-            // VW6: 2EC/2F0 creation is unsettled. Null fields are harmless.
+            // §6m: dormant fields have no creator; teardown still accepts them.
             self.gui_release_field(host, field, stop, false);
         }
         for field in [0x30C, 0x300, 0x304, 0x308] {
@@ -392,13 +436,7 @@ impl View3DWin {
         self.owner.motion.reduced_render_settings = false;
         self.gui_release_field(host, 0x3E0, false, false);
         self.gui_release_field(host, 0x31C, true, false);
-        if let Some(overlay) = self.owner.gui.overlay.take() {
-            // VW14: honor the section's no-live-created-window requirement;
-            // the enumerated RemoveGUI steps omit this parent-owned overlay.
-            host.gui(GuiCall::Destroy(overlay));
-            host.gui(GuiCall::Shutdown(overlay));
-            // Parent owns the only reference. Never release a borrowed handle.
-        }
+        // §6m: the parent owns the overlay until base shutdown.
     }
 
     pub fn shutdown(&mut self, host: &mut impl GuiHost) {
@@ -412,5 +450,6 @@ impl View3DWin {
         self.owner.view.contours_shown = false;
         self.remove_gui(host);
         self.shutdown_tail(host);
+        host.gui(GuiCall::BaseShutdown);
     }
 }

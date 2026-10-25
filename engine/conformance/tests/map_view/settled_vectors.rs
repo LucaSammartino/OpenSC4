@@ -131,7 +131,7 @@ fn v21_center_aligned_resampling_and_two_stage_rounding() {
     );
     assert_eq!(
         ubytes(resample_grid(&bytes(2, 2, vec![0, 1, 1, 2]), [3, 3]).unwrap())[4],
-        0 // QV16: literal truncated-step formula, not vector 21's exact halfway.
+        0 // QV16: vector 21 now requires the literal truncated-step result.
     );
     assert_eq!(
         ubytes(resample_grid(&bytes(2, 2, vec![0, 1, 1, 2]), [1, 1]).unwrap()),
@@ -357,7 +357,9 @@ fn v29_wrapped_identity() {
     let (mut view, mut res, mut win, mut render, mut sims) = inputs(1);
     assert_eq!(
         view.select_with(0xb5f49800, &mut res, &mut win, &mut render, &mut sims),
-        Err(OwnerError::Unsupported(Unsupported::FilterResetQV1))
+        Ok(OwnerSelection::Selected {
+            highlight_boundary: None
+        })
     );
     assert!(res.keys.is_empty());
     view.select_with(0xb5f49801, &mut res, &mut win, &mut render, &mut sims)
@@ -402,8 +404,7 @@ fn v31_clock_wrap_regression_and_thresholds() {
         }
     }
     let (mut view, mut res, mut win, mut render, mut sims) = inputs(76);
-    view.select_with(1, &mut res, &mut win, &mut render, &mut sims)
-        .unwrap_err();
+    view.select_with(1, &mut res, &mut win, &mut render, &mut sims).unwrap();
     assert!(!view.tick_with(249, &mut render, &mut sims).unwrap().due);
     assert!(view.tick_with(250, &mut render, &mut sims).unwrap().due);
 }

@@ -589,6 +589,9 @@ if(FC4_IS_WIN32_X86)
         # Default-off public network-tool draw projection (private native tools).
         plugin/FC4NetToolDragShadow.cpp
         plugin/FC4NetToolDragShadow.h
+        # Default-off live regional-city record/getter differential.
+        plugin/FC4RegionalCityShadow.cpp
+        plugin/FC4RegionalCityShadow.h
         # Default-off live query pick predicates (partial owner observation).
         plugin/FC4QueryToolShadow.cpp
         plugin/FC4QueryToolShadow.h)
@@ -1005,6 +1008,13 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_advisor_api_test PRIVATE plugin)
     target_compile_options(fc4_advisor_api_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_api_test COMMAND fc4_advisor_api_test)
+    # Effects' unsafe diagnostic opt-in must enumerate/create the city manager;
+    # guarded runs retain the native manager and its name-membership shadow.
+    foreach(mode enabled disabled default guarded)
+        add_test(NAME plugin_effects_registration_${mode}_test
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effects-${mode})
+        set_tests_properties(plugin_effects_registration_${mode}_test PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()
@@ -1183,6 +1193,22 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
 endif()
 
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_advisors_registration
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-advisors)
+    add_test(NAME plugin_advisors_default_off
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-default-advisors)
+endif()
+
+if(TARGET FreeCity4)
+    add_executable(fc4_advisor_message_test tests/advisor_message_test.cpp
+        plugin/cFC4Message2Standard.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_advisor_message_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_definitions(fc4_advisor_message_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_advisor_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
+endif()
+
 # Overlay probe ABI and lifecycle against the real private Rust transport.
 if(TARGET FreeCity4)
     add_executable(fc4_overlays_contract_test tests/overlays_contract_test.cpp)
@@ -1205,4 +1231,10 @@ if(TARGET FreeCity4)
         add_test(NAME overlay_factory_${mode}_test
             COMMAND fc4_overlay_factory_test "$<TARGET_FILE:FreeCity4>" ${mode})
     endforeach()
+endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_netocc_shadow_factory_isolation
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-shadow-factories)
+    set_tests_properties(plugin_netocc_shadow_factory_isolation PROPERTIES RUN_SERIAL TRUE)
 endif()

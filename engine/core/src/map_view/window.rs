@@ -87,9 +87,27 @@ pub enum WindowEffect {
     PostCommand(u32),
     /// Ã‚Â§3.2 explicitly asks for a redraw, before the unsettled large-panel work.
     RedrawMap,
+    ControlFlag {
+        control: u32,
+        flag: u8,
+        value: bool,
+    },
+    MessageTarget(u32),
+    SelectButton {
+        control: u32,
+        selected: bool,
+    },
+    DispatchCommand {
+        command: u32,
+        arguments: [u32; 2],
+    },
 }
 
 pub trait WindowSystem {
+    /// Raw control-ID table used by ShowWindow (82 entries in the game).
+    fn message_controls(&self) -> Vec<u32> {
+        Vec::new()
+    }
     fn effect(&mut self, effect: WindowEffect) -> Result<(), OwnerError>;
     fn visible(&self, panel: u32) -> bool;
     fn button_down(&self, button: u32) -> bool;
@@ -161,13 +179,15 @@ pub enum PanelRequest {
     Hide,
     Large,
     Small,
+    Desirability,
+    Traffic,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PanelBoundary {
     pub request: PanelRequest,
     pub panels: [u32; 6],
-    pub boundary: Unsupported,
+    pub boundary: Option<Unsupported>,
 }
 
 impl MapView {
@@ -177,7 +197,7 @@ impl MapView {
         PanelBoundary {
             request,
             panels: MAP_PANELS,
-            boundary: Unsupported::PanelsQV3,
+            boundary: None,
         }
     }
 
@@ -191,15 +211,12 @@ impl MapView {
     ) -> Result<PanelBoundary, OwnerError> {
         // Ã‚Â§1 requires legend redraw and ResetDataView on showing; actual panel
         // visibility and its ordering relative to these calls remain QV3.
-        if matches!(request, PanelRequest::Show | PanelRequest::Large) {
-            self.display_legend(self.current_view.unwrap_or(0), resources, windows)?;
-            self.reset_with(resources, windows, renderer, simulators)?;
-        }
+        self.show_panels(request, resources, windows, renderer, simulators)?;
         Ok(self.panel_request(request))
     }
 
     pub fn display_legend(
-        &self,
+        &mut self,
         view: u32,
         resources: &mut impl Resources,
         windows: &mut impl WindowSystem,
@@ -229,9 +246,11 @@ impl MapView {
             })?;
         }
         if view == 0 {
+            self.legend_content = false;
             windows.primitive(WindowEffect::HidePanel(0x8a28_71c4))?;
         } else {
             let raw = raw.as_ref().expect("loaded nonzero legend");
+            self.legend_content = !raw.u32_list(0x4a0b_47f2)?.is_empty();
             let strings = raw.u32_list(0x4a0b_47f3)?;
             for (index, &color) in raw.u32_list(0x4a0b_47f2)?.iter().enumerate() {
                 if color == 0 {
@@ -303,26 +322,70 @@ impl MapView {
         if !windows.tutorial_allows(0x2872_59f6, button)? {
             return Ok(None);
         }
+        let button = canonical_button(button);
+        if button == 0x8a28_71d5 {
+            windows.primitive(WindowEffect::DispatchCommand {
+                command: 0x6a93_5cf1,
+                arguments: [0, 0],
+            })?;
+            return Ok(None);
+        }
+        if button_action(button) == ButtonAction::Unknown {
+            return Ok(None);
+        }
+        Self::exclude_button(windows, button)?;
         let view = match button_action(button) {
             ButtonAction::Unknown => return Ok(None),
-            ButtonAction::Group(0x5008) if windows.button_down(0x8001) => 9,
-            ButtonAction::Group(group) => return Err(Unsupported::GroupButtonQV3(group).into()),
+            ButtonAction::Group(0x5005) => {
+                self.layout_with(PanelRequest::Desirability, windows)?;
+                self.memories.desirability
+            }
+            ButtonAction::Group(0x5008) => {
+                self.layout_with(PanelRequest::Traffic, windows)?;
+                if windows.query_control(0x8001, 0x8810)? && windows.button_down(0x8001) {
+                    9
+                } else {
+                    self.memories.traffic
+                }
+            }
+            ButtonAction::Group(0x8002) => {
+                Self::volume_enabled(windows, true)?;
+                self.memories.traffic
+            }
+            ButtonAction::Group(_) => unreachable!("button_action has only three groups"),
             ButtonAction::Toggle(value) => {
                 self.two_way_toggle = Some(value);
                 self.reset_with(resources, windows, renderer, simulators)?;
                 return Ok(None);
             }
-            ButtonAction::View(view) => view,
+            ButtonAction::View(view) => {
+                if button == 0x8001 {
+                    Self::volume_enabled(windows, false)?;
+                }
+                view
+            }
         };
-        windows.effect(WindowEffect::ExcludeOtherButtons(button))?;
         let result = self.select_with(view, resources, windows, renderer, simulators);
         if !matches!(result, Err(OwnerError::MissingExemplar)) {
             result?;
         }
         self.display_legend(view, resources, windows)?;
-        let large = windows
-            .visible(0xaa32_bcd5)
-            .then(|| self.panel_request(PanelRequest::Large));
+        let large = if (0x5001..=0x5011).contains(&button)
+            && button != 0x5005
+            && button != 0x5008
+            && windows.visible(0xaa32_bcd5)
+        {
+            self.layout_with(PanelRequest::Large, windows)?;
+            Some(self.panel_request(PanelRequest::Large))
+        } else {
+            None
+        };
+        match button {
+            0x5001..=0x5011 => self.memories.mode = view,
+            0x6001..=0x600c => self.memories.desirability = view,
+            0x8003..=0x800c => self.memories.traffic = view,
+            _ => (),
+        }
         self.mode_button = Some(button);
         Ok(large)
     }
@@ -338,14 +401,17 @@ impl MapView {
         renderer: &mut impl Renderer,
         simulators: &mut impl Simulators,
     ) -> Result<(), OwnerError> {
-        let Some(button) = self.mode_button else {
-            return Err(Unsupported::GroupButtonQV3(0).into());
-        };
-        let view = match button_action(button) {
-            ButtonAction::View(view) => view,
-            ButtonAction::Group(0x5008) if windows.button_down(0x8001) => 9,
-            _ => return Err(Unsupported::GroupButtonQV3(button).into()),
-        };
+        let saved = self.queued_views.is_empty() && self.map_enabled;
+        let view = self
+            .queued_views
+            .first()
+            .copied()
+            .unwrap_or(if saved { self.saved_view } else { 0 });
+        Self::control_flag(windows, 0x8a28_71d6, 1, saved)?;
+        Self::control_flag(windows, 0x8a28_71c5, 1, !saved)?;
+        if !saved && windows.query_control(0x8a28_71c5, 0x22ba_0121)? {
+            windows.primitive(WindowEffect::InvalidateControl(0x8a28_71c5))?;
+        }
         // §3.3: keep the same-view guard; false does not gate legend refresh.
         let result = self.select_with(view, resources, windows, renderer, simulators);
         if !matches!(result, Err(OwnerError::MissingExemplar)) {

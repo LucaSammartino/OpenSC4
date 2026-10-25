@@ -42,6 +42,9 @@ impl OccupantFilter {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RenderSetting {
     OccupantFilter(OccupantFilter),
+    CityLevel(u32),
+    PlumbingCoverage(bool),
+    SurfaceWater(bool),
     TerrainMode { property: u32, mode: u32 },
     ForceEmptyLotBaseTextures(bool),
     ZoneOption(u8),
@@ -64,6 +67,16 @@ pub enum RenderCommand<'a> {
 }
 
 pub trait Renderer {
+    /// Raw calling-thread x87 PC/RC, sampled for each ring helper invocation.
+    fn ring_context(&mut self) -> RingContext {
+        RingContext::default()
+    }
+    /// Bitmap resource at the game's damaged-road key; None ends this sprite pass.
+    fn damaged_road_icon(&mut self) -> Result<Option<IncidentIcon>, OwnerError> {
+        Ok(None)
+    }
+    /// Zone slot 17: retained configuration default, never current opacity.
+    fn default_zone_alpha(&mut self) -> Result<u8, OwnerError>;
     /// Fresh low word of CRT wall-clock milliseconds, sampled at Update tail.
     fn clock_ms(&mut self) -> u32 {
         0
@@ -133,7 +146,7 @@ pub enum GridValues {
 }
 
 impl GridValues {
-    fn raw(&self) -> (ValueType, Values<'_>) {
+    pub(super) fn raw(&self) -> (ValueType, Values<'_>) {
         match self {
             Self::U8(v) => (ValueType::U8, Values::U8(v)),
             Self::I8(v) => (ValueType::I8, Values::I8(v)),
@@ -153,6 +166,21 @@ pub struct RawMapGrid {
 }
 
 pub trait Simulators {
+    fn traffic_capacity(&mut self, _network: u8, _cell: [usize; 2]) -> Result<i32, OwnerError> {
+        Ok(0)
+    }
+    fn traffic_density(&mut self, _travel: u8, _cell: [usize; 2], _alternate: bool) -> Result<[u16; 17], OwnerError> {
+        Ok([0; 17])
+    }
+    fn ferry_routes(&mut self) -> Result<Vec<FerryRoute>, OwnerError> {
+        Ok(Vec::new())
+    }
+    fn damaged_road(&mut self, _cell: [usize; 2]) -> Result<bool, OwnerError> {
+        Ok(false)
+    }
+    fn developer_debug_entries(&mut self, _source: u32) -> Result<Option<Vec<[i32; 3]>>, OwnerError> {
+        Err(OwnerError::Foreign(11))
+    }
     fn developer_present(&mut self, _source: u32) -> Result<bool, OwnerError> {
         Ok(true)
     }
@@ -308,6 +336,18 @@ impl MapView {
         let key = match start.outcome {
             SelectionOutcome::Inactive => return Ok(OwnerSelection::Inactive),
             SelectionOutcome::CurrentView => return Ok(OwnerSelection::CurrentView),
+            SelectionOutcome::Reset => {
+                self.apply_display(None, renderer)?;
+                renderer.overlay_replace(&MarkedCells::default())?;
+                self.source = 0;
+                self.config = None;
+                self.resource = None;
+                self.highlight_style = HighlightStyle::default();
+                let highlight_boundary = self.poll_highlights(renderer, simulators)?;
+                self.draw_with(renderer, simulators)?;
+                self.current_view = Some(view);
+                return Ok(OwnerSelection::Selected { highlight_boundary });
+            }
             SelectionOutcome::NeedsExemplar(key) => key,
             SelectionOutcome::Unsupported(error) => return Err(error.into()),
             SelectionOutcome::MissingExemplar => return Err(OwnerError::MissingExemplar),
@@ -320,9 +360,7 @@ impl MapView {
                 &self.config.as_ref().expect("stored selection").ramp_pairs,
             )?);
         }
-        for setting in raw.render_settings()? {
-            renderer.primitive(RenderCommand::Setting(setting))?;
-        }
+        self.apply_display(Some(&raw), renderer)?;
         // Literal property presence creates a foreign class. No pointer is
         // released unless this owner received a successfully created handle.
         if let Some(class) = raw.optional_u32(0x4a0b_47eb)? {
@@ -345,6 +383,40 @@ impl MapView {
             windows.primitive(WindowEffect::Lifecycle(effect))?;
         }
         Ok(OwnerSelection::Selected { highlight_boundary })
+    }
+
+    fn apply_display(&self, raw: Option<&RawExemplar>, renderer: &mut impl Renderer) -> Result<(), OwnerError> {
+        let level = raw.map_or(Ok(1), |raw| raw.terrain_mode(TERRAIN_MODE))?;
+        for setting in [
+            RenderSetting::CityLevel(level),
+            RenderSetting::PlumbingCoverage(level == 3),
+            RenderSetting::SurfaceWater(level == 1),
+        ] {
+            renderer.primitive(RenderCommand::Setting(setting))?;
+        }
+        // QV1: F1 changes only the occupant filter, after E3's city/terrain setup.
+        if let Some(raw) = raw {
+            for setting in raw.render_settings()? {
+                if !matches!(setting, RenderSetting::ZoneOption(_)) {
+                    renderer.primitive(RenderCommand::Setting(setting))?;
+                }
+            }
+        } else {
+            renderer.primitive(RenderCommand::Setting(RenderSetting::OccupantFilter(OccupantFilter {
+                types: Vec::new(),
+                list_present: false,
+                exclude_listed: false,
+                hide_empty_bases_and_excluded_decals: false,
+            })))?;
+        }
+        let mut alpha = renderer.default_zone_alpha()?;
+        if let Some(raw) = raw {
+            if let Some(RawValue::U8(value)) = raw.find(0x4a0b_47e6)? {
+                alpha = *value;
+            }
+        }
+        renderer.primitive(RenderCommand::Setting(RenderSetting::ZoneOption(alpha)))?;
+        Ok(())
     }
 
     pub fn poll_highlights(
@@ -532,16 +604,55 @@ impl MapView {
                 })?;
                 return Ok(OwnerUpdate::DrawNothing);
             }
-            SourceSelection::TrafficVolumeQV2 => return Err(Unsupported::TrafficQV2.into()),
+            SourceSelection::TrafficVolumeQV2 => return self.draw_traffic(renderer, simulators),
             SourceSelection::Grid(request) => request.value_type,
             SourceSelection::Developer { grid, .. } => match grid {
                 DeveloperGrid::CapacityPercentage => ValueType::I16,
                 DeveloperGrid::Unsigned16Slot14 => ValueType::U16,
                 DeveloperGrid::Signed16Slot13 => ValueType::I16,
-                DeveloperGrid::DebugEntriesTimes12 => return Err(Unsupported::DeveloperDebugLayout.into()),
+                DeveloperGrid::DebugEntriesTimes12 => ValueType::I16,
             },
         };
-        let mut grid = if matches!(
+        let debug_grid = matches!(
+            request,
+            SourceSelection::Developer {
+                grid: DeveloperGrid::DebugEntriesTimes12,
+                ..
+            }
+        );
+        let grid = if debug_grid {
+            let geometry_request = match request {
+                SourceSelection::Developer {
+                    developer_type, layer, ..
+                } => SourceSelection::Developer {
+                    developer_type,
+                    layer,
+                    grid: DeveloperGrid::Signed16Slot13,
+                },
+                _ => unreachable!(),
+            };
+            let geometry = simulators.grid(geometry_request)?;
+            let Some(entries) = simulators.developer_debug_entries(self.source)? else {
+                return self.draw_empty(renderer, simulators);
+            };
+            let mut values = vec![
+                0i16;
+                geometry
+                    .width
+                    .checked_mul(geometry.height)
+                    .ok_or(Unsupported::GridGeometry)?
+            ];
+            for [x, z, value] in entries {
+                if x < 0 || z < 0 || x as usize >= geometry.width || z as usize >= geometry.height {
+                    return Err(Unsupported::GridGeometry.into());
+                }
+                values[x as usize * geometry.height + z as usize] = value.wrapping_mul(12) as i16;
+            }
+            RawMapGrid {
+                values: GridValues::I16(values),
+                ..geometry
+            }
+        } else if matches!(
             request,
             SourceSelection::Developer {
                 grid: DeveloperGrid::CapacityPercentage,
@@ -554,6 +665,20 @@ impl MapView {
         } else {
             simulators.grid(request)?
         };
+        self.draw_grid(grid, expected, request, debug_grid, None, renderer, simulators)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn draw_grid(
+        &self,
+        mut grid: RawMapGrid,
+        expected: ValueType,
+        request: SourceSelection,
+        debug_grid: bool,
+        background: Option<Vec<u32>>,
+        renderer: &mut impl Renderer,
+        simulators: &mut impl Simulators,
+    ) -> Result<OwnerUpdate, OwnerError> {
         let count = grid
             .width
             .checked_mul(grid.height)
@@ -569,8 +694,15 @@ impl MapView {
         if grid.cell_size.iter().any(|v| !v.is_finite() || *v <= 0.0) {
             return Err(Unsupported::GridGeometry.into());
         }
+        // Word conversion feeds the ordinary byte drawing/interpolation path.
+        if matches!(grid.values, GridValues::U16(_) | GridValues::I16(_)) {
+            let indices = (0..values.len())
+                .map(|i| values.index(i, self.factors))
+                .collect::<Result<Vec<_>, _>>()?;
+            grid.values = GridValues::U8(indices);
+        }
         if let Some(config) = &self.config {
-            if config.interpolate {
+            if config.interpolate && !debug_grid {
                 let cells = simulators.city_cells()?;
                 if cells.contains(&0) {
                     return Err(Unsupported::GridGeometry.into());
@@ -591,15 +723,33 @@ impl MapView {
             }
         }
         if self.overlay_enabled {
-            // Source 9's separate damaged-road rule remains unsettled QV2.
             if self.source == 9 {
-                return Err(Unsupported::TrafficMarkersQV4.into());
+                let mut cells = marked_cells_scaled(
+                    &grid,
+                    &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
+                    self.factors,
+                )?;
+                for x in 0..grid.width {
+                    for z in 0..grid.height {
+                        if simulators.damaged_road([x, z])? {
+                            if let Some(i) = cells.coordinates.iter().position(|c| *c == [x, z]) {
+                                cells.colors[i] = 0;
+                            } else {
+                                cells.coordinates.push([x, z]);
+                                cells.colors.push(0);
+                            }
+                        }
+                    }
+                }
+                renderer.overlay_replace(&cells)?;
+            } else {
+                let cells = marked_cells_scaled(
+                    &grid,
+                    &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
+                    self.factors,
+                )?;
+                renderer.overlay_replace(&cells)?;
             }
-            let cells = marked_cells(
-                &grid,
-                &self.palettes.as_ref().ok_or(Unsupported::RampGeneration)?.straight,
-            )?;
-            renderer.overlay_replace(&cells)?;
         }
         let count = grid.width * grid.height;
         let (_, values) = grid.values.raw();
@@ -609,7 +759,27 @@ impl MapView {
             .try_reserve_exact(count)
             .map_err(|_| Unsupported::HelperAllocation)?;
         pixels.resize(count, 0);
-        emit_colors(values, palette, &mut pixels)?;
+        emit_colors_scaled(values, palette, &mut pixels, self.factors)?;
+        if let Some(background) = background {
+            // Palette pixels are premultiplied; retain the stamped sprite through transparency.
+            if background.len() != pixels.len() {
+                return Err(Unsupported::GridGeometry.into());
+            }
+            for (pixel, behind) in pixels.iter_mut().zip(background) {
+                let alpha = *pixel >> 24;
+                if alpha == 0 {
+                    *pixel = behind;
+                } else if alpha != 255 {
+                    let mut out = 0;
+                    for shift in [0, 8, 16, 24] {
+                        let a = (*pixel >> shift) & 255;
+                        let b = (behind >> shift) & 255;
+                        out |= (a + (b * (256 - alpha) + 128) / 256).min(255) << shift;
+                    }
+                    *pixel = out;
+                }
+            }
+        }
         if self.source == 4 {
             let city = simulators.city_cells()?;
             let turn = renderer.orientation().wrapping_neg() & 3;
@@ -648,6 +818,27 @@ impl MapView {
             pixels: &pixels,
         })?;
         Ok(OwnerUpdate::Drawn)
+    }
+
+    fn draw_empty(
+        &mut self,
+        renderer: &mut impl Renderer,
+        simulators: &mut impl Simulators,
+    ) -> Result<OwnerUpdate, OwnerError> {
+        let [width, height] = renderer.bitmap_size()?;
+        let mut pixels = vec![0; width.checked_mul(height).ok_or(Unsupported::GridGeometry)?];
+        self.decorate_bitmap(width, height, &mut pixels, renderer, simulators)?;
+        renderer.primitive(RenderCommand::Bitmap {
+            class: 0x2073_2180,
+            iid: 0xc470_d325,
+            bits: 32,
+            width,
+            height,
+            cell_size: [16.0; 2],
+            own_cells: false,
+            pixels: &pixels,
+        })?;
+        Ok(OwnerUpdate::DrawNothing)
     }
 
     pub fn tick_with(

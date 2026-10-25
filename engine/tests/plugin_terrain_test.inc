@@ -6,6 +6,7 @@
 
 // The glue16 lane: the terrain shadow (plugin/FC4TerrainShadow.h, seam op 58)
 // on a stand-in original made inside the DLL. Included by plugin_load_test.cpp.
+#include "cFC4Terrain.h"
 
 // A 16 x 16-cell terrain: a slope from 236 m (west) to 284 m (east) across a
 // 250 m sea, with a ridge and a hollow, so the city has sea, shore and land.
@@ -81,6 +82,10 @@ int TerrainShadowIniTest(const std::string& dll, const std::string& ini, const s
         // A bad input.
         in = FC4TerrainShadowTestInput{};
         CHECK(seam(kFC4SeamTerrainShadow, &in, nullptr) == -1);
+        FC4TerrainGlueTestInput glue{};
+        glue.struct_size = sizeof(glue);
+        CHECK(seam(kFC4SeamTerrainGlue, &glue, nullptr) == 0);
+        CHECK(glue.mismatches == 0 && glue.slotsChecked >= 38);
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
