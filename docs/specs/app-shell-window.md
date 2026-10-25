@@ -122,6 +122,22 @@ base destructor, free on flag bit 0). Slot 16 is the **tick pass** (`0x004735F0`
 4. When the nesting count is 1, empty the list at `+0xAC`: release each element (`+8`) and free its node.
 5. Decrement the nesting count.
 
+Slot 15 is the **ordered-participant pass** (`0x00473440`, 405 bytes; the symbol table gives it the name
+`SendFatalExceptionNotification`). It is the same shape over the ordered list of slots 9–10 (gz-framework-core.md
+§2.2: `+0xB0`, descending priority), with its own flag and counts, and runs on **every** tick pass (no scheduling
+count):
+
+1. Lock (`+0xE0`, slot 1); increment the nesting count `+0xDC`.
+2. With the iteration byte `+0xD3` set, copy the participants (element at node `+8`) into a vector without
+   references; clear `+0xD3`; unlock.
+3. Call each participant's slot 10 (`+0x28`) with `t`, in list order (highest priority first), inside a catch-all:
+   an exception stops the loop and sets a flag.
+4. When the nesting count is 1, empty the deferred-removal list `+0xB4` (slot 10 tests `+0xD3` and `+0xDC` and
+   uses this list, so it holds participants removed during a pass *[inferred]*): release each non-null element (`+8`), free its node and relink the head to itself.
+5. Decrement the nesting count. If an exception was caught: a new `cRZMessage2Standard` (`0x2C` bytes,
+   `0x009134D6`), AddRef, `SetType(0x49A780B2)` (slot 5), **sent** through message server 2 (`0x00B43CCC` slot 3
+   `MessageSend`, not null-tested), released. Free the vector.
+
 ## 3. `cSC4MessageServer` and `cSC4MessageServer2` *[compat]*
 
 Both are created by `AddSystemServices` (`0x0045051D`, `0x004505D3`) in place of the GZ classes. Their constructors

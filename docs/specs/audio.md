@@ -436,7 +436,7 @@ offsets; this spec adds the field's meaning.
 |---|---|---|
 | 1 | `0x00509953` | read the argument (the SFX id) |
 | 2 | `0x0050995B` | if it is 0, return `0` immediately |
-| 3 | `0x00509968` | `call 0x004ECD60` (a method on the automaton; its return value only selects a dead branch, see the quirk below) |
+| 3 | `0x00509968` | `call 0x004ECD60` (`GetSC4AudioCOMDirector`, the static audio-director getter, tiny-owners-b9.md §3, not an automaton method; corrected 2026-10-25, re-tinyown8. Its result is never null, so the branch it selects is dead, see the quirk below) |
 | 4 | `0x0050998D` | `call 0x004F7BB0` = **`cSC4AudioSoundManager::GenerateNewInstanceId()`**; store the result at `this+0x8C` |
 | 5 | `0x00509992` | `operator_new(0x2C)` and `cRZMessage2Standard::cRZMessage2Standard` (`0x009134D6`) — build a message |
 | 6 | `0x005099B3` | `msg->slot1()` = `AddRef` |

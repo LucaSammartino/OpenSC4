@@ -494,6 +494,9 @@ cSC4*Effect	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4DynamicParticleSystem	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4DynamicParticleDescription	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
+cSC4ParticlesDescriptionBase::cTractorPoint	effects (particles, decals, visuals)	renderer	particles.md, tiny-owners-b9.md	-	-	-
+cSC4ParticlesDescriptionBase::cWiggle	effects (particles, decals, visuals)	renderer	particles.md, tiny-owners-b9.md	-	-	-
+cSC4MBParticle	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSCParticleSimulatorBase	effects (particles, decals, visuals)	renderer	particles.md,effects-owners.md	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
@@ -501,6 +504,8 @@ cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-bod
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CameraDescription	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
 cSC4DecalDescription	effects (particles, decals, visuals)	renderer	effects.md	-	-	-
+cSC4EffectDescription	effects (particles, decals, visuals)	renderer	effects.md, tiny-owners-b9.md	-	-	-
+cSC4ShakeDescription	effects (particles, decals, visuals)	renderer	effects.md, tiny-owners-b9.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
@@ -933,6 +938,7 @@ cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_
 cRZ*	framework services (RZ)	framework	-	-	-	-
 nGZLog::cService	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
+cIGZSndUpdateTarget	framework services (GZ)	framework	tiny-owners-b9.md	-	-	-
 cIGZ*	framework services (GZ)	framework	-	-	-	-
 nRZ*	framework services (RZ)	framework	-	-	-	-
 fn:GZCOM_CreatecGZMessageServer2	framework services (GZ)	framework	gzcom-factories.md	-	-	-
@@ -981,6 +987,11 @@ fn:GZCOM_cSC4DisasterManagerPipeBurstCLSID	framework services (GZ)	framework	gzc
 fn:GZCOM_cSC4DisasterManagerVolcanoCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
 fn:GZCOM_cSC4PathInfoFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
 fn:GZCOM_cSC4PropPlacementPropertiesFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_nSCRes_cFileParserCLSID	persistence and resources	framework	sc-resources-commands.md	-	-	-
+fn:GZCOM_cSC4EffectsManagerCLSID	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
+fn:GZCOM_cSC4EffectsParserCLSID	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
+fn:GZCOM_cSC4EffectsResourceFactoryCLSID	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
+fn:GZCOM_CreatecSC4EffectsParser	effects (particles, decals, visuals)	renderer	effects-parser.md, tiny-owners-b9.md	-	-	-
 fn:GZCOM_*	framework services (GZ)	framework	-	-	-	-
 cISC4*	framework services (GZ)	framework	-	-	-	-
 # ---- catch-alls
@@ -1013,14 +1024,14 @@ SC4CellRegion	sim grids	simulation	zones.md, sim-misc2.md	-	-	-
 cTutorialString	tutorial	simulation	sim-misc2.md	-	-	-
 BoundaryIterator	sim grids	simulation	sim-misc2.md	-	-	-
 tBehaviorTemplate	automata (managers, records)	simulation	automata.md, sim-misc2.md	-	-	-
-cGroup_SC4RH	audio	audio	-	-	-	-
+cGroup_SC4RH	audio	audio	audio-ambience.md, tiny-owners-b9.md	-	-	-
 MiscGraphRect	widget toolkit	ui	widget-misc2.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
 CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	sim-misc2.md	-	-	-
-cEaseSound	audio	audio	-	-	-	-
+cEaseSound	audio	audio	tiny-owners-b9.md	-	-	-
 cAmbienceOccupantFilterIsNature	audio	audio	audio-filters.md	-	-	-
 ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
 SC4QuadGridQuadrant	3D scene and models	renderer	sim-misc2.md	-	-	-
@@ -1126,7 +1137,6 @@ fn:SC4WriteGZSerializable	other free functions	other	lot-records.md, small-helpe
 fn:SC4WriteStringRecord	other free functions	other	small-helpers2.md	-	-	-
 fn:SC4InterpolateGrid	other free functions	other	grid-interpolation.md	-	-	-
 fn:MakeMapColorBuffer	other free functions	other	map-color-buffer.md, map-view.md	-	-	-
-fn:GZCOM_nSCRes_cFileParserCLSID	persistence and resources	framework	sc-resources-commands.md	-	-	-
 fn:SafeGetAltitude	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinFont	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinImage	other free functions	other	small-helpers2.md	-	-	-
@@ -1152,6 +1162,21 @@ fn:SetTableNumber	other free functions	other	framework-misc3.md	-	-	-
 fn:ParseRateCurveCommands	effects	renderer	effects.md	-	-	-
 fn:ParseRangedVector3	effects	renderer	effects.md	-	-	-
 fn:ParseDrawOptions	effects	renderer	effects.md	-	-	-
+fn:ParseFloatRange	effects	renderer	tiny-owners-b9.md	-	-	-
+fn:ParseRangedFloat	effects	renderer	tiny-owners-b9.md	-	-	-
+fn:GetSC4AudioCOMDirector	audio	audio	tiny-owners-b9.md	-	-	-
+fn:GetGZSoundCOMDirector	audio	audio	tiny-owners-b9.md	-	-	-
+fn:GetHitManCOMDirector	audio	audio	tiny-owners-b9.md	-	-	-
+fn:CreatecHitMan	audio	audio	hit-music.md, tiny-owners-b9.md	-	-	-
+fn:CreatecHitDebugInfo	audio	audio	tiny-owners-b9.md	-	-	-
+fn:CreatecRZRadio	audio	audio	radio.md, tiny-owners-b9.md	-	-	-
+fn:CreatecRZDiskRadioStation	audio	audio	radio.md, tiny-owners-b9.md	-	-	-
+fn:EnumFunc_UpdateView	audio	audio	hit-music.md, tiny-owners-b9.md	-	-	-
+fn:_PostEventMessage	audio	audio	audio-preferences.md	-	-	-
+fn:GetSCLuaCOMDirector	Lua host	framework	app-directors.md, tiny-owners-b9.md	-	-	-
+fn:GZCOM	framework services (GZ)	framework	system-service-pointer.md, tiny-owners-b9.md	-	-	-
+fn:SendFatalExceptionNotification	application	framework	app-shell-window.md	-	-	-
+fn:D3DXMatrixIsIdentity	3D driver (DirectX 7)	renderer	renderer-driver.md, tiny-owners-b9.md	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
 # ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)
