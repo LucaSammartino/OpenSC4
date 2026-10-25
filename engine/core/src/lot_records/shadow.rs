@@ -66,6 +66,24 @@ pub fn reencode(bytes: &[u8]) -> Option<Vec<u8>> {
     reencode_with_trip_count(bytes).map(|(encoded, _)| encoded)
 }
 
+/// Specified, side-effect-free live views (lot-records §3.5). This projection
+/// deliberately parses the entire record before supplying any getter evidence.
+/// It never calls Init or resolves saved references into live objects.
+pub fn project_view(bytes: &[u8]) -> Option<([f32; 3], u32, f32)> {
+    let lot = Lot::default();
+    let mut ids = Identities;
+    let mut input = ByteReader::with_resolver(bytes, &mut ids);
+    if !lot.read(&mut input) || input.remaining() != 0 {
+        return None;
+    }
+    let record = lot.rec.borrow();
+    Some((
+        super::lifecycle::lot_center(&record),
+        u32::from(record.flags),
+        record.altitude,
+    ))
+}
+
 /// Count inline trips only after accepting the complete master-lot payload.
 /// This is the §14.1 inventory, not trips owned by off-list lots or simulators.
 pub fn reencode_with_trip_count(bytes: &[u8]) -> Option<(Vec<u8>, u32)> {
@@ -149,5 +167,52 @@ mod tests {
         let (encoded, trips) = reencode_with_trip_count(writer.0.bytes()).unwrap();
         assert_eq!(trips, 0);
         assert_eq!(encoded, writer.0.bytes());
+    }
+
+    #[test]
+    fn live_view_uses_rect_not_location_and_preserves_altitude_bits() {
+        let record = LotRecord {
+            rect: [10, 20, 12, 21],
+            location: [99, 98],
+            size: [77, 76],
+            altitude: -0.0,
+            flags: 0xdb,
+            configuration_id: 0x12345678,
+            ..LotRecord::default()
+        };
+        let mut writer = IdentityWriter(ByteWriter::new());
+        assert!(record.write(&mut writer));
+        let bytes = writer.0.into_bytes();
+        let (center, flags, altitude) = project_view(&bytes).unwrap();
+        assert_eq!(
+            center.map(f32::to_bits),
+            [184.0f32.to_bits(), (-0.0f32).to_bits(), 336.0f32.to_bits()]
+        );
+        assert_eq!(flags, 0xdb);
+        assert_eq!(altitude.to_bits(), (-0.0f32).to_bits());
+        // Neither configuration resolution nor Init is part of observation.
+        assert_eq!(reencode(&bytes).unwrap(), bytes);
+        for end in 0..bytes.len() {
+            assert!(project_view(&bytes[..end]).is_none(), "truncation at {end}");
+        }
+        let mut trailing = bytes;
+        trailing.push(0);
+        assert!(project_view(&trailing).is_none());
+    }
+
+    #[test]
+    fn live_view_zero_extends_cell_bounds() {
+        let record = LotRecord {
+            rect: [254, 253, 255, 255],
+            altitude: f32::from_bits(0x7fc01234),
+            ..LotRecord::default()
+        };
+        let mut writer = IdentityWriter(ByteWriter::new());
+        assert!(record.write(&mut writer));
+        let (center, _, altitude) = project_view(writer.0.bytes()).unwrap();
+        assert_eq!(center[0], 4080.0);
+        assert_eq!(center[2], 4072.0);
+        assert_eq!(center[1].to_bits(), 0x7fc01234);
+        assert_eq!(altitude.to_bits(), 0x7fc01234);
     }
 }
