@@ -18,6 +18,10 @@ uint32_t fc4_overlay_owner_remove(void*, uint32_t);
 uint32_t fc4_overlay_owner_set_alpha(void*, uint32_t, float);
 float fc4_overlay_owner_alpha(const void*, uint32_t);
 uint32_t fc4_overlay_owner_initialized(const void*);
+uint32_t fc4_overlay_owner_set_shown(void*, uint32_t, uint32_t);
+uint32_t fc4_overlay_owner_shown(const void*, uint32_t);
+uint32_t fc4_overlay_owner_enable_self_lighting(void*, uint32_t, uint32_t);
+uint32_t fc4_overlay_owner_self_lit(const void*, uint32_t);
 }
 
 namespace {
@@ -51,6 +55,14 @@ public:
     bool SetAlpha(uint32_t id, float alpha) override { return fc4_overlay_owner_set_alpha(core_, id, alpha) != 0; }
     float Alpha(uint32_t id) const override { return fc4_overlay_owner_alpha(core_, id); }
     bool IsInitialized() const override { return fc4_overlay_owner_initialized(core_) != 0; }
+    bool SetShown(uint32_t id, bool shown) override {
+        return fc4_overlay_owner_set_shown(core_, id, shown) != 0;
+    }
+    bool IsShown(uint32_t id) const override { return fc4_overlay_owner_shown(core_, id) != 0; }
+    bool EnableSelfLighting(uint32_t id, uint32_t on) override {
+        return fc4_overlay_owner_enable_self_lighting(core_, id, on) != 0;
+    }
+    bool IsSelfLit(uint32_t id) const override { return fc4_overlay_owner_self_lit(core_, id) != 0; }
 private:
     // §1.2: destruction and Shutdown are different protocols.
     ~OverlayOwner() { fc4_overlay_owner_destroy(core_); }
@@ -79,6 +91,13 @@ void OverlayOwnerGameCheck() {
     const uint32_t id = owner->AddDecal(64, 32, 128, 128, 32, 0);
     check(id == 0x80000000);
     check(owner->Alpha(id) == 1);
+    check(owner->IsShown(id));
+    check(owner->SetShown(id, false) && !owner->IsShown(id));
+    check(owner->SetShown(id, true) && owner->IsShown(id));
+    check(!owner->IsSelfLit(id));
+    check(owner->EnableSelfLighting(id, 2) && !owner->IsSelfLit(id));
+    check(owner->EnableSelfLighting(id, 3) && owner->IsSelfLit(id));
+    check(owner->EnableSelfLighting(id, 0) && owner->IsSelfLit(id));
     check(owner->SetAlpha(id, 0.51f));
     check(owner->Init(64, 64, 16, false, true));
     check(owner->Alpha(id) == 0.51f);

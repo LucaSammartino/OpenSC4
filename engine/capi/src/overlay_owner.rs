@@ -140,9 +140,63 @@ pub unsafe extern "C" fn fc4_overlay_owner_initialized(owner: *const Owner) -> u
     u32::from(core.is_initialized())
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn fc4_overlay_owner_set_shown(owner: *mut Owner, id: u32, shown: u32) -> u32 {
+    let Some(owner) = owner.as_ref() else { return 0 };
+    let Ok(mut core) = owner.0.lock() else { return 0 };
+    u32::from(core.set_shown(Handle(id as i32), shown != 0).is_ok())
+}
+#[no_mangle]
+pub unsafe extern "C" fn fc4_overlay_owner_shown(owner: *const Owner, id: u32) -> u32 {
+    let Some(owner) = owner.as_ref() else { return 0 };
+    let Ok(core) = owner.0.lock() else { return 0 };
+    u32::from(core.shown(Handle(id as i32)).ok().flatten().unwrap_or(false))
+}
+#[no_mangle]
+pub unsafe extern "C" fn fc4_overlay_owner_enable_self_lighting(owner: *mut Owner, id: u32, on: u32) -> u32 {
+    let Some(owner) = owner.as_ref() else { return 0 };
+    let Ok(mut core) = owner.0.lock() else { return 0 };
+    u32::from(core.enable_self_lighting(Handle(id as i32), on).is_ok())
+}
+#[no_mangle]
+pub unsafe extern "C" fn fc4_overlay_owner_self_lit(owner: *const Owner, id: u32) -> u32 {
+    let Some(owner) = owner.as_ref() else { return 0 };
+    let Ok(core) = owner.0.lock() else { return 0 };
+    u32::from(core.self_lit(Handle(id as i32)).unwrap_or(false))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn visibility_and_sticky_self_lighting_survive_reinit_but_not_reset() {
+        unsafe {
+            let owner = fc4_overlay_owner_create();
+            assert_eq!(fc4_overlay_owner_init(owner, 64, 64, 16.0, 1, 0), 1);
+            let id = fc4_overlay_owner_add(owner, 64, 32, 128.0, 128.0, 32.0, 0.0);
+            assert_ne!(id, u32::MAX);
+            assert_eq!(fc4_overlay_owner_shown(owner, id), 1);
+            assert_eq!(fc4_overlay_owner_set_shown(owner, id, 0), 1);
+            assert_eq!(fc4_overlay_owner_shown(owner, id), 0);
+            assert_eq!(fc4_overlay_owner_enable_self_lighting(owner, id, 2), 1);
+            assert_eq!(fc4_overlay_owner_self_lit(owner, id), 0);
+            assert_eq!(fc4_overlay_owner_enable_self_lighting(owner, id, 3), 1);
+            assert_eq!(fc4_overlay_owner_enable_self_lighting(owner, id, 0), 1);
+            assert_eq!(fc4_overlay_owner_self_lit(owner, id), 1);
+            assert_eq!(fc4_overlay_owner_init(owner, 64, 64, 16.0, 0, 1), 1);
+            assert_eq!(fc4_overlay_owner_shown(owner, id), 0);
+            assert_eq!(fc4_overlay_owner_self_lit(owner, id), 1);
+            assert_eq!(fc4_overlay_owner_shown(owner, u32::MAX), 0);
+            assert_eq!(fc4_overlay_owner_self_lit(owner, u32::MAX), 0);
+            fc4_overlay_owner_shutdown(owner);
+            assert_eq!(fc4_overlay_owner_init(owner, 64, 64, 16.0, 0, 0), 1);
+            assert_eq!(fc4_overlay_owner_add(owner, 64, 32, 128.0, 128.0, 32.0, 0.0), id);
+            assert_eq!(fc4_overlay_owner_shown(owner, id), 1);
+            assert_eq!(fc4_overlay_owner_self_lit(owner, id), 0);
+            fc4_overlay_owner_destroy(owner);
+        }
+    }
 
     #[test]
     fn invalid_init_preserves_the_cores_published_prefix() {

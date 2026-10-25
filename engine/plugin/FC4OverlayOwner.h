@@ -19,6 +19,10 @@ public:
     virtual bool SetAlpha(uint32_t id, float alpha) = 0;
     virtual float Alpha(uint32_t id) const = 0;
     virtual bool IsInitialized() const = 0;
+    virtual bool SetShown(uint32_t id, bool shown) = 0;
+    virtual bool IsShown(uint32_t id) const = 0;
+    virtual bool EnableSelfLighting(uint32_t id, uint32_t on) = 0;
+    virtual bool IsSelfLit(uint32_t id) const = 0;
 };
 
 cIGZUnknown* CreateFC4OverlayOwner();

@@ -61,16 +61,27 @@ int main(int argc, char** argv) {
         CHECK(owner->Init(64, 64, 16, true, false));
         const auto id = owner->AddDecal(64, 32, 128, 128, 32, 0);
         CHECK(id == 0x80000000 && owner->Alpha(id) == 1);
+        CHECK(owner->IsShown(id) && !owner->IsSelfLit(id));
+        CHECK(owner->SetShown(id, false) && !owner->IsShown(id));
+        CHECK(owner->EnableSelfLighting(id, 2) && !owner->IsSelfLit(id));
+        CHECK(owner->EnableSelfLighting(id, 3) && owner->IsSelfLit(id));
+        CHECK(owner->EnableSelfLighting(id, 0) && owner->IsSelfLit(id));
         CHECK(owner->SetAlpha(id, 0.5f));
         CHECK(owner->Init(64, 64, 16, true, true));
         CHECK(owner->Alpha(id) == 0.5f); // repeated Init retains records (§1.1)
+        CHECK(!owner->IsShown(id) && owner->IsSelfLit(id));
         std::thread reader([&] {
             for (int i = 0; i < 2000; ++i) {
                 const float alpha = owner->Alpha(id);
                 CHECK(alpha == 0.5f || alpha == 1);
+                CHECK(owner->IsSelfLit(id));
+                owner->IsShown(id);
             }
         });
-        for (int i = 0; i < 2000; ++i) owner->SetAlpha(id, i % 2 ? 0.5f : 1);
+        for (int i = 0; i < 2000; ++i) {
+            owner->SetAlpha(id, i % 2 ? 0.5f : 1);
+            owner->SetShown(id, i % 2 != 0);
+        }
         reader.join();
         CHECK(owner->Remove(id));
         owner->Shutdown();
@@ -78,6 +89,8 @@ int main(int argc, char** argv) {
         CHECK(owner->Init(64, 64, 16, false, false));
         CHECK(owner->AddDecal(64, 32, 128, 128, 32, 0) == 0x80000000);
         CHECK(owner->Alpha(UINT32_MAX) == 0);
+        CHECK(owner->IsShown(id) && !owner->IsSelfLit(id));
+        CHECK(!owner->IsShown(UINT32_MAX) && !owner->IsSelfLit(UINT32_MAX));
         owner->Shutdown();
         CHECK(owner->Release() == 0);
     }
