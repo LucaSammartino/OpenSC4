@@ -122,6 +122,7 @@ fn wc_t17_t24_literal_geometry_and_descriptor_children() {
     t.first = 1;
     f.measure_override = Some(20);
     t.paint([0, 0, 200, 100], &mut f).unwrap();
+    assert_eq!(t.nodes[&child8].expander_rect, [12, 19, 21, 28]);
     assert_eq!(t.nodes[&child8].text_rect, [39, 16, 62, 32]);
     assert!(f.draws.iter().any(|d| matches!(
         d,
@@ -259,11 +260,22 @@ fn tree_selection_output_and_borrowed_adapter_inventory() {
     for h in [a, b] {
         assert_eq!(t.parent(h), 0);
         assert_eq!(t.insertion_reference(h), -2);
-        assert!(t.nodes[&h].selected);
-        assert_eq!(t.nodes[&h].font, Some(100));
-        assert!(!t.nodes[&h].expanded);
-        assert_eq!(t.nodes[&h].children.len(), 0);
+        assert!(t.is_selected(h));
+        assert_eq!(t.node_font(h), Some(100));
+        assert!(!t.expanded(h));
+        assert_eq!(t.child_count(h), 0);
     }
+    assert_eq!(t.child_count(0), 2);
+    assert!(t.expanded(0));
+    assert_eq!(
+        (
+            t.node_font(999),
+            t.expanded(999),
+            t.child_count(999),
+            t.is_selected(999)
+        ),
+        (None, false, 0, false)
+    );
     assert_eq!((t.parent(999), t.insertion_reference(999), t.data(999)), (-1, -1, 0));
     assert_eq!((f.refs.len(), f.invalidations, f.messages.len()), before);
 }
@@ -556,4 +568,51 @@ fn wc_t30_literal_move_order_and_t51_open_stroke() {
         color: 0,
         style: 1
     }));
+}
+
+#[test]
+fn tree_image_output_adapter_preserves_failed_outputs_and_borrows_null_slots() {
+    let (mut t, mut f, _, _) = tree();
+    assert!(t.set_image(0, Some(80), [2, 3, 8, 11], &mut f));
+    assert!(t.set_image(3, None, [4, 5, 6, 7], &mut f));
+    t.layout_dirty = false;
+    let before = (f.refs.len(), f.invalidations, f.messages.len());
+    let mut buffer = Some(999);
+    let mut rect = [9; 4];
+    for index in [4, u32::MAX] {
+        assert!(!t.image_into(index, &mut buffer, &mut rect));
+        assert_eq!((buffer, rect), (Some(999), [9; 4]));
+    }
+    assert!(t.image_into(0, &mut buffer, &mut rect));
+    assert_eq!((buffer, rect), (Some(80), [2, 3, 8, 11]));
+    assert!(t.image_into(3, &mut buffer, &mut rect));
+    assert_eq!((buffer, rect), (None, [4, 5, 6, 7]));
+    assert!(!t.layout_dirty);
+    assert_eq!((f.refs.len(), f.invalidations, f.messages.len()), before);
+}
+
+#[test]
+fn wc_t18_t50_successful_branch_geometry_is_cleared_after_failed_access() {
+    let (mut t, mut f, a, _) = tree();
+    t.flags |= 4;
+    t.insert(descriptor(a, b"child"), &mut f).unwrap();
+    t.set_image(0, Some(80), [0, 0, 6, 8], &mut f);
+    t.set_node_image(a, 0, 0, &mut f);
+    let area = [0, 0, 200, 100];
+    t.paint(area, &mut f).unwrap();
+    assert_ne!(t.nodes[&a].image_rect, [0; 4]);
+    assert_ne!(t.nodes[&a].expander_rect, [0; 4]);
+    let text = t.nodes[&a].text_rect;
+    f.fail_mode = 0x8010;
+    t.paint(area, &mut f).unwrap();
+    assert_eq!(t.nodes[&a].image_rect, [0; 4]);
+    assert_eq!(t.nodes[&a].text_rect, text);
+    f.fail_mode = 0x8008;
+    f.draws.clear();
+    f.access_calls.clear();
+    t.paint(area, &mut f).unwrap();
+    assert_eq!(t.nodes[&a].expander_rect, [0; 4]);
+    assert_eq!(t.nodes[&a].text_rect, text);
+    assert!(!f.access_calls.contains(&(0x8008, false)));
+    assert!(f.draws.iter().any(|draw| matches!(draw, Draw::Line { .. })));
 }

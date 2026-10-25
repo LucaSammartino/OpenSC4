@@ -150,10 +150,14 @@ fn wc_l23_l30_sizing_sort_search_and_malformed_storage() {
     }
     assert!(l.size_drop_height(&mut f));
     assert_eq!((l.height(), l.whole_rows), (52, 5));
+    assert_eq!(l.first, 0);
+    assert!(l.bar.is_none());
+    assert_eq!(f.area_requests, [(1, [0, 0, 30, 52])]);
     l.clear(&mut f);
     l.x_gutter = 3;
     assert!(l.size_drop_width(&mut f));
     assert_eq!(l.width(), 7);
+    assert_eq!(f.area_requests.last(), Some(&(1, [0, 0, 7, 52])));
     let old = l.height();
     assert!(!l.size_drop_height(&mut f));
     assert_eq!(l.height(), old);
@@ -247,8 +251,10 @@ fn wc_l24_l34_l35_l36_clipping_fitting_capture_and_lifetime() {
     for i in 0..5 {
         l.insert(-2, b"abcdef".to_vec(), i, &mut f);
     }
+    f.area_requests.clear();
     l.size_drop_height(&mut f);
     assert_eq!((l.height(), l.whole_rows), (32, 3));
+    assert_eq!(f.area_requests, [(1, [0, 0, 80, 37]), (1, [0, 0, 80, 32])]);
     assert!(l.bar.is_some());
     l.font = Some(7);
     f.fit_counts.push_back(3);
@@ -298,6 +304,7 @@ fn wc_t13_t16_flatten_anchor_and_viewport() {
     t.set_expanded(0, true, &mut f);
     t.recalculate();
     assert_eq!(t.visible, [0, a, c, b]);
+    assert_eq!((t.depth(a), t.depth(b)), (0, 0));
     t.flags |= 0x10;
     t.select(a, false, &mut f);
     t.select(b, false, &mut f);

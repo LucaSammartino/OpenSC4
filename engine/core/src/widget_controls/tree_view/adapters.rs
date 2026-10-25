@@ -8,11 +8,37 @@ use super::*;
 // 31..36 text/data/images, 37 default font, 38/39 node font, 40..43 colors,
 // 44/45 expanded, 46/47 visibility, 48 child count, 49 children, 50 selected,
 // 51 parent, 52 insertion_reference, 53 count, 54 first_selected,
-// 55 copy_selection, 56..58 selection, 59 window. Node fields supply borrowed
-// font/expanded/child-count/selected getters without retention or side effects.
+// 55 copy_selection, 56..58 selection, 59 window. The borrowed node getters
+// below also implement the missing-handle results; O21 uses image_into.
 // W's owner overrides map to query_interface, do_message, init/shutdown,
 // paint, key_down/up, mouse_button/mouse_move, wheel and host destruction.
 impl TreeView {
+    /// O21 preserves both output objects when the unsigned index is absent.
+    pub fn image_into(&self, index: u32, buffer: &mut Option<Handle>, rect: &mut Rect) -> bool {
+        let Some((image, bounds)) = self.image(index) else {
+            return false;
+        };
+        *buffer = image;
+        *rect = bounds;
+        true
+    }
+
+    /// O38 returns a borrowed font, including null for an absent handle.
+    pub fn node_font(&self, handle: NodeHandle) -> Option<Handle> {
+        self.nodes.get(&handle).and_then(|node| node.font)
+    }
+
+    /// O44, O48 and O50 do not refresh layout or acquire references.
+    pub fn expanded(&self, handle: NodeHandle) -> bool {
+        self.nodes.get(&handle).is_some_and(|node| node.expanded)
+    }
+    pub fn child_count(&self, handle: NodeHandle) -> u32 {
+        self.nodes.get(&handle).map_or(0, |node| node.children.len() as u32)
+    }
+    pub fn is_selected(&self, handle: NodeHandle) -> bool {
+        self.nodes.get(&handle).is_some_and(|node| node.selected)
+    }
+
     /// O23. The four image arguments retain their native closed/selected-closed/
     /// open/selected-open order. Initialize before copying current defaults.
     pub fn insert_images(

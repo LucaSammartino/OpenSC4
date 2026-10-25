@@ -72,6 +72,7 @@ struct Recording {
     icon_calls: Vec<&'static str>,
     child_ops: Vec<(&'static str, Handle)>,
     grid_dimensions: [i32; 2],
+    area_requests: Vec<(Handle, Rect)>,
 }
 
 impl file_browser::BrowserIo for Recording {
@@ -721,6 +722,9 @@ impl Foreign for Recording {
             self.base_flags & !mask
         };
         Ok(self.base_flags)
+    }
+    fn set_window_area(&mut self, window: Handle, area: Rect) {
+        self.area_requests.push((window, area));
     }
     fn bar_skin(&mut self, bar: Handle, buffer: Handle, rect: Rect) {
         self.skins.push((bar, buffer, rect));

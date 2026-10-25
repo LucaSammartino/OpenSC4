@@ -156,6 +156,9 @@ pub trait Foreign {
     fn base_set_flag(&mut self, _window: Handle, _mask: u32, _on: u8) -> Result<u32> {
         Err(Unsupported::Precondition("base window SetFlag service"))
     }
+    /// Base-window geometry request; ListBox can request a clipped height and
+    /// then a smaller whole-line height in the same sizing operation.
+    fn set_window_area(&mut self, _window: Handle, _area: Rect) {}
 }
 
 pub(crate) fn replace_ref(slot: &mut Option<Handle>, value: Option<Handle>, f: &mut impl Foreign) {
