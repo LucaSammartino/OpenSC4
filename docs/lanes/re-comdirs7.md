@@ -20,3 +20,5 @@ paragraph) and `cSC4AutoGamePause` (auto-game-pause.md is its dedicated contract
 - tools/coverage-map.tsv: rows for the four directors and the disaster tool before their catch-alls; the
   `cSC4Preferences`, `cSC4AutoGamePause`, `cGZGraphicCOMDirector` and `cGXCOMDirector` rows filled in place.
 - Specified bytes 4,953,902 → 4,956,113 (+2,211, 88.8%, `cov_local.py`).
+- Follow-up commit: five leftovers (`cGZCOMDirector`, `fn:NULL_about`, `fn:SetTableNumber`, `PieGraphSeriesInfo`,
+  `nGZDrawSoftRender::cISpanRender`) in framework-misc3.md §3a with their rows: 4,956,113 → 4,956,437 (+324).

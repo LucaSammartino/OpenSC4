@@ -499,6 +499,7 @@ nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-ren
 nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	span4444
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	span8888
 nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	span8
+nGZDrawSoftRender::cISpanRender	2D drawing and fonts	renderer	framework-misc3.md	-	-	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvasW32	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
@@ -706,6 +707,7 @@ cSC4*COMDirector	application	framework	-	-	-	-
 cGZToolsCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZResManCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZGraphicWin32COMDirector	application	framework	com-directors-misc.md	-	-	-
+cGZCOMDirector	application	framework	framework-misc3.md	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	application.md	-	-	-
 cSC4GameDataRegistry	application	framework	app-directors.md	core/src/game_data_registry	-	-
@@ -983,7 +985,7 @@ cISTETerrain::tBrushParameters	terrain	simulation	terrain.md, sim-misc2.md	-	-	-
 cCompletionObj	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cSTEWaterWave	3D scene and models	renderer	sim-misc2.md	-	-	-
 SignalPlatformData	framework services (RZ)	framework	framework-misc3.md	-	-	-
-PieGraphSeriesInfo	widget toolkit	ui	-	-	-	-
+PieGraphSeriesInfo	widget toolkit	ui	framework-misc3.md	-	-	-
 ibasic_string	framework services (GZ)	framework	framework-misc3.md	-	-	-
 RZFileTimeSort	framework services (RZ)	framework	-	-	-	-
 RZFileFindData	framework services (RZ)	framework	framework-misc3.md	-	-	-
@@ -1087,6 +1089,8 @@ fn:memset8	other free functions	other	small-helpers2.md	-	-	-
 fn:operator[*]	other free functions	other	small-helpers2.md	-	-	-
 fn:operator.new	other free functions	other	small-helpers2.md	-	-	-
 fn:sNotify	other free functions	other	small-helpers2.md	-	-	-
+fn:NULL_about	other free functions	other	framework-misc3.md	-	-	-
+fn:SetTableNumber	other free functions	other	framework-misc3.md	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
 # ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)

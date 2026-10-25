@@ -62,6 +62,16 @@ Evidence: static RE only, on the instruction and data bytes of the Steam 1.1.641
 | | `0x00441A60` | destructor: frees each row, then the row table (zones.md) |
 | `FileChangeNotification` | `0x005C0BD0` | `GetWatchedDirectory(out)`: assigns the watched directory to the string `out` (its slot 14) |
 
+## 3a. Leftovers (re-comdirs7) *[compat]*
+
+| Owner | Address | Behaviour |
+|---|---|---|
+| `cGZCOMDirector` | `0x0087B1C3`, `0x0087B1F6` | the framework's own COM director (ID `0xA3CAD79A`); without a GZCOM yet, the constructor takes the framework's (framework slot 23) |
+| `fn:NULL_about` | `0x0090CDEA` | the Gimex "NULL" codec's about record (gimex.md): 256 zeroed bytes with the tag `NULL`, size `0x100`, version `0x159`, a flag word `0x1000`, `+0x18` = 100, and the strings `Colin Andrews` and `Not Gimex` among its text fields |
+| `fn:SetTableNumber` | `0x0043D1F0` | on the table object in ESI (used by the MySim code): slot 33 with the index, slot 31 with the value as a double, slot 46 with −3 |
+| `PieGraphSeriesInfo` | `0x009B750D` | constructor: `+0` = 0, colour `+4` = `0x80000000` (unset), an empty label |
+| `nGZDrawSoftRender::cISpanRender` | `0x0082FF00` | the span renderers' shared deleting destructor (span-render-4444.md, span-render-1555.md) |
+
 ## 4. Function inventory
 
 `cIGZWinDragAndDropManager::DragData`: `0x009CC3DD`, `0x009CC53A`, `0x009CC576`.
@@ -74,4 +84,5 @@ Evidence: static RE only, on the instruction and data bytes of the Steam 1.1.641
 `ibasic_string`: `0x0093415E`. `cGZCommandServer::CommandInfo`: `0x0092AA36`. `RZFileFindData`: `0x0091ADEC`.
 `FileChangeNotification`: `0x005C0BD0`. `nGZLog`: `0x00934732`. `cRZCellMap`: `0x00441A60`, `0x00441AA0`.
 `cRZLock`: `0x0048C9F0`. `cIGZMessageTarget2`: `0x0090CF54`. `cIGZWinProc`: `0x0041D4C0`. `cIGZSystemService`:
-`0x004EA510`.
+`0x004EA510`. `cGZCOMDirector`: `0x0087B1C3`, `0x0087B1F6`. `fn:NULL_about`: `0x0090CDEA`. `fn:SetTableNumber`:
+`0x0043D1F0`. `PieGraphSeriesInfo`: `0x009B750D`. `nGZDrawSoftRender::cISpanRender`: `0x0082FF00`.
