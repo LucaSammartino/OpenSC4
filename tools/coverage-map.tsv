@@ -432,6 +432,7 @@ cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	core/src/model_re
 cSC4ModelMaker	model maker	renderer	model-maker.md	-	-	-
 cSC4ModelBackgroundLoader	model background loader	renderer	model-maker.md	-	-	-
 cSC4ModelBasedParticlesEffect	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
+cSC4ModelMakerUtility	model maker	renderer	model-maker-utility.md, graphics-formats.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
 cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
