@@ -2541,8 +2541,11 @@ Entries are snapshotted before subsystem entry patches and armed after the
 city-load hooks and probes. Changed entries, preexisting jumps/breakpoints,
 trap-sensitive first instructions, and exception/loader runtime names are
 skipped with reasons. Tracing ends before city shutdown restores other hooks.
-Monthly constructed shadow probes are excluded on their calling thread;
-scripted game actions and other threads remain counted. Consequently this is
+Monthly constructed shadow passes pause the census process-wide, avoiding
+unbounded traps on fixture-heavy getters. Scripted game actions remain counted.
+`reach_include_probes = 1` disables these pauses for call-count calibration
+(default 0). Calls on other threads during excluded passes are also omitted.
+Consequently this is
 a census of the running city, excluding load/shutdown and monthly fixtures.
 The log reports `reach summary functions=... armed=... reached=... skipped=...
 windows=... traps=...`, followed by ignored/aborted/slot-exhaustion/save counters.

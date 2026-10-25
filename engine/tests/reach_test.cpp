@@ -152,6 +152,12 @@ int main(int argc, char** argv) {
         const int value = 77;
         CHECK(fault(&value) == 77);
         CHECK(RowAt(tracer, fn[7]).entries == 2);
+        CHECK(tracer.Suspend());
+        CHECK(a(0) == 7);  // no breakpoint during a constructed probe pass
+        CHECK(RowAt(tracer, fn[0]).entries == 28);
+        tracer.Resume();
+        CHECK(a(0) == 7);
+        CHECK(RowAt(tracer, fn[0]).entries == 29);
         RaiseException(0xe0424242, 0, 0, nullptr);
         RaiseException(EXCEPTION_SINGLE_STEP, 0, 0, nullptr);
         RaiseException(EXCEPTION_BREAKPOINT, 0, 0, nullptr);
@@ -160,9 +166,9 @@ int main(int argc, char** argv) {
         CHECK(s.ignored == 5 && s.abortedSteps == 1 && s.slotExhaustions == 0);
         tracer.Stop();
         CHECK(a(0) == 7);
-        CHECK(RowAt(tracer, fn[0]).entries == 28);
+        CHECK(RowAt(tracer, fn[0]).entries == 29);
         CHECK(tracer.Write("reach-synthetic.tsv"));
-        std::printf("reach synthetic exact A=28/28 B=44/44 float=2/2 flags=2/2 ret=2/2 fault=2/2 windows=3 cap=32 ignored=5 skipped=3 traps=%u aborted=%u\n", s.traps, s.abortedSteps);
+        std::printf("reach synthetic exact A=29/29 B=44/44 float=2/2 flags=2/2 ret=2/2 fault=2/2 windows=3 cap=32 ignored=5 skipped=3 suspend_resume=1 traps=%u aborted=%u\n", s.traps, s.abortedSteps);
     }
     {
         // Same-entry concurrency is safe, but byte-restoration necessarily

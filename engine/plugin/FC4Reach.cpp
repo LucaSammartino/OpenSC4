@@ -372,14 +372,35 @@ void Tracer::NextWindow() {
 }
 
 void Tracer::Stop() {
+    Suspend();
+}
+
+bool Tracer::Suspend() {
     State& s = *state_;
-    if (!s.active.exchange(false, std::memory_order_acq_rel)) return;
+    if (!s.active.exchange(false, std::memory_order_acq_rel)) return false;
     for (size_t i = 0; i < s.count; ++i) {
         auto& e = s.entries[i];
         if (!e.everArmed) continue;
         e.Lock();
         if (*e.code == kBreakpoint) *e.code = e.expected[0];
         else if (*e.code != e.expected[0]) e.conflict = true;
+        e.Unlock();
+        State::Flush(e);
+    }
+    return true;
+}
+
+void Tracer::Resume() {
+    State& s = *state_;
+    if (!s.handler || s.active.exchange(true, std::memory_order_acq_rel)) return;
+    for (size_t i = 0; i < s.count; ++i) {
+        auto& e = s.entries[i];
+        if (!e.everArmed) continue;
+        e.Lock();
+        if (!e.pending && s.Eligible(e)) {
+            if (*e.code == e.expected[0]) *e.code = kBreakpoint;
+            else if (*e.code != kBreakpoint) e.conflict = true;
+        }
         e.Unlock();
         State::Flush(e);
     }
@@ -454,6 +475,8 @@ reach::Tracer* g_reach = nullptr;
 std::string g_reachOutput;
 int32_t g_reachMonth = INT32_MIN;
 bool g_reachStarted = false, g_reachStopped = false;
+bool g_reachIncludeProbes = false;
+uint32_t g_reachProbePauses = 0;
 }
 
 void ReachPrepare() {
@@ -498,13 +521,14 @@ void ReachStart() {
         return;
     }
     g_reachStarted = true;
+    g_reachIncludeProbes = SettingInt("reach_include_probes", nullptr, 0) == 1;
     // The VEH must remain executable for in-flight exceptions through exit.
     HMODULE pinned = nullptr;
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
                       reinterpret_cast<LPCSTR>(&ReachStart), &pinned);
     const auto s = g_reach->GetSummary();
-    Log("reach installed functions=%u armed=%u skipped=%u cap=%ld window=month output=%s",
-        s.functions, s.armed, s.skipped, cap, g_reachOutput.c_str());
+    Log("reach installed functions=%u armed=%u skipped=%u cap=%ld window=month include_probes=%u output=%s",
+        s.functions, s.armed, s.skipped, cap, g_reachIncludeProbes ? 1 : 0, g_reachOutput.c_str());
     for (const auto& r : g_reach->Rows()) if (!r.skipped.empty())
         Log("reach skip address=%08x reason=%s", r.address, r.skipped.c_str());
 }
@@ -525,12 +549,19 @@ void ReachStop() {
     for (const auto& r : g_reach->Rows())
         if (r.skipped == "late-entry-conflict" || r.skipped == "thread-slot-exhaustion")
             Log("reach skip address=%08x reason=%s", r.address, r.skipped.c_str());
-    Log("reach summary functions=%u armed=%u reached=%u skipped=%u windows=%u traps=%u ignored=%u aborted=%u slot_exhaustions=%u saved=%u",
+    Log("reach summary functions=%u armed=%u reached=%u skipped=%u windows=%u traps=%u ignored=%u aborted=%u slot_exhaustions=%u saved=%u probe_pauses=%u",
         s.functions, s.armed, s.reached, s.skipped, s.windows, s.traps, s.ignored,
-        s.abortedSteps, s.slotExhaustions, saved ? 1 : 0);
+        s.abortedSteps, s.slotExhaustions, saved ? 1 : 0, g_reachProbePauses);
 }
 
-ReachProbeScope::ReachProbeScope() : token_(g_reach ? g_reach->IgnoreThread() : nullptr) {}
-ReachProbeScope::~ReachProbeScope() { reach::Tracer::UnignoreThread(token_); }
+ReachProbeScope::ReachProbeScope() : token_(nullptr) {
+    if (g_reachStarted && !g_reachStopped && !g_reachIncludeProbes && g_reach->Suspend()) {
+        token_ = g_reach;
+        ++g_reachProbePauses;
+    }
+}
+ReachProbeScope::~ReachProbeScope() {
+    if (token_ && !g_reachStopped) static_cast<reach::Tracer*>(token_)->Resume();
+}
 #endif
 }  // namespace fc4

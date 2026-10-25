@@ -681,6 +681,8 @@ std::string IniPath();
 // reach = on (default off): native function-entry breakpoint census; no replacement.
 // reach_cap = 32: counted natural entries per function per game-month window.
 // reach_window = month: calendar messages are available; other windows refused.
+// reach_include_probes = 1 (default 0): calibration only; count monthly fixtures
+// too. Otherwise the census pauses process-wide for constructed shadow passes.
 // reach_contracts = path: functions.tsv (default source tree docs/abi/functions.tsv).
 // reach_output = path: census TSV (default log path + .reach.tsv). Harness runs
 // should give an absolute <worktree>/build-runs/game-results/<label>.reach.tsv.

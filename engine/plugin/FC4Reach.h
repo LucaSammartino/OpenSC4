@@ -49,6 +49,8 @@ public:
     bool Start(uint32_t cap);
     void NextWindow();
     void Stop();
+    bool Suspend();
+    void Resume();
     std::vector<Row> Rows() const;
     Summary GetSummary() const;
     bool Write(const std::string& path) const;
@@ -71,8 +73,9 @@ void ReachStart();
 void ReachNewMonth(int32_t julian);
 void ReachStop();
 
-// Suppress constructed monthly shadow probes, without suppressing scripted
-// game actions or other game threads. The handler still steps transparently.
+// Pause the census for constructed monthly shadow passes. Scripted game
+// actions run outside this scope. Pauses are process-wide and documented as
+// excluded intervals, avoiding unbounded traps on fixture-heavy getters.
 class ReachProbeScope {
 public:
     ReachProbeScope();
