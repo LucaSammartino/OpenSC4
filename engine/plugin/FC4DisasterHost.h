@@ -63,6 +63,9 @@ inline bool IsSynthetic(uint64_t t) { return (t & kSyntheticToken) != 0; }
 struct DisasterHostContext {
     cISC4City* city = nullptr;  // borrowed for the city session
     bool shadow = false;
+    // A replacement routes period posts through its public layer, after the
+    // manager core returns. Other host users retain the normal message path.
+    std::function<void(const fc4_disaster_post&)> postOverride;
 
     // ---- shadow mode ----
     // The clock now_ms answers (the shadow sets it before each core call).

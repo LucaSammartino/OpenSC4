@@ -134,6 +134,17 @@ cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
 cIGZUnknown* CreateFC4EffectsManager();
 cIGZUnknown* CreateFC4DisasterLayer();
+#define FC4_DISASTER_FACTORY_DECL(Name) \
+    cIGZUnknown* CreateFC4DisasterManager##Name(); \
+    cIGZUnknown* CreateFC4DisasterInstance##Name();
+FC4_DISASTER_FACTORY_DECL(Volcano)
+FC4_DISASTER_FACTORY_DECL(Fire)
+FC4_DISASTER_FACTORY_DECL(Earthquake)
+FC4_DISASTER_FACTORY_DECL(PipeBurst)
+FC4_DISASTER_FACTORY_DECL(Riot)
+FC4_DISASTER_FACTORY_DECL(Effect)
+FC4_DISASTER_FACTORY_DECL(Toxic)
+#undef FC4_DISASTER_FACTORY_DECL
 
 namespace fc4 {
 namespace {
@@ -482,9 +493,23 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
-// disasters.md §2.8: the layer factory keeps the seven native managers.
+// Replace managers and instances together: disasters.md §2.8 / DS44.
 const ClassEntry kDisasterClasses[] = {
     {0x61F6ABF5, "cSC4DisasterLayer", &CreateFC4DisasterLayer},
+    {0xA9B5AB9F, "cSC4DisasterManagerVolcano", &CreateFC4DisasterManagerVolcano},
+    {0x69C1718E, "cSC4DisasterManagerFire", &CreateFC4DisasterManagerFire},
+    {0x0A086BD3, "cSC4DisasterManagerEarthquake", &CreateFC4DisasterManagerEarthquake},
+    {0x4A132FDF, "cSC4DisasterManagerPipeBurst", &CreateFC4DisasterManagerPipeBurst},
+    {0x4A38206C, "cSC4DisasterManagerRiot", &CreateFC4DisasterManagerRiot},
+    {0x6A7B3E9B, "cSC4DisasterManagerEffect", &CreateFC4DisasterManagerEffect},
+    {0xEBFB0402, "cSC4DisasterManagerToxic", &CreateFC4DisasterManagerToxic},
+    {0x29B5AB89, "cSC4DisasterInstanceVolcano", &CreateFC4DisasterInstanceVolcano},
+    {0x69C1718F, "cSC4DisasterInstanceFire", &CreateFC4DisasterInstanceFire},
+    {0xAA086D86, "cSC4DisasterInstanceEarthquake", &CreateFC4DisasterInstanceEarthquake},
+    {0x0A133012, "cSC4DisasterInstancePipeBurst", &CreateFC4DisasterInstancePipeBurst},
+    {0x4A38206D, "cSC4DisasterInstanceRiot", &CreateFC4DisasterInstanceRiot},
+    {0x6A7B3E9C, "cSC4DisasterInstanceEffect", &CreateFC4DisasterInstanceEffect},
+    {0xEBFB0403, "cSC4DisasterInstanceToxic", &CreateFC4DisasterInstanceToxic},
 };
 
 const Subsystem kSubsystems[] = {

@@ -177,6 +177,7 @@ float CellWidth(void*) { return 16.0f; }  // city slot 91 (§5.6)
 void Post(void* u, const fc4_disaster_post* p) {
     if (p == nullptr) return;
     DisasterHostContext* c = C(u);
+    if (c->postOverride) { c->postOverride(*p); return; }
     ++c->posts[p->msg_type];
     if (p->msg_type == kMsgIgnitions) {
         c->postData1Sums[p->msg_type] += static_cast<uint64_t>(p->data1);

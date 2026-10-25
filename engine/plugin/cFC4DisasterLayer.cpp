@@ -18,11 +18,19 @@
 #include "cISC4DisasterInstance.h"
 #include "cISC4DisasterManager.h"
 #include "cISC4Occupant.h"
+#include "cISC4DisasterManagerFire.h"
+#include "cISC4DisasterInstanceFire.h"
+#include "FC4LotDevInterfaces.h"
+#include "SC4Rect.h"
 #include <atomic>
 #include <cstddef>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <algorithm>
 
 namespace {
+class Runtime;
 template<class T> uint64_t Token(T* p) { return reinterpret_cast<uintptr_t>(p); }
 template<class T> T* Ptr(uint64_t t) { return reinterpret_cast<T*>(static_cast<uintptr_t>(t)); }
 constexpr uint32_t kMessages[] = {0x99EF1143, 0xE94671EC, 0xE94671EB, 0x894671F6, 0xE94671ED};
@@ -92,6 +100,7 @@ public:
     fc4::DisasterHostContext ctx_;
     fc4_disasters_host live_{};
     fc4::CoreLock lock_;
+    std::shared_ptr<Runtime> runtime_;
 private:
     std::atomic<uint32_t> refs_{0};
     std::map<uint32_t, cISC4DisasterManager*> managers_;
@@ -99,6 +108,8 @@ private:
     CostRecord record_;
     bool subscribed_ = false;
 };
+
+#include "cFC4DisasterManagers.inc"
 
 Layer* Self(void* p) { return static_cast<Layer*>(p); }
 void Post(Layer* s, uint32_t type, uint32_t count = 0, int32_t x = 0, int32_t z = 0, uint64_t token = 0) {
@@ -147,8 +158,13 @@ Layer::Layer() {
         *fire = s->live_.fire_dispatch_count(&s->ctx_); *police = s->live_.police_dispatch_count(&s->ctx_); return true;
     };
     core_ = fc4_dlayer_create(&h);
+    runtime_ = std::make_shared<Runtime>(this);
+    SetRuntime(runtime_);
 }
-Layer::~Layer() { Shutdown(); fc4_dlayer_destroy(core_); fc4::DisasterHostReleaseAll(&ctx_); }
+Layer::~Layer() {
+    Shutdown(); runtime_->layer = nullptr; runtime_.reset();
+    fc4_dlayer_destroy(core_); fc4::DisasterHostReleaseAll(&ctx_);
+}
 bool Layer::QueryInterface(uint32_t iid, void** out) {
     if (!out) return false;
     if (iid == 1 || iid == 0x29B02A2C) *out = static_cast<cFC4ISC4DisasterLayer*>(this);
@@ -164,28 +180,26 @@ bool Layer::Init() {
     if (app && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4) {
         FC4_ACQUIRED(sc4, "QueryInterface"); ctx_.city = sc4->GetCity(); FC4_RELEASE(sc4);
     }
-    // §2.8: keep native managers. Native instances recover their concrete
-    // manager by subtracting eight from the interface pointer returned by slot 7.
-    constexpr uint32_t classes[] = {0xA9B5AB9F, 0x69C1718E, 0x0A086BD3, 0x4A132FDF, 0x4A38206C, 0x6A7B3E9B, 0xEBFB0402};
-    auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    for (uint32_t cls : classes) {
-        cISC4DisasterManager* m = nullptr;
-        if (com && com->GetClassObject(cls, 0x021E9CBF, reinterpret_cast<void**>(&m)) && m) {
-            FC4_ACQUIRED(m, "GetClassObject"); managers_.emplace(m->GetID(), m);
-        }
-    }
     // Initialise the core first: managers may re-enter the layer on Init.
     { fc4::CoreLock::Section s(lock_, "disaster init"); fc4_dlayer_init(core_); }
+    runtime_->ctx.city = ctx_.city;
+    runtime_->Init();
+    for (uint32_t type : kManagerTypes) {
+        auto* m = new Manager(runtime_, type);
+        m->AddRef();
+        managers_.emplace(type, m->AsNative());
+    }
     for (auto& item : managers_) item.second->Init();
     fc4_dlayer_reset_cost(core_); Sync();
-    fc4::Log("disasters replacement: Init (%u native managers)", static_cast<unsigned>(managers_.size()));
+    fc4::Log("disasters replacement: Init (%u Rust managers)", static_cast<unsigned>(managers_.size()));
     return core_ != nullptr;
 }
 bool Layer::Shutdown() {
     if (!fc4_dlayer_initialised(core_)) return true;
+    runtime_->Shutdown();
     // Do not hold the Rust state while native Shutdown calls slots 9 and 14.
     for (auto& item : managers_) item.second->Shutdown();
-    for (auto& item : managers_) FC4_RELEASE_CREATED(item.second);
+    for (auto& item : managers_) item.second->Release(); // created by this layer
     managers_.clear();
     { fc4::CoreLock::Section s(lock_, "disaster shutdown"); fc4_dlayer_shutdown(core_); }
     ctx_.city = nullptr;
@@ -248,3 +262,19 @@ bool Layer::DoMessage(cIGZMessage2* message) {
 } // namespace
 
 cIGZUnknown* CreateFC4DisasterLayer() { return static_cast<cFC4ISC4DisasterLayer*>(new Layer()); }
+
+#define FC4_DISASTER_FACTORY(Name, Type) \
+    cIGZUnknown* CreateFC4DisasterManager##Name() { \
+        return static_cast<cFC4ISC4DisasterManager*>(new Manager(CurrentRuntime(), Type)); \
+    } \
+    cIGZUnknown* CreateFC4DisasterInstance##Name() { \
+        return static_cast<cISC4DisasterInstance*>(new Instance(CurrentRuntime(), Type, 0)); \
+    }
+FC4_DISASTER_FACTORY(Volcano, 0xC4C90997)
+FC4_DISASTER_FACTORY(Fire, 0x621CDA33)
+FC4_DISASTER_FACTORY(Earthquake, 0x42963812)
+FC4_DISASTER_FACTORY(PipeBurst, 0x4A1332E8)
+FC4_DISASTER_FACTORY(Riot, 0xCA380B06)
+FC4_DISASTER_FACTORY(Effect, 0x6A7B4397)
+FC4_DISASTER_FACTORY(Toxic, 0xEBFB0404)
+#undef FC4_DISASTER_FACTORY
