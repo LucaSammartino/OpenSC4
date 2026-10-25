@@ -103,7 +103,15 @@ class SuiteParsingTests(unittest.TestCase):
 
     def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
-        self.assertEqual(len(rows), 108)
+        # Trigger/Lua lanes append focused scenarios; the original city census
+        # keeps its stronger all-actions contract independently of those rows.
+        cities = [r for r in rows if r['name'].startswith(
+            ('berlin-', 'london-', 'timbuktu-', 'maxisland-', 'paradis-', 'empty-'))]
+        self.assertEqual(len(cities), 108)
+        self.assertGreaterEqual(len(rows), len(cities))
+        for row in rows:
+            if row['script'] != '-':
+                self.assertTrue(suite.script_file(ROOT, row['script']).is_file(), row['name'])
         self.assertEqual(len(suite.read_scenarios(ROOT, 'smoke')), 6)
         self.assertEqual({r['region'] for r in rows}, {'Berlin', 'London', 'Timbuktu', 'Maxisland', 'Paradis'})
         self.assertEqual(sum(r['region'] == 'Maxisland' for r in rows), 44)
@@ -111,7 +119,7 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertTrue({'maxisland-west-weburg', 'maxisland-san-indersty', 'maxisland-simicon-valley', 'paradis-mitras'}
                         <= {r['name'] for r in suite.read_scenarios(ROOT, 'smoke')})
         self.assertTrue({'empty-small', 'empty-medium', 'empty-large'} <= {r['name'] for r in rows})
-        for row in rows:
+        for row in cities:
             if suite.load_only(row):
                 self.assertIn(row['name'], ('berlin-tempelhof', 'berlin-schonerlinde'))
                 self.assertEqual(row['script'], '-')
@@ -157,7 +165,7 @@ class SuiteQueueTests(unittest.TestCase):
 
             def queue_tick(_):
                 requests = list((root / 'build-runs/game-queue').glob('*.req'))
-                self.assertEqual(len(requests), 2)  # submit the whole batch before waiting
+                self.assertEqual(len(requests), 2)
                 for request in requests:
                     body = request.read_text(encoding='utf-8')
                     self.assertIn('region = San Francisco', body)
@@ -212,3 +220,40 @@ class SuiteQueueTests(unittest.TestCase):
                 results = suite.wait_for_batch(root, directory, manifest, 0)
             self.assertEqual(results[row['name']]['verdict'], 'queue-timeout')
             self.assertIn('queue-timeout\t0', (directory / 'summary.tsv').read_text())
+
+    def test_large_batch_refills_only_after_a_completed_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            rows = [dict(row, name=f'case{i}', script='-') for i in range(9)]
+            completed, peak = [], []
+
+            def queue_tick(_):
+                requests = sorted((root / 'build-runs/game-queue').glob('*.req'))
+                peak.append(len(requests))
+                self.assertLessEqual(len(requests), 6)
+                self.assertTrue(requests)
+                request = requests[0]
+                result = root / 'build-runs/game-results' / request.stem
+                result.parent.mkdir(exist_ok=True)
+                Path(str(result) + '.log').write_text(
+                    'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.0)\n', encoding='utf-8')
+                Path(str(result) + '.verdict').write_text('verdict: clean\n', encoding='utf-8')
+                completed.append(request.stem)
+                request.unlink()  # the shared poller has moved it to done/
+
+            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
+                _, results = suite.run_scenarios(root, rows, profile='plain', dll=str(root), tag='bounded')
+            self.assertEqual(len(set(completed)), 9)
+            self.assertEqual(max(peak), 6)
+            self.assertTrue(suite.successful(results))
+
+    def test_expired_batch_distinguishes_unsubmitted_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                _, results = suite.run_scenarios(root, [row], profile='plain', dll=str(root),
+                                                 tag='not-sent', wait_seconds=0)
+            self.assertEqual(results[row['name']]['verdict'], 'not-submitted')
+            self.assertFalse(list((root / 'build-runs/game-queue').glob('*.req')))

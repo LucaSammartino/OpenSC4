@@ -422,13 +422,26 @@ def write_results(directory, manifest, results):
     write_tsv(directory / 'saturation.tsv', ['scenario', 'window', 'date', 'new', 'total'], windows)
 
 
-def wait_for_batch(root, directory, manifest, wait_seconds):
+def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
     deadline = time.monotonic() + wait_seconds
     pending = {r['scenario']['name']: r for r in manifest['requests']}
+    waiting = list(pending) if submit else []
+    active = set() if submit else set(pending)
     results = {}
     try:
         while pending:
+            # Include queued requests in this lane's six-request shared footprint.
+            while waiting and len(active) < 6 and time.monotonic() < deadline:
+                name = waiting.pop(0)
+                request = pending[name]
+                path = root / 'build-runs/game-queue' / (request['label'] + '.req')
+                temporary = path.with_suffix('.req.tmp')
+                temporary.write_text(request['request'], encoding='utf-8')
+                temporary.replace(path)
+                active.add(name)
             for name, request in list(pending.items()):
+                if name not in active:
+                    continue
                 source = root / 'build-runs/game-results' / request['label']
                 # Labels can contain dots: append the extension, do not replace it.
                 verdict = Path(str(source) + '.verdict')
@@ -453,14 +466,17 @@ def wait_for_batch(root, directory, manifest, wait_seconds):
                     '\n'.join(r['text'] for r in parsed['shadow_payloads']) + '\n', encoding='utf-8')
                 results[name] = parsed
                 del pending[name]
+                active.remove(name)
                 print(f'{name}: {parsed["verdict"]}; end={parsed["end_reached"]}; '
                       f'actions={parsed["actions_ok"]} ok/{parsed["actions_failed"]} failed; '
                       f'shadow={parsed["shadow_exact_lines"]}/{parsed["shadow_lines"]}', flush=True)
                 write_results(directory, manifest, results)
             if pending and time.monotonic() >= deadline:
-                print('queue wait expired; requests remain queued/running: ' + ', '.join(pending), file=sys.stderr)
+                print('queue wait expired; queued/running: ' + ', '.join(sorted(active))
+                      + '; not submitted: ' + ', '.join(waiting), file=sys.stderr)
                 for name, request in pending.items():
-                    results[name] = parse_log('', request['scenario']['end'], 'verdict: queue-timeout')
+                    verdict = 'queue-timeout' if name in active else 'not-submitted'
+                    results[name] = parse_log('', request['scenario']['end'], 'verdict: ' + verdict)
                 break
             if pending:
                 time.sleep(min(2, max(0, deadline - time.monotonic())))
@@ -476,13 +492,8 @@ def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=
         return directory, {}
     queue = root / 'build-runs/game-queue'
     queue.mkdir(parents=True, exist_ok=True)
-    for request in manifest['requests']:
-        path = queue / (request['label'] + '.req')
-        temporary = path.with_suffix('.req.tmp')
-        temporary.write_text(request['request'], encoding='utf-8')
-        temporary.replace(path)
-    print(f'submitted {len(scenarios)} requests; results: {directory}', flush=True)
-    return directory, wait_for_batch(root, directory, manifest, wait_seconds)
+    print(f'staged {len(scenarios)} requests; at most 6 in flight; results: {directory}', flush=True)
+    return directory, wait_for_batch(root, directory, manifest, wait_seconds, submit=True)
 
 
 def report(root, tag, against=None):
