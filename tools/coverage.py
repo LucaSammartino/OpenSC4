@@ -37,6 +37,7 @@ import bisect
 import csv
 import fnmatch
 import hashlib
+import importlib.util
 import os
 import re
 import struct
@@ -45,10 +46,18 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-try:
-    from tools import compare_metrics
-except ModuleNotFoundError:  # direct invocation from tools/
-    import compare_metrics
+
+def _sibling(name):
+    """Load a module next to this file by path, writing no __pycache__: creditcheck and the merge train exec this
+    file from another tree, where neither `tools` nor this directory is on sys.path, and a `tools` package found on
+    sys.path could belong to a different tree."""
+    path = Path(__file__).with_name(name + ".py")
+    module = importlib.util.module_from_spec(importlib.util.spec_from_file_location(name, path))
+    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), module.__dict__)
+    return module
+
+
+compare_metrics = _sibling("compare_metrics")
 
 EXE_SHA256 = "3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b"
 AREAS = ["simulation", "framework", "renderer", "ui", "audio", "region", "other"]

@@ -61,6 +61,7 @@ def repo(tmp_path, monkeypatch):
     git(tmp_path, "config", "user.email", "fixture@example.invalid")
     map_row(tmp_path)
     put(tmp_path, "tools/coverage.py", (ROOT / "tools/coverage.py").read_text(encoding="utf-8"))
+    put(tmp_path, "tools/compare_metrics.py", (ROOT / "tools/compare_metrics.py").read_text(encoding="utf-8"))
     put(tmp_path, "tools/regress.ps1", '[string]$Replace = "probe"\n    shadows = "probe_shadow = 1"\n')
     put(tmp_path, "engine/plugin/FC4Subsystems.cpp", '{"probe", nullptr, kProbe, false}\n')
     put(tmp_path, "engine/core/src/probe.rs", "pub fn probe() {}\n")
@@ -176,7 +177,7 @@ def test_main_verified_floor_uses_main_profile_and_parser(repo, tmp_path, monkey
     git(repo, "branch", "-f", "main", "HEAD")
     main = tmp_path / "main-checkout"
     map_row(main, shadow="probe_shadow")
-    for name in ("tools/coverage.py", "engine/plugin/FC4Subsystems.cpp"):
+    for name in ("tools/coverage.py", "tools/compare_metrics.py", "engine/plugin/FC4Subsystems.cpp"):
         put(main, name, (repo / name).read_text(encoding="utf-8"))
     put(main, "tools/regress.ps1", '[string]$Replace = "probe"\nshadows = "probe_shadow = 1"\n')
     put(main, "build-runs/regress-main.out",
