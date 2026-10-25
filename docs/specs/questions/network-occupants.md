@@ -78,25 +78,6 @@ implementer of the class tables and records.
   into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
   without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
 
-<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
-- **NO33 - sections 4.1-4.3 power-pole owner algorithms:** please publish constructor defaults and
-  the numeric connection point tables `0x00B0C0D8`/`0x00B0C198`, their subtype extraction and unlisted
-  subtype behavior; connection lookup/copy ownership, RemoveConnection, BreakAllConnectionsAtDestination,
-  refresh, SetDistressed, unnamed flag storage, slots 16/17 outputs, ChangeZoomLevel, SetPosition,
-  SetModelPosition, LoadModel key/failure semantics, bounds/transform/sort, highlight and wire Pick,
-  Draw/DrawPowerlines, floor/wall generation, and shutdown/resource ownership. The spec gives member
-  names/addresses but no algorithms. The core implements published state, two table selections and Init's
-  known state changes; no owner-result callbacks or invented geometry are supplied. [missing; sections
-  4.1-4.3 remain open, including native pool allocation required by section 13 test 4]
-  **Progress 2026-10-23 (re-netocc-answers5):** constructor defaults, exact table bits/retained-pointer
-  behavior and unrotated floor/wall generation now appear in §§4.1,4.6,4.7.1 and tests 43–44. Harvested
-  §§4.2–4.7 also supply connection removal, distress, model/position and drawing summaries. Complete
-  connection/cell-walk, model/resource, transform/bounds/Pick/Draw algorithms still require verification;
-  the diagonal floor's numeric operation order remains NO43. NO33 stays open for full owner closure.
-  **Progress 2026-10-23 (re-netocc-answers5d):** §4.7.2/tests 54–55 settle the occupant bounding
-  rectangle, sampled-list eligibility, unsigned extrema comparisons, signed output conversion and
-  wrapping maximum-cell increment. Remaining model/Pick/wire/Draw contracts still prevent closure.
-
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
   serves, and what the small interface at `+0x20` (vtable `0x00AA7F60`, slots `0x005E06A0`, `0x005E06B0`,
@@ -123,9 +104,4 @@ implementer of the class tables and records.
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
-
-<!-- from: re-powerpoles (2026-10-21) -->
-- **NO43 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
-  `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
-  (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]
 
