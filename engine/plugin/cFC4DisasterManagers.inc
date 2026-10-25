@@ -308,6 +308,10 @@ void Runtime::Init() {
     fc4::CoreLock::Section guard(lock, "disaster runtime init");
     if (initialised) return;
     initialised = true;
+    ctx.hoseFire = [weak = weak_from_this()](uint64_t token, int32_t delta) {
+        auto runtime = weak.lock();
+        return runtime && runtime->Call([&] { return fc4_disasters_fire_set_hosed(runtime->core, token, delta); });
+    };
     fc4::DisasterHostLoadTuning(core);
     fc4_disasters_init(core);
     Sync();
@@ -334,6 +338,7 @@ cISC4DisasterInstance* Runtime::Wrap(uint32_t id, uint32_t type) {
 }
 
 void Runtime::Sync() {
+    fc4::DisasterHostSyncFires(&ctx, core);
     std::set<uint32_t> wanted;
     for (const auto& sub : ctx.subscriptions) {
         if (std::get<0>(sub) != FC4_DISASTER_TARGET_LAYER && std::get<2>(sub) != 0x86AD10EE)

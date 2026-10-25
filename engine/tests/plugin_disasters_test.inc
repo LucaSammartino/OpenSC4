@@ -4,8 +4,90 @@
 #include "cISC4DisasterManagerFire.h"
 #include "cISC4DisasterInstance.h"
 #include "cISC4DisasterInstanceFire.h"
+#include "FC4DisasterFire.h"
+
+struct DisasterFireBaseFixture {
+    void** vt;
+    int inits = 0, shutdowns = 0;
+};
+bool __fastcall DisasterFireBaseInit(DisasterFireBaseFixture* f, void*) { ++f->inits; return true; }
+bool __fastcall DisasterFireBaseShutdown(DisasterFireBaseFixture* f, void*) { ++f->shutdowns; return true; }
+uint32_t __fastcall DisasterFireBaseFlags(DisasterFireBaseFixture*, void*) { return 0x1234; }
+bool __fastcall DisasterFireBaseGroup(DisasterFireBaseFixture*, void*, uint32_t group) { return group == 0x5005; }
+
+// A native fire shell with deliberately unusable SetTarget/SetStage: these
+// methods require native instance-owned static curves (disasters.md 5.3).
+struct DisasterFireStorageFixture final : cISC4FireOccupant {
+    cISC4Occupant* base;
+    int targetCalls = 0, stageCalls = 0;
+    explicit DisasterFireStorageFixture(cISC4Occupant* p) : base(p) {}
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 0; }
+    cISC4Occupant* AsOccupant() override { return base; }
+    bool SetTarget(cISC4Occupant*) override { ++targetCalls; return false; }
+    cISC4Occupant* GetTarget() override { return nullptr; }
+    uint32_t GetStage() override { return 0; }
+    uint32_t GetMaxStage() override { return 0; }
+    bool SetStage(uint32_t) override { ++stageCalls; return false; }
+    uint32_t GetCounter() override { return 0; }
+    bool SetCounter(uint32_t) override { return false; }
+    bool GetHosed() override { return false; }
+    bool SetHosed(int32_t) override { return false; }
+    uint32_t GetFamily() override { return 0; }
+    bool SetFamily(uint32_t) override { return false; }
+};
+
+void DisasterFireAdapterTest() {
+    void* vt[36]{};
+    vt[3] = reinterpret_cast<void*>(&DisasterFireBaseInit);
+    vt[4] = reinterpret_cast<void*>(&DisasterFireBaseShutdown);
+    vt[23] = reinterpret_cast<void*>(&DisasterFireBaseGroup);
+    vt[33] = reinterpret_cast<void*>(&DisasterFireBaseFlags);
+    DisasterFireBaseFixture native{vt}, target1{vt}, target2{vt};
+    DisasterFireStorageFixture storage(reinterpret_cast<cISC4Occupant*>(&native));
+    int retains = 0, drops = 0, storageDrops = 0, hoseDelta = 0;
+    auto* fire = new fc4::DisasterFire(&storage, [&](cISC4Occupant*, bool held) {
+        if (held) ++retains; else ++drops;
+    }, [&] { ++storageDrops; });
+    std::vector<uint32_t> messages;
+    fire->post = [&](cISC4Occupant* occupant, uint32_t type, uint32_t data) {
+        CHECK(occupant == fire->AsOccupant() && data == 0);
+        messages.push_back(type);
+    };
+    CHECK(fire->Init() && fire->Init() && fire->IsInitialized());
+    CHECK(messages == std::vector<uint32_t>{0x99EF1140});
+    auto* first = reinterpret_cast<cISC4Occupant*>(&target1);
+    auto* second = reinterpret_cast<cISC4Occupant*>(&target2);
+    CHECK(fire->SetTarget(first) && fire->GetTarget() == first);
+    CHECK(fire->SetTarget(first) && retains == 1 && drops == 0);
+    CHECK(fire->SetTarget(second) && retains == 2 && drops == 1);
+    CHECK(fire->GetType() == 0x69D25C5F);
+    CHECK(fire->AsOccupant()->GetFlags() == 0x1234);
+    CHECK(fire->SetStage(1) && fire->GetStage() == 1);
+    fire->Sync(2, 3, 55, 4);
+    CHECK(fire->GetStage() == 2 && fire->GetMaxStage() == 3 && fire->GetCounter() == 55);
+    CHECK(fire->GetHosed());
+    fire->hose = [&](int32_t delta) { hoseDelta += delta; return true; };
+    CHECK(fire->SetHosed(-3) && hoseDelta == -3);
+    CHECK(fire->SetFamily(7) && fire->GetFamily() == 7);
+    void* occupant = nullptr;
+    CHECK(fire->QueryInterface(GZIID_cISC4Occupant, &occupant));
+    CHECK(occupant == fire->AsOccupant());
+    void* identity = nullptr;
+    CHECK(static_cast<cISC4Occupant*>(occupant)->QueryInterface(1, &identity));
+    CHECK(identity == static_cast<cISC4FireOccupant*>(fire));
+    static_cast<cISC4FireOccupant*>(identity)->Release();
+    static_cast<cISC4Occupant*>(occupant)->Release();
+    CHECK(fire->Shutdown() && fire->Shutdown() && !fire->IsInitialized());
+    CHECK(messages == (std::vector<uint32_t>{0x99EF1140, 0x99EF1141}));
+    CHECK(fire->Release() == 0);
+    CHECK(retains == 2 && drops == 2 && storageDrops == 1 && native.inits == 0 && native.shutdowns == 0);
+    CHECK(storage.targetCalls == 0 && storage.stageCalls == 0);
+}
 
 int DisastersFactoryTest(const std::string& dll, const std::string& ini, bool enabled) {
+    if (enabled) DisasterFireAdapterTest();
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     WriteTextFile(ini, enabled ? "[subsystems]\nenable = disasters\n" : "[subsystems]\n");
