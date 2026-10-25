@@ -4,11 +4,7 @@ The coordinator owns `main`; [`tools/merge-train.py`](../tools/merge-train.py) l
 Operator commands, conflict handling and gate recovery belong to
 [coordinating.md](ops/coordinating.md#landing-work-the-merge-train).
 
-## Lane contract
-
-Follow the [prompt](../.claude/workflows/fc4-lane.js) and [record/queue formats](lanes/README.md#how-a-lane-lands).
-Lane checks validate the lane tree; the batch checks validate integration. Set `"abi": true` for C ABI export changes;
-the train owns the version bump. A merged notice is `build-runs/merge-notices/<lane>.md`.
+Lanes follow the [prompt](../.claude/workflows/fc4-lane.js) and [queue contract](lanes/README.md#how-a-lane-lands).
 
 ## What the train does
 
@@ -38,10 +34,3 @@ Notices are `build-runs/merge-notices/<lane>.md` and `build-runs/merge-notices/t
 `build-runs/gate-train<n>.out` (summary) with the record `build-runs/gate-train<n>.json` and the step logs in
 `build-runs/gate-logs/train<n>/`, regress output `build-runs/regress-train<n>.out` (both UTF-8 — the PowerShell
 `*>` files elsewhere in `build-runs/` are UTF-16 and need `tr -d '\0'`).
-
-## Measuring
-
-Coverage numbers come from `python tools/coverage.py` ([docs/coverage-report.md](coverage-report.md)), never from an
-estimate. Tokens per lane and per coverage point come from `python tools/lanes.py ledger`
-([docs/history/token-ledger.md](history/token-ledger.md)), dollars per point from `tools/spend.py`
-([docs/history/efficiency-log.md](history/efficiency-log.md)). A lane does not record them itself.

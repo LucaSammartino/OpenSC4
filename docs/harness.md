@@ -5,10 +5,8 @@ The [lane prompt](../.claude/workflows/fc4-lane.js) owns request cadence, labels
 
 ## Submit a request
 
-1. Build your DLL (`engine/build-x86/FreeCity4.dll` by default).
-2. Write `build-runs/game-queue/<label>.req` in your worktree (create the folders if needed;
-   `build-runs/` is git-ignored). Write it in one go (write a temporary name, then rename to `.req`, or just write
-   it whole): the queue picks up a file once it is 2 s old.
+Build your DLL, then write `build-runs/game-queue/<label>.req` in one go or rename a temporary file.
+The queue picks it up after 2 s.
 
 Example:
 
@@ -22,26 +20,24 @@ popup_dialogs = 0
 autotest_end = quit
 ```
 
-Requests from one worktree run in submission order. A written verdict is final; any retry needs a new label.
+Requests from one worktree run in submission order; label/retry rules are in the prompt.
 
 ## Request format
 
-`key = value` lines, `#` starts a comment. Plugin settings after `[ini]` are copied into `FreeCity4.ini` (the harness consumes `fixture_city`; the
-switches are in `engine/README.md`).
+`key = value` lines, `#` comments; `[ini]` settings go into `FreeCity4.ini` (switches: `engine/README.md`).
 
 | Key | Default | Meaning |
 |---|---|---|
 | `label` | the file name | names the results; letters, digits, `.`, `_`, `-`, at most 64 |
 | `dll` | `engine/build-x86/FreeCity4.dll` | worktree-relative DLL; outside paths refused; adjacent `.pdb` copied too |
-| `city` | `Konradshohe` | a city of the FC4 Test region (`Konradshohe` has a water system; `Spandau` has none) |
-
-| `seconds` | 150 | how long the city runs after it has loaded, in real seconds (the plugin's `autotest_seconds`); with `end_date` it is the timeout for reaching that date |
+| `city` | `Konradshohe` | FC4 Test alias; has water, unlike `Spandau` |
+| `seconds` | 150 | loaded-city runtime (`autotest_seconds`), or deadline for `end_date` |
 | `end_date` | - | `YYYY-MM-DD`: stop at this game date (`autotest_end_date`); Konradshohe starts on 2026-01-27 |
 | `turbo` | 0 | `1`: `sim_turbo = 1`, unpaced days after first ConnectionsReady |
 | `turbo_from` | - | `YYYY-MM-DD`: script action starting turbo at this date |
-| `minimize` | `1` | `0` keeps the game window on screen after the city load (slot games are minimized otherwise); for runs that must draw frames |
-| `timeout` | seconds + 150 | hard limit for the whole run in real seconds; the game is stopped after it |
-| `priority` | `normal` | `high`: honoured only for the coordinator's requests ([ops/running-the-game.md](ops/running-the-game.md)); in a lane's request it is ignored and the verdict says so |
+| `minimize` | `1` | `0`: visible after city load for frame tests |
+| `timeout` | seconds + 150 | whole-run hard limit in real seconds |
+| `priority` | `normal` | `high`: coordinator only; ignored/noted for lanes ([operations](ops/running-the-game.md)) |
 
 For fixtures, put `fixture_city = C:/absolute/path/to/build-runs/fixtures/name.sc4` under `[ini]`.
 It must be a DBPF `.sc4` inside the main checkout's `build-runs/fixtures`. Keep `city` an existing FC4 Test alias.
@@ -51,34 +47,32 @@ Documents are preserved. The next run remirrors the ordinary city. Direct `ingam
 Use `/` or literal single backslashes; escape processing of `\b`, `\t`, `\n` creates rejected control characters
 (shown as `<0x08>`). Encode as UTF-8/ASCII, or UTF-16 with BOM. Read back if the writer processes escapes.
 
-In the `[ini]` part, `autoload_city` is ignored (`city` sets it), and `script = <path>` is read relative to your
-worktree (a file of dated in-city actions, see "Scripted actions" in `engine/README.md`: zone, dezone, speed, turbo,
-`save`, digest, mark). Unless your `[ini]` sets them, the queue adds `popup_dialogs = 0`, `autotest_unpause = 2`
-and `autotest_end = quit` (so every run ends through the full Shutdown path).
+`autoload_city` is ignored; `city` sets it. `script = <path>` is worktree-relative ("Scripted actions" in
+`engine/README.md`: zone, dezone, speed, turbo, save, digest, mark). Unless overridden, the queue adds
+`popup_dialogs = 0`, `autotest_unpause = 2`, `autotest_end = quit` for full Shutdown.
 
 ## What comes back
 
 In your worktree, under `build-runs\`:
 
-- `game-results\<label>.running` while the run is in progress (which slot, since when).
+- `game-results\<label>.running`: slot and start time.
 - `game-results\<label>.verdict`: first line `verdict: <word>`; `line:` has the full `AUTOTEST VERDICT` counters.
   `held:` diagnoses a city dialog; `dialog:` records Windows boxes and closure. Request, DLL, slot and wall time
   identify the run; `harness:` holds heartbeat/month/pid/slot; `summary:` holds problem, month and shadow counts
   (`<name> N lines, M with every mismatch count 0`). Check every counter, including `ref_warnings`.
-- `game-results\<label>.log`: the plugin log of the run (search it for your subsystem's lines).
-- `game-results\<label>-*.png`: a picture of the game window when a run ended badly (diagnostics only).
-- The request file moves to `game-queue\done\`.
+- `game-results\<label>.log`: plugin log; `game-results\<label>-*.png`: failure screenshots.
+- Completed requests move to `game-queue\done\`.
 
 Verdict words:
 
 | Word | Meaning |
 |---|---|
-| `clean` | the plugin's verdict: no foreign exception, no stall, no reference warning; read the summary for the rest |
+| `clean` | no foreign exception, stall or reference warning; still check summary |
 | `corrupt` | a first-chance access violation outside FreeCity4.dll |
 | `stalled` | the main thread stopped moving (watchdog) |
 | `ended` | the game ended the city itself |
 | `failed-start` | game did not start or plugin did not attach; diagnose, then use a new label |
-| `exited` | the game process ended without a verdict (a crash: `0xC0000409` is a Rust panic; see the log's last lines) |
+| `exited` | process ended without verdict; `0xC0000409` is Rust panic; inspect log |
 | `no-load` | the city never loaded (see "City load" below) |
 | `timeout` | no verdict before `timeout` |
 | `rejected` | not run; `line:` explains validation failure, `the line:` repeats the input; controls shown as `<0xNN>` |
@@ -106,9 +100,7 @@ After the request's `timeout` plus 15 minutes without a verdict, return `blocked
 - `close_dialogs = 1` lets the plugin close game modal dialogs via the default button (fallback `EndModal`),
   logging `dialogs: closed …` and `dialogs_closed=N`. It does not cover bankruptcy, Lua errors or Windows boxes.
   A remaining pause produces `held:` and usually `timeout`; screenshots are diagnostic.
-- Windows message boxes (class `#32770`, e.g. an assert or runtime error box; no plugin code runs while one is open)
-  are read and closed from outside: OK if there is one, else Cancel, else WM_CLOSE (a Yes/No box stays open and is
-  reported). Each gives a `dialog:` line with its title and text. One whose title says "Error" before the plugin
-  has attached (e.g. "Hardware Driver Error") is a `failed-start`.
+- Windows boxes (`#32770`, which suspend plugin execution) are read/closed by the harness: OK, else Cancel,
+  else WM_CLOSE; Yes/No remains open/reported. `dialog:` records title/text; "Error" before attach is `failed-start`.
 - Each slot starts from a fresh copy of the test region, so a city changed or saved by your run does not carry over
   to the next run.

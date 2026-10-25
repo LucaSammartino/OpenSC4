@@ -31,12 +31,8 @@ Exactly one data row, four cells, on one line. Header (`Worktree` is also accept
 | <name and short description> | <agent and worktree> | <state at stop> | <next steps> |
 ```
 
-| Column | What goes in it |
-|---|---|
-| **Lane** | slug and short task description |
-| **Agent/worktree** | agent/worktree or branch in backticks, and lane kind |
-| **State at stop** | commits, ABI/seam reservations if any, gate counts, game labels/verdicts, shadow exact/total, question IDs; keep measured facts exact |
-| **Next steps** | numbered actions, or `-` |
+Include slug/task, agent/worktree/branch in backticks and kind; state records commits, ABI/seam reservations,
+gate counts, game labels/verdicts, shadow exact/total and question IDs. Next steps are numbered actions or `-`.
 
 Escape `|` inside cells. Invalid rows stop generation. Write the lane file once at Finish, with at most
 25 report lines below the row; an interrupted round follows the prompt's handoff instructions.
@@ -45,20 +41,7 @@ and `## Retired roster row` sections.
 
 ## `docs/runs/<tag>.md` — one file per in-game run
 
-A run file is one `key: value` per line, no continuations. Format example:
-
-```markdown
-tag: example-1
-run: 1
-date: YYYY-MM-DD
-lane: example
-dll: FreeCity4-example
-pacing: turbo
-verdict: PASS
-switches: <build and settings>
-result: <counts, shadows and verdict>
-summary: <optional latest-run description>
-```
+A run file is one `key: value` per line, no continuations:
 
 | Field | Meaning |
 |---|---|
@@ -84,7 +67,7 @@ The train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main
 
    ```json
    {"lane":"example","branch":"example","tip":"<git rev-parse HEAD>","kind":"engine","abi":true,
-    "game_runs":["example-142"],"summary":"one line","state":"ready"}
+    "game_runs":["example-check-1"],"summary":"one line","state":"ready"}
    ```
 
    | Key | Value |
@@ -92,7 +75,7 @@ The train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main
    | `lane` | the lane slug (the `docs/lanes/<lane>.md` name) |
    | `branch` | the branch the work is on |
    | `tip` | full 40-character HEAD at enqueue time; a branch that moved past it is not ready |
-   | `kind` | `engine`, `tools`, `docs` or `test`; `docs` batches go first and skip the gate when `engine/`, `tools/`, `tests/` and `.claude/lane-bin/` are unchanged |
+   | `kind` | `engine`, `tools`, `docs` or `test` ([batch checks](../merge-train.md)) |
    | `abi` | `true` if the change adds or removes a C ABI export, `false` otherwise |
    | `game_runs` | the labels of the in-game runs this change needs (or `[]`) |
    | `summary` | one line for the merge commit |
@@ -101,6 +84,5 @@ The train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main
 
 The [merge train](../merge-train.md) writes `build-runs/merge-notices/<lane>.md` after landing.
 
-Shared files that still take every lane's edits (`engine/README.md`, `engine/plugin/FC4Config.*`,
-`FC4Subsystems.cpp`, `tools/regress.ps1`, `tools/run_summary.ps1`): keep those edits additive, grouped and at the end
-of their lists.
+Keep permitted edits to shared lists additive, grouped and at the end: `engine/README.md`,
+`engine/plugin/FC4Config.*`, `FC4Subsystems.cpp`, `tools/regress.ps1`, `tools/run_summary.ps1`.

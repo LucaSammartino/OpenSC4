@@ -34,13 +34,10 @@ ordering reach implementers only through behaviour specs.
 
 ## Engine code
 
-- Engine logic is **Rust** (`engine/core`, with the data-format readers in `engine/formats`) and must build and test
-  on any OS. The C++ in `engine/plugin` is GZCOM glue (adapters, shadows, harness hooks); logic stays in Rust. It
-  talks to the core through the C ABI in `engine/capi`. The C++ tests are in `engine/tests`.
-- No panics or exceptions cross the FFI or GZCOM boundaries. Replacements plug in through GZCOM interfaces, such as
-  class factories registered by our DLL director. Any dependency on a game layout or address must be an interface
-  fact recorded in `docs/abi/`, sit behind the 1.1.641 version check (`engine/plugin/compat`), and be covered by a
-  test.
+- Logic is portable Rust (`engine/core`, `engine/formats`); C++ GZCOM glue in `engine/plugin` uses `engine/capi`.
+  C++ tests live in `engine/tests`.
+- No panics/exceptions cross FFI or GZCOM. Game layouts/addresses require tested `docs/abi/` facts behind the
+  1.1.641 version check (`engine/plugin/compat`). Register replacement class factories through the DLL director.
 - Every behaviour in a spec section should have a conformance vector in `engine/conformance`.
 
 ## How work lands

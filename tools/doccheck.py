@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 """Instruction-doc checks: the rules agents follow stay consistent by test, not by prose.
 
-Why this exists (2026-10-22 cleanup, docs/ops/cleanup-proposals.md): rules were copied into several docs, one copy
-changed and the others went stale ("do not delete worktrees" after the user approved a cleanup; "poll every 30 s"
-after the one-blocking-wait rule; two clean-room lists that disagreed). These checks catch that drift.
-
     python tools/doccheck.py check     # links + wall + stale; exit 1 on any problem
     python tools/doccheck.py links     # every relative link in an instruction doc resolves
     python tools/doccheck.py wall      # CONTRIBUTING.md, tools/lanes.py and the lane prompt forbid the same paths
@@ -25,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # The docs agents take instructions from. History, specs and generated logs are data, not instructions.
 INSTRUCTION_GLOBS = ("README.md", "CONTRIBUTING.md", "docs/*.md", "docs/ops/*.md", "docs/lanes/README.md",
+                     "docs/specs/questions/README.md",
                      ".claude/agents/*.md")
 NOT_INSTRUCTIONS = {"docs/manual-checks.md", "docs/coverage-report.md", "docs/history/token-ledger.md",
                     "docs/sdk-errata-draft.md", "docs/sim-engine.md"}
@@ -39,11 +36,35 @@ STALE = (
      "a lane commits on its own branch; only the merge-train owner moves main (docs/ops/rules.md 'Commits')"),
     (r"take the merge lock|takes? `build-runs/main-merge\.lock`",
      "lanes enqueue and stop; there is no merge lock (docs/lanes/README.md 'How a lane lands')"),
+    (r"working state lives in docs/lanes/<lane>\.md|keeps its working state in `docs/lanes/<lane>\.md`|"
+     r"While the lane works: a `## Handoff`|commits it after every milestone",
+     "commit real milestones; write the lane file once at Finish, or for an interrupted-round handoff (lane prompt)"),
+    (r"Lanes read the brief and the one-page HANDOFF|`docs/HANDOFF\.md`, `docs/ops/`",
+     "follow the prompt's do-not-read list; coordinator records are not routine lane instructions (lane prompt)"),
+    (r"[Aa] (?:worktree )?lane cannot read files outside its worktree",
+     "edit only the lane worktree; RE sources are read from MAIN as authorized by the RE prompt"),
+    (r"engine lane turns a difference into a precise question|questions for the analysis side go in",
+     "engine lanes choose the simplest spec-consistent behaviour, mark SPEC-GAP and continue; file only if tasked (ENGINE prompt)"),
+    (r"`args\.maxRounds`, default 6",
+     "the workflow defaults to three rounds; the launcher reserves one per invocation (lane prompt)"),
+    (r"Before enqueueing:\s*`\.\.\. build ctest`",
+     "run qbuild.py all once when engine code is done; rerun only after a fix or changed tree (ENGINE prompt)"),
+    (r"a request\s+with an existing label overwrites",
+     "each request has a new label; a written verdict is final (ENGINE prompt)"),
+    (r"rebuild on current main and\s+send the request again",
+     "report load failures; lanes never merge main unless tasked and retries need a new label (lane prompt)"),
+    (r"one lane \(or the coordinator\) opens the exe|On \"already started\", call `close_binary`",
+     "RE lanes use only the two allowed decompiler tools; on error fall back and report it (RE prompt)"),
+    (r"Pass\s+`args\.unguarded: true` to run it anyway",
+     "guard denials end the lane round; do not use an unguarded fallback (lane prompt, agent guard instructions)"),
+    (r"behaviour specs\*\* in `docs/specs/`[^\n]*and interface facts in `docs/abi/`",
+     "RE lanes leave proposed ABI rows in build-runs/abi-rows-<lane>.tsv; do not edit docs/abi/ (RE prompt)"),
+    (r"cap = min\(16, logical CPUs \* 3 // 4, game-queue slots \* 2 \+ 4\)",
+     "slots uses min(20, logical CPUs, game slots * 2 + 8) (tools/lanes.py)"),
 )
 
 # What one lane round reads besides its prompt: the agent file, the docs the prompt sends every lane to, and the
-# kind's own reference. Lanes stopped reading docs/HANDOFF.md on 2026-10-22 (the coordinator's run status). Used by
-# `bytes`.
+# kind's own reference. Coordinator records are excluded. Used by `bytes`.
 ROUND_COMMON = ("CONTRIBUTING.md", "docs/ops/rules.md", "docs/ops/conventions.md",
                 "docs/lanes/README.md", "docs/merge-train.md", "docs/specs/questions/README.md")
 ROUND_KINDS = {

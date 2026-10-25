@@ -78,6 +78,58 @@ class DocCheck(unittest.TestCase):
                                                               encoding="utf-8")
             self.assertEqual(doccheck.check_stale(root), [])
 
+    def test_superseded_lane_rules_are_rejected(self):
+        old_rules = (
+            "Your working state lives in docs/lanes/<lane>.md under ## Handoff.",
+            "While the lane works: a `## Handoff` section.",
+            "A lane commits it after every milestone.",
+            "Lanes read the brief and the one-page HANDOFF, not whole trees.",
+            "May read `docs/HANDOFF.md`, `docs/ops/`.",
+            "A lane cannot read files outside its worktree.",
+            "A worktree lane cannot read files outside its worktree.",
+            "The engine lane turns a difference into a precise question.",
+            "questions for the analysis side go in docs/specs/questions/<spec>.md",
+            "`args.maxRounds`, default 6",
+            "Before enqueueing:\n`... build ctest`",
+            "a request\nwith an existing label overwrites that label's results",
+            "rebuild on current main and\nsend the request again",
+            'Safe pattern: one lane (or the coordinator) opens the exe once.',
+            'On "already started", call `close_binary` once and retry.',
+            "Pass\n`args.unguarded: true` to run it anyway as a default subagent.",
+            "**behaviour specs** in `docs/specs/` and interface facts in `docs/abi/`",
+            "cap = min(16, logical CPUs * 3 // 4, game-queue slots * 2 + 4)",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = fixture(tmp)
+            for rule in old_rules:
+                with self.subTest(rule=rule):
+                    (root / "docs/ops/rules.md").write_text(rule + "\n", encoding="utf-8")
+                    problems = doccheck.check_stale(root)
+                    self.assertEqual(len(problems), 1, problems)
+                    self.assertIn("superseded rule", problems[0])
+
+    def test_question_instructions_are_checked_but_archives_are_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = fixture(tmp)
+            questions = root / "docs/specs/questions"
+            (questions / "answered").mkdir(parents=True)
+            old = "The engine lane turns a difference into a precise question.\n"
+            (questions / "README.md").write_text(old, encoding="utf-8")
+            (questions / "answered/old.md").write_text(old, encoding="utf-8")
+            problems = doccheck.check_stale(root)
+            self.assertEqual(len(problems), 1, problems)
+            self.assertTrue(problems[0].startswith("docs/specs/questions/README.md:1:"))
+
+    def test_current_rules_do_not_match_old_wording(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = fixture(tmp, extra={"docs/harness.md": (
+                "Write the lane file once at Finish; on interruption commit a handoff.\n"
+                "Use SPEC-GAP unless tasked to file questions; maxRounds defaults to 3.\n"
+                "Run qbuild.py all once; each request uses a new label; written verdicts are final.\n"
+                "Read RE sources from MAIN; edit only WT; proposed ABI rows go in build-runs/.\n"
+            )})
+            self.assertEqual(doccheck.check_stale(root), [])
+
 
 if __name__ == "__main__":
     unittest.main()
