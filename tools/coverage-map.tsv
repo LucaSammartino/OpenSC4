@@ -457,7 +457,7 @@ cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
-cSC4EffectMaps	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
 cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
