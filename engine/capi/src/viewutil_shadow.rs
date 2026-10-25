@@ -237,6 +237,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn object_angle_transport_keeps_negative_zero_and_signed_extrema() {
+        for (rotation, expected) in [
+            (0_i32, 0x8000_0000),
+            (1, 0xbfc9_0fdb),
+            (-1, 0x3fc9_0fdb),
+            (i32::MIN, 0x4f49_0fdb),
+            (i32::MAX, 0xcf49_0fdb),
+        ] {
+            let mut input = [0; 32];
+            input[0] = rotation as u32;
+            let mut out = [0x4120_0000; 32];
+            // SAFETY: fixed initialized arrays are disjoint.
+            unsafe { fc4_viewutil_shadow_local(0x007f6cb0, input.as_ptr(), out.as_mut_ptr()) };
+            assert_eq!(out[0], expected, "rotation={rotation}");
+            assert_eq!(out[1..], [0x4120_0000; 31]);
+        }
+    }
+
+    #[test]
     fn word_transport_preserves_y_payload_and_signed_zero() {
         let mut words = [0, 0x7fc1_2345, 0x8000_0000];
         // SAFETY: local three-word array.
