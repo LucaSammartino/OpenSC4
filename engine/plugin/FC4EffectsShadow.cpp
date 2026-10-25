@@ -167,12 +167,18 @@ void EffectsShadowStartup(bool effectsReplaced) {
         const long finish = SettingInt("effects_finish", "FC4_EFFECTS_FINISH", 0);
         fc4_effects_set_finish_mode(g.core, finish != 0 ? FC4_EFFECTS_FINISH_DRAW_PASS : FC4_EFFECTS_FINISH_HOOK);
     }
-    cIGZMessageServer2Ptr ms;
-    if (ms) {
-        ms->AddNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
-    } else {
-        Log("effects shadow: WARNING no message server; the mirror will not tick");
+    // The replacement forwards its own ticks to the mirror. Looking up GZCOM
+    // here can reenter the director while its static construction is in flight;
+    // a second subscription would also count every animation tick twice.
+    if (!g.effectsReplaced) {
+        cIGZMessageServer2Ptr ms;
+        if (ms) ms->AddNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
     }
+}
+
+void EffectsShadowSetDirectory(const fc4_effects_directory* directory) {
+    if (g.enabled && g.effectsReplaced && g.core != nullptr)
+        fc4_effects_set_directory(g.core, directory);
 }
 
 void EffectsShadowStop() {
@@ -189,8 +195,10 @@ void EffectsShadowStop() {
         fc4_effects_directory_destroy(g.dir);
         g.dir = nullptr;
     }
-    cIGZMessageServer2Ptr ms;
-    if (ms) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
+    if (!g.effectsReplaced && g.enabled) {
+        cIGZMessageServer2Ptr ms;
+        if (ms) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
+    }
     g.byName.clear();
     g = Shadow();
 }
@@ -275,11 +283,9 @@ const char* EffectsShadowSummary(char* buf, unsigned cap) {
     return buf;
 }
 
-namespace {
-
 // Public SDK raw-record path; never requests a decoded resource or invokes
 // its collection reader. OpenDBRecord's borrowed record is closed via rm.
-bool CaptureDirectory(std::vector<uint8_t>& bytes) {
+bool EffectsReadDirectory(std::vector<uint8_t>& bytes) {
     cIGZPersistResourceManagerPtr rm;
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     if (!rm || !com) return false;
@@ -319,6 +325,8 @@ bool CaptureDirectory(std::vector<uint8_t>& bytes) {
     return ok;
 }
 
+namespace {
+
 uint32_t NativeHasName(void* user, const char* name) {
     // Borrowed city manager: no AddRef/Release and no mutation.
     // [abi-ret] effects.md section 4.2: slot 5 answers name existence;
@@ -337,7 +345,7 @@ void CompareNames(void* context) {
     auto& s = *static_cast<NameSample*>(context);
     auto* manager = s.city ? s.city->GetEffectsManager() : nullptr;
     std::vector<uint8_t> bytes;
-    if (!manager || !CaptureDirectory(bytes)) return;
+    if (!manager || !EffectsReadDirectory(bytes)) return;
     s.bytes = static_cast<uint32_t>(bytes.size());
     s.captured = fc4_effects_verify_names(bytes.data(), bytes.size(), NativeHasName, manager, s.counts);
     // EF21 §18.8.2: a load/month callback proves neither owner identity nor

@@ -146,6 +146,7 @@ pub enum Event {
     StopWake(&'static str),
     Notify(u32, u32),
     Remove(bool),
+    /// One AEMS event dispatch (slot 6 then slot 5 on the sound interface).
     Aems(u32),
     PlayEffect(&'static str),
     ResetSpeedTween,
@@ -162,10 +163,10 @@ pub enum Event {
 pub enum ContractGap {
     UnknownBoat,
     DegenerateDirection,
-    AiMotionWc4,
-    CrashSequenceWc5,
     MissingStationWc7,
     MissingRouteWc7,
+    /// An interface pointer offset with no adjustor for the requested entry.
+    UnknownInterface,
 }
 
 pub type Result<T> = std::result::Result<T, ContractGap>;
@@ -241,6 +242,9 @@ pub struct Watercraft {
     pub(super) initialized: bool,
     pub(super) initialization_attempted: bool,
     pub(super) shut_down: bool,
+    pub(super) destroyed: bool,
+    /// Inherited motion captured when each slot-104/107 request was made.
+    pub(super) presentation_snapshots: Vec<super::PresentationSnapshot>,
 }
 
 impl Watercraft {
@@ -318,6 +322,8 @@ impl Watercraft {
             initialized: false,
             initialization_attempted: false,
             shut_down: false,
+            destroyed: false,
+            presentation_snapshots: Vec::new(),
         }
     }
 
@@ -390,6 +396,9 @@ impl Watercraft {
         self.backwards_elapsed = 0.0;
         self.speed = 0.0;
         self.turn = 0.0;
+        // +0x2C4 is the crash angle (§5.7.2). +0x2E4 has no other reader in
+        // the spec, so it has no modelled field.
+        self.crash_angle = 0.0;
         self.count_idle_always = false;
         self.position = position;
         self.previous_position = position;

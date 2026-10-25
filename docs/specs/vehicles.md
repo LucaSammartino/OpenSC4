@@ -105,19 +105,18 @@ The exact TrainCar and Train record contracts, including load failure and recons
 
 - `Init` (`0x00557A20`) chooses a car family and target count (§12.3); animation ticks subsequently create
   missing cars (`cSC4TrainCar::Init`, flag `0x10000000`). `Shutdown` releases them.
-- `StartTrip` (`0x005588D0`) builds the trip and posts `0x0C05E4CD`; a train that cannot start reports an accident
-  *[summary]*.
-- `DoAnimationTick` (2.3 KB) moves the cars behind the engine and plays random AEMS sounds; Train's
+- `StartTrip` (`0x005588D0`) checks for a rail accident before the inherited trip attempt; §12.11 gives
+  the independent accident/message and trip results.
+- `DoAnimationTick` (2.3 KB) moves the cars behind the engine; Train's
   `HandleCollision` requests a 20000 ms final state and perturbs car directions (§12.4).
-- **Player driving**: `DoPlayerDriveTick` and `PlayerDriveCheckForDerail`: going too fast through a curve (a random
-  draw against the speed) **derails** the train (flag `0x08000000`, an event, the derail sound) *[summary]*.
+- **Player driving**: the overspeed latch enables a curve test with a fixed random threshold; a separate
+  excessive-duration test can also derail the train (§12.12).
 
 ## 6. The tank
 
-`Init` (`0x0054C880`) loads the turret model and the shot effect (`tankshot`, `fx_00_tankshot`), speed 0.2;
-`HandleEnterState` sets its driving parameters (0.4, 2π, 30, 100, effect `0xAC0ECE77`, 2000);
-`TranslatePlayerDriveCommands` (1.9 KB) aims the turret and fires: a shot is an effect at the aimed point that
-damages what it hits *[summary]*; `DoPlayerDriveTick` plays the AEMS events. Its record adds two dwords.
+`Init` (`0x0054C880`) loads the turret/barrel models and shot effect (`tankshot`, `fx_00_tankshot`);
+initial barrel elevation is 0.2 radians. §12.13 gives aiming, power, cooldown and the projectile-effect
+interface boundary. `DoPlayerDriveTick` plays the AEMS events. Its record adds two dwords.
 
 ## 7. Emergency vehicles *[compat]*
 
@@ -993,3 +992,636 @@ the PE's zero-initialized globals.
 | E true, no exemptions, inherited modifier 1, table entry 2 = 0.8, equal entry/exit, nonzero slope | Modifier f32 0.8; no turn or slope factor |
 | State 16, inherited modifier 1, arbitrary supported network and slope | Modifier 1; no network, turn or slope factor |
 | No E/state/turn exemptions, network factor 1, no turn factor, A=1, T=0.5, Yd=−0.5 | Modifier 1; signed downhill value clamps to zero |
+
+### 12.10 Player-drive commands and signed speed (VH1)
+
+These rules refine §3. Distances are metres and tick input `dt` is milliseconds.
+`f32(x)` denotes a stored IEEE binary32 value; constants below are binary32 unless
+explicitly called double. Do not replace milliseconds by seconds throughout the
+algorithm: command accumulation uses `ds = f32(dt × f32(0.001))`, whereas speed
+integration uses `dt` directly. The acceleration accumulator and the speed target
+are separate persistent values. The current speed is the inherited speed tween's
+current value, not necessarily either of them.
+
+The drive state is obtained through slot 56; drive parameters through slot 67,
+first its direct parameter reference (`+0x64`), otherwise its service (`+0x0C`).
+Missing parameters make command translation return false without forwarding to
+Automaton translation. The parameter fields used by this owner are:
+
+| Parameter offset | Meaning |
+|---|---|
+| `+0x08`, `+0x0C` | Forward upper bound and signed reverse lower bound |
+| `+0x10`, `+0x14` | Continuing-throttle and braking/change-direction rates |
+| `+0x18`, `+0x1C` | Off-network speed multiplier and coasting deceleration |
+| `+0x20` | Steering limit with flag `0x2000` |
+| `+0x24`, `+0x28` | Steering rate at zero/full measured speed with that flag |
+| `+0x2C`, `+0x30` | Steering rate without that flag, and return-to-centre rate |
+| `+0x4C`, `+0x5C` | Train overspeed duration scale, and tick suspension threshold |
+
+#### Vehicle command translation
+
+Forward/back and positive/negative steering commands have elapsed-time values
+at drive-state `+0x7C/+0x80` and `+0x84/+0x88`. A value **at least zero** is
+active. In particular a newly pressed command with value zero already affects
+translation. Use the continuing-throttle rate iff current speed is positive and
+forward is active, or current speed is negative and back is active; otherwise
+use the change-direction rate. Forward adds `ds × rate` to the acceleration
+accumulator (`+0x28`); otherwise back subtracts it. With neither pedal active,
+reset the accumulator to zero. There is no accumulator clamp. Forward wins simultaneous pedals, but
+rate selection still considers both commands and the sign of current speed.
+
+With flag `0x2000`, steering rate is the linear interpolation from parameter
+`+0x24` to `+0x28`, at `clamp(measuredSpeed / forwardBound, 0, 1)`; measured speed
+is the automaton's `+0x94`, **not** drive-state `+0x94` (a command timer).
+Without the flag, use parameter `+0x2C`. The receiver is verified at
+`0x0055C707–0x0055C70D`.
+Negative steering is processed first: active subtracts `ds × rate`; absent
+returns a negative steering value toward zero by `ds × returnRate`, stopping
+at zero. Positive steering is then processed: active adds `ds × rate`; absent
+returns a positive value toward zero by the same return rate, stopping at zero.
+This ordering matters when a command and automatic centring both affect one
+tick. Finally clamp steering (`+0x5C`) to the signed parameter limit with flag
+`0x2000`, or to ±`bits(0x3FC90FDB)` (π/2) without it. Forward to the inherited
+Automaton translator **after** these owner changes. Evidence:
+`0x0055C600–0x0055C8A3`; clamp instructions `0x0055C82E–0x0055C89C`.
+
+#### Vehicle speed update
+
+The helper takes drive state, parameters, permission to begin reversing, an
+on-network boolean, and `dt`. Let `old` be state speed `+0x2C`. Start with the
+parameter speed bounds; off-network multiply both by parameter `+0x18` (the
+forward bound is stored binary32). Integrate `old + dt × accumulator` and clamp
+to the forward upper bound. The lower bound is the signed reverse bound only
+when `(old < 0 and reverseEnabled)` or `(old == 0 and permissionToBeginReverse)`;
+otherwise it is zero. `reverseEnabled` is state byte `+0x228`. Thus a positive
+speed cannot cross straight into reverse in one integration.
+
+If **both** pedal timers equal exactly −1, apply coasting deceleration
+`dt × f32(0.001) × parameter(+0x1C)` toward zero, stopping at zero. Other negative
+timer values are inactive commands but do not satisfy this coasting test. Save
+this result, rounded to binary32, at state `+0x2C` **before** grade adjustment.
+
+For grade adjustment let `y` be the automaton direction's vertical component,
+`h = abs(y)` and `s` the saved speed. Only `h > f32(0.2)` enters this adjustment.
+When `(s < 0) == (y < 0)`, reduce `s` by the following factors:
+
+| Location | Grade factor |
+|---|---|
+| On network | `(4 − h) × 0.25` |
+| Off network, `h <= f32(0.8)` | `(2 − h) × 0.5` |
+| Off network, `h > f32(0.8)` | Zero |
+
+Then, for every grade-adjusted case, add
+`h × y × f32(−0.0003) × dt`. For family `0x4202`, suppress a result that reverses
+the saved speed's sign (positive-to-negative or negative-to-positive). A disabled
+reverse byte also suppresses any final negative value. Suppression means zero.
+The helper's return/tween value can therefore differ from state `+0x2C`.
+When the result differs from the speed tween's existing target, retarget it
+from its current value and zero both tween time fields; an equal target leaves
+the tween untouched. Evidence: `0x0055EA20–0x0055ED00`, specifically pre-grade
+store `0x0055EB69` and grade/tween instructions `0x0055EB6C–0x0055ECF8`.
+
+Conformance vectors (all omitted commands inactive, grade zero, reverse enabled;
+parameters and random/service inputs must be supplied by the test):
+
+| Setup / operation | Required observation |
+|---|---|
+| `dt=1000`, accumulator 0, positive current speed, forward timer 0, rates `1/1024` and `1/512` | Accumulator becomes `1/1024`; zero elapsed time is active. |
+| Same, negative current speed, both pedals active | Forward wins, but the continuing rate still applies because back is active. |
+| No pedals active, previous accumulator nonzero | Accumulator becomes zero. |
+| Steering `−1/8`, `ds=1`, rate `1/4`, return rate `1/8`, negative command active only | Negative step gives `−3/8`; positive-side centring does nothing. |
+| Steering `−1/8`, same rates, positive command active only | Negative-side centring reaches zero first; result `1/4`, before final clamp. |
+| Positive old speed, large negative acceleration, permission to reverse true | Clamp to zero; next update starting at zero may use the reverse bound. |
+| Old speed −1, accumulator 0, reverse disabled, grade zero | Final speed zero even if permission to begin reverse is true. |
+| Raw speed 1, `y=0.5`, on network, `dt=0` | Save raw speed 1; return/tween target `0.875`. |
+| Raw speed 1, `y=0.5`, off network, `dt=0` | Save 1; return `0.75`. |
+| Raw speed 1, `y=0.9`, off network, `dt=0` | Save 1; return zero. |
+| Raw speed positive, `y=−0.5`, `dt=0` | No multiplicative reduction; sign comparisons differ. |
+| Result equals existing tween target | Preserve both tween time fields; do not restart convergence. |
+
+### 12.11 Train composition, following and trip start (VH5)
+
+The family/count draws and cumulative constructor draws are already specified
+in §12.3. Car length is each created occupant's slot 17, not a train-wide tuning
+constant. The head passes its colour byte to creation; resource/model selection
+within the requested family belongs to the vehicle manager's creation contract
+([automata-managers.md](automata-managers.md) §5), not an additional train random
+draw. Retained car identities and teardown are §12.8.
+
+#### Target count and incremental creation
+
+Setting the target count (slot 195, `0x005577F0`) keeps only its low byte. If it
+is less than the current count, remove cars **from the tail**, calling each
+non-null car's Remove(false) and Release before shrinking the list. Store the
+new target even when no removal is needed. Increasing the target does not
+create anything immediately. Animation first runs Vehicle animation, refreshes
+an invalid cached tail cell/network/path from the last car (head if empty), and
+attempts at most **one** missing car per tick. Cached-cell invalidity tests x or
+z less than zero. Following is skipped in state 20, but this creation attempt
+precedes that test. Evidence: `0x00558D20–0x00558DB3`, `0x00557BF0–0x00557CED`.
+
+For one-car creation (slot 199, `0x0055A8B0`), previous means the last car or the
+head if empty. With previous length `L`, require
+`distance(previousRear, cachedSpawnPoint) − L × 0.5 >= 2 × L`.
+Equality permits creation. The family must be nonzero and the head's manager
+(slot 174) available. Normally use the selected car family. For freight family
+`0x4203`, the car that will reach the target count uses family `0x421A` instead.
+Manager slot 15 receives family, cached point, the head's `+0x84` value, a zero
+direction vector, zero, head colour byte, zero. A null result or failure to query
+`0x4A416254` returns false without appending. A successful queried reference is
+released locally after the list has retained its own reference.
+
+Before appending, clear the new car's flag 2, set the previous car/head as its
+leader (slot 49, SetLeader), MoveTo the cached point with the previous direction, and place it
+through slot 132 with cached network/path, null point collection and true.
+If the head is in state 16, push state 16 on the car with timeout −1 and other
+arguments zero. No fill-to-target loop is permitted. Evidence:
+`0x0055A8B0–0x0055AAC7`; spacing comparison `0x0055A935–0x0055A940`.
+
+#### Following geometry
+
+Slot 198 (`0x0055A050`) places cars in list order, with **two anchor searches per
+car**. Front/rear anchors are `+0x264/+0x2BC`; saved direction is `+0x270`.
+The initial reference point is the head's rear. The front spacing is
+`f32(previousLength × 0.5 + f32(carLength × 0.5))`; the rear spacing is car length.
+Search the head's current path from its last segment backward, then the saved
+network/path deque from newest to oldest, obtaining each earlier point collection
+from network slot 49 and its path-interface slot 3. Continue the current segment
+cursor across searches, rather than restarting it for each anchor. A successful
+candidate becomes the next search's reference point. The current segment's
+forward orientation remains earlier endpoint → later endpoint.
+
+For a segment `A→B`, reference `C` and spacing `r`, find intersections of
+`A+t(B−A)` with the sphere of centre C and radius r, keeping **0 <= t <= 1**.
+Both endpoints are included. Reject a segment when all three component
+differences have magnitude less than `f32(0.0001)`. The quadratic uses stored
+binary32 segment differences and coefficients `a = dot(B−A,B−A)` and
+`b = 2 dot(B−A,A−C)`, discriminant `b² − 4a(dot(A−C,A−C)−r²)`.
+Negative discriminant yields no root. Roots are stored binary32:
+`tPlus=(sqrt(discriminant)−b)/(2a)`, `tMinus=(−b−sqrt(discriminant))/(2a)`.
+A tangent is still reported as two roots when both parameters are in range.
+The primary output is the plus root if valid, otherwise the minus root. With
+two roots, try the minus root **first**. An acceptable point P requires
+`length(C−P) > f32(0.00001)` and
+`dot(normalize(B−A), normalize(C−P)) >= f32(0.1)`.
+The same dot threshold is used on the front and rear legs; do not use nearest
+distance alone to choose the intersection. Evidence for arithmetic, closed
+endpoints, root ordering and tests: `0x0055BB10–0x0055BCE5`,
+`0x0055CFD0–0x0055D201`; spacing/search `0x0055A221–0x0055A484`.
+
+The candidate output is persistent scratch during one following call, initially
+the runtime unset scalar (`0x00B22964`) in every component. A sphere miss leaves
+it unchanged; orientation rejection may leave the primary root in it. On a
+failed front search the owner still copies this scratch into the front anchor.
+On a failed rear search it uses `front − carLength × oldCarDirection` for the
+rear anchor. The subsequent reference is the search scratch, including on that
+rear fallback; do not silently substitute the fallback rear. Once history has
+been exhausted, later legs do not start a fresh traversal. For the first exhausted
+leg the search stops when the reference differs from the earliest endpoint by
+at least `f32(0.0001)` in any component, or its distance exceeds the spacing;
+otherwise traversal merely becomes inactive. There is no successful-placement
+boolean returned by this void owner helper. These are compatibility quirks for
+incomplete geometry, not a guarantee of valid coordinates.
+
+After both anchors, place the car on the selected network/path/point collection
+through slot 132 with true. Let D=front−rear. If its length is below
+`f32(0.00001)`, use saved direction unless it is componentwise within
+`f32(0.0001)` of the unset vector or also shorter than that length threshold;
+otherwise use the head direction. Centre is `front − D × 0.5` **before**
+normalizing D; MoveTo with normalized D and save that direction. Set each car's
+leader through slot 49 to the preceding car, or the head for the first car,
+then use this car as the preceding object for the next list entry. This rebuilds
+the leader chain; it does not copy speed. In a complete consist, when the last car leaves a
+different non-null previous network, query that old network's cell and notify
+the newly selected path interface's slot 39 with `(head, cellX, cellZ)` before
+placing the car. Evidence: `0x0055A53E–0x0055A894`.
+
+TrainCar slot 132 first performs Vehicle placement. For the classification byte
+set by §12.3 and a resulting non-null network, query IID `0x4A10AFC2` (the
+[underground network interface](network-occupants.md) §3). On success, its slot 99
+determines opacity: result 2 requests `(target 1, duration f32(0.1))` through
+automaton slot 33; any other result requests `(0, f32(0.6))`. Release the query
+reference. Unclassified cars, no network or failed QI add no opacity request.
+This override changes visibility, not the chosen path or car length.
+Instruction evidence: `0x00557320–0x005573BC`.
+
+Leader-chain vector: after creation or a following pass, a head H with cars
+A, B, C has leaders `A→H`, `B→A`, `C→B`, regardless of their current speeds.
+Evidence: creation `0x0055AA26–0x0055AA2D`, following
+`0x0055A83F–0x0055A861`; inherited slot name [automata.md](automata.md) §11.
+
+#### StartTrip and the independent rail-accident check
+
+Train StartTrip has three inputs: occupant, an inherited trip argument, and a
+forward-start boolean. The second argument is forwarded unchanged. Obtain the
+occupant's two cell coordinates through its slot 59, then call traffic simulator
+slot 17, CheckRailAccident(cellX,cellZ). If true, call the head manager's
+CreateAccident with the head's occupant interface, kind 2 and duration 20000 ms.
+When the message service exists, also post standard message `0x0C05E4CD`, setting
+its first cell coordinate through message slot 11 and second through slot 16;
+send through service slot 4 with zero and release the message. These effects
+occur **before** the inherited Traffic StartTrip, even if it subsequently
+returns false. A false inherited result returns false without train geometry.
+A true result with no point collection or with flag `0x2000` returns true without
+train geometry. The check itself belongs to
+[traffic-simulator.md](traffic-simulator.md); this owner performs no extra random
+draw for it. Evidence: `0x005588D0–0x005589CA`; service binding/target verified at
+`0x00AB33D0` slot 17 → `0x00711590`.
+
+For an ordinary successful start, false forward-start selects the last path
+point as front and path index `count−2`. True forward-start with positive path
+distance `+0x260` first reduces it to `min(distance, slot151())`, then calls
+slot 133 from the first point to derive the front and path index. With
+nonpositive distance it uses the path interface's slot 19 point query instead.
+Derive the rear using slot 182 with front, rear output, head length and the saved
+path-history deque. For a rear with no NaN component, D=front−rear. If any rear
+component is NaN, use the path's last point for front and
+`D=normalize(last−first) × headLength`; the native normalization has no zero-length
+guard in this fallback. Infinity alone is not the NaN test.
+Centre is front−D/2. MoveTo with normalized D only when `length(D)>f32(0.00001)`;
+otherwise pass a null direction. Save D after that optional normalization and
+clear flag `0x20`. Return the inherited result. There is no rollback of the
+earlier accident/message. A missing required simulator or failed message
+allocation is not a graceful false-return path in the original. Evidence:
+`0x005589D0–0x00558D1B`.
+
+#### Animation failure and random accounting
+
+Flag `0x20` clear resets blocked seconds to zero. While set, only a speed-modifier
+slot-125 result **greater than** `f32(0.01)` increments that timer by
+`dt × f32(0.001)`. At timer >=10 seconds, draw a full unsigned 32-bit value and
+Remove(false) iff it is **less than `0x7FFFFFFF`**. A rejected draw leaves the
+timer high, permitting another draw next eligible tick. These instructions are
+`0x00557CF3–0x00557D55`. This is removal, not a sound draw. The inspected Train
+animation and player-drive routines do not contain the previously claimed
+random horn/sound selection; their additional random draws are the overspeed
+range, derail test and collision perturbations (§12.4). Sound service behaviour
+is [audio.md](audio.md); do not invent a per-car sound draw here.
+
+| Train conformance setup | Required observation |
+|---|---|
+| Three retained cars, set target `0x102` | Target 2; remove/release old tail once. |
+| Target 5, count 0, enough space for many cars | One creation attempt in one animation tick. |
+| Previous length 10, spawn separation 25 | Creation allowed; separation just below 25 rejects. |
+| Family `0x4203`, target 3, count 2 | Request `0x421A`, same head colour; no train model-selection draw. |
+| Manager returns object whose TrainCar QI fails | Return false; list unchanged. |
+| Straight path increasing x, head rear x=20, head/car lengths 10 and 6 | First car front x=12, rear x=6, centre x=9, direction `(1,0,0)`. |
+| Segment x=0..10, reference x=5, radius 2 | Two roots x=7 and 3; choose x=3 by forward-orientation test. |
+| Segment x=0..10, reference x=12, radius 2 | Accept endpoint x=10. |
+| Identical segment endpoints | Reject before quadratic division. |
+| Classified TrainCar, underground query returns category 2 / other | Opacity request `(1,0.1)` / `(0,0.6)`, after Vehicle placement. |
+| Accident predicate true, inherited StartTrip false | Accident `(head,2,20000)` and cell message precede false return. |
+| Predicate false, inherited StartTrip false | False, no accident/message and no train geometry. |
+| Blocked timer 10, speed modifier >0.01, draw `0x7FFFFFFE` / `0x7FFFFFFF` | Remove / retain; equality does not remove. |
+| Blocked flag clear or speed modifier exactly f32(0.01) | Clear timer / retain timer without increment or draw. |
+
+### 12.12 Train player-drive speed and derail (VH1)
+
+Train uses its own translator (`0x005570C0`), calling Automaton translation first.
+Forward active adds `ds × parameter(+0x10)` to the acceleration accumulator;
+otherwise back active subtracts `ds × parameter(+0x14)`; neither active resets
+it to zero. It does not select Vehicle's rate by the sign of current speed.
+The player-drive tick (`0x005591A0`) first calls the inherited Automaton tick,
+preserving its return. With drive parameters available, a drive-state damage
+counter (`+0x60`, unsigned) greater than parameter `+0x5C` suspends the remaining
+train update and returns true. Otherwise integrate the state target speed as
+`clamp(oldTarget + dt × accumulator, 0, forwardBound)`.
+
+Let M be the forward bound and T the overspeed timer (`+0x2F4`, milliseconds).
+Current tween speed >=M **or** an existing overspeed latch (`+0x2F8`) enters
+overspeed processing. A prior positive T together with a **strictly positive**
+back timer cancels overspeed: clear T/latch and set the target to
+`clamp(M + dt × accumulator, 0, M)`. A freshly pressed back timer of zero does
+not cancel it. Otherwise add dt to T, set the latch, draw a double uniformly
+between −a and +a, and store target
+`f32(M − double(0.1) × M + draw)`, where
+`a = f32(f32(T / parameter(+0x4C)) × cachedAmplitude)`.
+The cached amplitude is initialized **once for the process** to
+`f32(double(0.1) × M)` using the first train to reach this initialization;
+later trains do not recompute it from their own M. Below M with no latch,
+clear T/latch. Report intensity to AEMS slot 9 as T divided by
+`f32(parameter(+0x4C) × 0.5)`, or zero if that denominator is nonpositive.
+Evidence: `0x0055923A–0x0055940E`, cache `0x00B22958/5C`.
+
+Only when T is exactly zero does this owner immediately retarget the speed tween
+(duration zero). Let C be current tween speed and Q the newly stored state target:
+
+| Comparison | Immediate tween target |
+|---|---|
+| C<Q | `max(0, min(Q, f32(C + dt × parameter(+0x10))))` |
+| C=Q | C |
+| C>Q; N=`f32(C − dt × parameter(+0x14))` and N>=Q | Q |
+| C>Q; N<Q and N>0 | Zero |
+| C>Q; N<Q and N<=0 | N |
+
+The last two rows are literal compatibility behaviour, not an ordinary braking
+clamp. During positive T, the jittered state target does not itself retarget
+the tween here. Evidence: `0x00559410–0x00559466`, `0x005595B2–0x00559628`.
+
+Derail checking (`0x00557680`) requires the overspeed latch and at least one car.
+Compare the head direction with the fifth car if there are at least five cars,
+otherwise with the last car. Form their direction dot product by adding z and
+y products first, then x. Only dot <`f32(0.05)` consumes a
+RandomDoubleUniform draw, and only a draw strictly less than the **double**
+`0.10000000149011612` triggers the curve derail. This is a fixed threshold,
+not a speed-scaled probability. A trigger calls collision slot 65 with self and
+a zero direction, sets flag `0x08000000`, and emits slot 102 `(11,true)`.
+
+Independently, nonzero T greater than parameter `+0x4C` reports the runtime
+value at `0x00B22960` through AEMS slot 9 and repeats the same collision/flag/event
+sequence. Equality does not trigger this duration branch. Both branches can
+fire during one check; it is not an else-if or a single combined random draw.
+The check does not clear the overspeed latch. Evidence:
+`0x00557680–0x005577E0`, threshold constant `0x00A9C7E8` read as **64 bits**.
+
+Train movement follows the front/rear and saved-path contracts in §12.11.
+For nonnegative speed and elapsed time, the head divides this tick into
+`N=clamp(ceil(currentTweenSpeed×dt),1,6)` movement steps, rather than Vehicle's
+time-based count below. Each step's distance is
+`f32((dt/N)×f32(currentTweenSpeed))`. The count uses the x87 product before a
+binary32 speed store; the distance uses the subsequent binary32 speed sample.
+The ceil conversion is the rounding operation described in §12.15; the final
+clamp compares unsigned integers. Evidence: `0x0055971A–0x005597D6`.
+
+Each head step advances the front anchor through slot 133. If advancement
+fails, next-player-path slot 197 must succeed; otherwise call slot 13 with
+false and return true immediately. A successful step gets the rear anchor
+through slot 182, using length and the saved-path deque. Form D=front−rear.
+Only when its length is below `f32(0.00001)` substitute saved direction
+`+0x270`; if that is componentwise within `f32(0.0001)` of the unset vector,
+or its length is also below the length threshold, return true immediately.
+There is no head-direction fallback here. Centre is `front−D×0.5`, computed
+**before** normalizing D. MoveTo with that centre and normalized D, save D,
+clear flag `0x20`, and copy the rear anchor and D into drive-state
+`+0x44/+0x50/+0x38`. This head rule differs from the car-following fallback
+in §12.11. Evidence: `0x005597F3–0x00559A29`.
+
+Then query collision slot 190 with an initially unset direction and fraction
+1. A hit stops the remaining steps; call Vehicle ResolveCollision only if
+the parameter service was obtained. Otherwise continue all N steps. After
+motion/collision, update the dashboard transform and position/heading/velocity
+outputs, then check derail. Finally set the automaton's measured speed
+`+0x94` to actual 3D centre displacement divided by dt, and return the
+inherited Automaton tick result. Early exits above skip these final updates.
+Evidence: `0x00559A2C–0x00559C25`. The dashboard is an interface output;
+it is not the source of the train's integrated target speed.
+
+The next-player-path helper (`0x00559C30`) obtains the adjoining network using
+the opposite exit `(exit+2) mod 4` and current path-type nibble. Missing
+adjoining network returns false. A connected path can be used directly when
+its first point lies at most **2 metres** from the current path's last point.
+Otherwise request candidate paths with the direction-selection outputs of
+slot 171, current last point and distance limit `f32(0.5)`; choose the first
+candidate if any, or use the path service's fallback selection with wildcard
+`0xFF`. A null selected point collection returns false. Success calls trip
+slot 131 with the new network, selected path key and true, notifies
+network-service slot 38 of the adjoining
+network's cell, and also notifies the further network's cell if that lookup
+succeeds. This path switch does not itself move the centre or add another
+collision check. It assumes a usable current point collection; do not turn
+that precondition into a promise of safe empty-path reconstruction.
+Evidence: `0x00559C3E–0x00559E6E`, endpoint comparison
+`0x00559CD6–0x00559D10` (constant `0x00A8825C`, binary32 2).
+
+| Train player-drive conformance setup | Required observation |
+|---|---|
+| T>0, latch set, back timer 0 / positive | Continue overspeed / cancel it. |
+| First cache initialization with M=1, later train M=2 | Both use cached f32(0.1) amplitude; the second baseline is still its own `2−double(0.1)×2`. |
+| T=0, C=1, Q=0.75, `dt × brakingRate=0.125` | Immediate tween target 0.75. |
+| T=0, C=1, Q=0.75, `dt × brakingRate=0.5` | Immediate tween target zero, not 0.5. |
+| Latch clear, any directions | No curve draw. |
+| Latch set, no cars | No curve draw. |
+| Six cars, fifth direction opposed to head, sixth aligned | Compare fifth car; a curve draw is eligible. |
+| Dot exactly f32(0.05) | No curve draw. |
+| Eligible dot, draw exactly double threshold / just below it | No curve derail / derail. |
+| Curve triggers and T exceeds duration limit | Observe two collision/flag/event sequences. |
+| T equals duration limit and curve fails | No duration derail. |
+| Speed 0, dt=33 | One zero-distance movement step. |
+| Speed 0.125, dt=16 | Two steps, distance 1 each. |
+| Speed 0.125, dt=64 | Six steps; distance f32((64/6)×0.125) each. |
+| Front (8,0,0), rear (4,0,0) | Centre (6,0,0), direction (1,0,0); halve the unnormalized span. |
+| Coincident anchors, saved direction unset | Return true before MoveTo, dashboard and derail check. |
+| Advance fails and next-player-path fails | Slot 13(false), return true; no remaining steps or final dashboard/derail update. |
+| Collision on step 2 of 6 | No steps 3–6; resolve once if parameters exist, then final dashboard/derail work. |
+| Connected next path endpoint separation 2 / greater than 2 | Direct connected-path acceptance / candidate-or-fallback selection. |
+
+### 12.13 Tank player drive, firing and interface boundary (VH1)
+
+Tank Init calls inherited Vehicle Init before its owner model setup. Initial
+turret yaw is zero, barrel elevation `f32(0.2)`, shot power 65 and owner activity
+field `+0x340` zero. Yaw/elevation/power fields are `+0x34C/+0x350/+0x354`;
+these are not speed defaults. The owner loads the named `tankshot` /
+`fx_00_tankshot` effect and turret/barrel model handles. Entering player drive
+configures gauges `[0,f32(0.4),elevation]`, `[0,2π,2π−yaw]` and `[30,100,power]`;
+sets channel-7 action limit 12, action count zero, key `0xAC0ECE77`, and repeat
+delay 2000 ms. Evidence: `0x0054C880`, `0x0054A780`.
+
+The translator sets owner activity byte `+0x340` true. When slot 18 is true,
+only Vehicle translation follows. Otherwise the owner performs the following
+aiming, firing, adjustment and gauge operations before Vehicle translation.
+
+Yaw is first brought into the **inclusive** interval `[0,P]`, where
+`P=bits(0x40C90FDB)` (binary32 2π), by repeated subtraction/addition of P.
+An existing yaw equal to P remains P. Aim command timer `state+0x9C >=0`
+requests unprojection of integer screen coordinates `+0x214/+0x218` through
+the view interface, slot 36, with final argument zero. Failure leaves yaw
+unchanged. Let U be the normalized horizontal vector from body position to
+the returned world point and V the normalized horizontal body direction.
+Compute `A=f32(acos(V·U))`; if `U.z×V.x−V.z×U.x >0`, replace A by
+`f32(P−A)`. The dot-product helper is acos: the export's TransformDirection
+name is misleading (`0x009F0090`, acos instructions `0x009F00C8–0x009F0118`).
+These normalizations have no zero-length guard or dot clamp in this owner.
+
+Let `d=A−yaw` and `step=clamp(d,−r×dt,r×dt)`, with
+`r=bits(0x3B09421E)` radians/ms. If `abs(d)>bits(0x40490FDB)` (binary32 π),
+subtract step from yaw; otherwise add it. Store the result binary32. There is
+no second wrap in this translation, and the step magnitude is bounded using
+`abs(d)`, not the smaller wrapped angular distance. Evidence:
+`0x0054B074–0x0054B33D`.
+
+The power-cycle command (`+0xA0`) acts when its timer is **at least 250 ms**:
+reset that timer to zero, add 5 to power, wrap a result **greater than 100**
+to 30, and clamp to `[30,100]`. This occurs before firing. After firing, apply
+the adjustment pairs below in table order. Each acts only if its current
+timer is nonnegative and `current−history >0`. Add/subtract that difference
+times the binary32 rate, then clamp/store the owner's value before processing
+the next pair. Thus simultaneous adjustments can differ from a single net sum.
+
+| Current/history timer | Adjustment | Bounds |
+|---|---|---|
+| `+0x90/+0xC4`, then `+0x94/+0xC8` | Elevation + then −, rate `bits(0x3983126F)` radians/ms | `[0,f32(0.4)]` |
+| `+0xA8/+0xDC`, then `+0xAC/+0xE0` | Power + then −, rate `f32(0.02)` per ms | `[30,100]` |
+
+The shot therefore uses the power before these last two adjustments; its
+barrel transform is the model's current transform. Gauge values become
+`[elevation,P−yaw,power]` at state `+0x250/+0x25C/+0x268`, and owner
+`+0x344/+0x348` retain binary32 screen coordinates. Two process-wide sound
+timers, one each for yaw/elevation, accumulate dt while **at most 50 ms**;
+only a later call seeing a timer **greater than 50** resets it and evaluates
+the current call's absolute angle change. Yaw change >`f32(0.0017453292)`
+starts AEMS event 12, otherwise stops it; elevation change >`f32(0.004)`
+starts event 15, otherwise stops it. This is not accumulated angular change
+over the timer interval. Evidence: `0x0054B4AB–0x0054B7AB`.
+
+Tank's tick calls Vehicle's tick first and normally preserves its return.
+With a drive state, both pedal timers exactly −1, and either no current
+network or reverse-enable byte true, it can pivot in place. Missing
+parameter service/AEMS in that eligible branch returns false. A steering
+timer different from −1 selects the pivot: negative-steering timer wins;
+otherwise use the positive-steering timer with opposite sign. Let θ be the
+selected timer times parameter `+0x58` (negated for positive steering), and
+reset that selected timer to zero. Start AEMS event 19. For body direction D,
+normalize `D×(D.z,0,−D.x)` and form a quaternion with that axis,
+`sin(−θ/2)` and `cos(−θ/2)`; apply its row-vector rotation to D and store
+the resulting direction. For a horizontal D this is
+`(D.x cosθ+D.z sinθ,0,D.z cosθ−D.x sinθ)`.
+There is no stationary-speed test: pedal inactivity is the criterion.
+Rebuild front/rear anchors as `position±0.5×length×D`, copy D into both
+drive-state direction vectors, MoveTo at the unchanged position and refresh
+slot 100 with `(0,true)`. No collision check is added by this pivot branch.
+With active pedals or no steering timer, stop event 19. A missing drive
+state, or the eligible pedal condition on a network with reversing disabled,
+returns the inherited result without the pivot. Evidence:
+`0x0054AAE0–0x0054AC86`, quaternion/anchors `0x0054AC86–0x0054AFF7`.
+
+Firing requires fire timer `+0x98 >= 0`, a non-null barrel model (`+0x360`),
+and channel-7 ready byte (`state+0x1FF`) true. On firing, zero channel elapsed
+`+0x1E0`, clear ready, and increment action count `+0x178`. Obtain the muzzle
+origin from the barrel transform translation through model-reg-effects. The
+projectile effect receives the following interface calls:
+
+| Effect operation | Payload |
+|---|---|
+| Slot 11 | Attribute 15, `currentSpeed × bodyDirection`, true |
+| Slot 12 | Attribute 0, pointer to **stored f32(power × f32(0.01))**, true |
+| Slot 3 | Start with zero |
+
+The missing 0.01 scale in some pseudocode is not an alternate convention: the
+instructions explicitly multiply and store binary32. CurrentSpeed is the
+Vehicle speed tween's current value; direction is the body direction, not a
+screen-space target or the turret direction. Model-reg-effects supplies the
+barrel/muzzle transform separately. The tank owner neither picks a hit occupant
+nor calls a damage method in this firing routine. Pass the effect attributes
+and transform to the [effects interface](effects.md); effect asset behaviour
+and the damage consumer are separate from these owner calls. Do not implement
+an invented direct damage amount from unscaled power. Evidence:
+`0x0054B33D–0x0054B4A8`, including the power scale/store and effect virtual calls.
+
+Vehicle translation then reaches Automaton translation (`0x00509070`), which
+updates command history and channel readiness. For channel 7, while count is
+below its limit (or limit is −1), a false ready byte first tests elapsed against
+delay: below delay adds dt; at or above delay sets ready and resets elapsed to
+zero. It does not set ready on the same tick that addition first reaches the
+delay. The tank consumes the previous ready value before this inherited
+update. At count >=12, inherited translation keeps ready false. Thus continuous
+fire cannot bypass the action limit or the readiness phase by using a large dt.
+The effect's own lifetime is not this 2000 ms cooldown.
+
+Tank animation (`0x0054B7C0`) applies turret/barrel orientation to model instances,
+updates model-reg-effects, and uses the owner drawing helpers for those parts.
+Renderer allocation, model transforms, lighting and releases remain interface
+calls; the automaton's principal model and the projectile effect are separate
+resources. Shutdown (`0x0054A850`) owns cleanup of the part drawings and their
+references in addition to inherited Vehicle shutdown. IO is the inherited Vehicle
+record followed by the two owner dwords in [automata.md](automata.md) §6.4;
+do not serialize a renderer pointer or active projectile to replace those fields.
+
+| Tank conformance setup | Required observation |
+|---|---|
+| Fresh successful Init | Yaw 0, elevation f32(0.2), power 65. |
+| Fire timer zero, barrel present, ready true, power 65 | Fire once; attribute 0 is f32(65 × f32(0.01)); count increments, elapsed resets, ready clears. |
+| Same, ready false or barrel absent | No projectile Start and no owner count increment. |
+| Current speed 0.125, body direction `(1,0,0)` | Effect attribute 15 vector `(0.125,0,0)`, independent of turret yaw. |
+| After a shot, elapsed 0, dt=2000 | Inherited phase increases elapsed to 2000 but does not make ready true yet. |
+| Next held-fire translation with elapsed 2000, ready false | No shot in owner phase; inherited phase makes ready true and resets elapsed. |
+| Action count already 12 | Inherited phase cannot re-arm even after 2000 ms. |
+| Power 100, cycle timer 249 / 250 | Remain 100 / become 30 and reset timer. |
+| Power 65, fire ready, power-increase difference 100 ms | Shot attribute uses 65×0.01; final gauge power is f32(65+100×f32(0.02)). |
+| Elevation f32(0.4), both elevation differences 100 ms | Increase clamps first; final elevation f32(f32(0.4)−100×f32(0.00025)). |
+| Adjustment current timer −1, or current equals history | No adjustment for that command. |
+| Yaw exactly P, aim inactive | Preserve P; yaw gauge is zero. |
+| Sound timer 50, dt=1 | Accumulate to 51; no sound decision yet. |
+| Sound timer 51, yaw/elevation change exactly its threshold | Reset timer; stop the corresponding event. |
+| Pivot eligible, horizontal D=(1,0,0), negative-steering timer t | Direction (cosθ,0,−sinθ), θ=t×parameter(+0x58); position unchanged; selected timer becomes zero. |
+| Both pedals inactive, current network present, reversing disabled | No pivot and no additional MoveTo. |
+
+### 12.14 Concrete-owner method and interface inventory
+
+Primary slots below are zero-based, four bytes per slot. These are owner
+contracts, not proposed C ABI additions. State numbers, dispatch/message entry
+and inherited tick ownership remain §12.6 and [automata.md](automata.md) §6.5/§11.
+
+| Owner / primary table | Owner methods and primary slots |
+|---|---|
+| Vehicle, `0x00A9D488` | QI 0=`0x0055B660`; Init 3=`0x0055B9B0`; Shutdown 4=`0x005602F0`; drive command intake 60=`0x0055B6C0`; collision 65=`0x0055C8C0`; animation 72=`0x0055BA20`; debug 93=`0x00562AC0`; state 109=`0x0055CA90`; entry 110=`0x0055B6D0`; player tick 115=`0x005603F0`; commands 121=`0x0055C600`; speed modifier 125=`0x0055DF50`; path tick 129=`0x0055CAF0`; trip 131=`0x0055D210`; placement 132=`0x0055D5A0`; gap 151=`0x0055D9D0`; lateral offset 158=`0x0055B690`; manager 174=`0x0055BF60`. |
+| TrainCar, `0x00A9C938` | QI 0=`0x00557040`; Init 3=`0x00556F80`; attachment update 50=`0x005573F0`; collision 65=`0x00557080`; entry 110=`0x00557410`; player tick 115 is a false-return stub; collide tick 120=`0x005572D0`; path tick 129 is inherited no-op; placement 132=`0x00557320`; placement accessor 135=`0x00557070`; lateral offset 158 returns zero; no ordinary leader-speed update in slot 162; visibility helper 176=`0x00555A50`. |
+| Train, `0x00A9CD68` | QI 0=`0x00557220`; Init 3=`0x00557A20`; Shutdown 4=`0x00559E70`; collision 65=`0x00558E00`; animation 72=`0x00557BF0`; following eligibility 73=`0x00558DC0`; entry/exit 110/111=`0x00557530/0x00557620`; player tick 115=`0x005591A0`; commands 121=`0x005570C0`; speed modifier 125=`0x00557830`; path tick 129=`0x00558510`; trip 131=`0x005588D0`; placement 132=`0x005574F0`; initial path 134=`0x0055AD00`; route hold 165=`0x00558FA0`; route helper 172=`0x00557170`; look-ahead count 175=`0x0053CC20`; truncate 193=`0x00558D20`; target 195=`0x005577F0`; next player path 197=`0x00559C30`; follow cars 198=`0x0055A050`; create car 199=`0x0055A8B0`. |
+| Tank, `0x00A9B9B8` | Inherits Vehicle QI; Init 3=`0x0054C880`; Shutdown 4=`0x0054A850`; animation 72=`0x0054B7C0`; debug 93=`0x0054CAA0`; entry 110=`0x0054A780`; player tick 115=`0x0054AAE0`; commands 121=`0x0054B030`; helpers 126–128=`0x0054A740/0x0054A750/0x0054A770`; part-drawing helpers 192–197=`0x0054CF60/0x0054A950/0x0054C2E0/0x0054CBA0/0x0054A9C0/0x0054C5B0`. |
+
+TrainCar QI recognizes `0x4A416254`; Train recognizes that IID and `0x8A41625A`.
+Both return the same primary interface with AddRef and forward other queries
+to Vehicle. Vehicle forwards unsupported queries to Traffic. Tank uses that
+same chain rather than introducing an owner QI override. Refcounting and
+occupant/model interfaces are inherited, including secondary-interface pointer
+adjustments. Constructors/defaults and failure non-rollback for Vehicle,
+TrainCar and Train are §12.3. Their records/ownership are §12.1/§12.8, with
+Vehicle Read/Write at `0x0055BCF0/0x0055F640`, Train at
+`0x0055AAD0/0x00557930`, and Tank at `0x0054A8E0/0x0054AA30`.
+Tank class ID is `0xEBE0DCAD` (`0x0054CE30`). None of these four introduces an
+owner DoMessage body: message dispatch remains the inherited occupant/automaton
+contract. Notifications such as StartTrip's cell message and collision's
+`0x49E64802` are outputs, not new inbound message handlers. Drawing updates use
+inherited model/effect slots plus the concrete additions above; IO never requires
+running a game's owner method through a foreign manager.
+
+The remaining Vehicle displacement/reattachment instruction audit is tracked
+in VH1. Tank's owner boundary is fully stated in §12.13; projectile-asset
+simulation is delegated to the effects interface rather than invented here.
+
+### 12.15 Vehicle player-motion scheduling (VH1, partial)
+
+Vehicle requires a drive state and drive parameters; absent state, absent
+parameter container, or failure of both direct/service parameter retrieval
+returns false. Before inherited Automaton ticking, an unsigned drive-state
+damage counter greater than parameter `+0x5C` returns true without movement.
+After the inherited tick, a false return stops this owner update. Speed
+updating precedes the movement steps; neither collision nor substepping causes
+another command translation or acceleration integration during the same tick.
+Evidence: `0x00560424–0x005604F3`, `0x005605A7–0x005605C7`.
+
+For ordinary positive elapsed times, Vehicle's step count is
+`N=ceil(dt×bits(0x3CF83E10))`, approximately ceil(dt/33). There is **no**
+Train-style six-step clamp. For both owners the instruction-level ceil
+conversion starts with the x87 product x. Store `x+0.5+12582912` as binary32,
+interpret its bits as a u32, and subtract `0x4B400000` modulo 2³² to obtain B.
+If x equals the signed-integer value of B−1, use B−1 instead of B. This
+preserves exact-integer boundaries of the binary32 rounding trick. Vehicle
+does not clamp a zero count to one: the quotient is still evaluated before
+the loop, so zero dt is not a guaranteed safe physics input.
+
+Sample the speed tween once as binary32. Store substep elapsed time
+`f32(dt/N)` separately; movement distance is
+`f32((dt/N)×sampledSpeed)`, retaining the x87 quotient until the multiply
+before that final store. Do not integrate speed once per substep, normalize
+dt to seconds, use the measured-speed field as the target, or reuse Train's
+distance-dependent step count. Evidence: `0x005605C9–0x00560645`; constants
+`0x00A9D350/0x00A9D0B8` are binary32 `0.030303031206130981/12582912`.
+
+In the off-network movement branch, slot 187 receives the substep elapsed
+time, drive state, distance, parameters and network result. Each such movement
+call is followed by collision slot 190 with unset direction and initial
+fraction 1. A hit resolves collision and terminates the loop; an ordinary
+miss proceeds to the next step. Dashboard work follows the loop. The geometry
+inside slot 187 and the on-network reattachment branch remain explicitly
+unclosed in VH1; the scheduling contract does not substitute straight-line
+movement for those operations. Evidence: `0x00561158–0x00561204`.
+
+| Vehicle scheduling setup | Required observation |
+|---|---|
+| dt=32, speed 0.125 | One step, distance 4. |
+| dt=33, speed 0.125 | Two steps, elapsed 16.5 and distance 2.0625 each: 33 times the stored multiplier is slightly greater than 1. |
+| dt=34, speed 0.125 | Two steps, elapsed 17 and distance 2.125 each. |
+| dt=224, speed 0.125 | Seven steps, distance 4 each; no six-step clamp. |
+| Missing state or parameters | False before owner movement. |
+| Damage counter equals threshold / exceeds threshold | Continue / true before inherited tick and movement. |
+| Off-network collision at step 1 of 2 | One movement, one collision query, one resolution; skip step 2. |

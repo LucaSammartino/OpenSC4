@@ -114,7 +114,7 @@ impl TextHost for Services {
         self.events.push(format!("child{bar}"));
     }
     fn bar_dimensions(&mut self, _: Handle) -> (u32, u32) {
-        (10, 8)
+        self.bar_size.unwrap_or((10, 8))
     }
     fn bar_place(&mut self, bar: Handle, r: Rect) {
         self.events.push(format!("bar{bar}:{r:?}"));
@@ -130,7 +130,7 @@ impl TextHost for Services {
         3
     }
     fn image_rect(&mut self, _: Handle) -> Rect {
-        [1, 2, 3, 4]
+        self.image_source.unwrap_or([1, 2, 3, 4])
     }
     fn bar_image(&mut self, _: Handle, _: Handle, r: Rect) {
         self.events.push(format!("image{r:?}"));
@@ -151,8 +151,8 @@ impl TextHost for Services {
     fn draw(&mut self, p: Paint) {
         self.paints.push(p);
     }
-    fn search(&mut self, _: &[u8], _: &[u8], _: u32, _: bool) -> u32 {
-        u32::MAX
+    fn search(&mut self, text: &[u8], pattern: &[u8], position: u32, forward: bool) -> u32 {
+        adapters::search(text, pattern, position, forward)
     }
     fn sound_acquire(&mut self, _: u32, _: [u32; 6]) -> (bool, Option<Handle>) {
         (false, None)
@@ -254,8 +254,17 @@ fn te_exact_height_preserves_origin_and_background_excludes_bars() {
     e.runtime.bars = [Some(8), Some(9)];
     e.flags = 0x20;
     e.runtime.background = Some(20);
+    e.runtime.background_option = 0;
     e.paint([30, 40, 130, 90], &mut f).unwrap();
-    assert_eq!(f.paints[0], Paint::Image(20, [30, 40, 120, 82]));
+    assert_eq!(
+        f.paints[0],
+        Paint::Image {
+            image: 20,
+            source: [1, 2, 3, 4],
+            area: [30, 40, 130, 90],
+            arguments: [0, 0]
+        }
+    );
     e.runtime.background_option = 1;
     f.paints.clear();
     e.paint([30, 40, 130, 90], &mut f).unwrap();
@@ -264,7 +273,8 @@ fn te_exact_height_preserves_origin_and_background_excludes_bars() {
         Paint::EdgeImage {
             image: 20,
             area: [30, 40, 120, 82],
-            thirds: [0, 0]
+            source: [1, 2, 1, 1],
+            mode: 1,
         }
     );
 }

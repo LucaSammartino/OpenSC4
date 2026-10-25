@@ -39,10 +39,16 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 class cISC4City;
+struct fc4_effects_directory;
 
 namespace fc4 {
+
+// Raw packed-directory bytes via the public resource/file interfaces. Does not
+// invoke the native collection reader or transfer native description objects.
+bool EffectsReadDirectory(std::vector<uint8_t>& bytes);
 
 // Starts or stops the shadow from the ini (effects_shadow / FC4_EFFECTS_SHADOW,
 // default off). Native record comparison and replacement-call mirror are
@@ -50,6 +56,10 @@ namespace fc4 {
 // `effectsReplaced` is whether `enable = effects` put our class in place.
 void EffectsShadowStartup(bool effectsReplaced);
 void EffectsShadowStop();
+
+// The replacement and its mirror must use the same decoded resource. The
+// core retains its own reference; the caller keeps ownership of this handle.
+void EffectsShadowSetDirectory(const fc4_effects_directory* directory);
 
 // The city session.
 void EffectsShadowCityLoaded(cISC4City* city);

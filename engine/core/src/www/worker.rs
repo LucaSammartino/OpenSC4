@@ -192,15 +192,14 @@ impl Scheduler {
         let Some(host_address) = ftp::numeric_host(url.server()).or_else(|| ftp::lookup(host, url.server())) else {
             return self.final_boundary(host);
         };
+        session.initialize()?;
         session.address = ftp::Address {
             host: host_address,
             port_word: (url.port() as u16).swap_bytes(),
         };
-        session.initialize()?;
-        // The supported continuation is separately exposed for snapshots after init.
         self.transfer_current(host, &mut session, &mut url)
     }
-    /// Interior after initialization, NOT a replacement for unpublished initialization.
+    /// Configuration and transfer after the fresh-session initialized byte is set.
     pub fn transfer_current(
         &mut self,
         host: &mut impl Host,

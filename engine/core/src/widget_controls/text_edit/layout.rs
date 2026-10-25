@@ -2,13 +2,21 @@
 //! Native byte layout/view arithmetic. Foreign metrics never choose policy.
 use super::{runtime::TextHost, *};
 use crate::widget_controls::Rect;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicI32, Ordering};
 
-static AUTOMATIC_REFLOW: AtomicBool = AtomicBool::new(false);
-struct ReflowGuard;
-impl Drop for ReflowGuard {
-    fn drop(&mut self) {
-        AUTOMATIC_REFLOW.store(false, Ordering::Release);
+static AUTOMATIC_REFLOW: ReflowCounter = ReflowCounter(AtomicI32::new(0));
+
+pub(crate) struct ReflowCounter(pub(crate) AtomicI32);
+impl ReflowCounter {
+    pub(crate) fn check(&self, check: impl FnOnce() -> Result<()>) -> Result<()> {
+        if self.0.load(Ordering::Acquire) < 1 {
+            self.0.fetch_add(1, Ordering::AcqRel);
+            // TE11: only a normal return decrements the shared signed word.
+            // An error represents a nonreturning dependency, with no unwind reset.
+            check()?;
+            self.0.fetch_sub(1, Ordering::AcqRel);
+        }
+        Ok(())
     }
 }
 
@@ -73,6 +81,9 @@ impl TextEdit {
         Ok(())
     }
     pub fn recalculate(&mut self, f: &mut impl TextHost) -> Result<()> {
+        self.recalculate_with_counter(f, &AUTOMATIC_REFLOW)
+    }
+    pub(crate) fn recalculate_with_counter(&mut self, f: &mut impl TextHost, counter: &ReflowCounter) -> Result<()> {
         if !self.initialized {
             return Ok(());
         }
@@ -92,16 +103,7 @@ impl TextEdit {
         self.bar_values(true, f)?;
         self.fix_insertion()?;
         self.first_visible_line = self.first_visible_line.min(self.lines.len().saturating_sub(1) as u32);
-        // TE11: literal shared guard against nested automatic reflow. The spec
-        // does not assign a larger permitted recursion threshold.
-        if AUTOMATIC_REFLOW
-            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_ok()
-        {
-            let _guard = ReflowGuard;
-            self.automatic_bars(f)?;
-        }
-        Ok(())
+        counter.check(|| self.automatic_bars(f))
     }
     pub fn execute_repairs(&mut self, f: &mut impl TextHost) -> Result<()> {
         // Preserve order (and duplicated work) from the byte-stage call sites.

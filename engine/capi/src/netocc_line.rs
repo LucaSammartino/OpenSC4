@@ -152,6 +152,24 @@ pub unsafe extern "C" fn fc4_netline_props(
     })
 }
 
+/// The exemplar parent key (type, group, instance) the record carried, so the
+/// plugin can resolve the inherited exemplar properties; false when none.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netline_parent(p: *const PowerLine, out: *mut [u32; 3]) -> bool {
+    guard(false, || {
+        let (Some(p), Some(out)) = (p.as_ref(), out.as_mut()) else {
+            return false;
+        };
+        match p.base.holder.parent_key() {
+            Some(k) => {
+                *out = [k.type_id, k.group, k.instance];
+                true
+            }
+            None => false,
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

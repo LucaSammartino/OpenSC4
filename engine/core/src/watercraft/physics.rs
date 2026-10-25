@@ -185,7 +185,7 @@ impl Watercraft {
         self.inherited_position = self.position;
         self.inherited_heading = self.heading;
         self.events.push(Event::Publish(Publication::Update(true, true)));
-        self.events.push(Event::EffectUpdate);
-        self.events.push(Event::ModelUpdate);
+        self.request_effect_update();
+        self.request_model_update();
     }
 }
