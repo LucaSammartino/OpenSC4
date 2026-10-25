@@ -249,6 +249,31 @@ mod tests {
     }
 
     #[test]
+    fn transport_reports_byte_offset_and_clears_reused_diagnostic_on_exact_record() {
+        let mut bytes = payload();
+        bytes[4] = 0xFF;
+        let mut first = u32::MAX;
+        // Exercise the actual plugin transport, including its writable output.
+        assert_eq!(
+            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), bytes.len(), 0, &mut first) },
+            1
+        );
+        assert_eq!(first, (4 << 16) | (0xFF << 8) | 1);
+        assert_eq!(
+            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), bytes.len(), 1, &mut first) },
+            0
+        );
+        assert_eq!(first, 0);
+        bytes[4] = 1;
+        first = u32::MAX;
+        assert_eq!(
+            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), bytes.len(), 0, &mut first) },
+            0
+        );
+        assert_eq!(first, 0);
+    }
+
+    #[test]
     fn constructor_excludes_only_the_ms22_unassigned_auxiliary_byte() {
         let mut bytes = payload();
         for value in 0..=255 {
