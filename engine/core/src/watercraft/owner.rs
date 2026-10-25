@@ -396,6 +396,9 @@ impl Watercraft {
         self.backwards_elapsed = 0.0;
         self.speed = 0.0;
         self.turn = 0.0;
+        // +0x2C4 is the crash angle (§5.7.2). +0x2E4 has no other reader in
+        // the spec, so it has no modelled field.
+        self.crash_angle = 0.0;
         self.count_idle_always = false;
         self.position = position;
         self.previous_position = position;

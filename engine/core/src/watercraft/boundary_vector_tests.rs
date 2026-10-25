@@ -207,6 +207,7 @@ fn wc3_i01_through_i03_init_once_ignores_factory_failure_and_resets_timers() {
     b.crash_elapsed = 2.0;
     b.still_elapsed = 3.0;
     b.backwards_elapsed = 4.0;
+    b.crash_angle = 0.5;
     let mut factory = Factory {
         names: Vec::new(),
         fail: true,
@@ -226,6 +227,7 @@ fn wc3_i01_through_i03_init_once_ignores_factory_failure_and_resets_timers() {
         ],
         [0.0; 6]
     );
+    assert_eq!(b.crash_angle, 0.0);
     assert_eq!(b.heading, [0.0, 0.0, 1.0]);
     // Already initialized: no reset or acquisition.
     b.lifetime_elapsed = 7.0;
