@@ -19,6 +19,7 @@
 <!-- from: re-widgets4 (2026-10-21) -->
 - **WT5 - section 4.2:** cGZWin::ChildDeleteAll 0x0099DD6F loops on the current front child until the list is empty; does cIGZWinMgr::DestroyWindow (slot 23) always detach the child from its parent synchronously, also when the manager is busy and defers the destroy? If not, the loop would not terminate. [assume it detaches synchronously]
   **ANSWERED 2026-10-24 (re-widgettk-wt13):** DIFFERS — evidence needed for WT12 also settles this older question: busy DestroyWindow only queues a raw pointer and returns true, without detaching. Section 4.2 specifies the resulting nontermination for nonempty ChildDeleteAll under persistent busy depth; section 8.1 gives the manager addresses.
+  **Also (re-gzwinmgr7, 2026-10-24):** the busy count is the manager's `+0x18C`; it is above 0 only while the manager broadcasts a posted message with a null target (`ProcessPostedMessages`, `0x009DC2D1`); a busy `DestroyWindow` (`0x009DC4AC`) appends the window once to the condemned list `+0x190` (slot 58); widget-winmgr.md §4.1.
 
 <!-- from: re-gzwin-spec9 (2026-10-24) -->
 - **WTC1 - widget-custom.md section 1:** settle constructor/secondary-vtable and nondeleting teardown attribution around 0095B9A1.
@@ -28,3 +29,18 @@
 <!-- from: re-widgets4 (2026-10-21) -->
 - **WT4 - section 3.1 (and ui-windows.md section 2.2):** cGZWin::SetFlag 0x0099DB6B returns the whole flag word in EAX (0x0099DCD9), not 0/1 as ui-windows.md section 2.2 states; should ui-windows.md be corrected to point here? [yes]
   **ANSWERED 2026-10-21 (re-widgets4):** DIFFERS — SetFlag has one exit (every branch jumps to 0x0099DCD9, MOV EAX,[ESI+0xC8]; RET 8), so it returns the whole new flag word; ui-windows.md section 2.2 row 68 corrected to point to widget-toolkit.md section 3.1.
+
+<!-- from: re-widgets4 (2026-10-21) -->
+- ~~**WT2 - section 2:** what are cGZWin +0x0C, +0x24..+0x30, +0x34..+0x40, +0xA0..+0xA4 and +0xB8..+0xC4 (the constructor zeroes some, leaves +0x34..+0x40 and +0xA0..+0xA4 untouched)? Candidates: area-to-draw-to and draw-buffer origin. [unknown; implementers should zero them]~~
+  **ANSWERED 2026-10-23 (re-gzwin7):** `+0x0C` is the reference count (`AddRef` `0x0094C47C` increments it and
+  returns the new value). `+0x24`, `+0x34` and `+0xB8` are the draw area, draw origin and blit rectangles of section
+  17.1. `+0xA0`/`+0xA4` are a mouse-down offset (x, y) that only `set_mouse_down_offset` (`0x0099BDA4`) writes; its
+  callers are the dialog classes `cGZWinGenDlg` (`0x009C2307`) and `cGZWinMsgBox` (`0x009CD9E2`). Nothing in
+  `cGZWin` reads it, so leaving it unset as the constructor does is compatible. widget-toolkit.md sections 2 and 18
+  updated.
+
+<!-- from: re-widgets4 (2026-10-21) -->
+- ~~**WT6 - section 8.1:** what is the initial value of the window manager's instance-ID counter (manager +0x194) assigned by registration (manager slot 20, 0x009DC586)? [unknown; first ID may be 0 or 1]~~
+  **ANSWERED 2026-10-24 (re-gzwinmgr7):** 1. The base constructor `0x009DC5E8` writes `mov dword [esi+0x194], 1`, and
+  registration uses the value before incrementing it, so the first registered window without an ID gets 1.
+  widget-toolkit.md sections 8.1 and 10 updated.

@@ -7,8 +7,9 @@ Scope: the whole `cSC4AdvisorUIAdvisorWinProc` owner as tools/coverage.py assign
 - the teardown `0x0041D830`;
 - the five-slot ABI.
 
-This spec gives the bodies behind them. The per-advisor face procs (constructor `0x00420B70`) and the HTML list
-control are not specified here.
+This spec gives the bodies behind them. The per-advisor face procs (constructor `0x00420B70`) are specified in
+advisor-face.md (slot 6 `SetVisible`, 7 `SetPressedOffset`, 8 `SetMood`) and the HTML list control in
+advice-list.md.
 
 Evidence: static RE only, on the instruction and data bytes of the Steam 1.1.641 exe (the same code as GOG,
 `docs/lanes/re-dates.md`). Every function was disassembled; the HTML strings and the tables were read from the data

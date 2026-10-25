@@ -687,6 +687,19 @@ unlisted code point, else:
 | 16 | U+0E50..0E59 (digits) |
 | 17 | U+0E2F, 0E3F, 0E46, 0E4F, 0E5A, 0E5B |
 
+`UTF16GetThaiCharLevel(ch, before, after)` (`0x00911A40`, used by the text editor's composition repair, which passes
+`after` = 0) classifies `ch` by the class of the character before it (n = class(before)) *[compat]*:
+
+| class(ch) | Result |
+|---|---|
+| 0–5, 16, 17 | 4; but `ch` = U+0E33 gives 4 only when n is 1 or 9, else 0 |
+| 6–8 | 5 when n = 1, else 0 |
+| 9 | 2 when n is 13–15, or n = 1 and `after` = U+0E33; 3 when n = 1 (other `after`), 6 or 7; else 0 |
+| 10, 11 | 3 when n is 1, 6 or 7; 2 when n is 13–15; else 0 |
+| 12–15 | 3 when n = 1, else 0 |
+
+A class above 17 (which the classifier never returns) gives 1 (`0x00911A66`–`0x00911B19`).
+
 Second loop (`0x0089980B`..`0x0089997A`), over the split string in place; every decision uses the original
 characters (prev, cur, next; prev = 0 with class 0 at the start, next = 0 with class 0 at the end). "Tall" means
 prev ∈ {U+0E1B, U+0E1D, U+0E1F, U+0E2C}. A one-step carry holds the form value chosen for the previous character

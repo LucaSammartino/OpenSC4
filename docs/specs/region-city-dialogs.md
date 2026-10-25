@@ -771,6 +771,34 @@ Read with `tools/dbpf.py` from the base packages (`SimCity_1.dat`) and the Engli
 
 The open questions are CY1 to CY12 in [questions/region-city-dialogs.md](questions/region-city-dialogs.md) (CY1 to CY12
 are all still open; the evidence for RM7 is §3.5 and is filed in `questions/region-model.md` for the maintainer to
-close). Not covered here: the region screen and region view windows (region-screen.md), the load-region, delete-region
-and delete-city dialogs that share the base of §1 (their own bodies), the terrain edge reconciliation that follows an
-establish, and the effect records' contents (effects.md).
+close). Not covered here: the region screen and region view windows (region-screen.md), the terrain edge
+reconciliation that follows an establish, and the effect records' contents (effects.md). The load-region,
+delete-region and delete-city dialogs are §9.
+
+## 9. The base's remaining bodies and the three other region dialogs *[compat]*
+
+Added 2026-10-24 (re-gzsmallwin7), static RE on the instructions of the Steam 1.1.641 exe (same code as GOG).
+
+**Base** (`cSC4DialogWinProcBase`, 8 functions): besides §1.3–§1.5, slot 10 `GZOnOK` (`0x00777D10`) ends the dialog
+with 1, slot 9 (`0x00777CF0`) with 0, the new-region slot 9 (`0x00777CC0`) with −1; the deleting destructor
+`0x00777D30` (thunk `0x00777CE0`) restores the two vtables and frees on bit 0.
+
+Each of the three dialogs is a 0x1C-byte base object `{vtable, reference count, window, script instance, root window
+ID, focus control}` made, `Display`ed (§1.4), released, and its `Display` result returned by one function:
+
+| Dialog | Function | Script instance / root ID / focus | Overrides | Result |
+|---|---|---|---|---|
+| load region | `0x007780C0` | `0x8A5AB1CC` / `0x4A5BA0E7` / `0x1000` | attach `0x00778810`, OK `0x00778060` (vtable `0x00AB5380`) | the chosen region index |
+| delete region | `0x00778130` | `0x8A5AB1CE` / `0x6A5BA20C` / 0 | attach `0x00778420` (vtable `0x00AB53C0`) | true for OK |
+| delete city | `0x00778220` | `0x8A5AB1D0` / `0x8A5AB1D0` / 0 | none (vtable `0x00AB5400`) | true for OK |
+
+- **Load region, attach** (`0x00778810`): the list `0x1000` (as list box `0x4132242B`, widget-controls.md) gets one
+  row per region of the nation (`GetRegionCount`, `GetRegion(i)`; the row's ID is `i`), with its name; a name that
+  starts with `#` gets a second `#` in front (`0x007789C0` inserts it) *[inferred: `#` is the list's escape]*. Then
+  the active region's row is selected by ID (list slot 11 with `GetActiveRegionIndex`) and list slot 16 runs.
+- **Load region, OK** (`0x00778060`): ends the dialog with the list's selected ID (list slot 13). Cancel ends with 0,
+  which is also region 0 *[quirk]*.
+- **Delete region, attach** (`0x00778420` → `0x00778290(0x1000)`): the text `0x1000`'s caption (slot 73) is passed
+  through the application's slot 42 object (its slot 9, a token substitution *[inferred]*) and written back (slot 74),
+  so the question names the region.
+- **Delete city** has no body of its own: the script's text is shown as is.
