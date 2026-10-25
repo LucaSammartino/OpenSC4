@@ -330,7 +330,7 @@ generated index: the questions live one file per spec, so read only the file for
 | overlay-manager | 5 | 10 | OV16 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
-| particles | 9 | 4 | PT14 | questions/particles.md |
+| particles | 6 | 7 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 1 | PN4 | questions/pedestrians.md |
@@ -408,4 +408,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **660** | **1564** | | |
+| **total** | **657** | **1567** | | |

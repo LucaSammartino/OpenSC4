@@ -74,12 +74,16 @@ explicit preconditions for bit-exact examples, not a global native mode claim.
 buffer. EAX's upper bytes are not a Boolean result contract.
 
 Split each key into the masked high half (`key & 0xFFFF0000`) and low half
-(`key & 0xFFFF`). Select the unsigned smaller high half and independently the
-unsigned smaller low half, add them, then compare the reconstructed word with
+(`key & 0xFFFF`). Select the unsigned larger high half and independently the
+unsigned larger low half, add them, then compare the reconstructed word with
 `currentKey`. Return true exactly on equality. Equal halves select the first
 key's temporary, with no observable numeric difference. Evidence:
 `0x005BA020–0x005BA031` masks, `0x005BA03B–0x005BA05F` unsigned selections,
 `0x005BA063–0x005BA070` reconstruction/equality.
+
+PT12 correction (2026-10-23): the carry branches select the other temporary when
+the first half is smaller; the previous minimum wording was reversed. This is
+the same helper and contract as [particles.md](particles.md) §17.3.
 
 This is sector duplicate suppression, not body-pointer priority. It cannot by
 itself reject the same body or duplicate registration. Those admission rules need
@@ -357,7 +361,7 @@ before any future implementation outputs. They are not native conformance passes
 
 | ID | Raw input | Required result and distinction |
 |---|---|---|
-| RB-P1 | keyA=`0x00020009`, keyB=`0x00050003` | reconstructed primary key=`0x00020003`; current at either original key is false; swapping A/B does not change the selected key |
+| RB-P1 | keyA=`0x00020009`, keyB=`0x00050003` | reconstructed primary key=`0x00050009`; current at either original key is false; swapping A/B does not change the selected key |
 | RB-P2 | keyA=keyB=`0xFFFF0000`, current equal | true; high-half comparison is unsigned |
 | RB-S1 | body centre `(10,20)`, axes `(1,0)`, extents `(2,3)`, reference `(0,0)`, direction `(1,0)` | support `(8,23)`; second projection is zero so its positive extent survives |
 | RB-S2 | same body/reference, direction `(0,0)` | `(12,23)`; zero is not a sign-flip branch |

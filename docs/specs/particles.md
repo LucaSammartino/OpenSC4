@@ -90,7 +90,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x48` | `vec2` | 0, 0 | the initial speed range (§5.1) |
 | `+0x50` | `box` | min (−1,−1,−1), max (1,1,1) | the emission volume (`source`); copied to the component's `+0x200..+0x214` by `SetDescription` (§6.1) |
 | `+0x68`..`+0x78` | 5 × `f32` | 0 | variance amounts (§5.1): `+0x68` size, `+0x6C` the particle's `+0x2C` factor, `+0x70` rotation range, `+0x74` rotation `offset` (not read by §5.1), `+0x78` the particle's `+0x34` factor |
-| `+0x7C` | `vec3` | three copies of the global at `0x00B22D54` (PT3) | colour; at particle creation each component is read as a variance amount for the particle's `+0x38..+0x40` factors (§5.1) |
+| `+0x7C` | `vec3` | (0,0,0), PT3 below | colour; at particle creation each component is read as a variance amount for the particle's `+0x38..+0x40` factors (§5.1) |
 | `+0x88` | `f32[]` | `[30.0]` | the emission rate curve (`rate`, `inject`, `maintain`) |
 | `+0x94` | `vec3[]` | one entry (the vector at `0x00B0A5D4`) | the colour curve |
 | `+0xA0`, `+0xAC`, `+0xB8` | `f32[]` each | `[1.0]` each | three further curves (size/alpha family, PT1) |
@@ -119,7 +119,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x174` | `vec2` | 5.0, 5.0 | random-walk `delay` range |
 | `+0x17C` | `vec2` | 50.0, 50.0 | random-walk `strength` range |
 | `+0x184`, `+0x188` | `f32`, `f32` | 0.1, 0.2 | random-walk parameters |
-| `+0x18C` | `vec3` | the global at `0x00B22D54` | random-walk `preferDir`; differs from the global `0x00B22D70` by ≥ 1e-4 in any component → the preferred direction is on (§6.1) |
+| `+0x18C` | `vec3` | (0,0,0), PT3 below | random-walk `preferDir`; differs from zero by ≥ 1e-4 in any component → the preferred direction is on (§6.1) |
 | `+0x198`, `+0x19C`, `+0x1A0` | 3 × `f32` | 0 | `windBank` and two alignment numbers |
 | `+0x1A4` | `f32[]` | empty | attractor curve; empty or `+0x1B0` ≤ 0 disables the attractor (§7 step 2) |
 | `+0x1B0` | `f32` | 1.0 | attractor range: the distance divisor of the attractor-point pull (§7.1); written by the value of `force -attractor`, `-motherDuck` or `-alphaAttractor` |
@@ -139,6 +139,21 @@ The names in the last column are the keywords of the effect-script compiler that
 writes the description at its block's `+0xF0`, `cParticleEffectCommand::EndBlock` `0x005A1A50`). A blank meaning
 is a field the runtime reads but this lane did not trace (PT1). An implementation must still read and keep every
 field, in this order, to stay aligned.
+
+**Zero defaults (PT3, corrected 2026-10-23).** The three scalar seeds at `00B22D54`,
+`00B22D70` and `00B22E20` are binary32 positive zero, bits `00000000`. They are in
+the PE loader's zero-filled portion of `.data`: section VA `00B07000`, raw size
+`0001A000`, virtual size `000B40D8`. There are no file-backed bytes for these VAs.
+Reading beyond the section's raw size produces unrelated bytes from later file
+sections, which explains the former pointer-like values; these are not float defaults
+or evidence of a required static initializer. Exported uses of the three scalars are
+reads. The constructor copies the first into colour variance, force `+E0..+E8`,
+`+F4..+FC` and preferred direction (loads at `005B108C`, `005B112D`, `005B1157`,
+`005B1292`). Consequently those defaults are zero. The six pre-initialization effect
+particle fields `+1C/+20/+24/+38/+3C/+40` also start at zero (`005B7C4C–005B7C81`).
+The base-particle constructor still overwrites its first 28 bytes with zero (§5);
+this correction does not change its final state. These are image/constructor facts,
+not a claim that arbitrary later memory corruption is observable behavior.
 
 ## 3. The flag words *[compat]*
 
@@ -542,7 +557,9 @@ no simulation state depends on them except through the finish test, which depend
 
 ## 12. Open questions
 
-See [questions/particles.md](questions/particles.md): PT1, PT2 (narrowed), PT3 open; PT4 (§5), PT5, PT6, PT7 answered 2026-10-21 (§5.1, §6, §8.1).
+See [questions/particles.md](questions/particles.md): PT1, PT2 (narrowed), PT8–PT11 remain open.
+PT4–PT7 were answered 2026-10-21; PT3, PT12 and PT13 are answered by §2, §17.3 and
+§13.3 respectively (2026-10-23). Proposed vectors remain unexecuted.
 PT8–PT11 record the limits of the following supplement. Its vectors are proposed, unexecuted fixtures.
 
 ## 13. Owner boundaries and component contracts *[compat]*
@@ -561,7 +578,7 @@ Do not infer another factory or interface from the spelling difference.
 | `cSC4DecalEffect` | §15; component slots, handle lifecycle, timing and parameter channels | Full transform/projection record and renderer interpretation (PT9) |
 | `cSC4RigidBodySimulator2D` | §17; lifetime, integration and collision dispatch | Exact contact selection, impulses and joint breaking (PT11) |
 | `cSC4SequenceDescription` | §18; slots, construction, ordered elements and serialization boundary | Stream failures remain foreign IO behavior |
-| `cSC4ParticlesDescriptionBase` | §§2–3 and §18.2; defaults, copying and IO | Existing PT1/PT3 limits |
+| `cSC4ParticlesDescriptionBase` | §§2–3 and §18.2; defaults, copying and IO | Field meanings partly PT1; zero seeds settled in §2 |
 | `cSC4CoverageRadiusEffectHelper` | §19 delegates to its existing detailed spec | Limits recorded in that spec |
 
 These objects do not all implement the effect-component interface. In particular the body helper
@@ -579,7 +596,8 @@ constructed component is not a running emitter; Init and SetDescription precede 
 factory contract. Init (`005B2390`, simulator receiver) acquires terrain-related services, caches
 city extents and delegates to simulator initialization. Shutdown (`005B2440`) releases owned
 description/service references and delegates to simulator shutdown. Neither operation is a
-resource-directory reader. The constructor's static-initialized float defaults retain PT3's limits.
+resource-directory reader. §13.3 gives the exact service, transform and parameter boundary;
+the former PT3 default ambiguity is resolved in §2.
 
 The method inventory is §9, augmented by these nonvirtual helpers:
 
@@ -618,6 +636,98 @@ provided the adapter preserves slot dispatch, resource ownership, simulation adv
 finish behavior. This is not a claim of pixel conformance. Allocation exceptions and missing native
 services have no newly established recovery policy; do not invent success from the absence of
 an error return. Pool and particle-creation failures already specified in §5 still apply.
+
+### 13.3 Ordinary initialization, transforms and parameters (PT13) *[compat]*
+
+All component offsets below use the **main receiver**. Init/Shutdown themselves
+receive main +4, so their instruction operands are four smaller. There is one
+terrain service, not a terrain/service-manager pair. The city bootstrap places
+City slot 84 GetTerrain's result in the shared terrain pointer (`00601C28–00601C39`;
+the [terrain contract](terrain.md) defines `cISTETerrain`).
+
+Init tests main +08 initialized byte. If set, it returns true without reads,
+retains, releases or extent queries. Otherwise it assigns the shared terrain to
+main +1F0: if different, AddRef the new nonnull service, store it, then Release
+the old nonnull service. Equal pointers incur neither operation. Next it calls
+terrain slot 7 GetCellCountX, slot 6 CellWidth, slot 8 GetCellCountZ, slot 6
+CellWidth, in that order. Each count is interpreted as signed 32-bit, converted
+and stored to binary32 before multiplication by that call's x87 CellWidth
+result. The binary32 products go to main +1F4/+1F8 respectively. CellWidth is
+called twice and may therefore provide distinct primitive results. Finally base
+Init sets initialized and returns true (`005B2394–005B242E`, `008179F0–008179FC`).
+No QueryInterface, HRESULT check or null-terrain fallback occurs. A null service
+is dereferenced at its first query; it is not a supported false-return failure.
+
+Shutdown clears/releases terrain +1F0, clears/releases description +24, then
+clears/releases the retained resource/service pointer +1EC, skipping nulls and
+in that order. Description release decrements its own +204 refcount and destroys
+it at zero (`005B1C80–005B1CA3`). It then delegates to base Shutdown, which if
+initialized clears delayed-stop/release-on-completion bytes, requests immediate
+Stop(0,0) through the simulator interface and clears initialized. It does not
+reset the cached city extents (`005B2443–005B248F`, `005B9CC3–005B9CDB`).
+
+Main slot 3 (`005B3430`) takes two transform records, each with flag byte +1,
+nine binary32 matrix words +04..+24, translation +28..+30 and scale +34.
+It increments each destination generation byte (main +8C/+C4, modulo 256),
+copies the thirteen words to main +90..+C0 / +C8..+F8 and copies the flag byte
+to +8D/+C5. The input generation byte is not copied. No pointer is retained.
+The point transform used here is scale times the matrix-row dot products plus
+translation; it does not invert or orthonormalize either input.
+
+If main +21A is clear and description flags A contain `1000` hex, both cached
+translations become zero, both flags gain bit 0, both generations increment
+once more, and main +1A0..+1B4 is reset from the source box +200..+214. Its
+midpoint becomes the previous center +194..+19C. In the other case the existing
+box and previous center are retained. This conditional path requires a valid
+description (`005B3553–005B3671`).
+
+The new center is the second cached transform applied to the first cached
+translation. Then translate both ends of the working box by new center minus
+previous center. This translates the box; it does not rotate or scale its extents.
+The source box is unchanged. Numeric staging at `005B36B1–005B380E` matters:
+each row dot product adds the Z and Y products, then X, in x87 precision; the
+third row result is rounded to binary32 before scaling. The X scaled product
+is rounded before adding translation; Y/Z scaled products retain x87 precision
+for that addition. Final center components are binary32. The X center delta
+is rounded to binary32 before the two bound additions; Y/Z deltas remain x87
+until each resulting bound is stored. Midpoint formation rounds the Y/Z sums
+before multiplying by 0.5; X's sum remains x87. No f64-wide matrix or fused
+multiply-add contract is implied. Normal finite inputs are the specified domain.
+
+Main slot 5 (`005B2490`) handles the following float-array IDs, returning true.
+Stores preserve binary32 input values; no numeric float-to-integer conversion
+is implied by raw word copies. It ignores the supplied count, so the caller
+must provide the listed number of values. Other IDs return false without stores.
+
+| ID | Values | Result relative to main receiver |
+|---|---|---|
+| 0 | 1 | +1CC speed multiplier |
+| 1 | 1 | +1E4 multiplier |
+| 2 | 1 | +1E0 density multiplier |
+| 3 | 1 | +1D0 multiplier |
+| 4 | 3 | +1D4/+1D8/+1DC |
+| 5 | 3 | Dispatch main slot 12 with the array pointer; no direct stores here |
+| 9 | 6 | Ray-to-working-box-midplane parameter, below |
+| 10 | 3 | +178/+17C/+180 point |
+| 11 | 1 | +184 scalar |
+| 15 | 3 | +FC/+100/+104 motion velocity |
+| `102` hex | 2 | +1C4/+1C8, in input order |
+
+For ID 9, values are origin O then direction V. Compute the working-box center
+Y using `0046FFC0–00470001`, let h = centerY−Oy and q = 1/Vy. Store the point
+O+hVq at +178..+180, and binary32 1 at +184. There is no parallel-ray guard.
+Specifically h*Vy and h*Vz are rounded to binary32 first; q is stored to
+binary32, but its x87 value is used for the X product. Y/Z products with the
+stored q are rounded before adding origin. The X product is not rounded before
+adding Ox (`005B2585–005B260C`). These are ray parameters, not service calls.
+
+Main slot 6 (`005B2200`) recognizes only ID 7: load the first pointer-sized word
+from the supplied array, call main slot 11 with it, return true. The count is
+ignored. Other IDs return false. Slot 11 only asks that object for its box via
+slot 7 when description flags A contain `40` or `80` hex; bit `80` additionally
+sets source max Y equal to min Y (`005B3820`). The wrapper neither retains nor
+releases the supplied object. Neither parameter channel allocates or acquires
+a city service; slot 4 remains a no-op.
 
 ## 14. Geometry-sourced particle component *[compat]*
 
@@ -963,6 +1073,9 @@ the sector whose high 16 bits are the unsigned maximum of the two candidate keys
 and whose low 16 bits are the unsigned maximum of their low halves. It compares the combined
 key to the current sector (`005BA01E–005BA06D`). This avoids applying one pair's response once
 per shared sector. It is not the maximum of the two whole packed integers.
+The same rule governs [rigid-body-2d.md](rigid-body-2d.md) §3; its former minimum
+wording and RB-P1 example were corrected with PT12. The unsigned carry branches
+at `005BA04D`/`005BA059` choose the other temporary when the first is smaller.
 
 The narrow phase is an oriented-rectangle test using both bodies' axes; a successful contact
 provides a normal and contact point to ResolveCollision. The collision pass considers moving
@@ -1026,7 +1139,7 @@ description's refcount. Field widths retain §2's distinction between byte/word 
 the decompiler's apparent numeric casts on 32-bit loads are not a new conversion requirement.
 No message, draw, Start/Stop, or live-particle persistence interface exists on this base.
 Text parsing belongs to [effects.md](effects.md); section-version-dependent binary reads remain
-§2. Existing PT1/PT3 uncertainty is preserved rather than assigned new defaults here.
+§2. Field meanings still subject to PT1 remain explicit; PT3's zero seeds are settled in §2.
 
 ## 19. Coverage helper delegation and conformance fixtures
 
@@ -1091,6 +1204,17 @@ Numerical comparisons below are for the supported finite domain; no pixel equiva
 | PO34 | Sequence read with version 2 and otherwise valid primitive results | No version-rejection branch in wrapper; list and flags consumed normally |
 | PO35 | Sequence factory allocation returns null | Return null; runtime constructor not called |
 | PO36 | Copy particle description with two-point curve/name, mutate source afterward | Destination curve/name retain their copied values; derived refcount unchanged |
+| PO37 | Fresh particle description, normal loaded image | +7C/+80/+84, +E0/+E4/+E8, +F4/+F8/+FC and +18C/+190/+194 all contain positive-zero binary32 words |
+| PO38 | Ordinary Init, not initialized, old terrain A, shared terrain B; B counts X=256/Z=128, successive CellWidth results 16/8 | Retain B, store B, release A; calls countX, width, countZ, width; main extents +1F4=4096/+1F8=1024; initialized true; return true |
+| PO39 | Repeat Init after PO38, shared terrain now C | No calls/ref operations, cached B/extents preserved; return true |
+| PO40 | Init with initialized clear and existing terrain equal to shared B | No terrain AddRef/Release; all four extent queries still occur |
+| PO41 | Shutdown with distinct nonnull terrain B, description D (refcount 2), resource R | Clear/release B, clear D/decrement D count to 1, clear/release R, base shutdown; no extra terrain acquisition; cached extents preserved |
+| PO42 | SetTransform, flag-1000 path disabled; first translation (1,2,3), second rows identity/translation (10,20,30)/scale 2; old center (0,0,0), working box min (-1,-2,-3)/max (1,2,3); generations 255/8 | New center (12,24,36), box min (11,22,33)/max (13,26,39); generations 0/9; source box unchanged |
+| PO43 | SetTransform, +21A clear and description flag 1000; source min (-2,-4,-6)/max (2,4,6), arbitrary old working box; both transforms identity except nonzero translations | Cached translations zeroed, cached flag bit 0 set, generations increment twice; center zero, working box equals source; input transform records unchanged |
+| PO44 | Ordinary float ID 15 with (2,3,5), count 0 but valid three-value storage; then ID 102 hex with (7,11) | Both true; +FC/+100/+104=(2,3,5), +1C4/+1C8=(7,11); no retained pointers |
+| PO45 | Ordinary ID 9, working-box center Y=10, O=(1,2,3), V=(2,4,6) | Point (5,10,15), +184=1, true; no terrain query |
+| PO46 | Ordinary pointer ID 7, valid object S, description source flags clear | Wrapper returns true and calls slot 11; no S box query/retain/release; unrelated ID returns false |
+| PO47 | Primary keys FFFF0001 and 0002FFFF | Primary FFFFFFFF, true only there; unsigned component-wise maximum, neither original key nor signed maximum |
 
 PO01–06 test interface-level geometry contracts only; PO28 excludes contacts, wrapping and
 friction; PO33–34 assume the foreign stream successfully supplies the listed values. Full solver,
