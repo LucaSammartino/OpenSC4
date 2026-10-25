@@ -48,3 +48,6 @@
   [Implement only specified stages; record explicit Unsupported for voice policy, linked
   position, distance/simulation pause and Resume. Require sentinel as an explicit input;
   do not claim complete SoundManager execution or invent foreign Resume slots.]
+  (re-tsound8, 2026-10-25, partial: the instance side, linked averaging and volume/pan by model, distance and
+  simulation pause, Resume and its foreign slots, is audio-owner-closure.md §7; the voice-count gates, UpdateAll
+  and the sentinel bits on the manager side stay open.)

@@ -374,7 +374,7 @@ cRZRadio	audio	audio	radio.md	-	-	-
 cRZDiskRadioStation	audio	audio	radio.md	-	-	-
 cGZPlayList	audio	audio	sound-system.md	-	-	-
 cSC4SoundDescription	audio	audio	audio.md	-	-	-
-tSound	audio	audio	-	-	-	-
+tSound	audio	audio	audio.md,audio-owner-closure.md	-	-	-
 cSC4MadCowPlayerWin	audio	audio	intro-video-player.md	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
 cGroupLayer	audio	audio	audio-ambience.md,audio-owner-closure.md	-	-	-
@@ -954,7 +954,7 @@ RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
 nsTexUtil	3D scene and models	renderer	-	-	-	-
 MiscGraphTextInfo	widget toolkit	ui	widget-misc2.md	-	-	-
 SCLuaTableRef	Lua host	framework	-	-	-	-
-cSourceFileDebugInfo	audio	audio	-	-	-	-
+cSourceFileDebugInfo	audio	audio	audio-owner-closure.md	-	-	-
 tControllerTime	automata (managers, records)	simulation	-	-	-	-
 cADVString	advisors	simulation	advisors.md, sim-misc.md	-	-	-
 fn:gAdviceMessageBox	advisors	simulation	sim-misc2.md	-	-	-
