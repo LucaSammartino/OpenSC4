@@ -69,7 +69,7 @@ def read_scenarios(root, selected):
         folder_name(row['region']); folder_name(row['city']); game_date(row['end'])
         if row['script'] != '-':
             script_file(root, row['script'])
-    result = [r for r in rows if selected in r['sets'].split(',')]
+    result = [r for r in rows if selected == 'all' or selected in r['sets'].split(',')]
     if not result:
         raise ValueError(f'no scenarios in set {selected}')
     return result
@@ -139,6 +139,8 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
     base_ini = profile_ini(root, profile)
     changes = extras(extra)
     source_dll = resolve_dll(root, dll)
+    if changes.get('reach') == '1' and b'reach prepared functions=' not in source_dll.read_bytes():
+        raise ValueError(f'{source_dll}: DLL lacks reach tracer; supply a current build with --dll')
     directory = root / 'build-runs/suite' / tag
     if directory.exists():
         raise ValueError(f'tag already exists: {directory}; use report or a new tag')
@@ -462,7 +464,7 @@ def write_results(directory, manifest, results):
     write_tsv(directory / 'saturation.tsv', ['scenario', 'window', 'date', 'new', 'total'], windows)
 
 
-def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
+def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slots=6):
     deadline = time.monotonic() + wait_seconds
     pending = {r['scenario']['name']: r for r in manifest['requests']}
     waiting = list(pending) if submit else []
@@ -470,8 +472,8 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
     results = {}
     try:
         while pending:
-            # Include queued requests in this lane's six-request shared footprint.
-            while waiting and len(active) < 6 and time.monotonic() < deadline:
+            # Include queued requests in this lane's shared footprint.
+            while waiting and len(active) < slots and time.monotonic() < deadline:
                 name = waiting.pop(0)
                 request = pending[name]
                 path = root / 'build-runs/game-queue' / (request['label'] + '.req')
@@ -533,15 +535,15 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
     return results
 
 
-def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=7200, dry_run=False):
+def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=7200, dry_run=False, slots=6):
     directory, manifest = make_batch(root, scenarios, profile, dll, tag, extra)
     if dry_run:
         print(f'prepared {len(scenarios)} requests (not submitted): {directory}')
         return directory, {}
     queue = root / 'build-runs/game-queue'
     queue.mkdir(parents=True, exist_ok=True)
-    print(f'staged {len(scenarios)} requests; at most 6 in flight; results: {directory}', flush=True)
-    return directory, wait_for_batch(root, directory, manifest, wait_seconds, submit=True)
+    print(f'staged {len(scenarios)} requests; at most {slots} in flight; results: {directory}', flush=True)
+    return directory, wait_for_batch(root, directory, manifest, wait_seconds, submit=True, slots=slots)
 
 
 def report(root, tag, against=None):
@@ -602,7 +604,7 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen'], default='tier1')
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)
@@ -624,7 +626,7 @@ def main(argv=None, root=ROOT):
         command.add_argument('--from', dest='sources', help='comma-separated completed calibration tags; default all')
         command.add_argument('--keys', default='', help='comma-separated shadow/replace keys or owners')
         command.add_argument('--budget-seconds', type=float, default=900)
-        command.add_argument('--slots', type=int, choices=range(1, 7), default=6)
+        command.add_argument('--slots', type=int, choices=range(1, 13), default=6)
     select.add_argument('--output', help='optional JSON selection evidence under build-runs/suite')
     run.add_argument('--scenario', action='append', help='select named rows within --set; repeatable')
     show = commands.add_parser('report')
@@ -645,7 +647,12 @@ def main(argv=None, root=ROOT):
                 return 0
             manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
             return 0 if suite_states.finalize(root, args.tag, manifest, results) else 1
-        rows = read_scenarios(root, 'full' if args.command == 'select' or args.set == 'tier1' else args.set)
+        marked_tier = False
+        # A checked-in tier is reproducible without local calibration artifacts.
+        if args.command == 'run' and args.set == 'tier1':
+            with (root / 'engine/tests/scenarios/suite.tsv').open(encoding='utf-8-sig', newline='') as stream:
+                marked_tier = any('tier1' in r['sets'].split(',') for r in csv.DictReader(stream, delimiter='\t'))
+        rows = read_scenarios(root, 'full' if args.command == 'select' or (args.set == 'tier1' and not marked_tier) else args.set)
         if getattr(args, 'scenario', None):
             missing = set(args.scenario) - {row['name'] for row in rows}
             if missing:
@@ -653,7 +660,7 @@ def main(argv=None, root=ROOT):
             rows = [row for row in rows if row['name'] in args.scenario]
         if args.budget_seconds <= 0:
             raise ValueError('--budget-seconds must be positive')
-        if args.command == 'select' or args.set == 'tier1' or args.keys:
+        if args.command == 'select' or (args.set == 'tier1' and not marked_tier) or args.keys:
             tags = args.sources.split(',') if args.sources else None
             if tags and any(not NAME.fullmatch(tag) for tag in tags):
                 raise ValueError('--from expects comma-separated suite tags')
@@ -692,7 +699,7 @@ def main(argv=None, root=ROOT):
                       'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()]
         directory, results = run_scenarios(root, rows,
             profile=args.profile, dll=args.dll, tag=args.tag or new_tag(), extra=extra,
-            wait_seconds=args.wait_seconds, dry_run=args.dry_run)
+            wait_seconds=args.wait_seconds, dry_run=args.dry_run, slots=args.slots)
         if not args.dry_run:
             print(f'summary: {directory / "summary.tsv"}')
         return 0 if args.dry_run or successful(results) else 1
