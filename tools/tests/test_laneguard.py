@@ -310,7 +310,7 @@ class WorkflowDryRun(unittest.TestCase):
         p = self.f.tmp / "scenario.json"
         p.write_text(json.dumps(sc), encoding="utf-8")
         o = subprocess.run([self.node, str(HERE / "fc4_lane_dryrun.mjs"), str(p)], capture_output=True, text=True,
-                           timeout=180)
+                           timeout=180, env=dict(os.environ, FC4_TEST_PYTHON=sys.executable))
         if expect_fail:
             self.assertNotEqual(o.returncode, 0, o.stdout)
             return o.stderr

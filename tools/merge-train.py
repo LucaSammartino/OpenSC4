@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """FreeCity4 merge train: the single owner of `main`.
 
-Why this exists (docs/merge-train.md "Why"; the original plan is in docs/history/handoff-2026-10.md): each lane
+Why this exists (docs/merge-train.md "Why"): each lane
 used to take a shared merge lock, merge main, re-gate and renumber `FC4_ABI_VERSION` / the HANDOFF rows / the
 manual-checks run numbers itself. N waiting lanes therefore cost about N^2 gates, nearly every merge conflicted on the same five files, and about 25 agents polled
 the lock so docs-only lanes waited hours.
