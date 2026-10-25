@@ -147,6 +147,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn observation_skips_getters_that_would_insert_missing_map_entries() {
+        let mut c = RegionalCity::new(2);
+        c.commodities.clear();
+        c.populations.insert(1, 17);
+        c.extrapolated.insert(2, 23);
+        c.potential.insert(3, 31);
+        c.extrapolated.insert(4, 10);
+        c.potential.insert(4, 40);
+        let mut before = ByteWriter::new();
+        assert!(c.write_record(&mut before));
+        let mut allowable = Vec::new();
+        let result = compare(&mut c, |id, t, value, _| {
+            if id == 43 {
+                allowable.push(t);
+                assert_eq!(value, 30.0);
+            }
+            assert!(!(50..=55).contains(&id), "absent commodities must not be queried");
+            true
+        });
+        assert_eq!(result as u32, 0);
+        assert_eq!(allowable, [4]);
+        let mut after = ByteWriter::new();
+        assert!(c.write_record(&mut after));
+        assert_eq!(before.bytes(), after.bytes());
+    }
+
+    #[test]
     fn points_compare_present_empty_and_absent_lists_without_changing_record() {
         let mut c = RegionalCity::new(2);
         c.points.insert(0, vec![[1.25, -0.0, f32::from_bits(0x7fc0_1234)]]);
