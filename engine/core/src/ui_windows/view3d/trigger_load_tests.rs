@@ -1,22 +1,78 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // VW19 vectors run through both logical and opaque-reference record adapters.
 fn load_pairs(v: &mut View3DWin, h: &mut Host, opaque: bool, pairs: Vec<(u32, u32)>) {
+    try_load_pairs(v, h, opaque, View3DSave::header(), pairs).unwrap();
+    assert!(!h.ops.iter().any(|op| matches!(op, Op::Send(0xAA375FE8, _, _))));
+}
+
+fn try_load_pairs(
+    v: &mut View3DWin,
+    h: &mut Host,
+    opaque: bool,
+    header: (u32, u32, u32, u32),
+    pairs: Vec<(u32, u32)>,
+) -> Result<(), String> {
     if opaque {
         v.load_object_record(
             h,
             &ObjectRecord {
-                header: View3DSave::header(),
+                header,
                 identities: [None; 4],
                 triggers: pairs,
             },
         )
-        .unwrap();
     } else {
         let mut record = v.save_record();
+        record.header.group = header.0;
+        record.header.type_id = header.1;
+        record.header.instance = header.2;
+        record.header.version = header.3;
         record.triggers = pairs;
-        v.load_record(&record).unwrap();
+        v.load_record(&record)
     }
-    assert!(!h.ops.iter().any(|op| matches!(op, Op::Send(0xAA375FE8, _, _))));
+}
+
+#[test]
+fn trigger_load_rejects_bad_headers_before_any_mutation_or_reference_resolution() {
+    let (group, kind, instance, version) = View3DSave::header();
+    for opaque in [false, true] {
+        for header in [
+            (group ^ 1, kind, instance, version),
+            (group, kind ^ 1, instance, version),
+            (group, kind, instance ^ 1, version),
+            (group, kind, instance, 5),
+            (group, kind, instance, u32::MAX),
+        ] {
+            let mut v = view();
+            let mut h = Host::default();
+            *v.owner.view.triggers.entry(1, || 7) = 7;
+            v.owner.lifecycle.objects.insert(0xF0, 71);
+            let before = v.save_record();
+            assert!(try_load_pairs(&mut v, &mut h, opaque, header, vec![(1, 0), (194, 9)]).is_err());
+            assert_eq!(v.save_record(), before);
+            assert_eq!(v.owner.view.triggers.bucket_count(), 193);
+            assert!(v.owner.view.not_loaded);
+            assert_eq!(v.owner.lifecycle.objects.get(&0xF0), Some(&71));
+            assert!(h.reference_calls.is_empty());
+            assert!(h.ops.is_empty());
+        }
+    }
+}
+
+#[test]
+fn trigger_load_accepts_every_legacy_version_and_sends_no_notifications() {
+    let (group, kind, instance, _) = View3DSave::header();
+    for opaque in [false, true] {
+        for version in 0..5 {
+            let mut v = view();
+            let mut h = Host::default();
+            let header = (group, kind, instance, version);
+            try_load_pairs(&mut v, &mut h, opaque, header, vec![(1, 9), (194, 7), (1, 0)]).unwrap();
+            assert_eq!(v.save_record().triggers, [(194, 7), (1, 0)]);
+            assert!(!v.owner.view.not_loaded);
+            assert!(h.ops.is_empty());
+        }
+    }
 }
 
 #[test]
