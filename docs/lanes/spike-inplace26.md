@@ -1,27 +1,28 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| spike-inplace26 (S3 round-3 marginal oracle) | `Codex` / `spike-inplace26` (engine lane) | READY; SPIKE INCONCLUSIVE. Code f93c38824, evidence 04d0fff4d. cargo 7841/0, clippy clean, CTest 115/115. Both r3 runs clean/ref_warnings=0; 273/273 comparisons exact, 8/10 functions qualified; byte rates unknown. ABI unchanged; questions none. | Coordinator review: larger-body ABI/size facts would decide the marginal-rate criterion. |
+| spike-inplace26 (run-7 compare harness, round 4) | `Codex` / `spike-inplace26` (engine lane) | READY. Code through 70b460c4a; evidence 1098a022a. cargo 7844/0, clippy clean, CTest 117/117. inplace26-r4-final-2 clean/ref_warnings=0; 25335/25335 comparisons exact, 95/95 mutations detected/located. Two private C bridge symbols added; ABI version unchanged. Questions none. | Land the default-off facility; class-binding lanes follow docs/ops/compare.md. |
 
-Round-3 start UTC: 2026-10-25T13:36:50Z (all elapsed time, including waits and fixes, is charged).
-SPIKE VERDICT: INCONCLUSIVE
-Exact/confined criterion PASS: 8/10 (80%), 273/273 comparisons exact, zero outside signals AND zero refusals across both runs; 2 unbound entries retained in the denominator.
-Teeth criterion PASS: 10/10 deliberate one-value errors detected/located in 8 new functions, with zero pre-existing mismatches; scalar window 6, BGRA window 2, vectors window 1, all byte 0.
-Rate criterion UNKNOWN: actual marginal and cumulative rates lack published body-byte counts; 0 known new bytes is a lower bound, not a zero-byte implementation.
-Known-byte lower bounds: marginal 0 KB/h; cumulative approximately 0.60 KB/h using the accepted 1821 earlier bytes and all time since 11:20:12 UTC; target 11 KB/h, baseline 1.1.
-The >=8 KB cohort target was not established. Verifier closes the interval at this final commit, including reporting; it prints precise lane-hours and cumulative lower bound.
-KILL criterion not met: outside signals 0/10, float-only differences 0/10. Confinement is net changes in watched neighbourhoods, not whole-process confinement.
-Totals: 361 calls, 273 samples/comparisons/exact; natural 233 calls/145 exact samples; fixture 128/128 exact. No ordinary differences.
-Game: inplace26-r3-fixture-1 and inplace26-r3-natural-1 clean/ref_warnings=0/foreign_exceptions=0; identical DLL fingerprint 39944fb6.
-Natural reach: only lighting vertex colours/global light (192/41 calls); six other qualified functions rely on fixtures. IsNight/system-country installations declined, reason unsupported-entry-or-busy.
-Gate: cargo 7841 passed/0 failed, clippy zero diagnostics, native 49/49, CTest 115/115; new Rust fmt 2 files/0 diff; focused native-layout test 1/1.
-Gate reported a changing tree: only evidence/test-data changed after engine-code commit f93c38824; engine/core, capi and plugin remain byte-identical to that commit.
-Adapters/facility: 252 newly added physical lines, charged completely to this cohort; 25.2 per selected function, 31.5 per installed/qualified function; equal allocation detailed in adapters.csv.
-New replay handles native lighting offsets, counted/strided BGRA windows and EAX/AL returns in isolated copies; no round-2 camera word transport or Rust code changed.
-Larger bodies considered first: published 1978-byte SetOrientation and 1669-byte UpdateView lack complete entry contracts; UpdateView also requires foreign services. Other exclusions in round-3/rejected.md.
-RefPack buffer-role ABI, CalcShadowTerrainRect's unnamed arguments, Fullpath convention and HTML native set bindings remain unpublished; BuildFirstSets explicitly writes nine global trees. No speculative calls made.
-Capture watches writable committed private containing regions, 64 MiB cap; misses undone writes, unrelated allocations, image globals and active stack frames; concurrent writers remain unattributed.
-All switches default off; replay leaves original native state installed. No missing Rust production algorithm was implemented; no public C ABI/default/coverage changes.
-Evidence: engine/tests/spike-evidence/spike-inplace26/round-3/; raw value mirrors/checker in build-runs/spike-evidence/round-3/; verifier --raw build-runs/game-results matches both logs.
-Accepted round 2 remains unchanged: 14/20, 1821 bytes, 33/33 errors, 0.875247 KB/h; reproducible evidence remains in the parent folder (85cb9df19).
-Questions: none. Next: coordinator decides whether complete larger-function ABI/size facts justify another timed cohort; no new coverage credit claimed.
+SPIKE VERDICT: INCONCLUSIVE (historical S3 rate criterion; this round delivers the approved harness, with no new rate/coverage claim).
+Registry: engine/plugin/compare/*.tsv; exact run-7 columns, generated entry shells/dispatch, published-contract validation when functions.tsv exists.
+Adding a binding needs one registry row and Rust adapter entry; optional authored fixtures stay in Rust. No plugin C++ edit per binding.
+Selectors: compare names/class:<Class>/all, inplace alias; default-off compare/record/replace modes and explicit override.
+Corpus: schema-filtered values, pointer words removed, image pointers persisted as RVAs; bounded records and contract validation.
+City-load corpus replay uses isolated copies; compare_dense makes one/two nearby scalar changes, preserving declared count/stride relationships.
+First-K JSONL differences include both outputs and mutation labels; engine/tests/compare_case_to_rust.py emits engine/tests/vectors/*.rs.
+Stable registry/ini/summary contract is documented in docs/harness.md; docs/ops/compare.md is the 49-line binding/fix workflow.
+CompareAttach provides per-row outgoing-call callbacks for S4; no S4 files changed.
+All 28 requested prior functions retained, plus two historic declined rows: 30 rows, 26 installed.
+Declined: rotation, visible-edges, lighting-night, system-country; unsupported entry relocation, no speculative execution.
+Final game inplace26-r4-final-2: DLL 23e6068b; clean/ref_warnings=0/foreign_exceptions=0, zero ordinary differences/float-only differences/outside signals.
+Natural: 37444 calls, 2410 sampled, 2409/2409 exact; one clip3 output-alias refusal. Call volumes depend on rendering cadence; old absolute counts were not reproduced.
+Fixtures: 640/640 exact, reproducing prior 512 view-utility + 128 round-3 comparisons. Mutations: natural 17, fixture 26, corpus 26, dense 26; all 95 detected/located.
+Corpus: 2478/2478 exact despite lower current recording cap. Dense: 19808/19808 exact from 19824 attempts, 16 explicit zero-language fallback-domain refusals.
+Mode checks: inplace26-r4-record-2 clean/ref_warnings=0, 497 records/no comparisons; inplace26-r4-replace-2 clean/ref_warnings=0, 1944 Rust-only calls/no comparisons (earlier DLL dd354cea).
+Earlier failures kept separately: capture-1 nested-hook lock stall fixed; dense-1 had 7 corpus/56 dense view-box differences from omitted published ground-line fields, fixed in snapshot schema.
+No production Rust algorithm mismatch was found this round; the earlier failing values and all unattributed neighbourhood-write exclusions remain in evidence.
+Gate after last engine fix: cargo 7844 passed/0 failed, clippy clean, CMake built, CTest 117/117; owned Rust fmt 3 files/0 diff. No engine changes after the gate.
+Native tests cover modes, isolated replay, nested sampling, larger previous write cap, and pointer/padding/strided-field sanitization; the converted Rust vector compiles.
+Limits: confinement observes net changes in containing private allocations (64 MiB cap), excluding active stack; misses undone writes, unrelated allocations and image globals; concurrent changes are unattributed.
+Evidence: engine/tests/spike-evidence/spike-inplace26/round-4/ (recomputable per-function/source CSV/JSON and requests); raw mirrors/logs in build-runs/spike-evidence/round-4/ and game-results/.
+Two private static-link C bridge symbols added; fc4.h and FC4_ABI_VERSION unchanged. No coverage-file or spec edits. Questions: none. Next: coordinator lands the harness.
 
