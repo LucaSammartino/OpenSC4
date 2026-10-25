@@ -9,6 +9,115 @@ catalog's 175 categorized ploppable lots, then partially demolish the plan.
 Their measured results and limitations are recorded below; a zero command status
 alone does not prove that a lot exists in the save.
 
+## Round three: catalog sweeps, 2026-10-25
+
+The tooling is ready to land: `.lua` suite rows now produce `lua_script`, opt in
+to `lua_extensions=1`, stage a same-name optional dated `.script` companion, and
+retain/count the private Lua log. Missing logs, unfinished calls, nonzero
+returns or a missing `scenario-complete` marker prevent a suite success.
+Use `tools/suite.py run --set full --scenario lua-lots-empty --scenario lua-lots-grown
+--profile shadows --tag <new-tag>`. The two requests were staged with the real
+DLL by `luacmd27-final-dry-r3`; real runs used the reserved slots 11/12 and the
+worktree launcher directly, as required before this launcher lands.
+
+The installed-data census printed `1909 lots, 22 packages, 0 warnings`.
+`tools/lot_sweep.py` selects all **175** categorized ploppable lots; the other
+1,734 growable/other entries are retained in the catalog but not plopped.
+The 256-cell and compact 128-cell plans have disjoint footprints, checked
+against the real catalog. West Weburg is **128x128**, not a large tile.
+
+Final runs used DLL SHA-256 prefix **11f57a7c**, the literal regress shadows
+profile, turbo, `close_dialogs=1`, popup dialogs off, and Lua-owned pause/resume:
+
+| Run | Dates | Verdict; watchdog samples | Lot calls accepted/rejected | Exact shadow records |
+|---|---|---|---|---|
+| `luacmd27-empty-r3e` | 2000-01-01 to 2000-03-01 | clean; 1, recovered after 8.125 s | 161/14; 175 completed | 370/383 |
+| `luacmd27-grown-r3e` | 2197-03-20 to 2197-05-20 | clean; 3 | 61/114; 175 completed | 373/444 |
+
+Both printed `scenario-complete`, with zero pending calls and zero foreign
+exceptions, RTC failures, overruns or reference warnings. These are the
+plugin's verdicts; the watchdog samples are retained, not counted as zero.
+The suite correctly reports rejected commands as failed actions (15 empty,
+115 grown, including one rejected landfill zone per run), despite clean game
+verdicts. No replace/compare or function-reach credit is claimed.
+
+| Category | Empty accepted/rejected | Grown accepted/rejected |
+|---|---|---|
+| power | 8/0 | 0/8 |
+| water | 4/0 | 3/1 |
+| garbage | 3/0 | 1/2 |
+| education | 13/0 | 8/5 |
+| health | 3/0 | 0/3 |
+| police | 6/0 | 2/4 |
+| fire | 3/0 | 0/3 |
+| parks/plazas | 24/1 | 15/10 |
+| landmarks | 39/1 | 7/33 |
+| rewards | 51/2 | 23/30 |
+| transit | 17/10 | 7/20 |
+| utilities (power/water/garbage union) | 13/0 | 4/9 |
+
+Categories overlap. These are **command statuses**, not per-lot persistence
+claims. The empty tile accepted every power kind and the water, education,
+health, police and fire catalogs; the grown-city layout still rejects all new
+power, fire and health lots. Coastal pieces and several airport stages failed;
+their per-IID returns and names remain in the Lua logs. More suitable shoreline
+and grown-city footprints are still needed. Landfill is a zone, absent from
+the lot catalog: `PlaceZone(14, ...)` returned status 2 in both runs.
+
+Terrain setup uses the existing plugin action `terrain 0 0 256 256 280 1`.
+The empty Lua scenario waits for it and read-checks cells 8,8; 32,32; 240,240
+at **280 m before the first PlaceLot** (`flat-terrain verified 280m`).
+Maxis `SetCellAltitude(24,24,60,60,280)`, a whole-tile rectangle, and the
+three-argument form all returned status 0 without changing sampled heights;
+this remained true before mayor establishment. No Maxis terrain effect is
+claimed. `SetCityEstablished()` returned 0 and the empty city advanced.
+
+`PlaceLot(tonumber(hex,16), x,z,0,false,false)` uses **cell coordinates**.
+On a 128-cell city, x=128, 256 and 512 returned status 2; in-map numeric IDs
+returned 0. The six arguments and status-first convention are verified.
+`Demolish(x,z,x+w-1,z+d-1,flag)` returned 0 for `None`, `Sim`, `Explode`.
+The empty pass removed the newly placed school, jail and prison and returned
+cost payloads **3220, 230, 19500**, independent evidence of those placements.
+`SaveCityQuick(true)` returned 0; the grown slot's lot-record stream changed
+1,114,023 to 1,070,766 bytes. The empty save alias could not be resolved, so
+it receives no independent persistence credit. Original Documents save hashes
+were unchanged in both final runs.
+
+Timing uses frames, not GetSimulationDate. Auto-yield is enabled during waits
+and disabled during bounded command batches. Paused frame polling stalled
+West Weburg after 24 completed lot calls (`grown-r3d`, no unreturned lot call);
+the final script resumes the grown city for frame waits, then pauses again.
+The earlier `grown-r3c` size-guard attempt was stopped; `r3a` startup stall/AV
+and `r3b` incomplete attempts remain separate evidence. The initial cheat probe
+`ExecuteCheat("you don't deserve it")` returned status 2 and stopped that
+calibration script; the final sweeps do not depend on it. Direct reward lot
+calls accepted 51 empty and 23 grown entries without a successful unlock cheat.
+
+The no-Lua baselines were `empty-base` (clean, **77/77**, remained in god mode
+at 2000-01-01) and `grown-base` (clean, **639/677**, ended 2197-07-10).
+Thus dates/mayor state differ: line-count deltas describe whole runs and do
+not isolate a lot category or establish causation. Empty examples: power
+0->3, plumbing 0->1, civic 0->1, parks 0->1, lotcfg 5->21, terrain 9->27;
+grown commercial 0->14 and pollution 11->15, while most monthly counts fell
+because the baseline ran longer. Every changed key is in `shadow-delta.tsv`.
+
+Raw summaries and returns: `build-runs/suite/luacmd27-r3-final/` contains
+`summary.tsv`, `per_key.tsv`, `categories.tsv`, `shadow-delta.tsv` and JSON.
+Full plugin/Lua logs are `build-runs/luacmd27-{empty,grown}-r3e{,.lua}.log`.
+First nonexact records, not engine fixes: empty **aura:3398, dbpf:3488,
+dbpf_bounds:3489, traffic:3531, automataowners:3706, occmgr:3912,
+mysims:3936, ports:4080**; grown **nettool_plan:2665, powerline_plan:2666,
+citysit:2677, traffic:3089, pollution:3110, demand:3421, landvalue:3531,
+automataowners:3688, netocc:3692, weather:3856, netmgr:3875, occmgr:3879,
+terrain:3913, aura:3986, dbpf:4098, dbpf_bounds:4099, neighbours:4141**.
+Line numbers refer to the respective full plugin log. Some also occur in the
+baseline; no new regression is attributed to the extension or a command.
+
+Final validation: `python -m pytest tools/tests -q --tb=short` printed
+**384 passed in 92.70s**. The once-only `qbuild.py --wt <WT> all` passed:
+Cargo **7844**, clippy **0 diagnostics**, native **47/47 edges**, CTest
+**117/117**. No engine implementation, export, ABI version or save is committed.
+
 ## Launching a candidate
 
 Put this harness key in the request's ini text (absent by default):
@@ -114,7 +223,7 @@ passed **10/10**. The once-only final `qbuild.py --wt <WT> all` printed Cargo
 **117/117**, `qbuild: PASS`. No binaries, saves or ABI changes are committed.
 
 Use reserved slots 11/12 for this lane. Never write to the original Regions
-folder. All nine candidate rows use region `FC4 Test`, city `Konradshohe`, a
+folder. The nine older, unregistered candidates target region `FC4 Test`, city `Konradshohe`, a
 2028-02-01 end date, and set `full`; none is a smoke test. The round trip also
 uses `Tegel` in the same region. Both saves exist in Documents, and only their
 slot copies may change. `fc4.finish()` waits to 2028-01-01, requests a quick save,
