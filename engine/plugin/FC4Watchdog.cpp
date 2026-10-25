@@ -376,6 +376,9 @@ DWORD WINAPI ThreadProc(void*) {
         }
         // Stall rules (FC4DiagLogic.h). Timestamps the main thread wrote after
         // `now` was read count as 0 ms, not as an unsigned underflow.
+        // Acquire the save allowance before reading progress: its transition
+        // to zero publishes the framework tick resumed after the save.
+        const DWORD saveGrace = ScriptSaveGraceMs();
         StallInput in;
         in.now = now;
         in.depth = g_actDepth;
@@ -389,7 +392,6 @@ DWORD WINAPI ThreadProc(void*) {
         in.noTickMs = AutotestEnabled() && noTickMs > stallMs ? stallMs : noTickMs;
         // Full saves may take longer than autotest's normal ten-second stall
         // limit. This explicit, bounded script-only allowance defaults to zero.
-        const DWORD saveGrace = ScriptSaveGraceMs();
         if (saveGrace > in.stallMs) in.stallMs = saveGrace;
         if (saveGrace > in.noTickMs) in.noTickMs = saveGrace;
         const StallResult st = EvaluateStall(in);

@@ -14,6 +14,7 @@
 #include "FC4Script.h"
 
 #include "FC4Config.h"
+#include "FC4Watchdog.h"
 #include "FC4Diag.h"
 #include "FC4DisasterShadow.h"
 #include "FC4DispatchShadow.h"
@@ -491,6 +492,10 @@ std::string RunSave(const harness::ScriptAction& a, cISC4City* city) {
     if (grace) Log("script: full-save watchdog grace %ld ms (script_save_grace_ms)", grace);
     InterlockedExchange(&g_saveGraceMs, grace);
     const ObserverSave r = ObserverSaveCity(a.fast);
+    // We have resumed the observer's framework tick. Publish that progress
+    // before dropping the allowance, so the completed save is not a stale
+    // no-tick stall at the ordinary threshold.
+    if (grace) NoteFrameworkTick();
     InterlockedExchange(&g_saveGraceMs, 0);
     if (!r.haveApp) return "ok=0 (skipped: no cISC4App)";
     char b[160];
