@@ -346,6 +346,12 @@ cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
 cSC4AudioEventHandlerDisasterFire	audio	audio	audio-scape.md	-	-	-
 cSC4AudioPreferencesWinProc	windows and panels	ui	audio-preferences.md	-	-	-
 cSC4AudioCOMDirector	audio	audio	audio.md,audio-filters.md	-	-	-
+cSC4AudioAEMSEventSystem	audio	audio	audio.md,audio-owner-closure.md	-	-	-
+cSC4AudioAEMSSoundBank	audio	audio	audio.md	-	-	-
+cSC4AudioAmbienceLayer	audio	audio	audio-ambience.md,audio-owner-closure.md	-	-	-
+cSC4AudioListener	audio	audio	audio.md,audio-owner-contracts.md	-	-	-
+cSC4AudioSemManager	audio	audio	audio.md,audio-owner-contracts.md	-	-	-
+cSC4AudioEmanationModel*	audio	audio	audio.md,audio-owner-closure.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
@@ -371,7 +377,7 @@ cSC4SoundDescription	audio	audio	audio.md	-	-	-
 tSound	audio	audio	-	-	-	-
 cSC4MadCowPlayerWin	audio	audio	intro-video-player.md	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
-cGroupLayer	audio	audio	-	-	-	-
+cGroupLayer	audio	audio	audio-ambience.md,audio-owner-closure.md	-	-	-
 # ---- renderer
 nSGLDX7*	3D driver (DirectX 7)	renderer	renderer-driver.md	core/src/gdriver	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
@@ -958,7 +964,7 @@ FerryStationInformation	network manager	simulation	sim-misc.md, traffic-network.
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-	-	-	-
 MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
 cGXCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
-SFX	audio	audio	-	-	-	-
+SFX	audio	audio	audio.md,audio-owner-closure.md	-	-	-
 SC43DGridElement	3D scene and models	renderer	-	-	-	-
 MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
 cTablePropertyReader	advisors	simulation	sim-misc.md	-	-	-

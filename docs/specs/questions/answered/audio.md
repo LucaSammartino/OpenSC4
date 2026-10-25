@@ -132,3 +132,17 @@ superseded by the cited spec sections, checked against 1.1.641 instructions.
   **ANSWERED 2026-10-25 (re-audiofilters8):** already answered in audio.md §11.3 (no interleaving, OnStart
   ignores child results and returns true, PostAppInit's ten steps with no unwind, PreAppShutdown order versus the
   destructor's release order); archived here. The 83 leaves' tests are audio-filters.md.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- ~~**AU48 — AEMS owner lifetime and missing event-system bodies:** §10.7 specifies raw bank slurp,
+  resource TGI caching, successful AddBank linkage and registrar prerequisites, while §17 inventories
+  24 event-system entries but gives no full QI, constructor fields, Init/Shutdown, StopAllSounds,
+  event/service dispatch, bank removal/destruction, allocator and callback contracts. Please specify
+  them, plus AddBank result convention, file reference ownership, allocation/read failures and
+  the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
+  [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
+  Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]~~
+  **ANSWERED 2026-10-25 (re-audioclose8):** audio.md §10.7.1 answers every point (constructor, QI, Init and
+  Shutdown with the latch, StopAllSounds' 19 indices, Start/EndSound, DoEvent and the message callback, AddBank's
+  zero-means-success, RemoveBank, file ownership and the two GetSize calls, tuning read policy); archived here.
+  RemoveAllBanks' address and the view thunks are audio-owner-closure.md §1.

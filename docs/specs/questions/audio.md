@@ -28,16 +28,6 @@
   full SoundManager closure. Implement settled routing/state/IO separately while awaiting answers.]
 
 <!-- from: core-audio-close11 (2026-10-24) -->
-- **AU48 — AEMS owner lifetime and missing event-system bodies:** §10.7 specifies raw bank slurp,
-  resource TGI caching, successful AddBank linkage and registrar prerequisites, while §17 inventories
-  24 event-system entries but gives no full QI, constructor fields, Init/Shutdown, StopAllSounds,
-  event/service dispatch, bank removal/destruction, allocator and callback contracts. Please specify
-  them, plus AddBank result convention, file reference ownership, allocation/read failures and
-  the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
-  [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
-  Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]
-
-<!-- from: core-audio-close11 (2026-10-24) -->
 - **AU49 — start/position/stop instance completion:** §8.3 derives pause radius from the start
   parameter's low byte, but §10.6 step 4 assigns it from buffer property 0x38. What is the exact
   order and final value? Supply the tSound+14 constructor word passed to play(+14), buffer/QI and
