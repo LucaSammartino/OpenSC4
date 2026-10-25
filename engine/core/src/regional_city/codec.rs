@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{Commodity, Lifecycle, PendingChange, RegionalCity};
+use super::{Commodity, ConnectionHandle, DealHandle, Lifecycle, PendingChange, RegionalCity};
 use crate::neighbors::{flag, NeighborConnection, NeighborDeal};
 use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, ResKey};
 use std::collections::BTreeMap;
@@ -32,16 +32,16 @@ pub struct ReadContext<'a> {
 
 /// None represents an element that does not answer the serializable IID. The
 /// count is still written from the original list, as required by records §2.1.
-pub trait RecordElements {
-    fn connection(&mut self, c: &NeighborConnection, out: &mut dyn OutStream) -> Option<bool>;
-    fn deal(&mut self, d: &NeighborDeal, out: &mut dyn OutStream) -> Option<bool>;
+pub trait RecordElements<C = std::rc::Rc<NeighborConnection>, D = std::rc::Rc<NeighborDeal>> {
+    fn connection(&mut self, c: &C, out: &mut dyn OutStream) -> Option<bool>;
+    fn deal(&mut self, d: &D, out: &mut dyn OutStream) -> Option<bool>;
 }
 pub struct CoreElements;
 impl RecordElements for CoreElements {
-    fn connection(&mut self, c: &NeighborConnection, out: &mut dyn OutStream) -> Option<bool> {
+    fn connection(&mut self, c: &std::rc::Rc<NeighborConnection>, out: &mut dyn OutStream) -> Option<bool> {
         Some(c.write(out))
     }
-    fn deal(&mut self, d: &NeighborDeal, out: &mut dyn OutStream) -> Option<bool> {
+    fn deal(&mut self, d: &std::rc::Rc<NeighborDeal>, out: &mut dyn OutStream) -> Option<bool> {
         Some(d.write(out))
     }
 }
@@ -186,7 +186,10 @@ impl RegionalCity {
     pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
         self.write_record_with(out, &mut CoreElements)
     }
-    pub fn write_record_with(&self, out: &mut dyn OutStream, elements: &mut impl RecordElements) -> bool {
+}
+
+impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
+    pub fn write_record_with(&self, out: &mut dyn OutStream, elements: &mut impl RecordElements<C, D>) -> bool {
         out.put_u16(13);
         out.put_i32(self.position.0);
         out.put_i32(self.position.1);
@@ -269,7 +272,9 @@ impl RegionalCity {
         }
         out.error() == 0
     }
+}
 
+impl RegionalCity {
     pub fn read_record(
         inp: &mut dyn InStream,
         context: &ReadContext<'_>,

@@ -2,14 +2,23 @@
 //! Private static-link RegionalCity owner. No native object layout crosses FFI.
 use fc4_core::regional_city::RegionalCity;
 use std::sync::Mutex;
+#[path = "regionalcity_handles.rs"]
+mod handles;
+#[cfg(test)]
+#[path = "regionalcity_owner_tests.rs"]
+mod ownership_tests;
+use handles::{Connection, ConnectionCallbacks, Deal, DealCallbacks};
+use std::ffi::c_void;
 
-pub struct Owner(Mutex<RegionalCity>);
+type City = RegionalCity<Connection, Deal>;
+
+pub struct Owner(Mutex<City>);
 
 // All pointers must come from create and remain live until destroy. The caller
 // excludes destroy from concurrent calls; every state access takes the mutex.
 #[no_mangle]
 pub extern "C" fn fc4_regionalcity_owner_create(difficulty: u8) -> *mut Owner {
-    Box::into_raw(Box::new(Owner(Mutex::new(RegionalCity::new(difficulty)))))
+    Box::into_raw(Box::new(Owner(Mutex::new(City::with_handles(difficulty)))))
 }
 
 #[no_mangle]
@@ -20,14 +29,13 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_destroy(owner: *mut Owner) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_regionalcity_owner_get(
-    owner: *const Owner,
-    field: u32,
-    arg: u32,
-    out: *mut f64,
-) -> bool {
-    let (Some(owner), Some(out)) = (owner.as_ref(), out.as_mut()) else { return false };
-    let Ok(mut c) = owner.0.lock() else { return false };
+pub unsafe extern "C" fn fc4_regionalcity_owner_get(owner: *const Owner, field: u32, arg: u32, out: *mut f64) -> bool {
+    let (Some(owner), Some(out)) = (owner.as_ref(), out.as_mut()) else {
+        return false;
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
     *out = match field {
         0 => c.position.0 as f64,
         1 => c.position.1 as f64,
@@ -70,14 +78,13 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_get(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_regionalcity_owner_set(
-    owner: *mut Owner,
-    field: u32,
-    arg: u32,
-    value: f64,
-) -> bool {
-    let Some(owner) = owner.as_ref() else { return false };
-    let Ok(mut c) = owner.0.lock() else { return false };
+pub unsafe extern "C" fn fc4_regionalcity_owner_set(owner: *mut Owner, field: u32, arg: u32, value: f64) -> bool {
+    let Some(owner) = owner.as_ref() else {
+        return false;
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
     match field {
         10 => c.set_serial_number(value as u32),
         11 => c.set_birth_date(value as u32),
@@ -104,21 +111,29 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_position(
     z: i32,
     move_connections: bool,
 ) -> bool {
-    let Some(owner) = owner.as_ref() else { return false };
-    let Ok(mut c) = owner.0.lock() else { return false };
+    let Some(owner) = owner.as_ref() else {
+        return false;
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
     c.set_position(x, z, move_connections);
     true
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn fc4_regionalcity_owner_size(owner: *mut Owner, x: i32, z: i32) -> bool {
-    let Some(owner) = owner.as_ref() else { return false };
-    let Ok(mut c) = owner.0.lock() else { return false };
+    let Some(owner) = owner.as_ref() else {
+        return false;
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
     c.set_city_size((x, z));
     true
 }
 
-fn text(c: &mut RegionalCity, field: u32) -> Option<&mut Vec<u8>> {
+fn text(c: &mut City, field: u32) -> Option<&mut Vec<u8>> {
     Some(match field {
         30 => &mut c.city_name,
         31 => &mut c.mayor_name,
@@ -138,9 +153,15 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_text(
     out: *mut u8,
     capacity: u32,
 ) -> u32 {
-    let Some(owner) = owner.as_ref() else { return u32::MAX };
-    let Ok(mut c) = owner.0.lock() else { return u32::MAX };
-    let Some(bytes) = text(&mut c, field) else { return u32::MAX };
+    let Some(owner) = owner.as_ref() else {
+        return u32::MAX;
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return u32::MAX;
+    };
+    let Some(bytes) = text(&mut c, field) else {
+        return u32::MAX;
+    };
     if !out.is_null() && capacity as usize >= bytes.len() {
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
     }
@@ -154,14 +175,95 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_set_text(
     bytes: *const u8,
     len: u32,
 ) -> bool {
-    let Some(owner) = owner.as_ref() else { return false };
+    let Some(owner) = owner.as_ref() else {
+        return false;
+    };
     if bytes.is_null() && len != 0 {
         return false;
     }
-    let Ok(mut c) = owner.0.lock() else { return false };
-    let Some(dst) = text(&mut c, field) else { return false };
-    let src = if len == 0 { &[] } else { std::slice::from_raw_parts(bytes, len as usize) };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
+    let Some(dst) = text(&mut c, field) else {
+        return false;
+    };
+    let src = if len == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(bytes, len as usize)
+    };
     *dst = src.to_vec();
+    true
+}
+
+// Replace a list of borrowed host references. Every accepted element is AddRef'd;
+// rejected lists are rolled back and old contents remain intact.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_regionalcity_owner_connections(
+    owner: *mut Owner,
+    objects: *const *mut c_void,
+    count: u32,
+    calls: *const ConnectionCallbacks,
+) -> bool {
+    let (Some(owner), Some(calls)) = (owner.as_ref(), calls.as_ref()) else {
+        return false;
+    };
+    if objects.is_null() && count != 0 {
+        return false;
+    }
+    let objects = if count == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(objects, count as usize)
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
+    let Some(list) = objects
+        .iter()
+        .map(|&o| Connection::acquire(o, *calls))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    c.connections = list;
+    true
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_regionalcity_owner_deals(
+    owner: *mut Owner,
+    local: bool,
+    objects: *const *mut c_void,
+    count: u32,
+    calls: *const DealCallbacks,
+) -> bool {
+    let (Some(owner), Some(calls)) = (owner.as_ref(), calls.as_ref()) else {
+        return false;
+    };
+    if objects.is_null() && count != 0 {
+        return false;
+    }
+    let objects = if count == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(objects, count as usize)
+    };
+    let Ok(mut c) = owner.0.lock() else {
+        return false;
+    };
+    let Some(list) = objects
+        .iter()
+        .map(|&o| Deal::acquire(o, *calls))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    if local {
+        c.local_deals = list;
+    } else {
+        c.other_deals = list;
+    }
     true
 }
 
@@ -215,7 +317,10 @@ mod tests {
             assert!(!fc4_regionalcity_owner_set_text(owner, 30, std::ptr::null(), 1));
             assert!(fc4_regionalcity_owner_set_text(owner, 30, std::ptr::null(), 0));
             assert_eq!(fc4_regionalcity_owner_text(owner, 30, std::ptr::null_mut(), 0), 0);
-            assert_eq!(fc4_regionalcity_owner_text(owner, 999, std::ptr::null_mut(), 0), u32::MAX);
+            assert_eq!(
+                fc4_regionalcity_owner_text(owner, 999, std::ptr::null_mut(), 0),
+                u32::MAX
+            );
             assert!(!fc4_regionalcity_owner_get(owner, 0, 0, std::ptr::null_mut()));
             assert!(!fc4_regionalcity_owner_get(std::ptr::null(), 0, 0, &mut 0.0));
             fc4_regionalcity_owner_destroy(owner);

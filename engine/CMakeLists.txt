@@ -1273,3 +1273,12 @@ if(TARGET fc4_plugin_load_test)
     target_compile_options(fc4_lot_record_view_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME lot_record_view_test COMMAND fc4_lot_record_view_test)
 endif()
+
+# RegionalCity private C transport: real Rust owner and host-reference callbacks.
+if(TARGET FreeCity4)
+    add_executable(fc4_regionalcity_owner_test tests/regionalcity_owner_test.cpp)
+    target_include_directories(fc4_regionalcity_owner_test PRIVATE plugin)
+    target_compile_options(fc4_regionalcity_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_regionalcity_owner_test PRIVATE fc4_capi)
+    add_test(NAME regionalcity_owner_test COMMAND fc4_regionalcity_owner_test)
+endif()
