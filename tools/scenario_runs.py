@@ -227,6 +227,10 @@ def analyze(log, run):
 def summarize(out, manifest):
     rows, action_rows, findings = [], [], []
     by_key = defaultdict(list)
+    aborts = {}
+    if (out / "aborts.tsv").exists():
+        with (out / "aborts.tsv").open(encoding="utf-8-sig", newline="") as stream:
+            aborts = {row["scenario"]: row for row in csv.DictReader(stream, delimiter="\t")}
     for run in manifest["runs"]:
         label = run["scenario"]
         results = ROOT / run["root"] / "build-runs/game-results"
@@ -234,6 +238,12 @@ def summarize(out, manifest):
         verdict_file = results / (label + ".verdict")
         verdict_text = verdict_file.read_text(encoding="utf-8", errors="replace") if verdict_file.exists() else ""
         verdict = verdict_text.splitlines()[0].removeprefix("verdict: ") if verdict_text else "pending"
+        if label in aborts:
+            annotation = aborts[label]
+            findings.append(dict(scenario=label, seed=run["seed"], mix=run["mix"], city=run["city"],
+                key="operator_abort", log_line=annotation.get("log_line", "-"), preceding_script_line="-",
+                preceding_script_text="-", evidence=annotation["reason"] + "; raw verdict=" + verdict))
+            verdict = "aborted"
         acts, shadows, issues, dates, dps, complete = analyze(log, run) if log.exists() else ({}, {}, [], [], "-", False)
         findings.extend(issues)
         for op, counts in sorted(acts.items()):

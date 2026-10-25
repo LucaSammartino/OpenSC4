@@ -1,5 +1,6 @@
 """Evidence must distinguish refusals, resynced shadows and incomplete scripts."""
 import importlib.util
+import csv
 from pathlib import Path
 import sys
 import tempfile
@@ -14,6 +15,31 @@ spec.loader.exec_module(runs)
 
 
 class ScenarioEvidenceTests(unittest.TestCase):
+    def test_abort_annotation_overrides_fallback_without_changing_raw_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "suite"
+            out.mkdir()
+            results = root / "worker/build-runs/game-results"
+            results.mkdir(parents=True)
+            (root / "actions.script").write_text("2026-01-01 mark test\n", encoding="utf-8")
+            (results / "case.log").write_text("", encoding="utf-8")
+            raw = results / "case.verdict"
+            raw.write_text("verdict: clean\nclean (fallback)\n", encoding="utf-8")
+            (out / "aborts.tsv").write_text("scenario\treason\tlog_line\ncase\tstuck before actions\t2\n",
+                                           encoding="utf-8-sig")
+            run = dict(scenario="case", seed=2, mix="edge", city="fixture", root="worker",
+                       script="actions.script", start="2026-01-01", end="2028-01-01")
+            with patch.object(runs, "ROOT", root), patch("scenario_discovery.ROOT", root):
+                runs.summarize(out, dict(runs=[run]))
+            with (out / "summary.tsv").open() as stream:
+                row = next(csv.DictReader(stream, delimiter="\t"))
+            self.assertEqual(row["verdict"], "aborted")
+            self.assertEqual(row["end_reached"], "false")
+            self.assertEqual(raw.read_text(), "verdict: clean\nclean (fallback)\n")
+            self.assertIn("operator_abort", (out / "findings.tsv").read_text())
+            self.assertIn("raw verdict=clean", (out / "findings.tsv").read_text())
+
     def test_discovery_request_does_not_starve_regress_or_keep_dialogs(self):
         old = "label = case\npriority = high\nregion = Berlin\n[ini]\nclose_dialogs = 0\nscript = a.script\n"
         request = runs.discovery_request(old)
