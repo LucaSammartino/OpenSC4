@@ -105,3 +105,14 @@ implementer of the class tables and records.
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
 
+<!-- from: replace-netocc27 (2026-10-25) -->
+- **NO44 - native power-line tool / replacement pole boundary:** power-line-tool §§5.2–5.3 describe
+  `0x00649910` and `0x0064E3E0`, but docs/abi/direct-calls.md publishes only the pole RemoveConnection
+  call. Please publish the calling conventions, stack cleanup, return channels, exact pointer views,
+  wire-vector/list element layouts and allocation/free ownership for both helpers, and the output
+  container contract for pole slots 5/16. Which other concrete pole fields/helpers does the native
+  tool access during placement, preview undo, extension, zone repair and demolition? In particular,
+  can every non-interface access be interposed, or must an FC4 pole expose native-layout connection
+  storage? The current plugin keeps the pole factory native; enabling an incompatible pole would
+  make the interactive tool unsafe. No replacement-pole game credit is claimed. [missing ABI]
+

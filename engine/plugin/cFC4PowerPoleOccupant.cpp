@@ -3,11 +3,12 @@
 // inherited occupant slots (FC4OccupantAdapter.h). The state, the v5 record,
 // connections, StaticInit and the attachment tables live in the core
 // (engine/capi/src/netocc_pole.rs over core/src/network_occupants/power_pole.rs).
-// SPEC-GAP: NO33/NO43 leave the model, wires, floor drawing, cell walk and
-// Pick open; this pole draws nothing and reports no line cells.
+// The native tool bridge and cell-vector ABI remain open (NO44). Model/Draw
+// glue is still unwired; keep the live pole factory native until both are safe.
 #include "cFC4PowerPoleOccupant.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Interfaces.h"
 #include "FC4OccupantAdapter.h"
 #include "FC4Streams.h"
 #include "compat/FC4Compat.h"
@@ -20,6 +21,7 @@
 #include "cISC4App.h"
 #include "cISC4City.h"
 #include "cISC4OccupantManager.h"
+#include "cISC4VisualEffect.h"
 #include "cS3DVector3.h"
 #include <atomic>
 
@@ -72,6 +74,11 @@ struct PoleHostVt {
     void (*reciprocalRemove)(void*, uint64_t, uint64_t, bool);
     void (*postMessage)(void*, uint32_t, uint32_t);
     void (*subscription)(void*, uint32_t, bool);
+    uint64_t (*effectCreate)(void*);
+    void (*effectPlace)(void*, uint64_t, const float*);
+    void (*effectStart)(void*, uint64_t);
+    bool (*effectRunning)(void*, uint64_t);
+    void (*effectStop)(void*, uint64_t, bool);
 };
 struct PoleTuning {
     uint32_t present;
@@ -152,7 +159,8 @@ class PowerPole final : public PoleInterface,
 public:
     PowerPole() : holder_(static_cast<PoleInterface*>(this)), core_(fc4_netpole_create()) {
         vt_ = {this, &HostAddRef, &HostRelease, &HostInsertLine, &HostRemoveLine, &HostReciprocal, &HostPost,
-               &HostSubscribe};
+               &HostSubscribe, &HostEffectCreate, &HostEffectPlace, &HostEffectStart, &HostEffectRunning,
+               &HostEffectStop};
     }
     ~PowerPole() {
         if (State().subscribed) Subscribe(0x99EF1142, false);
@@ -187,7 +195,7 @@ public:
     // ---- cISC4PowerPoleOccupant ----
     cISC4Occupant* AsOccupant() override { return this; }
     uint32_t GetConnectionCount() override { Lock g(lock_); return fc4_netpole_connection_count(core_); }
-    // SPEC-GAP: NO33/NO43 leave the owner's cell walk open.
+    // SPEC-GAP: the native cell-vector output ABI is missing (NO44).
     bool GetLineCells(uint32_t, void*) override { return false; }
     bool BreakAllConnections(bool quiet) override {
         Lock g(lock_); fc4_netpole_break_all(core_, Self(), quiet, &vt_); return true;
@@ -219,7 +227,7 @@ public:
     }
     bool GetLineCellsTo(cIGZUnknown*, void*) override { return false; }
     bool GetModelInstances(void*, void**, void*, void*, uint32_t* count) override {
-        if (count) *count = 0;  // SPEC-GAP: no model (NO33)
+        if (count) *count = 0;  // Model host (4.7.3) is not wired yet.
         return false;
     }
     bool ChangeZoomLevel(void*) override { return true; }
@@ -260,7 +268,9 @@ public:
         Lock g(lock_); auto s = State();
         s.position[0] = p->fX; s.position[1] = p->fY; s.position[2] = p->fZ;
         s.cell[0] = static_cast<int32_t>(p->fX * 0.0625f); s.cell[1] = static_cast<int32_t>(p->fZ * 0.0625f);
-        Put(s); return true;
+        Put(s);
+        if (effect_) HostEffectPlace(this, Tok(effect_), s.position);
+        return true;
     }
     // §4.7.2: the cells of the pole and of its wired records. The cell size
     // is the city's 16 m (the native statics come from city slots 91, 92).
@@ -337,7 +347,12 @@ private:
 
     static PowerPole* From(void* u) { return static_cast<PowerPole*>(u); }
     static void HostAddRef(void*, uint64_t t) { if (auto* p = Ptr(t)) FC4_ADDREF(p); }
-    static void HostRelease(void*, uint64_t t) { if (auto* p = Ptr(t)) FC4_RELEASE(p); }
+    static void HostRelease(void* u, uint64_t t) {
+        if (auto* p = Ptr(t)) {
+            if (p == From(u)->effect_) From(u)->effect_ = nullptr;
+            FC4_RELEASE(p);
+        }
+    }
     static cISC4Occupant* AsOcc(uint64_t t) {
         cISC4Occupant* occ = nullptr;
         if (auto* p = Ptr(t)) p->QueryInterface(0x26BB767E, reinterpret_cast<void**>(&occ));
@@ -354,6 +369,35 @@ private:
     static void HostReciprocal(void*, uint64_t other, uint64_t self, bool quiet);
     static void HostPost(void* u, uint32_t m, uint32_t d) { From(u)->PostOccupantMessage(m, d); }
     static void HostSubscribe(void* u, uint32_t m, bool on) { From(u)->Subscribe(m, on); }
+    static uint64_t HostEffectCreate(void* u) {
+        cISC4AppPtr app;
+        auto* city = app ? app->GetCity() : nullptr;
+        auto* manager = city ? city->GetEffectsManager() : nullptr; // borrowed
+        cISC4VisualEffect* effect = nullptr;
+        if (!manager || !reinterpret_cast<cFC4ISC4EffectsManager*>(manager)->CreateVisualEffectByName(
+                            "powerpolezap", &effect) || !effect) return 0;
+        FC4_ACQUIRED(effect);
+        From(u)->effect_ = reinterpret_cast<cIGZUnknown*>(effect); // borrowed from the core's owned reference
+        return Tok(effect);
+    }
+    static cFC4ISC4VisualEffect* Effect(uint64_t t) {
+        return reinterpret_cast<cFC4ISC4VisualEffect*>(static_cast<uintptr_t>(t));
+    }
+    static void HostEffectPlace(void*, uint64_t t, const float* position) {
+        // network-occupants 4.1/4.7: counter, mask, padding, matrix, translation, scale.
+        struct Transform {
+            uint8_t counter = 1, mask = 1, padding[2]{};
+            float matrix[9] = {1,0,0,0,1,0,0,0,1};
+            float translation[3]{};
+            float scale = 1;
+        } transform;
+        static_assert(sizeof(Transform) == 0x38, "S3DTransform");
+        std::memcpy(transform.translation, position, sizeof(transform.translation));
+        Effect(t)->SetTransform(reinterpret_cast<const cS3DTransform&>(transform));
+    }
+    static void HostEffectStart(void*, uint64_t t) { Effect(t)->Start(0); }
+    static bool HostEffectRunning(void*, uint64_t t) { return Effect(t)->IsStarted(); }
+    static void HostEffectStop(void*, uint64_t t, bool immediate) { Effect(t)->Stop(immediate ? 1u : 0u); }
 
     std::atomic<uint32_t> refs_{0};
     std::recursive_mutex lock_;
@@ -361,6 +405,7 @@ private:
     cFC4PropertyHolder holder_;
     void* core_;
     PoleHostVt vt_{};
+    cIGZUnknown* effect_ = nullptr;
 };
 
 PowerPole* FromPole(cIGZUnknown* pole) {

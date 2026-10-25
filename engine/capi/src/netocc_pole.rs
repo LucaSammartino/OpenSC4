@@ -8,10 +8,10 @@ use crate::guard;
 use crate::props::{fc4_props, props_ref};
 use crate::stream::{fc4_istream, fc4_ostream, istream_ok, ostream_ok, CIn, COut};
 use fc4_core::automata::OccupantBase;
-use fc4_core::network_occupants::pylon::{References, RenderStateArgs};
 use fc4_core::network_occupants::power_pole::{
     AttachmentTables, PoleHost, PoleRecordHost, PoleStaticHost, PoleStatics, PowerPole,
 };
+use fc4_core::network_occupants::pylon::{References, RenderStateArgs};
 use fc4_core::property::PropertyHolder;
 use fc4_core::stream::{RefValue, ResKey};
 use std::ffi::c_void;
@@ -50,6 +50,11 @@ pub struct PoleHostVt {
     reciprocal_remove: Option<unsafe extern "C" fn(*mut c_void, u64, u64, bool)>,
     post_message: Option<unsafe extern "C" fn(*mut c_void, u32, u32)>,
     subscription: Option<unsafe extern "C" fn(*mut c_void, u32, bool)>,
+    effect_create: Option<unsafe extern "C" fn(*mut c_void) -> u64>,
+    effect_place: Option<unsafe extern "C" fn(*mut c_void, u64, *const f32)>,
+    effect_start: Option<unsafe extern "C" fn(*mut c_void, u64)>,
+    effect_running: Option<unsafe extern "C" fn(*mut c_void, u64) -> bool>,
+    effect_stop: Option<unsafe extern "C" fn(*mut c_void, u64, bool)>,
 }
 
 /// The control exemplar's values (§4.3), read once by the plugin. `present`
@@ -123,6 +128,9 @@ impl References for Host<'_> {
     }
 }
 impl PoleHost for Host<'_> {
+    fn cell_size(&mut self) -> [f32; 2] {
+        with_shared(|s| s.statics.cell_size)
+    }
     fn insert_line(&mut self, line: &RefValue, _: u32) {
         if let (Some(f), t) = (self.vt.insert_line, token(line)) {
             if t != 0 {
@@ -147,19 +155,33 @@ impl PoleHost for Host<'_> {
             unsafe { f(self.vt.user, message, data) }
         }
     }
-    // SPEC-GAP: NO33/NO43 leave the owner cell walk open; no cells reported.
+    // SPEC-GAP: cross-pole cell output requires the native vector ABI (NO44).
     fn lines_to(&mut self, _: &RefValue, _: &RefValue, _: &mut Vec<(i32, i32)>) -> bool {
         false
     }
-    // SPEC-GAP: no effects host is wired for the plugin pole; the
-    // "powerpolezap" effect is not shown (visual only, §4.7).
     fn create_effect(&mut self, _: &str) -> RefValue {
-        RefValue::Null
+        host_ref(self.vt.effect_create.map_or(0, |f| unsafe { f(self.vt.user) }), 0)
     }
-    fn place_effect(&mut self, _: &RefValue, _: [f32; 3], _: [f32; 9], _: f32) {}
-    fn start_effect(&mut self, _: &RefValue) {}
-    fn stop_effect(&mut self, _: &RefValue) {}
-    fn finish_effect(&mut self, _: &RefValue) {}
+    fn place_effect(&mut self, effect: &RefValue, position: [f32; 3], _: [f32; 9], _: f32) {
+        if let Some(f) = self.vt.effect_place {
+            unsafe { f(self.vt.user, token(effect), position.as_ptr()) }
+        }
+    }
+    fn start_effect(&mut self, effect: &RefValue) {
+        if let Some(f) = self.vt.effect_start {
+            unsafe { f(self.vt.user, token(effect)) }
+        }
+    }
+    fn effect_running(&mut self, effect: &RefValue) -> bool {
+        self.vt
+            .effect_running
+            .is_some_and(|f| unsafe { f(self.vt.user, token(effect)) })
+    }
+    fn stop_effect(&mut self, effect: &RefValue, immediate: bool) {
+        if let Some(f) = self.vt.effect_stop {
+            unsafe { f(self.vt.user, token(effect), immediate) }
+        }
+    }
     fn subscription(&mut self, message: u32, subscribe: bool) {
         if let Some(f) = self.vt.subscription {
             unsafe { f(self.vt.user, message, subscribe) }
@@ -189,9 +211,15 @@ impl PoleStaticHost for Host<'_> {
     fn float_property(&self, property: u32) -> Option<f32> {
         let t = self.tuning?;
         use fc4_core::network_occupants::power_pole::*;
-        let i = [PROP_E9A18D3F, PROP_49A1E8C4, PROP_89A18FC4, PROP_E9A1E8D4, PROP_49A195C0]
-            .iter()
-            .position(|&p| p == property)?;
+        let i = [
+            PROP_E9A18D3F,
+            PROP_49A1E8C4,
+            PROP_89A18FC4,
+            PROP_E9A1E8D4,
+            PROP_49A195C0,
+        ]
+        .iter()
+        .position(|&p| p == property)?;
         (t.present & (1 << i) != 0).then_some(t.floats[i])
     }
     fn uint_property(&self, property: u32) -> Option<u32> {
@@ -345,9 +373,8 @@ pub unsafe extern "C" fn fc4_netpole_connected_pole(p: *const PowerPole, i: u32)
 #[no_mangle]
 pub unsafe extern "C" fn fc4_netpole_has_connection(p: *const PowerPole, pole: u64) -> bool {
     guard(false, || {
-        p.as_ref().is_some_and(|p| {
-            pole != 0 && p.fields.connections.iter().any(|c| token(&c.pole) == pole)
-        })
+        p.as_ref()
+            .is_some_and(|p| pole != 0 && p.fields.connections.iter().any(|c| token(&c.pole) == pole))
     })
 }
 
@@ -416,7 +443,7 @@ pub unsafe extern "C" fn fc4_netpole_shutdown(p: *mut PowerPole, this: u64, vt: 
 
 /// Main slot 15 after the occupant Init: StaticInit, the kind, the exemplar
 /// key and the attachment table its instance selects (§4.3, §4.6).
-/// SPEC-GAP: NO33 leaves the model load open; no model is made.
+/// The plugin's model resource/instance host (4.7.3) is not wired yet.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_netpole_init(p: *mut PowerPole, key: *const [u32; 3], kind: u32, vt: *const PoleHostVt) {
     guard((), || {
@@ -555,7 +582,13 @@ pub unsafe extern "C" fn fc4_netpole_props(
             return;
         };
         for id in p.base.holder.own.ids() {
-            if let Some(v) = p.base.holder.own.get(id).and_then(crate::neighbors::connection_property) {
+            if let Some(v) = p
+                .base
+                .holder
+                .own
+                .get(id)
+                .and_then(crate::neighbors::connection_property)
+            {
                 cb(ctx, id, v.mem_type, v.is_array, v.bytes.as_ptr().cast(), v.count);
             }
         }
@@ -572,6 +605,9 @@ mod tests {
         refs: Vec<(u64, i32)>,
         messages: Vec<u32>,
         reciprocal: Vec<(u64, u64, bool)>,
+        effects: Vec<String>,
+        effect_fail: bool,
+        effect_running: bool,
     }
     unsafe extern "C" fn add_ref(u: *mut c_void, t: u64) {
         (*(u as *const RefCell<Log>)).borrow_mut().refs.push((t, 1));
@@ -585,6 +621,40 @@ mod tests {
     unsafe extern "C" fn reciprocal(u: *mut c_void, o: u64, t: u64, q: bool) {
         (*(u as *const RefCell<Log>)).borrow_mut().reciprocal.push((o, t, q));
     }
+    unsafe extern "C" fn effect_create(u: *mut c_void) -> u64 {
+        let mut log = (*(u as *const RefCell<Log>)).borrow_mut();
+        log.effects.push("create".into());
+        if log.effect_fail {
+            0
+        } else {
+            0x70
+        }
+    }
+    unsafe extern "C" fn effect_place(u: *mut c_void, t: u64, p: *const f32) {
+        assert_eq!(t, 0x70);
+        let position = std::slice::from_raw_parts(p, 3);
+        (*(u as *const RefCell<Log>))
+            .borrow_mut()
+            .effects
+            .push(format!("place{position:?}"));
+    }
+    unsafe extern "C" fn effect_start(u: *mut c_void, t: u64) {
+        assert_eq!(t, 0x70);
+        (*(u as *const RefCell<Log>)).borrow_mut().effects.push("start".into());
+    }
+    unsafe extern "C" fn effect_running(u: *mut c_void, t: u64) -> bool {
+        assert_eq!(t, 0x70);
+        let mut log = (*(u as *const RefCell<Log>)).borrow_mut();
+        log.effects.push("running".into());
+        log.effect_running
+    }
+    unsafe extern "C" fn effect_stop(u: *mut c_void, t: u64, immediate: bool) {
+        assert_eq!(t, 0x70);
+        (*(u as *const RefCell<Log>))
+            .borrow_mut()
+            .effects
+            .push(format!("stop{immediate}"));
+    }
     fn vt(log: &RefCell<Log>) -> PoleHostVt {
         PoleHostVt {
             user: log as *const _ as *mut c_void,
@@ -595,6 +665,57 @@ mod tests {
             reciprocal_remove: Some(reciprocal),
             post_message: Some(post),
             subscription: None,
+            effect_create: None,
+            effect_place: None,
+            effect_start: None,
+            effect_running: None,
+            effect_stop: None,
+        }
+    }
+
+    #[test]
+    fn distress_callbacks_retry_stop_modes_and_owned_reference() {
+        let log = RefCell::new(Log {
+            effect_fail: true,
+            effect_running: true,
+            ..Default::default()
+        });
+        let mut v = vt(&log);
+        v.effect_create = Some(effect_create);
+        v.effect_place = Some(effect_place);
+        v.effect_start = Some(effect_start);
+        v.effect_running = Some(effect_running);
+        v.effect_stop = Some(effect_stop);
+        unsafe {
+            let p = fc4_netpole_create();
+            (*p).fields.position = [10.0, 20.0, 30.0];
+            fc4_netpole_set_distressed(p, true, &v);
+            assert!((*p).is_distressed());
+            assert_eq!(log.borrow().effects, ["create"]);
+            log.borrow_mut().effect_fail = false;
+            log.borrow_mut().effects.clear();
+            fc4_netpole_set_distressed(p, true, &v);
+            fc4_netpole_set_distressed(p, true, &v);
+            fc4_netpole_set_distressed(p, false, &v);
+            assert_eq!(
+                log.borrow().effects,
+                ["create", "place[10.0, 20.0, 30.0]", "start", "running", "stopfalse"]
+            );
+            assert_eq!(log.borrow().refs, [(0x70, -1)]);
+            log.borrow_mut().effect_running = false;
+            fc4_netpole_set_distressed(p, true, &v);
+            log.borrow_mut().effects.clear();
+            fc4_netpole_set_distressed(p, false, &v);
+            assert_eq!(log.borrow().effects, ["running"]);
+            fc4_netpole_set_distressed(p, true, &v);
+            log.borrow_mut().effects.clear();
+            fc4_netpole_shutdown(p, 9, &v);
+            assert_eq!(log.borrow().effects, ["stoptrue"]);
+            fc4_netpole_set_distressed(p, true, &v);
+            log.borrow_mut().effects.clear();
+            fc4_netpole_destroy(p, &v);
+            assert!(log.borrow().effects.is_empty());
+            assert_eq!(log.borrow().refs, [(0x70, -1); 4]);
         }
     }
 
@@ -633,12 +754,14 @@ mod tests {
             fc4_netpole_init(p, &[1, 2, 0x0000_0300], 7, &v);
             assert_eq!((*p).wire_exemplar_index, 7);
             assert!((*p).connection_point_table.is_some());
-            (*p).fields.connections.push(fc4_core::network_occupants::power_pole::PoleConnection {
-                pole: host_ref(0x50, 0x09C0_5C6A),
-                wire_points: vec![host_ref(0x60, 0xC9C0_5C5D)],
-                flags: [1, 1],
-                ..Default::default()
-            });
+            (*p).fields
+                .connections
+                .push(fc4_core::network_occupants::power_pole::PoleConnection {
+                    pole: host_ref(0x50, 0x09C0_5C6A),
+                    wire_points: vec![host_ref(0x60, 0xC9C0_5C5D)],
+                    flags: [1, 1],
+                    ..Default::default()
+                });
             assert!(fc4_netpole_has_connection(p, 0x50));
             assert_eq!(fc4_netpole_connected_pole(p, 0), 0x50);
             assert_eq!(fc4_netpole_connected_pole(p, 1), 0);
@@ -660,10 +783,12 @@ mod tests {
             let v = vt(&log);
             let p = fc4_netpole_create();
             for t in [0x51u64, 0x52] {
-                (*p).fields.connections.push(fc4_core::network_occupants::power_pole::PoleConnection {
-                    pole: host_ref(t, 0x09C0_5C6A),
-                    ..Default::default()
-                });
+                (*p).fields
+                    .connections
+                    .push(fc4_core::network_occupants::power_pole::PoleConnection {
+                        pole: host_ref(t, 0x09C0_5C6A),
+                        ..Default::default()
+                    });
             }
             fc4_netpole_remove_connection(p, 0x51, true, &v);
             assert_eq!(fc4_netpole_connection_count(p), 1);
