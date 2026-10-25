@@ -12,7 +12,7 @@
 // GZCOM by the "create" dispatch command and driven by the other commands.
 //
 // The MySims' GZCOM fronts are the advisor fronts (cFC4Advisor, §12.2 of
-// advisors.md); cISC4MySim (§7.2) is not answered.
+// advisors.md), with a cISC4MySim (§7.2) interface for MySim classes.
 #pragma once
 
 #include "fc4.h"
@@ -20,6 +20,7 @@
 #include <cstdint>
 
 class cIGZUnknown;
+class cFC4Advisor;
 
 constexpr uint32_t kFC4_CLSID_cSC4MySim = 0x4A1DBBBF;
 constexpr uint32_t kFC4_CLSID_cSC4MyStreetSim = 0x0BF606A5;
@@ -41,6 +42,13 @@ void MySimReplacementStop(fc4_advisors* core);
 
 // The number of live dispatches (tests, logs).
 size_t MySimReplacementDispatchCount();
+
+// Object-created callback: both advisor and MySim interfaces share one
+// core handle, identity and reference count.
+uint64_t CreateMySimFront(fc4_adv_obj* handle);
+void FillMySimLuaHost(fc4_mysim_host* host);
+bool ActivateMySimLua(int32_t id);
+std::string MySimScriptAction(bool moveIn);
 
 }  // namespace fc4
 

@@ -2416,59 +2416,61 @@ fn key_out(k: fc4_core::stream::ResKey) -> fc4_res_key {
 #[no_mangle]
 pub unsafe extern "C" fn fc4_mysim_get_state(p: *const fc4_advisors, id: i32, out: *mut fc4_mysim_state) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    with_sim(p, id, false, |m| {
-        let s = m.state();
-        *o = fc4_mysim_state {
-            struct_size: std::mem::size_of::<fc4_mysim_state>() as u32,
-            state: s.state,
-            slot: s.slot,
-            wealth: s.wealth,
-            sign: s.sign,
-            is_male: s.is_male.into(),
-            age: s.age,
-            birth_month: s.birth_month,
-            retired: s.retired.into(),
-            neighbor_job: s.neighbor_job.into(),
-            commute_check: s.commute_check.into(),
-            lua_table: s.lua_table.into(),
-            unnamed_flag: s.unnamed_flag.into(),
-            eq_index: s.eq_index,
-            hq_index: s.hq_index,
-            generation: s.generation,
-            home_cell_x: s.home_cell.0,
-            home_cell_z: s.home_cell.1,
-            neighbor_cell: [s.neighbor_cell.0, s.neighbor_cell.1],
-            commute_cell: [s.commute_cell.0, s.commute_cell.1],
-            jobless_days: s.jobless_days,
-            bitmap_id: s.bitmap_id,
-            last_commute_time: s.last_commute_time,
-            last_local_disaster: s.last_local_disaster,
-            home_position: s.home_position,
-            eq: s.eq,
-            hq: s.hq,
-            eq_delta: s.eq_delta,
-            hq_delta: s.hq_delta,
-            eq_ring: s.eq_ring,
-            hq_ring: s.hq_ring,
-            vehicle_key: key_out(s.vehicle_key),
-            car_key: key_out(s.car_key),
-            pedestrian_key: key_out(s.pedestrian_key),
-            unnamed_pair: [s.unnamed_pair.0, s.unnamed_pair.1],
-            last_player_trip_day: s.last_player_trip_day,
-            last_trip_update_day: s.last_trip_update_day,
-            local_area_size: s.local_area_size,
-            pylon_units: s.pylon.0,
-            pylon_running: s.pylon.2,
-            reserved: [0; 2],
-            local_group_count: s.local.len() as u32,
-            pylon_elapsed: s.pylon.1,
-            residence: s.residence.unwrap_or(0),
-            job: s.job.unwrap_or(0),
-            dispatch: s.dispatch.unwrap_or(0),
-            dispatch_tool: s.dispatch_tool.unwrap_or(0),
-        };
-        true
-    })
+    with_sim(p, id, false, |m| mysim_state(m, o))
+}
+
+fn mysim_state(m: &MySim, o: &mut fc4_mysim_state) -> bool {
+    let s = m.state();
+    *o = fc4_mysim_state {
+        struct_size: std::mem::size_of::<fc4_mysim_state>() as u32,
+        state: s.state,
+        slot: s.slot,
+        wealth: s.wealth,
+        sign: s.sign,
+        is_male: s.is_male.into(),
+        age: s.age,
+        birth_month: s.birth_month,
+        retired: s.retired.into(),
+        neighbor_job: s.neighbor_job.into(),
+        commute_check: s.commute_check.into(),
+        lua_table: s.lua_table.into(),
+        unnamed_flag: s.unnamed_flag.into(),
+        eq_index: s.eq_index,
+        hq_index: s.hq_index,
+        generation: s.generation,
+        home_cell_x: s.home_cell.0,
+        home_cell_z: s.home_cell.1,
+        neighbor_cell: [s.neighbor_cell.0, s.neighbor_cell.1],
+        commute_cell: [s.commute_cell.0, s.commute_cell.1],
+        jobless_days: s.jobless_days,
+        bitmap_id: s.bitmap_id,
+        last_commute_time: s.last_commute_time,
+        last_local_disaster: s.last_local_disaster,
+        home_position: s.home_position,
+        eq: s.eq,
+        hq: s.hq,
+        eq_delta: s.eq_delta,
+        hq_delta: s.hq_delta,
+        eq_ring: s.eq_ring,
+        hq_ring: s.hq_ring,
+        vehicle_key: key_out(s.vehicle_key),
+        car_key: key_out(s.car_key),
+        pedestrian_key: key_out(s.pedestrian_key),
+        unnamed_pair: [s.unnamed_pair.0, s.unnamed_pair.1],
+        last_player_trip_day: s.last_player_trip_day,
+        last_trip_update_day: s.last_trip_update_day,
+        local_area_size: s.local_area_size,
+        pylon_units: s.pylon.0,
+        pylon_running: s.pylon.2,
+        reserved: [0; 2],
+        local_group_count: s.local.len() as u32,
+        pylon_elapsed: s.pylon.1,
+        residence: s.residence.unwrap_or(0),
+        job: s.job.unwrap_or(0),
+        dispatch: s.dispatch.unwrap_or(0),
+        dispatch_tool: s.dispatch_tool.unwrap_or(0),
+    };
+    true
 }
 
 /// The MySim's bio (`which` 0) or portrait path (1), NUL-terminated.
@@ -2583,6 +2585,78 @@ pub unsafe extern "C" fn fc4_mysim_distance_to_closest_special(
 #[no_mangle]
 pub unsafe extern "C" fn fc4_mysim_local_grade(p: *const fc4_advisors, id: i32, group: u32, hospital: bool) -> f32 {
     with_sim(p, id, 0.0, |m| m.local_grade(group, hospital))
+}
+
+// Per-object MySim calls also work during class-store Read, before the
+// advisor has an ID or has been inserted into the system map (§6.2).
+fn with_mysim_object<R>(o: *const fc4_adv_obj, fallback: R, f: impl FnOnce(&MySim) -> R) -> R {
+    unsafe { advisor_of(o) }.and_then(|a| guard(None, || MySim::with(a, f))).unwrap_or(fallback)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_mysim_get_state(o: *const fc4_adv_obj, out: *mut fc4_mysim_state) -> bool {
+    let Some(out) = out.as_mut() else { return false };
+    with_mysim_object(o, false, |m| mysim_state(m, out))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_mysim_text(
+    o: *const fc4_adv_obj,
+    which: u32,
+    out: *mut c_char,
+    capacity: usize,
+) -> usize {
+    with_mysim_object(o, 0, |m| {
+        let s = m.state();
+        copy_text(if which == 0 { &s.bio } else { &s.bitmap_path }, out, capacity)
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_mysim_move_in(
+    o: *const fc4_adv_obj,
+    slot: u8,
+    name: *const u8,
+    name_len: usize,
+    male: bool,
+    sign: u8,
+    bio: *const u8,
+    bio_len: usize,
+    bitmap: u32,
+    path: *const u8,
+    path_len: usize,
+) -> bool {
+    with_mysim_object(o, false, |m| {
+        m.move_in(slot, bytes(name, name_len), male, sign, bytes(bio, bio_len), bitmap, bytes(path, path_len));
+        true
+    })
+}
+
+/// Direct notifications from cISC4MySim slots 42–49 (§5.2).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_adv_mysim_notify(
+    o: *const fc4_adv_obj,
+    slot: u32,
+    building: u64,
+    data: u32,
+    x: f32,
+    z: f32,
+) -> bool {
+    with_mysim_object(o, false, |m| {
+        match slot {
+            42 => m.building_added(building),
+            43 => m.building_changed(building),
+            44 => m.building_removed(building, data),
+            45 => m.fire_added(x, z),
+            46 => m.pipe_burst(x, z),
+            47 => m.tornado(x, z),
+            48 => m.disaster(data, x as i32, z as i32),
+            49 => m.neighbor_connection_removed(),
+            _ => return false,
+        }
+        true
+    })
 }
 
 // ---- weak handles and per-object calls (glue-advisors-activate4) ----------------------------------------

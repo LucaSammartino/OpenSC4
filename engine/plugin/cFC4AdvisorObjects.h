@@ -141,7 +141,7 @@ private:
     cRZBaseString trigger_, title_, message_;
 };
 
-class cFC4Advisor final : public cFC4ISC4Advisor,
+class cFC4Advisor : public cFC4ISC4Advisor,
                           public cIGZSerializable,
                           public cIGZMessageTarget2,
                           public cIFC4CoreObject,

@@ -10,6 +10,7 @@
 #include "FC4Log.h"
 #include "FC4MySimGameHost.h"
 #include "FC4MySimsMessage.h"
+#include "FC4MySimInterface.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4AdvisorObjects.h"
@@ -22,11 +23,136 @@
 #include "cIGZMessageServer2.h"
 #include "cIGZMessageTarget2.h"
 #include "cRZCOMDllDirector.h"
+#include "SC4String.h"
+#include "cGZPersistResourceKey.h"
+#include <cstdio>
 
 #include <cstring>
 #include <map>
+#include <vector>
 
 namespace {
+
+class MySimFront final : public cFC4Advisor, public fc4::MySimPublic {
+public:
+    explicit MySimFront(fc4_adv_obj* h) : cFC4Advisor(h) {}
+    bool QueryInterface(uint32_t iid, void** out) override {
+        if (!out) return false;
+        if (iid == 0x0A1DA42F) {
+            *out = static_cast<fc4::MySimPublic*>(this);
+            AddRef();
+            return true;
+        }
+        if (iid == 0x8BC01FFE) iid = 1; // §7.3 class interface
+        return cFC4Advisor::QueryInterface(iid, out);
+    }
+    uint32_t AddRef() override { return AddRefFront(); }
+    uint32_t Release() override { return ReleaseFront(); }
+    void* AsAdvisor() override { return static_cast<cFC4ISC4Advisor*>(this); }
+    void MoveIn(uint8_t slot, cIGZString& name, bool male, uint8_t sign,
+                SC4String& bio, uint32_t bitmap, SC4String& path) override {
+        Pin h(*this);
+        if (h) fc4_adv_mysim_move_in(h.get(), slot, Bytes(name), name.Strlen(), male, sign,
+            Bytes(bio), bio.Strlen(), bitmap, Bytes(path), path.Strlen());
+    }
+    bool FindNewResidence() override { return fc4_mysim_find_new_residence(Core(), GetID()); }
+    bool ChangeResidence(cISC4BuildingOccupant* b) override { return fc4_mysim_change_residence(Core(), GetID(), Tok(b)); }
+    bool TestForResidence(cISC4BuildingOccupant* b, bool f, bool w) override {
+        return fc4_mysim_test_for_residence(Core(), GetID(), Tok(b), f, w);
+    }
+    bool ChangeJob(cISC4BuildingOccupant* b) override { return fc4_mysim_change_job(Core(), GetID(), Tok(b)); }
+    bool DeleteFromGame() override { return fc4_mysim_delete_from_game(Core(), GetID()); }
+    uint8_t GetSlot() override { return State().slot; }
+    cISC4BuildingOccupant* GetResidence() override { return Building(State().residence); }
+    cISC4BuildingOccupant* GetJob() override { return Building(State().job); }
+    bool SetResidence(cISC4BuildingOccupant* b) override { return fc4_mysim_set_residence(Core(), GetID(), Tok(b)); }
+    bool GetLocation(float* p) override {
+        if (!p) return false;
+        const auto s = State();
+        std::memcpy(p, s.home_position, sizeof(s.home_position));
+        return s.residence != 0;
+    }
+    void GetVehicleKey(cGZPersistResourceKey& k) override { const auto s = State(); std::memcpy(&k, &s.vehicle_key, 12); }
+    uint8_t GetSign() override { return State().sign; }
+    uint8_t GetAge() override { return State().age; }
+    bool IsMale() override { return State().is_male != 0; }
+    uint32_t GetWealth() override { return State().wealth; }
+    bool IsActive() override { return State().state != 0; }
+    SC4String* GetBio() override { return Text(0, bio_); }
+    uint32_t GetBitmapID() override { return State().bitmap_id; }
+    SC4String* GetBitmapFile() override { return Text(1, path_); }
+    bool GetBitmapBuffer(cIGZBuffer** out) override { if (out) *out = nullptr; return false; }
+    // SPEC-GAP: localized UI labels and portrait-file decoding are unspecified; empty labels/buffer.
+    SC4String* GetHomeName() override { return &empty_; }
+    SC4String* GetJobName() override { return &empty_; }
+    void GetBuildingJobTitle(cISC4BuildingOccupant*, cIGZString& out) override { out.FromChar(""); }
+    SC4String* GetJobTitle() override { return &empty_; }
+    bool GetEQAsText(cIGZString& out) override { return Number(out, State().eq); }
+    bool GetHQAsText(cIGZString& out) override { return Number(out, State().hq); }
+    // mysims §0 delegates camera, pylons, audio and balloon rendering to UI owners.
+    void Find() override {}
+    void ShowResidence() override {}
+    void HideResidence() override {}
+    void ShowLocation() override {}
+    void HideLocation() override {}
+    void SetPylonVisibility(bool) override {}
+    void UpdateResidence() override { HCommand("update_residence"); }
+    void LeaveForWork() override { HCommand("leave_for_work"); }
+    void ReturnHome() override { HCommand("return_home"); }
+    void AnnounceMoveIn() override { fc4_mysim_announce_move_in(Core(), GetID()); }
+    void DoScriptCommand(uint32_t cmd) override { fc4_mysim_do_script_command(Core(), GetID(), cmd); }
+    void DoBuildingAdded(cISC4BuildingOccupant* b) override { Notify(42, Tok(b)); }
+    void DoBuildingChanged(cISC4BuildingOccupant* b) override { Notify(43, Tok(b)); }
+    void DoBuildingRemoved(cISC4BuildingOccupant* b, uint32_t c) override { Notify(44, Tok(b), c); }
+    void DoFireAdded(float x, float z) override { Notify(45, 0, 0, x, z); }
+    void DoPipeBurst(float x, float z) override { Notify(46, 0, 0, x, z); }
+    void DoTornado(float x, float z) override { Notify(47, 0, 0, x, z); }
+    void DoDisaster(uint32_t t, int32_t x, int32_t z) override { Notify(48, 0, t, static_cast<float>(x), static_cast<float>(z)); }
+    void DoNeighborConnectionRemoved(int32_t, int32_t) override { Notify(49); }
+    uint32_t DistanceToClosest(uint32_t g) override { return fc4_mysim_distance_to_closest(Core(), GetID(), g); }
+    uint32_t DistanceToClosestSpecial(uint32_t g) override { return fc4_mysim_distance_to_closest_special(Core(), GetID(), g); }
+    SC4Percentage* LocalSchoolGrade(SC4Percentage* out, uint32_t g) override {
+        out->percentage = fc4_mysim_local_grade(Core(), GetID(), g, false); return out;
+    }
+    SC4Percentage* LocalHospitalGrade(SC4Percentage* out, uint32_t g) override {
+        out->percentage = fc4_mysim_local_grade(Core(), GetID(), g, true); return out;
+    }
+    void PlayNightSound() override {}
+    bool GetCurrentScreenLocationXY(int32_t*, int32_t*) override { return false; }
+    bool RequestToPlaySound() override { return false; }
+    bool SetCar(const cISCResExemplar*) override { return false; }
+    bool SetPedestrian(const cISCResExemplar*) override { return false; }
+    uint32_t GetModelButtonBitmapID(bool) override { return GetBitmapID(); }
+    void GetNextBalloonAdvice() override {}
+    void GetNextBalloonEventAdvice() override {}
+    uint32_t GetCurrentBalloonAdvice() override { return 0; }
+    uint32_t GetCurrentBalloonEventAdvice() override { return 0; }
+    bool CanUDriveIt() override { return false; }
+    bool EnterUDriveIt() override { return false; }
+    bool ExitUDriveIt() override { return false; }
+    bool CreateDispatchTool() override { return false; }
+    bool ActivateLuaContext() override;
+private:
+    static const uint8_t* Bytes(cIGZString& s) { return reinterpret_cast<const uint8_t*>(s.ToChar()); }
+    static fc4_advisors* Core() { return fc4::CurrentAdvisorCore(); }
+    static uint64_t Tok(cISC4BuildingOccupant* p) { return fc4::TokenOf(p); }
+    static cISC4BuildingOccupant* Building(uint64_t t) { return reinterpret_cast<cISC4BuildingOccupant*>(fc4::FromToken(t)); }
+    fc4_mysim_state State() { fc4_mysim_state s{}; Pin h(*this); if (h) fc4_adv_mysim_get_state(h.get(), &s); return s; }
+    SC4String* Text(uint32_t which, SC4String& out) {
+        Pin h(*this);
+        const size_t n = h ? fc4_adv_mysim_text(h.get(), which, nullptr, 0) : 0;
+        std::string text(n + 1, '\0');
+        if (h) fc4_adv_mysim_text(h.get(), which, &text[0], text.size());
+        out.FromChar(text.data(), static_cast<uint32_t>(n));
+        return &out;
+    }
+    static bool Number(cIGZString& out, float v) { char b[32]; std::snprintf(b, sizeof b, "%d", static_cast<int>(v)); out.FromChar(b); return true; }
+    void Notify(uint32_t slot, uint64_t b = 0, uint32_t d = 0, float x = 0, float z = 0) {
+        Pin h(*this); if (h) fc4_adv_mysim_notify(h.get(), slot, b, d, x, z);
+    }
+    void HCommand(const char* command);
+    SC4String bio_, path_, empty_;
+};
 
 constexpr uint32_t kIIDUnknown = 0x00000001;
 constexpr uint32_t kIIDMessageTarget2 = 0x452294AA;
@@ -137,6 +263,9 @@ void HDispatchCommand(void*, int32_t sim, const char* what) {
     // night_sound, move_in_control, ghost, reset_commute: audio and UI (§0), not run.
 }
 
+void MySimFront::HCommand(const char* command) { HDispatchCommand(nullptr, GetID(), command); }
+bool MySimFront::ActivateLuaContext() { return fc4::ActivateMySimLua(GetID()); }
+
 // ---- messages ---------------------------------------------------------------------------------------------
 
 void HPost(void*, const fc4_mysim_post* m) {
@@ -226,17 +355,17 @@ cIGZUnknown* CreateMySimOf(uint32_t clsid) {
     fc4_adv_obj* h = core != nullptr ? fc4_advisors_create_object(core, clsid) : nullptr;
     if (h == nullptr) return nullptr;
     cIGZUnknown* front = fc4::FromToken(fc4_adv_obj_token(h));
-    // [choice] the factory's reference keeps the new core object alive past
-    // the handle (a front holds only a weak handle at refcount 0); the
-    // caller's QueryInterface adds its own.
-    if (front != nullptr) front->AddRef();
-    fc4_adv_obj_destroy(h);
+    // Keep the handle until the director's QI takes the first reference.
+    if (front != nullptr) static_cast<cFC4Advisor*>(static_cast<cFC4ISC4Advisor*>(front))->HoldForFactory(h);
+    else fc4_adv_obj_destroy(h);
     return front;
 }
 
 }  // namespace
 
 namespace fc4 {
+
+uint64_t CreateMySimFront(fc4_adv_obj* h) { return (new MySimFront(h))->Token(); }
 
 void FillMySimReplacementHost(fc4_mysim_host* h) {
     std::memset(h, 0, sizeof(*h));
@@ -250,6 +379,7 @@ void FillMySimReplacementHost(fc4_mysim_host* h) {
     h->ui_blocked = nullptr;
     h->register_agent_lua = nullptr;
     FillMySimGameServices(h);
+    FillMySimLuaHost(h);
     h->dispatch = &HDispatch;
     h->find_new_job = &HFindNewJob;
     h->change_job = &HChangeJob;
@@ -276,6 +406,52 @@ void MySimReplacementStop(fc4_advisors* core) {
 }
 
 size_t MySimReplacementDispatchCount() { return Dispatches().size(); }
+
+std::string MySimScriptAction(bool moveIn) {
+    fc4_advisors* core = CurrentAdvisorCore();
+    if (!core) return "FAILED: no FC4 advisor core";
+    bool moved = false;
+    uint32_t active = 0;
+    for (int32_t id = 1; id <= 5; ++id) {
+        fc4_adv_obj* handle = fc4_advisors_advisor_object(core, id);
+        cIGZUnknown* front = handle ? FromToken(fc4_adv_obj_token(handle)) : nullptr;
+        void* iface = nullptr;
+        if (!front || !front->QueryInterface(0x0A1DA42F, &iface)) {
+            if (handle) fc4_adv_obj_destroy(handle);
+            return "FAILED: missing cISC4MySim";
+        }
+        auto* sim = static_cast<MySimPublic*>(iface);
+        if (moveIn && !moved && !sim->IsActive()) {
+            fc4_mysim_host host{};
+            FillMySimGameServices(&host);
+            const int64_t n = host.all_buildings(nullptr, nullptr, 0);
+            std::vector<uint64_t> buildings(n > 0 ? static_cast<size_t>(n) : 0);
+            if (!buildings.empty()) host.all_buildings(nullptr, buildings.data(), buildings.size());
+            for (uint64_t token : buildings) {
+                auto* b = reinterpret_cast<cISC4BuildingOccupant*>(FromToken(token));
+                if (!sim->TestForResidence(b, true, false)) continue;
+                SC4String name("FC4 Persist"), bio("replace-mysims27"), path("");
+                sim->MoveIn(3, name, true, 4, bio, 0, path);
+                moved = sim->SetResidence(b);
+                break;
+            }
+        }
+        if (sim->IsActive()) {
+            ++active;
+            char name[256]{};
+            fc4_adv_advisor_text(handle, 1, name, sizeof name);
+            fc4_mysim_state s{};
+            fc4_adv_mysim_get_state(handle, &s);
+            Log("mysims persisted: id=%d name=%s slot=%u state=%u age=%u wealth=%u generation=%u "
+                "home=%u,%u bio=%s portrait=%u", id, name, s.slot, s.state, s.age, s.wealth,
+                s.generation, s.home_cell_x, s.home_cell_z, sim->GetBio()->ToChar(), sim->GetBitmapID());
+        }
+        sim->Release();
+        fc4_adv_obj_destroy(handle);
+    }
+    if (moveIn && !moved) return "FAILED: no available MySim/residence";
+    return "active=" + std::to_string(active) + (moved ? " moved=1" : "");
+}
 
 }  // namespace fc4
 
