@@ -1,4 +1,24 @@
-# Executable trigger map — partial RE census, 2026-10-25
+# Executable trigger map — RE census, 2026-10-25
+
+## Round 2: owner activation
+
+The owner census supersedes the function graph as the scenario-planning unit.
+`owner-population.tsv` groups every implemented entry by the same attribution
+owner that `ledger.py` writes, preserving method-specific coverage-map matches
+when deciding which entries count as implemented. It includes 468 owners,
+14,790 entries and 3,361,604 implemented bytes. Of these, 895,760 bytes have a
+positive entry in the pinned provisional reach pilot. Exactly 185 owners have
+at least 2,048 implemented but unobserved bytes; their gaps total 2,333,689 bytes.
+The remaining 283 owners account for 132,155 unobserved bytes.
+
+`owner-inputs.tsv` pins the current main-checkout inputs used for this round.
+The attribution and implementation totals were recomputed with the existing
+coverage rules; implementation paths were checked for existence only. No
+implementation source was read. Main still lacks `docs/abi/reach.tsv`; round 2
+therefore retains the exact provisional pilot pinned below. An owner being
+activated is not a prediction that all of its unobserved methods execute.
+
+## Round 1: retained function-level candidate graph
 
 **Status: WIP. This is a structurally incomplete candidate map, not a validated
 work order or a dead-code list.** The idle-path control fits only 7/30 sampled
