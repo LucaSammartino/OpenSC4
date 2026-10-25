@@ -1,15 +1,13 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-regionalcity-replace23 (regional-city shadow checks) | `Codex` / `glue-regionalcity-replace23` (engine) | ready for measured shadow changes only; cargo 7644/0, clippy 0 diagnostics, native build 76/76, ctest 93/93; rc23-r3-poi2032-20261025a 73/73 exact, clean through 2032, ref_warnings=0 | Implement the replacement adapter/key and direct-construction integration; add ownership/registration tests and both requested replacement runs. |
+| glue-regionalcity-replace23 (regional-city setter differential) | `Codex` / `glue-regionalcity-replace23` (engine) | ready for measured shadow changes only; cargo 7646/0, clippy 0 diagnostics, native build passed, ctest 93/93; rc23-r4-setters2032-20261025b 73/73 exact through 2032, ref_warnings=0 | Implement replacement owner/key and direct-construction integration; add registration/ownership tests and both requested replacement runs. |
 
-Code commit `5387ddf23` adds seeded point-list getter probes for present, empty and unknown types, comparing IEEE payload bits and reporting the first differing byte.
-Each observation now captures the native record again and checks that getter calls preserved its serialized bytes. Shadows remain enabled only by `regionalcity_shadow = 1`.
-Rust tests cover empty and absent point lists, signed zero, NaN payloads, mismatches, and sparse population maps without inserting saved entries. The sparse-map fixture explicitly clears the constructor's default commodities.
+Adds four isolated native setter phases compared against independently mutated Rust state, including exact serialized records: scalar/string setters, unknown commodities, negative commodity clamping, empty strings, tutorial state and growth-map insertion. The native fixture never calls Init or attaches to the city; its factory acquisition and created-object release are audited. Live-record preservation and point-list checks remain. Everything stays behind default-off `regionalcity_shadow = 1`.
 
-Focused tests: 4/4. Final `qbuild all`: cargo 7644 passed, 0 failed, 0 ignored; clippy 0 diagnostics; queued native verification `qbuild-20261025-061856-build-ctest` passed, build 76/76 edges and ctest 93/93.
-Initial native verification failed only the new fixture's assumption that commodities started empty; full logs remain in `build-runs/rc23-r3-first-fc4verify-{build,ctest}.log`.
-Game result: `rc23-r3-poi2032-20261025a 73/73`; clean at 2032-01-01, ref_warnings=0. The first and last observations each decoded 85 records and compared 15731 fields with mismatches=0.
-The scripted full save at 2029-01-01 returned ok=1. Request, verdict and log are under `build-runs/game-queue` / `build-runs/game-results`; the runtime code was unchanged by the subsequent fixture correction.
+Two new Rust tests passed. Workspace gate: 7646 passed, 0 failed, 0 ignored; clippy 0 diagnostics. Final native verification `qbuild-20261025-071633-build-ctest`: build 211/211 edges, CTest 93/93. Logs remain under `build-runs/`.
+Game: `rc23-r4-setters2032-20261025b 73/73`; clean through 2032-01-10, ref_warnings=0. First/last observations decoded 85 records and compared 16008 fields with mismatches=0. The 2029 scripted full save returned ok=1.
+Run artifacts: `build-runs/game-queue/done/rc23-r4-setters2032-20261025b.req` and `build-runs/game-results/rc23-r4-setters2032-20261025b.{verdict,log}`.
+Preserved diagnostics: initial native ret_channel_check failure was fixed by citing the IsTutorial bool contract; `build-runs/rc23-r4-first-native-failure.txt` records it. Run `rc23-r4-setters2032-20261025a` was 73/73 exact but had 146 audit warnings; recording the factory acquisition fixed these in run b.
 
-Still missing: the C++ Rust-backed regional-city owner, `regionalcity` replacement registration, direct native construction integration (regional-city §1), ownership/registration tests, and the regionalcity-alone/full-house replacement runs. No native replacement is claimed.
-No C ABI exports changed. No spec questions filed or tools files edited.
+Still missing: the Rust-backed COM owner, `regionalcity` registration, direct-construction interception, registration/ownership tests, and regionalcity-only/full-house replacement runs. A SPEC-GAP comment notes that regional-city §1 names direct construction sites without an interception contract. No native replacement or replaced coverage credit is claimed.
+No public C ABI exports changed. No questions filed or tools files edited.
