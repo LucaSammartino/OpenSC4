@@ -215,6 +215,9 @@ cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	aut
 tControllerQInfo	automata (vehicles, animation)	simulation	automata.md	-	-	-
 cSC4NetworkToolUI	city tools and input	ui	network-tool-ui.md	-	-	-
 cSC4NetworkPreview	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4NetworkLayoutView	3D scene and models	renderer	network-layout-view.md	-	-	-
+cSC4NetworkLayoutCustomView	3D scene and models	renderer	network-layout-view.md	-	-	-
+fn:GZCOM_cSC4NetworkLayoutCustomViewCLSID	3D scene and models	renderer	network-layout-view.md	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
