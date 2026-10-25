@@ -942,6 +942,86 @@ altitude, never a network or lot height.
 - Power line, with tolerance 0, gets the window `[min(h, k), max(h, k)]` on every regular corner, if its placement
   reaches the smoothing step *[inferred]*. The underground tools' slot 77 is a no-op (§1.2).
 
+#### 9.8.1 Isolated nonflat road draft: Tempelhof (NT36)
+
+This is an **instruction-derived fixture**, using NT36's supplied live terrain values, not an extracted native
+private-state snapshot. It closes the plane/constraint inputs for an isolated new cell; the public getter limit
+in network-tools §8.1.4 still applies to arbitrary occupied city runs. Use a fresh tool with a 193-bucket network
+satisfier, a 128-square city, vertex stride 129, cell size 16, surface-water altitude 250, and network default
+range `[0,H]` with H ≥ 328. Draft road from `(86,3)` to itself, no neighbour connection, bridge, tunnel,
+intersection, connection node or additional draw. All visited surrounding cells are empty and supply no cell
+info; no lots hold the anchor vertices. The sole solved entry has, **before smoothing**, index 0, key `(86,3)`, run=true,
+intersection=false, placed=false, fixed=false, connection=false, road type only, **edge union 0**. There are no
+other retained entries. The zero connected-side count invokes the flat-cell rule (§9.2): insert equalities
+`473=602`, `602=603`, `603=474`, in that order (`0x00636782`–`0x006367D9`).
+
+| Corner | Vertex coordinates | Id | Initial/current network corner = live terrain (exact float32) |
+|---|---|---:|---:|
+| 0 | `(86,3)` | 473 | 291.402679443359375 |
+| 1 | `(86,4)` | 602 | 293.308929443359375 |
+| 2 | `(87,4)` | 603 | 290.7928466796875 |
+| 3 | `(87,3)` | 474 | 289.532623291015625 |
+
+**Smoothing retry.** Counts are dragged=straight=valid=1, pen direction 2, end direction 1 (§3.2). At level 0 the
+vertex box is `[86,87] × [3,4]`; all four vertices are non-city-edge boundary vertices and slot 76 fixes them at
+their distinct terrain heights. The equality group is inconsistent, so this level fails. Level 1 uses vertex
+box `[85,88] × [2,5]`; none of the four run vertices is on its border. Its smoothing set still contains only
+`(86,3)`, because empty neighbours have no cell info. The outer boundary ids are not network solve inputs;
+§9.6 may add them to the separate terrain satisfier. No additional solved cells result. The box expansion and
+inclusive border walk are `0x00636AB0`–`0x00636CD0`; the retry is §9.4. Level 1 succeeds, leaving final failure=0,
+return=true and the same one-cell counts. A failed earlier level does not pin corners in the reset satisfier.
+
+**Plane, recomputed at each level.** The structure list is empty, A=B=0. Straight count 1 means the special
+single-diagonal level-plane branch does **not** apply. Direction 2 selects Q1=`(86,4)`/602 and Q2=`(87,4)`/603;
+direction 6 selects Q3=`(87,3)`/474 and Q4=`(86,3)`/473. Neither edge is held. In the order specified above:
+
+- hA = `r24(r24(t603+t602)×0.5)` = **292.0509033203125**;
+- hB = `r24(r24(t473+t474)×0.5)` = **290.4676513671875**;
+- P1=`(1376,hA,64)`, P2=`(1392,hA,64)`, P3=`(1392,hB,48)`;
+- the §9.8 float32 operations give `(a,b,c,d)` = **`(0,256,−25.33203125,−73144)`**, m=−0.00390625;
+- evaluating the stored coefficients gives plane heights **290.468505859375** at z=3 and
+  **292.0517578125** at z=4. These differ slightly from the edge means because coefficient construction rounds;
+  do not replace the stored plane by an algebraically simplified interpolation.
+
+The means and branch are `0x0063795F`–`0x00637A29`, coefficient operations `0x005D67E0`–`0x005D6883`, plane
+evaluation `0x00637CFB`–`0x00637D30`. Road tolerance is 35. Initial new-cell allowed ranges are terrain ±500,
+with lower bounds raised to water altitude 250; the plane window is the tighter constraint at all four corners.
+No window needs widening to include its initial corner. Slot 77 produces these **level-1 inputs to slot 76**:
+
+| Id | Allowed range | Preferred range | Initial height |
+|---:|---|---|---:|
+| 473 | `[255.468505859375,325.468505859375]` | `[290.468505859375,291.402679443359375]` | 291.402679443359375 |
+| 602 | `[257.0517578125,327.0517578125]` | `[292.0517578125,293.308929443359375]` | 293.308929443359375 |
+| 603 | `[257.0517578125,327.0517578125]` | `[290.7928466796875,292.0517578125]` | 290.7928466796875 |
+| 474 | `[255.468505859375,325.468505859375]` | `[289.532623291015625,290.468505859375]` | 289.532623291015625 |
+
+Add the vertices in corner order `(473,602,603,474)` with those initial heights, ranges and preferred ranges;
+there are **no preferred values**, slope or smoothness constraints, fixed run vertices or intersection constraints.
+The flat-cell branch supplies only the equality group. Allowed/preferred writes are
+`0x00637D34`–`0x00637DCA`; slot 76 transfers them without substituting a preferred-range endpoint (§9.3).
+
+**Initial propagation and the first pick.** The first ordered wave is `(473,474,602,603)`. Source 473 narrows
+602 and 603; source 474 changes nothing further; source 602 narrows 473 and 474; source 603 changes nothing.
+All four ids are in the next work set, which makes no further changes. Every allowed range is now
+**`[257.0517578125,325.468505859375]`**, width **68.416748046875**. Initial heights and preferred ranges remain
+as in the table. There are no singleton ranges and hence no pending pairs. Hash buckets for ids
+`(473,602,603,474)` are `(87,23,24,88)`, so the scan order is **602,603,473,474**. Equal widths make 602 win.
+Its initial **293.308929443359375** lies in both its allowed and preferred ranges; choose that height.
+
+Pin 602. Equality propagation fixes all three others at the same height, even where that is outside their
+preferred ranges. In the next ordered propagation wave, singleton ids 473,474,603 append pending pairs in
+that order; after recording/removing 602, the stack drains **603,474,473** (§9.1). All four network heights,
+and then all four retained draft corners, are **293.308929443359375**. Draft preparation refreshes corners
+through slot 73 before preview/cost use (`0x00626000`; `0x00625BB9`–`0x00625BF6`). Ordinary no-support terrain
+feasibility is admitted: all required raises are below road's 25 m limit; §9.6 succeeds. Draft does not apply
+those terrain targets. Getter-time terrain therefore remains the four inputs above, and the sole solved cell
+prices at **11** (network-tools §8.1.5). The ordinary draft insertion with its third argument false sets the
+placed byte after this solve/refresh (`0x00625BF4`–`0x00625BFB`); this does not suppress the getter's run-cell charge.
+
+The plane supplies windows/preferences; it does not demand a least-earthwork height or a flat edge mean.
+Changing bucket count/history can change the first equal-width pick (§9.1). This fixture explicitly supplies
+193 buckets; a different retained bucket count is a different input, not permission to adjust the price.
+
 ---
 
 ## 10. Occupants, supports and flags
