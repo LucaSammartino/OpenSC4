@@ -296,6 +296,23 @@ mod tests {
                 &v,
                 true
             ));
+            // A failed getter does not excuse a missing persisted tag or tail data.
+            for missing in 1..=4 {
+                assert!(!fc4_flora_instance_record_shadow(
+                    out.bytes().as_ptr(),
+                    out.bytes().len() - missing,
+                    &v,
+                    false
+                ));
+            }
+            let mut extended = out.bytes().to_vec();
+            extended.push(0);
+            assert!(!fc4_flora_instance_record_shadow(
+                extended.as_ptr(),
+                extended.len(),
+                &v,
+                false
+            ));
             v.birth += 1;
             assert!(!fc4_flora_instance_record_shadow(
                 out.bytes().as_ptr(),
