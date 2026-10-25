@@ -18,6 +18,26 @@ implementation source was read. Main still lacks `docs/abi/reach.tsv`; round 2
 therefore retains the exact provisional pilot pinned below. An owner being
 activated is not a prediction that all of its unobserved methods execute.
 
+`owners.tsv` contains all 185 threshold owners, largest gap first, in the
+requested seven-column format. `owner-creation.tsv` separates constructor and
+creator evidence from the play trigger. The first pass identifies 99 named
+constructors, 41 vtable-writing constructor candidates, 42 lifecycle-only
+witnesses and three non-object groups. Candidates are explicitly unverified;
+a vtable store alone can also be a destructor or a base-class initialization.
+Only named constructors/non-object groups can receive high confidence in this
+pass, and an uncertain play driver still lowers that confidence.
+
+`actions.tsv` now groups owners by their proposed activation trigger, giving
+35 disjoint planning groups. The ranking is the sum of each member owner's
+implemented but unobserved body bytes, not a transitive function-call estimate.
+No new indirect-call/root closure was attempted. Totals count each threshold
+owner once; activating it is not a promise to enter every one of those bytes.
+Unresolved format, external-content, authoring and UI-input prerequisites are
+retained in the work order rather than relabelled as dead code.
+
+The original function-level work order is preserved as
+`actions-functions-r1.tsv`; `triggers.tsv` and its failed controls are unchanged.
+
 ## Round 1: retained function-level candidate graph
 
 **Status: WIP. This is a structurally incomplete candidate map, not a validated
@@ -68,7 +88,7 @@ registration references and receiving handlers. Names are the executable's
 registered strings, including case and spaces. Registration is separate from
 proof that valid parameters or a reachable UI can invoke the command.
 
-`actions.tsv` ranks 999 candidate roots by exclusive bytes, then total bytes,
+`actions-functions-r1.tsv` ranks 999 candidate roots by exclusive bytes, then total bytes,
 kind and label. For each root, total is the sum of implemented, provisionally
 unobserved entries in its discovered transitive call set. Exclusive counts entries
 in that set and in no other candidate action set. Startup/error roots are excluded
