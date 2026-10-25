@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -15,6 +16,42 @@ spec.loader.exec_module(runs)
 
 
 class ScenarioEvidenceTests(unittest.TestCase):
+    def test_prepare_and_submit_use_only_the_shared_worktree_queue(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dll = root / "source.dll"
+            dll.write_bytes(b"fixture")
+            out = root / "build-runs/suite/shared"
+            args = SimpleNamespace(dll=dll, months=24, seconds=3600, region_path=root,
+                                   cities=["Konradshohe"], seeds=[2], tag="shared")
+            facts = dict(size="medium", saved_date="2026-01-27", source_sha256="fixture")
+            with patch.object(runs, "ROOT", root), patch.object(runs, "city_facts", return_value=facts), \
+                    patch.object(runs, "shadow_profile", return_value="enable = power"):
+                runs.prepare(args, out)
+                import json
+                manifest = json.loads((out / "manifest.json").read_text())
+                self.assertEqual({r["root"] for r in manifest["runs"]}, {"."})
+                self.assertFalse((root / "build-runs/game-queue").exists())
+                self.assertEqual(runs.run_queue(args, out, manifest), 0)
+                queued = list((root / "build-runs/game-queue").glob("*.req"))
+                self.assertEqual(len(queued), 4)
+                self.assertEqual(list((out / "requests").glob("*.req")), [])
+                for request in queued:
+                    text = request.read_text()
+                    self.assertIn("parallel = 1\n", text)
+                    self.assertIn("dll = build-runs/suite/shared/FreeCity4.dll\n", text)
+                    self.assertIn("script = build-runs/suite/shared/scripts/", text)
+                # Resubmission must leave requests and game results untouched.
+                before = {p.name: p.read_bytes() for p in queued}
+                runs.run_queue(args, out, manifest)
+                self.assertEqual(before, {p.name: p.read_bytes() for p in queued})
+
+    def test_legacy_private_queue_manifest_is_evidence_only(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(runs, "ROOT", Path(tmp)):
+            with self.assertRaisesRegex(ValueError, "legacy private-queue"):
+                runs.run_queue(None, Path(tmp), dict(runs=[dict(root="worker1")]))
+            self.assertFalse((Path(tmp) / "build-runs").exists())
+
     def test_abort_annotation_overrides_fallback_without_changing_raw_verdict(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -43,7 +80,7 @@ class ScenarioEvidenceTests(unittest.TestCase):
     def test_discovery_request_does_not_starve_regress_or_keep_dialogs(self):
         old = "label = case\npriority = high\nregion = Berlin\n[ini]\nclose_dialogs = 0\nscript = a.script\n"
         request = runs.discovery_request(old)
-        self.assertIn("region = FC4 Test\npriority = normal\n[ini]\nclose_dialogs = 1\n", request)
+        self.assertIn("region = FC4 Test\npriority = normal\nparallel = 1\n[ini]\nclose_dialogs = 1\n", request)
         self.assertNotIn("high", request)
         self.assertEqual(request.count("close_dialogs ="), 1)
         self.assertEqual(request.count("region ="), 1)

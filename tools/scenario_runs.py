@@ -2,8 +2,9 @@
 """Prepare/run/summarize generated FC4 Test scenarios with the existing game queue.
 
 Discovery sweep companion to tools/suite.py. All generated content and evidence
-stay in build-runs/suite/<tag>; Documents saves are opened read-only. Six request
-roots let the existing per-root queue policy use six independently locked slots.
+stay in build-runs/suite/<tag>; Documents saves are opened read-only. Prepare
+stages requests; run submits them to this worktree's shared queue with parallel=1.
+The coordinator owns the queue process and its slot allocation.
 """
 import argparse
 from collections import Counter, defaultdict
@@ -15,7 +16,6 @@ from pathlib import Path
 import re
 import shutil
 import struct
-import subprocess
 
 from dbpf import DBPF
 from scenario_gen import MIXES, SIZES, add_months, generate
@@ -72,9 +72,9 @@ def discovery_request(text):
     head, separator, ini = text.partition("[ini]\n")
     if not separator:
         raise ValueError("discovery request has no [ini] section")
-    head = re.sub(r"^\s*(?:priority|region)\s*=.*\n", "", head, flags=re.MULTILINE)
+    head = re.sub(r"^\s*(?:priority|region|parallel)\s*=.*\n", "", head, flags=re.MULTILINE)
     ini = re.sub(r"^\s*close_dialogs\s*=.*\n?", "", ini, flags=re.MULTILINE)
-    return head + "region = FC4 Test\npriority = normal\n[ini]\nclose_dialogs = 1\n" + ini
+    return head + "region = FC4 Test\npriority = normal\nparallel = 1\n[ini]\nclose_dialogs = 1\n" + ini
 
 
 def prepare(args, out):
@@ -94,12 +94,11 @@ def prepare(args, out):
     manifest = {"tag": args.tag, "region": "FC4 Test", "months": args.months, "cities": facts,
                 "dll_source": str(dll), "dll_sha256": hashlib.sha256(dll.read_bytes()).hexdigest(),
                 "shadow_profile": profile, "runs": []}
-    roots = [out / ("worker" + str(i + 1)) for i in range(args.slots)]
-    for root in roots:
-        build = root / "build-runs"
-        (build / "scripts").mkdir(parents=True)
-        (build / "game-queue").mkdir()
-        shutil.copy2(dll, build / "FreeCity4.dll")
+    manifest["queue"] = "shared"
+    (out / "scripts").mkdir()
+    (out / "requests").mkdir()
+    pinned_dll = out / "FreeCity4.dll"
+    shutil.copy2(dll, pinned_dll)
     for city in args.cities:
         info = facts[city]
         start = date.fromisoformat(info["saved_date"]) + timedelta(days=1)
@@ -110,56 +109,51 @@ def prepare(args, out):
                 label = "{}-{}-s{}-{}".format(args.tag, slug, seed, mix)
                 if len(label) > 63:
                     raise ValueError("tag/city/seed produce a label longer than 63 characters")
-                root = roots[len(manifest["runs"]) % len(roots)]
-                script = root / "build-runs/scripts" / (label + ".script")
+                script = out / "scripts" / (label + ".script")
                 script.write_text(generate(seed, info["size"], start, args.months, mix), encoding="utf-8")
                 req = ["# scenario_runs: region FC4 Test (the legacy queue's default)",
-                       "label = " + label, "dll = build-runs/FreeCity4.dll", "city = " + city,
+                       "label = " + label, "dll = " + pinned_dll.relative_to(ROOT).as_posix(), "city = " + city,
                        "seconds = " + str(args.seconds), "timeout = " + str(args.seconds + 150),
                        "end_date = " + end.isoformat(), "turbo = 1", "[ini]", profile,
-                       "script = " + script.relative_to(root).as_posix()]
-                request = root / "build-runs/game-queue" / (label + ".req")
+                       "script = " + script.relative_to(ROOT).as_posix()]
+                request = out / "requests" / (label + ".req")
                 tmp = request.with_suffix(".tmp")
                 tmp.write_text(discovery_request("\n".join(req) + "\n"), encoding="utf-8")
                 tmp.rename(request)
                 manifest["runs"].append({"scenario": label, "city": city, "seed": seed, "mix": mix,
                                          "start": start.isoformat(), "end": end.isoformat(),
-                                         "root": root.relative_to(ROOT).as_posix(),
+                                         "root": ".",
                                          "script": script.relative_to(ROOT).as_posix()})
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     write_tsv(out / "suite.tsv", ("name", "region", "city", "script", "end", "sets", "notes"),
               ({"name": r["scenario"], "region": "FC4 Test", "city": r["city"], "script": r["script"],
                 "end": r["end"], "sets": "gen", "notes": "seed={} mix={} start={} size={}".format(
                     r["seed"], r["mix"], r["start"], facts[r["city"]]["size"])} for r in manifest["runs"]))
-    print("prepared {} requests in {} roots; DLL SHA256 {}; {}".format(
-        len(manifest["runs"]), len(roots), manifest["dll_sha256"], out / "manifest.json"))
+    print("prepared {} shared-queue requests (not submitted); DLL SHA256 {}; {}".format(
+        len(manifest["runs"]), manifest["dll_sha256"], out / "manifest.json"))
     for city, info in facts.items():
         print("{}: {} saved {} source {}".format(city, info["size"], info["saved_date"], info["source_sha256"]))
 
 
 def run_queue(args, out, manifest):
-    roots = sorted({str(ROOT / r["root"]) for r in manifest["runs"]})
-    # Prepared requests predate close_dialogs and the region queue key. Update
-    # only pending jobs; completed/claimed evidence must remain untouched.
-    pending = 0
-    for root in roots:
-        for request in (Path(root) / "build-runs/game-queue").glob("*.req"):
-            text = request.read_text(encoding="utf-8")
-            request.write_text(discovery_request(text), encoding="utf-8")
-            pending += 1
-    # Include the coordinator root so waiting train regress jobs are always
-    # considered before this tier-2 sweep, also by this private worker.
-    main = Path(subprocess.check_output(
-        ["git", "-C", str(ROOT), "rev-parse", "--git-common-dir"], text=True).strip()).resolve().parent
-    roots.insert(0, str(main))
-    cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "tools/game_queue.ps1"),
-           "-Instance", "gen-" + args.tag, "-Once", "-Slots", str(args.slots), "-Roots", ",".join(roots)]
-    print("running {} requests ({} pending, priority=normal, close_dialogs=1) via {} slot locks; {}".format(
-        len(manifest["runs"]), pending, args.slots, out / "queue.out"), flush=True)
-    with (out / "queue.out").open("a", encoding="utf-8") as stream:
-        result = subprocess.run(cmd, stdout=stream, stderr=subprocess.STDOUT)
-    print("queue exit=" + str(result.returncode), flush=True)
-    return result.returncode
+    if manifest.get("queue") != "shared" or any(
+            (ROOT / r["root"]).resolve() != ROOT.resolve() for r in manifest["runs"]):
+        raise ValueError("legacy private-queue tag is evidence only; prepare a new tag for the shared queue")
+    queue = ROOT / "build-runs/game-queue"
+    queue.mkdir(parents=True, exist_ok=True)
+    submitted = 0
+    for run in manifest["runs"]:
+        source = out / "requests" / (run["scenario"] + ".req")
+        if not source.exists():
+            continue  # already submitted; never repeat completed or running jobs
+        target = queue / source.name
+        if target.exists():
+            raise ValueError("request already queued: " + str(target))
+        source.rename(target)
+        submitted += 1
+    print(f"submitted {submitted} requests to {queue}; priority=normal parallel=1; "
+          "no private queue started; summarize after shared-queue completion", flush=True)
+    return 0
 
 
 def shadow_differs(line):
@@ -291,8 +285,7 @@ def main():
     parser.add_argument("--cities", nargs="+", default=["Konradshohe", "Tegel", "Spandau", "New City"])
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     parser.add_argument("--months", type=int, default=24)
-    parser.add_argument("--slots", type=int, choices=range(1, 7), default=6)
-    parser.add_argument("--seconds", type=int, default=1200)
+    parser.add_argument("--seconds", type=int, default=3600)
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,24}", args.tag):
         parser.error("tag must be 1..25 lowercase letters/digits/hyphens")
