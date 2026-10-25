@@ -1017,7 +1017,11 @@ established on this service. Allocation/service exceptions have no proven boolea
 ### 17.1 Inventory, state and lifetime
 
 `cSC4RigidBodySimulator2D` has no installed vtable in constructor `005BB950`; methods are concrete
-calls. It starts with empty moving and infinite-mass object lists, a sector map and a joint list.
+calls. It starts with three empty body lists (ordinary, low-response and explicitly static),
+a sector map and a joint list. The exact admission and integration contracts, body layout,
+conversion staging and numeric fixtures are in [rigid-body-2d.md](rigid-body-2d.md) §§2, 7.3–7.4, 8.4.
+That specification also owns the bounded contact/response contract; do not replace those rules
+with a generic physics-library solver.
 The fixed broad-phase sector width at +24 is binary32 64 (`42800000`), reciprocal at +28 is
 1/64 (`3C800000`), verified at `005BB9CE–005BB9D5`. This is visual physics, not a city
 simulation coverage grid.
@@ -1030,12 +1034,16 @@ simulation coverage grid.
 | `005BAB40`, `005BAF30` | Infinite-mass candidates; collision and joint pass |
 | `005BAEA0`, `005BAF00` | Sweep object lists; sweep both lists |
 | `005BB6A0`, `005BBA40` | Remove/add body in sector map |
-| `005BB9E0`, `005BBC10` | RemoveObject; AddObject(description, infiniteMass) |
-| `005BBFD0`, `005BC270` | Integrate one list; integrate both and do collisions |
+| `005BB9E0`, `005BBC10` | RemoveObject; AddObject(description, explicitStatic) |
+| `005BBFD0`, `005BC270` | Integrate one list; integrate ordinary then low-response list, then do collisions |
 
 AddObject stores a copy of the supplied physical description in the chosen list and returns its
-stable body payload address. Infinite-mass objects belong to the separate list; this distinction
-also affects collision response. RemoveObject first discards all joints referencing the body,
+stable body payload address. A nonzero explicit-static argument chooses root +08 and maps the
+body immediately. With that argument clear, an inverse-mass/linear-response scalar +2C below
+binary32 `3727C5AC` selects root +04; equality and greater select root +00. These nonstatic
+admissions remain unmapped until integration. The supplied scalar is copied, not inverted;
+the angular response is `48*scalar/(extentX²+extentY²)` with the x87 staging in the linked spec.
+There is no zero-extent or allocation-failure boolean adapter. RemoveObject first discards all joints referencing the body,
 removes sector membership if present, and clears live byte +76. It does not immediately free
 the list payload (`005BB9E0`). RemoveDeadObjects sweeps both lists to reclaim such entries;
 clients must clear their own cached handles before using reclaimed bodies. Null or arbitrary
@@ -1046,7 +1054,9 @@ body addresses are not validated handles for RemoveObject.
 Offsets here are from the returned **body payload**, not its list node. Position is planar
 +00/+04, planar velocity +08/+0C, height +10, height velocity +14, angle +18, angular velocity
 +1C, planar acceleration +40/+44, contact/friction enable byte +3C, cosine/sine caches +6C/+70
-and live byte +76. Width/extent fields and collision mass fields are not fully specified here.
+and live byte +76. Planar half extents are +20/+24, linear-response scalar +2C and derived
+angular response +68. Admission copies the physical-description fields through +5C; the full
+layout and static/dynamic bound differences are specified in rigid-body-2d.md §7.3.
 
 For each live body, integration first stores planar position plus dt times the **old** velocity,
 height plus dt times old height velocity, and angle plus dt times old angular velocity. It then
@@ -1058,12 +1068,17 @@ not these position stores. With friction byte clear, there is no friction subtra
 With friction byte set, the helper transforms planar velocity into the current body basis,
 subtracts dt times each corresponding friction field, clamps negative resulting basis components
 to zero and transforms back. It also subtracts angular friction and clamps negative angular
-velocity to zero. This is not a symmetric signed drag law. Exact rounding and angle wrapping
-are still PT11. It refreshes broad-phase extents and sector membership after integration.
+velocity to zero. This is not a symmetric signed drag law. The four reconstruction products
+are separately rounded to binary32 before the two sums. Angle wrapping compares the stored
+binary32 angle against binary64 pi and, on strict greater magnitude, takes its signed remainder
+by binary64 2pi; this does not reduce to [-pi,pi]. Full arithmetic staging is in the linked §7.4.
+It refreshes broad-phase extents and sector membership after integration.
 
-The public AdvanceTime(dt) (`005BC270–005BC296`) integrates the moving list, then the
-infinite-mass list, then calls DoCollisions. Consequently clients must not skip integration of
-the latter list merely because its collision mass is infinite; live status controls integration.
+The public AdvanceTime(dt) (`005BC270–005BC296`) integrates root +00, then root +04,
+then calls DoCollisions. It does **not** integrate the explicit static list at root +08.
+Clients must not skip integration of the low-response list merely because its scalar is small
+or zero; live status controls integration there. This corrects the former two-list/infinite-mass
+wording. A zero dt still refreshes caches and bounds and can clamp negative velocities or map a body.
 The helper itself does not cap or subdivide dt; its dynamic-system caller supplies the substeps.
 
 ### 17.3 Collision boundary and limits
@@ -1198,7 +1213,7 @@ Numerical comparisons below are for the supported finite domain; no pixel equiva
 | PO28 | Body live, no friction/collision, `(x,z)=(1,2)`, velocity `(3,4)`, acceleration `(2,0)`, dt=0.5 | Position `(2.5,4)`, velocity `(4,4)`; position used old velocity |
 | PO29 | Body live byte clear | Per-list integration leaves its position/velocity untouched; later dead sweep may reclaim it |
 | PO30 | Primary-sector keys `00020005`, `00040003` | Primary key `00040005`; reject either original key as current sector |
-| PO31 | Public body AdvanceTime with two nonempty lists | Integrate moving list, integrate infinite-mass list, then collision pass |
+| PO31 | Public body AdvanceTime with all three body lists nonempty | Integrate ordinary root +00, integrate low-response root +04, then collision pass; no integration of explicit-static root +08 |
 | PO32 | Construct sequence description | Empty element list, flags 0; no named effect created |
 | PO33 | Sequence read, wire flags `FFFFFFFF`, valid empty list/version word | Stored flags 7; no runtime component created |
 | PO34 | Sequence read with version 2 and otherwise valid primitive results | No version-rejection branch in wrapper; list and flags consumed normally |
@@ -1215,8 +1230,14 @@ Numerical comparisons below are for the supported finite domain; no pixel equiva
 | PO45 | Ordinary ID 9, working-box center Y=10, O=(1,2,3), V=(2,4,6) | Point (5,10,15), +184=1, true; no terrain query |
 | PO46 | Ordinary pointer ID 7, valid object S, description source flags clear | Wrapper returns true and calls slot 11; no S box query/retain/release; unrelated ID returns false |
 | PO47 | Primary keys FFFF0001 and 0002FFFF | Primary FFFFFFFF, true only there; unsigned component-wise maximum, neither original key nor signed maximum |
+| PO48 | AddObject, half extents (32,16), response scalar 80, explicitStatic false, default sector width 64 | Angular response 3, ordinary list, live true, key 0, spans (1,1), no sector call; creation-time cosine/sine cache has no specified value |
+| PO49 | Same description, position (64,128), angle 0, explicitStatic true | Explicit-static list, AABB (32,16), caches (1,0), key `40004001`, spans (1,1), immediate AddToSectorMap |
+| PO50 | AddObject, explicitStatic false, response scalar bits `3727C5AB`, then `3727C5AC` | First low-response list, second ordinary list; strict threshold, no inversion or epsilon clamp of the stored scalar |
+| PO51 | Live inner integration, angle 0, velocity (-2,-3), angular velocity -4, friction enabled with all three rates 0, dt 0 | Position/angle unchanged, all three velocities become positive zero, caches/bounds refreshed and sector remapping still considered |
+| PO52 | Live inner integration, angle 3, angular velocity 1, friction disabled, dt 1 | Final stored angle 4 radians; remainder by 2pi does not turn it into a negative angle; trig input 4 |
 
 PO01–06 test interface-level geometry contracts only; PO28 excludes contacts, wrapping and
 friction; PO33–34 assume the foreign stream successfully supplies the listed values. Full solver,
-mesh and renderer vectors must wait for PT8–PT11. Existing §§5–8 and the linked effects/helper
+mesh and renderer vectors remain PT8–PT11; additional admission/integration fixtures are in
+rigid-body-2d.md §8.4. Existing §§5–8 and the linked effects/helper
 specs retain their own fixtures and normative behavior.
