@@ -111,6 +111,8 @@ def exit_sources(f, reg, access):
         rs, ws = access(ins)
         if reg in ws:
             kind = 'write' if ins.mnemonic != 'pop' else 'scratch'
+            if ins.mnemonic in ('inc', 'dec', 'add', 'sub'):
+                used |= loop_scratch(f, va, reg, access)
             sources.add((kind, va, used))
             continue
         if ins.mnemonic == 'push' and ins.operands == (reg,):
@@ -120,6 +122,29 @@ def exit_sources(f, reg, access):
             sources.add(('entry', va, used))
         todo.extend((p, used) for p in predecessors[va] if p in reachable)
     return sorted(sources)
+
+
+def loop_scratch(f, site, reg, access):
+    """An updated cursor consumed on a back edge is scratch even on loop exit."""
+    todo, seen = [(dst, False) for dst in f.edges[site]], set()
+    while todo:
+        va, address_use = todo.pop()
+        if (va, address_use) in seen:
+            continue
+        seen.add((va, address_use))
+        if va == site:
+            if address_use:
+                return True
+            continue
+        ins = f.insns[va]
+        if any('[' in op and reg in op for op in ins.operands):
+            return True
+        _, writes = access(ins)
+        if reg in writes or ins.mnemonic == 'call':
+            continue
+        address_use |= any('[' in op and reg in op for op in ins.operands)
+        todo.extend((dst, address_use) for dst in f.edges.get(va, ()))
+    return False
 
 
 def x87_depths(f, floating, call_x87_used):
@@ -185,7 +210,7 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
             seeds[addr] = (next(iter(channels)), 'high', 'reviewed-vtable')
     for addr, row in direct.items():
         if row['ret'] in DECIDED:
-            seeds[addr] = (row['ret'], 'high', 'reviewed-direct')
+            seeds[addr] = (row['ret'], 'high', row.get('ret_evidence', 'reviewed-direct'))
 
     # A consumer of wrapper() also consumes the unchanged value produced by
     # its terminal call/tail. Solve demand backwards before deciding void, so

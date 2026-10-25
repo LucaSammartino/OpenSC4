@@ -726,7 +726,7 @@ def load_functions(export, names):
     return functions
 
 
-def extract(export, exe, vtables, output, evidence, direct_contracts=()):
+def extract(export, exe, vtables, output, evidence, direct_contracts=(), return_reviews=()):
     started = time.perf_counter()
     names_path = ROOT / 're/names_windows.tsv'
     names = {int(r['va'], 16): r['name'] for r in read_tsv(names_path)} if names_path.exists() else {}
@@ -818,7 +818,9 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
             break
     direct = {int(r['address'], 16): r for r in direct_contracts}
     from abi_return_use import analyse
-    return_evidence = analyse(functions, callsites, vtable, direct, access, call_x87_used)
+    return_direct = dict(direct)
+    return_direct.update((int(r['address'], 16), r) for r in return_reviews)
+    return_evidence = analyse(functions, callsites, vtable, return_direct, access, call_x87_used)
     print('caller/return analysis complete', flush=True)
     rows, raw_evidence = [], {}
     for addr, f in sorted(functions.items()):
@@ -873,6 +875,8 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
             if d.get('note'):
                 notes.add(d['note'])
         re = return_evidence[addr]
+        if addr in return_direct and return_direct[addr].get('ret_evidence'):
+            re['manual_review'] = return_direct[addr]
         if re['ret'] != 'unknown':
             if ret != re['ret']:
                 notes.add(f'return-refined-from={ret}')
@@ -907,6 +911,8 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
               len(f.pops) == 1 and not local_errors):
             conf = 'high'
             notes.add('convention-pop-evidence=ret-pop+body-registers-stack-bound')
+        if any(n.startswith('pop-evidence=caller-stack-balance') for n in notes) and conf == 'exact':
+            conf = 'high'
         row = dict(zip(COLUMNS, [f'{addr:08x}', f.size, f.name, conv,
                    'ecx' if conv in ('thiscall', 'fastcall') else 'none',
                    '' if pop is None else pop, '' if pop is None else count,
@@ -946,7 +952,8 @@ def main():
     parser.add_argument('--evidence', type=Path, default=ROOT / 'build-runs/abi-functions/evidence.json')
     args = parser.parse_args()
     contracts = json.loads((ROOT / 'tools/abi_direct_contracts.json').read_text(encoding='utf-8'))
-    extract(args.export, args.exe, args.vtables, args.output, args.evidence, contracts)
+    reviews = json.loads((ROOT / 'tools/abi_return_reviews.json').read_text(encoding='utf-8'))
+    extract(args.export, args.exe, args.vtables, args.output, args.evidence, contracts, reviews)
 
 
 if __name__ == '__main__':

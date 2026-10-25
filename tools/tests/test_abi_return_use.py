@@ -159,6 +159,15 @@ def test_fld_then_memory_compare_does_not_consume_a_call_result():
     assert ev[0x2000]['caller_x87_reads'] == 0
 
 
+def test_loop_cursor_is_scratch_on_the_exit_iteration_too():
+    _, ev = run('''00001000\t8808\tMOV byte ptr [EAX],CL
+00001002\t40\tINC EAX
+00001003\t4f\tDEC EDI
+00001004\t75fa\tJNZ 0x1000
+00001006\tc3\tRET''')
+    assert ev[0x1000]['ret'] == 'void'
+
+
 def test_empty_leaf_is_void_and_fpu_store_pop_is_not_a_float_return():
     _, ev = run('00001000\tc3\tRET', '''00002000\td901\tFLD dword ptr [ECX]
 00002002\td91a\tFSTP dword ptr [EDX]
