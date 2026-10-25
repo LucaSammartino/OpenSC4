@@ -22,8 +22,11 @@ Execution is opt-in, isolated-slot only, with `close_dialogs=1`. Raw requests,
 DLL/script hashes, results and logs live in this lane's `build-runs/suite/`.
 Default-DLL batch `triggermap27-r3` is retained separately from corrected-source
 `triggermap27-r3-current`: the former rejects documented newer grammar. Neither
-batch replaces a per-address entry census. No additional constructor candidates
-or function-root controls were analyzed this round.
+batch replaces a per-address entry census. Batch `triggermap27-r3-fixtures`
+replays the two non-advancing fixture cases in advancing cities and removes
+redundant port fallbacks. `scenario-observations.tsv`, `scenario-findings.tsv`
+and `run-results.md` retain every batch separately and identify the final selection.
+No additional constructor candidates or function-root controls were analyzed.
 
 ## Round 2: owner activation (historical)
 

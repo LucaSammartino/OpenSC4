@@ -123,3 +123,32 @@ that entry route. Shadow-state or digest observations support activity of a
 family but do not identify every contributing original method. Until address
 entry records are available, report these evidence levels separately and leave
 function precision/recall and newly reached body bytes unmeasured.
+
+## 6. Measured execution (2026-10-25)
+
+The final selection combines six unchanged scenarios from the current-DLL batch
+with the network, terrain and coast fixture-correction replays. All nine reached
+their end dates with clean process verdicts and no pending actions: 88 actions
+succeeded and three network placements failed. Shadow sampling was 7,186 exact
+of 7,291. These are comparison findings, not an all-exact game verdict. No replace
+run or function-compare measurement was made.
+
+Named returned simulator callbacks and explicit interface-route logs support
+activity for twenty of the 73 primary target owners. Other targets remain
+unconfirmed by these logs; shadow-family observations alone receive no owner
+entry credit. This is activity during the observation window, not additional
+reach over an idle control. No per-address entry census was produced, so newly
+reached functions/bytes and function precision/recall remain unmeasured.
+
+Keep all 21 runs: nine default-DLL attempts, nine current-DLL attempts, and three
+fixture corrections. The default DLL rejected newer documented grammar. In both
+DLL batches Schonerlinde and Tempelhof stayed at 2000-01-01 without a new simulated
+day, leaving dated actions pending; the final scripts use advancing cities.
+The coast correction removes two fallback sites skipped after the first port
+was successfully constructed. Neither failure mode is erased by the later runs.
+
+The effects run logged fire count 0 to 1 with active/ongoing flags, despite a null
+instance return. The growth run accepted all three 64-cell R/C/I rectangles.
+These observations establish ignition and zoning respectively; they do not prove
+every effects/growth path, construction completion, boat generation or navigation.
+The RE review tables retain each scenario/key's first differing line and log.
