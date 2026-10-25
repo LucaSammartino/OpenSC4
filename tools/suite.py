@@ -335,6 +335,8 @@ def add_lua_evidence(result, text):
             continue
         seen.add(match[0])
         body = match[3]
+        if body.startswith(('unavailable ', 'wrong-state ', 'timeout ')):
+            result['actions_failed'] += 1
         if body.startswith('Before '):
             pending.append(body.split()[1])
             result['actions_expected'] += 1

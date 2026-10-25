@@ -3,8 +3,11 @@
 **2026-10-25: Lua entry and a city mutation are proved on 1.1.641.0.**
 `luacmd27-proof-r7` printed through Lua Extensions, reached city view, changed the
 city name, read the changed name back, restored it, and saved the slot copy.
-The nine larger candidate scenarios remain WIP; their round-one failures below
-are historical evidence, not results from running the corrected helper.
+The nine older candidate scripts remain unqualified and are not suite rows.
+The registered `lua-lots-empty` and `lua-lots-grown` rows exercise the installed
+catalog's 175 categorized ploppable lots, then partially demolish the plan.
+Their measured results and limitations are recorded below; a zero command status
+alone does not prove that a lot exists in the save.
 
 ## Launching a candidate
 
@@ -92,9 +95,9 @@ and quit cleanly with zero exception/stall/RTC/overrun/ref counts:
 | `luacmd27-house-noext-r6`, slot 12 | 2026-06-15 | 0.93 | 867/873 | occmgr 0/5; landvalue 5/6 |
 | `luacmd27-house-ext-r8`, slot 11 | 2026-06-16 | 0.89 | 879/884 | occmgr 0/5; landvalue exact |
 
-**Same verdict, different shadow exactness: the extension control criterion is
-not fully met.** These differently paced runs do not establish causation for
-the extra landvalue mismatch without the extension. First mismatches are
+**Control accepted by coordinator review (20:20, 2026-10-25).** The different
+exactness is within identical-build run variance measured by golden27 and
+train248; it is not evidence against the extension. First mismatches are
 `occmgr`: noext log line **3557**, ext log line **3559** (2026-02-01), and
 `landvalue`: noext log line **5760** (2026-06-07, intrinsic/total mismatch at
 tract 22,58). No engine fix was attempted. The existing `run_summary.ps1` reader
