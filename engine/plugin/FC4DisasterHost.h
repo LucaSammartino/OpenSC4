@@ -63,6 +63,9 @@ inline bool IsSynthetic(uint64_t t) { return (t & kSyntheticToken) != 0; }
 struct DisasterHostContext {
     cISC4City* city = nullptr;  // borrowed for the city session
     bool shadow = false;
+    // A replacement routes period posts through its public layer, after the
+    // manager core returns. Other host users retain the normal message path.
+    std::function<void(const fc4_disaster_post&)> postOverride;
 
     // ---- shadow mode ----
     // The clock now_ms answers (the shadow sets it before each core call).
@@ -99,6 +102,7 @@ struct DisasterHostContext {
     // DisasterHostReleaseAll (a fire occupant's token is its cISC4Occupant*,
     // a leader's its cISC4Automaton*).
     std::map<uint64_t, cISC4FireOccupant*> fireOccupants;
+    std::function<bool(uint64_t, int32_t)> hoseFire;
     std::map<uint64_t, cISC4Automaton*> riotLeaders;
 
     // Lists from occupant queries, held until the outermost core call returns.
@@ -112,6 +116,7 @@ fc4_disasters_host MakeDisasterHost(DisasterHostContext* ctx);
 // destroyed) and the held lists.
 void DisasterHostReleaseAll(DisasterHostContext* ctx);
 void DisasterHostReleaseHeld(DisasterHostContext* ctx);
+void DisasterHostSyncFires(DisasterHostContext* ctx, const fc4_disasters* core);
 
 // The tuning exemplars (fire "Flame" 0xC9B6B73D, riot 0x4A38206D; type
 // 0x6534284A, group 0x29B6C670; disasters.md §5.1, §6.1) handed to the core.

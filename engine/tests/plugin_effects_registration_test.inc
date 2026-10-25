@@ -2,7 +2,7 @@
 // effects.md section 1: registration and factory agree on the city manager.
 int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
                             const std::string& log, const std::string& mode) {
-    const bool enabled = mode == "--effects-enabled";
+    const bool enabled = mode == "--effects-enabled" || mode == "--effects-guarded";
     const bool disabled = mode == "--effects-disabled";
     const bool guarded = mode == "--effects-guarded";
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
@@ -10,8 +10,8 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
     SetEnvironmentVariableA("FC4_EFFECTS_REPLACE", nullptr);
     SetEnvironmentVariableA("FC4_EFFECTS_SHADOW", nullptr);
     WriteTextFile(ini, disabled ? "[subsystems]\nenable = effects\ndisable = effects\n[tools]\neffects_replace = 1\n" :
-                       enabled ? "[subsystems]\nenable = effects\n[tools]\neffects_replace = 1\n" :
-                       guarded ? "[subsystems]\nenable = effects\n[tools]\neffects_shadow = 1\n" : "[subsystems]\n");
+                       guarded ? "[subsystems]\nenable = effects\n[tools]\neffects_shadow = 1\n" :
+                       enabled ? "[subsystems]\nenable = effects\n" : "[subsystems]\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
@@ -28,6 +28,16 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
         if (obj != nullptr) {
             // The manager interface starts with cIGZUnknown; GetClassObject owns this reference.
             auto* manager = static_cast<cIGZUnknown*>(obj);
+            // Call native slot numbers directly: a typed overloaded call can
+            // hide an MSVC overload-group reversal in both caller and callee.
+            using CreateById = bool (__thiscall*)(void*, uint32_t, uint32_t, cISC4VisualEffect**);
+            using CreateByName = bool (__thiscall*)(void*, const char*, cISC4VisualEffect**);
+            auto** slots = *reinterpret_cast<void***>(obj);
+            auto* untouched = reinterpret_cast<cISC4VisualEffect*>(obj);
+            CHECK(!reinterpret_cast<CreateById>(slots[6])(obj, 0, 0, &untouched));
+            CHECK(untouched == reinterpret_cast<cISC4VisualEffect*>(obj));
+            CHECK(!reinterpret_cast<CreateByName>(slots[7])(obj, nullptr, &untouched));
+            CHECK(untouched == reinterpret_cast<cISC4VisualEffect*>(obj));
             // Section 18.2 rejects unknown IIDs without changing the caller's
             // output, and neither failure path may acquire a reference.
             void* rejected = obj;
@@ -36,6 +46,26 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
             CHECK(!manager->QueryInterface(GZIID_cIGZUnknown, nullptr));
             CHECK(manager->AddRef() == 2);
             CHECK(manager->Release() == 1);
+            // Section 18.4: native direct-field access must stay inside the
+            // reserved prefix, rather than overwrite the adapter's host table.
+            const auto* bytes = static_cast<const unsigned char*>(obj);
+            uint32_t maxPriority = 0;
+            std::memcpy(&maxPriority, bytes + 0xB90, sizeof(maxPriority));
+            CHECK(maxPriority == 5);
+            int32_t lod = 0;
+            std::memcpy(&lod, bytes + 0xC84, sizeof(lod));
+            CHECK(lod == -1);
+            void* collection = nullptr;
+            CHECK(manager->QueryInterface(0xC97CF5CEu, &collection));
+            CHECK(static_cast<char*>(collection) == static_cast<char*>(obj) + 0x94);
+            if (collection != nullptr) {
+                auto* identity = static_cast<cIGZUnknown*>(collection);
+                void* primary = nullptr;
+                CHECK(identity->QueryInterface(GZIID_cIGZUnknown, &primary));
+                CHECK(primary == obj);
+                if (primary) CHECK(static_cast<cIGZUnknown*>(primary)->Release() == 2);
+                CHECK(identity->Release() == 1);
+            }
             void* unknown = nullptr;
             CHECK(manager->QueryInterface(GZIID_cIGZUnknown, &unknown));
             CHECK(unknown == obj);
@@ -63,9 +93,9 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
     const std::string text = ReadFile(log);
-    CHECK((text.find("AddCls skipped") != std::string::npos) == guarded);
+    CHECK(text.find("AddCls skipped") == std::string::npos);
     CHECK(text.find("SEH") == std::string::npos);
     if (enabled) CHECK(text.find("AddCls(0x49822F75) registered") != std::string::npos);
-    if (guarded) CHECK(text.find("effects shadow: enabled native record-only names") != std::string::npos);
+    if (guarded) CHECK(text.find("our effects manager is live") != std::string::npos);
     return g_failures == 0 ? 0 : 1;
 }

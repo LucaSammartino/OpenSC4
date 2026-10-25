@@ -14,6 +14,8 @@
 #include "FC4Subsystems.h"
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
+#include "cFC4PowerLineOccupant.h"
+#include "cFC4PowerPoleOccupant.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -134,6 +136,20 @@ cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
 cIGZUnknown* CreateFC4EffectsManager();
+cIGZUnknown* CreateFC4DisasterLayer();
+#define FC4_DISASTER_FACTORY_DECL(Name) \
+    cIGZUnknown* CreateFC4DisasterManager##Name(); \
+    cIGZUnknown* CreateFC4DisasterInstance##Name();
+FC4_DISASTER_FACTORY_DECL(Volcano)
+FC4_DISASTER_FACTORY_DECL(Fire)
+FC4_DISASTER_FACTORY_DECL(Earthquake)
+FC4_DISASTER_FACTORY_DECL(PipeBurst)
+FC4_DISASTER_FACTORY_DECL(Riot)
+FC4_DISASTER_FACTORY_DECL(Effect)
+FC4_DISASTER_FACTORY_DECL(Toxic)
+#undef FC4_DISASTER_FACTORY_DECL
+
+#include "FC4OverlayOwner.h"
 
 namespace fc4 {
 namespace {
@@ -482,9 +498,42 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
+// SPEC-GAP: §3.8.1 supplies no native CLSID/Init factory protocol. This FC4
+// identity exercises ownership without guessing a native identity or returning
+// a partial object for IID 0x895D6544. It cannot yet replace live view managers.
+const ClassEntry kOverlayOwnerClasses[] = {
+    {kFC4_CLSID_OverlayOwner, "cFC4OverlayOwner", &CreateFC4OverlayOwner},
+};
+
+// Replace managers and instances together: disasters.md §2.8 / DS44.
+const ClassEntry kDisasterClasses[] = {
+    {0x61F6ABF5, "cSC4DisasterLayer", &CreateFC4DisasterLayer},
+    {0xA9B5AB9F, "cSC4DisasterManagerVolcano", &CreateFC4DisasterManagerVolcano},
+    {0x69C1718E, "cSC4DisasterManagerFire", &CreateFC4DisasterManagerFire},
+    {0x0A086BD3, "cSC4DisasterManagerEarthquake", &CreateFC4DisasterManagerEarthquake},
+    {0x4A132FDF, "cSC4DisasterManagerPipeBurst", &CreateFC4DisasterManagerPipeBurst},
+    {0x4A38206C, "cSC4DisasterManagerRiot", &CreateFC4DisasterManagerRiot},
+    {0x6A7B3E9B, "cSC4DisasterManagerEffect", &CreateFC4DisasterManagerEffect},
+    {0xEBFB0402, "cSC4DisasterManagerToxic", &CreateFC4DisasterManagerToxic},
+    {0x29B5AB89, "cSC4DisasterInstanceVolcano", &CreateFC4DisasterInstanceVolcano},
+    {0x69C1718F, "cSC4DisasterInstanceFire", &CreateFC4DisasterInstanceFire},
+    {0xAA086D86, "cSC4DisasterInstanceEarthquake", &CreateFC4DisasterInstanceEarthquake},
+    {0x0A133012, "cSC4DisasterInstancePipeBurst", &CreateFC4DisasterInstancePipeBurst},
+    {0x4A38206D, "cSC4DisasterInstanceRiot", &CreateFC4DisasterInstanceRiot},
+    {0x6A7B3E9C, "cSC4DisasterInstanceEffect", &CreateFC4DisasterInstanceEffect},
+    {0xEBFB0403, "cSC4DisasterInstanceToxic", &CreateFC4DisasterInstanceToxic},
+};
+
 // advisors.md §1.1, §14: opt-in replacement of the advisor system.
 const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
+};
+
+// network-occupants.md §4, §5 (glue-netocc-replace17): the Rust-backed
+// pole and line on the shared inherited occupant slots (FC4OccupantAdapter.h).
+const ClassEntry kNetOccClasses[] = {
+    {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
+    {0x09C05C6A, "cSC4PowerPoleOccupant", &CreateFC4PowerPoleOccupant},
 };
 
 const Subsystem kSubsystems[] = {
@@ -561,7 +610,11 @@ const Subsystem kSubsystems[] = {
     // Pending integration: my-street-sim.md has a distinct Street owner;
     // mysims.md §7.2.3 requires replacing native concrete dispatch callers.
     {"mysims", nullptr, nullptr, 0, false},
+    {"overlays", nullptr, kOverlayOwnerClasses, sizeof(kOverlayOwnerClasses) / sizeof(kOverlayOwnerClasses[0]), false},
+    {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
+    // Partial occupant replacement: the power pole and power line.
+    {"netocc", nullptr, kNetOccClasses, sizeof(kNetOccClasses) / sizeof(kNetOccClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -616,6 +669,10 @@ void Resolve() {
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
     const char* enableSource = "";
     const std::string enable = Lower(Setting("enable", "FC4_ENABLE", &enableSource));
+    // SPEC-GAP: lot-records §13 does not settle the live lot's full ABI (e.g.
+    // GetLandValue's return channel). Keep the native factory until it does.
+    if (ListContains(enable, "lotrec"))
+        Log("subsystem 'lotrec': replacement unavailable (incomplete live lot ABI); original cSC4Lot retained");
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
         if (strcmp(s.key, "mysims") == 0) {
@@ -736,8 +793,8 @@ void Resolve() {
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
-    // The guarded class is native unless the diagnostic replacement is actually registered.
-    EffectsShadowStartup(enabledKey("effects") && SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) != 0);
+    // The mirror is selected only when the replacement class is registered.
+    EffectsShadowStartup(enabledKey("effects"));
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
     AutomataShadowStartup(enabledKey("automata"));
@@ -749,6 +806,9 @@ void Resolve() {
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
     ExemplarFactorySetEnabled(enabledKey("exemplars"));
     Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
+    if (enabledKey("overlays")) {
+        Log("overlays: FC4 owner factory registered; native manager interception=0 (SPEC-GAP)");
+    }
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's
@@ -794,10 +854,6 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
-        // SPEC-GAP: effects.md section 18.5 leaves the internal native bases unresolved.
-        // Real-city replacement still faults; keep it behind the diagnostic switch.
-        if (strcmp(kSubsystems[i].key, "effects") == 0 &&
-            SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) continue;
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {

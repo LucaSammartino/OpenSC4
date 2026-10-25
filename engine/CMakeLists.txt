@@ -1008,12 +1008,12 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_advisor_api_test PRIVATE plugin)
     target_compile_options(fc4_advisor_api_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_api_test COMMAND fc4_advisor_api_test)
-    # Effects' unsafe diagnostic opt-in must enumerate/create the city manager;
-    # guarded runs retain the native manager and its name-membership shadow.
+    # Effects opt-in must enumerate/create the same city-manager class whether
+    # or not its shadow is enabled.
     foreach(mode enabled disabled default guarded)
         add_test(NAME plugin_effects_registration_${mode}_test
             COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effects-${mode})
-        set_tests_properties(plugin_effects_registration_${mode}_test PROPERTIES RUN_SERIAL TRUE)
+        set_tests_properties(plugin_effects_registration_${mode}_test PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
     endforeach()
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
@@ -1214,6 +1214,17 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_mysims_mixed_factory_boundary_test PROPERTIES RUN_SERIAL TRUE)
 endif()
 
+# disasters.md §2.8: opt-in layer, preserving concrete native managers.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4DisasterLayer.cpp plugin/cFC4DisasterLayer.h)
+    add_test(NAME plugin_ini_enable_disasters_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-disasters)
+    set_tests_properties(plugin_ini_enable_disasters_test PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_ini_disable_disasters_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-disable-disasters)
+    set_tests_properties(plugin_ini_disable_disasters_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+
 if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_advisors_registration
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-advisors)
@@ -1240,8 +1251,46 @@ if(TARGET FreeCity4)
     add_test(NAME overlays_contract_test COMMAND fc4_overlays_contract_test)
 endif()
 
+# FC4 overlay-owner factory: real director registration, default-off and disable
+# precedence, lifecycle and simultaneous getter/setter calls through the Rust core.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4OverlayOwner.cpp plugin/FC4OverlayOwner.h)
+    add_executable(fc4_overlay_factory_test tests/overlay_factory_test.cpp)
+    target_include_directories(fc4_overlay_factory_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_definitions(fc4_overlay_factory_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_overlay_factory_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    foreach(mode off on disabled)
+        add_test(NAME overlay_factory_${mode}_test
+            COMMAND fc4_overlay_factory_test "$<TARGET_FILE:FreeCity4>" ${mode})
+    endforeach()
+endif()
+
 if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_netocc_shadow_factory_isolation
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-shadow-factories)
     set_tests_properties(plugin_netocc_shadow_factory_isolation PROPERTIES RUN_SERIAL TRUE)
+endif()
+
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4PowerLineOccupant.cpp plugin/cFC4PowerLineOccupant.h
+        plugin/cFC4PowerPoleOccupant.cpp plugin/cFC4PowerPoleOccupant.h plugin/FC4OccupantAdapter.h)
+endif()
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_netocc_line_factory
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-line-factory)
+    set_tests_properties(plugin_netocc_line_factory PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_netocc_pole_factory
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-pole-factory)
+    set_tests_properties(plugin_netocc_pole_factory PROPERTIES RUN_SERIAL TRUE)
+endif()
+# Lot-record replacement boundary and specified live getter projection.
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_lotrec_registration_boundary
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotrec-boundary)
+    add_test(NAME plugin_lotrec_default_off
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotrec-default)
+    add_executable(fc4_lot_record_view_test tests/lot_record_view_test.cpp)
+    target_include_directories(fc4_lot_record_view_test PRIVATE plugin)
+    target_compile_options(fc4_lot_record_view_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME lot_record_view_test COMMAND fc4_lot_record_view_test)
 endif()

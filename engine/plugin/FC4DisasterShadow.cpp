@@ -256,7 +256,13 @@ void Keep(std::set<uint64_t>& set, uint64_t t) {
 
 void DropAll(std::set<uint64_t>& set) {
     for (uint64_t t : set) {
-        if (cISC4Occupant* o = AsOcc(t)) FC4_RELEASE(o);
+        if (cISC4Occupant* o = AsOcc(t)) {
+            // Keep owns this reference. Refused ignition targets can leave
+            // the manager without another comparison calling PruneGone.
+            // At session teardown, match PruneGone's final-holder policy.
+            if (o->IsFlagSet(1)) FC4_RELEASE(o);
+            else FC4_RELEASE_LAST_HOLDER(o);
+        }
     }
     set.clear();
 }
@@ -272,7 +278,9 @@ void PruneGone(std::set<uint64_t>& set) {
             ++it;
             continue;
         }
-        if (o != nullptr) FC4_RELEASE(o);
+        // Keep acquired this reference. Once removed, the shadow may be
+        // the occupant's last holder; releasing it here is intentional.
+        if (o != nullptr) FC4_RELEASE_LAST_HOLDER(o);
         it = set.erase(it);
     }
 }

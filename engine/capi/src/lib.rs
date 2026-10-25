@@ -1155,6 +1155,7 @@ mod lua_registry_shadow;
 mod scres_shadow;
 mod scres_file_shadow;
 
+
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
 // MS20: private constructor/record-header dispatch differential, no live replay.
@@ -1180,3 +1181,10 @@ mod legacyctl_shadow;
 mod viewutil_shadow;
 // Private finite model-instance fixture transport; no DLL export changes.
 mod modelinst_shadow;
+
+// Private portable overlay owner factory transport; no public DLL exports.
+mod overlay_owner;
+// Private power-line occupant factory transport (no public DLL exports).
+mod netocc_line;
+// Private power-pole occupant factory transport (no public DLL exports).
+mod netocc_pole;
