@@ -444,6 +444,51 @@ fn te8_range_growth_stops_during_insert_or_suffix_without_cleanup() {
 }
 
 #[test]
+fn te8_range_growth_stop_preserves_storage_for_next_append() {
+    for stopped_copy in 1..=5 {
+        let mut h = history::History::default();
+        for at in 1..=3 {
+            h.push(action(at));
+        }
+        let pointer = h.as_ptr();
+        let strings = [h[0].restore.as_ptr(), h[1].restore.as_ptr(), h[2].restore.as_ptr()];
+        let mut storage = Storage {
+            stop: Some(stopped_copy),
+            ..Storage::default()
+        };
+        assert_eq!(
+            h.grow_insert_with(1, &[action(4), action(5)], &mut storage),
+            Err(history::Failure::DependencyStopped)
+        );
+        assert_eq!(h.invalid_state(), None);
+        assert_eq!(h.as_ptr(), pointer);
+        assert_eq!((h.len(), h.capacity()), (3, 4));
+        assert_eq!(&**h, &[action(1), action(2), action(3)]);
+        assert_eq!(
+            strings,
+            [h[0].restore.as_ptr(), h[1].restore.as_ptr(), h[2].restore.as_ptr()]
+        );
+        let expected = [
+            "allocate:6:360",
+            "copy:8192:1",
+            "copy:8252:4",
+            "copy:8312:5",
+            "copy:8372:2",
+            "copy:8432:3",
+        ];
+        assert_eq!(storage.events, expected[..stopped_copy + 1]);
+
+        storage.events.clear();
+        storage.stop = None;
+        h.append_with(&action(6), &mut storage).unwrap();
+        assert_eq!(storage.events, ["copy:4276:6"]); // Old block 0x1000 + 3*60.
+        assert_eq!(h.as_ptr(), pointer);
+        assert_eq!((h.len(), h.capacity()), (4, 4));
+        assert_eq!(&**h, &[action(1), action(2), action(3), action(6)]);
+    }
+}
+
+#[test]
 fn te8_null_range_growth_attempts_low_addresses_before_committing() {
     for stop in [Some(1), Some(2), None] {
         let mut h = history::History::default();
