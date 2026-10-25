@@ -13,6 +13,8 @@
 #include "cFC4NetworkTool.h"
 #include "cISC4City.h"
 #include "cISC4NetworkManager.h"
+#include "cISC4Occupant.h"
+#include "cISC4OccupantManager.h"
 #include "fc4.h"
 #include <vector>
 #include <cstring>
@@ -20,6 +22,7 @@
 namespace fc4 {
 namespace {
 struct Counts { uint32_t lines = 0, clean = 0, listed = 0; } g_narrow, g_wide;
+Counts g_plan, g_power;
 struct Probe {
     cFC4ISC4NetworkToolFull* tool;
     uint32_t type;
@@ -43,6 +46,194 @@ void Draw(void* p) {
     probe.total = probe.tool->GetTotalStepCount();
 }
 void Shutdown(void* p) { static_cast<Probe*>(p)->tool->Shutdown(); }
+
+struct PlanProbe {
+    Probe drag;
+    uint32_t failure = 0, valid = 0;
+    int32_t cost = 0;
+};
+void Plan(void* p) {
+    auto& s = *static_cast<PlanProbe*>(p);
+    auto& d = s.drag;
+    // [abi-ret] network-tools section 3: slot 7 returns AL; mask before use.
+    d.ok = (d.tool->PlaceNetworkOccupants(d.start.x, d.start.y, d.end.x, d.end.y,
+        0, nullptr, false, static_cast<cISC4NetworkOccupant::eNetworkType>(-1)) & 0xFFu) != 0;
+    d.tool->GetDraggedCells(d.cells);
+    d.straight = d.tool->GetStraightStepCount();
+    d.total = d.tool->GetTotalStepCount();
+    s.failure = d.tool->GetFailureState();
+    s.valid = d.tool->GetValidStepCount();
+    s.cost = d.tool->GetCostOfSolution();
+}
+void UndoPlan(void* p) {
+    auto* tool = static_cast<PlanProbe*>(p)->drag.tool;
+    // power-line-tool section 5.1: slot 16 restores reversible draft poles
+    // and connections. Do this before Shutdown, including after a failed probe.
+    tool->ClearOccupantHighlights();
+    tool->ClearCellPreviews();
+    tool->Shutdown();
+}
+struct PlanningContext : NetToolContext {
+    fc4_powerline_selection selection{};
+    bool selectionReady = false;
+};
+bool PowerlineDraft(void* u, fc4_nettool_run* run, uint32_t, uint32_t neighbourMode, bool real) {
+    auto& context = *static_cast<PlanningContext*>(static_cast<NetToolContext*>(u));
+    if (run->type_id != 5 || real || neighbourMode != 0) return false;
+    // network-tools sections 5.1/9: slot 53 handles the subclass and returns
+    // true, bypassing the base terrain solve even for a one-step drag.
+    context.selection = {};
+    context.selectionReady = run->dragged_count < 2 ||
+        ReadNetToolPowerlineSelection(&context, &context.selection);
+    run->valid_count = context.selection.valid;
+    // Incomplete observations remain unavailable, never a successful sample.
+    return true;
+}
+bool ClearPlanningOrigin(cISC4City* city, int32_t& x, int32_t& z) {
+    auto* occupants = city->GetOccupantManager(); // borrowed
+    if (!occupants) return false;
+    NetToolContext context;
+    context.city = city;
+    const auto host = MakeNetGeomHost(&context);
+    // SPEC-GAP: demolition-highlights enumeration/pricing and powerline
+    // reuse are not wired by these hosts. Probe an explicitly clear L-shaped
+    // footprint; never substitute native prices or silently drop a mismatch.
+    for (int32_t iz = 2; iz + 4 < static_cast<int32_t>(city->CellCountZ()) - 2; ++iz) {
+        for (int32_t ix = 2; ix + 12 < static_cast<int32_t>(city->CellCountX()) - 2; ++ix) {
+            bool clear = true;
+            for (int32_t i = 0; i < 17 && clear; ++i) {
+                const int32_t cx = ix + (i < 13 ? i : 0);
+                const int32_t cz = iz + (i < 13 ? 0 : i - 12);
+                cISC4Occupant* occupant = nullptr;
+                const bool hit = occupants->GetFirstOccupantByStandardCityCell(
+                    occupant, cx, cz, static_cast<cISC4OccupantFilter*>(nullptr));
+                if (occupant) {
+                    FC4_ACQUIRED(occupant, "GetFirstOccupantByStandardCityCell");
+                    FC4_RELEASE(occupant);
+                }
+                clear = !hit && !host.cell_has_water(host.user, cx, cz);
+            }
+            if (clear) { x = ix; z = iz; return true; }
+        }
+    }
+    return false;
+}
+void RunPlanning(cISC4City* city, int32_t julian, bool power) {
+    const char* key = power ? "powerline_plan_shadow" : "nettool_plan_shadow";
+    if (!city || SettingInt(key, nullptr, 0) == 0) return;
+    auto& n = power ? g_power : g_plan;
+    const char* label = power ? "powerline plan shadow" : "nettool plan shadow";
+    uint32_t mismatches = 0, unavailable = 0, vectors = 0;
+    auto* manager = city->GetNetworkManager(); // borrowed
+    size_t count = 0;
+    const auto* subsystems = Subsystems(&count);
+    for (size_t i = 0; i < count; ++i) {
+        if (std::strcmp(subsystems[i].key, "netmgr") == 0 && SubsystemEnabled(subsystems[i])) manager = nullptr;
+    }
+    // The registry replacement does not own the native manager's private
+    // factory. Calling that factory directly works with enable=nettool too.
+    int32_t originX = 0, originZ = 0;
+    if (manager && !ClearPlanningOrigin(city, originX, originZ)) manager = nullptr;
+    constexpr int32_t offsets[][4] = {
+        {0,0,0,0}, {0,0,4,0}, {4,0,0,0},
+        {0,0,0,4}, {0,4,0,0}, {0,0,12,0},
+    };
+    const uint32_t types[] = {0, 3, 5};
+    for (uint32_t type : types) {
+        if ((type == 5) != power) continue;
+        for (const auto& offset : offsets) {
+            const int32_t v[] = {originX + offset[0], originZ + offset[1],
+                originX + offset[2], originZ + offset[3]};
+            if (!manager) { ++unavailable; continue; }
+            auto* native = manager->GetNetworkTool(type, true); // created, refcount zero
+            if (!native) { ++unavailable; continue; }
+            FC4_ADDREF(native);
+            {
+                PlanningContext context;
+                context.city = city;
+                auto gh = MakeNetGeomHost(&context);
+                // No terrain writes, terrain transactions or redisplays in a
+                // planning replay. All remaining callbacks read the same city.
+                gh.set_altitude_at_vertex = nullptr;
+                gh.begin_long_terrain_operation = nullptr;
+                gh.redisplay_terrain = nullptr;
+                gh.end_long_terrain_operation = nullptr;
+                context.geom = fc4_netgeom_create(&gh, nullptr, 0);
+                const auto source = MakeNetToolHost(&context);
+                fc4_nettool_host th{};
+                th.struct_size = sizeof(th);
+                th.user = static_cast<NetToolContext*>(&context);
+                th.draw_network_line = source.draw_network_line;
+                if (power) th.do_network_specific_placement = &PowerlineDraft;
+                th.validate_and_solve = source.validate_and_solve;
+                th.get_network_occupant = source.get_network_occupant;
+                auto* core = fc4_nettool_create(&th, type);
+                PlanProbe p{{reinterpret_cast<cFC4ISC4NetworkToolFull*>(native), type,
+                    {static_cast<uint32_t>(v[0]), static_cast<uint32_t>(v[1])},
+                    {static_cast<uint32_t>(v[2]), static_cast<uint32_t>(v[3])}, false}};
+                const bool initialized = SehGuard("nettool plan Init", &Init, &p.drag) && p.drag.ok;
+                bool ready = context.geom && core && fc4_nettool_init(core,
+                    city->CellCountX(), city->CellCountZ(), 0, 0, 0, 0, !power);
+                bool ok = false;
+                fc4_netgeom_state state{};
+                uint32_t failure = 0, valid = 0;
+                int32_t cost = 0;
+                std::vector<fc4_netgeom_cell> cells;
+                if (ready) {
+                    fc4_nettool_enable_preview_update(core, false);
+                    ok = fc4_nettool_place_network_occupants(core, v[0], v[1], v[2], v[3], 0, 0, false, -1);
+                    ready = fc4_netgeom_get_state(context.geom, &state);
+                    failure = fc4_nettool_get_failure_state(core);
+                    valid = state.valid;
+                    cost = fc4_netgeom_cost(context.geom, 0);
+                    cells.resize(fc4_netgeom_get_cells(context.geom, nullptr, 0));
+                    fc4_netgeom_get_cells(context.geom, cells.data(), static_cast<uint32_t>(cells.size()));
+                    if (power) {
+                        const auto& selection = context.selection;
+                        ready = context.selectionReady && ready;
+                        valid = selection.valid;
+                        failure = selection.failure != 0 ? 1u : 0u;
+                        cost = selection.cost;
+                    }
+                }
+                const bool observed = initialized && SehGuard("nettool plan draft", &Plan, &p);
+                ++vectors;
+                if (!ready || !observed) ++unavailable;
+                else {
+                    uint32_t diff = cells.size() != p.drag.cells.size() ? 1u : 0u;
+                    for (size_t i = 0; i < cells.size() && i < p.drag.cells.size(); ++i) {
+                        diff += cells[i].x != static_cast<int32_t>(p.drag.cells[i].x) ||
+                            cells[i].z != static_cast<int32_t>(p.drag.cells[i].y);
+                    }
+                    diff += (ok != p.drag.ok) + (failure != p.failure) + (valid != p.valid) +
+                        (state.straight_count != p.drag.straight) + (state.dragged_count != p.drag.total) +
+                        (cost != p.cost);
+                    mismatches += diff;
+                    if (diff && n.listed++ < 12) Log(
+                        "%s diff type=%u drag=(%d,%d)-(%d,%d) mismatches=%u ok=%d/%d failure=%u/%u "
+                        "valid=%u/%u straight=%u/%u total=%u/%u cells=%u/%u cost=%d/%d",
+                        label, type, v[0], v[1], v[2], v[3], diff, p.drag.ok ? 1 : 0, ok ? 1 : 0,
+                        p.failure, failure, p.valid, valid, p.drag.straight, state.straight_count,
+                        p.drag.total, state.dragged_count, static_cast<uint32_t>(p.drag.cells.size()),
+                        static_cast<uint32_t>(cells.size()), p.cost, cost);
+                }
+                if (initialized && !SehGuard("nettool plan undo", &UndoPlan, &p)) ++unavailable;
+                if (core) fc4_nettool_destroy(core);
+                if (context.geom) fc4_netgeom_destroy(context.geom);
+                FC4_X87_CHECK("nettool plan shadow");
+            }
+            FC4_RELEASE_CREATED(native);
+        }
+    }
+    ++n.lines;
+    if (mismatches == 0 && unavailable == 0 && vectors != 0) ++n.clean;
+    // SPEC-GAP: no published native cell-info/satisfier or bridge-reader
+    // call boundary; public planning results do not verify those owners.
+    Log("%s julian=%d: mismatches=%u unavailable=%u vectors=%u scope=clear-land-draft-status-cost "
+        "origin=(%d,%d) "
+        "fields=return,ordered-cells,failure,valid,straight,total,cost exact=%u/%u",
+        label, julian, mismatches + unavailable, unavailable, vectors, originX, originZ, n.clean, n.lines);
+}
 void Run(cISC4City* city, int32_t julian, bool wide) {
     const char* key = wide ? "nettool_wide_drag_shadow" : "nettool_drag_shadow";
     if (!city || SettingInt(key, nullptr, 0) == 0) return;
@@ -134,17 +325,27 @@ void Run(cISC4City* city, int32_t julian, bool wide) {
 void NetToolDragShadowLoaded(cISC4City* city) {
     g_narrow = {};
     g_wide = {};
+    g_plan = {};
+    g_power = {};
     Run(city, 0, false);
     Run(city, 0, true);
+    RunPlanning(city, 0, false);
+    RunPlanning(city, 0, true);
 }
 void NetToolDragShadowMonth(cISC4City* city, int32_t julian) {
     Run(city, julian, false);
     Run(city, julian, true);
+    RunPlanning(city, julian, false);
+    RunPlanning(city, julian, true);
 }
 void NetToolDragShadowShutdown() {
     if (g_narrow.lines) Log("nettool drag shadow: city shutdown: exact %u/%u scope=draw-only", g_narrow.clean, g_narrow.lines);
     if (g_wide.lines) Log("nettool wide drag shadow: city shutdown: exact %u/%u scope=draw-only", g_wide.clean, g_wide.lines);
+    if (g_plan.lines) Log("nettool plan shadow: city shutdown: exact %u/%u scope=draft-status-cost", g_plan.clean, g_plan.lines);
+    if (g_power.lines) Log("powerline plan shadow: city shutdown: exact %u/%u scope=draft-status-cost", g_power.clean, g_power.lines);
     g_narrow = {};
     g_wide = {};
+    g_plan = {};
+    g_power = {};
 }
 }

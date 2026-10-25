@@ -799,6 +799,28 @@ fn world_cache_cleared_on_real_place() {
 // ---- §10: the closure ---------------------------------------------------------------------
 
 #[test]
+fn draft_planning_without_preview_still_solves_but_does_not_insert() {
+    let (wrc, mut host) = Host::new();
+    let mut st = state(ROAD);
+    st.preview_update = false;
+    host.w.borrow_mut().drawn = 5;
+    host.w.borrow_mut().pass = PassResult {
+        valid_count: 5,
+        failure: None,
+    };
+    assert!(place_network_occupants(&mut st, &mut host, 4, 32, 8, 32, 0, None, false, -1));
+    assert!(!st.real);
+    let w = wrc.borrow();
+    assert_eq!(w.draw_calls, 1);
+    assert_eq!(w.place_calls, 1);
+    assert_eq!(w.insert_calls, 0);
+    assert!(w.inserted.is_empty());
+    assert!(w.posts.is_empty());
+    assert!(w.withdrawals.is_empty());
+    assert_eq!(w.crew_segments, 0);
+}
+
+#[test]
 fn destroy_closure_pulls_in_structures_and_portals() {
     let (wrc, mut host) = Host::new();
     let mut st = state(ROAD);
