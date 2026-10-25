@@ -16,6 +16,8 @@ use crate::terrain::{msg, Terrain, TerrainTuning};
 
 #[path = "tests_nt34.rs"]
 mod nt34;
+#[path = "tests_nt36.rs"]
+mod nt36;
 
 fn close(a: f32, b: f32, tol: f32) -> bool {
     (a - b).abs() <= tol
@@ -482,8 +484,8 @@ fn satisfier_details() {
     sat.insert_fixed(4, 33.0);
     assert!(sat.solve());
     assert!((1..=4).all(|v| sat.height(v) == Some(33.0)));
-    // The first propagation pinned vertex 3 (through 3 = 4): it is picked
-    // before the scan finds the fixed vertex 4.
+    // Singleton visits append 4, then 1, 2, 3 on the next ordered wave;
+    // the pending stack therefore pops 3 first (NT36).
     assert_eq!(sat.solution()[0], (3, 33.0));
 }
 
@@ -834,12 +836,12 @@ fn t21_smoothing_codes() {
     g.draw_network_line(ROAD, (10, 10), (20, 10), true, &ramp, &Ends);
     assert_eq!(g.place(&ramp, &mut Ends), 0);
     assert_eq!(g.failure, code::SMOOTHING);
-    // Without the ends the run floats free of the terrain and only the
-    // support test fails.
+    // Without the ends the ordered propagation reaches closure before the
+    // first pick (NT36); the free run finds a supportable profile.
     let mut g = geo();
     g.draw_network_line(ROAD, (10, 10), (20, 10), true, &ramp, &NoHost);
-    assert_eq!(g.place(&ramp, &mut NoHost), 0);
-    assert_eq!(g.failure, code::TERRAIN_SUPPORT);
+    assert_eq!(g.place(&ramp, &mut NoHost), 11);
+    assert_eq!(g.failure, 0);
     // A 40 m dip: level 0 cannot solve (the run is held at the terrain).
     // At level 1 the dip's vertices have the narrowest ranges (their minimum
     // is the sea level 250), so they are picked first at their own height
