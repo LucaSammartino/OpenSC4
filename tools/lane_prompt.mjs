@@ -15,6 +15,7 @@ if (request.provider === 'codex') {
   rendered.prompt = rendered.prompt
     .replace('- Shell: the Bash tool is Git Bash. Write Windows paths with forward slashes (C:/Users/...) or in single quotes: an unquoted backslash is eaten. PowerShell: `powershell -NoProfile -File <script>.ps1`.',
       '- Shell: exec_command uses PowerShell on Windows. Use forward-slash paths. For Bash syntax, run the quiet q.py wrapper. Use apply_patch for edits; cap shell output and avoid long inline scripts.')
+    .replace(/^- Worktree: create it first.*$/m, '- Worktree: <WT> already exists and is reserved for you; reuse it.')
     .replace('- Your cwd is the main checkout: never edit, commit, merge or `cd` there.',
       '- Your cwd is your lane worktree. Never edit, commit, merge or `cd` in the main checkout.')
     .replace('Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>',

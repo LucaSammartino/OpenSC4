@@ -160,9 +160,6 @@ def launch(root, state_path, spec_path=None, provider=None):
         args.update(maxRounds=1, main=root.as_posix())
         args.setdefault('ctxBudget', 150000)
         args.setdefault('maxCalls', 150)
-        if args['kind'] == 'engine':
-            args['task'] += (' For every new game request choose a unique label and wait without qwait --fresh; '
-                             'an already completed verdict for that unique label is valid and must not be discarded.')
         number = entry['rounds'] + 1
         stem = root/'build-runs'/f'run4-{name}-r{number}'
         manifest = Path(str(stem)+'-manifest.json')
