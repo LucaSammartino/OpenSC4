@@ -212,7 +212,7 @@ cSC4AttractorDescription	automata (vehicles, animation)	simulation	automata-supp
 cSC4ControllerGrid	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
 cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	automata-support.md, prop-occupant.md	-	-	-
 tControllerQInfo	automata (vehicles, animation)	simulation	automata.md	-	-	-
-cSC4NetworkToolUI	city tools and input	ui	-	-	-	-
+cSC4NetworkToolUI	city tools and input	ui	network-tool-ui.md	-	-	-
 cSC4NetworkPreview	city tools and input	ui	-	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
@@ -454,11 +454,11 @@ cSC4DynamicParticleSystem	effects (particles, decals, visuals)	renderer	particle
 cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
-cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	-	-	-	-
-cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
 cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
@@ -542,8 +542,8 @@ cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4CheatCodeEntryDialog	windows and panels	ui	cheat-dialog.md	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
 cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
-cSC4ToolTipManager	windows and panels	ui	-	-	-	-
-cSC4ProgressScreen	windows and panels	ui	-	-	-	-
+cSC4ToolTipManager	windows and panels	ui	ui-feedback-owners.md	-	-	-
+cSC4ProgressScreen	windows and panels	ui	ui-feedback-owners.md	-	-	-
 cSC4CatalogItem	windows and panels	ui	catalog-view.md	-	-	-
 nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
@@ -577,7 +577,7 @@ cSCColorSequenceEntryView	resource and exemplar editor	ui	resource-exemplar-edit
 cSCResKeyTableEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
 cSC*EntryView	resource and exemplar editor	ui	-	-	-	-
 cSC*View	resource and exemplar editor	ui	-	-	-	-
-cSCEditValueDlg	resource and exemplar editor	ui	-	-	-	-
+cSCEditValueDlg	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
 # free functions of the cSCPropertyView object file (0x0066F8E0-0x00671080), called from cSCPropertyView
 fn:getDefaultValue	resource and exemplar editor	ui	-	-	-	-
 fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
