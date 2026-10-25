@@ -334,7 +334,7 @@ cISCProperty* cFC4PropertyHolder::Find(uint32_t id) const {
 
 cISCProperty* cFC4PropertyHolder::Lookup(uint32_t id) const {
     cISCProperty* p = Find(id);
-    if (p == nullptr && parent_ != nullptr) p = AsGame(parent_)->GetProperty(id);  // slot 9, borrowed
+    if (p == nullptr && parent_ != nullptr) p = fc4::AsGame(parent_)->GetProperty(id);  // slot 9, borrowed
     return p;
 }
 
