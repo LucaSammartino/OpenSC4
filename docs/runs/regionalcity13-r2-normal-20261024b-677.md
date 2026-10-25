@@ -1,5 +1,5 @@
-tag: regionalcity13-r2-normal-20261024b-633
-run: 633
+tag: regionalcity13-r2-normal-20261024b-677
+run: 677
 date: 2026-10-24
 lane: glue-regionalcity-shadow13
 dll: b6211054 (source 7842bb59f)

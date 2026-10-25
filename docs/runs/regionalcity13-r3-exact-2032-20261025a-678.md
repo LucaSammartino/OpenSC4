@@ -1,5 +1,5 @@
-tag: regionalcity13-r3-exact-2032-20261025a-634
-run: 634
+tag: regionalcity13-r3-exact-2032-20261025a-678
+run: 678
 date: 2026-10-25
 lane: glue-regionalcity-shadow13
 dll: 5e84247c (stable implementation 386435447)
