@@ -1207,6 +1207,8 @@ if(TARGET FreeCity4)
     target_compile_definitions(fc4_advisor_message_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_advisor_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
+endif()
+
 # Overlay probe ABI and lifecycle against the real private Rust transport.
 if(TARGET FreeCity4)
     add_executable(fc4_overlays_contract_test tests/overlays_contract_test.cpp)
