@@ -725,7 +725,7 @@ fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
 fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 # ---- framework
 cSC4App	application	framework	application.md	core/src/application	-	-
-cWinSC4App	application	framework	-	-	-	-
+cWinSC4App	application	framework	app-shell-window.md	-	-	-
 cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
 cSC4ResourceLibCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cSC4COMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
@@ -813,6 +813,9 @@ NetworkFileCache	web and network	framework	web-network.md	core/src/www	-	-
 HTTPMessage	web and network	framework	-	-	-	-
 cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
+cSC4Framework	framework services (GZ)	framework	app-shell-window.md, gz-framework-core.md	-	-	-
+cSC4MessageServer	framework services (GZ)	framework	app-shell-window.md, framework-gz-services.md	-	-	-
+cSC4MessageServer2	framework services (GZ)	framework	app-shell-window.md, framework-gz-services.md	-	-	-
 cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
 cGZFramework	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-

@@ -57,8 +57,9 @@ Only messages for the script window count; the result is false except where note
 - `0xA2BF8AD5` (the window is set up): disable child `0x102` (slot 68 `SetFlag(2, false)`); B := the city's budget
   (city slot 52, held); **Refresh** (§2.3).
 - `0x682876C9` (a slider moved) with data1 in `0x501…0x503`: **SliderMoved(data1)** (§2.4).
-- A command (type 3) with data1 `0x287259F6` (a button) and data2: `0x101` posts `0x29222F02` with data1
-  `0x892230F2` through the message server `0x00B43CCC` (slot 3), so the expense dialog opens next, then Close, true;
+- A command (type 3) with data1 `0x287259F6` (a button) and data2: `0x101` sends `0x29222F02` with data1
+  `0x892230F2` through message server 2 (`0x00B43CCC`, slot 3 `MessageSend`), so the expense dialog opens at once,
+  then Close, true;
   `0x107` Close, true; `0x102` nothing.
 
 ### 2.3 Refresh (`0x00764600`)
@@ -110,7 +111,7 @@ monthly cost (int64), `+0x20` byte changed.
 
 - `0xA2BF8AD5`: **Init** (§3.3).
 - Command `0x887113A3` with data2 = a control id: **Changed(id)** (§3.4).
-- Button `0x287259F6`: `0x102` posts `0x29222F02` with data1 `0xC92230EE` (the income dialog next), **Apply**, Close,
+- Button `0x287259F6`: `0x102` sends `0x29222F02` with data1 `0xC92230EE` (the income dialog opens), **Apply**, Close,
   true; `0x111` Apply, Close, true; `0x101` nothing.
 
 ### 3.3 Init (`0x00763D50`)
@@ -156,4 +157,5 @@ value)` (0 without B). It does not write the budget.
    becomes 50.
 3. Expense, ideal funding 1,000 at 80 %: percent 80, monthly 800, yearly 9,600; moving to 50 gives 500 and 6,000;
    OK sets the department to 0.5 and the budget's monthly expense to Σ + ordinance expense.
-4. Expense button `0x102` posts `0x29222F02` with `0xC92230EE`; income button `0x101` posts it with `0x892230F2`.
+4. Expense button `0x102` sends `0x29222F02` with `0xC92230EE`; income button `0x101` sends it with `0x892230F2`.
+   The new dialog is created during the send, before the old one closes.
