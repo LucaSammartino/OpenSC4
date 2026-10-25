@@ -189,4 +189,26 @@ mod tests {
         bytes[4] = 0xFF;
         assert_eq!(compare(&bytes), Some(2));
     }
+
+    #[test]
+    fn rejects_conflicting_alias_in_a_complete_capture_and_oversize_before_read() {
+        let mut bytes = payload();
+        let mut reference = Vec::new();
+        reference.extend_from_slice(&900u32.to_le_bytes());
+        reference.extend_from_slice(&0x12345678u32.to_le_bytes());
+        let repeated = bytes
+            .windows(8)
+            .enumerate()
+            .filter(|(_, value)| *value == reference)
+            .nth(1)
+            .unwrap()
+            .0;
+        bytes[repeated + 4] ^= 1;
+        assert_eq!(compare(&bytes), None);
+        // A valid pointer to a short buffer must not be read for a rejected size.
+        assert_eq!(
+            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), 16 * 1024 * 1024 + 1) },
+            u32::MAX
+        );
+    }
 }
