@@ -14,6 +14,7 @@
 #include "FC4Script.h"
 
 #include "FC4Config.h"
+#include "FC4Watchdog.h"
 #include "FC4Diag.h"
 #include "FC4DisasterShadow.h"
 #include "FC4DispatchShadow.h"
@@ -81,6 +82,7 @@ std::string g_path;                  // the loaded script, "" = none
 // tick (pointers into g_schedule; cleared whenever it is reloaded).
 std::vector<const harness::ScriptAction*> g_waiting;
 bool g_inTick = false;  // ScriptOnTick is running the waiting actions
+volatile LONG g_saveGraceMs = 0;  // watchdog reads; only inside an explicitly opted-in full save
 
 constexpr unsigned long long kMaxScriptBytes = 4ull << 20;  // [choice] a text file of actions, not a save
 
@@ -483,7 +485,18 @@ std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
 std::string RunSave(const harness::ScriptAction& a, cISC4City* city) {
     // [choice] No city, no call: what SaveCity does without one is not specified.
     if (city == nullptr) return "ok=0 (skipped: no city)";
+    long grace = a.fast ? 0 : SettingInt("script_save_grace_ms", "FC4_SCRIPT_SAVE_GRACE_MS", 0);
+    if (grace < 0) grace = 0;
+    if (grace > 120000) grace = 120000;
+    if (grace > 0 && grace < 10000) grace = 10000;
+    if (grace) Log("script: full-save watchdog grace %ld ms (script_save_grace_ms)", grace);
+    InterlockedExchange(&g_saveGraceMs, grace);
     const ObserverSave r = ObserverSaveCity(a.fast);
+    // We have resumed the observer's framework tick. Publish that progress
+    // before dropping the allowance, so the completed save is not a stale
+    // no-tick stall at the ordinary threshold.
+    if (grace) NoteFrameworkTick();
+    InterlockedExchange(&g_saveGraceMs, 0);
     if (!r.haveApp) return "ok=0 (skipped: no cISC4App)";
     char b[160];
     std::snprintf(b, sizeof(b), "ok=%d (SaveCity(%s) in %lu ms)%s", r.result ? 1 : 0, a.fast ? "fast" : "full", r.ms,
@@ -772,5 +785,7 @@ void ScriptOnTick() {
 }
 
 bool ScriptWaiting() { return !g_waiting.empty(); }
+
+uint32_t ScriptSaveGraceMs() { return static_cast<uint32_t>(InterlockedCompareExchange(&g_saveGraceMs, 0, 0)); }
 
 }  // namespace fc4

@@ -642,6 +642,16 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
          started; verdict, then TerminateProcess
        AUTOTEST VERDICT: clean (…, julian=2451911, date=2001-01-01, real_seconds=29.312, days_per_second=12.48, …)
        ```
+   - **Fixed scheduler** (`sim_fixed_step = 1`, env `FC4_SIM_FIXED_STEP`; **off by default**):
+     golden tooling uses our simulator with every other subsystem original (`enable = simulator`,
+     `disable = all`, `pacing = original`, all shadows/compares off). The scheduler clock advances by
+     one virtual millisecond per agent delivery; a frame has a fixed 64-delivery ceiling, independent
+     of real time, speed, `sim_turbo_frame_ms` or the frame budget. Each new day ends the frame so
+     observer actions and deferred saves get a tick before another day can open. Empty/paused
+     frames stop after 4096 scheduler clock reads. This implies turbo's ready day gate, including
+     before ConnectionsReady; use `popup_dialogs = 0`. It does **not** change the original agents'
+     own wall-time slices, RNG seeds or framework animation ticks. Measure residual variance;
+     this switch alone does not promise deterministic original subsystems. No ABI/save change.
    - **Turbo clock** (`sim_turbo = 1`, env `FC4_SIM_TURBO`; off by default; `plugin/FC4Turbo.h`; a *tooling
      deviation* from simulator.md §5, our simulator only): days are no longer paced by msPerDay. The day gate's
      `ready` (§5.2 step 3) is always true, so a day opens as soon as its agents have finished the previous one;
@@ -725,6 +735,13 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      The explicit diagnostic action `portprops x z state` switches native spatial props with property `0xC98204B8`
      on the existing lot at (x,z) to state 0 or 1. It logs filter counts, setter calls and before/after states,
      and calls no port-developer method.
+
+     `script_save_grace_ms = 0` is **off by default**. An explicit positive value
+     (clamped to 10000..120000 ms) raises the watchdog's stall threshold only while
+     a scripted full `SaveCity` executes. Golden runs request 60000 ms because the
+     original full save can exceed autotest's ten-second stall limit. Fast saves
+     and all other activity keep the ordinary watchdog rules; a full save exceeding
+     the grace still fails. No simulation steps or saved fields are changed.
 
      `save_as <name>` is not available (a parse error that says so). The interface exists
      (`SaveCity(cIGZString const& path, bool fast)`, slot 15, pop 8), but what saving under another path does is

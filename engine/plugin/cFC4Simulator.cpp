@@ -37,6 +37,7 @@
 #include "FC4WeatherShadow.h"
 #include "FC4OrdinanceShadow.h"
 #include "FC4HarnessLogic.h"
+#include "FC4Config.h"
 #include "FC4Pacing.h"
 #include "FC4Perf.h"
 #include "FC4Turbo.h"
@@ -158,6 +159,8 @@ cIGZUnknown* CreateFC4Simulator() {
 
 
 cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
+    fixedStep_ = fc4::SettingInt("sim_fixed_step", "FC4_SIM_FIXED_STEP", 0) != 0;
+    if (fixedStep_) fc4::Log("simulator: sim_fixed_step ON: 64 agent deliveries/frame, virtual scheduler clock, new-day barrier; original subsystem timers/RNG unchanged");
     FC4_LOGV("cFC4Simulator(%p) constructor enter", static_cast<void*>(this));
     fc4_host host{};
     host.struct_size = sizeof(fc4_host);
@@ -322,7 +325,9 @@ void cFC4Simulator::LogCalibration(const char* when) {
 
 // ---- host callbacks ------------------------------------------------------------------
 
-uint32_t cFC4Simulator::HostNowMs(void*) {
+uint32_t cFC4Simulator::HostNowMs(void* user) {
+    auto* self = static_cast<cFC4Simulator*>(user);
+    if (self != nullptr && self->fixedStep_) return self->fixedClock_.Now();
     static LARGE_INTEGER freq = [] {
         LARGE_INTEGER f;
         QueryPerformanceFrequency(&f);
@@ -335,6 +340,8 @@ uint32_t cFC4Simulator::HostNowMs(void*) {
 }
 
 bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4_message* msg) {
+    auto* self = static_cast<cFC4Simulator*>(user);
+    if (self != nullptr && self->fixedStep_) self->fixedClock_.Delivered();
     cIGZMessageTarget2* target = AgentPtr(agent);
     if (target == nullptr || msg == nullptr) return true;
     // Synchronous delivery (spec §4) with the simulator's pattern from
@@ -601,6 +608,9 @@ void cFC4Simulator::HostSettle(void* user, int32_t julian) {
 }
 
 void cFC4Simulator::Post(const fc4_message& msg) {
+    // Give the observer/script a framework tick at every new-day boundary.
+    // In particular, a deferred full save must not advance into a later day.
+    if (fixedStep_ && msg.type == 0x66956814) fixedClock_.FinishFrame();
     const bool calendar = msg.type >= 0x66956814 && msg.type <= kMsgSimNewYear;  // SimNewDay..SimNewYear
     if (msg.type == 0x66956814) fc4::PacingDayOpened(static_cast<int32_t>(msg.data1));
     bool posted = false;
@@ -1118,6 +1128,12 @@ bool cFC4Simulator::OnTick(uint32_t unknown1) {
     fc4::TickScope tick;
     FC4_X87_SCOPE("simulator OnTick", 0);  // x87 leftover guard at the entry and the end (FC4Fpu.h)
     ++ticks_;
+    if (fixedStep_) {
+        fixedClock_.BeginFrame();
+        // Reuse the core's existing budget checks, measured in deliveries,
+        // and ready day gate. This adds no C ABI or saved-game state.
+        fc4_sim_set_turbo(sim_, true, fc4::harness::FixedStepClock::kDeliveries, 0);
+    }
     if (ticks_ == 1 || ticks_ % 1000 == 0) {
         fc4_state st{};
         st.struct_size = sizeof(st);
