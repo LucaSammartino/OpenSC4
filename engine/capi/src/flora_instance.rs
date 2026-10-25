@@ -170,7 +170,7 @@ pub unsafe extern "C" fn fc4_flora_instance_record_shadow(
             && instance.flora.last_seeding_date == expected.last_seed
             && i32::from(instance.flora.state) == expected.state
             && u32::from(instance.flora.orientation) == expected.orientation
-            && instance.position == expected.position
+            && instance.position.map(f32::to_bits) == expected.position.map(f32::to_bits)
             && instance.lot_tag == expected.lot_tag
             && instance.base.flags == (expected.flags & 0xdd)
             && instance.base.highlight == expected.highlight
@@ -218,12 +218,41 @@ mod tests {
                 out.bytes().len(),
                 &v
             ));
+            for length in 0..out.bytes().len() {
+                assert!(!fc4_flora_instance_record_shadow(out.bytes().as_ptr(), length, &v));
+            }
+            let mut extended = out.bytes().to_vec();
+            extended.push(0);
+            assert!(!fc4_flora_instance_record_shadow(extended.as_ptr(), extended.len(), &v));
             v.birth += 1;
             assert!(!fc4_flora_instance_record_shadow(
                 out.bytes().as_ptr(),
                 out.bytes().len(),
                 &v
             ));
+            fc4_flora_instance_destroy(p);
+        }
+    }
+
+    #[test]
+    fn shadow_compares_position_bits_without_normalizing_floats() {
+        unsafe {
+            let p = fc4_flora_instance_create();
+            let mut v = fc4_flora_instance_values::default();
+            assert!(fc4_flora_instance_values_get(p, &mut v));
+            v.position = [-0.0, f32::from_bits(0x7fc0_1234), 16.0];
+            assert!(fc4_flora_instance_values_set(p, &v));
+            let mut out = fc4_core::stream::ByteWriter::new();
+            assert!((&*p.cast::<FloraInstance>()).write(&mut out));
+            let exact = |expected: &fc4_flora_instance_values| {
+                fc4_flora_instance_record_shadow(out.bytes().as_ptr(), out.bytes().len(), expected)
+            };
+            assert!(exact(&v));
+            v.position[0] = 0.0;
+            assert!(!exact(&v));
+            v.position[0] = -0.0;
+            v.position[1] = f32::from_bits(0x7fc0_5678);
+            assert!(!exact(&v));
             fc4_flora_instance_destroy(p);
         }
     }
