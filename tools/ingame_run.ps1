@@ -292,7 +292,9 @@ if ($Slot -gt 0) {
 } else { $UserDir = $DocsUser }
 $Plugins = Join-Path $UserDir "Plugins"
 $Log = Join-Path $Plugins "FreeCity4.log"
-$CityDir = Join-Path $UserDir "Regions\$Region"
+# A slot mirrors the selected region under the name FC4 Test, as its only region (see the mirror below).
+$CityDir = if ($Slot -gt 0) { Join-Path $UserDir "Regions\FC4 Test" } else { Join-Path $UserDir "Regions\$Region" }
+if ($Slot -eq 0 -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: -Region other than FC4 Test needs -Slot"; exit 4 }
 $cityFixture = Resolve-HarnessCityFixture $Ini $Slot $City (Join-Path (MainCheckout) 'build-runs\fixtures')
 if ($cityFixture.Source -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: fixture_city requires region FC4 Test"; exit 4 }
 $Ini = $cityFixture.Ini
@@ -329,6 +331,8 @@ if ($dllSrc -and -not (Test-Path -LiteralPath $dllSrc)) { Write-Output "BAD ARGS
 if ($Slot -gt 0) {
     New-Item -ItemType Directory -Force $Plugins, (Join-Path $UserDir "Regions") | Out-Null
     Copy-Item (Join-Path $DocsUser "SimCity 4.cfg") (Join-Path $UserDir "SimCity 4.cfg") -Force
+    # The cfg may remember any region (Timbuktu, say); with FC4 Test the slot's only region, the game opens it.
+    foreach ($d in Get-ChildItem -LiteralPath (Join-Path $UserDir "Regions") -Directory) { if ($d.Name -ne "FC4 Test") { Remove-Item -LiteralPath $d.FullName -Recurse -Force } }
     # Mirror only the selected region (copies only what differs, removes what the last run added).
     & robocopy $regionSource $CityDir /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { Write-Output "BLOCKED: could not mirror the region into $CityDir (robocopy $LASTEXITCODE)"; exit 3 }
