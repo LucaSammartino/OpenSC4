@@ -15,9 +15,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 try:
-    from tools import compare_metrics, oracle_class
+    from tools import compare_metrics, function_boundary, oracle_class
 except ModuleNotFoundError:
     import compare_metrics
+    import function_boundary
     import oracle_class
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +74,7 @@ def spec_citations(directory, addresses):
     return citations
 
 
-def ledger_rows(data, states, bindings, evidence, classes, contracts, citations):
+def ledger_rows(data, states, bindings, evidence, classes, contracts, citations, boundaries):
     for va, size, index, area in data["game"]:
         contract = contracts.get(va, {})
         binding = bindings.get(va, {})
@@ -84,6 +85,7 @@ def ledger_rows(data, states, bindings, evidence, classes, contracts, citations)
                **{key: int(bool(status.get(key))) for key in cov.STAT},
                "oracle_class": oracle_class.classify(classes.get(va, set())),
                "oracle_flags": ",".join(sorted(classes.get(va, set()))),
+               **boundaries[va].columns(),
                "contract_present": int(bool(contract)),
                **{"contract_" + key: contract.get(key, "") for key in CONTRACT_FIELDS},
                "spec_citations": json.dumps(citations.get(va, []), ensure_ascii=False, sort_keys=True),
@@ -96,6 +98,31 @@ def ledger_rows(data, states, bindings, evidence, classes, contracts, citations)
         yield row
 
 
+def answering_cost(rows):
+    implemented = {r["address"] for r in rows if r["implemented"]}
+    targets, imports, slots = set(), set(), set()
+    game, library, other = set(), set(), set()
+    ready_bytes = ready_nonempty_bytes = 0
+    for row in rows:
+        if not row["implemented"]:
+            continue
+        direct = set()
+        for kind, combined in (("game", game), ("library", library), ("other", other)):
+            values = set(json.loads(row["direct_" + kind + "_targets"]))
+            direct.update(values)
+            combined.update(values)
+        targets.update(direct)
+        imports.update(json.loads(row["import_names"]))
+        slots.update(json.loads(row["indirect_slots"]))
+        if direct <= implemented:
+            ready_bytes += row["bytes"]
+            if direct:
+                ready_nonempty_bytes += row["bytes"]
+    return dict(direct=len(targets), game=len(game), library=len(library), other=len(other),
+                imports=len(imports), slots=len(slots), ready_bytes=ready_bytes,
+                ready_nonempty_bytes=ready_nonempty_bytes)
+
+
 def summary(rows, regress, logs, min_natural, min_dense, warnings):
     total = sum(r["bytes"] for r in rows)
     lines = ["# Run-7 function ledger", "",
@@ -106,19 +133,44 @@ def summary(rows, regress, logs, min_natural, min_dense, warnings):
         selected = [r for r in rows if r[key]]
         size = sum(r["bytes"] for r in selected)
         lines.append(f"| {key} | {len(selected):,} | {size:,} | {cov.pct(size, total)} |")
-    lines += ["", "| Oracle class | Functions | Bytes |", "|---|---:|---:|"]
-    for key in oracle_class.CLASSES:
-        selected = [r for r in rows if r["oracle_class"] == key]
-        lines.append(f"| {key} | {len(selected):,} | {sum(r['bytes'] for r in selected):,} |")
-    lines += ["", "Ten largest owners by implemented-but-unmatched bytes (oracle split in bytes):", "",
-              "| Owner | Bytes | Closed | Globals | Vtable | OS |", "|---|---:|---:|---:|---:|---:|"]
-    owners = defaultdict(Counter)
+    implemented_bytes = sum(r["bytes"] for r in rows if r["implemented"])
+    for label, field, classes in (("Oracle", "oracle_class", oracle_class.CLASSES),
+                                  ("Boundary", "boundary_class", function_boundary.CLASSES)):
+        lines += ["", f"| {label} class | Functions | Bytes | Implemented functions | Implemented bytes | Share of implemented bytes |",
+                  "|---|---:|---:|---:|---:|---:|"]
+        for key in classes:
+            selected = [r for r in rows if r[field] == key]
+            impl = [r for r in selected if r["implemented"]]
+            size = sum(r["bytes"] for r in impl)
+            lines.append(f"| {key} | {len(selected):,} | {sum(r['bytes'] for r in selected):,} | "
+                         f"{len(impl):,} | {size:,} | {cov.pct(size, implemented_bytes)} |")
+    cost = answering_cost(rows)
+    lines += ["", "Answering cost over implemented code (distinct targets/names/slot displacements):",
+              f"- Direct callees: {cost['direct']:,} (game {cost['game']:,}, library/compiler {cost['library']:,}, other {cost['other']:,}).",
+              f"- Imports: {cost['imports']:,}; indirect slot displacements: {cost['slots']:,}.",
+              f"- Implemented bytes whose direct callees are all implemented: {cost['ready_bytes']:,} "
+              f"({cov.pct(cost['ready_bytes'], implemented_bytes)}); with at least one direct callee: {cost['ready_nonempty_bytes']:,}.",
+              "  Includes functions with no direct callees; library/compiler and unknown targets are not implemented.",
+              "", "Direct counts are distinct callees; import/indirect counts are call sites in the function body only.",
+              "Library/compiler means Ghidra-exported entries outside coverage's game set; imports are PE IAT calls.",
+              "Slot displacements are nonnegative, dword-aligned single-register candidates (excluding ESP/EBP).",
+              "Global flags cover memory accesses to PE .data/.rdata, including indexed globals, excluding LEA/immediates.",
+              "", "Ten largest owners by implemented-but-unmatched bytes; both class splits cover ALL implemented owner bytes:", "",
+              "| Owner | Implemented unmatched bytes | Implemented bytes | O:closed | O:globals | O:vtable | O:os | B:leaf | B:globals | B:direct | B:indirect | B:import |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    owners, oracle_bytes, boundary_bytes = defaultdict(Counter), defaultdict(Counter), defaultdict(Counter)
     for row in rows:
-        if row["implemented"] and not row["matched"]:
-            owners[row["owner"]][row["oracle_class"]] += row["bytes"]
-    for owner in sorted(owners, key=lambda o: (-sum(owners[o].values()), o))[:10]:
-        split = " | ".join(f"{owners[owner][key]:,}" for key in oracle_class.CLASSES)
-        lines.append(f"| {owner} | {sum(owners[owner].values()):,} | {split} |")
+        if row["implemented"]:
+            owner = row["owner"]
+            owners[owner]["implemented"] += row["bytes"]
+            owners[owner]["unmatched"] += row["bytes"] if not row["matched"] else 0
+            oracle_bytes[owner][row["oracle_class"]] += row["bytes"]
+            boundary_bytes[owner][row["boundary_class"]] += row["bytes"]
+    for owner in sorted(owners, key=lambda o: (-owners[o]["unmatched"], o))[:10]:
+        split = [oracle_bytes[owner][key] for key in oracle_class.CLASSES]
+        split += [boundary_bytes[owner][key] for key in function_boundary.CLASSES]
+        lines.append(f"| {owner} | {owners[owner]['unmatched']:,} | {owners[owner]['implemented']:,} | " +
+                     " | ".join(f"{size:,}" for size in split) + " |")
     lines += ["", f"Entry contracts: {sum(r['contract_present'] for r in rows):,}; "
               f"functions with direct spec citations: {sum(r['spec_citations'] != '[]' for r in rows):,}.",
               f"Warnings: {len(warnings)} (full list in inputs.json)."]
@@ -141,10 +193,14 @@ def main():
     logs = [Path(p) for p in args.log] if args.log else compare_metrics.regress_logs(data["regress"])
     states, bindings, evidence, warnings = compare_metrics.collect_states(
         data["game"], ROOT / "engine/plugin/compare", logs, data["base"], args.min_natural, args.min_dense)
-    classes = oracle_class.scan(data["export"], oracle_class.read_iat(cov.find_input("bin/SimCity4.exe", args.exe)))
+    exe = cov.find_input("bin/SimCity4.exe", args.exe)
+    iat = oracle_class.read_iat(exe)
+    classes = oracle_class.scan(data["export"], iat)
+    boundaries = function_boundary.scan(data["export"], {va for va, *_ in data["game"]}, iat,
+                                        function_boundary.data_sections(exe))
     contracts = read_contracts(ROOT / "docs/abi/functions.tsv")
     citations = spec_citations(ROOT / "docs/specs", {va for va, *_ in data["game"]})
-    rows = list(ledger_rows(data, states, bindings, evidence, classes, contracts, citations))
+    rows = list(ledger_rows(data, states, bindings, evidence, classes, contracts, citations, boundaries))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter="\t", lineterminator="\n")

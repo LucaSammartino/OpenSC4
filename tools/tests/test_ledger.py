@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools import compare_metrics as cm, oracle_class as oc
+from tools import compare_metrics as cm, function_boundary, oracle_class as oc
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("ledger_under_test", ROOT / "tools/ledger.py")
@@ -246,9 +246,11 @@ def test_contract_and_spec_citations_join_to_ledger(tmp_path, monkeypatch):
     state, _ = evaluate(tmp_path, line(), mode="replace")
     row = binding("replace") | {"file": str(registry / "fixture.tsv")}
     rows = list(ledger.ledger_rows(data, {0x401000: state}, {0x401000: row}, {},
-                                  {0x401000: {"gread"}}, contracts, citations))
+                                  {0x401000: {"gread"}}, contracts, citations,
+                                  {0x401000: function_boundary.Boundary(direct_game={0x402000})}))
     assert rows[0]["contract_convention"] == "thiscall"
     assert rows[0]["oracle_class"] == "globals"
+    assert rows[0]["boundary_class"] == "direct" and rows[0]["direct_game_callees"] == 1
     assert rows[0]["binding_mode"] == "replace" and rows[0]["replaced-fn"] == 1
     assert json.loads(rows[0]["spec_citations"])[0]["file"] == "docs/specs/fixture.md"
     assert all(rows[0][key] == 1 for key in ledger.cov.STAT)
