@@ -1,0 +1,86 @@
+{
+  "label": "inplace26-r4-capture-3",
+  "verdict": "verdict: clean",
+  "dll": "31d74285",
+  "rows": 120,
+  "installed": 26,
+  "totals": {
+    "natural": {
+      "calls": 33837,
+      "sampled": 2234,
+      "compared": 2233,
+      "exact": 2233,
+      "float_only": 0,
+      "different": 0,
+      "outside": 0,
+      "refused": 1,
+      "nested": 1409,
+      "mutation": 17,
+      "detected": 17,
+      "recorded": 338,
+      "replaced": 0,
+      "max_ulp": 0
+    },
+    "fixture": {
+      "calls": 640,
+      "sampled": 640,
+      "compared": 640,
+      "exact": 640,
+      "float_only": 0,
+      "different": 0,
+      "outside": 0,
+      "refused": 0,
+      "nested": 224,
+      "mutation": 26,
+      "detected": 26,
+      "recorded": 516,
+      "replaced": 0,
+      "max_ulp": 0
+    },
+    "corpus": {
+      "calls": 0,
+      "sampled": 0,
+      "compared": 0,
+      "exact": 0,
+      "float_only": 0,
+      "different": 0,
+      "outside": 0,
+      "refused": 0,
+      "nested": 0,
+      "mutation": 0,
+      "detected": 0,
+      "recorded": 0,
+      "replaced": 0,
+      "max_ulp": 0
+    },
+    "dense": {
+      "calls": 0,
+      "sampled": 0,
+      "compared": 0,
+      "exact": 0,
+      "float_only": 0,
+      "different": 0,
+      "outside": 0,
+      "refused": 0,
+      "nested": 0,
+      "mutation": 0,
+      "detected": 0,
+      "recorded": 0,
+      "replaced": 0,
+      "max_ulp": 0
+    }
+  },
+  "mutations_located": 43,
+  "uninstalled": [
+    "lighting-night",
+    "rotation",
+    "system-country",
+    "visible-edges"
+  ],
+  "uncompared": [
+    "lighting-night",
+    "rotation",
+    "system-country",
+    "visible-edges"
+  ]
+}

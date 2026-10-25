@@ -677,3 +677,7 @@ std::string IniPath();
 // dbpf_bounds_shadow = 0 / 1 (default 0): also enable the monthly DBPF reader
 // and compare zero, one, short and exact raw-buffer capacities, including QFS
 // storage bytes, returned lengths and untouched guards against Rust (section 2.6.1).
+// inplace = names / all; inplace_mutate = names / all; inplace_fixture = 0 / 1:
+// S3 entry-hook observer, independent default-off switches (FC4Inplace.h).
+// compare selects names/class:<Class>/all (inplace alias); compare_mode overrides
+// registry compare/record/replace. Corpus, dense and value exports: docs/harness.md.

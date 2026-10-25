@@ -1,0 +1,7 @@
+name	address	class	convention	this	stack_arg_dwords	callee_pop	ret	windows	rust_entry	mode
+language-from-system	00924038	cRZLanguageManager	thiscall	ecx	1	4	eax	this+0/4/r/-	language-from-system	compare
+system-from-language	00923e3e	cRZLanguageManager	thiscall	ecx	1	4	eax	this+0/4/r/-	system-from-language	compare
+language-alias	00924aef	cRZLanguageManager	thiscall	ecx	1	4	eax	this+0/4/r/-	language-alias	compare
+primary-language	009250d5	cRZLanguageManager	thiscall	ecx	1	4	eax	this+0/4/r/-	primary-language	compare
+default-country	0092525a	cRZLanguageManager	thiscall	ecx	1	4	eax	this+0/4/r/-	default-country	compare
+system-country	009253d7	cRZLanguageManager	thiscall	ecx	0	0	eax	this+0/4/r/-	system-country	compare
