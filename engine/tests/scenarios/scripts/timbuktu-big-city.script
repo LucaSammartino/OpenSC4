@@ -1,6 +1,6 @@
 # Timbuktu: Big City Tutorial. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2015-09-19 mark timbuktu-big-city: begin local build patch
 2015-09-19 tutorial query
 2015-09-19 tutorial end 1
@@ -25,10 +25,10 @@
 2015-09-24 clockmode 1
 2015-09-25 speed 1
 2015-09-26 pricezone 38 20 41 23 4
-2015-09-29 disaster fire auto
-2015-10-01 disaster riot auto
 2015-10-03 clockmode 0
 2015-10-04 speed 2
-2015-10-09 save
-2015-10-10 digest
-2015-10-11 mark timbuktu-big-city: script complete
+2015-12-18 disaster fire auto
+2015-12-18 disaster riot auto
+2015-12-18 save
+2015-12-18 digest
+2015-12-18 mark timbuktu-big-city: script complete

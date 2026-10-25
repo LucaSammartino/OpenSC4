@@ -86,6 +86,7 @@ $OutDir = Join-Path $PSScriptRoot "..\build-runs"
 $Ctl = Join-Path $PSScriptRoot "sc4ctl.ps1"
 $MutexTool = Join-Path $PSScriptRoot "sc4mutex.ps1"
 . (Join-Path $PSScriptRoot 'city_fixture.ps1')
+. (Join-Path $PSScriptRoot 'process_cmdline.ps1')
 
 Add-Type -ErrorAction SilentlyContinue @"
 using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
@@ -220,10 +221,11 @@ function MainCheckout {
 # PIDs of the SimCity 4 processes that use user dir $dir (from their command lines; no -UserDir = Documents).
 function GamesUsing([string]$dir) {
     $want = $dir.TrimEnd('\').ToLower()
-    try { $all = @(Get-CimInstance Win32_Process -Filter "Name='SimCity 4.exe'" -ErrorAction Stop) }
-    catch { return @(Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) }
+    $all = @(Get-HarnessGameProcesses)
     $r = @()
     foreach ($w in $all) {
+        # Still fail closed when neither query can identify a live process.
+        if (-not $w.CommandLine) { $r += [int]$w.ProcessId; continue }
         $ud = $DocsUser
         if ("$($w.CommandLine)" -match '-UserDir:"?([^"]+)') { $ud = $Matches[1].Trim() }
         if ($ud.TrimEnd('\').ToLower() -eq $want) { $r += [int]$w.ProcessId }
@@ -299,6 +301,11 @@ $cityFixture = Resolve-HarnessCityFixture $Ini $Slot $City (Join-Path (MainCheck
 if ($cityFixture.Source -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: fixture_city requires region FC4 Test"; exit 4 }
 $Ini = $cityFixture.Ini
 if ($cityFixture.Source) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
+$suiteState = Resolve-HarnessSuiteState $Ini $Slot (MainCheckout)
+$Ini = $suiteState.Ini
+if ($suiteState.Export -and $KeepSaves) { throw 'export_city requires normal slot backup restoration' }
+if ($suiteState.Source -and $cityFixture.Source) { throw 'prepared_city and fixture_city cannot be combined' }
+if ($suiteState.Source -or $suiteState.Export) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $plan = @()
@@ -340,6 +347,10 @@ if ($Slot -gt 0) {
         $fixtureCopy = Copy-HarnessCityFixture $cityFixture.Source $UserDir $DocsUser $City
         Write-Output "fixture_city: $($fixtureCopy.SHA256) -> $($fixtureCopy.Destination) (source preserved)"
     }
+    if ($suiteState.Source) {
+        $stateCopy = Copy-HarnessCityFixture $suiteState.Source $UserDir $DocsUser $City
+        Write-Output "prepared_city: $($stateCopy.SHA256) -> $($stateCopy.Destination) (source preserved)"
+    }
     foreach ($f in Get-ChildItem -LiteralPath $Plugins -File) { if ($f.Name -notin "FreeCity4.dll", "FreeCity4.pdb", "FreeCity4.log") { Remove-Item -LiteralPath $f.FullName -Force } }
 }
 if ($Dll -or $Slot -gt 0) {
@@ -354,7 +365,7 @@ $dllHash = if (Test-Path -LiteralPath $stagedDll) { (Get-FileHash -Algorithm SHA
 # The ini: the caller's text, the city, the autotest defaults, the turbo / end-date switches.
 $text = $Ini
 if ($City) {
-    if ($City -notmatch '^[A-Za-z0-9 ._()-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
+    if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
     $cityFile = Join-Path $CityDir "City - $City.sc4"
     if (-not (Test-Path -LiteralPath $cityFile)) { Write-Output "BAD ARGS: no city file $cityFile"; exit 4 }
     $text = ($text -replace '(?m)^[ \t]*autoload_city[ \t]*=.*$', '') + "`nautoload_city = $cityFile"
@@ -620,6 +631,14 @@ if ($p -and -not $p.HasExited) {
 }
 Start-Sleep -Seconds 2
 Copy-Item $Log (Join-Path $OutDir "$Label.log") -Force
+if ($suiteState.Export) {
+    try {
+        if ($verdict -notmatch '^AUTOTEST VERDICT: clean\b' -or -not (Select-String -LiteralPath $Log -Pattern 'script: line .* save -> ok=1' -Quiet)) { throw 'export_city requires a clean run and a successful scripted save' }
+        $null = Resolve-HarnessSuiteState ("export_city = " + $suiteState.Export) $Slot (MainCheckout)
+        $exportHash = Export-HarnessSuiteState $cityPath $suiteState.Export $cityHash
+        Write-Output "export_city: $exportHash -> $($suiteState.Export) (before slot restore)"
+    } catch { $verdict = "state-export-failed: $($_.Exception.Message)" }
+}
 # Optional Lua evidence; never read another slot's or the install's shared logs.
 if ($luaExtensions) {
     $luaEvidence = New-Object 'System.Collections.Generic.List[string]'
