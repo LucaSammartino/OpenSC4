@@ -423,6 +423,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "modelinst_shadow",
                                   // Specified live lot getter comparison, independently default off.
                                   "lotrecview_shadow",
+                                  // EX54 raw read capacities and buffer guards, default off.
+                                  "dbpf_bounds_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

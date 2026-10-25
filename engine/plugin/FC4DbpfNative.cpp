@@ -43,6 +43,7 @@ struct Counts {
     unsigned indexes = 0, records = 0, raw = 0, payload = 0, compressed = 0, empty = 0;
     unsigned zero = 0, one = 0, multi = 0, failed = 0;
     unsigned listFalse = 0, keyDifferences = 0, countDifferences = 0;
+    unsigned bounds = 0, boundsExact = 0;
 };
 struct HeldFile {
     cIGZPersistDBSegment* segment;
@@ -444,6 +445,25 @@ bool CompareHeld(cIGZCOM* com, cIGZPersistDBSegment* segment, cIGZDBSegmentPacke
         ++c.raw;
         if (result != expected || got != expectedSize || original != own)
             Difference(c, path.ToChar(), "held-raw-return/size/bytes", pair.first);
+        if (SettingInt("dbpf_bounds_shadow", nullptr, 0) != 0) {
+            // Section 2.6.1: raw reads truncate to capacity, including QFS headers;
+            // a successful zero-capacity read returns zero, not decoded size.
+            // Both implementations start each read at the indexed record start.
+            std::vector<uint32_t> capacities{0, 1, w[4] ? w[4] - 1 : 0, w[4]};
+            std::sort(capacities.begin(), capacities.end());
+            capacities.erase(std::unique(capacities.begin(), capacities.end()), capacities.end());
+            for (uint32_t capacity : capacities) {
+                std::vector<uint8_t> native(size_t(capacity) + 2, 0xcc), core(native);
+                uint32_t nativeSize = capacity, coreSize = capacity;
+                const uint32_t nativeResult = packed->ReadRecordRaw(key, native.data() + 1, nativeSize);
+                const uint32_t coreResult = fc4_dbpf_read_raw(rust, w[0], w[1], w[2],
+                    core.data() + 1, &coreSize);
+                ++c.bounds;
+                if (nativeResult == coreResult && nativeSize == coreSize && native == core &&
+                    native.front() == 0xcc && native.back() == 0xcc) ++c.boundsExact;
+                else Difference(c, path.ToChar(), "held-raw-bounds-return/size/bytes/guards", pair.first);
+            }
+        }
         got = expectedSize = 99;
         if (packed->ReadRecordRaw(key, nullptr, got) !=
             fc4_dbpf_read_raw(rust, w[0], w[1], w[2], nullptr, &expectedSize) || got != expectedSize)
@@ -553,7 +573,8 @@ void AddCityReader(cIGZCOM* com, HeldSample& sample) {
 } // namespace
 
 void DbpfShadowObserve(int32_t julian) {
-    if (SettingInt("dbpf_shadow", nullptr, 0) == 0) return;
+    if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
+        SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
     static std::deque<HeldSample> samples;
     pending = &samples;
     pending->emplace_back();
@@ -623,6 +644,10 @@ void HeldSummary(const HeldSample& sample) {
         sample.ticks, sample.maxSliceMs, sample.roots, sample.children, sample.nonpacked, sample.closed,
         sample.cityDiscovered, sample.citySelected, sample.cityCompared,
         static_cast<unsigned long long>(sample.generation), c.differ + c.refusal);
+    if (SettingInt("dbpf_bounds_shadow", nullptr, 0) != 0)
+        Log("dbpf_bounds shadow %04d-%02d-%02d: %u/%u clean, records=%u compressed=%u empty=%u "
+            "mismatches=%u", date.year, date.month, date.day_of_month, c.boundsExact, c.bounds,
+            c.records, c.compressed, c.empty, c.bounds - c.boundsExact + c.refusal);
 }
 }
 
@@ -690,7 +715,8 @@ void DbpfShadowTick() {
 bool DbpfShadowPending() { return pending != nullptr && !pending->empty(); }
 
 void DbpfShadowBeforeSave() {
-    if (SettingInt("dbpf_shadow", nullptr, 0) == 0) return;
+    if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
+        SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
     ++saveGeneration;
     cityAfterSave = true;
     // Release acquired views while the game's owners are still registered;
