@@ -369,3 +369,28 @@ fn te8_range_growth_uses_size_instead_of_old_capacity() {
     assert_eq!(&**h, &[action(1), action(2), action(4), action(5), action(3)]);
     assert_eq!(storage.events[0], "allocate:6:360");
 }
+
+#[test]
+fn te8_range_growth_stops_during_insert_or_suffix_without_cleanup() {
+    for stopped_copy in [2, 3] {
+        let mut h = history::History::default();
+        h.push(action(1));
+        h.push(action(3));
+        let pointer = h.as_ptr();
+        let string = h[0].restore.as_ptr();
+        let mut storage = Storage {
+            stop: Some(stopped_copy),
+            ..Storage::default()
+        };
+        assert_eq!(
+            h.grow_insert_with(1, &[action(2)], &mut storage),
+            Err(history::Failure::DependencyStopped)
+        );
+        assert_eq!(h.as_ptr(), pointer);
+        assert_eq!(h[0].restore.as_ptr(), string);
+        assert_eq!(h.capacity(), 2);
+        assert_eq!(&**h, &[action(1), action(3)]);
+        let expected = ["allocate:4:240", "copy:8192:1", "copy:8252:2", "copy:8312:3"];
+        assert_eq!(storage.events, expected[..stopped_copy + 1]);
+    }
+}
