@@ -4,39 +4,33 @@ FreeCity4 is an **original, open-source reimplementation** of the SimCity 4 engi
 GPL-3.0-or-later. Players must own the game: FreeCity4 uses their installed copy's data files and, until the
 replacement is complete, its executable.
 
-The project only stays open source if every line in `engine/` is our own work. We separate the people
-who study the original program from the people who write engine code.
+Keep analysis of the original program separate from engine implementation.
 
 ## Two roles
 
-This file is the single source for the clean-room roles. Other docs link here.
+The [lane prompt](.claude/workflows/fc4-lane.js) is authoritative for lane instructions and reading scope.
+This table defines the project roles; a task can narrow access further.
 
 | | Analysis (spec writers) | Implementation (engine authors) |
 |---|---|---|
-| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `decomp-mac/`, `ghidra/export/`, everything in `re/` | `docs/specs/` (questions for the analysis side go in `docs/specs/questions/<spec>.md`; `docs/specs/QUESTIONS.md` is the generated index), `docs/abi/` (interface facts), `engine/` with the public SDK headers in `engine/third_party/gzcom-dll` (LGPL), the game's data files, general literature; and the operating docs `README.md`, `CONTRIBUTING.md`, `docs/HANDOFF.md`, `docs/ops/`, `docs/ARCHITECTURE.md`, `docs/harness.md`, `docs/manual-checks.md`, `docs/lanes/INDEX.md`, `docs/lanes/README.md`, `docs/merge-train.md` (keep decompiled and RE-only material out of all of these) |
-| Produces | **behaviour specs** in `docs/specs/` (what happens, in prose, tables and pseudo-math) and interface facts in `docs/abi/` | code in `engine/`, plus tests that check it against the specs |
-| Must not | write or edit `engine/` code | open, list or grep `decomp/`, `decomp-mac/`, `external/`, `ghidra/` (any part), `re/`, `tools/`, `docs/subsystems/`, `docs/sim-engine.md`, the game executable, or any disassembly or decompiled output, in any checkout; paste anything from them; or run scripts from `tools/` (the lane tools in `.claude/lane-bin/` hold no RE content and may be run) |
+| May read | original executable, disassembly, `decomp/`, `decomp-mac/`, `ghidra/`, `re/`, specs and interface tables | `docs/specs/`, `docs/abi/`, `engine/` and its LGPL SDK headers in `engine/third_party/gzcom-dll`; operating docs within the prompt's reading scope |
+| Produces | behaviour specs in `docs/specs/`; proposed ABI rows as the RE prompt directs | code in `engine/` and spec conformance tests |
+| Must not | read or edit `engine/` | open, list, grep or read `decomp/`, `decomp-mac/`, `external/`, `ghidra/` (any part), `re/`, `tools/`, `docs/subsystems/`, `docs/sim-engine.md`, the game executable or disassembly/decompiled output, in either checkout; run scripts from `tools/` (`.claude/lane-bin/` may be run) |
 
-One person may hold different roles on different subsystems, but **never both roles on the same subsystem**.
-An agent doing engine work never reads RE material in the same task.
+Never hold both roles on one subsystem or put RE material in an engine task.
 
 ## The wall covers logic, not interfaces
 
-How the game *calls* things is an interoperability fact, and engine authors may use it directly. That covers
-vtable slots, argument sizes, return registers, struct sizes and message IDs. `docs/abi/` holds these facts,
-recorded by the analysis side (tables from `tools/abi_extract.py` plus hand corrections). Every interface the engine
-implements or calls must agree with it, and `abi_conformance_test` checks this. What a method *does* (algorithms,
-formulas, state changes, ordering) still reaches engine authors only as a behaviour spec.
+`docs/abi/` records vtable slots, argument sizes, return registers, struct sizes and message IDs.
+Engine interfaces must agree with it (`abi_conformance_test`). Algorithms, formulas, state changes and
+ordering reach implementers only through behaviour specs.
 
 ## Specs
 
-- Specs describe observable behaviour: state, inputs, outputs, ordering, timing, file formats, message IDs and
-  constants that are needed for compatibility.
-- Specs contain **no code from the original program**: no decompiler output, no translated control flow line by line,
-  no original local variable structure. Short pseudo-code that states an algorithm is fine. Transliterating a
-  decompiled function is not.
+- Describe observable state, inputs, outputs, ordering, timing, formats and compatibility constants.
+- No original code, decompiler output or line-by-line translations. Use prose, tables, worked examples and pseudo-math.
 - Tag compatibility requirements *[compat]* and free design choices *[choice]*.
-- When behaviour is unknown, say so. Do not guess silently.
+- Mark unknown behaviour explicitly; engine lanes follow the prompt's `SPEC-GAP` rule.
 
 ## Engine code
 
@@ -51,11 +45,8 @@ formulas, state changes, ordering) still reaches engine authors only as a behavi
 
 ## How work lands
 
-Work happens in lanes: one agent, one worktree, one branch, one task. A lane records its state and report in
-`docs/lanes/<lane>.md` and each in-game run in `docs/runs/<tag>.md`, writes a merge-queue entry and **stops**; a
-single merge-train owner lands batches on `main`. A lane never merges `main`, never bumps `FC4_ABI_VERSION` and
-never edits a `<!-- BEGIN GENERATED: ... -->` region. The formats and the queue contract are in
-[docs/lanes/README.md](docs/lanes/README.md); what the train does is in [docs/merge-train.md](docs/merge-train.md).
+Follow the prompt's finish procedure and the [record formats](docs/lanes/README.md).
+The [merge train](docs/merge-train.md) owns landing on `main`.
 
 ## Never commit
 
