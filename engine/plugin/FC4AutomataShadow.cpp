@@ -34,11 +34,14 @@
 #include "cIGZSerializable.h"
 #include "cIGZUnknown.h"
 #include "cISC4City.h"
+#include "cISC4Automaton.h"
+#include "cS3DVector3.h"
 #include "GZServPtrs.h"
 #include "cRZCOMDllDirector.h"
 #include "cIGZCOM.h"
 
 #include <cinttypes>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -48,12 +51,19 @@
 
 #include "fc4.h"
 
+// Private static-link transports, deliberately absent from the public C ABI.
+extern "C" bool fc4_watercraft_shadow_record(const fc4_istream*, const fc4_ostream*,
+    const fc4_automata_ref_host*, float*, uint32_t*);
+extern "C" uint64_t fc4_watercraft_shadow_probe(uint32_t);
+
 namespace fc4 {
 namespace {
 
 bool g_enabled = false;
 bool g_ownersEnabled = false;
 bool g_helicopterEnabled = false;
+bool g_watercraftEnabled = false;
+uint64_t g_watercraftLines = 0, g_watercraftClean = 0;
 int32_t g_helicopterMonth = 0;
 uint64_t g_helicopterLines = 0, g_helicopterClean = 0;
 uint64_t g_ownerLines = 0;
@@ -624,7 +634,107 @@ uint32_t ComparePart(Part& p, std::string& out, OwnerScan* owners) {
     return mismatches;
 }
 
+// Watercraft §§1/3.1 and automata §7.4: record/getter observations are
+// read-only on live boats. Only the private factory fixture receives probes.
+void WatercraftCompare(const char* what, int32_t julian) {
+    if (!g_watercraftEnabled || !g_city) return;
+    uint32_t bad = 0, samples = 0, reachable = 0, fixtures = 0, probes = 0;
+    uint64_t bytes = 0;
+    auto compare = [&](cIGZSerializable* native, uint32_t step, bool fixture) {
+        ++samples;
+        bad += native->GetGZCLSID() != 0x096E75F5;
+        WriteCapture capture(false, true);
+        if (!capture.Capture(native)) { ++bad; return; }
+        CaptureIn input(capture);
+        RecordOut output;
+        const auto host = RefHost(&capture);
+        float vectors[9]{};
+        uint32_t states[2]{};
+        const bool decoded = fc4_watercraft_shadow_record(input.Get(), output.Get(), &host, vectors, states);
+        bytes += capture.Bytes().size();
+        if (!decoded || !input.atEnd() || output.bytes != capture.Bytes()) {
+            ++bad;
+            Log("watercraft shadow detail: record differs decoded=%u input=%u output=%u",
+                decoded ? 1u : 0u, static_cast<unsigned>(capture.Bytes().size()),
+                static_cast<unsigned>(output.bytes.size()));
+        }
+        if (!decoded) return;
+        cISC4Automaton* boat = nullptr;
+        if (!native->QueryInterface(GZIID_cISC4Automaton, reinterpret_cast<void**>(&boat)) || !boat) {
+            ++bad; return;
+        }
+        FC4_ACQUIRED(boat, "watercraft shadow getters");
+        cS3DVector3 actual[3];
+        boat->GetPosition(actual[0]);
+        boat->GetDestination(actual[1]);
+        boat->GetOrientation(actual[2]);
+        for (uint32_t i = 0; i < 3; ++i) {
+            const float values[] = {actual[i].fX, actual[i].fY, actual[i].fZ};
+            for (uint32_t axis = 0; axis < 3; ++axis)
+                bad += !(std::fabs(values[axis] - vectors[i * 3 + axis]) <= 1e-5f);
+        }
+        auto* top = boat->GetState();
+        bad += (top == nullptr) != (states[0] == 0);
+        if (top) bad += boat->FindState(states[1]) != top;
+        if (fixture) {
+            const uint64_t expected = fc4_watercraft_shadow_probe(step);
+            const uint64_t actualState = (static_cast<uint64_t>(states[0]) << 32) | states[1];
+            if (actualState != expected) {
+                ++bad;
+                Log("watercraft shadow detail: probe=%u states=%u top=%u expected=%llu",
+                    step, states[0], states[1], static_cast<unsigned long long>(expected));
+            }
+        }
+        FC4_RELEASE(boat);
+    };
+    WriteCapture manager(false, true);
+    if (!manager.Capture(reinterpret_cast<cIGZUnknown*>(g_city->GetWatercraftManager()))) {
+        ++bad;
+    } else {
+        std::unordered_set<const void*> seen;
+        for (uint32_t id = 1; manager.SerializableAt(id); ++id) {
+            auto* object = manager.SerializableAt(id);
+            if (manager.ClassOf(id) == 0x096E75F5 && seen.insert(object).second) {
+                ++reachable;
+                compare(object, 0, false);
+            }
+        }
+    }
+    // Always exercise the inherited stack, even when the city has live boats.
+    // SPEC-GAP: no callable native watercraft path-step interface is published;
+    // keep AI/physics/ferry ticking unmeasured rather than guessing signatures.
+    cIGZSerializable* object = nullptr;
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    if (com && com->GetClassObject(0x096E75F5, 0xE4FDA3D4, reinterpret_cast<void**>(&object)) && object) {
+        FC4_ACQUIRED(object, "watercraft shadow factory reference");
+        ++fixtures;
+        compare(object, 0, true);
+        cISC4Automaton* boat = nullptr;
+        if (object->QueryInterface(GZIID_cISC4Automaton, reinterpret_cast<void**>(&boat)) && boat) {
+            FC4_ACQUIRED(boat, "watercraft shadow probe reference");
+            bad += !boat->SetState(2, nullptr, -1.0f, false, 0, 0, nullptr);
+            ++probes;
+            compare(object, 1, true);
+            bad += !boat->PushState(3, nullptr, -1.0f, false, 0, 0, nullptr);
+            ++probes;
+            compare(object, 2, true);
+            bad += !boat->PopState();
+            ++probes;
+            compare(object, 3, true);
+            FC4_RELEASE(boat);
+        } else ++bad;
+        FC4_RELEASE_CREATED(object);
+    } else ++bad;
+    Log("watercraft shadow %s %s: partial=record-getters-inherited-stack reachable=%u fixtures=%u "
+        "samples=%u probes=%u bytes=%llu path_steps=unmeasured mismatches=%u",
+        DateText(julian).c_str(), what, reachable, fixtures, samples, probes,
+        static_cast<unsigned long long>(bytes), bad);
+    ++g_watercraftLines;
+    if (!bad) ++g_watercraftClean;
+}
+
 void RunCompare(const char* what, int32_t julian) {
+    WatercraftCompare(what, julian);
     HelicopterCompare(julian);
     if (!g_enabled || g_city == nullptr) return;
     std::string line;
@@ -672,6 +782,9 @@ void AutomataShadowStartup(bool automataReplaced) {
     g_enabled = SettingInt("automata_shadow", "FC4_AUTOMATA_SHADOW", 0) != 0;
     g_ownersEnabled = SettingInt("automata_owners_shadow", "FC4_AUTOMATA_OWNERS_SHADOW", 0) != 0;
     g_helicopterEnabled = SettingInt("helicopter_shadow", "FC4_HELICOPTER_SHADOW", 0) != 0 && !automataReplaced;
+    g_watercraftEnabled = SettingInt("watercraft_shadow", "FC4_WATERCRAFT_SHADOW", 0) != 0 && !automataReplaced;
+    if (g_watercraftEnabled) Log("watercraft shadow: ON; partial records/getters/inherited-stack; "
+        "private factory probes; AI/physics/ferry path stepping unmeasured");
     if (g_helicopterEnabled) Log("helicopter shadow: ON; partial metadata only [AF11], "
         "class and four record versions independently from a fresh Rust owner; no flight claim");
     g_enabled = g_enabled || g_ownersEnabled;
@@ -702,11 +815,13 @@ void AutomataShadowStop() {
     g_enabled = false;
     g_ownersEnabled = false;
     g_helicopterEnabled = false;
+    g_watercraftEnabled = false;
     g_city = nullptr;
 }
 
 void AutomataShadowCityLoaded(cISC4City* city, int32_t julian) {
     g_city = city;
+    g_watercraftLines = g_watercraftClean = 0;
     g_helicopterMonth = 0;
     if (city == nullptr) return;
     g_loggedNoRecord = false;
@@ -714,6 +829,8 @@ void AutomataShadowCityLoaded(cISC4City* city, int32_t julian) {
 }
 
 void AutomataShadowCityShutdown() {
+    if (g_watercraftLines) Log("watercraft shadow: shutdown: %llu lines, %llu with mismatches=0; partial records/getters/inherited-stack",
+        static_cast<unsigned long long>(g_watercraftLines), static_cast<unsigned long long>(g_watercraftClean));
     if (g_helicopterLines) Log("helicopter shadow: shutdown: %llu lines, %llu with mismatches=0; partial AF11",
         static_cast<unsigned long long>(g_helicopterLines), static_cast<unsigned long long>(g_helicopterClean));
     g_helicopterLines = g_helicopterClean = 0;
