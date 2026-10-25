@@ -1,0 +1,20 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| prune27 repository pruning (tools) | Codex / `C:/Users/tlori/FreeCity4/.claude/worktrees/prune27` / reserved `prune27` (detached HEAD) | ready; commits `910824670`, `09cddde5c`, `af8d1c0bd`; tools 334 passed, cargo 7844 passed, clippy 0 diagnostics, build 302/302, ctest 117/117; ABI unchanged; no seam reservations, game runs or questions | (1) Coordinator reviews and enqueues coverage credit. |
+
+- Inventory acceptance: 2,522 baseline file entries with purpose, incoming references and last commit dates: 44 top-level Python/PowerShell tools, 2,215 docs files, 144 engine/tests, 97 re, 9 Ghidra scripts, 13 tracked build-runs files; nine docs folders summarised separately.
+- Prune acceptance: 30 files / 285,399 Git-blob bytes deleted (288,763 worktree bytes including CRLF); no archive copies.
+- Deleted per area: tools 3 / 72,813 B; docs/history 19 / 205,395 B; other docs 3 / 3,173 B; ghidra/scripts 1 / 1,213 B; build-runs 4 / 2,805 B; engine/tests and re 0 / 0 B.
+- Retired forge, context-weight and spend pilots had no dedicated tests. Removed the unused Ghidra type dump, published duplicate lot ABI proposals, uncited completed reports and the redundant token-ledger redirect.
+- Reference acceptance: deleted-path scan found 0 remaining references; `python tools/doccheck.py check` printed `doccheck check: ok`. Fixed README/spec/report links and merge-train's historical comment; lanes.py and train hotspots retain valid targets.
+- Index acceptance: [ops/inventory.md](../ops/inventory.md) is the short maintained tools/docs table, replacing HANDOFF's duplicate directory index.
+- Real-input check: `python tools/gen_handoff_tables.py --check` printed `up to date (954 lanes, 572 runs)` before this report; final count is 955/572. Repaired two existing malformed run records from their committed requests/results, assigning the next unused identifiers 679/680; measurements unchanged, real-world dates unknown.
+- Required tools check: `python -m pytest tools/tests -q` printed `334 passed in 111.04s` after the harness fix. First run remains separately recorded: 6 failed / 328 passed; direct-Python-only attempt still failed 6/7; file-backed real preflights passed all 7 focused tests.
+- The dry-run harness now uses the current Python interpreter, file-backed stdout and explicit spawn-error propagation; no guard assertions were skipped and no real model/workflow was launched.
+- Native check: `python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> clippy verify` printed clippy exit=0/diagnostics=0, build PASS 302/302 (140.7 s), ctest PASS 117/117 (211.5 s), `qbuild: PASS`.
+- Native label: `qbuild-20261025-190344-build-ctest`; `fc4verify: PASS (354.5 s)`. Its tree-change annotation reflects intervening tooling/docs commits; engine sources were identical throughout. Ctest's 52 Rust summaries total 7,844 passed, 0 failed, 0 ignored.
+- Preservation acceptance: 41/41 retained production tools have identical computation (AST comparison excludes the merge-train module-docstring edit); engine diff=0, protected coverage/harness scripts diff=0, C ABI exports unchanged. qbuild all was not required because engine was untouched.
+- Retained: all existing lane/run records are active directory inputs to merge-train's generator; coverage-shadows/spec citations and the successful S3 spike remain. Killed S1/S2/S4 paths/references found on the base: 0.
+- Uncertainty retained for review: five unpublished budget-window ABI rows; the tutorial/landvalue handoffs and six span-render experiment scripts cited by specs; the nettool input cited by retained runs. Full reasons: `build-runs/prune27/retained-uncertainties.md`.
+- Raw evidence in this worktree: `build-runs/prune27/{final-inventory,docs-folders}.tsv`, `baseline.json`, `references.json`, `deletions.json`, `summary.json`, `deleted-reference-check.json`, separate test/check logs and `cargo-result-lines.txt`; native full logs are `build-runs/fc4verify-*.log`.
+- No new game/scenario runs, shadow comparisons or replace claims; no mismatch findings, question IDs, plugin switches or save files added.
