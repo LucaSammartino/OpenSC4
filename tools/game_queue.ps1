@@ -48,6 +48,8 @@ Request format (key = value lines, '#' comments; every line after "[ini]" goes i
   turbo    = 1                      our simulator's turbo clock from the start (sim_turbo = 1)
   turbo_from = 2026-04-01           the turbo clock from this game date (a script action; keeps the first months,
                                     where the plugin switches popups off, at normal speed)
+  minimize = 0                       keep the game window on screen after the city load (default 1: minimized);
+                                    for runs that need the game to draw frames
   priority = high                   coordinator requests only (ignored, with a note, for a lane's request)
   [ini]
   enable = power
@@ -202,7 +204,7 @@ function PeekLabel([string]$file) {
 # line number, .lines: the request's lines for the rejection).
 function ParseRequest([string]$root, [string]$file) {
     $q = @{ label = [IO.Path]::GetFileNameWithoutExtension($file); dll = "engine\build-x86\FreeCity4.dll"; city = "Konradshohe";
-            seconds = 150; timeout = $null; end_date = ""; turbo = ""; turbo_from = ""; priority = ""; ini = @(); notes = @();
+            seconds = 150; timeout = $null; end_date = ""; turbo = ""; turbo_from = ""; minimize = ""; priority = ""; ini = @(); notes = @();
             error = $null; errLine = 0; lines = @(); at = @{} }
     $bytes = [IO.File]::ReadAllBytes($file)
     $bom16 = $bytes.Length -ge 2 -and (($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) -or ($bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF))
@@ -242,12 +244,13 @@ function ParseRequest([string]$root, [string]$file) {
             "end_date" { if ($v -notmatch '^\d{4}-\d\d-\d\d$') { $q.error = "line ${n}: end_date must be YYYY-MM-DD (got '$v')"; $q.errLine = $n; return $q }; $q.end_date = $v }
             "turbo" { if ($v -notin "0", "1") { $q.error = "line ${n}: turbo must be 0 or 1 (got '$v')"; $q.errLine = $n; return $q }; $q.turbo = $v }
             "turbo_from" { if ($v -notmatch '^\d{4}-\d\d-\d\d$') { $q.error = "line ${n}: turbo_from must be YYYY-MM-DD (got '$v')"; $q.errLine = $n; return $q }; $q.turbo_from = $v }
+            "minimize" { if ($v -notin "0", "1") { $q.error = "line ${n}: minimize must be 0 or 1 (got '$v')"; $q.errLine = $n; return $q }; $q.minimize = $v }
             "priority" {
                 if ($v -notin "high", "normal") { $q.error = "line ${n}: priority must be high or normal (got '$v')"; $q.errLine = $n; return $q }
                 $q.priority = $v
                 if ($v -eq "high" -and -not (IsCoord $root)) { $q.notes += "priority = high is honoured only for the coordinator's requests (the main checkout); this ran as a normal request" }
             }
-            default { $q.error = "line ${n}: unknown key '$k' (label, dll, city, seconds, timeout, end_date, turbo, turbo_from, priority, [ini])"; $q.errLine = $n; return $q }
+            default { $q.error = "line ${n}: unknown key '$k' (label, dll, city, seconds, timeout, end_date, turbo, turbo_from, minimize, priority, [ini])"; $q.errLine = $n; return $q }
         }
     }
     $ln = { param($key) if ($q.at.ContainsKey($key)) { "line $($q.at[$key]): " } else { "" } }
@@ -376,6 +379,7 @@ function StartJob([string]$root, [IO.FileInfo]$req, [int]$slot, [int]$prio) {
     if ($q.end_date) { $argv += @("-EndDate", $q.end_date) }
     if ($q.turbo -eq "1") { $argv += "-Turbo" }
     if ($q.turbo_from) { $argv += @("-TurboFrom", $q.turbo_from) }
+    if ($q.minimize -eq "0") { $argv += "-NoMinimize" }
     $res = Join-Path $root "build-runs\game-results"
     New-Item -ItemType Directory -Force $res | Out-Null
     Remove-Item -LiteralPath (Join-Path $res "$($q.label).verdict") -Force -ErrorAction SilentlyContinue

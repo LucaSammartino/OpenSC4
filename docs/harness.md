@@ -42,6 +42,7 @@ switches are in `engine/README.md`).
 | `end_date` | - | `YYYY-MM-DD`: the run ends when the game date reaches it (`autotest_end_date`). Konradshohe starts on 2026-01-27 |
 | `turbo` | 0 | `1`: our simulator's turbo clock (`sim_turbo = 1`): days are not paced by real time, about 0.3 s per game month instead of about 2 s. It starts after the city's first ConnectionsReady |
 | `turbo_from` | - | `YYYY-MM-DD`: start the turbo clock at this game date instead (a script action; for DLLs older than 0786064) |
+| `minimize` | `1` | `0` keeps the game window on screen after the city load (slot games are minimized otherwise); for runs that must draw frames |
 | `timeout` | seconds + 150 | hard limit for the whole run in real seconds; the game is stopped after it |
 | `priority` | `normal` | `high`: honoured only for the coordinator's requests ([ops/running-the-game.md](ops/running-the-game.md)); in a lane's request it is ignored and the verdict says so |
 
