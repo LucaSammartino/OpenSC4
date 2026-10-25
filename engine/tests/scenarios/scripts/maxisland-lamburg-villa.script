@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: Lamburg Villa. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2051-07-31 mark maxisland-lamburg-villa: begin local build patch
 2051-07-31 speed 0
 2051-08-01 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2051-08-05 clockmode 1
 2051-08-06 speed 1
 2051-08-07 pricezone 38 20 41 23 4
-2051-08-10 disaster fire auto
-2051-08-12 disaster riot auto
 2051-08-14 clockmode 0
 2051-08-15 speed 2
-2051-08-20 save
-2051-08-21 digest
-2051-08-22 mark maxisland-lamburg-villa: script complete
+2051-09-29 disaster fire auto
+2051-09-29 disaster riot auto
+2051-09-29 save
+2051-09-29 digest
+2051-09-29 mark maxisland-lamburg-villa: script complete

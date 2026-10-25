@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: Norte Delano. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2034-06-24 mark maxisland-norte-delano: begin local build patch
 2034-06-24 speed 0
 2034-06-25 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2034-06-29 clockmode 1
 2034-06-30 speed 1
 2034-07-01 pricezone 38 20 41 23 4
-2034-07-04 disaster fire auto
-2034-07-06 disaster riot auto
 2034-07-08 clockmode 0
 2034-07-09 speed 2
-2034-07-14 save
-2034-07-15 digest
-2034-07-16 mark maxisland-norte-delano: script complete
+2034-08-23 disaster fire auto
+2034-08-23 disaster riot auto
+2034-08-23 save
+2034-08-23 digest
+2034-08-23 mark maxisland-norte-delano: script complete

@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: Indereast. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2086-06-10 mark maxisland-indereast: begin local build patch
 2086-06-10 speed 0
 2086-06-11 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2086-06-15 clockmode 1
 2086-06-16 speed 1
 2086-06-17 pricezone 38 20 41 23 4
-2086-06-20 disaster fire auto
-2086-06-22 disaster riot auto
 2086-06-24 clockmode 0
 2086-06-25 speed 2
-2086-06-30 save
-2086-07-01 digest
-2086-07-02 mark maxisland-indereast: script complete
+2086-08-09 disaster fire auto
+2086-08-09 disaster riot auto
+2086-08-09 save
+2086-08-09 digest
+2086-08-09 mark maxisland-indereast: script complete

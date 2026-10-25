@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Paradis: Yeager. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2028-06-15 mark paradis-yeager: begin local build patch
 2028-06-15 speed 0
 2028-06-16 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2028-06-20 clockmode 1
 2028-06-21 speed 1
 2028-06-22 pricezone 38 20 41 23 4
-2028-06-25 disaster fire auto
-2028-06-27 disaster riot auto
 2028-06-29 clockmode 0
 2028-06-30 speed 2
-2028-07-05 save
-2028-07-06 digest
-2028-07-07 mark paradis-yeager: script complete
+2028-08-14 disaster fire auto
+2028-08-14 disaster riot auto
+2028-08-14 save
+2028-08-14 digest
+2028-08-14 mark paradis-yeager: script complete

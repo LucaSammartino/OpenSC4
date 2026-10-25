@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: North Forks. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2003-12-14 mark maxisland-north-forks: begin local build patch
 2003-12-14 speed 0
 2003-12-15 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2003-12-19 clockmode 1
 2003-12-20 speed 1
 2003-12-21 pricezone 38 20 41 23 4
-2003-12-24 disaster fire auto
-2003-12-26 disaster riot auto
 2003-12-28 clockmode 0
 2003-12-29 speed 2
-2004-01-03 save
-2004-01-04 digest
-2004-01-05 mark maxisland-north-forks: script complete
+2004-02-12 disaster fire auto
+2004-02-12 disaster riot auto
+2004-02-12 save
+2004-02-12 digest
+2004-02-12 mark maxisland-north-forks: script complete

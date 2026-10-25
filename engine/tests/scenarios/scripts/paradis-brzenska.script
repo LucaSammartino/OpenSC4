@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Paradis: Brzenska. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2082-01-13 mark paradis-brzenska: begin local build patch
 2082-01-13 speed 0
 2082-01-14 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2082-01-18 clockmode 1
 2082-01-19 speed 1
 2082-01-20 pricezone 38 20 41 23 4
-2082-01-23 disaster fire auto
-2082-01-25 disaster riot auto
 2082-01-27 clockmode 0
 2082-01-28 speed 2
-2082-02-02 save
-2082-02-03 digest
-2082-02-04 mark paradis-brzenska: script complete
+2082-02-11 disaster fire auto
+2082-02-11 disaster riot auto
+2082-02-11 save
+2082-02-11 digest
+2082-02-11 mark paradis-brzenska: script complete

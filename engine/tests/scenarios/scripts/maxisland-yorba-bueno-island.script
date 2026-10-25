@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: Yorba Bueno Island. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2090-08-27 mark maxisland-yorba-bueno-island: begin local build patch
 2090-08-27 speed 0
 2090-08-28 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2090-09-01 clockmode 1
 2090-09-02 speed 1
 2090-09-03 pricezone 38 20 41 23 4
-2090-09-06 disaster fire auto
-2090-09-08 disaster riot auto
 2090-09-10 clockmode 0
 2090-09-11 speed 2
-2090-09-16 save
-2090-09-17 digest
-2090-09-18 mark maxisland-yorba-bueno-island: script complete
+2090-10-26 disaster fire auto
+2090-10-26 disaster riot auto
+2090-10-26 save
+2090-10-26 digest
+2090-10-26 mark maxisland-yorba-bueno-island: script complete

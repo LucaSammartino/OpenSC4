@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: South Pennoli. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2010-12-15 mark maxisland-south-pennoli: begin local build patch
 2010-12-15 speed 0
 2010-12-16 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2010-12-20 clockmode 1
 2010-12-21 speed 1
 2010-12-22 pricezone 38 20 41 23 4
-2010-12-25 disaster fire auto
-2010-12-27 disaster riot auto
 2010-12-29 clockmode 0
 2010-12-30 speed 2
-2011-01-04 save
-2011-01-05 digest
-2011-01-06 mark maxisland-south-pennoli: script complete
+2011-02-13 disaster fire auto
+2011-02-13 disaster riot auto
+2011-02-13 save
+2011-02-13 digest
+2011-02-13 mark maxisland-south-pennoli: script complete

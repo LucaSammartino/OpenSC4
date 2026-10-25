@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: Bevopolis. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2257-04-20 mark maxisland-bevopolis: begin local build patch
 2257-04-20 speed 0
 2257-04-21 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2257-04-25 clockmode 1
 2257-04-26 speed 1
 2257-04-27 pricezone 38 20 41 23 4
-2257-04-30 disaster fire auto
-2257-05-02 disaster riot auto
 2257-05-04 clockmode 0
 2257-05-05 speed 2
-2257-05-10 save
-2257-05-11 digest
-2257-05-12 mark maxisland-bevopolis: script complete
+2257-06-19 disaster fire auto
+2257-06-19 disaster riot auto
+2257-06-19 save
+2257-06-19 digest
+2257-06-19 mark maxisland-bevopolis: script complete

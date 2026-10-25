@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Paradis: Orvud. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2057-07-08 mark paradis-orvud: begin local build patch
 2057-07-08 speed 0
 2057-07-09 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2057-07-13 clockmode 1
 2057-07-14 speed 1
 2057-07-15 pricezone 38 20 41 23 4
-2057-07-18 disaster fire auto
-2057-07-20 disaster riot auto
 2057-07-22 clockmode 0
 2057-07-23 speed 2
-2057-07-28 save
-2057-07-29 digest
-2057-07-30 mark paradis-orvud: script complete
+2057-09-06 disaster fire auto
+2057-09-06 disaster riot auto
+2057-09-06 save
+2057-09-06 digest
+2057-09-06 mark paradis-orvud: script complete

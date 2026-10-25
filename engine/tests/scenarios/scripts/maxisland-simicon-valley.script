@@ -1,6 +1,6 @@
-# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Maxisland: Simicon Valley. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2102-09-08 mark maxisland-simicon-valley: begin local build patch
 2102-09-08 speed 0
 2102-09-09 terrain 4 4 54 54 280 1
@@ -23,10 +23,10 @@
 2102-09-13 clockmode 1
 2102-09-14 speed 1
 2102-09-15 pricezone 38 20 41 23 4
-2102-09-18 disaster fire auto
-2102-09-20 disaster riot auto
 2102-09-22 clockmode 0
 2102-09-23 speed 2
-2102-09-28 save
-2102-09-29 digest
-2102-09-30 mark maxisland-simicon-valley: script complete
+2102-11-07 disaster fire auto
+2102-11-07 disaster riot auto
+2102-11-07 save
+2102-11-07 digest
+2102-11-07 mark maxisland-simicon-valley: script complete

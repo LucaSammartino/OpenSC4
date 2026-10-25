@@ -121,7 +121,11 @@ class SuiteParsingTests(unittest.TestCase):
             self.assertTrue({'fire', 'riot'} <= {line[2] for line in lines if line[1] == 'disaster'})
             start, end = date.fromisoformat(lines[0][0]), date.fromisoformat(row['end'])
             self.assertLessEqual((end - start).days, 92)
-            self.assertTrue(all(date.fromisoformat(line[0]) < end for line in lines))
+            self.assertTrue(all(date.fromisoformat(line[0]) <= end for line in lines))
+            self.assertTrue(all(date.fromisoformat(line[0]) == end for line in lines if line[1] == 'disaster'))
+            # Emergency probes can pause the clock; no later game day may be
+            # needed to execute the save/quit protocol.
+            self.assertEqual([line[1] for line in lines[-5:]], ['disaster', 'disaster', 'save', 'digest', 'mark'])
 
     def test_lua_script_and_load_only_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
