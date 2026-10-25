@@ -529,11 +529,13 @@ const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
 };
 
-// network-occupants.md §4, §5 (glue-netocc-replace17): the Rust-backed
-// pole and line on the shared inherited occupant slots (FC4OccupantAdapter.h).
+// network-occupants.md §5: the Rust-backed line on the shared inherited slots.
+// Keep poles native: power-line-tool.md §§5.2-5.3 and §6.3 call non-virtual
+// methods that access the native pole's connection vector and attachment bank.
+// The Rust pole has neither layout; registering it here makes interactive line
+// placement unsafe even though loading a city and shadowing its records pass.
 const ClassEntry kNetOccClasses[] = {
     {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
-    {0x09C05C6A, "cSC4PowerPoleOccupant", &CreateFC4PowerPoleOccupant},
 };
 
 const Subsystem kSubsystems[] = {
