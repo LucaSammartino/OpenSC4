@@ -701,7 +701,6 @@ void Resolve() {
                 "FC4 advisor system); native factories retained");
             continue;
         }
-        if (!s.defaultOn && !ListContains(enable, s.key)) {
         const bool ruleHost = rulesHosted && (strcmp(s.key, "netmgr") == 0 || strcmp(s.key, "nettool") == 0);
         if (strcmp(s.key, "netrules") == 0 && rulesRequested && rulesBlocked) {
             g_enabled[i] = false;
