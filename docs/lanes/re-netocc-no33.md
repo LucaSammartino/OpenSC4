@@ -1,0 +1,26 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| re-netocc-no33: pole/line owner RE | Codex / `re-netocc-no33` (RE, detached HEAD) | in progress; behavior draft; guard context limit reached; checks not run | Finish vectors and question moves, doccheck, then ready RE queue |
+
+## Handoff
+- Goal: answer NO33/NO43 and supplement already-answered NO13; spec only, never read/edit engine/. Deadline 09:15 London; last clock 2026-10-25 07:52 UTC.
+- Done: draft added to docs/specs/network-occupants.md: native pool, slot outputs/transforms/highlight, cell walk, copy/removal/refresh ownership, model/zoom/lifetime, Pick/Draw, diagonal operation order, line Shutdown.
+- This commit contains the behavior milestone; NO33/NO43 remain in the open file, NO13 already exists in answered/network-occupants.md at ~211. No question moves, index regeneration, doccheck or queue yet.
+- Exact next: review draft, fix small stale text/citations below, append conformance cases 62–74, move NO33/NO43 preserving provenance/progress to answered with ANSWERED date/lane DIFFERS, supplement existing NO13 answer (no duplicate ID), run questions.py index/check and doccheck.py check.
+- Last large apply_patch adding fixes/vectors was DENIED in entirety: none of its edits landed. Current spec ends at conformance test 61; section 12 still says NO33/NO43 open.
+- Fix native destructor citation 0064E380–0064E3F2 to 0064E380–0064E3D4; change layout +E8/+F4/+100 underground-only summary to unconditional Draw; remove summary label on SetDefaultExemplar and partial on 4.7.2; remove stray + before statics in occupant Init prose.
+- Replace section 12 NO33-open prose only after verification/vectors, then identify NO33/NO43 answered in §§4.1–4.3/4.6–4.7; NO13 supplement §5.1.
+- Evidence helper build-runs/re_netocc_evidence.py reads MAIN/bin/SimCity4.exe PE and computes floor bits; commands data VA:format and floor. Ignored scratch, never commit RE output. No REA needed/used; export and main decomp supplied evidence.
+- Native pool: 32KiB aligned, 112 blocks at +10+i*124 through +7EAC; allocate113 marks old count 40000070; 28 old frees reach 40000054 and unmark/rejoin at84. 006497E0/006499D0/0064E380; helpers0090CF9A/CFF9/D031. Empty sole pool retained.
+- Diagonal theta double exact 0.78539001941680908203125; c bits3F350554, s3F350493. Origin x/z pairs B8714000/C0E24630, C0E24630/38714000, 38714000/40E24630, 40E24630/B8714000. y unchanged.
+- Critical floor asymmetry: xSum stored f32 at0064C217 BEFORE position.x; zSum retained x87 through position.z until0064C248. Set position.z bits40E24630: vertex0 z B4400000, not0. Helper floor prints all bits.
+- Cell walk test X=Z16 pos0 endcell4,2 => (0,0),(1,0),(2,1),(3,1),(4,2); start fractional(-.25,-.25) end2,1 => (0,0),(0,0),(1,0). Local lookup clears output; invalid/no-match preserves it; nonowner delegates; null destination walks locally.
+- Slots: enumeration always emits own object+120/count1 and AddRefs pole, even delegate null; GetTransform increments destination counter, SetTransform increments stored counter; highlight h100 stores byte0 but sets bit0 using full u32 comparison.
+- LoadModel default key5AD0E817/BADB57F1, computed instance; missing resource preserves old delegate, acquired resource clears/releases old before instance creation; ALWAYS returns false. Model-position offset property4835C6A4 requires3 floats, no missing/short fallback.
+- Pick = one delegate local AABB translated by pole position, expanded by BOTH WALL lists only; no wires/floor. Strict nearer distance updates context+28 only; +2C untouched. Delegate null false. Delegate offset/own transform not applied.
+- Draw = delegate attributes/Draw(false), floor, wall1, wall2, wires; no underground-view gate. Face RGB = lighting output times selected tint; each face normal/first vertex queried separately. Quads floor/walls (6,10,count), wires (6,2,4).
+- Wire vector fixture width1 A(0,10,0),B(8,12,0): quad(0,10,1),(0,10,-1),(8,12,-1),(8,12,1), UV00/10/11/01. Coarse N points => N-1 squares on first N-1 centers, halfwidth4w. Width<=0 skips, NaN proceeds.
+- Refresh clears regular curves ONLY, appends4 coarse per water refresh (4=>8=>12), preserves coarse on dry refresh. Equal start/end cells/null/no owning record inert. Removal preserves owning/cell/sample buffers; BreakAll quiet affects local only, reciprocal quiet=false.
+- NO13: occupant this=object+4; virtual main slot4(null,null,false) on object, then tail-jump005E8980 with original occupant pointer. Release both refs even same pole; preserve position/cells/preview. Base clears object+32 bit0/posts99EF1141/0 iff initialized, always true.
+- Add vectors for native pool, enumeration/transform/highlight, removal/copy, cell walk, model failure, floor bits, Pick strict distance, wire/coarse geometry, Draw/tint/order, coarse accumulation, zoom/double-load, distress/lifetime, line Shutdown. No engine conformance edits authorized.
+- Finish: lane report at most25 lines, commit real spec/question/vector changes, run guard status, enqueue build-runs/merge-queue/re-netocc-no33.json kind re, abi false, game_runs[], full HEAD tip, ready only after doccheck. No queue was written during this over-budget stop.

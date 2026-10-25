@@ -1218,12 +1218,33 @@ a virtual base at `+0x120` (`0x00AA9D30`, 19 slots).
 | `+0x114` | pointer | the "powerpolezap" effect while distressed |
 | `+0x118` | bool | **preview** (slots 13, 14) |
 
-**Constructor defaults** *[compat; NO33 partial]* (`0x0064DC43–0x0064DD33`): identity rotation,
+**Constructor defaults** *[compat]* (`0x0064DC43–0x0064DD33`): identity rotation,
 zero translation and scale 1; transform counter/mask +68/+69 both zero; position and cell zero;
 connections and all three vertex lists empty; kind +B8=0; delegate +BC=null; rotation/zoom +C0/+C4=−1;
 attachment table +E4=null; stale +D0=true; floor height +10C=0; +110, subscription +111, distressed +112
 and preview +118 all false; effect +114=null. This does not promise zeroed padding or a usable attachment
 table before a supported exemplar selects it.
+
+#### 4.1.1 Native pool contract *[compat; NO33]*
+
+The native factory allocates a **0x124-byte block**, not a block sized from a host class layout.
+The pool owner is `0x00B0C0C8`, with its current pool pointer at `0x00B0C0CC`.
+Each 32-KiB-aligned pool has a 16-byte header and **112 blocks**: offsets
+`0x10 + i×0x124`, i=0…111 (last `0x7EAC`). Free blocks link through their first word;
+fresh allocation takes them in increasing address order. Header +8 is the free-list head;
++C is the live-allocation count. Allocating pops the head and increments that count
+(`0x006497E0–0x0064981B`, `0x006499D0–0x006499FA`). No block clearing precedes construction.
+
+When the current pool is exhausted, allocation obtains another available pool, creating one
+if necessary. The exhausted pool moves to the full-pool ring with `0x40000000` added to its
+count (`0x0090CF9A–0x0090CFF8`). Deleting destruction first destroys the object, then finds
+its pool with `address & 0xFFFF8000`, prepends the block to that pool's free list and decrements
+the count (`0x0064E380–0x0064E3F2`). A marked count reaching **`0x40000054`** (84 live,
+28 free) moves the pool back to the available ring and removes the marker
+(`0x0090CFF9–0x0090D030`). An unmarked count reaching zero removes/frees the pool if it
+has another pool in its ring; a sole available pool is retained (`0x0090D031–0x0090D055`).
+Destruction without the deleting flag does not return the block. These are allocator and
+native-layout facts; a portable value representation need not reproduce native addresses.
 
 ### 4.2 Interface slots *[compat]*
 
@@ -1252,10 +1273,33 @@ Others: occupant slot 9 `SetPosition` (`0x0064C540`, §4.7); occupant slot 10 `G
 cell-size floats `0x00B4675C`/`0x00B46760` that the occupant `Init` reads from city slots 91, 92) *[summary]*;
 occupant slot 17 `SetHighlight(h)` (`0x006491E0`) writes the draw attributes only (byte 1 `:= h`, flag bit 0 `:= h ≠
 0`), so the occupant's own `GetHighlight` (slot 16, the occupant state byte) stays 0 *[quirk]*; model instance slot 17
-`GetSortValue` (`0x00649200`) is always `0xAA9DA78E` (the wire texture); slot 11 `Pick` (`0x0064A870`): ray against
-the boxes of the wire vertices (`0x005D6580`, `0x005D7660`), the shortest kept (writes the context's `+0x28`/`+0x2C`)
-*[summary]*. `GetBounds` `0x00649E50`, `GetWorldBounds` `0x00649E60`, `GetTransform` `0x00649E80`, `SetTransform`
+`GetSortValue` (`0x00649200`) writes `0xAA9DA78E` to its u32 output (the wire texture); slot 11 `Pick`
+(`0x0064A870`) uses the model-and-walls box (§4.7.4), updating only the context's distance at `+0x28`.
+`GetBounds` `0x00649E50`, `GetWorldBounds` `0x00649E60`, `GetTransform` `0x00649E80`, `SetTransform`
 `0x00649F10`. `RemoveConnection` is non-virtual (§4.6; direct-calls.md).
+
+**Output and transform details** *[compat; NO33]*. Slot 16 searches connection records in order
+by exact other-pole pointer, including a null pointer if a record contains one. The first match
+calls this pole's slot 5 with its index and returns that result. No match returns false and
+leaves the output alone (`0x00649DD0–0x00649E43`). Slot 17 ignores the selection/capacity
+inputs: it first writes count=0, copies occupant GetPosition to transform translation +90/+94/+98,
+ORs mask bit 1 and increments the u8 counter modulo 256, writes **the pole's own** model-instance
+interface (most-derived object+120) to out[0], writes count=1 and AddRefs the pole. It does this
+even without a loaded +BC delegate (`0x00649D00–0x00649D71`). The delegate is not the returned object.
+
+GetTransform copies the 13 f32 rotation/translation/scale words to output +4…+34, copies mask
++69 to output byte 1, and increments the **destination's** byte 0 modulo 256; it neither copies
+the stored counter nor changes the pole. SetTransform copies those words and mask back, and
+increments the **pole's** +68 counter, independently of input byte 0. Neither operation changes
+position +A0, cell, floor/walls or delegate (`0x00649E80–0x00649F9A`). GetBounds forwards its
+one box output to delegate slot 7 if present, otherwise leaves it untouched; GetWorldBounds
+passes the output's min and max triplets to occupant GetBoundingBox (§4.7.2).
+
+SetHighlight stores the low byte of its first argument at +55, but tests the **whole 32-bit
+argument** to set/clear +54 bit 0, preserving the other bits. The second argument is ignored;
+the occupant-view call pops 8 bytes. Thus h=`0x100` gives highlight byte 0 with the draw flag
+set (`0x006491E0–0x006491FD`). The saved +110 byte remains separate: constructor false and
+record Read/Write storage (§4.4), with no inferred meaning or coupling to preview/distress.
 
 ### 4.3 Tuning, `Init` and the static set-up *[compat]*
 
@@ -1285,7 +1329,7 @@ state `0x00B4677C` = (1, 1, 1, 1, 0, 1, 0, 3, 4, 5, 4, 0.1, 1, −1) (draw-conte
   (`SetDefaultExemplar`); the model loaded (`LoadModel`, §4.7) and the attachment table chosen (§4.6); the three
   vertex lists emptied; draw attributes cleared and opacity 1; when distressed, `SetDistressed(true)`. True.
 - **Occupant slot 3 `Init()`** (`0x00649FA0`): the occupant base `Init`; the city's cell width and depth (city
-  slots 91, 92) into two statics; unless already subscribed, the message target subscribes to `0x99EF1142` (message
+  slots 91, 92) into +`0x00B46760` (x width), +`0x00B4675C` (z depth); unless already subscribed, the message target subscribes to `0x99EF1142` (message
   server slot 5); the model instance is released.
 - **The message target** (`+4` slot 3, `0x0064A140`): on `0x99EF1142` whose occupant is this pole, it unsubscribes
   and inserts its connections' lines (slot 9). So the lines join the occupant manager when their pole does.
@@ -1443,10 +1487,71 @@ in §4.4 therefore affects later users of that same table.
 
 **Cells under a wire** (main slot 5, `0x0064BE50`). `GetLineCells(index, out)`: false for an index out of range.
 When this pole does not own the wire and the other pole exists, the answer is the other pole's slot 16 for this pole.
-Otherwise the cells from this pole's cell to the record's cell are walked in `trunc(max(|dx|, |dz|)) + 1` steps
-(`0x0064A4D0`) and appended to `out` as (x, z) pairs *[summary]*; true.
+Otherwise the output is cleared and rebuilt by the fractional-cell walk below; true.
 
-### 4.7 Position, model, effect and drawing *[summary; NO33/NO43]*
+#### 4.6.1 Cell-list lookup and walk *[compat; NO33/NO43]*
+
+An index is invalid if negative or at least the record count: return false without touching out.
+A non-owning record with a non-null destination delegates to that pole's slot 16 with this pole
+and out; return its result without clearing out locally. There is no cycle guard. An owning
+record, or any record with a null destination, follows the local path (`0x0064BE50–0x0064BEED`).
+
+The local path **replaces**, rather than appends to, out. Its start is
+`(f32(position.x / X), f32(position.z / Z))`, with X=`0x00B46760`, Z=`0x00B4675C`.
+The end is the record's +C/+10 cell pair converted **unsigned u32 to f32**. It does not use
+the stored starting cell +C8/+CC, nor the destination's current position
+(`0x0064BEED–0x0064BF3B`). Each endpoint difference is stored f32.
+
+For finite differences dx,dz, let a=abs(dx), b=abs(dz), N=`trunc(max(a,b))+1`.
+If a>b, the step is `(1, f32(b/a))`; otherwise it is `(b=0 ? 0 : f32(a/b), 1)`.
+Negate an axis's step only when that axis's difference is negative. Start at the f32 start
+and emit **N** pairs, each by truncating both current coordinates toward zero to s32.
+After each emission, including the last, each accumulator becomes f32(current+step).
+There is no floor, deduplication, end-cell correction or terrain test
+(`0x00649820–0x006498BA`, `0x0064A4D0–0x0064A53B`, `0x0064BF40–0x0064BFB0`).
+For coincident endpoints N=1, so the internal unused z step of 1 does not add a cell.
+The count/conversions have no overflow or non-finite recovery branch.
+
+#### 4.6.2 Record ownership and refresh *[compat; NO33]*
+
+Connection relocation/copy makes an independent line-list container and deep copies both
+vectors of point lists, but copies pole and line pointer **values without AddRef**. Destruction
+of such a container frees its nodes/point buffers without releasing those pointers
+(`0x0064CFA0–0x0064D01A`, `0x0064D2D0–0x0064D3CF`, `0x0064D450–0x0064D50A`).
+The logical connection owns the refs established at creation/attachment; vector reallocation
+does not change their counts. AttachLines (`0x0064B6E0`) appends the line pointer from +8 of
+each 16-byte input item, AddRefing each, including duplicates. Null/empty input does nothing.
+
+RemoveConnection(record,quiet) releases the other pole then clears that pointer; for **every**
+line, regardless of the inserted flag, calls manager RemoveOccupant(line's occupant view,1,0)
+before releasing the line. It empties/frees the list nodes and clears inserted, preserves
+owning, destination cell and both sampled-point vectors, and sets +D0=true. It posts
+`0x99EF1145` with data 0 only for an owning record and quiet=false (`0x0064A560–0x0064A64A`).
+The pointer overload is inert on null/no match; otherwise it removes the first matching record
+and erases it. BreakAllConnectionsAtDestination(quiet) visits the original records: for a
+non-null other pole, call that pole's pointer overload with this pole and **quiet=false**,
+then remove this record with the caller's quiet. Its records remain, so its count does not
+fall; the destination's matching record is erased (`0x0064DA00–0x0064DB29`). InsertLines marks
+each uninserted record inserted even for an empty list or failed InsertOccupant result;
+it does not AddRef, and skips already-inserted records (`0x0064A650–0x0064A6B3`).
+
+RebuildWires(other), `0x0064D510–0x0064D90B`, is inert for null, no matching **owning** record,
+or equal starting/destination cells. It obtains the destination's current GetCell, and derives
+the start cell by truncating position.x/X and position.z/Z in x87. Otherwise it clears only
+the regular sampled-wire vector, obtains the direction and four attachment pairs using the
+**same direction index** on both poles, and regenerates four regular curves in attachment
+order by the control-point and Bézier rules of [power-line-tool.md](power-line-tool.md) §5.5.
+Each regular curve is allocated at the helper's count, begins with the exact start point,
+and fills the remainder by EvaluateBezier with count−1. If terrain slot 34 reports water at
+either pole's cell, append a three-sample coarse curve for each pair. **The coarse vector is
+not cleared here**, so repeated refreshes over water append four more curves; a dry refresh
+preserves existing coarse curves. Finally post `0x99EF1145`/0 and set +D0. Line occupants,
+inserted/owning bits, destination pointer/cell and connection count are unchanged.
+SetDefaultExemplar with an unchanged pointer is inert; a changed exemplar is held before
+releasing the old, then LoadModel and InitConnectionPoints run, followed by RebuildWires on
+this and the destination for each record (`0x0064D910–0x0064D98C`).
+
+### 4.7 Position, model, effect and drawing *[compat]*
 
 **Position** (occupant slot 9 `SetPosition(p)`, `0x0064C540`): the position becomes `p`; the model is moved
 (`SetModelPosition` `0x0064AC70`); the cell becomes `(trunc(p.x × (1/w)), trunc(p.z × (1/w)))` with `w` the terrain's
@@ -1455,6 +1560,11 @@ cell width (terrain slot 6); the floor height becomes the lowest of the cell's f
 `AddWallQuad` `0x0064C2C0`, `CreateWalls` `0x0064C470`); the effect, when present, is moved to `p`. For a cell off
 the map the corner read leaves its output untouched, so the floor height comes from uninitialised values *[quirk]*;
 FreeCity4 uses the position's y then *[choice]*. Occupant slot 8 `GetPosition` returns the position.
+The reciprocal `1/w` and each multiplication remain in x87 until the truncating conversion;
+there is no intervening f32 reciprocal/product store (`0x0064C578–0x0064C59D`). SetPosition
+does **not** dirty +D0, rebuild connections, or synchronize the pole's own transform translation.
+When an effect exists, its new transform has identity rotation, scale 1, translation p,
+counter=1 and mask=1 (`0x0064C61D–0x0064C6AA`).
 
 **Model and zoom.** `LoadModel` (`0x0064AD90`) builds the model's resource key from the exemplar's property
 `0x27812821`, with the instance from `cSC4ModelMakerUtility::GetModelInstanceID(occupant, zoom, rotation, kind is 1
@@ -1468,27 +1578,36 @@ rebuilt.
 7) makes `powerpolezap`, which is placed at the position (identity rotation, scale 1) and started (its slots 8 and 3).
 Repaired: a running effect is stopped (slots 5, 4), released and forgotten. The pole decay of power.md §7.6 calls it.
 
-**Drawing.** `Draw` (`0x0064C800`) rebuilds the model, floor and walls when needed, draws the floor and walls in the
-underground view with the textures `0x0912220E` and `0x08080004` and the tint from the lighting, and
+**Drawing.** `Draw` (`0x0064C800`) rebuilds the model, floor and walls when needed, draws the floor and walls
+with the textures `0x0912220E` and `0x08080004` and the tint from the lighting, and
 `DrawPowerlines` (`0x0064B750`) draws each owned wire with texture `0xAA9DA78E` (and `0xC9AF0FCD` for the coarse
 curves), its width scaled by the zoom's scaling factor (§4.3).
 
 ---
 
-#### 4.7.1 Floor and wall inputs *[compat; NO33/NO43 partial]*
+#### 4.7.1 Floor and wall inputs *[compat; NO33/NO43]*
 
 CreateFloor empties the +E8 list and emits four 24-byte vertices. Without the diagonal-model rotation,
 at pole position `(x,y,z)` their positions are `(x−5,y,z−5)`, `(x−5,y,z+5)`, `(x+5,y,z+5)`,
 `(x+5,y,z−5)`, with UVs `(0,0),(0,1),(1,1),(1,0)` and white RGBA `(255,255,255,255)`.
 This is a 10×10 square at the pole's **position y**, not at +10C. The coordinate inputs are the signed
-unit-square corners multiplied by f32 10 and then f32 0.5; transformed x/z are rounded to f32 before
-adding the pole position and storing f32. Sources: `0x0064BFDF–0x0064C02C`,
+unit-square corners multiplied by f32 10 and then f32 0.5 in x87. Transformed x is rounded to f32
+before adding position.x; transformed z retains x87 precision through addition of position.z.
+Both final world coordinates are stored f32. Sources: `0x0064BFDF–0x0064C02C`,
 `0x0064C162–0x0064C2A0`; UV arrays `0x00AA9B18/0x00AA9B28`.
 
 There is a separate diagonal-model branch: when exemplar model property `0x27812821` succeeds and the
 instance's high word is `0x0503` or `0x0504`, it constructs a Y rotation from the double at `0x00AA9D28`
-before transforming the square (`0x0064C086–0x0064C162`). Exact rotated-coordinate operation order
-remains within NO43; the unrotated vector below does not test that branch.
+before transforming the square (`0x0064C086–0x0064C162`). This double is exactly
+**0.78539001941680908203125**, not π/4. x87 cosine is stored f32, giving
+c=`0x3F350554` (0.7071125507354736328125); the sine terms round to
+s=`0x3F350493` (0.707101047039031982421875). The relevant matrix coefficients are
+`m00=c, m02=−s, m20=s, m22=c`, with zero y terms. Each coefficient is stored f32.
+For a corner's scaled coordinates qx,qz (±5), form x87 sums in the order
+`m02×qz + m00×qx + zeroY` and `m22×qz + m20×qx + zeroY`.
+World x is `f32(f32(xSum)+position.x)`; world z is `f32(zSum+position.z)`.
+The x-only intermediate store is `0x0064C217`; the final stores are
+`0x0064C23E`/`0x0064C248`. There is no fused multiply-add or post-rotation reordering.
 
 AddWallQuad clears its destination list and uses floor vertices A/B as the top endpoints. It emits four
 vertices in order **top A, bottom A, bottom B, top B**, where each bottom preserves its top's x/z but
@@ -1509,8 +1628,7 @@ CreateWalls clears both wall lists and selects these **ordered floor-index pairs
 
 Each list is rebuilt with AddWallQuad, not appended to old geometry (`0x0064C470–0x0064C53B`). The
 table is indexed by the cached rotation without a range check; these rules require rotation 0…3.
-Wire sampling/cell walks, complete bounds/Pick/Draw and remaining resource/model decisions stay open
-in NO33/NO43. The construction and geometry facts here are not a complete pole-owner algorithm.
+The cell walk is §4.6.1, occupant bounds are §4.7.2, and model/Pick/Draw contracts follow below.
 
 #### 4.7.2 Occupant bounding rectangle *[compat; NO33/NO43 partial]*
 
@@ -1536,6 +1654,118 @@ when a model exists and otherwise leaves the output untouched (`0x00649E50–0x0
 the separate Pick path uses a model-derived box.
 The floor and wall lists do not expand this occupant rectangle.
 
+#### 4.7.3 Model replacement, zoom and lifetime *[compat; NO33]*
+
+LoadModel first obtains the exemplar; null returns false without changing the delegate.
+Its default resource key is type **`0x5AD0E817`**, group **`0xBADB57F1`**, instance 0.
+Property `0x27812821` may replace that key, but the instance is then **always replaced** by
+GetModelInstanceID(occupant view, cached zoom, cached rotation, kind∈{1,8},0,0,0).
+The property helper's success flag is ignored. With no resource manager, or a failed
+GetResource(key,`0x9AD0E7E3`,…,0,0), preserve the old delegate. Only after successful resource
+acquisition is the old delegate cleared/released; resource slot 5 creates an instance with
+argument 0 directly into +BC. A null result leaves +BC null. For a non-null instance,
+SetModelPosition runs, then delegate slot 4 receives the occupant view, then its transform
+rotation becomes a Y rotation by **minus view-utility +1C** while preserving the just-set
+translation/scale. Sine/cosine are evaluated in x87 and matrix entries stored f32; mask bit 4
+is ORed and the delegate transform's counter incremented. The temporary model resource is
+released on either creation result. **LoadModel returns false even after successful creation**;
+callers use its side effects (`0x0064AD90–0x0064B004`, especially `0x0064AFEF`).
+
+SetModelPosition does nothing without a delegate. Otherwise fetch its current transform and
+the occupant position; read the float-array property `0x4835C6A4`, then set each translation
+component to f32(position+offset), OR mask bit 1, increment the fetched transform counter and
+pass it to delegate SetTransform (`0x0064AC70–0x0064AD83`). Rotation and scale are preserved.
+The temporary property array is freed. **Three readable offsets are required**: the original
+does not check property success or array length before indexing; missing/short data has no
+defined fallback offset (`0x0064AD07–0x0064AD36`).
+
+ChangeZoomLevel always copies context +18/+14 to cached rotation/zoom and calls LoadModel,
+CreateFloor, CreateWalls, even when both values already match. Separately, when the shared
+cached zoom `0x00B0C0A8` differs, update it and visit every static texture-cache entry:
+release/clear the old binding, request type `0x7AB50E44`, group `0x1ABE787D`, instance=entry
+texture ID. A failed request is retried with the **same key**; no alternate group or explicit
+zoom offset is used (`0x0064C6C0–0x0064C7F0`). The texture service supplies zoom-dependent data.
+
+SetDistressed stores its input byte even when resource creation fails. A nonzero request with
+an existing effect does not restart/reposition it. With no effect, successful creation of
+`powerpolezap` gives it an identity/scale-1 transform at position and starts it with argument 0;
+failure leaves the distress flag set and permits a later retry. A zero request tests the
+effect's slot 5 (running), calls slot 4 only if running, then clears/releases it
+(`0x0064AA40–0x0064AB6F`). Shutdown instead passes **1** to that stop call, removes the message
+subscription when its server exists, clears/releases the delegate and clears all three vertex
+lists without freeing their capacity. It calls BreakAllConnections(true), clears +D0, invokes
+base occupant Shutdown and returns true (`0x0064BC80–0x0064BD72`). Remaining record/point-buffer
+and vertex capacities are freed by destruction. Destruction alone releases delegate/effect
+and frees containers, but does not perform Shutdown's reciprocal removal, unsubscribe or
+effect-stop operations (`0x0064DFC0–0x0064E0DB`).
+
+#### 4.7.4 Pick *[compat; NO33/NO43]*
+
+No delegate means false and no pick-context change. Otherwise obtain its local box, initialized
+before the call to min=(1,1,1), max=(0,0,0), then add **pole position +A0** to both endpoints,
+rounding each addition f32. The exemplar model-position offset and the pole's own transform
+are not applied here. Expand that single box componentwise with **all vertices of +F4 and
++100**, in that order; strict comparisons keep existing endpoints on ties/unordered values.
+The floor list and connection wire samples are not scanned (`0x0064A870–0x0064A9DA`).
+
+Call RayIntersectsBoundingBox(context+0, context+C, min, max, hit). On intersection, compute
+LengthOfLine(context+0,hit) in x87; accept only an ordered distance **strictly less** than the
+f32 context +28. On acceptance store that distance f32 at +28 and return true, otherwise false.
+Nothing writes context +2C (`0x0064A9E0–0x0064AA36`). Box intersection and length use
+[geometry-utilities.md](geometry-utilities.md) contracts; this is one enclosing-box test,
+not separate wire or triangle picks.
+
+#### 4.7.5 Draw and wire submissions *[compat; NO33/NO43]*
+
+Draw returns true. If +BC is null at entry, first try LoadModel and rebuild floor/walls.
+If either shared texture zoom or this pole's cached zoom/rotation differs from context,
+call ChangeZoomLevel (so a null model and a mismatch can cause two load/build attempts).
+For a non-null delegate, pass draw attributes +54 to its slot 16, then Draw(context,false).
+Select tint=(1,1,1) from `0x00B0C0B0`; when Draw's highlight argument is nonzero, instead use
+the first three f32 values of context +54's **16-byte record indexed by byte +55**.
+Set render state `0x00B4677C` (§4.3) and the context's default model transform
+(`0x0064C800–0x0064C8D1`). There is **no underground-view, preview, distress or visibility
+test inside this Draw body**, and a failed delegate load does not suppress its floor/wall path.
+
+Submit floor then first wall then second wall. For each list, obtain the unnormalized normal
+from its first three vertex positions using GetNormalToTriangle (`0x005D6EA0`), normalize with
+x87 reciprocal length `1/sqrt((nz²+ny²)+nx²)`, and store each normal component f32. No zero-length
+guard is applied. Obtain lighting from view-manager slot 9 then lighting slot 22, with output
+RGB, the normalized normal and **the list's first vertex position**. Multiply each returned
+RGB component by the selected tint and store f32 for SetShade. This is a fresh lighting query
+for each face; do not use the floor's result on the walls (`0x0064C934–0x0064C9CF`,
+`0x0064CB34–0x0064CBC2`).
+
+| Submission | Texture | Filtering (min,mag,stage) | Wrap (u,v,stage) | DrawPrims (primitive,format,count) |
+|---|---|---|---|---|
+| Floor +E8 | `0x0912220E` | (1,1,0) | (2,2,0) | (6,10, list size) |
+| Walls +F4, +100 | `0x08080004` | (1,1,0), set once | (3,3,0), set once | (6,10, each list size) |
+
+Bind each texture at stage 0. ResetShade after the floor, then after both walls; the second
+wall replaces the first wall's shade. Next call DrawPowerlines, inheriting this render state,
+transform, filtering and wrap modes (`0x0064C9D4–0x0064CC1F`). The expected floor and walls
+have four vertices each; this body dereferences their initial vertices without an empty-list
+guard and requires successfully built geometry and texture bindings.
+
+DrawPowerlines indexes the width vector `0x00B46798` by cached zoom, without a range check.
+It returns immediately for width≤0; an unordered width is **not** rejected. In connection
+order, only owning records draw. Bind texture `0xAA9DA78E` and, in regular-curve order, emit
+one quad per adjacent pair A,B; point lists of size≤1 emit none. For the x/z difference
+`dx=Bx−Ax`, `dz=Bz−Az`, compute x87 L=sqrt(dx²+dz²), then store
+nx=f32(dx/L), nz=f32(dz/L). There is no zero-length guard. Put P=(nz,−nx) in x/z.
+Quad order is **A−width×P, A+width×P, B+width×P, B−width×P**, keeping each endpoint's y.
+Each product-plus-coordinate stays x87 through its final f32 vertex store. UVs are
+`(0,0),(1,0),(1,V),(0,V)`, where V=f32(sqrt(f32(dx)²+f32(dz)²)×0.125), recomputing
+the UV length from the separately stored differences. The normalizing differences themselves
+retain x87 precision; their f32 stores do not truncate the live calculation
+(`0x0064B824–0x0064B9A7`). Each quad is DrawPrims(6,2,4): xyz+uv, **no colour bytes**.
+
+If the coarse vector is nonempty, bind `0xC9AF0FCD`. For each coarse curve of N points,
+emit **N−1 axis-aligned squares**, centered on points 0…N−2, not strips between endpoints.
+Half-size is width×4. Vertex x/z signs in order are (−,−),(−,+),(+,+),(+,−), all at the
+center's y, with UVs `(0,0),(1,0),(1,1),(0,1)` and DrawPrims(6,2,4)
+(`0x0064B9DB–0x0064BB95`). Neither regular nor coarse drawing restores the texture binding.
+
 ## 5. The power line *(cSC4PowerLineOccupant, 0xC9C05C5D)*
 
 *Rewritten 2026-10-21 (re-powerpoles): object offsets, and the record read in the bytes (answers NO13).* A power line
@@ -1553,6 +1783,20 @@ occupant is a light occupant at one cell that names its two poles; the power sim
 
 State: position `+0x38` (3 × f32), cell `+0x44`, `+0x48` (2 × s32), the two poles `+0x4C`, `+0x50` (counted), a
 bool `+0x54` given with the poles, preview `+0x55`.
+
+**Shutdown forwarding and live offsets** *[compat; NO13 supplement]*. Occupant slot 4 runs
+with this=object+4. It calls **main slot 4 virtually** on object with `(null,null,false)`,
+then tail-forwards to `cSC4Occupant::Shutdown` (`0x005E8980`) with the original occupant-view
+pointer, not object or object+8 (`0x00649270–0x00649289`). The setter processes pole +4C
+first, then +50: AddRef the replacement if non-null, Release the old if non-null, store the
+replacement; after the second store write +54. Equal old/new pointers still get AddRef then
+Release (`0x006492D0–0x0064932A`). Both references may name the same pole and each owns a ref.
+On ordinary Shutdown each old pole is therefore released once; +54 becomes false. Position
++38/+3C/+40, cell +44/+48 and preview +55 are preserved. Base Shutdown tests occupant
+IsInitialized; when true it clears bit 0 at **object+32** and posts `0x99EF1141`/0 through
+occupant slot 15; it always returns true (`0x005E8980–0x005E89A6`). The tail forwarding
+preserves that result. The constructor zeros position, cell, both pole pointers and +54/+55
+(`0x0064A270–0x0064A304`); no third pole exists in this layout.
 
 | Slot | Address | Behaviour | Pop |
 |---|---|---|---|
