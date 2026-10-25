@@ -13,7 +13,7 @@ inline Instruction Decode(const uint8_t* p, size_t available) {
     unsigned n = 1, immediate = 0;
     bool modrm = false;
     const auto op = p[0];
-    if ((op >= 0x50 && op <= 0x5f) || op == 0x90) {}
+    if ((op >= 0x40 && op <= 0x5f) || op == 0x90) {}
     else if (op == 0x68 || (op >= 0xb8 && op <= 0xbf) || op == 0xa1 || op == 0xa3) immediate = 4;
     else if (op == 0x6a) immediate = 1;
     else if (op == 0xe8 || op == 0xe9) return available >= 5 ? Instruction{5, 1} : Instruction{};

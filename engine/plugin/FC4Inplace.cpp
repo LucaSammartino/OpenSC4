@@ -2,6 +2,7 @@
 // S3: opt-in observational entry detours. Contracts: view-utilities.md §§1,12,13.
 #include "FC4Inplace.h"
 #include "FC4InplaceDetour.h"
+#include "FC4InplaceMachine.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include <windows.h>
@@ -279,55 +280,58 @@ bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr
     --depth; if (locking) ReleaseSRWLockExclusive(&sampleLock); return result;
 }
 
-template<class T> T Original(unsigned i) { return reinterpret_cast<T>(functions[i].original); }
-uintptr_t Floor(void* returnSlot, unsigned arguments) { return reinterpret_cast<uintptr_t>(returnSlot)+4+arguments; }
+// Published signatures determine argument bytes and callee cleanup. Entry shells
+// keep volatile results intact when native calls nest through another hook.
+FC4_INPLACE_ENTRY(Clip2,0,4)
+FC4_INPLACE_ENTRY(ZoomRotation,1,8)
+FC4_INPLACE_ENTRY(ViewViewport,2,4)
+FC4_INPLACE_ENTRY(Fixed,3,4)
+FC4_INPLACE_ENTRY(ViewBox,4,8)
+FC4_INPLACE_ENTRY(CityCorner,5,8)
+FC4_INPLACE_ENTRY(Clip3,6,4)
+FC4_INPLACE_ENTRY(VisibleEdges,7,8)
+FC4_INPLACE_ENTRY(WorldView,8,4)
+FC4_INPLACE_ENTRY(WorldViewport,9,4)
+FC4_INPLACE_ENTRY(WorldViewport2,10,4)
+FC4_INPLACE_ENTRY(ViewWorld,11,4)
+FC4_INPLACE_ENTRY(ViewportWorld,12,4)
+FC4_INPLACE_ENTRY(BoxRectangle,13,16)
+FC4_INPLACE_ENTRY(ViewPoint,14,4)
+FC4_INPLACE_ENTRY(ViewportFixed,15,4)
+FC4_INPLACE_ENTRY(Rotation,16,0)
+FC4_INPLACE_ENTRY(Ground,17,0)
+FC4_INPLACE_ENTRY(Cross,18,0)
+FC4_INPLACE_ENTRY(PrimitiveIndices,19,0)
 
-// Adapter lines below are deliberately small: published native windows -> existing
-// production Rust transport. The generic observer owns snapshots and comparisons.
-#define OWNER Capture c; c.Add(s,0x470); Packet p{}
-#define RUN(I,N,F) Observe(I,s,p,c,Floor(_AddressOfReturnAddress(),N),F)
-#define VECTOR(I,NAME) void __fastcall NAME(void* s,void*,void* a) { OWNER; c.Add(a,12,0); std::memcpy(p.data(),a,12); \
-    RUN(I,4,[&] { Original<void(__thiscall*)(void*,void*)>(I)(s,a);return false; }); }
-void __fastcall Clip2(void* s,void*,void* a) { OWNER; c.Add(a,8,0); std::memcpy(p.data(),a,8);
-    RUN(0,4,[&] { Original<void(__thiscall*)(void*,void*)>(0)(s,a);return false; }); }
-#define TWO(I,NAME) void __fastcall NAME(void* s,void*,void* a,void* b) { OWNER;c.Add(a,4,0,false);c.Add(b,4,1,false); \
-    RUN(I,8,[&] { Original<void(__thiscall*)(void*,void*,void*)>(I)(s,a,b);return false; }); }
-TWO(1,ZoomRotation)
-VECTOR(2,ViewViewport)
-VECTOR(3,Fixed)
-bool __fastcall ViewBox(void* s,void*,void* a,void* b) { OWNER;c.Add(a,12);c.Add(b,12);
-    std::memcpy(p.data(),a,12);std::memcpy(p.data()+3,b,12);
-    return RUN(4,8,[&] { return Original<bool(__thiscall*)(void*,void*,void*)>(4)(s,a,b); }); }
-void __fastcall CityCorner(void* s,void*,int corner,void* a) { OWNER;c.Add(a,12,0);p[0]=corner;
-    RUN(5,8,[&] { Original<void(__thiscall*)(void*,int,void*)>(5)(s,corner,a);return false; }); }
-VECTOR(6,Clip3)
-TWO(7,VisibleEdges)
-VECTOR(8,WorldView)
-VECTOR(9,WorldViewport)
-VECTOR(10,WorldViewport2)
-VECTOR(11,ViewWorld)
-VECTOR(12,ViewportWorld)
-void __fastcall BoxRectangle(void* s,void*,void* a,void* b,void* tl,void* br) { OWNER;
-    c.Add(a,12);c.Add(b,12);c.Add(tl,8,0,false);c.Add(br,8,2,false);
-    std::memcpy(p.data(),a,12);std::memcpy(p.data()+3,b,12);
-    RUN(13,16,[&] { Original<void(__thiscall*)(void*,void*,void*,void*,void*)>(13)(s,a,b,tl,br);return false; }); }
-bool __fastcall ViewPoint(void* s,void*,void* a) { OWNER;c.Add(a,12);std::memcpy(p.data(),a,12);
-    return RUN(14,4,[&] { return Original<bool(__thiscall*)(void*,void*)>(14)(s,a); }); }
-VECTOR(15,ViewportFixed)
-#undef VECTOR
-#undef TWO
-#undef RUN
-#undef OWNER
-void __cdecl Rotation(void* a,int rotation) { Capture c;c.Add(a,12,0);Packet p{};std::memcpy(p.data(),a,12);p[3]=rotation;
-    Observe(16,nullptr,p,c,Floor(_AddressOfReturnAddress(),8),[&] { Original<void(__cdecl*)(void*,int)>(16)(a,rotation);return false; }); }
-void __cdecl Ground(void* a,void* b,void* out) { Capture c;c.Add(a,12);c.Add(b,12);c.Add(out,12,0);Packet p{};
-    std::memcpy(p.data(),a,12);std::memcpy(p.data()+3,b,12);
-    Observe(17,nullptr,p,c,Floor(_AddressOfReturnAddress(),12),[&] { Original<void(__cdecl*)(void*,void*,void*)>(17)(a,b,out);return false; }); }
-void __cdecl Cross(void* a,void* b,void* out) { Capture c;c.Add(a,12);c.Add(b,12);c.Add(out,12,0);Packet p{};
-    std::memcpy(p.data(),a,12);std::memcpy(p.data()+3,b,12);p[6]=2;
-    Observe(18,nullptr,p,c,Floor(_AddressOfReturnAddress(),12),[&] { Original<void(__cdecl*)(void*,void*,void*)>(18)(a,b,out);return false; }); }
-void __cdecl PrimitiveIndices(int type,int triangle,void* out) { Capture c;c.Add(out,12,0,false);Packet p{};p[0]=type;p[1]=triangle;
-    Observe(19,nullptr,p,c,Floor(_AddressOfReturnAddress(),12),[&] { Original<void(__cdecl*)(int,int,void*)>(19)(type,triangle,out);return false; }); }
+void Dispatch(fc4::inplace::Registers* registers, fc4::inplace::MachineState* machine) {
+    const auto i=registers->index;
+    auto* args=reinterpret_cast<uint32_t*>(registers+1);
+    const unsigned bytes=i==13?16:(i>=17?12:((i==1||i==4||i==5||i==7||i==16)?8:4));
+    void* self=i<16?reinterpret_cast<void*>(registers->ecx):nullptr;
+    const auto pointer=[&](unsigned at) { return reinterpret_cast<void*>(args[at]); };
+    Capture c; Packet p{};
+    if (self) c.Add(self,0x470);
+    if (i==1 || i==7) { c.Add(pointer(0),4,0,false);c.Add(pointer(1),4,1,false); }
+    else if (i==4 || i==13) {
+        c.Add(pointer(0),12);c.Add(pointer(1),12);
+        std::memcpy(p.data(),pointer(0),12);std::memcpy(p.data()+3,pointer(1),12);
+        if (i==13) { c.Add(pointer(2),8,0,false);c.Add(pointer(3),8,2,false); }
+    } else if (i==5) { c.Add(pointer(1),12,0);p[0]=args[0]; }
+    else if (i==17 || i==18) {
+        c.Add(pointer(0),12);c.Add(pointer(1),12);c.Add(pointer(2),12,0);
+        std::memcpy(p.data(),pointer(0),12);std::memcpy(p.data()+3,pointer(1),12);
+        if (i==18) p[6]=2;
+    } else if (i==19) { c.Add(pointer(2),12,0,false);p[0]=args[0];p[1]=args[1]; }
+    else {
+        const unsigned size=i==0?8:12;
+        c.Add(pointer(0),size,i==14?-1:0);std::memcpy(p.data(),pointer(0),size);
+        if (i==16) p[3]=args[1];
+    }
+    Observe(i,self,p,c,reinterpret_cast<uintptr_t>(args)+bytes,[&] {
+        fc4_inplace_invoke(registers,machine,functions[i].original,args,bytes,i<16);
+        return (registers->eax&0xff)!=0;
+    });
+}
 #define FORWARDER(F) reinterpret_cast<void*>(F)
 void* forwarders[] = {FORWARDER(Clip2),FORWARDER(ZoomRotation),FORWARDER(ViewViewport),FORWARDER(Fixed),
     FORWARDER(ViewBox),FORWARDER(CityCorner),FORWARDER(Clip3),FORWARDER(VisibleEdges),FORWARDER(WorldView),
@@ -340,6 +344,10 @@ void Report(const Function& fn, const Count& c, const char* source) {
     fc4::Log("inplace summary name=%s rva=%08x bytes=%u installed=%u source=%s calls=%llu sampled=%llu compared=%llu exact=%llu float_only=%llu different=%llu outside=%llu refused=%llu nested=%llu mutation=%llu detected=%llu max_ulp=%u",
         fn.name,fn.va-static_cast<uint32_t>(imageBase),fn.bytes,fn.installed?1:0,source,c.calls,c.sampled,c.compared,c.exact,c.floatOnly,c.different,c.outside,c.refused,c.nested,c.mutation,c.detected,c.maxUlp);
 }
+}
+
+extern "C" void fc4_inplace_dispatch(fc4::inplace::Registers* registers, fc4::inplace::MachineState* machine) {
+    Dispatch(registers,machine);
 }
 
 namespace fc4 {
@@ -381,6 +389,7 @@ void InplaceCityLoaded() {
     fixture=true;
     for (unsigned sample=0;sample<16;++sample) for (unsigned i=0;i<std::size(functions);++i) {
         if (!functions[i].installed) continue;
+        if (sample==0) Log("inplace fixture begin name=%s",functions[i].name);
         words[0x10/4]=sample%4;
         for (unsigned j=0;j<3;++j) { a[j]=bits(float(int(sample)-8)+float(j));b[j]=bits(float(sample)+float(j)+1);out[j]=bits(10); }
         const auto va=functions[i].va;
