@@ -14,7 +14,7 @@ impl Fleet {
                 boat.events.push(Event::ActiveSound(false));
                 boat.player.field_30 = 0.0;
                 boat.player.turn_rate = boat.drive.0[20];
-                boat.player.aems_value = boat.group.sound_value().unwrap_or(1.0);
+                boat.player.aems_value = boat.sound_value().unwrap_or(1.0);
                 boat.player.field_144 = 15;
                 boat.player.shots = 0;
                 boat.player.field_1ac = 2000.0;
@@ -117,10 +117,17 @@ impl Fleet {
     }
 
     pub fn end_towing(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
-        if let Some(towed) = self.boat_mut(id)?.towed.take() {
-            self.pop_state(towed, manager)?;
-            self.boat_mut(towed)?.tug = None;
+        self.end_towing_with(id, |fleet, towed| fleet.pop_state(towed, manager).map(|_| ()))
+    }
+
+    /// Slot 53 can clear or replace the tow link reentrantly (watercraft §3.4).
+    /// Keep the stored link alive across that call, then clear its current value.
+    pub fn end_towing_with(&mut self, id: BoatId, mut pop: impl FnMut(&mut Self, BoatId) -> Result<()>) -> Result<()> {
+        if let Some(towed) = self.boat(id)?.towed {
+            pop(self, towed)?;
+            self.boat_mut(id)?.towed = None;
         }
+        self.boat_mut(id)?.tug = None;
         Ok(())
     }
 
@@ -200,6 +207,13 @@ impl Fleet {
         if self.boat(id)?.shut_down {
             return Ok(false);
         }
+        if !self.boat(id)?.initialized {
+            // Only owner cleanup is conditional; inherited Shutdown still runs (§3).
+            let boat = self.boat_mut(id)?;
+            boat.events.push(Event::BaseShutdown);
+            boat.shut_down = true;
+            return Ok(true);
+        }
         if let Some(towed) = self.boat_mut(id)?.towed.take() {
             self.push_state(towed, State::new(state::SLOW_REMOVE), manager)?;
             self.boat_mut(towed)?.tug = None;
@@ -216,9 +230,7 @@ impl Fleet {
                 boat.dock_requests[i] = false;
             }
         }
-        if boat.initialized {
-            boat.events.push(Event::Unregister(super::TOW_MESSAGE));
-        }
+        boat.events.push(Event::Unregister(super::TOW_MESSAGE));
         boat.stations = [None, None];
         boat.current_station = None;
         boat.neighbor = None;

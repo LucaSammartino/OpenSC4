@@ -1184,3 +1184,5 @@ mod modelinst_shadow;
 
 // Private portable overlay owner factory transport; no public DLL exports.
 mod overlay_owner;
+// Private power-line occupant factory transport (no public DLL exports).
+mod netocc_line;

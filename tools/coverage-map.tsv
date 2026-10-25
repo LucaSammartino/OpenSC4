@@ -78,9 +78,9 @@ RandomIterator	sim grids	simulation	simgrid.md,weather.md	core/src/grid/random_i
 SpiralIterator	sim grids	simulation	simgrid.md,plumbing.md	core/src/plumbing,core/src/landfill	-	-
 cSC4ResponseCurve	foundations	simulation	foundations.md	core/src/curve.rs	-	-
 # ---- simulation: city managers specified (cores without glue, or no core yet)
-cSC4DisasterLayer	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
-cSC4DisasterManager*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
-cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
+cSC4DisasterLayer	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	disasters
+cSC4DisasterManager*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	disasters
+cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	disasters
 cSC4FireOccupant	disasters	simulation	disasters.md, fire-flames.md	core/src/disasters	-	-
 cSC4Flame	fire flames	renderer	fire-flames.md	-	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-

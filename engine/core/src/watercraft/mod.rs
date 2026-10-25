@@ -8,8 +8,12 @@ mod crash;
 pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, GroundingTerrain};
 mod following;
 mod inherited;
+mod lifecycle;
+pub use lifecycle::{InitializationServices, LifecycleServices};
 mod math;
+mod models;
 mod movement;
+pub use models::{acquire_model, ModelHandle, ModelServices, ModelStorage};
 mod operations;
 mod owner;
 mod physics;
@@ -37,6 +41,14 @@ pub use states::CrashCase;
 mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
+#[cfg(test)]
+mod edge_tests;
+#[cfg(test)]
+mod effect_tests;
+#[cfg(test)]
+mod integration_tests;
+#[cfg(test)]
+mod model_tests;
 #[cfg(test)]
 mod physics_tests;
 #[cfg(test)]

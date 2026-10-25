@@ -14,6 +14,7 @@
 #include "FC4Subsystems.h"
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
+#include "cFC4PowerLineOccupant.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -134,6 +135,18 @@ cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
 cIGZUnknown* CreateFC4EffectsManager();
+cIGZUnknown* CreateFC4DisasterLayer();
+#define FC4_DISASTER_FACTORY_DECL(Name) \
+    cIGZUnknown* CreateFC4DisasterManager##Name(); \
+    cIGZUnknown* CreateFC4DisasterInstance##Name();
+FC4_DISASTER_FACTORY_DECL(Volcano)
+FC4_DISASTER_FACTORY_DECL(Fire)
+FC4_DISASTER_FACTORY_DECL(Earthquake)
+FC4_DISASTER_FACTORY_DECL(PipeBurst)
+FC4_DISASTER_FACTORY_DECL(Riot)
+FC4_DISASTER_FACTORY_DECL(Effect)
+FC4_DISASTER_FACTORY_DECL(Toxic)
+#undef FC4_DISASTER_FACTORY_DECL
 
 #include "FC4OverlayOwner.h"
 
@@ -491,9 +504,32 @@ const ClassEntry kOverlayOwnerClasses[] = {
     {kFC4_CLSID_OverlayOwner, "cFC4OverlayOwner", &CreateFC4OverlayOwner},
 };
 
+// Replace managers and instances together: disasters.md §2.8 / DS44.
+const ClassEntry kDisasterClasses[] = {
+    {0x61F6ABF5, "cSC4DisasterLayer", &CreateFC4DisasterLayer},
+    {0xA9B5AB9F, "cSC4DisasterManagerVolcano", &CreateFC4DisasterManagerVolcano},
+    {0x69C1718E, "cSC4DisasterManagerFire", &CreateFC4DisasterManagerFire},
+    {0x0A086BD3, "cSC4DisasterManagerEarthquake", &CreateFC4DisasterManagerEarthquake},
+    {0x4A132FDF, "cSC4DisasterManagerPipeBurst", &CreateFC4DisasterManagerPipeBurst},
+    {0x4A38206C, "cSC4DisasterManagerRiot", &CreateFC4DisasterManagerRiot},
+    {0x6A7B3E9B, "cSC4DisasterManagerEffect", &CreateFC4DisasterManagerEffect},
+    {0xEBFB0402, "cSC4DisasterManagerToxic", &CreateFC4DisasterManagerToxic},
+    {0x29B5AB89, "cSC4DisasterInstanceVolcano", &CreateFC4DisasterInstanceVolcano},
+    {0x69C1718F, "cSC4DisasterInstanceFire", &CreateFC4DisasterInstanceFire},
+    {0xAA086D86, "cSC4DisasterInstanceEarthquake", &CreateFC4DisasterInstanceEarthquake},
+    {0x0A133012, "cSC4DisasterInstancePipeBurst", &CreateFC4DisasterInstancePipeBurst},
+    {0x4A38206D, "cSC4DisasterInstanceRiot", &CreateFC4DisasterInstanceRiot},
+    {0x6A7B3E9C, "cSC4DisasterInstanceEffect", &CreateFC4DisasterInstanceEffect},
+    {0xEBFB0403, "cSC4DisasterInstanceToxic", &CreateFC4DisasterInstanceToxic},
+};
+
 // advisors.md §1.1, §14: opt-in replacement of the advisor system.
 const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
+};
+
+const ClassEntry kNetOccClasses[] = {
+    {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
 };
 
 const Subsystem kSubsystems[] = {
@@ -568,7 +604,10 @@ const Subsystem kSubsystems[] = {
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
     {"overlays", nullptr, kOverlayOwnerClasses, sizeof(kOverlayOwnerClasses) / sizeof(kOverlayOwnerClasses[0]), false},
+    {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
+    // Partial occupant replacement: only the fully specified power-line owner.
+    {"netocc", nullptr, kNetOccClasses, sizeof(kNetOccClasses) / sizeof(kNetOccClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
