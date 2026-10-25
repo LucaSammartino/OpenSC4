@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4OverlaysShadow.h"
 #include "FC4OverlaysObservation.h"
+#include "FC4OverlayOwner.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4Watchdog.h"
@@ -114,6 +115,7 @@ void OverlaysShadowOnTick(cISC4City* city) {
         if (!view->GetOverlayManager(static_cast<cISTETerrainView::tOverlayManagerType>(type))) return;
     }
     g_loadPending = false;
+    OverlayOwnerGameCheck();
     Sample(city, "load", static_cast<int32_t>(PublishedJulian()));
 }
 void OverlaysShadowMonth(cISC4City* city, int32_t julian) {

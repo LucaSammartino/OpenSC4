@@ -55,3 +55,83 @@ impl Watercraft {
         self.initialize_owner_runtime(self.inherited_position, self.inherited_heading, services.effects)
     }
 }
+
+/// Foreign inherited-Shutdown slots (`0x0050BA50`, §3.5). The owner executes
+/// their order, the controller shutdown and model removal itself.
+pub trait ShutdownServices {
+    fn initialized(&mut self) -> bool;
+    /// Slot 69.
+    fn slot69(&mut self);
+    /// Slot 111 with the current state.
+    fn clean_current_state(&mut self);
+    /// Clear/release +0xB0.
+    fn release_b0(&mut self);
+    /// Disable the active/visible registrations whose bits are set.
+    fn disable_registrations(&mut self);
+    fn slot127(&mut self);
+    fn slot98(&mut self);
+    /// Release the nonnull inherited effect-list references and empty the list.
+    fn release_effect_list(&mut self);
+    /// Clear/release +0x98, then zero +0x84, +0x7C and +0x88.
+    fn release_98_and_zero(&mut self);
+    /// Read and zero the +0x1D4 sound identifier.
+    fn take_sound_identifier(&mut self) -> u32;
+    fn sound_event(&mut self, event: u32, identifier: u32);
+    fn occupant_shutdown(&mut self) -> bool;
+}
+
+pub const SHUTDOWN_SOUND_EVENT: u32 = 0x6A45_1908;
+
+pub struct ShutdownStack<'a, 'effects> {
+    pub models: &'a mut dyn ModelServices,
+    pub lifecycle: &'a mut dyn ShutdownServices,
+    pub controller: &'a mut ModelRegEffects<'effects>,
+}
+
+impl Watercraft {
+    /// Inherited Shutdown: slot 69 and controller stop/unbind even when
+    /// uninitialized, then the initialized-only teardown. Always true.
+    pub fn shutdown_inherited(&mut self, services: &mut ShutdownStack<'_, '_>) -> bool {
+        services.lifecycle.slot69();
+        services.controller.shutdown();
+        if !services.lifecycle.initialized() {
+            return true;
+        }
+        services.lifecycle.clean_current_state();
+        self.remove_models(services.models);
+        services.lifecycle.release_b0();
+        services.lifecycle.disable_registrations();
+        services.lifecycle.slot127();
+        services.lifecycle.slot98();
+        services.lifecycle.release_effect_list();
+        services.lifecycle.release_98_and_zero();
+        let identifier = services.lifecycle.take_sound_identifier();
+        if identifier != 0 {
+            services.lifecycle.sound_event(SHUTDOWN_SOUND_EVENT, identifier);
+        }
+        services.lifecycle.occupant_shutdown();
+        true
+    }
+}
+
+impl super::Fleet {
+    /// Complete Shutdown (`0x0056D0E0`): watercraft cleanup only when the
+    /// inherited initialized predicate holds, then inherited Shutdown, whose
+    /// result is returned.
+    pub fn shutdown_complete(
+        &mut self,
+        id: super::BoatId,
+        manager: &mut Option<&mut dyn super::DockManager>,
+        services: &mut ShutdownStack<'_, '_>,
+    ) -> Result<bool> {
+        if services.lifecycle.initialized() {
+            self.owner_shutdown(id, manager)?;
+        }
+        let boat = self.boat_mut(id)?;
+        boat.events.push(super::Event::BaseShutdown);
+        let result = boat.shutdown_inherited(services);
+        boat.initialized = false;
+        boat.shut_down = true;
+        Ok(result)
+    }
+}

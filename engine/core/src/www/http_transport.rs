@@ -2,7 +2,7 @@
 //! The host supplies socket/clock primitives; no TLS is inferred from the URL.
 use super::{
     ftp::numeric_host,
-    http::{self, Client, Job},
+    http::{self, Client, Job, Resource},
     http_wire::{self as wire, Body, Headers, ReadHost, ReadStep},
     Contract, Unsupported,
 };
@@ -14,12 +14,31 @@ pub trait Host: ReadHost + http::Host {
     fn close(&mut self);
     fn send(&mut self, bytes: &[u8]) -> Option<usize>;
 }
+/// Foreign proxy settings. Endpoint fields are deliberately not connect inputs:
+/// Q20 specifies absolute-form formatting sent to the request URL's origin.
+#[derive(Clone, Copy, Debug)]
+pub struct Proxy<'a> {
+    pub server: &'a [u8],
+    pub port: u16,
+    pub header14: &'a [u8],
+}
+pub fn execute_with_proxy(
+    client: &mut Client,
+    host: &mut impl Host,
+    job: &mut Job,
+    peer: &mut Peer,
+    dequeued: u32,
+    proxy: Option<Proxy<'_>>,
+) -> Contract<Outcome> {
+    execute(client, host, job, peer, dequeued, proxy.map(|p| p.header14))
+}
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Peer {
     pub initialized: bool,
     pub server: Vec<u8>,
     pub port: u16,
     pub reusable: bool,
+    pub received: Vec<u8>,
 }
 impl Peer {
     fn close(&mut self, host: &mut impl Host) {
@@ -27,11 +46,12 @@ impl Peer {
         self.initialized = false;
         self.server.clear();
         self.port = 0;
+        self.received.clear();
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Response {
-    pub status: u32,
+    pub status: i32,
     pub major: u32,
     pub minor: u32,
     pub headers: Headers,
@@ -57,44 +77,53 @@ pub fn read_header(
     skip_informational: bool,
     result: &mut u32,
 ) -> Option<Response> {
-    let mut buffered = Vec::new();
+    read_header_into(
+        host,
+        dequeued,
+        timeout,
+        skip_informational,
+        result,
+        &mut Resource::default(),
+    )
+}
+fn read_header_into(
+    host: &mut impl ReadHost,
+    dequeued: u32,
+    timeout: u32,
+    skip_informational: bool,
+    result: &mut u32,
+    resource: &mut Resource,
+) -> Option<Response> {
     loop {
         if interrupted(host, dequeued, timeout, result) {
             return None;
         }
-        if let Some(end) = buffered.windows(4).position(|w| w == b"\r\n\r\n") {
-            let head = &buffered[..end + 2];
-            let line_end = head.windows(2).position(|w| w == b"\r\n")?;
-            // Literal HTTP/version + decimal-status reading; malformed status
-            // spelling is unqualified by the published reader (WWW Q19).
-            let mut words = head[..line_end].split(|b| *b == b' ');
-            let version = words.next()?.strip_prefix(b"HTTP/")?;
-            let dot = version.iter().position(|b| *b == b'.')?;
-            let major = super::ftp::atol(&version[..dot]) as u32;
-            let minor = super::ftp::atol(&version[dot + 1..]) as u32;
-            let status = super::ftp::atol(words.next()?) as u32;
+        if let Some(end) = resource.raw_header.windows(4).position(|w| w == b"\r\n\r\n") {
+            resource.body = resource.raw_header[end + 4..].to_vec();
+            resource.raw_header.truncate(end + 4);
+            resource.headers = http::parse_records(&resource.raw_header);
+            let status = resource.status_in_locale(|b| host.status_whitespace(b));
             if status == 0 {
                 return None;
             }
-            let headers = http::parse_records(&head[line_end + 2..]);
-            let initial = buffered[end + 4..].to_vec();
             if skip_informational && (100..200).contains(&status) {
-                buffered = initial;
+                resource.raw_header = std::mem::take(&mut resource.body);
                 continue;
             }
+            let (major, minor) = resource.version();
             return Some(Response {
                 status,
-                major,
-                minor,
-                headers,
-                initial,
+                major: major as u32,
+                minor: minor as u32,
+                headers: resource.headers.iter().skip(1).cloned().collect(),
+                initial: resource.body.clone(),
             });
         }
         if !host.connected() {
             return None;
         }
         match host.receive(1024, 1000) {
-            ReadStep::Data(bytes) => buffered.extend(bytes),
+            ReadStep::Data(bytes) => resource.raw_header.extend(bytes),
             ReadStep::Pending => {}
             ReadStep::Failed | ReadStep::Disconnected => return None,
         }
@@ -164,7 +193,7 @@ pub fn execute(
                 overflow: Vec::new(),
             });
         };
-        if !host.connect(address, port) {
+        if !host.connect(address, if port == 0 { 80 } else { port }) {
             job.0[1] = 4;
             return Ok(Outcome::Complete {
                 response: None,
@@ -187,27 +216,50 @@ pub fn execute(
             None => return Ok(failure(client, host, job, peer)),
         }
     }
-    let Some(response) = read_header(host, dequeued, timeout, false, &mut job.0[1]) else {
+    if interrupted(host, dequeued, timeout, &mut job.0[1]) {
+        return Ok(failure(client, host, job, peer));
+    }
+    // A distinct held response is allocated after send, not cast from the request.
+    // Failed acquisition deliberately leaves this unpublished hold alive (Q20).
+    let response_id = client.create_response(host);
+    let resource = client.resources.get_mut(&response_id).expect("new response");
+    resource.raw_header = std::mem::take(&mut peer.received);
+    let Some(response) = read_header_into(host, dequeued, timeout, false, &mut job.0[1], resource) else {
         return Ok(failure(client, host, job, peer));
     };
     peer.reusable = wire::reusable(response.major, response.minor);
     let mut body = Body::default();
     body.result = job.0[1];
     let mut overflow = Vec::new();
-    let count = body.read_message(
-        host,
-        wire::framing(method, response.status, &response.headers),
-        &response.initial,
-        &client.suffix,
-        dequeued,
-        timeout,
-        &mut overflow,
-    );
+    let mode = wire::framing(method, response.status as u32, &response.headers);
+    let read_body = mode.chunked || mode.length != 0;
+    let count = if read_body {
+        body.read_message(
+            host,
+            mode,
+            &response.initial,
+            &client.suffix,
+            dequeued,
+            timeout,
+            &mut overflow,
+        )
+    } else {
+        // Zero/missing length skips ReadMessage, not finalization (wire §2).
+        body.bytes = response.initial.clone();
+        0
+    };
     job.0[1] = body.result;
-    if count == 0 {
+    let resource = client.resources.get_mut(&response_id).expect("local response");
+    resource.body = body.bytes.clone();
+    resource.file = body.file;
+    if read_body && count == 0 {
         return Ok(failure(client, host, job, peer));
     }
-    if wire::finalize(client, host, job, response.status, &response.headers)? {
+    // Publish only at finalization. Overwriting a previous response does not Release it.
+    job.0[6] = response_id;
+    host.effect(http::Effect::PublishResponse(response_id));
+    peer.received = overflow.clone();
+    if wire::finalize(client, host, job, response.status as u32, &response.headers)? {
         return Ok(Outcome::Requeued);
     }
     Ok(Outcome::Complete {
@@ -215,4 +267,29 @@ pub fn execute(
         body,
         overflow,
     })
+}
+
+/// Execute the published current record and connect transport to completion/lifetime.
+/// The caller uses Client::dequeue for each attempt, including retries and redirects.
+pub fn run_current(
+    client: &mut Client,
+    host: &mut impl Host,
+    worker: u32,
+    peer: &mut Peer,
+    proxy_header14: Option<&[u8]>,
+) -> Contract<Outcome> {
+    let mut job = client
+        .workers
+        .get(&worker)
+        .and_then(|r| r.current)
+        .ok_or(Unsupported::NativeInputDomain("HTTP current job"))?;
+    let dequeued = job.0[2];
+    let outcome = execute(client, host, &mut job, peer, dequeued, proxy_header14)?;
+    client.workers.get_mut(&worker).expect("current worker").current = Some(job);
+    if matches!(outcome, Outcome::Requeued) {
+        client.workers.get_mut(&worker).expect("current worker").current = None;
+    } else {
+        client.final_boundary(host, worker)?;
+    }
+    Ok(outcome)
 }

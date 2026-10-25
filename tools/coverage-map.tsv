@@ -180,7 +180,7 @@ fn:operator<<	city and save file	simulation	-	-	-	-
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
 cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
-cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	-	-	-
+cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	core/src/watercraft	-	-
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
@@ -433,7 +433,7 @@ cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
 cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-
 fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
-cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	-
+cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	effects
 cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
 cSC4EffectsParser	effects	renderer	effects.md	-	-	-
 cSC4EffectsCollection	effects	renderer	effects.md	-	-	-
@@ -635,8 +635,8 @@ cRZLanguage*	strings and language	framework	-	-	-	-
 cRZString	strings and language	framework	rz-strings.md	core/src/language	strings_shadow	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
-cGZWWWSystem	web and network	framework	web-network.md	-	-	-
-cRZHTTPClient	web and network	framework	web-network.md	-	-	-
+cGZWWWSystem	web and network	framework	web-network.md	core/src/www	-	-
+cRZHTTPClient	web and network	framework	web-network.md	core/src/www	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
 cRZURL	web and network	framework	web-network.md	core/src/rzurl.rs	-	-
 cRZCookieManager	web and network	framework	web-network.md	core/src/www	-	-

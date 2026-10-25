@@ -1,18 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-effects-replace16 (factory and native-name shadow) | `Codex` / `glue-effects-replace16` (engine lane) | Ready measured partial: cargo 7501/0; clippy clean; CTest 85/85; native names 73/73 to 2032; replacement remains unsafe | Complete section 18 native adapter before adding effects to the house replace list |
+| glue-effects-replace16 (registration and creation-slot ABI) | `Codex` / `glue-effects-replace16` (engine lane) | Ready: cargo 7501/0; clippy clean; CTest 85/85; isolated and house replacements clean to 2032; native names 73/73 | Coordinator: review saved house profile and append effects; broader animation/payload verification remains open |
 
-Code carried forward: standard factory registration, constructor ownership, +8 message-target identity, guarded replacement, and native-shadow selection (cb162c09c through a706ff437).
-This round fixes section 18.2 QueryInterface rejection: unsupported IIDs leave the output untouched.
-The factory CTest now checks failed-query ownership, null output, identity round-trip from +8, and shared reference counts. Corrected the adapter's layout comment.
-Final stable-source gate: qbuild all PASS; Rust 7501 passed / 0 failed; clippy 0 diagnostics; native build 49/49; CTest 85/85.
-Native queue request: qbuild-20261025-015012-build-ctest; logs under build-runs/qbuild-*.log and build-runs/fc4verify-*.log.
-Exact result: glue-effects16-guarded-names-20261025-r3 73/73.
-House-profile turbo run reached 2032-01-01 clean in 107.344 real seconds; ref_warnings=0, foreign_exceptions=0, panics=0, other warnings=0; DLL SHA256 prefix 8a0a342b.
-Evidence: [verdict](../../build-runs/game-results/glue-effects16-guarded-names-20261025-r3.verdict), [log](../../build-runs/game-results/glue-effects16-guarded-names-20261025-r3.log).
-Every load/month sample: 1154 entries, 3465 queries, refusal=0, mismatches=0. Payload/history unavailable; this measures native name membership only.
-The AddCls skip is now deliberate: effects_replace=1 is required for unsafe diagnostic replacement; guarded runs retain the native manager. Shadows remain default-off.
-Prior genuinely registered isolated trials glue-effects16-iso-20261025-r1/r2 faulted after Init (write 0x4D); house trial glue-effects16-house-20261025-r1 faulted at 0x18 before a date.
-Those failures remain valid: this round does not change native layout. Full replacement, rendering, collection publication, and parser execution are not verified.
-Section 18.5 still leaves internal-base contracts unresolved; no signatures guessed. Remaining collection/direct-field adapter work prevents replacement credit.
-Questions filed: none under revised lane rules. C ABI exports/version, tools, coverage maps and house profiles unchanged. Ready queue entry covers measured partial work only.
+Registration fix carried forward from 72801629b: remove the director's second effects guard; avoid shadow startup GZCOM reentry and duplicate tick subscription.
+11dbdb3fb fixes the actual post-Init crash: use distinct virtual names for slots 6 (ID pair, pop 12) and 7 (name, pop 8), preventing MSVC overload-group reversal. Nonvirtual overloads preserve source compatibility.
+Removed argument-shape dispatch, which could not repair stack cleanup; failed creation leaves the output untouched per section 4.
+Factory CTests exercise raw slots 6/7, registration on/off/default/shadow, identity offsets, rejected queries and shared reference counts.
+The final code commit shares the decoded shipped directory with the replacement mirror, removing synthetic-directory creation differences; the core retains its own reference.
+Final stable-source qbuild all PASS: Rust 7501/0, clippy 0 diagnostics, native build 50/50, CTest 85/85; request qbuild-20261025-023153-build-ctest.
+Final DLL SHA256 prefix: 3d33bd43. All following runs use turbo and have exceptions=0, ref_warnings=0, panics=0 and other warnings=0.
+Isolated replacement: glue-effects16-final-iso-r7 clean, 2032-01-16, 27.781 real seconds.
+House replacement: glue-effects16-final-house-r7 clean, 2032-01-01, 105.562 real seconds; AddCls registered 0x49822F75 and effects Init ran.
+House list copied from the saved r3 request plus effects; clean-room restrictions prohibit reading/executing tools/regress.ps1. Exact profile is in build-runs/game-queue/done/glue-effects16-final-house-r7.req.
+Replacement mirrors report differences 0 but ticks 0; these runs establish startup/soak safety, not animation equivalence.
+Exact native name result: glue-effects16-final-native-r7 73/73; clean to 2032-01-01 in 116.250 seconds.
+Every native load/month sample: entries=1154, queries=3465, refusal=0, mismatches=0; payload/history unavailable. No broader native equivalence claim.
+Run evidence: build-runs/game-results/<label>.verdict and <label>.log; requests under build-runs/game-queue/done/. No separate docs/runs record under revised lane rules.
+Failed evidence retained: glue-effects16-registered-iso-r5 corrupt after factory_smoke_stack; corrected slots first pass in glue-effects16-slots-iso-r6 (2032-01-13 clean).
+Still missing: ID-pair creation resolution, complete collection publication/internal bases, rendering and natural animation/payload coverage. No native signatures guessed.
+Questions: none under revised rules. Shadows remain default-off; C ABI exports/version, tools, coverage maps and house profiles unchanged.

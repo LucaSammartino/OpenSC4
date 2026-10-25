@@ -8,9 +8,53 @@ pub trait WordOutputs {
     fn write(&mut self, output: Handle, value: u32);
 }
 
+/// TE8 strncpy: exactly count writes, including the source string's NUL padding.
+pub fn fixed_copy(output: &mut [u8], source: &[u8], count: u32) {
+    let output = &mut output[..count as usize];
+    let n = source
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(source.len())
+        .min(output.len());
+    output[..n].copy_from_slice(&source[..n]);
+    output[n..].fill(0);
+}
+
+pub fn search(text: &[u8], pattern: &[u8], position: u32, forward: bool) -> u32 {
+    let position = position as usize;
+    let n = text.len();
+    if pattern.is_empty() {
+        return if forward && position > n {
+            u32::MAX
+        } else {
+            position.min(n) as u32
+        };
+    }
+    if pattern.len() > n {
+        return u32::MAX;
+    }
+    let last = n - pattern.len();
+    if forward {
+        if position > last {
+            return u32::MAX;
+        }
+        (position..=last)
+            .find(|&i| &text[i..i + pattern.len()] == pattern)
+            .map_or(u32::MAX, |i| i as u32)
+    } else {
+        (0..=position.min(last))
+            .rev()
+            .find(|&i| &text[i..i + pattern.len()] == pattern)
+            .map_or(u32::MAX, |i| i as u32)
+    }
+}
+
 impl TextEdit {
-    /// The owner filters chunks; only lib::_strncpy itself is a TE8 foreign
-    /// input. In particular the count passed to it is the original count.
+    pub fn filter_buffer(&self, buffer: &mut [u8], count: &mut u32) -> Result<u32> {
+        self.remove_bad_buffer(buffer, count, fixed_copy)
+    }
+
+    /// Instrumentable copy boundary; the native entry uses fixed_copy.
     pub fn remove_bad_buffer(
         &self,
         buffer: &mut [u8],

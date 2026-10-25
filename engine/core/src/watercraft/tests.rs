@@ -7,7 +7,7 @@ use crate::stream::{ByteReader, ByteWriter};
 use std::sync::Arc;
 
 #[test]
-fn wc9_literal_simultaneous_steering_pending_spec_resolution() {
+fn wc9_ordered_simultaneous_steering_keeps_both_channels() {
     let mut b = boat();
     let mut command = DriveCommand {
         left: 100.0,
@@ -411,9 +411,7 @@ fn geometry_dispatch_pops_completed_docking_and_undocking() {
     f.get_mut(1).unwrap().inherited_position = [9.5, 0.0, 0.0];
     f.get_mut(1).unwrap().dock_requests = [true; 2];
     f.push_state(1, State::new(state::DOCK), &mut None).unwrap();
-    let rectangle = [Cell { x: 9, z: 0 }; 4];
-    f.state_tick_with_geometry(1, 0.0, rectangle, &Water, &mut None)
-        .unwrap();
+    dispatch(&mut f, 0.0, &mut None).unwrap();
     assert_eq!(f.get(1).unwrap().top_state(), None);
     assert!(!f.get(1).unwrap().docking);
     f.get_mut(1).unwrap().neighbor = Some(NeighborRoute {
@@ -424,8 +422,7 @@ fn geometry_dispatch_pops_completed_docking_and_undocking() {
     });
     f.get_mut(1).unwrap().position = [10.0, 0.0, 0.0];
     f.push_state(1, State::new(state::UNDOCK), &mut None).unwrap();
-    f.state_tick_with_geometry(1, 1.0, rectangle, &Water, &mut None)
-        .unwrap();
+    dispatch(&mut f, 1.0, &mut None).unwrap();
     assert_eq!(f.get(1).unwrap().top_state(), None);
 }
 
@@ -610,7 +607,7 @@ fn state_entry_exit_and_remove_side_effect_order() {
     fleet
         .push_state(1, State::new(state::SLOW_REMOVE), &mut no_manager)
         .unwrap();
-    fleet.state_tick(1, 1.0, &mut no_manager).unwrap();
+    dispatch(&mut fleet, 1.0, &mut no_manager).unwrap();
     assert_eq!(
         fleet.boats[&1].events,
         [
@@ -627,14 +624,12 @@ fn idle_is_cumulative_and_strictly_above_sixty_seconds_falls_through() {
     let mut fleet = fleet();
     let mut manager = None;
     fleet.push_state(1, State::new(state::IDLE), &mut manager).unwrap();
-    fleet.state_tick(1, 60_000.0, &mut manager).unwrap();
+    dispatch(&mut fleet, 60_000.0, &mut manager).unwrap();
     assert_eq!(fleet.boats[&1].top_state(), Some(state::IDLE));
     fleet.pop_state(1, &mut manager).unwrap();
     fleet.push_state(1, State::new(state::IDLE), &mut manager).unwrap();
-    assert_eq!(
-        fleet.state_tick(1, 1.0, &mut manager),
-        Err(ContractGap::CrashSequenceWc5)
-    );
+    // The idle fallthrough runs the crash tick once; top 73 adds no second dt.
+    assert_eq!(dispatch(&mut fleet, 1.0, &mut manager), Ok(true));
     assert_eq!(fleet.boats[&1].idle_elapsed, 60_001.0);
     assert_eq!(fleet.boats[&1].crash_elapsed, 1.0);
     assert_eq!(fleet.boats[&1].top_state(), Some(state::SLOW_REMOVE));
@@ -683,7 +678,7 @@ fn queued_occupied_berth_never_takes_another_waiting_spot() {
 }
 
 #[test]
-fn public_docked_vector_and_far_approach_gap() {
+fn public_docked_vector_and_far_approach_branch() {
     let mut fleet = fleet();
     let b = fleet.boats.get_mut(&1).unwrap();
     b.set_station_information([station(1, 0.0), station(2, 10.0)], true);
@@ -695,10 +690,10 @@ fn public_docked_vector_and_far_approach_gap() {
     assert_eq!(fleet.docking_tick(1, 1.0, &Water, &mut None), Ok(false));
     fleet.boats.get_mut(&1).unwrap().position = [200.0, 0.0, 0.0];
     fleet.boats.get_mut(&1).unwrap().inherited_position = [200.0, 0.0, 0.0];
-    assert_eq!(
-        fleet.docking_tick(1, 1.0, &Water, &mut None),
-        Err(ContractGap::AiMotionWc4)
-    );
+    // Far approach is the owner AI/movement/collision branch, not a gap.
+    fleet.push_state(1, State::new(state::DOCK), &mut None).unwrap();
+    assert_eq!(dispatch(&mut fleet, 1.0, &mut None), Ok(true));
+    assert_eq!(fleet.boats[&1].top_state(), Some(state::DOCK));
 }
 
 #[test]
@@ -855,7 +850,7 @@ fn animation_early_return_and_two_idle_accumulations() {
     assert_eq!(fleet.animation_budget(1, 0.000009, 20.0, &mut None), Ok(false));
     assert_eq!(fleet.boats[&1].idle_elapsed, 0.0);
     assert_eq!(fleet.animation_budget(1, 0.00001, 20.0, &mut None), Ok(true));
-    fleet.state_tick(1, 30.0, &mut None).unwrap();
+    dispatch(&mut fleet, 30.0, &mut None).unwrap();
     assert_eq!(fleet.boats[&1].idle_elapsed, 50.0);
     assert_eq!(fleet.lifetime_tick(1, 1000.0, &mut None), Ok(false));
     assert_eq!(fleet.boats[&1].lifetime_elapsed, 0.0);
@@ -1095,10 +1090,7 @@ fn crash_case_angle_and_ai_override_do_not_reap_expired_crashes() {
         fleet.boats[&1].record.base.states.last().unwrap().base.countdown_ms,
         8000.0
     );
-    assert_eq!(
-        fleet.state_tick(1, 10_000.0, &mut None),
-        Err(ContractGap::CrashSequenceWc5)
-    );
+    assert_eq!(dispatch(&mut fleet, 10.0, &mut None), Ok(true));
     assert_eq!(fleet.boats[&1].top_state(), Some(state::SINK));
     assert!(!fleet.boats[&1].events.iter().any(|e| matches!(e, Event::Remove(_))));
 }
@@ -1186,4 +1178,47 @@ fn final_state_pop_preserves_crash_and_adds_disappear() {
     assert_eq!(fleet.boats[&1].top_state(), Some(1));
     assert_eq!(fleet.boats[&1].record.base.states[0].state_type, state::SINK);
     assert_eq!(fleet.boats[&1].record.base.states[1].base.stack_index, 1);
+}
+
+struct DispatchQueries;
+impl CollisionQueries for DispatchQueries {
+    fn cell_rectangle(&mut self, _: BoatId) -> [Cell; 4] {
+        [Cell { x: 9, z: 0 }; 4]
+    }
+    fn occupied(&mut self, _: Cell) -> bool {
+        false
+    }
+    fn is_wet(&mut self, _: Cell) -> bool {
+        true
+    }
+    fn terrain_normal(&mut self, _: [f32; 3]) -> [f32; 3] {
+        [0.0, 1.0, 0.0]
+    }
+}
+
+struct DispatchSpatial;
+impl SpatialServices for DispatchSpatial {
+    fn centre(&self, c: Cell) -> [f32; 3] {
+        [c.x as f32 + 0.5, 0.0, c.z as f32 + 0.5]
+    }
+    fn adjust_segment(&mut self, _: [f32; 3], _: &mut [f32; 3], _: u32) {}
+}
+
+struct NoCrashEffects;
+impl CrashEffects for NoCrashEffects {
+    fn refresh(&mut self, _: CrashEffect, _: &Transform) {}
+    fn splash_present(&self) -> bool {
+        false
+    }
+}
+
+/// The owner's complete state dispatch (§4) for boat 1 over open water.
+fn dispatch(fleet: &mut Fleet, dt: f32, manager: &mut Option<&mut dyn DockManager>) -> Result<bool> {
+    let mut motion = MotionServices {
+        terrain: &Water,
+        queries: &mut DispatchQueries,
+        spatial: &mut DispatchSpatial,
+        ai_collisions: false,
+    };
+    fleet.runtime_state_tick(1, dt, &mut motion, &mut NoCrashEffects, manager)
 }

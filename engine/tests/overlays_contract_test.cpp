@@ -34,6 +34,7 @@ void __fastcall Placement(void*, void*, uint32_t id, void*) {
 }
 
 namespace fc4 {
+void OverlayOwnerGameCheck() {}
 long SettingInt(const char*, const char*, long) { return enabled; }
 long PublishedJulian() { return 0; }
 void Log(const char*, ...) {}

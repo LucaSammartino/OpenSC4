@@ -81,14 +81,37 @@ impl Subsidiary {
         distance_squared: f32,
         lighting: Option<&mut dyn Lighting>,
     ) {
-        if boat.record.base.automata_flags & 0x100000 != 0 || !processed_model {
+        self.lighting_at(
+            boat.record.base.automata_flags,
+            boat.inherited_position,
+            boat.inherited_heading,
+            processed_model,
+            heading_threshold,
+            distance_squared,
+            lighting,
+        );
+    }
+
+    /// Slot 107 with explicit inherited position/heading (§5.1.5).
+    #[allow(clippy::too_many_arguments)] // Owner flags, inherited P/H and renderer configuration.
+    pub fn lighting_at(
+        &mut self,
+        flags: u32,
+        position: Vec3,
+        heading: Vec3,
+        processed_model: bool,
+        heading_threshold: Vec3,
+        distance_squared: f32,
+        lighting: Option<&mut dyn Lighting>,
+    ) {
+        if flags & 0x100000 != 0 || !processed_model {
             return;
         }
         let Some(lighting) = lighting else {
             return;
         };
-        let delta = math::sub(boat.inherited_heading, self.last_lit_heading);
-        let moved = math::sub(boat.inherited_position, self.last_lit_position);
+        let delta = math::sub(heading, self.last_lit_heading);
+        let moved = math::sub(position, self.last_lit_position);
         if delta
             .iter()
             .zip(heading_threshold)
@@ -96,8 +119,8 @@ impl Subsidiary {
             || math::dot(moved, moved) > distance_squared
         {
             lighting.light_model(false);
-            self.last_lit_heading = boat.inherited_heading;
-            self.last_lit_position = boat.inherited_position;
+            self.last_lit_heading = heading;
+            self.last_lit_position = position;
         }
     }
 }

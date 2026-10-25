@@ -4,22 +4,17 @@
 <!-- from: re-vehicles (2026-10-21) -->
 - **VH1 - §3, §5, §6:** the U-Drive-It physics of the vehicle, train and tank (`DoPlayerDriveTick`,
   `PlayerDriveUpdateSpeed`, the derail draw, the tank shot) in full. [as read]
-  Remaining evidence needed: instruction-verified throttle/steering tween equations,
-  on-network versus off-road displacement and collision ordering, train curve/derail
-  probability with its exact random range and comparison, and tank targeting,
-  projectile effect/damage parameters and firing cooldown. Existing outlines do not
-  specify those algorithms. Locate the named tick/command functions and
-  PlayerDriveCheckForDerail in the export before examining their numeric branches.
-  No physics closure is claimed by the route-speed factors.
-
-<!-- from: core-vehicles5 (2026-10-23) -->
-- **VH5 - §5: train-owned algorithms.** Supply car count/model/length/colour
-  selection and random draws, car placement/following geometry and random sound
-  thresholds, StartTrip inputs/path protocol, message payload, and the failure
-  accident parameters. What does TrainCar's network-placement override change?
-  [Do not delegate these owner algorithms to a game vehicle or foreign manager;
-  composition/following/trip return Unsupported. Known ownership, teardown,
-  collision-speed copying and minimum collide timeout are implemented.]
+  **2026-10-25 narrowing (re-vehicles-vh21):** vehicles.md §§12.10, 12.12,
+  12.13 and 12.15 specify command/steering accumulation, signed speed/grade/tween
+  rules, Train overspeed/cache/braking/derail, head movement geometry and path
+  switching, and the different Vehicle/Train substep counts and collision phases.
+  Tank aiming, pivot, elevation/power adjustment, sound thresholds, shot-effect
+  attributes, f32 power×0.01 scaling and channel-7 cooldown are now specified.
+  Remaining evidence needed: finish Vehicle's on-network displacement and
+  reattachment versus off-road anchor/steering geometry in
+  `0x005603F0/0x0055ED10`. The Tank firing owner makes no direct occupant-damage
+  call; projectile-asset simulation remains behind the effects interface.
+  VH1 remains open for the Vehicle geometry, with no full physics closure claimed.
 
 <!-- from: core-vehicles5 (2026-10-23) -->
 - **VH7 - §2/§3, automata.md §6.3/§6.5: route representation and geometry.**

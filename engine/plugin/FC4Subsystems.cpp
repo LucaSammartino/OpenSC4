@@ -15,6 +15,7 @@
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "cFC4PowerLineOccupant.h"
+#include "cFC4PowerPoleOccupant.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -147,6 +148,8 @@ FC4_DISASTER_FACTORY_DECL(Riot)
 FC4_DISASTER_FACTORY_DECL(Effect)
 FC4_DISASTER_FACTORY_DECL(Toxic)
 #undef FC4_DISASTER_FACTORY_DECL
+
+#include "FC4OverlayOwner.h"
 
 namespace fc4 {
 namespace {
@@ -495,6 +498,13 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
+// SPEC-GAP: §3.8.1 supplies no native CLSID/Init factory protocol. This FC4
+// identity exercises ownership without guessing a native identity or returning
+// a partial object for IID 0x895D6544. It cannot yet replace live view managers.
+const ClassEntry kOverlayOwnerClasses[] = {
+    {kFC4_CLSID_OverlayOwner, "cFC4OverlayOwner", &CreateFC4OverlayOwner},
+};
+
 // Replace managers and instances together: disasters.md §2.8 / DS44.
 const ClassEntry kDisasterClasses[] = {
     {0x61F6ABF5, "cSC4DisasterLayer", &CreateFC4DisasterLayer},
@@ -519,8 +529,11 @@ const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
 };
 
+// network-occupants.md §4, §5 (glue-netocc-replace17): the Rust-backed
+// pole and line on the shared inherited occupant slots (FC4OccupantAdapter.h).
 const ClassEntry kNetOccClasses[] = {
     {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
+    {0x09C05C6A, "cSC4PowerPoleOccupant", &CreateFC4PowerPoleOccupant},
 };
 
 const Subsystem kSubsystems[] = {
@@ -594,9 +607,10 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
+    {"overlays", nullptr, kOverlayOwnerClasses, sizeof(kOverlayOwnerClasses) / sizeof(kOverlayOwnerClasses[0]), false},
     {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
-    // Partial occupant replacement: only the fully specified power-line owner.
+    // Partial occupant replacement: the power pole and power line.
     {"netocc", nullptr, kNetOccClasses, sizeof(kNetOccClasses) / sizeof(kNetOccClasses[0]), false},
     // network-rules.md section 2.4.3: the rule owners have no factory/IID.
     // Select the existing manager/tool hosts below, never invent class IDs.
@@ -661,6 +675,10 @@ void Resolve() {
     if (rulesRequested && rulesBlocked) {
         Log("netrules: inactive; disable=netmgr/nettool vetoes the required replacement host");
     }
+    // SPEC-GAP: lot-records §13 does not settle the live lot's full ABI (e.g.
+    // GetLandValue's return channel). Keep the native factory until it does.
+    if (ListContains(enable, "lotrec"))
+        Log("subsystem 'lotrec': replacement unavailable (incomplete live lot ABI); original cSC4Lot retained");
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
         const bool ruleHost = rulesHosted && (strcmp(s.key, "netmgr") == 0 || strcmp(s.key, "nettool") == 0);
@@ -782,8 +800,8 @@ void Resolve() {
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
-    // The guarded class is native unless the diagnostic replacement is actually registered.
-    EffectsShadowStartup(enabledKey("effects") && SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) != 0);
+    // The mirror is selected only when the replacement class is registered.
+    EffectsShadowStartup(enabledKey("effects"));
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
     AutomataShadowStartup(enabledKey("automata"));
@@ -795,6 +813,9 @@ void Resolve() {
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
     ExemplarFactorySetEnabled(enabledKey("exemplars"));
     Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
+    if (enabledKey("overlays")) {
+        Log("overlays: FC4 owner factory registered; native manager interception=0 (SPEC-GAP)");
+    }
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's
@@ -840,10 +861,6 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
-        // SPEC-GAP: effects.md section 18.5 leaves the internal native bases unresolved.
-        // Real-city replacement still faults; keep it behind the diagnostic switch.
-        if (strcmp(kSubsystems[i].key, "effects") == 0 &&
-            SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) continue;
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {
