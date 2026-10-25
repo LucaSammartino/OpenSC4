@@ -324,3 +324,48 @@ fn te8_spare_capacity_stop_and_null_allocation_are_not_empty_history() {
     assert_eq!(empty.invalid_state(), Some(failure));
     assert_eq!(storage.events, ["allocate:1:60"]);
 }
+
+#[test]
+fn te8_range_growth_inserts_owned_strings_before_copying_suffix() {
+    let mut h = history::History::default();
+    h.push(action(1));
+    h.push(action(5));
+    let mut source = [action(2), action(3), action(4)];
+    let mut storage = Storage::default();
+    h.grow_insert_with(1, &source, &mut storage).unwrap();
+    assert_eq!(h.capacity(), 5); // n + max(n, k), where k > n.
+    assert_eq!(&**h, &[action(1), action(2), action(3), action(4), action(5)]);
+    for (copy, original) in h[1..4].iter().zip(&source) {
+        assert_ne!(copy.restore.as_ptr(), original.restore.as_ptr());
+    }
+    source[0].restore[0] = 99;
+    assert_eq!(h[1].restore, [2]);
+    assert_eq!(
+        storage.events,
+        [
+            "allocate:5:300",
+            "copy:8192:1",
+            "copy:8252:2",
+            "copy:8312:3",
+            "copy:8372:4",
+            "copy:8432:5",
+            "destroy:1",
+            "destroy:5",
+            "free:4096"
+        ]
+    );
+}
+
+#[test]
+fn te8_range_growth_uses_size_instead_of_old_capacity() {
+    let mut h = history::History::default();
+    for at in 1..=3 {
+        h.push(action(at));
+    }
+    assert_eq!(h.capacity(), 4);
+    let mut storage = Storage::default();
+    h.grow_insert_with(2, &[action(4), action(5)], &mut storage).unwrap();
+    assert_eq!(h.capacity(), 6); // n + max(n, k), not twice old capacity.
+    assert_eq!(&**h, &[action(1), action(2), action(4), action(5), action(3)]);
+    assert_eq!(storage.events[0], "allocate:6:360");
+}
