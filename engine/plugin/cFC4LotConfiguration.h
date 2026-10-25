@@ -36,6 +36,8 @@
 // callers borrow them for the call (5.1).
 #pragma once
 
+#include "fc4.h"
+
 #include "FC4Interfaces.h"
 #include "SC4Vector.h"
 #include "cGZPersistResourceKey.h"
@@ -141,14 +143,12 @@ public:
     }
 
 private:
+    // Rust owns the loaded geometry; vectors below are the game's mutable ABI view.
+    fc4_lot_configuration* core_ = fc4_lot_configuration_new();
+    cFC4LotConfiguration(const cFC4LotConfiguration&) = delete;
+    cFC4LotConfiguration& operator=(const cFC4LotConfiguration&) = delete;
     // 3.1 step 3: every field back to its default.
     void Reset();
-    // 3.3: one byte list into a bit set of the given size.
-    static void SetBits(std::vector<bool>& set, size_t size, const std::vector<uint8_t>& values);
-    // 3.6: the position correction with the 24-bit arithmetic.
-    void CorrectPositions();
-    // 3.7: the foundation record appended after the correction.
-    void AppendFoundation(uint32_t type);
 
 public:
     // 2: the fields, in the original's offset order. The offsets are
@@ -179,3 +179,6 @@ public:
     std::vector<uint32_t> fences_;                     // +0xA8
     std::vector<int8_t> fencePositions_;               // +0xB4
 };
+
+// Manager-owned allocation, never a GZCOM class factory (spec 1.1).
+cIGZUnknown* CreateFC4LotConfiguration();

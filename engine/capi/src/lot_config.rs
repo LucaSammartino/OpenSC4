@@ -1014,6 +1014,76 @@ pub unsafe extern "C" fn fc4_lot_configuration_capacity(exemplar: *const fc4_pro
     })
 }
 
+/// Replacement configuration geometry. No RefCell: Load can overlap host reads.
+#[allow(non_camel_case_types)]
+pub struct fc4_lot_configuration {
+    state: std::sync::Mutex<Option<fc4_core::lot_config_manager::LotConfiguration>>,
+}
+
+// SPEC-GAP: no clock seed is supplied by this ABI; legacy tags start at 1.
+static LOT_CONFIGURATION_SERIAL: std::sync::Mutex<u32> = std::sync::Mutex::new(0);
+
+#[no_mangle]
+pub extern "C" fn fc4_lot_configuration_new() -> *mut fc4_lot_configuration {
+    guard(std::ptr::null_mut(), || {
+        Box::into_raw(Box::new(fc4_lot_configuration {
+            state: std::sync::Mutex::new(None),
+        }))
+    })
+}
+
+/// Owner must exclude all calls before destroying the configuration.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lot_configuration_free(config: *mut fc4_lot_configuration) {
+    if !config.is_null() {
+        guard((), || drop(Box::from_raw(config)));
+    }
+}
+
+/// Own an independent Load result. The exemplar is never retained.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lot_configuration_load(
+    config: *const fc4_lot_configuration,
+    exemplar: *const fc4_props,
+    detail: u32,
+) -> bool {
+    let (Some(config), Some(h)) = (config.as_ref(), props_ref(exemplar)) else {
+        return false;
+    };
+    guard(false, || {
+        let mut serial = LOT_CONFIGURATION_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+        let loaded = fc4_core::lot_config_manager::LotConfiguration::load(h, detail, &mut serial);
+        let ok = loaded.is_some();
+        *config.state.lock().unwrap_or_else(|e| e.into_inner()) = loaded;
+        ok
+    })
+}
+
+/// Copy the retained ABI view, including after the exemplar has been destroyed.
+/// Callbacks execute outside the lock; their data is borrowed only for that call.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_lot_configuration_snapshot(
+    config: *const fc4_lot_configuration,
+    out: *mut fc4_core::lot_config_manager::ConfigurationFields,
+    visit: fc4_lotdev_cfg_object_callback,
+    ctx: *mut c_void,
+) -> bool {
+    let (Some(config), Some(out)) = (config.as_ref(), out.as_mut()) else {
+        return false;
+    };
+    guard(false, || {
+        let loaded = config.state.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let Some(loaded) = loaded else { return false };
+        *out = loaded.fields;
+        if let Some(f) = visit {
+            for object in &loaded.objects {
+                f(ctx, &object_out(object));
+            }
+        }
+        true
+    })
+}
+
 /// `Read` (§B6): false for another version, and then nothing changes. The
 /// references come back through `resolve_ref` with IIDs `0x07813EAE`,
 /// `0x06C66177` and `0x28326F3E`.

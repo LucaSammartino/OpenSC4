@@ -1244,3 +1244,9 @@ if(TARGET fc4_plugin_load_test)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-line-factory)
     set_tests_properties(plugin_netocc_line_factory PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_lotconf_registration_ownership
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotconf-ownership)
+    set_tests_properties(plugin_lotconf_registration_ownership PROPERTIES RUN_SERIAL TRUE)
+endif()

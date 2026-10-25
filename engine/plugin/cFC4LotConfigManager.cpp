@@ -143,9 +143,7 @@ uint64_t CreateConfiguration(void*) {
     // reference (B3.4) and slot 5 releases the creation one - the catalogue
     // keeps the object at count 1. Without it the catalogue's release after
     // the add reaches 0 and deletes the object out from under the catalogue.
-    cFC4LotConfiguration* c = new cFC4LotConfiguration();
-    c->AddRef();
-    return Tok(c);
+    return Tok(CreateFC4LotConfiguration());
 }
 
 bool LoadConfiguration(void*, uint64_t cfg, uint32_t t, uint32_t g, uint32_t i, uint32_t detail) {

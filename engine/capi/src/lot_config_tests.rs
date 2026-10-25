@@ -74,6 +74,65 @@ fn configuration_capacity_selects_developer_entry_and_stores_u16() {
     }
 }
 
+#[test]
+fn owned_configuration_outlives_exemplar_and_replaces_geometry() {
+    use fc4_core::lot_config_manager::ConfigurationFields;
+    use std::ptr::{null, null_mut};
+
+    unsafe extern "C" fn collect(ctx: *mut c_void, object: *const fc4_lotdev_cfg_object) {
+        let out = &mut *(ctx as *mut Vec<(u32, Vec<u32>)>);
+        let object = &*object;
+        let ids = if object.n_ids == 0 {
+            Vec::new()
+        } else {
+            std::slice::from_raw_parts(object.ids, object.n_ids as usize).to_vec()
+        };
+        out.push((object.tag, ids));
+    }
+
+    unsafe {
+        let config = fc4_lot_configuration_new();
+        assert!(!config.is_null());
+        let mut fields = ConfigurationFields::default();
+        assert!(!fc4_lot_configuration_snapshot(config, &mut fields, None, null_mut()));
+        let h = fc4_props_create();
+        assert!(fc4_props_set_u32s(h, VERSION, &2, 1));
+        let object = [0, 0x30, 0, 1 << 16, 0, 1 << 16, 0, 0, 1 << 16, 1 << 16, 0, 71, 42];
+        assert!(fc4_props_set_u32s(h, LOT_OBJECT, object.as_ptr(), object.len()));
+        assert!(fc4_lot_configuration_load(config, h, 1));
+        fc4_props_destroy(h);
+        let mut objects: Vec<(u32, Vec<u32>)> = Vec::new();
+        assert!(fc4_lot_configuration_snapshot(
+            config,
+            &mut fields,
+            Some(collect),
+            &mut objects as *mut _ as _
+        ));
+        assert_eq!(objects, vec![(71, vec![42])]);
+        assert_eq!((fields.growth_stage, fields.roads, fields.max_slope), (1, 8, 90.0));
+        assert!(!fc4_lot_configuration_load(config, null(), 3));
+        assert!(fc4_lot_configuration_snapshot(config, &mut fields, None, null_mut()));
+        let replacement = fc4_props_create();
+        assert!(fc4_props_set_u32s(replacement, VERSION, &2, 1));
+        assert!(fc4_lot_configuration_load(config, replacement, 3));
+        objects.clear();
+        assert!(fc4_lot_configuration_snapshot(
+            config,
+            &mut fields,
+            Some(collect),
+            &mut objects as *mut _ as _
+        ));
+        assert!(objects.is_empty()); // Reload discards the previous owned IDs.
+        assert!(fc4_props_set_u32s(replacement, VERSION, &0, 1));
+        assert!(!fc4_lot_configuration_load(config, replacement, 3));
+        assert!(!fc4_lot_configuration_snapshot(config, &mut fields, None, null_mut()));
+        fc4_props_destroy(replacement);
+        fc4_lot_configuration_free(config);
+        fc4_lot_configuration_free(null_mut());
+        assert!(!fc4_lot_configuration_snapshot(null(), &mut fields, None, null_mut()));
+    }
+}
+
 /// One object as the host keeps it.
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Obj {

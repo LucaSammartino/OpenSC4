@@ -56,7 +56,7 @@ mod objects;
 mod tests;
 
 pub use catalogue::{LotConfigCatalogue, SharedLotConfigCatalogue};
-pub use configuration::{configuration_fields, configuration_objects, ConfigurationFields};
+pub use configuration::{configuration_fields, configuration_objects, ConfigurationFields, LotConfiguration};
 pub use manager::{query_interface, LcmState, LotConfigManager};
 pub use objects::{fixed_16_16, is_kept, lod_of, lot_object_array, object_from_values, LotConfigObject};
 
