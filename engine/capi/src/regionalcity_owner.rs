@@ -2,6 +2,8 @@
 //! Private static-link RegionalCity owner. No native object layout crosses FFI.
 use fc4_core::regional_city::RegionalCity;
 use std::sync::Mutex;
+#[path = "regionalcity_bridge.rs"]
+mod bridge;
 #[path = "regionalcity_handles.rs"]
 mod handles;
 #[cfg(test)]
@@ -119,7 +121,18 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_position(
     let Ok(mut c) = owner.0.lock() else {
         return false;
     };
-    c.set_position(x, z, move_connections);
+    if !move_connections {
+        c.set_position(x, z, false);
+        return true;
+    }
+    // Publish the new geometry before connection Repair calls back through
+    // this owner's public getters. Only the pinned handles are used by the
+    // detached operation; its maps/scalars are never copied back over re-entry.
+    let mut operation = c.clone();
+    c.set_position(x, z, false);
+    c.moved = true;
+    drop(c);
+    operation.set_position(x, z, true);
     true
 }
 

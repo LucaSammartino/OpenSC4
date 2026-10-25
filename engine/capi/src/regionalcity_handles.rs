@@ -16,7 +16,6 @@ pub struct ConnectionCallbacks {
     pub release: Ref,
     pub conn_type: Word,
     pub cell: Pair,
-    pub set_cell: SetPair,
     pub repair: unsafe extern "C" fn(*mut c_void, i32, i32, i32, i32, i32, i32),
 }
 
@@ -100,11 +99,6 @@ impl ConnectionHandle for Connection {
             (self.calls.cell)(self.raw(), &mut x, &mut z);
         }
         (x, z)
-    }
-    fn set_cell(&self, x: i32, z: i32) {
-        unsafe {
-            (self.calls.set_cell)(self.raw(), x, z);
-        }
     }
     fn repair(&self, counts: (i32, i32), position: (i32, i32), size: (i32, i32)) {
         unsafe {

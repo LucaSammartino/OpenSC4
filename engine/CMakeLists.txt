@@ -1396,6 +1396,7 @@ endif()
 
 # RegionalCity private C transport: real Rust owner and host-reference callbacks.
 if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4RegionalCityElements.cpp plugin/FC4RegionalCityElements.h)
     add_executable(fc4_regionalcity_owner_test tests/regionalcity_owner_test.cpp)
     target_include_directories(fc4_regionalcity_owner_test PRIVATE plugin)
     target_compile_options(fc4_regionalcity_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)

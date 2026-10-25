@@ -13,9 +13,6 @@ inline uint32_t ConnectionType(void* p) { return static_cast<uint32_t>(static_ca
 inline void ConnectionCell(void* p, int32_t* x, int32_t* z) {
     static_cast<cFC4NeighborConnection*>(p)->GetConnectionCell(*x, *z);
 }
-inline void SetConnectionCell(void* p, int32_t x, int32_t z) {
-    fc4_neighbor_connection_set_field(static_cast<cFC4NeighborConnection*>(p)->Handle(), 1, x, z);
-}
 inline void RepairConnection(void* p, int32_t cx, int32_t cz, int32_t px, int32_t pz, int32_t sx, int32_t sz) {
     fc4_neighbor_connection_repair(static_cast<cFC4NeighborConnection*>(p)->Handle(), cx, cz, px, pz, sx, sz);
 }
@@ -69,7 +66,7 @@ inline int32_t Write(void*, uint32_t kind, void* p, const fc4_ostream* output) {
 inline const FC4RegionalCityRecordCalls& Calls() {
     static const FC4RegionalCityRecordCalls calls = {
         nullptr, Read, Write,
-        {RetainConnection, ReleaseConnection, ConnectionType, ConnectionCell, SetConnectionCell, RepairConnection},
+        {RetainConnection, ReleaseConnection, ConnectionType, ConnectionCell, RepairConnection},
         {RetainDeal, ReleaseDeal, CitySide, OtherSide, SetCitySide, SetOtherSide, DealType, Amount, Flags, SetFlags}
     };
     return calls;

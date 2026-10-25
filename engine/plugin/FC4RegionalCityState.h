@@ -15,7 +15,6 @@ struct FC4RegionalCityConnectionCalls {
     void (*release)(void*);
     uint32_t (*type)(void*);
     void (*cell)(void*, int32_t*, int32_t*);
-    void (*setCell)(void*, int32_t, int32_t);
     void (*repair)(void*, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);
 };
 struct FC4RegionalCityDealCalls {
@@ -39,6 +38,28 @@ struct FC4RegionalCityRecordCalls {
     int32_t (*write)(void*, uint32_t kind, void*, const fc4_ostream*);
     FC4RegionalCityConnectionCalls connections;
     FC4RegionalCityDealCalls deals;
+};
+struct FC4RegionalCityRegionCalls {
+    void* context;
+    uint64_t thisCity, currentCity;
+    uint64_t (*cityAt)(void*, int32_t, int32_t);
+};
+struct FC4RegionalCityPopulation { uint32_t type; int32_t count; float jobs[4]; };
+struct FC4RegionalCityPoint { uint32_t type; float position[3]; bool livable; };
+struct FC4RegionalCityCache {
+    uint8_t difficulty;
+    uint32_t serial;
+    bool established;
+    int8_t mayorRating;
+    float tax[12];
+    int32_t tutorial;
+    bool residential;
+    int32_t population;
+    float workforce;
+    const FC4RegionalCityPopulation* populations;
+    uint32_t populationCount;
+    const FC4RegionalCityPoint* points;
+    uint32_t pointCount;
 };
 // Scalar fields: 0/1 position, 2/3 size, 4 population, 5/6 jobs,
 // 7 workforce, 8 rating, 9 difficulty, 10 serial, 11 birth, 12 established,
@@ -72,4 +93,19 @@ bool fc4_regionalcity_owner_decode(FC4RegionalCityOwner*, const fc4_istream*, ui
     const FC4RegionalCityRecordCalls*);
 bool fc4_regionalcity_owner_write(const FC4RegionalCityOwner*, const fc4_ostream*,
     const FC4RegionalCityRecordCalls*);
+// kind 0: connections; 1: local deals. Emitted pointers are borrowed.
+bool fc4_regionalcity_owner_list(const FC4RegionalCityOwner*, uint32_t kind, void*, void (*)(void*, void*));
+void* fc4_regionalcity_owner_find(const FC4RegionalCityOwner*, uint32_t type, int32_t x, int32_t z);
+// action 0: UpdateLocalDeals; 1: SetLocalDeals; 2: UpdateImportExport.
+bool fc4_regionalcity_owner_deal_action(FC4RegionalCityOwner*, uint32_t action,
+    const FC4RegionalCityRegionCalls*, void* const*, uint32_t, const FC4RegionalCityDealCalls*);
+// event 0: return L to O; 1: reset growth; 2: release all three lists.
+bool fc4_regionalcity_owner_event(FC4RegionalCityOwner*, uint32_t event);
+bool fc4_regionalcity_owner_change_connection(FC4RegionalCityOwner*, void*, const FC4RegionalCityConnectionCalls*,
+    int32_t sourceX, int32_t sourceZ, int32_t sourceSizeX, int32_t sourceSizeZ, bool add);
+bool fc4_regionalcity_owner_cache(FC4RegionalCityOwner*, const FC4RegionalCityCache*);
+bool fc4_regionalcity_owner_preferences(FC4RegionalCityOwner*, const uint8_t*, uint32_t,
+    const uint8_t*, uint32_t, uint8_t difficulty);
+bool fc4_regionalcity_owner_points(const FC4RegionalCityOwner*, uint32_t type, void*,
+    void (*)(void*, const float (*)[3], uint32_t));
 }

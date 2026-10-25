@@ -7,7 +7,6 @@ use std::rc::Rc;
 pub trait ConnectionHandle: Clone {
     fn conn_type(&self) -> u32;
     fn cell(&self) -> (i32, i32);
-    fn set_cell(&self, x: i32, z: i32);
     fn repair(&self, counts: (i32, i32), position: (i32, i32), size: (i32, i32));
 }
 
@@ -17,9 +16,6 @@ impl ConnectionHandle for Rc<NeighborConnection> {
     }
     fn cell(&self) -> (i32, i32) {
         self.as_ref().cell()
-    }
-    fn set_cell(&self, x: i32, z: i32) {
-        self.as_ref().set_cell(x, z);
     }
     fn repair(&self, counts: (i32, i32), position: (i32, i32), size: (i32, i32)) {
         self.as_ref().repair(counts, position, size);

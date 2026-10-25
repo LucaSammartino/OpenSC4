@@ -87,7 +87,6 @@ fn calls(live: &mut Rc<Cell<usize>>) -> RecordCallbacks {
             release,
             conn_type: word,
             cell: pair,
-            set_cell: set_pair,
             repair,
         },
         deals: DealCallbacks {
@@ -227,6 +226,47 @@ fn host_record_roundtrip_and_every_truncation_release_owned_elements() {
         let mut reader = ByteReader::new(wire);
         assert!(fc4_regionalcity_owner_decode(owner, &input(&mut reader), 1, &callbacks));
         assert_eq!(live.get(), 4, "successful replacement releases old elements");
+        fc4_regionalcity_owner_destroy(owner);
+        assert_eq!(live.get(), 0);
+    }
+}
+
+unsafe extern "C" fn write_with_getter(
+    context: *mut c_void,
+    kind: u32,
+    object: *mut c_void,
+    stream: *const fc4_ostream,
+) -> i32 {
+    let owner = context.cast::<Owner>();
+    let mut population = 0.0;
+    assert!(crate::regionalcity_owner::fc4_regionalcity_owner_get(
+        owner,
+        4,
+        0,
+        &mut population
+    ));
+    assert_eq!(population, 321.0);
+    write(std::ptr::null_mut(), kind, object, stream)
+}
+
+#[test]
+fn element_write_can_reenter_owner_getter_without_holding_its_mutex() {
+    let mut source = RegionalCity::new(0);
+    source.population = 321;
+    source.connections.push(NeighborConnection::with(2, -1, 5));
+    let mut wire = ByteWriter::new();
+    assert!(source.write_record(&mut wire));
+    let mut live = Rc::new(Cell::new(0));
+    let mut callbacks = calls(&mut live);
+    unsafe {
+        let owner = fc4_regionalcity_owner_create(0);
+        let mut reader = ByteReader::new(wire.bytes());
+        assert!(fc4_regionalcity_owner_decode(owner, &input(&mut reader), 0, &callbacks));
+        callbacks.context = owner.cast();
+        callbacks.write = write_with_getter;
+        let mut out = ByteWriter::new();
+        assert!(fc4_regionalcity_owner_write(owner, &output(&mut out), &callbacks));
+        assert_eq!(wire.bytes(), out.bytes());
         fc4_regionalcity_owner_destroy(owner);
         assert_eq!(live.get(), 0);
     }

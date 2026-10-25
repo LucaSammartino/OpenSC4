@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
 use fc4_core::regional_city::{ConnectionHandle, DealHandle, Lifecycle};
-use std::sync::atomic::{AtomicI32, AtomicU32, Ordering::SeqCst};
+use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 
 #[derive(Default)]
@@ -13,6 +13,25 @@ struct Object {
     z: AtomicI32,
     flags: AtomicU32,
     repairs: AtomicU32,
+    owner: AtomicUsize,
+}
+
+#[test]
+fn move_publishes_geometry_before_reentrant_host_repair() {
+    let connection = Object::default();
+    let p = (&connection as *const Object).cast_mut().cast();
+    unsafe {
+        let owner = fc4_regionalcity_owner_create(0);
+        connection.owner.store(owner as usize, SeqCst);
+        assert!(fc4_regionalcity_owner_connections(owner, &p, 1, &CONNECTION));
+        assert!(fc4_regionalcity_owner_position(owner, 7, 3, true));
+        assert_eq!(connection.x.load(SeqCst), 7);
+        assert_eq!(connection.repairs.load(SeqCst), 1);
+        assert_eq!(connection.refs.load(SeqCst), 1);
+        fc4_regionalcity_owner_destroy(owner);
+        assert_eq!(connection.refs.load(SeqCst), 0);
+        assert_eq!(connection.retains.load(SeqCst), connection.releases.load(SeqCst));
+    }
 }
 unsafe fn object<'a>(p: *mut c_void) -> &'a Object {
     &*p.cast::<Object>()
@@ -38,6 +57,12 @@ unsafe extern "C" fn set_pair(p: *mut c_void, x: i32, z: i32) {
 }
 unsafe extern "C" fn repair(p: *mut c_void, _: i32, _: i32, _: i32, _: i32, _: i32, _: i32) {
     object(p).repairs.fetch_add(1, SeqCst);
+    let owner = object(p).owner.load(SeqCst) as *const Owner;
+    if !owner.is_null() {
+        let mut x = 0.0;
+        assert!(fc4_regionalcity_owner_get(owner, 0, 0, &mut x));
+        object(p).x.store(x as i32, SeqCst);
+    }
 }
 unsafe extern "C" fn amount(_: *mut c_void) -> i32 {
     25
@@ -58,7 +83,6 @@ const CONNECTION: ConnectionCallbacks = ConnectionCallbacks {
     release,
     conn_type: kind,
     cell: pair,
-    set_cell: set_pair,
     repair,
 };
 const DEAL: DealCallbacks = DealCallbacks {
@@ -96,7 +120,7 @@ fn host_references_are_live_cloned_and_released_exactly_once() {
         {
             let mut city = (*owner).0.lock().unwrap();
             let found = city.find_connection(2, 7, 0).unwrap();
-            found.set_cell(-1, 9);
+            set_pair(found.raw(), -1, 9);
             assert_eq!(found.cell(), (-1, 9));
             let mut list = Vec::new();
             city.get_all_connections(&mut list);

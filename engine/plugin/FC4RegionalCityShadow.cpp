@@ -7,6 +7,7 @@
 #include "FC4RefAudit.h"
 #include "FC4WriteCapture.h"
 #include "FC4RegionalCityRecordReplay.h"
+#include "FC4RegionalCityElements.h"
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
 #include "cIGZCOM.h"
@@ -261,6 +262,10 @@ void Observe(void* raw) {
         if (!fc4::regionalcity_replay::Roundtrip(capture)) {
             ++mismatches;
             differences += " owner-record-roundtrip-failed;";
+        }
+        if (!fc4::regionalcity::CheckLiveRecord(capture, fc4::AsGame(record))) {
+            ++mismatches;
+            differences += " live-record-roundtrip-failed;";
         }
         Context ctx{fc4::AsGame(record), &capture.Bytes()};
         const uint64_t result = fc4_regionalcity_shadow_compare(capture.Bytes().data(), static_cast<uint32_t>(capture.Bytes().size()), &ProbeField, &ctx);

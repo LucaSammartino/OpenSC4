@@ -74,9 +74,6 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_decode(
     if stream.struct_size < std::mem::size_of::<fc4_istream>() as u32 {
         return false;
     }
-    let Ok(mut city) = owner.0.lock() else {
-        return false;
-    };
     let mut input = CIn {
         stream,
         decode: |_, _| None,
@@ -89,6 +86,9 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_decode(
     }
     // SPEC-GAP: the private decode transport commits atomically; object Read
     // localization, deal claiming and Init remain separate host operations.
+    let Ok(mut city) = owner.0.lock() else {
+        return false;
+    };
     *city = decoded;
     true
 }
@@ -105,8 +105,11 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_write(
     if stream.struct_size < std::mem::size_of::<fc4_ostream>() as u32 {
         return false;
     }
-    let Ok(city) = owner.0.lock() else {
-        return false;
+    // Element serialization can call getters on the COM owner. Pin a coherent
+    // snapshot, then release the state lock before entering host interfaces.
+    let city = match owner.0.lock() {
+        Ok(city) => city.clone(),
+        Err(_) => return false,
     };
     city.write_record_with(&mut COut(stream), &mut Writer { calls, stream })
 }
