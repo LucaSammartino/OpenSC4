@@ -152,6 +152,21 @@ class GoldenTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             golden.safe_name('../Documents')
 
+    def test_subsystem_selection_includes_nullptr_environment_entries(self):
+        keys = golden.subsystem_keys(Path(__file__).resolve().parents[2])
+        self.assertIn('simulator', keys)
+        self.assertIn('budget', keys)
+        self.assertIn('traffic', keys)
+
+    def test_simulator_save_date_and_fields(self):
+        payload = bytearray(91)
+        struct.pack_into('<I', payload, 0, 91)
+        struct.pack_into('<H', payload, 12, 4)
+        struct.pack_into('<I', payload, 87, 2451545)
+        key = (0x2990C1E5, 0, 0)
+        self.assertEqual(golden.save_date({key: bytes(payload)}), '2000-01-01')
+        self.assertEqual(records._fields(key, payload)['julian_day'], 2451545)
+
 
 if __name__ == '__main__':
     unittest.main()

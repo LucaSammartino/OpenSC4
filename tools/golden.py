@@ -181,7 +181,8 @@ def qualification(entry):
 
 def subsystem_keys(root):
     text = (root / 'engine/plugin/FC4Subsystems.cpp').read_text(encoding='utf-8')
-    keys = re.findall(r'^\s*\{"([a-z][a-z0-9_]*)",\s*"FC4_DISABLE_', text, flags=re.M)
+    registry = text.split('const Subsystem kSubsystems[] = {', 1)[1].split('};', 1)[0]
+    keys = re.findall(r'^\s*\{"([a-z][a-z0-9_]*)",', registry, flags=re.M)
     if 'simulator' not in keys or 'budget' not in keys:
         raise ValueError('cannot read subsystem registry for selective replacement')
     return sorted(set(keys))
@@ -212,8 +213,9 @@ def prepare(args):
         raise ValueError(f'no start save: {save}')
     settings = {'region': region, 'city': city, 'until': args.until, 'speed': 2,
                 'turbo_requested': args.turbo, 'turbo_frame_ms': 250, 'pacing': 'original',
-                'session_seed': SEED, 'slot': args.slot, 'timeout_seconds': args.seconds,
-                'cpu_count': 1, 'affinity': 2 ** (2 * args.slot), 'popup_dialogs': 0,
+                'session_seed': SEED, 'slot': args.slot if args.backend == 'direct' else 'queue-selected',
+                'timeout_seconds': args.seconds, 'cpu_count': 1,
+                'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
                 'full_save': True, 'environment': 'explicit switches; FC4_* removed in direct backend',
                 'backend': args.backend, 'autotest_end': 'terminate', 'window': 'minimized after load'}
     generated = input_script(args.script, args.until)
@@ -253,7 +255,7 @@ def _validate_log(text, until, selected, run):
     return verdicts[-1]
 
 
-def run_game(args, generated, selected, dll, tag):
+def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     run_id = f'{tag}-{time.strftime("%Y%m%d-%H%M%S")}-{uuid.uuid4().hex[:8]}'
     work = args.output / 'golden-runs' / run_id
     work.mkdir(parents=True)
@@ -296,9 +298,13 @@ def run_game(args, generated, selected, dll, tag):
     digests = parse_digests(text)
     if not digests:
         raise ValueError(f'no DIGEST observations; see {result}')
-    read_records(result / 'end.sc4')  # reject an invalid/incomplete DBPF before publishing
+    saved_records = read_records(result / 'end.sc4')
+    saved_date = save_date(saved_records)
+    if saved_date != args.until and not allow_window_drift:
+        raise ValueError(f'end save is dated {saved_date}, expected {args.until}; not cached: {result}')
     write_json(result / 'digests.json', digests)
-    write_json(result / 'verdict.json', {'verdict': verdict, 'end_reached': True, 'full_save': True})
+    write_json(result / 'verdict.json', {'verdict': verdict, 'end_reached': True, 'full_save': True,
+                                       'window_exact': saved_date == args.until, 'save_date': saved_date})
     figures = re.findall(r'days_per_second=([\d.]+)', text)
     warnings = [line for line in text.splitlines() if 'WARNING' in line or 'session seed:' in line]
     summary = {'wall_seconds': time.perf_counter() - start, 'game': load_json(result / 'run.json'),
@@ -308,6 +314,16 @@ def run_game(args, generated, selected, dll, tag):
     # A future reach-enabled harness may export alongside the plugin log.
     # Never copy a stale shared slot reach file into this run.
     return result
+
+
+def save_date(saved_records):
+    """Simulator v4: class-object framing + engine/core/src/save.rs RECORD_LAYOUT_V4."""
+    import struct
+    values = [value for key, value in saved_records.items() if key[0] == 0x2990C1E5]
+    if len(values) != 1 or len(values[0]) != 91 or values[0][12:14] != b'\x04\x00':
+        raise ValueError('end save has no unique supported simulator v4 record')
+    julian = struct.unpack_from('<I', values[0], 87)[0]
+    return str(dt.date(2000, 1, 1) + dt.timedelta(days=julian - 2451545))
 
 
 def run_queued(args, dll, ini, result, work):
@@ -348,10 +364,11 @@ def run_queued(args, dll, ini, result, work):
     verdict = verdict_file.read_text(encoding='utf-8-sig')
     result.mkdir()
     (result / 'harness.txt').write_text(verdict, encoding='utf-8')
+    log = verdict_file.with_suffix('.log')
+    if log.exists():
+        shutil.copyfile(log, result / 'game.log')
     if not verdict.startswith('verdict: clean'):
         raise ValueError(f'queue did not finish cleanly; see {result / "harness.txt"}')
-    log = verdict_file.with_suffix('.log')
-    shutil.copyfile(log, result / 'game.log')
     slot_match = re.search(r'in slot (\d+) after', verdict)
     if not slot_match:
         raise ValueError('queue result does not identify its slot')
@@ -440,19 +457,29 @@ def main(argv=None):
             if not selected:
                 raise ValueError('compare needs at least one --replace key')
             dll = args.dll / 'engine/build-x86/FreeCity4.dll' if args.dll.is_dir() else args.dll
-            run = run_game(args, generated, selected, dll, 'compare')
+            run = run_game(args, generated, selected, dll, 'compare', allow_window_drift=True)
+            if fingerprint(files, manifest['settings'])[0] != key:
+                raise ValueError(f'input changed during comparison; no verdict: {run}')
             report = compare_artifacts(entry, run)
             report.update(key=key, baseline_repeatability=qualification(entry), run=str(run),
                           verdict='exact' if artifacts_exact(report) else 'different')
+            window = load_json(run / 'verdict.json')
+            report['window_exact'] = window['window_exact']
+            report['save_date'] = window['save_date']
+            if not window['window_exact']:
+                report['verdict'] = 'invalid-window'
+                print(f'window mismatch: save dated {window["save_date"]}, expected {args.until}; diagnostic differences only')
             write_json(run / 'comparison.json', report)
             print('baseline repeatability: ' + report['baseline_repeatability'])
             print_comparison(report, args)
             print('comparison: ' + str(run / 'comparison.json'))
-            return 0 if artifacts_exact(report) else 1
+            if not window['window_exact']:
+                return 2
+            return 3 if report['baseline_repeatability'] == 'nondeterministic' else (0 if artifacts_exact(report) else 1)
         if entry.exists() and args.command == 'record' and not args.rerun:
             _baseline_intact(entry)
             print(f'cached: {entry}; repeatability: {qualification(entry)}; no game launched')
-            return 0
+            return 3 if qualification(entry) == 'nondeterministic' else 0
         count = args.repeats if args.command == 'determinism' else 1
         failed = False
         for _ in range(count):

@@ -119,6 +119,17 @@ def read_records(path):
 
 
 def _fields(key, data):
+    if key[0] == 0x2990C1E5 and len(data) == 91 and data[12:14] == b'\x04\x00':
+        # Class-object framing (12 bytes), then core/src/save.rs v4.
+        result = {'object_id': struct.unpack_from('<I', data, 8)[0], 'version': 4,
+                  'in_tick': data[14], 'city_established': data[15]}
+        result.update(zip(('pause_count', 'sim_speed', 'sim_time', 'frame_budget_ms'),
+                          struct.unpack_from('<iiiI', data, 16)))
+        for level in range(11):
+            result[f'level.{level}.counter'] = struct.unpack_from('<I', data, 32 + level * 5)[0]
+            result[f'level.{level}.fired'] = data[36 + level * 5]
+        result['julian_day'] = struct.unpack_from('<I', data, 87)[0]
+        return result
     if key[0] in (0x6534284A, 0x05342861):
         parent, properties = dbpf.parse_exemplar(data)
         return {'parent': list(parent), **{f'property.{pid:08X}': [kind, values]
