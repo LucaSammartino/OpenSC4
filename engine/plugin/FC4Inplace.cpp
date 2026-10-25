@@ -119,7 +119,8 @@ struct Region { uint8_t* pointer = nullptr; size_t size = 0; uint8_t* before = n
 struct Capture {
     std::array<Window, 6> windows{}; unsigned windowCount = 0;
     std::array<Region, 6> regions{}; unsigned regionCount = 0;
-    size_t total = 0; bool ok = true;
+    size_t total = 0; bool ok = true; const char* reason = "invalid-window";
+    bool Refuse(const char* why) { reason=why; return false; }
     ~Capture() { for (auto& r : regions) if (r.before) VirtualFree(r.before, 0, MEM_RELEASE); }
     void Add(void* pointer, size_t size, int output = -1, bool floating = true) {
         if (!pointer || windowCount == windows.size()) { ok = false; return; }
@@ -131,28 +132,28 @@ struct Capture {
         for (unsigned i=0; i<windowCount; ++i) for (unsigned j=0; j<i; ++j) {
             const auto& a=windows[i]; const auto& b=windows[j];
             if ((a.output >= 0 || b.output >= 0) &&
-                a.pointer < b.pointer+b.size && b.pointer < a.pointer+a.size) return false;
+                a.pointer < b.pointer+b.size && b.pointer < a.pointer+a.size) return Refuse("output-alias");
         }
         for (unsigned i=0; i<windowCount; ++i) {
             auto& w=windows[i]; MEMORY_BASIC_INFORMATION m{};
             if (!VirtualQuery(w.pointer,&m,sizeof(m)) || m.State != MEM_COMMIT || m.Type != MEM_PRIVATE ||
                 (m.Protect != PAGE_READWRITE && m.Protect != PAGE_WRITECOPY) ||
-                reinterpret_cast<uintptr_t>(w.pointer)+w.size > reinterpret_cast<uintptr_t>(m.BaseAddress)+m.RegionSize) return false;
+                reinterpret_cast<uintptr_t>(w.pointer)+w.size > reinterpret_cast<uintptr_t>(m.BaseAddress)+m.RegionSize) return Refuse("not-private-writable-region");
             auto* begin=static_cast<uint8_t*>(m.BaseAddress);
             auto* end=begin+m.RegionSize;
             // All memory below the native caller's arguments is active observer/original
             // stack, not persistent call output. TLS identifies this thread's stack.
             const auto* tib = reinterpret_cast<const NT_TIB*>(NtCurrentTeb());
             if (begin >= tib->StackLimit && begin < tib->StackBase) begin = reinterpret_cast<uint8_t*>(stackFloor);
-            if (w.pointer < begin || w.pointer+w.size > end) return false;
+            if (w.pointer < begin || w.pointer+w.size > end) return Refuse("active-stack-or-cross-region");
             bool found=false;
             for (unsigned j=0; j<regionCount; ++j) if (regions[j].pointer==begin) found=true;
             if (found) continue;
             const auto size=static_cast<size_t>(end-begin);
-            if (size > 64u*1024*1024 || total+size > 64u*1024*1024) return false;
+            if (size > 64u*1024*1024 || total+size > 64u*1024*1024) return Refuse("region-cap");
             total += size;
             auto* storage=static_cast<uint8_t*>(VirtualAlloc(nullptr,size*2,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
-            if (!storage) return false;
+            if (!storage) return Refuse("snapshot-allocation");
             regions[regionCount++]={begin,size,storage,storage+size};
         }
         return true;
@@ -190,14 +191,17 @@ struct Capture {
 template<class Native>
 bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr_t stackFloor, Native native) {
     auto& fn=functions[index]; auto& count=fixture?fn.fixture:fn.natural;
-    // Counters/serialization are under the lock, including unsampled calls.
-    if (depth) { ++count.nested; return native(); }
-    AcquireSRWLockExclusive(&sampleLock);
+    // Nested game calls share this thread's lock, and retain their own sampler.
+    const bool locking=depth==0;
+    if (locking) AcquireSRWLockExclusive(&sampleLock);
+    if (depth) ++count.nested;
     const auto call=++count.calls;
-    if (!fixture && !fc4::inplace::Sample(call)) { ReleaseSRWLockExclusive(&sampleLock); return native(); }
+    if (!fixture && !fc4::inplace::Sample(call)) { if (locking) ReleaseSRWLockExclusive(&sampleLock); return native(); }
     ++count.sampled; ++depth;
     if (!capture.Prepare(stackFloor)) {
-        ++count.refused; --depth; ReleaseSRWLockExclusive(&sampleLock); return native();
+        ++count.refused;
+        if (count.refused<=3) fc4::Log("inplace refused name=%s source=%s call=%llu reason=%s",fn.name,fixture?"fixture":"natural",call,capture.reason);
+        --depth; if (locking) ReleaseSRWLockExclusive(&sampleLock); return native();
     }
     Packet out{};
     for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
@@ -221,14 +225,18 @@ bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr
         }
         bool equal=true, floatOnly=true; unsigned firstWindow=0; size_t firstWord=0;
         uint32_t firstNative=0,firstOurs=0;
+        const auto compare=[&](bool measureUlp) {
+        equal=true;floatOnly=true;
         for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
             for (size_t n=0; n<w.size; n+=4) {
                 uint32_t a,b; std::memcpy(&a,capture.Saved(w,true)+n,4); std::memcpy(&b,w.pointer+n,4);
                 if (a==b) continue;
-                if (equal) { firstWindow=i;firstWord=n/4;firstNative=a;firstOurs=b; }
+                // Unexpected owner/input words can contain pointers: report only
+                // their window/offset, never their raw values.
+                if (equal) { firstWindow=i;firstWord=n/4;firstNative=w.output<0?0:a;firstOurs=w.output<0?0:b; }
                 equal=false;
                 if (w.output<0 || !w.floating || !fc4::inplace::NearFloat(a,b)) floatOnly=false;
-                if (w.floating && w.output>=0) count.maxUlp=std::max(count.maxUlp,fc4::inplace::FloatDistance(a,b));
+                if (measureUlp && w.floating && w.output>=0) count.maxUlp=std::max(count.maxUlp,fc4::inplace::FloatDistance(a,b));
             }
         }
         if (index==4 || index==14) {
@@ -236,6 +244,8 @@ bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr
                 firstWindow=99;firstWord=0;firstNative=result;firstOurs=out[0];equal=false;floatOnly=false;
             }
         }
+        };
+        compare(true);
         ++count.compared;
         if (equal) ++count.exact;
         else {
@@ -248,21 +258,21 @@ bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr
         if (fn.mutate && equal && count.mutation==0) {
             ++count.mutation;
             if (index==4 || index==14) {
-                count.detected+=(out[0]^1)!=static_cast<uint32_t>(result);
-                fc4::Log("inplace mutation name=%s source=%s window=99 word=0 xor=1 detected=%llu",fn.name,fixture?"fixture":"natural",count.detected);
+                out[0]^=1;
             }
             for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
                 if (w.output<0) continue;
                 uint32_t value; std::memcpy(&value,w.pointer,4); value^=1;
                 std::memcpy(w.pointer,&value,4);
-                count.detected+=std::memcmp(w.pointer,capture.Saved(w,true),w.size)!=0;
-                fc4::Log("inplace mutation name=%s source=%s window=%u word=0 xor=1 detected=%llu",fn.name,fixture?"fixture":"natural",i,count.detected);
                 break;
             }
+            compare(false); // Same comparator as normal replay, including location.
+            count.detected+=!equal;
+            fc4::Log("inplace mutation name=%s source=%s window=%u word=%zu xor=1 detected=%llu",fn.name,fixture?"fixture":"natural",firstWindow,firstWord,count.detected);
         }
         capture.Restore(true); // Game always sees the original's output.
     }
-    --depth; ReleaseSRWLockExclusive(&sampleLock); return result;
+    --depth; if (locking) ReleaseSRWLockExclusive(&sampleLock); return result;
 }
 
 template<class T> T Original(unsigned i) { return reinterpret_cast<T>(functions[i].original); }
