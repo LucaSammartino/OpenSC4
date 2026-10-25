@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import struct
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -129,6 +130,42 @@ def test_only_house_log_paths_are_selected(tmp_path):
         "regress-house.out", "regress-house-shadows.log", "regress-house-replace.log"}
 
 
+def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkeypatch):
+    cov = ledger.cov
+    registry = tmp_path / "engine/plugin/compare"
+    registry.mkdir(parents=True)
+    with (registry / "fixture.tsv").open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=cm.REGISTRY_FIELDS, delimiter="\t")
+        writer.writeheader()
+        writer.writerow(binding())
+    regress = tmp_path / "regress-house.out"
+    regress.write_text(line() + line("dense", 200), encoding="utf-8")
+    out = tmp_path / "coverage.md"
+    game = [(0x401000, 40, 0, "simulation"), (0x402000, 160, 0, "simulation")]
+    att = SimpleNamespace(funcs={0x401000: 40, 0x402000: 160}, order=[0x401000, 0x402000],
+                          range_overrides={}, edge_counts={}, hubs=set())
+    inputs = {key: tmp_path / key for key in ("names", "vtables", "interfaces", "libs", "ranges",
+              "noncode refs", "map", "shadows", "regress.ps1", "subsystems")}
+    data = dict(export=tmp_path, exe_sha="1" * 64, base=0x400000, text_lo=0x400000, text_hi=0x403000,
+                regress=regress, inputs=inputs, att=att, owner={va: "Owner" for va in att.order},
+                rule={va: "name" for va in att.order}, rows=[dict(area="simulation", subsystem="fixture",
+                    shadow_note="-", **dict.fromkeys(cov.STAT, False))], replace_list=[], shadow_list=[],
+                keys={}, reg={"tag": "house", "pass": True, "profile": "fixture"}, rrun=("clean", 0),
+                warnings=[], game=game, fun_row={}, lib_b={}, lib_n={})
+    monkeypatch.setattr(cov, "REPO", tmp_path)
+    monkeypatch.setattr(cov, "load_report_data", lambda *args: data)
+    monkeypatch.setattr(cov, "text_sha256", lambda path: "0" * 64)
+    monkeypatch.setattr(sys, "argv", ["coverage.py", "--out", str(out)])
+    cov.main()
+    report = out.read_text(encoding="utf-8")
+    area = next(s for s in report.splitlines() if s.startswith("| simulation | 2 |"))
+    assert area.endswith("| 20.0% (50.0%) | 20.0% (50.0%) |")
+    subsystem = next(s for s in report.splitlines() if s.startswith("| simulation | fixture |"))
+    assert subsystem.endswith("| 20.0% (50.0%) | 20.0% (50.0%) |")
+    assert "| - | - | - | - | - | 20.0%" in subsystem  # existing owner flags remain false
+    assert "| **matched** |" in report
+
+
 def test_oracle_effects_and_class_precedence():
     iat = {1: "KERNEL32.DLL!HeapAlloc", 2: "kernel32.dll!CreateFileA", 3: "user32.dll!MessageBoxA"}
     assert not oc.instruction_flags("CALL dword ptr [0x1]", iat)
@@ -192,7 +229,7 @@ def test_contract_and_spec_citations_join_to_ledger(tmp_path, monkeypatch):
     (specs / "fixture.md").write_text(
         "# Owner\n## Entry table\n| 00401000 | Fixture |\n"
         "### Returns\nInline `0x00401000` and `0x401000`; unrelated 00402000.\n"
-        "```text\n# not a section\n```\nMore 00401000.\n", encoding="utf-8")
+        "```text\n# not a section\n```\nMore FUN_00401000 and sub_00401000.\n", encoding="utf-8")
     excluded = specs / "questions/answered"
     excluded.mkdir(parents=True)
     (excluded / "old.md").write_text("00401000", encoding="utf-8")

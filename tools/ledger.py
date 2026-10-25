@@ -26,7 +26,7 @@ cov = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cov)
 CONTRACT_FIELDS = ("size", "name", "convention", "this", "callee_pop", "stack_arg_dwords",
                    "reg_args", "ret", "ret_confidence", "confidence", "callers", "notes")
-ADDRESS = re.compile(r"(?<![\w])(?:0x([0-9a-fA-F]{6,8})|([0-9a-fA-F]{8}))(?![\w])")
+ADDRESS = re.compile(r"(?<!\w)(?:FUN_|sub_)?(?:0x([0-9a-f]{6,8})|([0-9a-f]{8}))(?!\w)", re.I)
 
 
 def read_contracts(path):

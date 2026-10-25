@@ -1104,10 +1104,11 @@ def main():
     w(f"| build-runs/{regress.name} | {text_sha256(regress)[:16]} | regress {reg['tag']} "
       f"({'PASS' if reg['pass'] else 'FAIL'}; {reg['profile'] or 'profile not recorded'}); replace run "
       f"{rrun[0]} |")
-    for path in sorted({Path(r["file"]) for r in bindings.values()} | set(compare_logs) - {regress}):
+    registry_files = set((REPO / "engine/plugin/compare").glob("*.tsv"))
+    for path in sorted(registry_files | (set(compare_logs) - {regress})):
         label = path.relative_to(REPO).as_posix() if path.is_relative_to(REPO) else "build-runs/" + path.name
         w(f"| {label} | {text_sha256(path)[:16]} | function compare evidence |")
-    if not bindings:
+    if not registry_files:
         w("| engine/plugin/compare/*.tsv | absent | no function bindings |")
     w("")
     w(f"Read from tools/regress.ps1: {len(replace_list)} replace keys, {len(shadow_list)} shadows. On by default in "

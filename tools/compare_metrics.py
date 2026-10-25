@@ -37,10 +37,6 @@ def read_registry(directory):
                     invalid.add(va)
                     warnings.append(f"{address}: duplicate registry rows; binding void")
                     continue
-                if row["mode"] not in ("compare", "replace", "off"):
-                    warnings.append(f"{address}: invalid registry mode {row['mode']!r}; binding void")
-                    invalid.add(va)
-                    continue
                 row["file"] = str(path)
                 bindings[va] = row
     return bindings, warnings
