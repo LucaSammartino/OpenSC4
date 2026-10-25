@@ -1346,7 +1346,9 @@ if(TARGET FreeCity4)
 endif()
 if(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 4)
     add_library(fc4_reach_fixture SHARED tests/reach_fixture.cpp)
-    target_link_options(fc4_reach_fixture PRIVATE /OPT:NOICF)
+    # Incremental-link export thunks start with JMP and would correctly be
+    # refused by the tracer; controls need the actual fixture entry points.
+    target_link_options(fc4_reach_fixture PRIVATE /OPT:NOICF /INCREMENTAL:NO)
     add_executable(fc4_reach_test tests/reach_test.cpp plugin/FC4Reach.cpp)
     target_include_directories(fc4_reach_test PRIVATE plugin)
     target_compile_definitions(fc4_reach_test PRIVATE FC4_REACH_TEST NOMINMAX)
