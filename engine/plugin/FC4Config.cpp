@@ -429,6 +429,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "gzfw_shadow",
                                   // EX54 raw read capacities and buffer guards, default off.
                                   "dbpf_bounds_shadow",
+                                  // S3 entry-hook experiment; all default off.
+                                  "inplace", "inplace_mutate", "inplace_fixture",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

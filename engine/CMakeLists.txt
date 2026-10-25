@@ -1337,3 +1337,12 @@ if(TARGET fc4_plugin_load_test)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotconf-ownership)
     set_tests_properties(plugin_lotconf_registration_ownership PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+# S3 opt-in entry-hook observer and architecture-only mechanics tests.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4Inplace.cpp plugin/FC4Inplace.h plugin/FC4InplaceDetour.h)
+    add_executable(fc4_inplace_test tests/inplace_test.cpp)
+    target_include_directories(fc4_inplace_test PRIVATE plugin)
+    target_compile_options(fc4_inplace_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME inplace_mechanics COMMAND fc4_inplace_test)
+endif()

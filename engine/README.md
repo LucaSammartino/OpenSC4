@@ -1,6 +1,19 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 # FreeCity4 engine
 
+S3 entry-hook experiment (all off by default): `inplace = all` or a comma-separated
+list of names from `FC4Inplace.cpp` selects 20 view-utility functions. Natural calls
+sample the first 50 and then one in 20. `inplace_fixture = 1` additionally runs
+labelled, constructed inputs at city load; these are counted separately.
+`inplace_mutate = <names>` changes one result word on the first exact sample of
+each selected function and logs its location and detection. Original results are
+always restored. `inplace summary` records calls, exact comparisons, float-only
+differences, outside changes, refusals, mutations and maximum ULP distance.
+This observes net changes in containing writable private committed regions (64
+MiB total cap); it cannot prove confinement to those regions or detect writes
+that are undone. Image/global memory is excluded; concurrent neighbour changes
+are reported with unknown attribution. Unsupported entry encodings fail closed.
+
 Clean-room engine code for FreeCity4. It is written only from [`docs/specs/`](../docs/specs/) and the LGPL
 gzcom-dll SDK. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you change anything here.
 

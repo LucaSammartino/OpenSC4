@@ -5,7 +5,10 @@ commit (report-only commits excluded). Also report elapsed time from the supplie
 base commit, conservatively, so setup time is visible.
 
 Select 20 entries from view-utilities.md sections 12-13: its 18 cached-input
-entries already bridged to production Rust, plus min/max. This controls adapter
+entries already bridged to production Rust, excluding the two scalar-return
+entries, plus rotation, ground arithmetic, cross and primitive indices (20).
+The scalar hooks are excluded because a float32 capture would change the extended
+x87 value returned to the game. This controls adapter
 cost and separates numeric disagreement from instrumentation failure. Function
 body bytes and signatures come only from that spec. The existing Rust adapter
 does not establish agreement; only the new observations count.
