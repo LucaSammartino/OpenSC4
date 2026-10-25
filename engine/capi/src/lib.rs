@@ -1155,8 +1155,6 @@ mod lua_registry_shadow;
 mod scres_shadow;
 mod scres_file_shadow;
 
-// Private portable overlay owner factory transport; no public DLL exports.
-mod overlay_owner;
 
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
@@ -1181,3 +1179,6 @@ mod legacyctl_shadow;
 mod viewutil_shadow;
 // Private finite model-instance fixture transport; no DLL export changes.
 mod modelinst_shadow;
+
+// Private portable overlay owner factory transport; no public DLL exports.
+mod overlay_owner;

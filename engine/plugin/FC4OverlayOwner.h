@@ -22,3 +22,9 @@ public:
 };
 
 cIGZUnknown* CreateFC4OverlayOwner();
+
+namespace fc4 {
+// Invoked once after the shadow sees the live terrain view; default-off with
+// the owner key. Exercises GZCOM registration, not native manager interception.
+void OverlayOwnerGameCheck();
+}

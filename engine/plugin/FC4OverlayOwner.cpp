@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4OverlayOwner.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
+#include "FC4Subsystems.h"
+#include "GZServPtrs.h"
+#include "cIGZCOM.h"
 #include <atomic>
 
 // Static-library transport only; no additions to fc4.h or DLL exports.
@@ -56,3 +60,38 @@ private:
 }
 
 cIGZUnknown* CreateFC4OverlayOwner() { return new OverlayOwner(); }
+
+namespace fc4 {
+void OverlayOwnerGameCheck() {
+    if (!FindEnabledClass(kFC4_CLSID_OverlayOwner)) return;
+    auto* com = GZCOM();
+    FC4IOverlayOwner* owner = nullptr;
+    if (!com || !com->GetClassObject(kFC4_CLSID_OverlayOwner, kFC4_IID_OverlayOwner,
+                                     reinterpret_cast<void**>(&owner)) || !owner) {
+        Log("overlays factory check: 0/1 mismatches=1 scope=portable-owner native_interception=0");
+        return;
+    }
+    FC4_ACQUIRED(owner, "GetClassObject");
+    uint32_t checks = 0, differences = 0;
+    auto check = [&](bool exact) { ++checks; if (!exact) ++differences; };
+    check(!owner->IsInitialized());
+    check(owner->Init(64, 64, 16, true, false));
+    const uint32_t id = owner->AddDecal(64, 32, 128, 128, 32, 0);
+    check(id == 0x80000000);
+    check(owner->Alpha(id) == 1);
+    check(owner->SetAlpha(id, 0.51f));
+    check(owner->Init(64, 64, 16, false, true));
+    check(owner->Alpha(id) == 0.51f);
+    check(owner->SetAlpha(id, 0.52f));
+    check(owner->Alpha(id) == 0.51f);
+    check(owner->Remove(id));
+    owner->Shutdown();
+    check(!owner->IsInitialized());
+    check(owner->Init(64, 64, 16, false, false));
+    check(owner->AddDecal(64, 32, 128, 128, 32, 0) == id);
+    owner->Shutdown();
+    FC4_RELEASE_CREATED(owner);
+    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner native_interception=0",
+        checks - differences, checks, differences);
+}
+}
