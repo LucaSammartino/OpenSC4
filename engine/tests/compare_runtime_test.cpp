@@ -51,8 +51,9 @@ int main() {
     modeOverride="compare";source=2;Replay(fn,input);
     assert(fn.counts[2].exact==1&&input.windows[0][0]==41);
     persist=true;source=0;recordLimit=1000;
-    assert(Record(fn,input));const auto corpus=LoadCorpus(fn);
+    assert(Record(fn,input));assert(Record(fn,input));const auto corpus=LoadCorpus(fn);
     assert(!corpus.empty()&&corpus.back().canonical&&corpus.back().windows[0][0]==41);
+    recordLimit=1;assert(corpus.size()>1&&LoadCorpus(fn).size()==corpus.size());
     // Unsampled outer calls must release the lock before a sampled inner call.
     functions[1]=fn;functions[1].counts={};functions[1].name="authored-inner";
     fn.counts[0].calls=50;*value=41;enterNested=true;SaveFx(machine.before);

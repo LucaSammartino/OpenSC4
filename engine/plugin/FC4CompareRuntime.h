@@ -62,7 +62,9 @@ bool Take(const Bytes& bytes,size_t& at,uint32_t& value) {
 std::vector<Input> LoadCorpus(Function& fn) {
     std::vector<Input> result;std::ifstream file(Path("compare-corpus",fn,".bin"),std::ios::binary);
     uint64_t total=0;
-    while (file&&result.size()<recordLimit) {
+    // The current write cap must not truncate a corpus recorded with a larger
+    // cap on a previous run. Replay every stored input up to the format ceiling.
+    while (file&&result.size()<1000) {
         uint32_t header[4]{};file.read(reinterpret_cast<char*>(header),sizeof(header));
         if (file.gcount()==0) break;
         if (file.gcount()!=sizeof(header)||header[0]!=0x43344346||header[1]!=1||header[2]!=fn.fingerprint||header[3]>16*1024*1024||header[3]<72) {
