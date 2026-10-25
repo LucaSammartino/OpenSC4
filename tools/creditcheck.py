@@ -21,6 +21,7 @@ coverage = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(coverage)
 STAT = coverage.STAT
 MAP = "tools/coverage-map.tsv"
+SCRATCH = Path(__file__).resolve().parents[1] / "build-runs"
 # Only the scoring inputs: no checkout, index changes, or nested worktree is needed.
 TREE_PATHS = ("docs/specs", "docs/abi/vtables.tsv", "docs/abi/interfaces.tsv", "engine",
               "re/names_windows.tsv", "tools/coverage-libs.tsv", "tools/coverage-ranges.tsv",
@@ -29,6 +30,15 @@ TREE_PATHS = ("docs/specs", "docs/abi/vtables.tsv", "docs/abi/interfaces.tsv", "
 
 def git(wt, *args):
     return subprocess.run(["git", "-C", str(wt), *args], capture_output=True, check=True)
+
+
+def tree_coverage(tree):
+    """Read run evidence with the parser belonging to that tree, including new labels."""
+    spec = importlib.util.spec_from_file_location("fc4_tree_coverage", tree / "tools/coverage.py")
+    module = importlib.util.module_from_spec(spec)
+    # A check must not create __pycache__ in another lane or the main checkout.
+    exec(compile(spec.loader.get_source(spec.name), spec.origin, "exec"), module.__dict__)
+    return module
 
 
 @contextmanager
@@ -44,9 +54,8 @@ def coverage_root(root):
 
 @contextmanager
 def snapshot(wt, revision):
-    scratch = wt / "build-runs"
-    scratch.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="credit-tree-", dir=scratch) as tmp:
+    SCRATCH.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="credit-tree-", dir=SCRATCH) as tmp:
         root = Path(tmp)
         paths = git(wt, "ls-tree", "--name-only", revision, "--", *TREE_PATHS).stdout.decode().splitlines()
         if not paths:
@@ -80,16 +89,21 @@ def load_attribution(tree, data_repo):
     return att, owners
 
 
-def measure_tree(tree, data_repo, reg, *, lane=False, regress_name="lane logs"):
+def measure_tree(tree, data_repo, reg, *, lane=False, inherited=None, regress_name="lane logs"):
     rows = coverage.read_map(tree / MAP)
     replace, shadows = coverage.regress_lists(tree / "tools/regress.ps1")
     keys = coverage.subsystem_keys(tree / "engine/plugin/FC4Subsystems.cpp")
     evidence = {}
-    evidence_path = tree / "tools/coverage-shadows.tsv"
+    evidence_path = data_repo / "tools/coverage-shadows.tsv"
     if not lane and evidence_path.is_file():
         evidence, _ = coverage.read_shadow_evidence(evidence_path, data_repo)
     with coverage_root(tree):
         warnings, _ = coverage.map_statuses(rows, replace, shadows, keys, reg, evidence, regress_name)
+    for row in rows:
+        old = (inherited or {}).get(row["pattern"], {})
+        if old.get("verified") and old["shadow"] == row["shadow"]:
+            row["verified"] = True
+            row["shadow_note"] = old["shadow_note"]
     att, owners = load_attribution(tree, data_repo)
     game, _, _, _, _ = coverage.map_functions(rows, att, owners)
     weights = [0] * len(rows)
@@ -111,6 +125,17 @@ def measure_current(wt):
     return measure_tree(wt, wt, reg, regress_name=source.name)
 
 
+def main_statuses(parser, tree, reg, source):
+    """Main's verified floor uses all of main's current scoring inputs, not the lane's profile."""
+    rows = parser.read_map(tree / MAP)
+    replace, shadows = parser.regress_lists(tree / "tools/regress.ps1")
+    keys = parser.subsystem_keys(tree / "engine/plugin/FC4Subsystems.cpp")
+    path = tree / "tools/coverage-shadows.tsv"
+    evidence = parser.read_shadow_evidence(path, tree)[0] if path.is_file() else {}
+    parser.map_statuses(rows, replace, shadows, keys, reg, evidence, source.name)
+    return {row["pattern"]: row for row in rows}
+
+
 def summarize_log(wt, log):
     shell = shutil.which("powershell") or shutil.which("pwsh")
     if not shell:
@@ -125,14 +150,16 @@ def summarize_log(wt, log):
 
 
 def log_evidence(wt, logs, baseline):
-    # SPEC-GAP: only verified evidence is replaced; replacement cleanliness keeps the base's regress verdict.
+    # Supplied logs add verified credit; replacement cleanliness keeps main's regress verdict.
     reg = {**baseline, "shadows": {}, "resynced": {}}
+    parser = tree_coverage(wt)
+    SCRATCH.mkdir(exist_ok=True)
     for log in dict.fromkeys(Path(p).resolve() for p in logs):
         summary = summarize_log(wt, log)
-        with tempfile.TemporaryDirectory(prefix="credit-summary-", dir=wt / "build-runs") as tmp:
+        with tempfile.TemporaryDirectory(prefix="credit-summary-", dir=SCRATCH) as tmp:
             path = Path(tmp) / "summary.out"
             path.write_text("=== regress-creditcheck-shadows (lane log)\n" + summary, encoding="utf-8")
-            parsed = coverage.read_regress(path, audit_legacy=False)
+            parsed = parser.read_regress(path, audit_legacy=False)
         for label, (clean, lines) in parsed["shadows"].items():
             old_clean, old_lines = reg["shadows"].get(label, (0, 0))
             reg["shadows"][label] = (old_clean + clean, old_lines + lines)
@@ -216,14 +243,14 @@ def check(wt, logs=()):
     tip = git(wt, "rev-parse", "HEAD").stdout.decode().strip()
     base = git(wt, "merge-base", "HEAD", "main").stdout.decode().strip()
     data_repo = coverage.main_checkout(wt)
-    with coverage_root(data_repo):
-        source = coverage.newest_regress(base)
-        baseline = coverage.read_regress(source)
-    (wt / "build-runs").mkdir(exist_ok=True)
+    main_coverage = tree_coverage(data_repo)
+    source = main_coverage.newest_regress()
+    baseline = main_coverage.read_regress(source)
+    main_rows = main_statuses(main_coverage, data_repo, baseline, source)
     reg = log_evidence(wt, logs, baseline)
     with snapshot(wt, base) as tree:
-        before = measure_tree(tree, data_repo, baseline, regress_name=source.name)
-    after = measure_tree(wt, wt, reg, lane=True)
+        before = measure_tree(tree, data_repo, baseline, inherited=main_rows, regress_name=source.name)
+    after = measure_tree(wt, wt, reg, lane=True, inherited=before["rows"])
     result = compare(before, after)
     result.update({"tip": tip, "base": base, "logs": [str(Path(p).resolve()) for p in logs],
                    "refusals": validate_changes(before["rows"], after["rows"], wt, reg)})

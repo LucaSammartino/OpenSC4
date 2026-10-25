@@ -60,6 +60,7 @@ def repo(tmp_path, monkeypatch):
     git(tmp_path, "config", "user.name", "Fixture")
     git(tmp_path, "config", "user.email", "fixture@example.invalid")
     map_row(tmp_path)
+    put(tmp_path, "tools/coverage.py", (ROOT / "tools/coverage.py").read_text(encoding="utf-8"))
     put(tmp_path, "tools/regress.ps1", '[string]$Replace = "probe"\n    shadows = "probe_shadow = 1"\n')
     put(tmp_path, "engine/plugin/FC4Subsystems.cpp", '{"probe", nullptr, kProbe, false}\n')
     put(tmp_path, "engine/core/src/probe.rs", "pub fn probe() {}\n")
@@ -124,10 +125,128 @@ def test_nonexact_shadow_is_refused(repo, monkeypatch, summary):
     assert "not exact" in result["refusals"][0]["reason"]
 
 
-def test_no_logs_cannot_borrow_main_verification(repo):
+def test_new_shadow_cell_still_requires_supplied_log_evidence(repo):
     map_row(repo, shadow="probe_shadow")
     result = cc.check(repo)
     assert "0/0" in result["refusals"][0]["reason"]
+
+
+@pytest.mark.parametrize("evidence", ["regress", "lane-run"])
+@pytest.mark.parametrize("summary", ["", EXACT,
+                         "  probe 2 lines, 0 with every mismatch count 0\n  probe resynced lines: 1\n"])
+def test_unchanged_rows_keep_main_credit_in_every_column(repo, monkeypatch, evidence, summary):
+    map_row(repo, spec="Probe.md", core="core/src/probe.rs", shadow="probe_shadow", replace="probe")
+    if evidence == "lane-run":
+        put(repo, "tools/regress.ps1", '[string]$Replace = "probe"\nshadows = "other_shadow = 1"\n')
+        put(repo, "tools/coverage-shadows.tsv",
+            "shadow\tlabel\tclean\ttotal\tsource\nprobe_shadow\tprobe\t2\t2\tbuild-runs/lane.out\n")
+        put(repo, "build-runs/lane.out", "probe 2/2\n")
+    commit(repo)
+    git(repo, "branch", "-f", "main", "HEAD")
+    # Main's evidence is a floor, even when the supplied log has no line or a mismatch.
+    monkeypatch.setattr(cc, "summarize_log", lambda wt, log: summary)
+    result = cc.check(repo, [repo / "game.log"])
+    assert result["before"]["bytes"] == dict.fromkeys(cc.STAT, 160)
+    assert result["after"]["bytes"] == result["before"]["bytes"]
+    assert result["rows_flipped"] == []
+    assert result["deltas"] == dict.fromkeys(cc.STAT, 0)
+    assert result["refusals"] == []
+
+
+def test_latest_main_evidence_is_shared_by_both_sides(repo, monkeypatch):
+    map_row(repo, shadow="probe_shadow")
+    commit(repo)
+    git(repo, "branch", "-f", "main", "HEAD")
+    module = cc.tree_coverage(repo)
+    latest = put(repo, "build-runs/regress-new-main.out",
+                 "REGRESS new-main: PASS\n=== regress-new-main-shadows (fixture)\n" + EXACT)
+    # No merge-base revision is passed: selection must match coverage.py on current main.
+    monkeypatch.setattr(module, "newest_regress", lambda: latest)
+    monkeypatch.setattr(cc, "tree_coverage", lambda wt: module)
+    result = cc.check(repo)
+    assert result["before"]["bytes"]["verified"] == 160
+    assert result["rows_flipped"] == []
+    assert not result["refusals"]
+
+
+def test_main_verified_floor_uses_main_profile_and_parser(repo, tmp_path, monkeypatch):
+    map_row(repo, shadow="probe_shadow")
+    put(repo, "tools/regress.ps1", '[string]$Replace = "probe"\nshadows = "other_shadow = 1"\n')
+    commit(repo)
+    git(repo, "branch", "-f", "main", "HEAD")
+    main = tmp_path / "main-checkout"
+    map_row(main, shadow="probe_shadow")
+    for name in ("tools/coverage.py", "engine/plugin/FC4Subsystems.cpp"):
+        put(main, name, (repo / name).read_text(encoding="utf-8"))
+    put(main, "tools/regress.ps1", '[string]$Replace = "probe"\nshadows = "probe_shadow = 1"\n')
+    put(main, "build-runs/regress-main.out",
+        "REGRESS main: PASS\n=== regress-main-shadows (fixture)\n" + EXACT)
+    monkeypatch.setattr(cc.coverage, "main_checkout", lambda wt: main)
+    result = cc.check(repo)
+    assert result["before"]["bytes"]["verified"] == 160
+    assert result["after"]["bytes"]["verified"] == 160
+    assert result["rows_flipped"] == []
+    assert result["refusals"] == []
+
+
+@pytest.mark.skipif(not (shutil.which("powershell") or shutil.which("pwsh")), reason="requires PowerShell")
+def test_lane_summary_and_parser_supply_new_labels(repo, monkeypatch):
+    map_row(repo, shadow="nettool_plan_shadow:nettool_plan")
+    put(repo, "tools/regress.ps1", '[string]$Replace = "probe"\nshadows = "nettool_plan_shadow = 1"\n')
+    parser_path = repo / "tools/coverage.py"
+    put(repo, "tools/coverage.py", parser_path.read_text(encoding="utf-8").replace(
+        "([a-z0-9-]+)", "([a-z0-9_-]+)"))
+    monkeypatch.setattr(cc, "summarize_log", load("credit_lane_summary", ROOT / "tools/creditcheck.py").summarize_log)
+    # A distinct lane summary script proves that the caller passes --wt, not main or this tool's tree.
+    put(repo, "tools/run_summary.ps1",
+        'param([string]$Log)\n"  nettool_plan 2 lines, 2 with every mismatch count 0"\n'
+        '"  nettool_plan resynced lines: 0"\n')
+    log = put(repo, "game.log", "lane parser fixture\n")
+    result = cc.check(repo, [log])
+    assert not result["refusals"]
+    assert result["deltas"]["verified"] == 160
+    assert result["rows_flipped"][0]["statuses"] == {"verified": {"before": False, "after": True}}
+
+
+def test_shadowlabels_acceptance_ten_verified_flips_without_losses(repo, monkeypatch, capsys):
+    """Real train238 row weights, with a small summary fixture and an inherited control row."""
+    fixtures = ROOT / "tools/tests/fixtures"
+    expected = json.loads((fixtures / "creditcheck-shadowlabels.json").read_text(encoding="utf-8"))
+    rows = expected["rows"]
+    control = "Probe\tProbe\tsimulation\tProbe.md\tcore/src/probe.rs\tprobe_shadow\tprobe\n"
+
+    def map_text(after):
+        return HEADER + control + "".join(
+            f"{r['pattern']}\tfixture\tsimulation\t-\t-\t"
+            f"{r['shadow'] if after else r.get('before_shadow', '-')}\t-\n" for r in rows)
+
+    put(repo, cc.MAP, map_text(False))
+    profile = " `n ".join(f"{key} = 1" for key in sorted({r["shadow"] for r in rows} | {"probe_shadow"}))
+    put(repo, "tools/regress.ps1", f'[string]$Replace = "probe"\nshadows = "{profile}"\n')
+    commit(repo)
+    git(repo, "branch", "-f", "main", "HEAD")
+    put(repo, cc.MAP, map_text(True))
+    parser_path = repo / "tools/coverage.py"
+    put(repo, "tools/coverage.py", parser_path.read_text(encoding="utf-8").replace(
+        "([a-z0-9-]+)", "([a-z0-9_-]+)"))
+    sizes = {i: row["bytes"] for i, row in enumerate(rows)} | {len(rows): 160}
+    owners = {i: row["pattern"].replace("*", "Fixture") for i, row in enumerate(rows)} | {len(rows): "Probe"}
+    att = SimpleNamespace(order=list(sizes), funcs=sizes, name=lambda va: f"{owners[va]}::Fixture (void)")
+    monkeypatch.setattr(cc, "load_attribution", lambda *args: (att, owners))
+    summary = (fixtures / "creditcheck-shadowlabels-summary.txt").read_text(encoding="utf-8")
+    monkeypatch.setattr(cc, "summarize_log", lambda wt, log: summary)
+    output = repo / "build-runs/credit.json"
+    assert cc.main(["--wt", str(repo), "--log", str(repo / "game.log"), "--json", str(output)]) == 0
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["refusals"] == []
+    assert result["deltas"] == {**dict.fromkeys(cc.STAT, 0), "verified": expected["verified_bytes"]}
+    assert [row["row"] for row in result["rows_flipped"]] == [row["pattern"] for row in rows]
+    assert all(row["statuses"] == {"verified": {"before": False, "after": True}}
+               for row in result["rows_flipped"])
+    printed = capsys.readouterr().out
+    assert printed.count("verified 0->1") == 10
+    assert "1->0" not in printed and "REFUSED" not in printed
+    assert "verified +169566 B" in printed
 
 
 def test_exact_shadow_outside_profile_is_never_credited(repo):
