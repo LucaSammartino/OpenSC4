@@ -21,7 +21,7 @@ popup_dialogs = 0
 autotest_end = quit
 ```
 
-Requests from one worktree run in submission order; label/retry rules are in the prompt.
+Requests from one worktree run in submission order unless `parallel = 1` opts into concurrent isolated slots; label/retry rules are in the prompt.
 
 ## Request format
 
@@ -31,7 +31,8 @@ Requests from one worktree run in submission order; label/retry rules are in the
 |---|---|---|
 | `label` | the file name | names the results; letters, digits, `.`, `_`, `-`, at most 64 |
 | `dll` | `engine/build-x86/FreeCity4.dll` | worktree-relative DLL; outside paths refused; adjacent `.pdb` copied too |
-| `city` | `Konradshohe` | FC4 Test alias; has water, unlike `Spandau` |
+| `region` | `FC4 Test` | folder under Documents\SimCity 4\Regions; only its slot copy is changed; `ingame_run.ps1 -Region` selects the same folder |
+| `city` | `Konradshohe` | save name in `region`, without `City - ` and `.sc4` |
 | `seconds` | 150 | loaded-city runtime (`autotest_seconds`), or deadline for `end_date` |
 | `end_date` | - | `YYYY-MM-DD`: stop at this game date (`autotest_end_date`); Konradshohe starts on 2026-01-27 |
 | `turbo` | 0 | `1`: `sim_turbo = 1`, unpaced days after first ConnectionsReady |

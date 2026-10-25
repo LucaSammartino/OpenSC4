@@ -40,7 +40,8 @@ before the coordinator's other requests and does not wait for them (several run 
 Request format (key = value lines, '#' comments; every line after "[ini]" goes into FreeCity4.ini as is):
   label    = power-check-1          letters, digits, '.', '_', '-' (default: the file name)
   dll      = engine\build-x86\FreeCity4.dll   relative to the worktree (default); the .pdb next to it is copied too
-  city     = Konradshohe            a city of the FC4 Test region (default Konradshohe)
+  region   = FC4 Test               folder under Documents\SimCity 4\Regions, mirrored into the slot
+  city     = Konradshohe            a city of that region (default Konradshohe)
   seconds  = 150                    game time after the city load, in real seconds (the plugin's autotest_seconds);
                                     with end_date it is the timeout for reaching the date
   timeout  = 300                    hard limit for the whole run in real seconds (default seconds + 150)
@@ -49,6 +50,7 @@ Request format (key = value lines, '#' comments; every line after "[ini]" goes i
   turbo_from = 2026-04-01           the turbo clock from this game date (a script action; keeps the first months,
                                     where the plugin switches popups off, at normal speed)
   minimize = 0                       keep the game window on screen after the city load (default 1: minimized);
+  parallel = 1                       allow this request alongside other requests of its root (default 0)
                                     for runs that need the game to draw frames
   priority = high                   coordinator requests only (ignored, with a note, for a lane's request)
   [ini]
@@ -80,7 +82,7 @@ $Suffix = if ($Instance) { "-$Instance" } else { "" }
 $Out = Join-Path $Here "build-runs"
 $Work = Join-Path $Out "game-queue-work$Suffix"
 $QueueLog = Join-Path $Out "game-queue$Suffix.log"
-$DocsRegion = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4\Regions\FC4 Test"
+$DocsRegions = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4\Regions"
 $Utf8 = New-Object Text.UTF8Encoding($false)
 # "-Roots a,b" and "-SlotList 4,5" arrive as one string under powershell -File: split them here.
 $Roots = @($Roots | ForEach-Object { "$_" -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -196,6 +198,10 @@ function PeekPriority([string]$file) {
     try { foreach ($line in [IO.File]::ReadAllLines($file)) { $t = $line.Trim(); if ($t -eq "[ini]") { break }; if ($t -match '^priority\s*=\s*(\S+)') { return $Matches[1].ToLower() } } } catch { }
     return ""
 }
+function PeekParallel([string]$file) {
+    try { foreach ($line in [IO.File]::ReadAllLines($file)) { $t = $line.Trim(); if ($t -eq "[ini]") { break }; if ($t -match '^parallel\s*=\s*1\s*(#.*)?$') { return $true } } } catch { }
+    return $false
+}
 function PeekLabel([string]$file) {
     try { foreach ($line in [IO.File]::ReadAllLines($file)) { $t = $line.Trim(); if ($t -eq "[ini]") { break }; if ($t -match '^label\s*=\s*(.+)$') { return (Visible $Matches[1].Trim()) } } } catch { }
     return [IO.Path]::GetFileNameWithoutExtension($file)
@@ -203,8 +209,8 @@ function PeekLabel([string]$file) {
 # Parse and check one request. Returns a hashtable; .error is set when the request must be rejected (.errLine: the
 # line number, .lines: the request's lines for the rejection).
 function ParseRequest([string]$root, [string]$file) {
-    $q = @{ label = [IO.Path]::GetFileNameWithoutExtension($file); dll = "engine\build-x86\FreeCity4.dll"; city = "Konradshohe";
-            seconds = 150; timeout = $null; end_date = ""; turbo = ""; turbo_from = ""; minimize = ""; priority = ""; ini = @(); notes = @();
+    $q = @{ label = [IO.Path]::GetFileNameWithoutExtension($file); dll = "engine\build-x86\FreeCity4.dll"; city = "Konradshohe"; region = "FC4 Test";
+            seconds = 150; timeout = $null; end_date = ""; turbo = ""; turbo_from = ""; minimize = ""; priority = ""; parallel = "0"; ini = @(); notes = @();
             error = $null; errLine = 0; lines = @(); at = @{} }
     $bytes = [IO.File]::ReadAllBytes($file)
     $bom16 = $bytes.Length -ge 2 -and (($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) -or ($bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF))
@@ -239,6 +245,8 @@ function ParseRequest([string]$root, [string]$file) {
             "label" { $q.label = $v }
             "dll" { $q.dll = $v; $prevPathLine = $n }
             "city" { $q.city = $v }
+            "region" { $q.region = $v }
+            "parallel" { if ($v -notin "0", "1") { $q.error = "line ${n}: parallel must be 0 or 1"; $q.errLine = $n; return $q }; $q.parallel = $v }
             "seconds" { if ($v -notmatch '^\d+$' -or [int64]$v -lt 10 -or [int64]$v -gt 7200) { $q.error = "line ${n}: seconds must be 10..7200 (got '$v')"; $q.errLine = $n; return $q }; $q.seconds = [int]$v }
             "timeout" { if ($v -notmatch '^\d+$' -or [int64]$v -lt 30 -or [int64]$v -gt 10800) { $q.error = "line ${n}: timeout must be 30..10800 (got '$v')"; $q.errLine = $n; return $q }; $q.timeout = [int]$v }
             "end_date" { if ($v -notmatch '^\d{4}-\d\d-\d\d$') { $q.error = "line ${n}: end_date must be YYYY-MM-DD (got '$v')"; $q.errLine = $n; return $q }; $q.end_date = $v }
@@ -250,12 +258,15 @@ function ParseRequest([string]$root, [string]$file) {
                 $q.priority = $v
                 if ($v -eq "high" -and -not (IsCoord $root)) { $q.notes += "priority = high is honoured only for the coordinator's requests (the main checkout); this ran as a normal request" }
             }
-            default { $q.error = "line ${n}: unknown key '$k' (label, dll, city, seconds, timeout, end_date, turbo, turbo_from, minimize, priority, [ini])"; $q.errLine = $n; return $q }
+            default { $q.error = "line ${n}: unknown key '$k' (label, dll, region, city, parallel, seconds, timeout, end_date, turbo, turbo_from, minimize, priority, [ini])"; $q.errLine = $n; return $q }
         }
     }
     $ln = { param($key) if ($q.at.ContainsKey($key)) { "line $($q.at[$key]): " } else { "" } }
     if ($q.label -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') { $q.error = (& $ln "label") + "label '$($q.label)': use letters, digits, '.', '_', '-' (no path characters, at most 64; the first a letter or digit)"; $q.errLine = [int]$q.at["label"]; return $q }
-    if ($q.city -notmatch '^[A-Za-z0-9 ._()-]+$' -or -not (Test-Path -LiteralPath (Join-Path $DocsRegion "City - $($q.city).sc4"))) { $q.error = (& $ln "city") + "city '$($q.city)': no such city in the FC4 Test region (e.g. Konradshohe, Spandau)"; $q.errLine = [int]$q.at["city"]; return $q }
+    if ($q.region -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._()-]*$' -or $q.region.EndsWith('.') -or $q.region.EndsWith(' ')) { $q.error = (& $ln "region") + "region '$($q.region)': use one folder name"; $q.errLine = [int]$q.at["region"]; return $q }
+    $docsRegion = Join-Path $DocsRegions $q.region
+    if (-not (Test-Path -LiteralPath $docsRegion -PathType Container)) { $q.error = (& $ln "region") + "region '$($q.region)': no such region"; $q.errLine = [int]$q.at["region"]; return $q }
+    if ($q.city -notmatch '^[A-Za-z0-9 ._()-]+$' -or -not (Test-Path -LiteralPath (Join-Path $docsRegion "City - $($q.city).sc4"))) { $q.error = (& $ln "city") + "city '$($q.city)': no such city in region '$($q.region)'"; $q.errLine = [int]$q.at["city"]; return $q }
     $rp = RequestPath $root $q.dll
     if ($rp[1]) { $q.error = (& $ln "dll") + "dll '$($q.dll)': $($rp[1])"; $q.errLine = [int]$q.at["dll"]; return $q }
     $dllFull = $rp[0]
@@ -318,7 +329,7 @@ function Finish($job) {
     if ($held) { $body += "held: " + ($held.Trim() -replace '^HELD: ', '') }
     foreach ($dl in @($lines | Where-Object { $_ -match '^\s+DIALOG \(' })) { $body += "dialog: " + ($dl.Trim() -replace '^DIALOG ', '') }
     $body += @("request: $($job.reqName) (queued $($job.queued.ToString('yyyy-MM-dd HH:mm:ss')), started $($job.started.ToString('HH:mm:ss')) in slot $($job.slot) after $waited s in the queue, wall $wall s$(if ($job.prio -eq 0) { '; priority high' } elseif ($job.prio -eq 1) { '; coordinator' }))",
-        "dll: $($job.q.dllFull)", "city: $($job.q.city); seconds $($job.q.seconds); timeout $($job.q.timeout)$(if ($job.q.end_date) { "; end_date $($job.q.end_date)" })$(if ($job.q.turbo -eq '1') { '; turbo 1' })$(if ($job.q.turbo_from) { "; turbo_from $($job.q.turbo_from)" })")
+        "dll: $($job.q.dllFull)", "region: $($job.q.region)", "city: $($job.q.city); seconds $($job.q.seconds); timeout $($job.q.timeout)$(if ($job.q.end_date) { "; end_date $($job.q.end_date)" })$(if ($job.q.turbo -eq '1') { '; turbo 1' })$(if ($job.q.turbo_from) { "; turbo_from $($job.q.turbo_from)" })")
     foreach ($nt in $job.q.notes) { $body += "note: $nt" }
     $body += @("", "harness:") + @($lines | ForEach-Object { "  $_" })
     if (Test-Path $log) {
@@ -374,7 +385,7 @@ function StartJob([string]$root, [IO.FileInfo]$req, [int]$slot, [int]$prio) {
         $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
         $outFile = Join-Path $Work "$runLabel.$stamp.out"; $errFile = Join-Path $Work "$runLabel.$stamp.err"
     }
-    $argv = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Run, "-Slot", "$slot", "-Dll", $q.dllFull, "-City", $q.city,
+    $argv = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Run, "-Slot", "$slot", "-Dll", $q.dllFull, "-Region", $q.region, "-City", $q.city,
               "-IniFile", $iniFile, "-AfterLoadSeconds", "$($q.seconds)", "-Seconds", "$($q.timeout)", "-Label", $runLabel)
     if ($q.end_date) { $argv += @("-EndDate", $q.end_date) }
     if ($q.turbo -eq "1") { $argv += "-Turbo" }
@@ -415,8 +426,9 @@ function Waiting($mine) {
             $prio = if ($coord -and (PeekPriority $r.FullName) -eq "high") { 0 } elseif ($coord) { 1 } else { 2 }
             $young = ((Get-Date) - $r.LastWriteTime).TotalSeconds -lt 2   # still being written
             $head = $false
-            if ($prio -ne 0) { $head = -not $headSeen; $headSeen = $true }
-            $all += @{ root = $root; req = $r; prio = $prio; young = $young; head = ($prio -eq 0 -or $head); rootBusy = $busy; i = $order++ }
+            $parallel = PeekParallel $r.FullName
+            if ($prio -ne 0 -and -not $parallel) { $head = -not $headSeen; $headSeen = $true }
+            $all += @{ root = $root; req = $r; prio = $prio; young = $young; parallel = $parallel; head = ($prio -eq 0 -or $parallel -or $head); rootBusy = $busy; i = $order++ }
         }
     }
     return @($all | Sort-Object { $_.prio }, { $_.req.LastWriteTime }, { $_.i })
@@ -487,7 +499,7 @@ function ShowStatus {
         $k++
         $cls = switch ($x.prio) { 0 { "coordinator, priority high" } 1 { "coordinator" } default { "lane" } }
         $note = @()
-        if (-not $x.head) { $note += "after its root's earlier request" } elseif ($x.prio -ne 0 -and $x.rootBusy) { $note += "waits for its root's running request" }
+        if (-not $x.head) { $note += "after its root's earlier request" } elseif ($x.prio -ne 0 -and -not $x.parallel -and $x.rootBusy) { $note += "waits for its root's running request" }
         if ($x.young) { $note += "being written" }
         Write-Output ("  {0,2}. {1}/{2}  ({3}; {4})  waiting {5}{6}" -f $k, (RootName $x.root), (PeekLabel $x.req.FullName), $x.req.Name, $cls, (Age ($now - $x.req.LastWriteTime)), $(if ($note.Count) { "  [" + ($note -join "; ") + "]" } else { "" }))
     }
@@ -513,6 +525,7 @@ if ($Check) {
     $prio = if ((IsCoord $root) -and $q.priority -eq "high") { "coordinator, priority high" } elseif (IsCoord $root) { "coordinator" } else { "lane" }
     Write-Output "ok: label $($q.label) ($prio; root $root)"
     Write-Output "dll: $($q.dllFull)"
+    Write-Output "region: $($q.region)"
     Write-Output "city: $($q.city); seconds $($q.seconds); timeout $($q.timeout)$(if ($q.end_date) { "; end_date $($q.end_date)" })$(if ($q.turbo -eq '1') { '; turbo 1' })$(if ($q.turbo_from) { "; turbo_from $($q.turbo_from)" })"
     foreach ($nt in $q.notes) { Write-Output "note: $nt" }
     Write-Output "ini (before the city and the harness keys):"
@@ -551,7 +564,7 @@ while ($true) {
     foreach ($c in $w) {
         if ($c.young -or -not $c.head) { continue }
         # A normal request waits until its root runs nothing (here or in another queue instance).
-        if ($c.prio -ne 0 -and ($c.rootBusy -or @($running.Values | Where-Object { SamePath $_.root $c.root }).Count -gt 0)) { continue }
+        if ($c.prio -ne 0 -and -not $c.parallel -and ($c.rootBusy -or @($running.Values | Where-Object { SamePath $_.root $c.root }).Count -gt 0)) { continue }
         # Two runs of one root with the same label would share their result files.
         $lab = PeekLabel $c.req.FullName
         if (@($running.Values | Where-Object { (SamePath $_.root $c.root) -and $_.label -eq $lab }).Count -gt 0) { continue }
