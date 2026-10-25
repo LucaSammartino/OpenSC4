@@ -20,3 +20,4 @@ san-francisco-second	San Francisco	New City (8)	engine/tests/scenarios/scripts/s
 empty-small	Berlin	New City (15)	engine/tests/scenarios/scripts/empty-small.script	2000-04-04	smoke,full	Empty small 64-cell tile; saved 2000-01-03; god-mode establishment needs live diagnosis
 empty-medium	Berlin	New City (10)	engine/tests/scenarios/scripts/empty-medium.script	2000-04-04	full	Empty medium 128-cell tile; saved 2000-01-03; god-mode establishment needs live diagnosis
 empty-large	Berlin	New City (30)	engine/tests/scenarios/scripts/empty-large.script	2000-04-08	full	Empty large 256-cell tile; saved 2000-01-07; god-mode establishment needs live diagnosis
+gen-tegel-s0-default	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen-tegel-s0-default.script	2029-09-21	gen	Fixed seed 0 default 79-action discovery; clean; 256/267 shadow lines exact; plumbing/landvalue/traffic/netmgr/occmgr/dbpf/dbpf_bounds findings; saved 2029-08-20

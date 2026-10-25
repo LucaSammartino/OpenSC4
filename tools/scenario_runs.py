@@ -268,6 +268,8 @@ def summarize(out, manifest):
         sum(r["actions_failed"] for r in rows), sum(r["shadow_exact_lines"] for r in rows),
         sum(r["shadow_lines"] for r in rows), len(findings)))
     print("per run: {}; per action: {}; findings: {}".format(out / "summary.tsv", out / "actions.tsv", out / "findings.tsv"))
+    from scenario_discovery import summarize as discovery_summary
+    discovery_summary(out, manifest)
 
 
 def main():
