@@ -1,38 +1,29 @@
 # Lane files and run files
 
-Everything a lane writes for the record: its lane file, one file per in-game run, and its merge-queue entry. The
-shared tables are **generated** from the lane and run files, so two lanes finishing at the same time never edit the
-same lines. The merge train regenerates them after each batch; a lane does not need to.
+Record formats for the [lane prompt's](../../.claude/workflows/fc4-lane.js) Finish.
+The train regenerates tables; lanes edit only their own records.
 
 ```
 python tools/gen_handoff_tables.py          # rewrite the generated tables (the train runs this)
 python tools/gen_handoff_tables.py --check  # exit 1 if they are out of date
 ```
 
-Engine lanes do not run scripts from `tools/` (clean room, [CONTRIBUTING.md](../../CONTRIBUTING.md)): get the row
-format right by the rules below.
-
-The generator owns exactly three regions, marked with `<!-- BEGIN GENERATED: name -->` and
-`<!-- END GENERATED -->`:
+Engine lanes do not run these tools ([clean room](../../CONTRIBUTING.md)). Generated regions use
+`<!-- BEGIN GENERATED: name -->` and `<!-- END GENERATED -->`:
 
 | Region | File | Content |
 |---|---|---|
-| `lanes` | `docs/lanes/INDEX.md` | the lane table, one row per `docs/lanes/<lane>.md` (in HANDOFF §0 until 2026-10-20; the generator creates INDEX.md if it is missing) |
+| `lanes` | `docs/lanes/INDEX.md` | one row per lane file; created if missing |
 | `latest-run` | `docs/HANDOFF.md` §0 | the `- **Latest in-game run:** ...` bullet |
 | `runs` | `docs/manual-checks.md` | the in-game run log, one row per `docs/runs/<tag>.md` |
 
-Everything outside those markers is hand-written and survives regeneration. Do not edit inside a
-generated region: edit the lane or run file instead. The script is deterministic (lanes by
-natural sort of the file name, runs by `run` number) and idempotent (running it twice writes the same
-bytes).
+Outside text survives regeneration. Lanes sort naturally by filename; runs sort by `run` number.
 
 ## `docs/lanes/<lane>.md` — one row per lane
 
-The file name is the lane slug: lower case, letters, digits and dashes (`zones2.md`,
-`re-specs13a.md`, `apply11traffic.md`).
+The filename is the lane slug: lowercase letters, digits and dashes.
 
-The file must hold exactly one table row with these four columns and the exact header (a second column
-headed `Worktree`, and a `| --- |` separator, are accepted too):
+Exactly one data row, four cells, on one line. Header (`Worktree` is also accepted for column 2):
 
 ```markdown
 | Lane | Agent/worktree | State at stop | Next steps |
@@ -40,123 +31,59 @@ headed `Worktree`, and a `| --- |` separator, are accepted too):
 | <name and short description> | <agent and worktree> | <state at stop> | <next steps> |
 ```
 
-| Column | What goes in it |
-|---|---|
-| **Lane** | The lane's name and a short description of its task, e.g. `voidbool (return-channel audit of the plugin)` or `apply9a: neighbours NG4-NG25, incl. NG11`. |
-| **Agent/worktree** | The agent id and the worktree/branch, in backticks, and the lane kind. Examples: `` `a04b0cfb664b373d3` / `agent-a04b0cfb664b373d3` ``, `` `voidbool` / (engine lane) ``, `` `regresslists4` / (tooling lane) ``. |
-| **State at stop** | What the lane left behind. Keep the numbers: the merge commit(s), the ABI and seam-operation numbers, the gate result (`cargo` / `clippy` / `ctest`), the game-run numbers and their verdicts, the shadow exact/total counts, the question numbers filed. Prefix a reservation as `Reserved ABI 52, seam op 51.` if the lane held one. |
-| **Next steps** | What the next agent should do, as numbered steps. Use `-` when there is nothing left. |
+Include slug/task, kind, `agent/worktree/branch`, commits, ABI/seam reservations, gate counts,
+game labels/verdicts, shadow exact/total and question IDs; next steps are numbered actions or `-`.
 
-Rules:
-
-- Exactly **one** data row. The generator refuses to run (and prints the file name) if the row is
-  missing, has the wrong number of cells, or has an unescaped `|` in a cell.
-- One line: the row is a markdown table row on a single line.
-- Do not renumber or re-word measured facts. This is a record, not a summary.
-
-Optional, under the row:
-
-- A `## Next steps` paragraph for detail that does not fit the cell. The generator appends its text to
-  the row's Next steps cell.
-- While the lane works: a `## Handoff` section (at most 25 lines: goal, done with commit hashes, next,
-  facts), under a row whose State at stop is `in progress`. It is the lane's working state: the fc4-lane
-  workflow restarts a lane in a fresh agent from it (docs/ops/coordinating.md "Lane context"). The lane
-  replaces it with its report when it finishes. The generator never reads it.
-- A `## Retired roster row` section, holding the old HANDOFF
-  `| Lane | Agent ID | Worktree | Reserved | State |` row verbatim, for lanes that had one. The
-  generator never reads it.
-
-### Worked example
-
-`docs/lanes/example.md`:
-
-```markdown
-| Lane | Agent/worktree | State at stop | Next steps |
-|---|---|---|---|
-| example (a sample lane) | `a04b0cfb664b373d3` / `agent-a04b0cfb664b373d3` | Reserved ABI 69, seam op 60. **merged `0000000`** (ABI 69, taken as 69 on the lane; gate example: cargo 2600/0, clippy clean, ctest 57/57; regress example run 142 PASS): `cFC4Example` (`enable = example`, off by default), 3 `ex*` vectors; `example_shadow` exact (40/40 in `example-final-1`) | Next: (1) answer EX41; (2) add `example` to the regress replace list. Questions EX41 filed |
-```
-
-Real examples: [`voidbool.md`](voidbool.md) (engine lane with a regression run),
-[`regresslists4.md`](regresslists4.md) (tooling lane), [`apply9a.md`](apply9a.md) (roster-only lane),
-[`traffic2.md`](traffic2.md) (a lane that had both an old table row and a roster row).
+Escape `|` inside cells. Invalid rows stop generation. Write the lane file once at Finish, with at most
+25 report lines below the row; an interrupted round follows the prompt's handoff instructions.
+The generator appends an optional `## Next steps` section to the last cell and ignores `## Handoff`
+and `## Retired roster row` sections.
 
 ## `docs/runs/<tag>.md` — one file per in-game run
 
-A run file is one `key: value` per line, single-line values, no continuation:
-
-```markdown
-tag: voidbool-141
-run: 141
-date: 2026-10-16
-lane: voidbool
-dll: FreeCity4-voidbool
-pacing: turbo
-verdict: PASS
-switches: main `2501158` (voidbool: ...), `tools/regress.ps1 -Tag voidbool -Queue` (turbo to 2032-01-01)
-result: **PASS, 0 problems, 519 s.** Both runs clean, `ref_warnings=0`, rtc=0. ...
-summary: regress voidbool, PASS, lists as run 138
-```
+A run file is one `key: value` per line, no continuations:
 
 | Field | Meaning |
 |---|---|
-| `tag` | The run's stable key. Must equal the file name. Form: `<label>-<run>`, where `<label>` is the regress `-Tag`, else the queue request label, else the lane name, else `run`. Examples: `voidbool-141`, `rl4-132`, `m850-traffic-replace-105`, `run-8`. |
-| `run` | The old sequential run number. Kept so prose that cites "run 141" still resolves. Take the next free number (the highest `run:` in this directory, plus one). |
-| `date` | Real-world `YYYY-MM-DD`, or `unknown` when the old record did not say. |
+| `tag` | Filename stem: `<label>-<run>`; label is regress `-Tag`, else request label, lane name, or `run`. |
+| `run` | Next free sequential number: highest `run:` plus one. Preserve existing numbers. |
+| `date` | Real-world `YYYY-MM-DD`, or `unknown`. |
 | `lane` | The lane that requested or owned the run. |
-| `dll` | The DLL under test: `FreeCity4-<lane>`, or a build hash when the row recorded one. `unknown` if not recorded. |
-| `pacing` | `turbo`, `normal`, or `unknown` when the row did not say. |
+| `dll` | `FreeCity4-<lane>`, build hash, or `unknown`. |
+| `pacing` | `turbo`, `normal`, or `unknown`. |
 | `verdict` | `clean`, `corrupt`, `crash`, `ended`, `none` (no information), or `PASS` / `FAIL` for a regress. |
-| `switches` | The switches cell of the old run row, verbatim. |
-| `result` | The result cell of the old run row, verbatim — the notes. |
-| `summary` | *Optional.* The parenthetical for the HANDOFF's "Latest in-game run" bullet (§0), without its brackets or trailing period: `regress voidbool, PASS, lists as run 138`. Only runs that have it appear on that line. |
-| `summary_note` | *Optional.* A sentence after that parenthesis, e.g. `is the first with the traffic lists`. Also without a trailing period. |
+| `switches` | Exact build/settings and command. |
+| `result` | Exact measured counts, verdicts and subsystem shadow lines. |
+| `summary` | Optional latest-run bullet parenthetical, without brackets or trailing period. Only runs with it appear there. |
+| `summary_note` | Optional sentence after that parenthetical, without trailing period. |
 
-Rules:
-
-- One line per field. `switches` and `result` must not contain an unescaped `|`.
-- Keep `switches` and `result` verbatim: measured numbers and verdicts live there.
-- A run file with a missing required field (`tag`, `run`, `verdict`, `switches`, `result`) makes the
-  generator exit non-zero.
-
-Also put in a run's `result` the summary counts and any subsystem shadow lines a reader would otherwise have to grep
-the log for; the lane file links to its runs.
-
-Real examples: [`voidbool-141.md`](../runs/voidbool-141.md) (regress PASS),
-[`rl3-121.md`](../runs/rl3-121.md) (regress with a `summary_note`), [`run-8.md`](../runs/run-8.md)
-(an early run with no lane).
+Required: `tag`, `run`, `verdict`, `switches`, `result`; omission fails generation.
+Escape `|` in `switches` and `result`. Preserve existing measured text verbatim. Link your runs in the lane file.
 
 ## How a lane lands
 
-A lane never takes a merge lock, never merges main and never bumps `FC4_ABI_VERSION`.
-
-1. **Write your files.** `docs/lanes/<lane>.md`: the row, then below it your full report in place of the
-   `## Handoff` (what changed; the gate, with cargo summed over every `test result:` line, clippy and ctest; the
-   game-run labels; what is measured and what is deliberately not done; questions filed; next steps). A
-   `docs/runs/<tag>.md` for every in-game run you did. Commit them.
-2. **Enqueue and stop.** Write `build-runs/merge-queue/<lane>.json` in your own worktree (`build-runs/` is
-   gitignored; the train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main checkout's):
+After the prompt's Finish commits, write `build-runs/merge-queue/<lane>.json` in your worktree and stop.
+At review, the coordinator runs `python tools/merge-train.py enqueue --lane <lane> --branch <branch> --tip <tip> --kind <kind> [--log <game log>]`; this attaches checked coverage `credit`, required for the train to take a ready entry.
+The train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main checkout's:
 
    ```json
    {"lane":"example","branch":"example","tip":"<git rev-parse HEAD>","kind":"engine","abi":true,
-    "game_runs":["example-142"],"summary":"one line","state":"ready"}
+    "game_runs":["example-check-1"],"summary":"one line","state":"ready"}
    ```
 
    | Key | Value |
    |---|---|
-   | `lane` | the lane slug (the `docs/lanes/<lane>.md` name) |
+   | `lane` | lane slug (`docs/lanes/<lane>.md`) |
    | `branch` | the branch the work is on |
-   | `tip` | the commit hash at enqueue time (`merge-train.py status` reports an entry whose branch moved past it as not ready) |
-   | `kind` | `engine`, `tools`, `docs` or `test`; `docs` batches go first and skip the gate when `engine/`, `tools/`, `tests/` and `.claude/lane-bin/` are unchanged |
+   | `tip` | full 40-character HEAD; a branch that moved past it is not ready |
+   | `kind` | `engine`, `tools`, `docs` or `test` ([batch checks](../merge-train.md)) |
    | `abi` | `true` if the change adds or removes a C ABI export, `false` otherwise |
-   | `game_runs` | the labels of the in-game runs this change needs (or `[]`) |
+   | `game_runs` | required game labels (or `[]`) |
    | `summary` | one line for the merge commit |
    | `state` | `ready` to land now, `wip` to hold |
-   | `touches` | *optional*: the subsystem keys the work changes, as given to `lanes.py check --touches` |
+   | `touches` | optional subsystem keys from `lanes.py check --touches` |
 
-   Then **stop**. What the train does next (batches, one gate and regress per batch, bisecting a red batch, the ABI
-   bump) is in [docs/merge-train.md](../merge-train.md); a notice lands in `build-runs/merge-notices/<lane>.md`
-   when you are on `main`.
+The [merge train](../merge-train.md) writes `build-runs/merge-notices/<lane>.md` after landing.
 
-Shared files that still take every lane's edits (`engine/README.md`, `engine/plugin/FC4Config.*`,
-`FC4Subsystems.cpp`, `tools/regress.ps1`, `tools/run_summary.ps1`): keep those edits additive, grouped and at the end
-of their lists.
+Keep permitted edits to shared lists additive, grouped and at the end: `engine/README.md`,
+`engine/plugin/FC4Config.*`, `FC4Subsystems.cpp`, `tools/regress.ps1`, `tools/run_summary.ps1`.

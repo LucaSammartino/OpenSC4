@@ -3,7 +3,7 @@
 Usage: python tools/spend.py <openrouter_activity.csv> [--coverage-delta PTS] [--since T] [--until T]
                              [--model SUBSTR] [--label NAME]
 
-Prints one markdown table row for docs/ops/efficiency-log.md plus a short breakdown. Every number is read
+Prints one markdown table row for docs/history/efficiency-log.md plus a short breakdown. Every number is read
 from the CSV; nothing is fitted. --coverage-delta is the day's change in implemented % from
 python tools/coverage.py (start-of-day vs end-of-day), used for the $/point column.
 
