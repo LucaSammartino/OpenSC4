@@ -152,11 +152,17 @@ public:
     static void FromCoreProperty(void* ctx, uint32_t id, uint16_t memType, bool isArray, const void* data,
                                  size_t count);
     size_t Count() const;
+    // The exemplar parent (cSCExemplarPropertyHolder, occupant-manager §13.1):
+    // the getters fall back to it for a property the holder does not have.
+    // Borrowed; the owner keeps it alive and clears it first. Null by default.
+    void SetParent(const cISCPropertyHolder* parent);
 
 private:
     // The entry for `id`, a new (empty) cFC4Property if absent; the lock must be held.
     cISCProperty* Slot(uint32_t id);
     cISCProperty* Find(uint32_t id) const;
+    // Find, then the parent's slot 9 (getters only); the lock must be held.
+    cISCProperty* Lookup(uint32_t id) const;
     // The entry's variant (borrowed, the game's slot order); null if it has none.
     static cFC4IGZVariant* ValueOf(cISCProperty* p);
     void Drop(cISCProperty* p) const;  // releases one entry reference of ours
@@ -166,6 +172,7 @@ private:
     // Ascending ID; one reference of ours each: a cFC4Property, or the
     // caller's object stored by AddProperty(cISCProperty*).
     std::map<uint32_t, cISCProperty*> props_;
+    const cISCPropertyHolder* parent_ = nullptr;
 };
 
 namespace fc4 {

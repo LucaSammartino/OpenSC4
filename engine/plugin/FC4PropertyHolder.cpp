@@ -332,6 +332,17 @@ cISCProperty* cFC4PropertyHolder::Find(uint32_t id) const {
     return it == props_.end() ? nullptr : it->second;
 }
 
+cISCProperty* cFC4PropertyHolder::Lookup(uint32_t id) const {
+    cISCProperty* p = Find(id);
+    if (p == nullptr && parent_ != nullptr) p = AsGame(parent_)->GetProperty(id);  // slot 9, borrowed
+    return p;
+}
+
+void cFC4PropertyHolder::SetParent(const cISCPropertyHolder* parent) {
+    std::lock_guard<std::recursive_mutex> g(lock_);
+    parent_ = parent;
+}
+
 // Slot 5 of the stored object (both GetPropertyValue overloads give the same
 // variant); the variant in the game's slot order (foundations §17.1).
 cFC4IGZVariant* cFC4PropertyHolder::ValueOf(cISCProperty* p) {
@@ -346,7 +357,7 @@ void cFC4PropertyHolder::Drop(cISCProperty* p) const {
 
 bool cFC4PropertyHolder::HasProperty(uint32_t id) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    return Find(id) != nullptr;
+    return Lookup(id) != nullptr;
 }
 
 // [choice, spec question] No cIGZUnknownList implementation: not supported.
@@ -367,7 +378,7 @@ bool cFC4PropertyHolder::GetPropertyList(cIGZUnknownList** list) const {
 bool cFC4PropertyHolder::GetPropertyData(uint32_t id, void* buffer, uint32_t& length) const {
     if (buffer == nullptr) return false;
     std::lock_guard<std::recursive_mutex> g(lock_);
-    const cFC4IGZVariant* v = ValueOf(Find(id));
+    const cFC4IGZVariant* v = ValueOf(Lookup(id));
     if (v == nullptr || v->GetType() != cIGZVariant::VoidArray) return false;
     const uint32_t n = std::min(length, v->GetCount());
     const void* src = v->RefVoid();  // slot 123
@@ -380,7 +391,7 @@ bool cFC4PropertyHolder::GetPropertyInterface(uint32_t id, uint32_t riid, void**
     cIGZUnknown* obj = nullptr;
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
-        cFC4IGZVariant* v = ValueOf(Find(id));
+        cFC4IGZVariant* v = ValueOf(Lookup(id));
         if (v == nullptr || v->GetType() != cIGZVariant::IGZUnknown) return false;
         obj = v->GetValUnknown();  // slot 59, borrowed
         if (obj != nullptr) obj->AddRef();
@@ -393,7 +404,7 @@ bool cFC4PropertyHolder::GetPropertyInterface(uint32_t id, uint32_t riid, void**
 
 bool cFC4PropertyHolder::GetPropertyString(uint32_t id, cIGZString& value) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    const cFC4IGZVariant* v = ValueOf(Find(id));
+    const cFC4IGZVariant* v = ValueOf(Lookup(id));
     if (v == nullptr) return false;
     const uint16_t type = v->GetType();
     if (type == (cIGZVariant::Char | cIGZVariant::TypeArray)) {
@@ -419,7 +430,7 @@ bool cFC4PropertyHolder::GetPropertyString(uint32_t id, cIGZString& value) const
 // object values: false (the original's result is an address).
 bool cFC4PropertyHolder::GetPropertyU32(uint32_t id, uint32_t& value) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    const cFC4IGZVariant* v = ValueOf(Find(id));
+    const cFC4IGZVariant* v = ValueOf(Lookup(id));
     if (v == nullptr) return false;
     const uint16_t type = v->GetType();
     const bool isArray = (type & cIGZVariant::TypeArray) != 0;
@@ -440,7 +451,7 @@ bool cFC4PropertyHolder::GetPropertyU32(uint32_t id, uint32_t& value) const {
 // Slot 9: the stored object itself, borrowed (no AddRef; foundations §10.2).
 cISCProperty* cFC4PropertyHolder::GetProperty(uint32_t id) const {
     std::lock_guard<std::recursive_mutex> g(lock_);
-    return Find(id);
+    return Lookup(id);
 }
 
 // Slot 10 (neighbors.md §15.4 NG37, the original 0x005FFA40): finds or

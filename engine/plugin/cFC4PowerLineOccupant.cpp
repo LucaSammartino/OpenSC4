@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// network-occupants.md 5; occupant-manager.md 13.1. No city access in Read.
+// network-occupants.md 5; occupant-manager.md 13.1 (inherited slots: FC4OccupantAdapter.h).
+// No city access in Read.
 #include "cFC4PowerLineOccupant.h"
+#include "FC4OccupantAdapter.h"
 #include "FC4PropertyHolder.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -44,9 +46,10 @@ bool fc4_netline_position(void*, const float*);
 bool fc4_netline_write(void*, const fc4_props*, const fc4_ostream*);
 bool fc4_netline_read(void*, const fc4_istream*);
 void fc4_netline_props(const void*, fc4_neighbor_property_callback, void*);
+bool fc4_netline_parent(const void*, uint32_t*);
 }
 
-class PowerLine final : public LineInterface, public cISC4Occupant, public cIGZSerializable {
+class PowerLine final : public LineInterface, public FC4OccupantAdapter<PowerLine>, public cIGZSerializable {
 public:
     PowerLine() : holder_(static_cast<LineInterface*>(this)), core_(fc4_netline_create()) {}
     ~PowerLine() { DropPoles(State()); fc4_netline_destroy(core_); }
@@ -98,27 +101,12 @@ public:
     bool SetPreview(bool b) override {
         std::lock_guard<std::recursive_mutex> g(lock_); auto s = State(); s.preview = b; Put(s); return true;
     }
-    bool Init() override {
-        std::lock_guard<std::recursive_mutex> g(lock_);
-        auto s = State();
-        if (s.status & 1) return true;
-        // occupant-manager 13: loaded Init calls SetHighlight(0, false).
-        if (s.status & 2) { s.highlight = 0; s.status &= 15; }
-        s.status |= 1; Put(s);
-        if (!(s.status & 2)) PostOccupantMessage(0x99EF1140, 0);
-        return true;
-    }
+    // Slot 4 (§5.1): drop the poles, then the base Shutdown.
     bool Shutdown() override {
         std::lock_guard<std::recursive_mutex> g(lock_);
         SetConnectedPoles(nullptr, nullptr, false);
-        auto s = State();
-        if (s.status & 1) { s.status &= ~1; Put(s); PostOccupantMessage(0x99EF1141, 0); }
-        return true;
+        return BaseShutdown();
     }
-    bool IsInitialized() override {
-        std::lock_guard<std::recursive_mutex> g(lock_); return (State().status & 1) != 0;
-    }
-    cISCPropertyHolder* AsPropertyHolder() override { return holder_.AsSdk(); }
     int32_t GetType() override { return 0x0990B2EA; }
     bool GetPosition(cS3DVector3* out) override {
         if (!out) return false;
@@ -135,101 +123,24 @@ public:
     }
     bool GetBoundingCityCells(SC4Rect<long>& out) override {
         std::lock_guard<std::recursive_mutex> g(lock_);
-        auto s = State();
         // Degenerate line bounds still use the base's 0.01 shrink.
-        out.topLeftX = static_cast<long>(std::floor((s.position[0] + 0.01f) * 0.0625f));
-        out.topLeftY = static_cast<long>(std::floor((s.position[2] + 0.01f) * 0.0625f));
-        out.bottomRightX = static_cast<long>(std::floor((s.position[0] - 0.01f) * 0.0625f));
-        out.bottomRightY = static_cast<long>(std::floor((s.position[2] - 0.01f) * 0.0625f));
+        PointCells(State().position, out);
         return true;
     }
-    uint32_t Removal(uint32_t f, int delta) {
+    // ---- FC4OccupantAdapter hooks ----
+    std::recursive_mutex& OccLock() { return lock_; }
+    cFC4PropertyHolder& OccHolder() { return holder_; }
+    bool OccGet(FC4OccBase& b) {
+        const auto s = State();
+        b.removal = s.removal; b.highlight = s.highlight; b.status = s.status; b.flags = s.flags;
+        std::memcpy(b.rect, s.rect, 4);
+        return true;
+    }
+    void OccPut(const FC4OccBase& b) {
         auto s = State();
-        uint8_t low = static_cast<uint8_t>(s.removal), high = static_cast<uint8_t>(s.removal >> 8);
-        if (f & 1) high = static_cast<uint8_t>(high + delta);
-        if (f & 2) low = static_cast<uint8_t>(low + delta);
-        s.removal = static_cast<uint16_t>((high << 8) | low); Put(s); return s.removal;
-    }
-    uint32_t SetRemovalFlags(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); return Removal(f, 1);
-    }
-    uint32_t UnsetRemovalFlags(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); return Removal(f, -1);
-    }
-    bool CanRemove(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); const auto r = State().removal;
-        return (!(f & 1) || !(r >> 8)) && (!(f & 2) || !(r & 255));
-    }
-    bool PostOccupantMessage(uint32_t type, uint32_t data) override {
-        cIGZMessageServer2Ptr ms;
-        if (!ms) return true;
-        auto* msg = FC4MakeMessage(type, reinterpret_cast<intptr_t>(static_cast<cISC4Occupant*>(this)),
-                                   reinterpret_cast<intptr_t>(static_cast<cISC4Occupant*>(this)), GetType());
-        msg->SetData4(data);
-        ms->MessagePost(msg, false);
-        FC4_RELEASE_CREATED(msg);
-        return true;
-    }
-    uint32_t GetHighlight() override {
-        std::lock_guard<std::recursive_mutex> g(lock_); return State().highlight;
-    }
-    bool SetHighlight(uint32_t h, bool post) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State();
-        s.highlight = static_cast<uint8_t>(h & 15); s.status = (s.status & 15) | (s.highlight << 4); Put(s);
-        if (post && (s.status & 1)) PostOccupantMessage(0x99EF1145, 0);
-        return true;
-    }
-    uint8_t SetVisibility(bool visible, bool post) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State();
-        s.flags = (s.flags & ~4) | (visible ? 4 : 0); Put(s);
-        if (post) PostOccupantMessage(0x99EF1145, 0);
-        return s.flags;
-    }
-    // SPEC-GAP: 13.1 leaves lazy placeable creation unspecified; a line has no model.
-    cISC43DPlaceableObject* GetPlaceableObject() override { return nullptr; }
-    cISC43DPlaceableObject* GetOrCreatePlaceableObject() override { return nullptr; }
-    cISC43DPlaceableObject* SetPlaceableObject(cISC43DPlaceableObject*) override { return nullptr; }
-    // SPEC-GAP: no cross-module container contract for occupant group enumeration.
-    bool IsOccupantGroup(uint32_t group) override {
-        std::vector<uint32_t> groups;
-        fc4::props::GetU32s(holder_.AsSdk(), 0xAA1DD396, groups);
-        return std::find(groups.begin(), groups.end(), group) != groups.end();
-    }
-    bool AddOccupantGroup(uint32_t group) override {
-        std::vector<uint32_t> groups;
-        fc4::props::GetU32s(holder_.AsSdk(), 0xAA1DD396, groups);
-        const auto old = groups.size(); groups.push_back(group);
-        const bool ok = fc4::props::SetU32s(holder_.AsSdk(), 0xAA1DD396, groups);
-        PostOccupantMessage(0xEBFF18A3, static_cast<uint32_t>(old)); return ok;
-    }
-    bool GetOccupantGroups(std::set<uint32_t>&) override { return false; }
-    bool GetOccupantManagerBBox(uint8_t* out) override {
-        if (!out) return false;
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State();
-        if (s.rect[0] == 255) return false;
-        std::memcpy(out, s.rect, 4); return true;
-    }
-    bool SetOccupantManagerBBox(uint8_t* in) override {
-        if (!in) return false;
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State();
-        std::memcpy(s.rect, in, 4); Put(s); return true;
-    }
-    bool GetLotTag(uint32_t& tag) override { tag = 0; return false; }
-    bool SetLotTag(uint32_t) override { return false; }
-    uint32_t SetFlag(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State(); s.flags |= f; Put(s); return s.flags;
-    }
-    cISC4Occupant* SetAllFlags(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State(); s.flags = static_cast<uint8_t>(f); Put(s); return this;
-    }
-    uint32_t ClearFlag(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); auto s = State(); s.flags &= ~f; Put(s); return s.flags;
-    }
-    bool IsFlagSet(uint32_t f) override {
-        std::lock_guard<std::recursive_mutex> g(lock_); return (State().flags & f) == f;
-    }
-    uint32_t GetFlags() override {
-        std::lock_guard<std::recursive_mutex> g(lock_); return State().flags;
+        s.removal = b.removal; s.highlight = b.highlight; s.status = b.status; s.flags = b.flags;
+        std::memcpy(s.rect, b.rect, 4);
+        Put(s);
     }
     bool Write(cIGZOStream& stream) override {
         std::lock_guard<std::recursive_mutex> g(lock_);
@@ -250,6 +161,8 @@ public:
         if (!ok) { for (auto* p : refs.poles) FC4_RELEASE(p); return false; }
         DropPoles(old);
         holder_.Clear(); fc4_netline_props(core_, &cFC4PropertyHolder::FromCoreProperty, &holder_);
+        uint32_t key[3]{};
+        ApplyParent(fc4_netline_parent(core_, key) ? key : nullptr);
         return true;
     }
     uint32_t GetGZCLSID() override { return 0xC9C05C5D; }

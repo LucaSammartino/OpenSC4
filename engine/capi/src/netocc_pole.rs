@@ -457,6 +457,42 @@ pub unsafe extern "C" fn fc4_netpole_demolition_cost(vt: *const PoleHostVt) -> i
     })
 }
 
+/// Occupant slot 10 (§4.7.2): the cell-covering box of the pole's cell and
+/// the destination cells of its records with a sampled wire, min then max.
+/// [choice] Computed on every call instead of cached behind the stale flag.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_bbox(p: *const PowerPole, cell: *const [f32; 2], out: *mut [f32; 6]) -> bool {
+    guard(false, || {
+        let (Some(p), Some(cell), Some(out)) = (p.as_ref(), cell.as_ref(), out.as_mut()) else {
+            return false;
+        };
+        let [w, d] = *cell;
+        let pos = p.fields.position;
+        let x0 = (pos[0] / w) as i32 as u32;
+        let z0 = (pos[2] / d) as i32 as u32;
+        let (mut min, mut max) = ([x0, z0], [x0, z0]);
+        for c in p.fields.connections.iter().filter(|c| !c.vertices[0].is_empty()) {
+            for axis in 0..2 {
+                let v = c.words[axis];
+                if v < min[axis] {
+                    min[axis] = v;
+                } else if v > max[axis] {
+                    max[axis] = v;
+                }
+            }
+        }
+        *out = [
+            min[0] as i32 as f32 * w,
+            p.fields.model_y,
+            min[1] as i32 as f32 * d,
+            max[0].wrapping_add(1) as i32 as f32 * w,
+            (f64::from(pos[1]) + 60.0) as f32,
+            max[1].wrapping_add(1) as i32 as f32 * d,
+        ];
+        true
+    })
+}
+
 /// Occupant slot 17 (§4.2): the draw attributes only.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_netpole_set_highlight(p: *mut PowerPole, h: u8) {

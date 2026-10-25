@@ -15,6 +15,7 @@
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "cFC4PowerLineOccupant.h"
+#include "cFC4PowerPoleOccupant.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -488,8 +489,11 @@ const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
 };
 
+// network-occupants.md §4, §5 (glue-netocc-replace17): the Rust-backed
+// pole and line on the shared inherited occupant slots (FC4OccupantAdapter.h).
 const ClassEntry kNetOccClasses[] = {
     {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
+    {0x09C05C6A, "cSC4PowerPoleOccupant", &CreateFC4PowerPoleOccupant},
 };
 
 const Subsystem kSubsystems[] = {
@@ -564,7 +568,7 @@ const Subsystem kSubsystems[] = {
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
-    // Partial occupant replacement: only the fully specified power-line owner.
+    // Partial occupant replacement: the power pole and power line.
     {"netocc", nullptr, kNetOccClasses, sizeof(kNetOccClasses) / sizeof(kNetOccClasses[0]), false},
 };
 

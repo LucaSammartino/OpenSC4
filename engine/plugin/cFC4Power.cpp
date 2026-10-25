@@ -26,6 +26,7 @@
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
+#include "cFC4PowerPoleOccupant.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
@@ -433,6 +434,8 @@ bool LineConnectedPoles(void*, uint64_t, uint64_t*, uint64_t*) {
 using RemoveConnectionFn = void(__fastcall*)(void* self, void* edx, void* other, uint32_t flag);
 
 void RemovePoleConnection(void*, uint64_t first, uint64_t second) {
+    // A FreeCity4 pole (enable = netocc) takes the call through its core.
+    if (FC4NetOccRemovePoleConnection(FromToken(first), FromToken(second), false)) return;
     if (!Gate(fc4::Sw::PowerDirectCalls, "power pole RemoveConnection (direct call)")) return;
     const uintptr_t va = fc4::compat::DirectCall(fc4::compat::Direct::PoleRemoveConnection);
     if (va == 0) return;  // logged once by compat
