@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -97,8 +98,52 @@ def bootstrap_command(m):
     return f'git -C "{Path(m["worktree"]).as_posix()}" rev-parse --show-toplevel'
 
 
-def handle(data, manifest):
+ROUND_MESSAGE = ('Round time budget reached: commit what you have, write the merge-queue entry '
+                 '(ready if the gate already passed, otherwise continue) and return the result now.')
+
+
+def round_limits(m):
+    minutes = m.get('args', {}).get('roundMinutes', 40)
+    if isinstance(minutes, bool) or not isinstance(minutes, (int, float)) or not math.isfinite(minutes) or minutes <= 0:
+        raise ValueError('roundMinutes must be a positive finite number')
+    # SPEC-GAP: overrides move both thresholds, keeping five minutes on either side of the budget.
+    return max(0, minutes - 5) * 60, (minutes + 5) * 60
+
+
+def round_elapsed(status, now):
+    paused = status.get('paused_seconds', 0)
+    if status.get('resume_wait_started') is not None:
+        paused += max(0, now - status['resume_wait_started'])
+    return max(0, now - status.get('round_started', now) - paused)
+
+
+def round_handoff_allowed(tool, tin, wt, lane):
+    if tool in ('Read', 'Grep', 'Glob'):
+        return True
+    if tool == 'Bash':
+        command = tin.get('command', '')
+        if guard.bash_allowed(command, wt):
+            return True
+        # Shell readers are needed by Codex's exec tool; reject evaluation, redirection and rg subprocess flags.
+        if re.search(r'[;&<>`$()\r\n]', command) or re.search(r'--(pre|hostname-bin)\b', command):
+            return False
+        parts = command.split('|')
+        return bool(re.match(r'^\s*(Get-Content|rg|cat|head|tail)\s+', parts[0])) and all(
+            re.fullmatch(r'\s*(Select-Object\s+[-\w\s]+|(?:head|tail)\s+-n\s*\d+)\s*', p)
+            for p in parts[1:])
+    queue = Path(wt) / 'build-runs' / 'merge-queue' / (lane + '.json')
+    if tool == 'apply_patch':
+        paths = patch_paths(tin.get('command', ''), wt)
+        return bool(paths) and all(Path(p) == queue.resolve() for p in paths)
+    if tool in ('Write', 'Edit'):
+        return Path(tin.get('file_path', '')).resolve() == queue.resolve()
+    return False
+
+
+def handle(data, manifest, *, clock=None):
+    clock = clock or time.time
     validate_manifest(manifest)
+    soft_limit, hard_limit = round_limits(manifest)
     m = manifest
     status_path = Path(m['status_path'])
     with locked(status_path.with_suffix('.lock')):
@@ -109,8 +154,10 @@ def handle(data, manifest):
                 raise ValueError('Codex started outside its reserved worktree')
             if status.get('session_id') not in (None, data['session_id']):
                 raise ValueError('A lane round must not start a second Codex session')
+            status.setdefault('started', guard.now_iso())
+            status.setdefault('round_started', clock())
             status.update(session_id=data['session_id'], model=data.get('model'),
-                          transcript=data.get('transcript_path'), started=guard.now_iso())
+                          transcript=data.get('transcript_path'))
             guard.write_json(str(status_path), status)
             return 'allow', ''
         if event != 'PreToolUse':
@@ -119,11 +166,16 @@ def handle(data, manifest):
             raise ValueError('Missing or mismatched SessionStart guard handshake')
         if data.get('transcript_path') != status['transcript']:
             raise ValueError('Codex transcript changed within a lane round')
+        elapsed = round_elapsed(status, clock())
+        if elapsed >= hard_limit:
+            return 'deny', ROUND_MESSAGE
+        tool = data.get('tool_name', '')
+        tin = data.get('tool_input') or {}
+        if elapsed >= soft_limit and not round_handoff_allowed(tool, tin, m['worktree'], m['lane']):
+            return 'deny', ROUND_MESSAGE
         tool_id = data.get('tool_use_id')
         if tool_id and tool_id == status.get('last_tool_id'):
             return tuple(status['last_decision'])
-        tool = data.get('tool_name', '')
-        tin = data.get('tool_input') or {}
         if tool in ('spawn_agent', 'Agent', 'Workflow'):
             decision = ('deny', 'Lanes cannot spawn workers; only the guarded coordinator reserves rounds.')
         else:

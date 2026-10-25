@@ -1,7 +1,7 @@
 # Lane files and run files
 
-Record formats for the [lane prompt's](../../.claude/workflows/fc4-lane.js) finish procedure.
-The merge train regenerates shared tables; lanes edit only their own records, never generated regions.
+Record formats for the [lane prompt's](../../.claude/workflows/fc4-lane.js) Finish.
+The train regenerates tables; lanes edit only their own records.
 
 ```
 python tools/gen_handoff_tables.py          # rewrite the generated tables (the train runs this)
@@ -31,8 +31,8 @@ Exactly one data row, four cells, on one line. Header (`Worktree` is also accept
 | <name and short description> | <agent and worktree> | <state at stop> | <next steps> |
 ```
 
-Include slug/task, agent/worktree/branch in backticks and kind; state records commits, ABI/seam reservations,
-gate counts, game labels/verdicts, shadow exact/total and question IDs. Next steps are numbered actions or `-`.
+Include slug/task, kind, `agent/worktree/branch`, commits, ABI/seam reservations, gate counts,
+game labels/verdicts, shadow exact/total and question IDs; next steps are numbered actions or `-`.
 
 Escape `|` inside cells. Invalid rows stop generation. Write the lane file once at Finish, with at most
 25 report lines below the row; an interrupted round follows the prompt's handoff instructions.
@@ -63,6 +63,7 @@ Escape `|` in `switches` and `result`. Preserve existing measured text verbatim.
 ## How a lane lands
 
 After the prompt's Finish commits, write `build-runs/merge-queue/<lane>.json` in your worktree and stop.
+At review, the coordinator runs `python tools/merge-train.py enqueue --lane <lane> --branch <branch> --tip <tip> --kind <kind> [--log <game log>]`; this attaches checked coverage `credit`, required for the train to take a ready entry.
 The train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main checkout's:
 
    ```json
@@ -72,15 +73,15 @@ The train scans every `.claude/worktrees/*/build-runs/merge-queue/` and the main
 
    | Key | Value |
    |---|---|
-   | `lane` | the lane slug (the `docs/lanes/<lane>.md` name) |
+   | `lane` | lane slug (`docs/lanes/<lane>.md`) |
    | `branch` | the branch the work is on |
-   | `tip` | full 40-character HEAD at enqueue time; a branch that moved past it is not ready |
+   | `tip` | full 40-character HEAD; a branch that moved past it is not ready |
    | `kind` | `engine`, `tools`, `docs` or `test` ([batch checks](../merge-train.md)) |
    | `abi` | `true` if the change adds or removes a C ABI export, `false` otherwise |
-   | `game_runs` | the labels of the in-game runs this change needs (or `[]`) |
+   | `game_runs` | required game labels (or `[]`) |
    | `summary` | one line for the merge commit |
    | `state` | `ready` to land now, `wip` to hold |
-   | `touches` | *optional*: the subsystem keys the work changes, as given to `lanes.py check --touches` |
+   | `touches` | optional subsystem keys from `lanes.py check --touches` |
 
 The [merge train](../merge-train.md) writes `build-runs/merge-notices/<lane>.md` after landing.
 

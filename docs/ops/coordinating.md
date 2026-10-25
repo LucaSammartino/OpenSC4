@@ -47,15 +47,25 @@ committed state plus the prompt's RESUME block; two consecutive nulls stop the l
 `lane:<lane>` / `lane:<lane>#<n>`. The prompt owns milestone commits and the final/handoff lane file.
 Claude measures latest input through `ctx.py`; Codex uses `codexguard.py` and its manifest.
 
+Codex transport errors resume the same session after 60, 180, then 600 seconds (three retries maximum);
+other errors fail. `codex-status.json` records retries; usage sums all attempts. Resumes retain permissions,
+sandbox, model/effort, MCP, schema/output and `--ignore-user-config`; SessionStart refreshes the registered
+session's transcript and refuses a new session ID.
+
 Use the prompt's quiet wrappers; full build logs live in `<WT>/build-runs/qbuild-<step>.log`.
 RE query paging and limits are in [re-workspace.md](../re-workspace.md#querying-in-parallel-lanes).
 
 ## Lane guard
 
-The policy now has two transport adapters: Claude's original hook below and Codex's
+The guard has two transport adapters: Claude's hook below and Codex's
 `.claude/lane-bin/codexguard.py`. Both update the same per-lane counters and round/parking ledger.
 Codex's first read-only identity probe initializes measured usage; missing later telemetry blocks work.
 Provider-specific enforcement and recovery are in [lane-providers.md](lane-providers.md#guard-and-token-accounting).
+
+Codex rounds default to 40 minutes (`args.roundMinutes` overrides), excluding retry waits. Five minutes before
+the budget, only git, file reads and the lane's merge-queue write are allowed; five minutes after it, all tools
+are denied and the backend terminates Codex, preserving commits and returning `continue`.
+Set `codex.service_tier` or `args.serviceTier` (takes precedence) to `fast` or `default`; other values are rejected.
 
 **The hook.** [`.claude/settings.json`](../../.claude/settings.json) runs
 [`.claude/lane-bin/laneguard.py`](../../.claude/lane-bin/laneguard.py) `hook` before every tool call of every session
@@ -156,6 +166,7 @@ without output.
 
 The contract is [docs/merge-train.md](../merge-train.md); the tool is `tools/merge-train.py`, run from the main
 checkout on `main`. A finished lane writes `build-runs/merge-queue/<lane>.json` in its own worktree and stops.
+At review, run `python tools/merge-train.py enqueue --lane <lane> --branch <branch> --tip <tip> --kind <kind> [--log <game log>]` to attach checked coverage `credit`; the train refuses ready entries without it.
 
 ```
 python tools/merge-train.py status                  # queued lanes, and entries that are not really ready
@@ -167,6 +178,10 @@ python tools/merge-train.py regress                 # once per batch (engine lan
 python tools/merge-train.py land                    # fast-forward main; notices in build-runs/merge-notices/
 python tools/merge-train.py bisect | fail --lane L  # a red batch
 ```
+
+`merge-train.py regress` summarises logs with main's `tools/run_summary.ps1` and `tools/regress.ps1`.
+A lane changing shadow summaries must land before the batch whose regress should count them;
+otherwise re-summarise that regress's logs with the landed script.
 
 - **Verify every landing:** `git merge-base --is-ancestor <lane> main` for each reported lane; the state list
   alone is not proof of ancestry.
@@ -191,6 +206,15 @@ python tools/merge-train.py bisect | fail --lane L  # a red batch
   workflow subagent: that spawns a duplicate). After a hard stop, check the worktree's *unstaged* diff
   (`git -C .claude/worktrees/<lane> status`): the agent may have been writing the fix to something it had just
   committed.
+
+### Coverage credit before ready
+
+When tasked to edit `tools/coverage-map.tsv`, lanes change only their assigned owners' rows.
+Spec paths, Rust core paths, shadow keys and replace keys must be justified by the lane tree.
+Run `python tools/creditcheck.py --wt <worktree> --log <game.log>` before ready; repeat `--log` for more logs.
+Only exact shadows present in that tree's regress shadows profile earn verified credit.
+Use `--json <out>` to retain rows flipped, byte deltas and refusals. The review enqueue checks the claim;
+refusals block ready. `merge-train.py plan` prints claims; `land` prints coverage before and after the batch.
 
 ## Merge-train operator notes
 

@@ -1,0 +1,15 @@
+{
+  "verified_bytes": 169566,
+  "rows": [
+    {"pattern": "cGZDBSegment*", "bytes": 19175, "shadow": "dbpf_bounds_shadow"},
+    {"pattern": "cSC4NetworkTool", "bytes": 105916, "shadow": "nettool_plan_shadow"},
+    {"pattern": "cSC4PowerLineTool", "bytes": 14712, "shadow": "powerline_plan_shadow"},
+    {"pattern": "cSCExemplar*", "bytes": 15351, "shadow": "formats_shadow"},
+    {"pattern": "cSCProperty", "bytes": 200, "shadow": "formats_shadow"},
+    {"pattern": "cSCPropertyHolder", "bytes": 2778, "shadow": "formats_shadow"},
+    {"pattern": "cSCResExemplar", "bytes": 2096, "shadow": "formats_shadow", "before_shadow": "formats_shadow"},
+    {"pattern": "cSCResExemplar*", "bytes": 6145, "shadow": "formats_shadow"},
+    {"pattern": "cSCResExemplarCohort", "bytes": 2072, "shadow": "formats_shadow", "before_shadow": "formats_shadow"},
+    {"pattern": "cSCResProperty", "bytes": 1121, "shadow": "formats_shadow"}
+  ]
+}
