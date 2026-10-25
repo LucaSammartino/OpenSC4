@@ -155,6 +155,12 @@ public:
             const fc4::Subsystem& s = subsystems[i];
             if (!fc4::SubsystemEnabled(s)) continue;
             for (size_t k = 0; k < s.classCount; ++k) {
+                if (strcmp(s.key, "effects") == 0 &&
+                    fc4::SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) {
+                    fc4::Log("AddCls skipped for subsystem 'effects': native layout incomplete (effects.md section 18); "
+                             "effects_replace = 1 is an unsafe diagnostic opt-in");
+                    continue;
+                }
                 AddCls(s.classes[k].clsid, s.classes[k].create);
                 FC4_LOGV("AddCls(0x%08X) registered (%s, subsystem '%s')", s.classes[k].clsid, s.classes[k].name, s.key);
             }

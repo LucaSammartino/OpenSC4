@@ -4,12 +4,14 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
                             const std::string& log, const std::string& mode) {
     const bool enabled = mode == "--effects-enabled";
     const bool disabled = mode == "--effects-disabled";
+    const bool guarded = mode == "--effects-guarded";
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_EFFECTS_REPLACE", nullptr);
     SetEnvironmentVariableA("FC4_EFFECTS_SHADOW", nullptr);
-    WriteTextFile(ini, disabled ? "[subsystems]\nenable = effects\ndisable = effects\n" :
-                       enabled ? "[subsystems]\nenable = effects\n" : "[subsystems]\n");
+    WriteTextFile(ini, disabled ? "[subsystems]\nenable = effects\ndisable = effects\n[tools]\neffects_replace = 1\n" :
+                       enabled ? "[subsystems]\nenable = effects\n[tools]\neffects_replace = 1\n" :
+                       guarded ? "[subsystems]\nenable = effects\n[tools]\neffects_shadow = 1\n" : "[subsystems]\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
@@ -44,8 +46,9 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
     const std::string text = ReadFile(log);
-    CHECK(text.find("AddCls skipped") == std::string::npos);
+    CHECK((text.find("AddCls skipped") != std::string::npos) == guarded);
     CHECK(text.find("SEH") == std::string::npos);
     if (enabled) CHECK(text.find("AddCls(0x49822F75) registered") != std::string::npos);
+    if (guarded) CHECK(text.find("effects shadow: enabled native record-only names") != std::string::npos);
     return g_failures == 0 ? 0 : 1;
 }

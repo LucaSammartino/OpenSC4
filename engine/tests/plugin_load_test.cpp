@@ -11091,7 +11091,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
-#include "plugin_effects_registration_test.inc"  // Factory ownership and section 18.2 message-target layout.
+#include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11110,7 +11110,8 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_OBSERVE", "1");  // the same lines in release and checked builds
     SetEnvironmentVariableA("FC4_AUTOTEST_SAVE_AFTER_MONTHS", nullptr);
 
-    if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default")
+    if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
+        mode == "--effects-guarded")
         return EffectsRegistrationTest(dll, ini, log, mode);
 
     const std::string childPrefix = "--autotest-child-";
