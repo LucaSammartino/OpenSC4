@@ -682,6 +682,53 @@ observation limit, not a second solver rule (`0x0062CA30`–`0x0062CA3F`, `0x006
 | Slot 23 called after either fixture | Copy of drag coordinates only; no corner heights, support record or solved-entry ordering is returned |
 | Live replay has coordinates/status and public price, but lacks piece/plane/support inputs | Drag/status and native price remain observable; reconstructed live price is unavailable, not zero and not the native price |
 
+#### 8.1.5 Tempelhof single-cell draft and price controls (NT36)
+
+NT36 here means **"Tempelhof single-cell road draft costs 11 versus 10"**, filed by nettool-cost27; it is a
+different filing from the older occupied-cell host-boundary NT36 in §8.3.3. Network-geometry §§9.1 and 9.8.1
+now supply an admitted isolated-cell fixture with the question's terrain values, the exact plane and per-corner
+ranges/preferences, the level-0 failure/level-1 success, ordered equality propagation, hash state and retained
+network result. No private native solved-state observation or additive cost inferred from a total is used.
+
+For that fixture the **only retained entry** is road cell `(86,3)`, run=true, intersection=false; corner ids are
+`(473,602,603,474)`. All four retained network corners are **293.308929443359375**, the initial terrain height
+of vertex 602, selected after allowed-range propagation. Live terrain remains, in corner order,
+`(291.402679443359375,293.308929443359375,290.7928466796875,289.532623291015625)` throughout this draft.
+
+| Corner/id | Absolute network-minus-terrain delta | Float32 running earthwork sum |
+|---|---:|---:|
+| 0 / 473 | 1.90625 | 1.90625 |
+| 1 / 602 | 0 | 1.90625 |
+| 2 / 603 | 2.516082763671875 | 4.422332763671875 |
+| 3 / 474 | 3.77630615234375 | **8.198638916015625** |
+
+**Rounding and addition order remain §8.1.** Sum absolute differences in retained-entry/corner order, storing
+the running sum as float32 after each corner (`0x006256DB`–`0x0062570E`). Multiply the final sum once by
+float32 0.1 = 0.100000001490116119384765625; the x87 single-precision result is **0.81986391544342041015625**.
+Add 12582912.0f and store float32: **12582913.0**, bits `0x4B400001`; subtract `0x4B400000` to obtain earthwork
+**1** (`0x0062582A`–`0x0062584F`). The ordinary road cell charge is 10; demolition, bridge, tunnel and
+intersection charges are zero: **10+1=11**. This is one final nearest-even rounding of total earthwork, with
+no ceiling, truncation, per-corner/per-cell integer rounding, or draft terrain write.
+
+The replay's four corners at 290.7928466796875 do produce the question's sum 4.386138916015625 and earthwork 0.
+Pricing **that different retained solution** at 10 obeys the getter. It is the missing solve inputs/order that
+must be corrected. A price residual is not a rule for moving corners to a median, minimum or mean.
+
+These controls use the same road tuning and empty, dry environment. They are **constructed conformance inputs**,
+not recovered Konradshohe city state:
+
+| Control | Required retained solution | Earthwork / final price |
+|---|---|---|
+| Flat single cell: §9.8.1 with all four terrain heights 300 | Level 0 succeeds with all four corners fixed at 300; one run entry | 0 / **10** |
+| Gentle single cell: §9.8.1 terrain in corner order `(300,300.5,300.25,299.75)` | Level 0 fails, level 1 succeeds. hA=300.375, hB=299.875; plane `(0,256,−8,−76384)`, corner plane heights `(299.875,300.375,300.375,299.875)`. After equality, allowed range `[265.375,334.875]`; unchanged preferred ranges span each terrain/plane pair. Vertex 602 wins and all retained corners are **300.5** | Sum 1.5; product 0.1500000059604644775390625, rounded 0 / **10** |
+| Konradshohe-like gentle straight road: ordered entries `(x,4)`, x=4..14, as §8.1.2; set terrain `300+0.25×(vx−4)` at every vertex `(vx,4)` and `(vx,5)`, vx=4..15 | Eleven road-only run entries, no intersection/fixed/placed/connection flags or appended neighbours. One or two connected sides per piece; cross-sections are level across z and rise 0.25 m per x. All initial heights satisfy boundary, slope and smoothness constraints, and each preferred range includes its own initial height. Level 0 succeeds and retains terrain heights at all 44 corner observations | 0 / **110** |
+
+For the last control, the plane uses hA=300 at x=4 and hB=302.75 at x=15; all corners stay within its 35 m
+window. This retains the existing eleven-cell road price while exercising a nonflat run. The gentle single
+cell distinguishes the specified nearest-even rule from an incorrect ceiling, which would charge 11.
+§8.1.2's other flat prices (170/90/55/110) also remain unchanged. Neither these controls nor the Tempelhof
+fixture identifies the private inputs behind earlier Konradshohe mismatch totals (§8.1.3–§8.1.4).
+
 ### 8.2 Who pays: cSC4NetworkToolUI::DoPlacement (`0x00645370`)
 
 Only the player's tool UI withdraws money:
@@ -1302,6 +1349,8 @@ original's layout *[choice]*. The pops agree with docs/abi/interfaces.tsv.
 
 ## 16. Answers given here
 
+- **NT36 (Tempelhof single-cell draft):** §8.1.5 and network-geometry §§9.1/9.8.1 give the plane, retry,
+  ranges/preferences, equality work sets and pending stack, retained corners and 11-cost fixture, with controls.
 - **NT35:** §8.1.4 defines the observation limit for retained live piece/plane/support inputs.
 - **NT36:** §8.3.3 defines occupied-cell callable observations, reference ownership and subclass/model
   host responsibilities, with seven boundary vectors; observation completion is separate from placement.
