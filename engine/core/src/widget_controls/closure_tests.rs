@@ -300,7 +300,13 @@ fn tree_primary_insert_wrappers_copy_initialized_defaults_and_failure_data() {
     assert_eq!(t.data(b), 0xabcdef);
     assert_eq!(t.nodes[&0].children, [b, a]);
     assert_eq!(f.refs, refs); // nodes borrow their default font
+    t.layout_dirty = false;
+    let before = (t.next_handle, t.nodes.len(), f.invalidations);
     assert_eq!(t.insert_text(0, 999, b"abandoned", 42, &mut f), Ok(-1));
+    assert_eq!(t.next_handle, before.0 + 1);
+    assert_eq!((t.nodes.len(), f.invalidations), (before.1, before.2));
+    assert_eq!(t.nodes[&0].children, [b, a]); // WC-T23: no child-count commit.
+    assert!(!t.layout_dirty);
     assert_eq!(t.abandoned.last().unwrap().data, 42);
     assert_eq!(t.abandoned.last().unwrap().text, b"abandoned");
     let next = t.next_handle;
