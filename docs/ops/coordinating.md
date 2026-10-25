@@ -117,7 +117,7 @@ Its adapter and real watchdog denial were validated before enabling project lane
 [provider validation](lane-providers.md#validation-2026-10-22).
 
 The context budget, the "stalled lane" rule and the wind-down order were prompt text, and the models ignored them.
-Measured over the two GLM runs of 2026-10-20/21 ([efficiency-log.md](efficiency-log.md)): 88% of lane context
+Measured over the two GLM runs of 2026-10-20/21 ([efficiency-log.md](../history/efficiency-log.md)): 88% of lane context
 tokens were spent above the 150k budget; re-answers35 made 2,789 calls with no output; re-specs22 lost $21 of work by
 never committing; run 2's coordinator started three lanes after a wind-down order was compacted out of its context.
 These rules are now enforced by the harness, the same on every model route.
@@ -235,9 +235,9 @@ was recorded in the rounds ledger.
   [docs/lane-tools.md](../lane-tools.md) "Run 4: the heartbeat backlog".
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
   read an agent's output file. Batch status updates to the user instead of one per event.
-- **Measure:** `python tools/lanes.py ledger --md docs/token-ledger.md` after each landed batch; it reads the
+- **Measure:** `python tools/lanes.py ledger --md docs/history/token-ledger.md` after each landed batch; it reads the
   workflow journals and puts tokens per lane, merge share and tokens per coverage point in
-  [docs/token-ledger.md](../token-ledger.md). Quote it, not estimates.
+  [docs/history/token-ledger.md](../history/token-ledger.md). Quote it, not estimates.
 
 ## Landing work: the merge train
 

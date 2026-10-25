@@ -88,5 +88,5 @@ Notices are `build-runs/merge-notices/<lane>.md` and `build-runs/merge-notices/t
 
 Coverage numbers come from `python tools/coverage.py` ([docs/coverage-report.md](coverage-report.md)), never from an
 estimate. Tokens per lane and per coverage point come from `python tools/lanes.py ledger`
-([docs/token-ledger.md](token-ledger.md)), dollars per point from `tools/spend.py`
-([docs/ops/efficiency-log.md](ops/efficiency-log.md)). A lane does not record them itself.
+([docs/history/token-ledger.md](history/token-ledger.md)), dollars per point from `tools/spend.py`
+([docs/history/efficiency-log.md](history/efficiency-log.md)). A lane does not record them itself.

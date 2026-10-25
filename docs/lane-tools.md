@@ -15,7 +15,7 @@ at another checkout, read-only.
 | `check <lane> [--deps a,b] [--touches k1,k2]` | coordinator, before every spawn | refuses a lane that would be wasted work; prints `ok` or one reason per line |
 | `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | tooling and RE lanes, the coordinator (engine lanes use `.claude/lane-bin/qwait.py`: they do not run `tools/`) | one tool call instead of a polling loop |
 | `monitor [--interval 30]` | coordinator, under the Monitor tool | one line per event, silence otherwise |
-| `ledger [--out ...] [--md docs/token-ledger.md]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
+| `ledger [--out ...] [--md docs/history/token-ledger.md]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
 | `brief <subsystem-or-key> [--kind engine\|re] [--focus <regex>]` | coordinator, when writing a lane prompt | a context pack of at most 60 lines to paste into the prompt, with each spec's section outline (line ranges and sizes); `--focus` marks the sections and subsections the task is about, so the lane reads those ranges instead of a 100-200 KB spec |
 
 ## The cap rule
@@ -81,7 +81,7 @@ coordinator can add `--lane <name>` to look in another worktree.
   that would show one).
 - **Cost:** `ledger` reads the workflow journals (`%USERPROFILE%\.claude\projects\<slug>\*\workflows\wf_*.json`) and
   writes `build-runs/lane-ledger.tsv` (one row per run), `build-runs/lane-ledger-by-lane.tsv` and, with `--md`,
-  [token-ledger.md](token-ledger.md). Read the caveats there before quoting tokens per coverage point: lanes landed
+  [token-ledger.md](history/token-ledger.md). Read the caveats there before quoting tokens per coverage point: lanes landed
   through the merge train have no journal, and coverage also moves when the coverage tool changes.
 
 ## Run 4: the heartbeat backlog and `--wait-until`
