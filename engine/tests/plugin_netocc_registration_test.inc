@@ -99,7 +99,20 @@ int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
             }
             cIGZSerializable* serial = nullptr;
             CHECK(line->QueryInterface(0xE4FDA3D4, reinterpret_cast<void**>(&serial)));
-            if (serial) { CHECK(serial->GetGZCLSID() == 0xC9C05C5D); serial->Release(); }
+            if (serial) {
+                // Native pole Write uses this concrete view, not line->QI.
+                // Keep the same offset used for every saved connection line.
+                auto* nativeView = reinterpret_cast<cIGZSerializable*>(static_cast<char*>(raw) + 8);
+                CHECK(serial == nativeView);
+                if (serial == nativeView) {
+                    void* queried = nullptr;
+                    CHECK(nativeView->QueryInterface(0xE4FDA3D4, &queried));
+                    CHECK(queried == serial);
+                    if (queried) static_cast<cIGZSerializable*>(queried)->Release();
+                }
+                CHECK(serial->GetGZCLSID() == 0xC9C05C5D);
+                serial->Release();
+            }
             line->Release(); CHECK(pole.refs == 1);
         }
     }
@@ -228,7 +241,11 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
             }
             cIGZSerializable* serial = nullptr;
             CHECK(pole->QueryInterface(0xE4FDA3D4, reinterpret_cast<void**>(&serial)));
-            if (serial) { CHECK(serial->GetGZCLSID() == 0x09C05C6A); serial->Release(); }
+            if (serial) {
+                CHECK(reinterpret_cast<char*>(serial) == static_cast<char*>(raw) + 12);
+                CHECK(serial->GetGZCLSID() == 0x09C05C6A);
+                serial->Release();
+            }
             void* second = nullptr;
             if (seam) second = reinterpret_cast<void*>(seam(kFC4SeamNetOccPoleFactory, nullptr, nullptr));
             CHECK(second != nullptr && second != raw);
