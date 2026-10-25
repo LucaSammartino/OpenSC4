@@ -76,11 +76,25 @@ graphics problem is resolved. None of these attempts entered a city or produced
 `fc4-lua.log`, a startup marker, or a snapshot proving Lua entry. `ConnectionsReady`
 appears only in a turbo configuration description, not as a city-load event.
 
+After the required build gate, a **fresh DLL 13f21803** (SHA-256
+`13f2180366df269c61d55c1c45319233bdd8ec59c4690a96ba17007b9e39aa64`)
+was used explicitly with `-Dll` for **`luacmd27-lua-calibrate-shadows-r3`**.
+It recognized every requested shadows key (only harness-only `lua_script` was
+unknown), but again printed **`no city load within 90 s`**, stopped after
+`PreFrameWorkInit`, and produced **0 markers and no Lua text log**. Its 165-line
+plugin log, console, ini and separate summary/per-key tables are retained in
+`build-runs/suite/luacmd27-r3/`. This corrected-binary failure is separate from
+the older-DLL and metadata-wrapper attempts; no command or shadow success is
+claimed for it.
+
 Python validation: `python -m pytest tools/tests -q` printed **6 failed, 341 passed
 in 95.17s**. The six failures are unchanged `WorkflowDryRun` tests in
 `test_laneguard.py`: their mock preflight produced `ERROR` with an empty line.
 The underlying cause is unresolved. All **13 new tests** passed (focused runs:
 launcher **7 passed in 2.25s**, catalog **6 passed in 0.05s**).
+The one required `qbuild.py --wt <WT> all` invocation passed: **7,844 Cargo
+tests**, **0 clippy diagnostics**, native build **302/302 edges**, CTest
+**117/117**, final **`qbuild: PASS`**. The full Python gate remains failed.
 
 **I/O remains unknown.** The first probes try `io.open`, then Lua 4's
 `openfile/write/closefile`. Neither an entry marker, text log nor snapshot was
