@@ -86,6 +86,7 @@ $Ctl = Join-Path $PSScriptRoot "sc4ctl.ps1"
 $MutexTool = Join-Path $PSScriptRoot "sc4mutex.ps1"
 $Region = "FC4 Test"
 . (Join-Path $PSScriptRoot 'city_fixture.ps1')
+. (Join-Path $PSScriptRoot 'process_cmdline.ps1')
 
 Add-Type -ErrorAction SilentlyContinue @"
 using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
@@ -220,10 +221,11 @@ function MainCheckout {
 # PIDs of the SimCity 4 processes that use user dir $dir (from their command lines; no -UserDir = Documents).
 function GamesUsing([string]$dir) {
     $want = $dir.TrimEnd('\').ToLower()
-    try { $all = @(Get-CimInstance Win32_Process -Filter "Name='SimCity 4.exe'" -ErrorAction Stop) }
-    catch { return @(Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) }
+    $all = @(Get-HarnessGameProcesses)
     $r = @()
     foreach ($w in $all) {
+        # Still fail closed when neither query can identify a live process.
+        if (-not $w.CommandLine) { $r += [int]$w.ProcessId; continue }
         $ud = $DocsUser
         if ("$($w.CommandLine)" -match '-UserDir:"?([^"]+)') { $ud = $Matches[1].Trim() }
         if ($ud.TrimEnd('\').ToLower() -eq $want) { $r += [int]$w.ProcessId }
