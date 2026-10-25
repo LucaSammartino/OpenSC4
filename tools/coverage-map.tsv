@@ -778,6 +778,20 @@ SL	persistence and resources	framework	sl-library.md	-	-	-
 nSCRes	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
+nSCRes::cSetCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cArrayCreateCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cEvalCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cNamespaceCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cEndBlockCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cListCommandsCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cCreateCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cCommandParser::cMacroDefinition	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cDefineCommand	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cEndDefCommand	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cParseError	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cBlockCommand	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cBlockCommandT	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cFileParser::cInputFileSpec	persistence and resources	framework	sc-resources-commands.md, graphics-rules.md	-	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-
 cSCStringDetokenizer	strings and language	framework	rz-strings.md	-	-	-
 cSCStringDetokenizerDefault	strings and language	framework	advice-tokens.md	-	-	-
@@ -1110,6 +1124,7 @@ fn:SC4WriteGZSerializable	other free functions	other	lot-records.md, small-helpe
 fn:SC4WriteStringRecord	other free functions	other	small-helpers2.md	-	-	-
 fn:SC4InterpolateGrid	other free functions	other	grid-interpolation.md	-	-	-
 fn:MakeMapColorBuffer	other free functions	other	map-color-buffer.md, map-view.md	-	-	-
+fn:GZCOM_nSCRes_cFileParserCLSID	persistence and resources	framework	sc-resources-commands.md	-	-	-
 fn:SafeGetAltitude	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinFont	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinImage	other free functions	other	small-helpers2.md	-	-	-
