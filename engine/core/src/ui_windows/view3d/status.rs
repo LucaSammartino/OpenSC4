@@ -56,9 +56,18 @@ pub struct DisplayState {
 
 /// Window drawing, localization, widget rectangles and simulation queries remain
 /// foreign. The owner supplies frame/colour/position decisions, not pixels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MissionStatus {
+    pub seconds: u32,
+    /// Target text/progress obtained from the manager's active situation.
+    pub progress: String,
+}
+
 pub trait StatusHost {
     fn funds(&self) -> i32;
     fn draw_cost(&mut self, display: CostDisplay);
+    /// Visibility is independent of redraw and surface alpha (§6k supplement).
+    fn cost_visibility(&mut self, visible: bool);
     fn cursor_callout(&mut self, entry: Option<&CursorText>, position: (i32, i32));
     fn project(&mut self, point: [f32; 3]) -> (i32, i32);
     fn clock_time(&self) -> (u32, u32);
@@ -74,6 +83,11 @@ pub trait StatusHost {
     fn create_mission_panel(&mut self, script: u32, right_margin: i32) -> Option<u32>;
     fn delete_mission_panel(&mut self, panel: u32);
     fn mission_text(&mut self, panel: u32, time: &str, red: bool, progress: &str);
+    /// None means the situation manager/active situation is unavailable.
+    fn active_mission_status(&mut self) -> Option<MissionStatus>;
+    fn mission_fallback(&mut self, group: u32, instance: u32) -> String;
+    /// None preserves the progress caption while updating time.
+    fn mission_update(&mut self, panel: u32, time: &str, red: bool, progress: Option<&str>);
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -181,6 +195,7 @@ impl View3DWin {
         if old != self.owner.display.cost {
             host.draw_cost(self.owner.display.cost);
         }
+        host.cost_visibility(true);
     }
 
     pub fn set_cost_amount(&mut self, host: &mut impl StatusHost, amount: i32) {
@@ -199,6 +214,7 @@ impl View3DWin {
             cost.mode = CostMode::Hidden;
             cost.alpha = 0;
             cost.fade_left_ms = 0.0;
+            host.cost_visibility(false);
         }
         host.draw_cost(*cost);
     }
@@ -211,6 +227,7 @@ impl View3DWin {
             if remaining <= 0.0 {
                 cost.mode = CostMode::Hidden;
                 cost.alpha = 0;
+                host.cost_visibility(false);
             } else {
                 cost.alpha = (remaining * f64::from(0.17_f32)) as u8;
                 let origin = self.owner.display.fade_origin;
@@ -327,5 +344,32 @@ impl View3DWin {
             let red = seconds < 60 && (seconds > 20 || seconds % 2 == 1);
             host.mission_text(panel, &time, red, progress);
         }
+    }
+
+    /// §6l: the borrowed attachment gates caption selection; it is never queried
+    /// for text, converted from data1, acquired or released by this owner.
+    pub fn update_mission_progress(&self, host: &mut impl StatusHost, attachment: Option<u32>, flag: u32) {
+        let Some(panel) = self.owner.display.mission_panel else {
+            return;
+        };
+        let Some(status) = host.active_mission_status() else {
+            return;
+        };
+        let fallback;
+        let captions = if attachment.is_none() {
+            fallback = host.mission_fallback(0x6A23_1EA4, 0xAC2B_D618);
+            Some(fallback.as_str())
+        } else if flag != 0 {
+            Some(status.progress.as_str())
+        } else {
+            None
+        };
+        let seconds = status.seconds;
+        host.mission_update(
+            panel,
+            &format!("{:02}:{:02}", seconds / 60, seconds % 60),
+            seconds < 60 && (seconds > 20 || seconds % 2 == 1),
+            captions,
+        );
     }
 }
