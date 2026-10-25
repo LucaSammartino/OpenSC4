@@ -23,6 +23,7 @@ struct Io {
     endpoints: Vec<([u8; 4], u16)>,
     names: Vec<Vec<u8>>,
     observed: Vec<(Job, Option<Request>, Option<Resource>)>,
+    retain_resources: bool,
 }
 impl Default for Io {
     fn default() -> Self {
@@ -42,6 +43,7 @@ impl Default for Io {
             endpoints: Vec::new(),
             names: Vec::new(),
             observed: Vec::new(),
+            retain_resources: false,
         }
     }
 }
@@ -88,6 +90,10 @@ impl http::Host for Io {
             client.requests.get(&job.0[5]).cloned(),
             client.resources.get(&job.0[6]).cloned(),
         ));
+        if self.retain_resources {
+            client.requests.get_mut(&job.0[5]).unwrap().refs += 1;
+            client.resources.get_mut(&job.0[6]).unwrap().refs += 1;
+        }
     }
 }
 impl Host for Io {
@@ -196,7 +202,7 @@ fn www20_s8_crt_whitespace_and_ignored_tokens() {
             true,
         );
     }
-    for separator in [b'\r', b'\n'] {
+    for separator in *b"\r\n" {
         assert_eq!(
             status_resource(&[b"HTTP/1.1".as_slice(), &[separator], b"200"].concat()).status(),
             200
@@ -446,6 +452,48 @@ fn www20_r4_metadata_and_response_data_preserved_through_callback() {
     );
     assert!(client.requests.is_empty() && client.resources.is_empty());
     assert!(client.workers[&worker].current.is_none());
+}
+#[test]
+fn callback_retained_resources_survive_worker_completion() {
+    let (mut client, mut io, worker, request, mut peer) = admitted();
+    one_byte(&mut io);
+    io.retain_resources = true;
+    io.effects.clear();
+    run_current(&mut client, &mut io, worker, &mut peer, None).unwrap();
+
+    let (job, observed_request, observed_response) = &io.observed[0];
+    let response = job.0[6];
+    assert_eq!(observed_request.as_ref().unwrap().refs, 1);
+    assert_eq!(observed_response.as_ref().unwrap().refs, 1);
+    assert_eq!(client.requests[&request].refs, 1);
+    assert_eq!(client.resources[&response].refs, 1);
+    assert_eq!(client.resources[&response].body, b"a");
+    assert!(client.workers[&worker].current.is_none());
+    assert_eq!(
+        releases(&io),
+        [
+            http::Effect::ReleaseRequest(request),
+            http::Effect::ReleaseResource(response)
+        ]
+    );
+    assert!(!io
+        .effects
+        .iter()
+        .any(|effect| matches!(effect, http::Effect::DeleteRequest(_) | http::Effect::DeleteResource(_))));
+
+    // HTTP lifetime §2.1: callers own only references acquired during notification.
+    assert_eq!(client.release_request(&mut io, request).unwrap(), 0);
+    client.release_resource(&mut io, response).unwrap();
+    assert!(client.requests.is_empty() && client.resources.is_empty());
+    assert_eq!(
+        &io.effects[io.effects.len() - 4..],
+        [
+            http::Effect::ReleaseRequest(request),
+            http::Effect::DeleteRequest(request),
+            http::Effect::ReleaseResource(response),
+            http::Effect::DeleteResource(response)
+        ]
+    );
 }
 #[test]
 fn www20_r5_zero_status_leaks_unpublished_local_response() {
