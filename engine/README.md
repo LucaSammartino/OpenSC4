@@ -1,19 +1,6 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 # FreeCity4 engine
 
-S3 entry-hook experiment (all off by default): `inplace = all` or a comma-separated
-list of names from `FC4Inplace.cpp` selects 20 view-utility functions. Natural calls
-sample the first 50 and then one in 20. `inplace_fixture = 1` additionally runs
-labelled, constructed inputs at city load; these are counted separately.
-`inplace_mutate = <names>` changes one result word on the first exact sample of
-each selected function and logs its location and detection. Original results are
-always restored. `inplace summary` records calls, exact comparisons, float-only
-differences, outside changes, refusals, mutations and maximum ULP distance.
-This observes net changes in containing writable private committed regions (64
-MiB total cap); it cannot prove confinement to those regions or detect writes
-that are undone. Image/global memory is excluded; concurrent neighbour changes
-are reported with unknown attribution. Unsupported entry encodings fail closed.
-
 Clean-room engine code for FreeCity4. It is written only from [`docs/specs/`](../docs/specs/) and the LGPL
 gzcom-dll SDK. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you change anything here.
 
@@ -2540,3 +2527,22 @@ The `lotunit shadow`, `lotbasetexture shadow`, and `lotwall shadow` lines report
 discovery completeness, capture/exact counts, failures and successful empty
 inventories separately. Full record comparisons preserve reference identities,
 saved texture frames and unnamed bytes; wall-mask growth on Read is a mismatch.
+
+## S3 in-place oracle experiment (WIP)
+
+All switches default off. `inplace = all` or a comma-separated list of names from
+`FC4Inplace.cpp` selects 20 view-utility functions. Natural calls sample the first
+50 and then one in 20. `inplace_fixture = 1` additionally runs labelled,
+constructed inputs at city load. `inplace_mutate = <names>` changes one result
+word on the first exact sample and logs its detection through the replay
+comparator. `inplace summary` separates natural and fixture counts.
+
+This prototype is WIP: inplace26-fixture-1 faulted in the constructed
+world-viewport call. Native machine-state transparency is unresolved; original
+output-byte restoration is insufficient to claim safe replay. The natural run
+was clean but had unresolved differences, outside changes and refused captures.
+See `tests/spike-evidence/spike-inplace26/` for measured values and rejections.
+Capture observes net changes in containing writable private committed regions
+(64 MiB cap). It misses undone writes, unrelated allocations and image/global
+storage. Concurrent neighbour changes have unknown attribution. Unsupported or
+occupied entries fail closed. Do not enable this experiment in normal runs.
