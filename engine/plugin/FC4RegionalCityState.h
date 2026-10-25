@@ -5,6 +5,8 @@
 // Private static-link transport. Owner is opaque and destroyed exactly once;
 // destroy must not overlap any call. Getters/setters serialize state access.
 struct FC4RegionalCityOwner;
+struct fc4_istream;
+struct fc4_ostream;
 // Callbacks must remain callable for each retained reference's lifetime and
 // allow serialized calls from the game's getter thread. They must not re-enter
 // this owner. Each retain/release pair owns one interface reference.
@@ -27,6 +29,16 @@ struct FC4RegionalCityDealCalls {
     int32_t (*amount)(void*);
     uint32_t (*flags)(void*);
     bool (*setFlags)(void*, uint32_t, bool);
+};
+// read consumes the shared stream and transfers one owned interface reference;
+// null means failure. write returns -1 for no serializable IID, 0 failure, 1 ok.
+// The record's u16 helper version is handled by the caller, not this transport.
+struct FC4RegionalCityRecordCalls {
+    void* context;
+    void* (*read)(void*, uint32_t kind, const fc4_istream*);
+    int32_t (*write)(void*, uint32_t kind, void*, const fc4_ostream*);
+    FC4RegionalCityConnectionCalls connections;
+    FC4RegionalCityDealCalls deals;
 };
 // Scalar fields: 0/1 position, 2/3 size, 4 population, 5/6 jobs,
 // 7 workforce, 8 rating, 9 difficulty, 10 serial, 11 birth, 12 established,
@@ -54,4 +66,10 @@ bool fc4_regionalcity_owner_connections(FC4RegionalCityOwner*, void* const* obje
     const FC4RegionalCityConnectionCalls*);
 bool fc4_regionalcity_owner_deals(FC4RegionalCityOwner*, bool local, void* const* objects, uint32_t count,
     const FC4RegionalCityDealCalls*);
+// Wire decode only: no localization, Init, or deal claiming. Failed reads leave
+// the owner's state intact and release all successfully constructed elements.
+bool fc4_regionalcity_owner_decode(FC4RegionalCityOwner*, const fc4_istream*, uint8_t difficulty,
+    const FC4RegionalCityRecordCalls*);
+bool fc4_regionalcity_owner_write(const FC4RegionalCityOwner*, const fc4_ostream*,
+    const FC4RegionalCityRecordCalls*);
 }
