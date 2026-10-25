@@ -41,10 +41,10 @@ used a wrong relative path; the absolute owned-file invocation passed.
    Fixed, world-view and box-rectangle changed receiver-region neighbours.
    All five locations are in outside-3.csv. Writer/object attribution is unknown;
    neither the measured upper bound nor float-only count exceeds 30%.
-4. Rate: metrics-final.json and metrics-final.py use actual first/evidence commit
-   times, including queue/build/game waits, the interrupted check, and both
-   rounds. They report 1821 qualified bytes and a 3234-byte all-function ceiling
-   against the 11 KB/hour target and 1.1 KB/hour baseline. No coverage credit is
+4. Rate: **1821 bytes / 2.080556 h = 0.875247 KB/h** (baseline 1.1, target 11).
+   Even all 3234 selected bytes give only **1.554393 KB/h**. metrics-final.json
+   and metrics-final.py use actual first/evidence commit times, including all
+   queue/build/game waits, the interrupted check and both rounds. No coverage credit is
    asserted; body sizes count functions exercised, not full branch coverage.
 
 Confined cohort: city-corner, clip2, cross, ground, primitive-indices, view-box,

@@ -1,4 +1,4 @@
-# S3 criteria
+# S3 criteria (historical initial round; final: metrics-final.json/.py)
 
 SPIKE VERDICT: INCONCLUSIVE
 

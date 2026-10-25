@@ -1,18 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| spike-inplace26 (S3 in-place oracle) | `Codex` / `spike-inplace26` (engine lane) | WIP; SPIKE INCONCLUSIVE. cargo 7839/0, clippy clean, CTest 115/115. inplace26-natural-1 clean/ref_warnings=0; inplace26-fixture-1 corrupt/one foreign exception/ref_warnings=0. Provisional exact/confined 7/20; verified bytes 0. ABI unchanged; questions none. | 1. Prove native entry machine-state transparency and isolate the fixture fault. 2. Repeat clean per-function natural/fixture measurements before landing. |
+| spike-inplace26 (S3 in-place oracle) | `Codex` / `spike-inplace26` (engine lane) | READY; SPIKE INCONCLUSIVE. Code e0a12625b/a91f41851, evidence 85cb9df19. cargo 7840/0, clippy clean, CTest 115/115. inplace26-fixture-3 and inplace26-natural-3 clean/ref_warnings=0; 18278/18278 comparisons exact. ABI unchanged; questions none. | 1. Coordinator review of the S3 result. Any broader experiment is optional. |
 
 SPIKE VERDICT: INCONCLUSIVE
-Opt-in `inplace`, `inplace_mutate`, `inplace_fixture` are all off by default; 20 native-layout bindings reuse production Rust, with no new Rust algorithms.
-Code milestones: 6595b1ae5, bff92a97f, 17b7cc4da, 33875e28d; measured evidence b7a878282.
-Settled-source gate: cargo 7839 passed/0 failed, clippy clean, native build 46/46, CTest 115/115; no Rust files changed (fmt n/a).
-Natural run: 5,324,602 calls, 266,768 sampled, 186,518 compared, 146,979 exact samples, 39,539 differences, 55 outside-change samples, 80,195 refusals.
-PASS exact/confined criterion: 7/20 (35%) provisional, below 14/20; 1031 body bytes. Fixture fault prevents independent verification credit.
-KILL criterion: outside signals in 6/20 (30%, writer unknown), float-only 0/20; neither exceeds 30%.
-Teeth: 11/11 error events detected/located in 10 functions before fixture abort; no final fixture aggregates are claimed.
-Rate: 3064 s = 0.851111 lane-hours between first/evidence commits, including waits; verified 0 KB/h, provisional 1.211 KB/h; all-3234-byte upper bound 3.800 KB/h < 11 KB/h target (baseline 1.1).
-The natural request put end_date in [ini], where it was ignored: clean 600.625 s to 2055-09-04. The fixture corrected the header and faulted at image RVA 0x003f785d, code 0xc0000005.
-Unresolved mismatches: view-box, box-rectangle, world-viewport2, viewport-fixed. rotation/visible-edges failed installation; three installed entries had no natural calls; clip3 natural calls aliased the receiver and were refused.
-Capture compares containing writable private committed regions (64 MiB cap); misses undone writes, unrelated allocations/image globals and excluded stack frames; concurrent outside changes have unknown attribution.
-Evidence: engine/tests/spike-evidence/spike-inplace26/ (CSV, mutation locations, requests, rejected list, collector, metrics); raw numbers and run references also in build-runs/spike-evidence/.
-Next: controlled register/FPU-state and trampoline tests, isolated entry replay, then clean full-cohort counters. Keep WIP; the corrupt fixture blocks ready.
+PASS exact/confined criterion: 14/20 (70%), 1821 body bytes, requiring zero outside signals AND zero refusals across both final-source runs; 15/20 if clip3's refused aliases are allowed.
+Teeth criterion: 33/33 deliberate one-word errors detected/located in 18 functions (18 fixture, 15 natural); the two unbound entries inject no error.
+Rate criterion FAIL: 7490 s = 2.080556 lane-hours (6595b1ae5 at 11:20:12 to evidence 85cb9df19 at 13:25:02 UTC); 1821 bytes = 0.875247 KB/h, baseline 1.1, target 11.
+Even all 3234 selected bytes would give 1.554393 KB/h; waits, builds, the interrupted check and both rounds are charged, report-only commits excluded.
+KILL criterion not met: outside signals in 3/20 (15%, writer unknown); float-only differences 0/20. Scope is net neighbourhood changes, not whole-process confinement.
+Final aggregate: 333371 calls; 18285 samples; 18278 compared/exact; 5 outside-change samples; 2 refused receiver/output aliases; no unmutated numeric/boolean differences.
+Game: inplace26-fixture-3 clean (512/512 fixture comparisons exact); inplace26-natural-3 clean; both ref_warnings=0, foreign_exceptions=0, DLL fingerprint 4b38a40e.
+Gate: cargo 7840 passed/0 failed, clippy zero diagnostics, native 48/48, CTest 115/115; owned Rust fmt 1 file/0 diff. Earlier separate focused cargo check was cancelled, not credited.
+Default-off entry bridge preserves incoming/outgoing registers, flags and x87/SSE state; seven synthetic cases cover native cleanup, expected volatile results and nesting.
+Ground-line input repair in the reused Rust adapter removes the remaining boolean mismatch; SPEC-GAP derives section 3.2 lines from cached corners because their native word order is unpublished.
+Adapters: 20 entry lines + shared 29-line packet map + 3-line callback + 11 Rust input lines = 63; machine-state bridge 139 lines. Missing production algorithms: none, implementation time 0 h.
+Not qualified: fixed/world-view/box-rectangle have neighbour signals; clip3 aliases are refused; rotation/visible-edges fail closed on entry encoding. All other rejected candidates and reasons are in rejected.md.
+Capture compares containing writable private committed regions (64 MiB cap); misses undone writes, unrelated allocations/image globals and active stack frames; concurrent changes have unknown attribution.
+Outside signals suppress replay/restoration; original native state remains installed. Receiver/input windows are never written back. All switches remain off by default.
+Initial fixture-1 corrupt and bridge-only round-2 mismatches remain historical, separate evidence; final-source acceptance pools all natural and fixture observations, including the mutation run's natural calls.
+Evidence mirrored in build-runs/spike-evidence/ and committed engine/tests/spike-evidence/spike-inplace26/; verify-observations.py checks counters/locations, metrics-final.py recomputes rates.
+A further experiment would need attributed/allocation-complete write observation, alias coverage, two missing bindings and a broader/larger-body cohort with cached builds; this cohort cannot establish UI/audio throughput.
+Next: coordinator decides whether S3 merits further investigation; no engine coverage credit is claimed.
