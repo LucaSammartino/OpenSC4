@@ -266,7 +266,7 @@ function ParseRequest([string]$root, [string]$file) {
     if ($q.region -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._()-]*$' -or $q.region.EndsWith('.') -or $q.region.EndsWith(' ')) { $q.error = (& $ln "region") + "region '$($q.region)': use one folder name"; $q.errLine = [int]$q.at["region"]; return $q }
     $docsRegion = Join-Path $DocsRegions $q.region
     if (-not (Test-Path -LiteralPath $docsRegion -PathType Container)) { $q.error = (& $ln "region") + "region '$($q.region)': no such region"; $q.errLine = [int]$q.at["region"]; return $q }
-    if ($q.city -notmatch '^[A-Za-z0-9 ._()-]+$' -or -not (Test-Path -LiteralPath (Join-Path $docsRegion "City - $($q.city).sc4"))) { $q.error = (& $ln "city") + "city '$($q.city)': no such city in region '$($q.region)'"; $q.errLine = [int]$q.at["city"]; return $q }
+    if ($q.city -notmatch '^[A-Za-z0-9 ._()''-]+$' -or -not (Test-Path -LiteralPath (Join-Path $docsRegion "City - $($q.city).sc4"))) { $q.error = (& $ln "city") + "city '$($q.city)': no such city in region '$($q.region)'"; $q.errLine = [int]$q.at["city"]; return $q }
     $rp = RequestPath $root $q.dll
     if ($rp[1]) { $q.error = (& $ln "dll") + "dll '$($q.dll)': $($rp[1])"; $q.errLine = [int]$q.at["dll"]; return $q }
     $dllFull = $rp[0]

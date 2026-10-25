@@ -354,7 +354,7 @@ $dllHash = if (Test-Path -LiteralPath $stagedDll) { (Get-FileHash -Algorithm SHA
 # The ini: the caller's text, the city, the autotest defaults, the turbo / end-date switches.
 $text = $Ini
 if ($City) {
-    if ($City -notmatch '^[A-Za-z0-9 ._()-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
+    if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
     $cityFile = Join-Path $CityDir "City - $City.sc4"
     if (-not (Test-Path -LiteralPath $cityFile)) { Write-Output "BAD ARGS: no city file $cityFile"; exit 4 }
     $text = ($text -replace '(?m)^[ \t]*autoload_city[ \t]*=.*$', '') + "`nautoload_city = $cityFile"

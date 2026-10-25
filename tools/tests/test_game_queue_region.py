@@ -19,6 +19,7 @@ class QueueRegionTests(unittest.TestCase):
                 directory.mkdir(parents=True)
                 (directory / 'City - New City (55).sc4').touch()
                 (directory / 'City - Konradshohe.sc4').touch()
+                (directory / "City - Foster's Pass.sc4").touch()
             dll = root / 'engine/build-x86/FreeCity4.dll'
             dll.parent.mkdir(parents=True)
             dll.touch()
@@ -41,6 +42,7 @@ class QueueRegionTests(unittest.TestCase):
         self.assertEqual(other['region'], 'San Francisco')
         self.assertTrue(other['peekParallel'])
         self.assertEqual(other['parallel'], '1')
+        self.assertIsNone(self.parse("region = San Francisco\ncity = Foster's Pass")['error'])
 
     def test_regions_cannot_escape_and_errors_name_the_region(self):
         for region in ('../elsewhere', 'C:/elsewhere', '.', 'San Francisco.', 'Missing'):

@@ -39,7 +39,7 @@ def game_date(value):
 
 
 def folder_name(value):
-    if (not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._()-]*', value)
+    if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._()'-]*", value)
             or value.endswith(('.', ' '))):
         raise ValueError(f'expected one region/city name: {value!r}')
     return value
@@ -120,7 +120,7 @@ def extras(values):
         if not match or any(ord(c) < 32 for c in value):
             raise ValueError(f'expected a single key = value: {value!r}')
         key, setting = match[1], match[2].strip()
-        if key in ('label', 'dll', 'region', 'city', 'end_date', 'autoload_city', 'script', 'fixture_city'):
+        if key in ('label', 'dll', 'region', 'city', 'end_date', 'autoload_city', 'script', 'lua_script', 'fixture_city', 'close_dialogs'):
             raise ValueError(f'{key} is selected by the scenario/runner')
         result[key] = setting
     return result
@@ -163,12 +163,15 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
         request = dict(label=label, dll=staged.relative_to(root).as_posix(),
                        region=row['region'], city=row['city'], seconds='750',
                        timeout='900', end_date=row['end'], turbo='1', parallel='1')
-        ini = dict(base_ini, autotest_unpause='2', autotest_end='quit', popup_dialogs='0')
+        ini = dict(base_ini, autotest_unpause='2', autotest_end='quit', popup_dialogs='0', close_dialogs='1')
+        if load_only(row):
+            request.update(seconds='12', timeout='180', turbo='0')
+            del request['end_date']
         if source_script:
             script = directory / 'scripts' / (row['name'] + source_script.suffix)
             script.parent.mkdir(exist_ok=True)
             shutil.copy2(source_script, script)
-            ini['script'] = script.relative_to(root).as_posix()
+            ini['lua_script' if script.suffix.lower() == '.lua' else 'script'] = script.relative_to(root).as_posix()
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         text = '\n'.join(f'{k} = {v}' for k, v in request.items()) + '\n[ini]\n'
@@ -211,7 +214,11 @@ def aggregate_counts(body):
     return (int(match[1]), int(match[2])) if match else None
 
 
-def parse_log(text, end, verdict_text=''):
+def load_only(row):
+    return bool(re.search(r'\bload-only\b', row.get('notes', ''), re.I))
+
+
+def parse_log(text, end, verdict_text='', *, only_load=False):
     """Count comparison evidence, excluding switches, empty files and duplicate totals.
 
     Keep *all* shadow summaries verbatim in the JSON evidence. Aggregate-only
@@ -222,13 +229,16 @@ def parse_log(text, end, verdict_text=''):
                   shadow_lines=0, shadow_exact_lines=0, worst_shadow='-',
                   compare_exact=0, compare_different=0, reach_functions='-',
                   per_key={}, action_lines=[], shadow_records=[], shadow_summaries=[], shadow_payloads=[],
-                  inplace_lines=[], reach_lines=[])
+                  inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
+                  only_load=only_load)
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
     parse_errors = 0
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
+        if re.search(r'\bmemory\b|address.space|largest.free|out.of.memory', body, re.I):
+            result['memory_lines'].append(dict(line=line_no, text=body))
         if 'AUTOTEST VERDICT:' in body:
             verdict_line = body
         reached = re.search(r'end date (\d{4}-\d\d-\d\d) reached', body)
@@ -300,6 +310,16 @@ def parse_log(text, end, verdict_text=''):
     speed = re.search(r'\bdays_per_second=([0-9.]+)', verdict_line)
     if speed:
         result['days_per_second'] = speed[1]
+    if only_load:
+        result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
+    elif speed and float(speed[1]) == 0:
+        result['invalid_reason'] = 'game date did not advance (days_per_second=0)'
+        if result['verdict'] == 'clean':
+            result['verdict'] = 'invalid'
+        result['end_reached'] = '0'
+    elif result['verdict'] == 'clean' and result['end_reached'] != '1':
+        result['invalid_reason'] = 'end date not reached'
+        result['verdict'] = 'invalid'
     result['action_lines'] = [a[1] for a in actions.values()]
     result['actions_ok'] = sum(a[0] for a in actions.values())
     result['actions_failed'] = len(actions) - result['actions_ok'] + parse_errors
@@ -359,7 +379,8 @@ def wait_for_batch(root, directory, manifest, wait_seconds):
                 if source_log.is_file():
                     shutil.copy2(source_log, log)
                 text = log.read_text(encoding='utf-8-sig', errors='replace') if log.exists() else ''
-                parsed = parse_log(text, request['scenario']['end'], verdict_text)
+                parsed = parse_log(text, request['scenario']['end'], verdict_text,
+                                   only_load=load_only(request['scenario']))
                 if request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
                     parsed['actions_pending'] = 1  # requested script produced no execution evidence
                 parsed['log'] = str(log) if log.exists() else '-'

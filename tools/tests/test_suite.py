@@ -69,6 +69,20 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertTrue(suite.successful({'case': result}))
         self.assertEqual(result['worst_shadow'], 'terrain:1/1')
 
+    def test_frozen_clock_and_short_windows_fail_but_explicit_load_only_passes(self):
+        text = ('memory: address space 968/2047 MiB; largest free 624 MiB\n'
+                'AUTOTEST VERDICT: clean (date=2000-01-01, real_seconds=1800, days_per_second=0.00)\n')
+        frozen = suite.parse_log(text, '2000-01-01')
+        self.assertEqual(frozen['verdict'], 'invalid')
+        self.assertEqual(frozen['end_reached'], '0')
+        self.assertIn('did not advance', frozen['invalid_reason'])
+        self.assertEqual(len(frozen['memory_lines']), 1)
+        self.assertFalse(suite.successful({'frozen': frozen}))
+        loaded = suite.parse_log(text, '2000-01-01', only_load=True)
+        self.assertTrue(suite.successful({'load': loaded}))
+        short = suite.parse_log(text.replace('0.00', '2.00'), '2000-04-01')
+        self.assertEqual(short['verdict'], 'invalid')
+
     def test_profiles_follow_regress_defaults(self):
         shadows = suite.profile_ini(ROOT, 'shadows')
         self.assertEqual(shadows['traffic_shadow_hypotheses'], '7')
@@ -85,11 +99,19 @@ class SuiteParsingTests(unittest.TestCase):
 
     def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
-        self.assertGreaterEqual(len(rows), 19)
+        self.assertEqual(len(rows), 108)
         self.assertEqual(len(suite.read_scenarios(ROOT, 'smoke')), 6)
-        self.assertEqual({r['region'] for r in rows}, {'Berlin', 'London', 'Timbuktu', 'New York', 'San Francisco'})
+        self.assertEqual({r['region'] for r in rows}, {'Berlin', 'London', 'Timbuktu', 'Maxisland', 'Paradis'})
+        self.assertEqual(sum(r['region'] == 'Maxisland' for r in rows), 44)
+        self.assertEqual(sum(r['region'] == 'Paradis' for r in rows), 47)
+        self.assertTrue({'maxisland-west-weburg', 'maxisland-san-indersty', 'maxisland-simicon-valley', 'paradis-mitras'}
+                        <= {r['name'] for r in suite.read_scenarios(ROOT, 'smoke')})
         self.assertTrue({'empty-small', 'empty-medium', 'empty-large'} <= {r['name'] for r in rows})
         for row in rows:
+            if suite.load_only(row):
+                self.assertIn(row['name'], ('berlin-tempelhof', 'berlin-schonerlinde'))
+                self.assertEqual(row['script'], '-')
+                continue
             lines = [line.split() for line in (ROOT / row['script']).read_text().splitlines()
                      if line and not line.startswith('#')]
             actions = {line[1] for line in lines}
@@ -100,6 +122,21 @@ class SuiteParsingTests(unittest.TestCase):
             start, end = date.fromisoformat(lines[0][0]), date.fromisoformat(row['end'])
             self.assertLessEqual((end - start).days, 92)
             self.assertTrue(all(date.fromisoformat(line[0]) < end for line in lines))
+
+    def test_lua_script_and_load_only_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            (root / 'actions.lua').write_text('print("fixture")\n', encoding='utf-8')
+            row.update(script='actions.lua')
+            loaded = dict(row, name='load', script='-', notes='load-only; unfounded city')
+            directory, manifest = suite.make_batch(root, [row, loaded], 'plain', str(root), 'lua')
+            lua, load = [r['request'] for r in manifest['requests']]
+            self.assertIn('lua_script = build-runs/suite/lua/scripts/case.one.lua', lua)
+            self.assertNotIn('\nscript =', lua)
+            self.assertTrue(all('close_dialogs = 1' in r['request'] for r in manifest['requests']))
+            self.assertIn('seconds = 12', load)
+            self.assertNotIn('end_date =', load)
 
 
 class SuiteQueueTests(unittest.TestCase):

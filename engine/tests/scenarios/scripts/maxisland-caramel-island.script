@@ -1,0 +1,32 @@
+# Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
+# Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
+# Dates follow the shipped save; end is 90 days after the first action.
+2037-09-06 mark maxisland-caramel-island: begin local build patch
+2037-09-06 speed 0
+2037-09-07 terrain 4 4 54 54 280 1
+2037-09-08 dezone 4 4 54 54
+2037-09-09 network 4 14 52 14 0
+2037-09-09 network 4 28 28 28 3
+2037-09-09 network 32 4 32 50 6
+2037-09-09 network 4 46 52 46 1
+2037-09-09 network 4 16 52 16 4
+2037-09-09 network 4 18 52 18 5
+2037-09-10 zone 6 6 9 9 1
+2037-09-10 zone 12 6 15 9 2
+2037-09-10 zone 18 6 21 9 3
+2037-09-10 zone 6 20 9 23 4
+2037-09-10 zone 12 20 15 23 5
+2037-09-10 zone 18 20 21 23 6
+2037-09-10 zone 6 32 9 35 7
+2037-09-10 zone 12 32 15 35 8
+2037-09-10 zone 18 32 21 35 9
+2037-09-11 clockmode 1
+2037-09-12 speed 1
+2037-09-13 pricezone 38 20 41 23 4
+2037-09-16 disaster fire auto
+2037-09-18 disaster riot auto
+2037-09-20 clockmode 0
+2037-09-21 speed 2
+2037-09-26 save
+2037-09-27 digest
+2037-09-28 mark maxisland-caramel-island: script complete
