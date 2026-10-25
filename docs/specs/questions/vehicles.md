@@ -4,13 +4,17 @@
 <!-- from: re-vehicles (2026-10-21) -->
 - **VH1 - §3, §5, §6:** the U-Drive-It physics of the vehicle, train and tank (`DoPlayerDriveTick`,
   `PlayerDriveUpdateSpeed`, the derail draw, the tank shot) in full. [as read]
-  Remaining evidence needed: instruction-verified throttle/steering tween equations,
-  on-network versus off-road displacement and collision ordering, train curve/derail
-  probability with its exact random range and comparison, and tank targeting,
-  projectile effect/damage parameters and firing cooldown. Existing outlines do not
-  specify those algorithms. Locate the named tick/command functions and
-  PlayerDriveCheckForDerail in the export before examining their numeric branches.
-  No physics closure is claimed by the route-speed factors.
+  **2026-10-25 narrowing (re-vehicles-vh21):** vehicles.md §§12.10, 12.12 and
+  12.13 now specify command/steering accumulation, signed speed/grade/tween rules,
+  Train overspeed/cache/braking and fixed-threshold derail draws, plus Tank
+  shot-effect attributes, the missing f32 power×0.01 scale and channel-7 cooldown.
+  Remaining evidence needed: finish the instruction audit of on-network versus
+  off-road displacement, substep/junction selection and collision ordering in
+  Vehicle `0x005603F0/0x0055ED10` and Train `0x005591A0`; finish Tank aiming,
+  elevation/power adjustment and sound thresholds in `0x0054B030/0x0054AAE0`;
+  identify the shot-effect asset's damage consumer. The owner firing routine
+  itself makes no direct occupant-damage call. VH1 remains open for these
+  details; no full physics closure is claimed.
 
 <!-- from: core-vehicles5 (2026-10-23) -->
 - **VH7 - §2/§3, automata.md §6.3/§6.5: route representation and geometry.**
