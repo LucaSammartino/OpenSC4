@@ -24,6 +24,23 @@ pub struct ConfigurationFields {
     pub foundation_slope: f32,
 }
 
+/// Owned Load result for a replacement configuration. The host projects the
+/// objects into mutable game-vector storage; it never owns native configurations.
+#[derive(Clone, Debug)]
+pub struct LotConfiguration {
+    pub fields: ConfigurationFields,
+    pub objects: Vec<LotConfigObject>,
+}
+
+impl LotConfiguration {
+    pub fn load(h: &PropertyHolder, detail: u32, serial: &mut u32) -> Option<Self> {
+        Some(Self {
+            fields: configuration_fields(h)?,
+            objects: configuration_objects(h, detail, serial),
+        })
+    }
+}
+
 // §3.2 byte-vector helpers copy count bytes, even from wider storage.
 // Scalars have no array data (EX39). No numeric widening here.
 fn byte_vector(h: &PropertyHolder, id: u32) -> Vec<u8> {
@@ -63,11 +80,7 @@ pub fn configuration_fields(h: &PropertyHolder) -> Option<ConfigurationFields> {
         return None;
     }
     let size = byte_vector(h, 0x88ED_C790);
-    let (width, depth) = if size.len() >= 2 {
-        (size[0], size[1])
-    } else {
-        (0, 0)
-    };
+    let (width, depth) = if size.len() >= 2 { (size[0], size[1]) } else { (0, 0) };
     Some(ConfigurationFields {
         width: width.into(),
         depth: depth.into(),

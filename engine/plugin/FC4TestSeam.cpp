@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4TestSeam.h"
+#include "cFC4LotConfiguration.h"
 #include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
 #include "FC4OrdinanceShadow.h"
@@ -279,6 +280,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b)));
         case kFC4SeamConstructionCapture:
             return fc4::ConstructionCaptureTest(static_cast<cIGZUnknown*>(a));
+        case kFC4SeamLotConfigurationCreate:
+            return reinterpret_cast<intptr_t>(CreateFC4LotConfiguration());
         default:
             return 0;
     }

@@ -314,6 +314,7 @@ enum : uint32_t {
     kFC4SeamOrdinanceShadow = 72,  // a = borrowed cISC4OrdinanceSimulator*, capture/step copies only
     kFC4SeamAutomataCapture = 73,  // a = reference-only writer, b = requested IID
     kFC4SeamConstructionCapture = 74,  // a = construction writer; 1 exact, 0 mismatch, -1 capture failed
+    kFC4SeamLotConfigurationCreate = 75,  // returns the manager's own created reference (not GZCOM).
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -4,12 +4,18 @@
 //! Layout, input, painting and foreign service orchestration are separate modules.
 //! No plugin or ABI uses this owner.
 pub mod adapters;
+pub mod composition;
+pub mod conversion;
 pub mod edits;
 pub mod encoding;
+pub mod history;
 pub mod input;
 pub mod layout;
 pub mod paint;
 pub mod runtime;
+
+#[cfg(test)]
+mod encoding_tests;
 
 use super::{Handle, Result, Unsupported};
 use encoding::Encoding;
@@ -41,13 +47,25 @@ pub enum Repair {
     AutomaticBars,
 }
 
-/// Only the individually specified foreign conversion/composition primitives.
-/// The erase/keep/previous-character loop remains in the owner below.
-pub trait TextForeign {
-    fn previous_utf16(&mut self, context: &[u8], index: u32, selector: i32) -> u32;
-    fn decode_utf16(&mut self, bytes: &[u8], selector: i32) -> (u32, usize);
-    fn thai_level(&mut self, current: u16, previous: u16, argument: u32) -> u32;
-    fn composed_length(&mut self, bytes: &[u8], selector: i32) -> usize;
+/// Only code-page tables and controlled memory/services remain foreign. The
+/// defaults implement TE5; fixtures may instrument individual helper calls.
+pub trait TextForeign: conversion::CodePages {
+    fn previous_utf16(&mut self, context: &[u8], index: u32, selector: i32) -> u32 {
+        let mut count = index as usize;
+        conversion::previous_character(&context[..count], &mut count, selector, self)
+            .expect("TE5 previous-character valid-call domain") as u32
+    }
+    fn decode_utf16(&mut self, bytes: &[u8], selector: i32) -> (u32, usize) {
+        let mut count = bytes.len();
+        let word = conversion::character(bytes, &mut count, selector, self).expect("TE5 character valid-call domain");
+        (word as u32, count)
+    }
+    fn thai_level(&mut self, current: u16, previous: u16, argument: u32) -> u32 {
+        composition::thai_level(current, previous, argument as u16)
+    }
+    fn composed_length(&mut self, bytes: &[u8], selector: i32) -> usize {
+        composition::forward(bytes, bytes.len(), selector, self).expect("TE5 composed-character valid-call domain")
+    }
     fn correction(&mut self, reason: u32);
     fn invalidate(&mut self, window: Handle);
     fn notify(&mut self, text_view: Handle, kind: u32);
@@ -73,8 +91,8 @@ pub struct TextEdit {
     pub encoding: Encoding,
     pub maximum: u32,
     pub history_limit: u32,
-    pub undo: Vec<Action>,
-    pub redo: Vec<Action>,
+    pub undo: history::History,
+    pub redo: history::History,
     pub preferred_x: u32,
     pub pending: Vec<u8>,
     /// W+0x144 is a separate constructed string; no semantic name is specified.
@@ -90,9 +108,11 @@ pub struct TextEdit {
 }
 
 impl TextEdit {
-    /// Max-undo and preferred-X constructor defaults are not assigned in the
-    /// incorporated contract. Require resolved values, rather than inventing
-    /// native constructor defaults (TE9).
+    pub fn new(window: Handle, text_view: Handle, flags: u32, encoding: Encoding) -> Self {
+        Self::with_resolved_defaults(window, text_view, flags, encoding, 0x4000, u32::MAX)
+    }
+
+    /// Explicit overrides retained for byte-stage fixtures and saved state.
     pub fn with_resolved_defaults(
         window: Handle,
         text_view: Handle,
@@ -111,8 +131,8 @@ impl TextEdit {
             encoding,
             maximum: u32::MAX,
             history_limit,
-            undo: Vec::new(),
-            redo: Vec::new(),
+            undo: history::History::default(),
+            redo: history::History::default(),
             preferred_x,
             pending: Vec::new(),
             auxiliary: b"-".to_vec(),
@@ -254,7 +274,7 @@ impl TextEdit {
         Ok(())
     }
 
-    /// String overload, not the unresolved lib::_strncpy buffer adapter.
+    /// String overload; the fixed-count buffer overload also preserves NUL padding.
     pub fn remove_bad_characters(&self, candidate: &mut Vec<u8>) -> Result<usize> {
         if self.flags & 0x200 == 0 {
             return Ok(0);

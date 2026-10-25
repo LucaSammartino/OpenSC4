@@ -6,6 +6,20 @@ struct Deferred<'a, H> {
     host: &'a mut H,
     invalidations: Vec<Handle>,
 }
+impl<H: TextHost> conversion::CodePages for Deferred<'_, H> {
+    fn system_code_page(&mut self) -> i32 {
+        self.host.system_code_page()
+    }
+    fn multi_byte_to_wide(&mut self, p: i32, flags: u32, s: &[u8], d: &mut [u16]) -> usize {
+        self.host.multi_byte_to_wide(p, flags, s, d)
+    }
+    fn wide_to_multi_byte(&mut self, p: i32, flags: u32, s: &[u16], d: &mut [u8], default: u8) -> usize {
+        self.host.wide_to_multi_byte(p, flags, s, d, default)
+    }
+    fn composition_tail(&mut self) -> u16 {
+        self.host.composition_tail()
+    }
+}
 impl<H: TextHost> TextForeign for Deferred<'_, H> {
     fn previous_utf16(&mut self, c: &[u8], i: u32, s: i32) -> u32 {
         self.host.previous_utf16(c, i, s)

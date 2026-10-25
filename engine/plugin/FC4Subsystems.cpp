@@ -625,6 +625,9 @@ const Subsystem kSubsystems[] = {
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
     // Partial occupant replacement: the power pole and power line.
     {"netocc", nullptr, kNetOccClasses, sizeof(kNetOccClasses) / sizeof(kNetOccClasses[0]), false},
+    // network-rules.md section 2.4.3: the rule owners have no factory/IID.
+    // Select the existing manager/tool hosts below, never invent class IDs.
+    {"netrules", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -679,6 +682,12 @@ void Resolve() {
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
     const char* enableSource = "";
     const std::string enable = Lower(Setting("enable", "FC4_ENABLE", &enableSource));
+    const bool rulesRequested = ListContains(enable, "netrules") && !ListContains(disable, "netrules");
+    const bool rulesBlocked = ListContains(disable, "netmgr") || ListContains(disable, "nettool");
+    const bool rulesHosted = rulesRequested && !rulesBlocked;
+    if (rulesRequested && rulesBlocked) {
+        Log("netrules: inactive; disable=netmgr/nettool vetoes the required replacement host");
+    }
     // SPEC-GAP: lot-records §13 does not settle the live lot's full ABI (e.g.
     // GetLandValue's return channel). Keep the native factory until it does.
     if (ListContains(enable, "lotrec"))
@@ -693,6 +702,12 @@ void Resolve() {
             continue;
         }
         if (!s.defaultOn && !ListContains(enable, s.key)) {
+        const bool ruleHost = rulesHosted && (strcmp(s.key, "netmgr") == 0 || strcmp(s.key, "nettool") == 0);
+        if (strcmp(s.key, "netrules") == 0 && rulesRequested && rulesBlocked) {
+            g_enabled[i] = false;
+            continue;
+        }
+        if (!s.defaultOn && !ListContains(enable, s.key) && !ruleHost) {
             // Off by default and not enabled: not "disabled" (the lists and the
             // autotest verdict stay as without this subsystem).
             g_enabled[i] = false;
@@ -713,6 +728,10 @@ void Resolve() {
         }
         if (off) {
             Log("subsystem '%s': DISABLED by %s; the original classes are used", s.key, why);
+        } else if (strcmp(s.key, "netrules") == 0) {
+            Log("netrules: enabled through netmgr/nettool; Rust tile-rule solver, no standalone class registrations");
+            // SPEC-GAP: section 2.4.3 does not specify the puzzle-piece catalogue command host.
+            Log("netrules: partial replacement; original puzzle-piece catalogue is not hosted");
         } else {
             Log("subsystem '%s': enabled (%u class%s replaced)%s", s.key, static_cast<unsigned>(s.classCount),
                 s.classCount == 1 ? "" : "es",

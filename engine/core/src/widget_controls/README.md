@@ -6,9 +6,9 @@ pixel or shadow comparison is claimed.
 
 ## Owner closure
 
-Grid implements the settled owner specification. TextEdit, FileBrowser and
-TreeView have the explicit question boundaries below and are not credited as
-fully implemented owners. Public fields supply the thin stored-state accessors.
+Grid and TextEdit implement their settled owner specifications. FileBrowser
+and TreeView retain the explicit boundaries below. Public fields supply the
+thin stored-state accessors.
 Byte-stage TextEdit fixture entries remain available alongside live methods.
 
 ### cGZWinGrid
@@ -50,34 +50,39 @@ Shutdown calls, then drops storage; external allocators may use Grid::release.
 
 | Spec section | Code item | Tests / open contract |
 |---|---|---|
-| text-edit 1 identity/defaults | with_resolved_defaults, query_interface, Runtime | selection/resource tests; open: TE9/TE10 unspecified defaults |
+| text-edit 1 identity/defaults | new, with_resolved_defaults, query_interface, Runtime::with_sound_words | te9_history_limit_and_preferred_x; te10_fresh_runtime_defaults; te10_construction_preserves_sound_words; resource tests |
 | 2 text replacement | live set_text, retained/maximum helpers | set-text/multibyte tests |
 | 3 selection/overwrite | set_selection, set_insert_mode | reversed/unsigned selection test |
 | 4 character/replacement | live character/key queries, insert_text | live-character/output and overwrite/LF tests |
 | 5 caret/timers | toggle/show/start/stop/callback | runtime caret/resource test |
-| 6 raw/history | live raw edits, owned Action storage/replay | raw-domain/history/undo tests; open: TE8 allocation/unwind |
-| 7 keys/clipboard | key_down/up, copy/paste/delete/navigation | runtime clipboard and preferred-X tests; TE5 foreign primitives supplied |
-| 8 layout/view | line fitting, metrics, bars, scrolling, view | runtime layout/scroll/threshold/failure tests; open: TE11 shared recursion threshold |
-| 9 drawing | mask, selection, float caret widths, image thirds/bar strips | runtime paint/password and exact-height/background tests; open: TE12 mode polarity |
-| 10 mouse/messages/lifetime | runtime/input owner methods | resource/flag and double-click tests; TE8 foreign outcomes remain bounded inputs |
-| 11 conformance | byte tests and runtime_tests.rs | focused suite covers settled vectors including aliased outputs, password mixed coordinates and preferred X |
-| 12 inventory/limits | Rust storage and bounded host operations | open: TE5/TE8 parked helpers, TE9-TE12 |
+| 6 raw/history | live raw edits, History::append_with, Action storage/replay | raw-domain/history/undo tests; te8_history_growth_capacity_copy_ownership_commit_order; te8_history_stopped_second_copy_keeps_old_and_leaks_prefix; te8_spare_capacity_stop_and_null_allocation_are_not_empty_history |
+| 7 keys/clipboard | key_down/up, copy/paste/delete/navigation, composed lengths | runtime clipboard and preferred-X tests; te5_utf8_base_and_decoration_both_directions |
+| 8 layout/view | line fitting, metrics, bars, scrolling, ReflowCounter | runtime layout/scroll/threshold/failure tests; te11_nested_editor_still_lays_out_without_automatic_check; te11_signed_threshold_and_nonreturning_check |
+| 9 drawing | mask, selection, float caret widths, direct/edge source rectangles and mode | runtime paint/password tests; te12_direct_and_edge_source_destination_mode |
+| 10 mouse/messages/lifetime | runtime/input owner methods; explicit service inputs | resource/flag and double-click tests; threshold/bar-failure and clipboard tests |
+| 11 conformance | tests.rs, runtime_tests.rs, closure_tests.rs, encoding_tests.rs | original vectors plus constructor/reflow/image, TE8 65-71 and conversion/composition distinguishing vectors |
+| 12 inventory/limits | portable owned storage, exact helpers and bounded host services | all TextEdit rows here; TE5/TE8/TE9-TE12 answered contracts covered by closure_tests.rs and encoding_tests.rs |
 | encoding: lengths/counts/pending | Encoding helpers | malformed/DBCS and pending vectors 45-49 |
 | adapters: text/state | adapters.rs, copy_bytes, borrowed getters, ordered WordOutputs | live-character/output tests (no NUL, alias writes); state repair test |
 | adapters: insertion repair | line/count/index/fix methods | asymmetric repair/coherent span test |
 | adapters: periods/sound/lifecycle | runtime methods, exact-height SetHeight | caret/resource and exact-height tests |
-| adapters: filtering/composition | filtering and erase/previous-value loop | composition test; open: TE5 conversion and TE8 strncpy boundary |
+| encoding: conversion/UTF16 | conversion::convert, character, previous_character, CodePages | te5_same_buffer_*; te5_invalid_utf8_preserves_prefix; te5_utf8_*; te5_encoder_*; te5_two_stage_prefix_is_not_rolled_back; te5_character_adapter_count_and_ascii_shortcuts |
+| encoding: Thai/composed lengths | composition::thai_class, thai_level, thai_group, forward, backward; TextForeign defaults | te5_thai_*; te5_fourth_word_is_read_with_count_three; te5_sara_am_forward_backward_asymmetry; te5_utf8_base_and_decoration_both_directions |
+| adapters: filtering/composition | filter_buffer, fixed_copy, fix_composition | te8_filter_fixed_count_nul_padding; te5_thai_below_mark_context; composition erase/previous-value test |
 | adapters: flags/images/colors | setters and borrowed getters | runtime resource/flag/converted-slot tests |
-| adapters: scroll/search | scroll endpoints and search primitive | runtime layout/scroll; open: TE8 search edges |
+| adapters: scroll/search | scroll endpoints, adapters::search, find_text | runtime layout/scroll; te8_reverse_search_keeps_overlapping_matches; te8_forward_search_from_interior; te8_empty_forward_search_owner_rejects_end; te8_empty_reverse_search_owner_rejects_end |
 | layout: coordinates/spans | step, word_step, byte/pixel metrics | coordinate/word and runtime span tests |
 | layout: offsets/bars/caret | bar methods and insertion_in_view | layout/scroll and threshold/bar-failure tests |
 | layout: word/page/arrow | select_word and vertical key routes | selection-extension/preferred-X tests |
 | widget-controls 3/7 | same owner and incorporated tests | rows above |
 
-TE9 requires resolved history/preferred-X defaults. TE10 runtime zeros are
-explicit provisional placeholders, not native constructor facts. TE11 uses
-a shared one-active reflow guard with exception-safe reset. TE12 uses a
-provisional false=direct/true=edge background mode; no pixel claim is made.
+TextEdit's answered TE5/TE8/TE9-TE12 contracts are implemented. Sound words
+have an explicit portable zero substitute or caller-supplied constructor
+storage; native construction leaves them uninitialized. Windows code-page
+tables, the uninitialized fourth composition word, fonts, bars, timer and
+clipboard outcomes remain controlled service/memory inputs. Native invalid
+allocation and nonreturning-copy states are modeled without unsafe reads or
+rollback promises. No font rasterization or in-game pixel equality is claimed.
 
 ### cGZWinFileBrowser
 
