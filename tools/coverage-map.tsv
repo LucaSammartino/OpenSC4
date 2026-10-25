@@ -557,6 +557,8 @@ cSC4CreditsWinProc	windows and panels	ui	small-windows.md	-	-	-
 cSC4TimeDisplayMiniWindowWinProc	windows and panels	ui	small-windows.md	-	-	-
 cSC4PanelUIWinProc	windows and panels	ui	small-windows.md	-	-	-
 cSC4SituationUIImageWinProc	windows and panels	ui	advisor-face.md	-	-	-
+cSC4LegendDialogWinProc	windows and panels	ui	widget-misc2.md	-	-	-
+cSC4QueryDialogWinProc	windows and panels	ui	city-tools-input.md, widget-misc2.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
@@ -598,6 +600,7 @@ cSC4ProgressScreen	windows and panels	ui	-	-	-	-
 cSC4CatalogItem	windows and panels	ui	catalog-view.md	-	-	-
 nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
+fn:SC4DoPopupStringListMenu	windows and panels	ui	widget-misc2.md	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinTextEdit	widget toolkit	ui	widget-controls.md	-	-	-
@@ -918,10 +921,10 @@ cDumpSubTreeVisitor	tree diagnostics	framework	-	-	-	-
 cWinBMPViewGVExtra	windows and panels	ui	picture-view.md, snapshots.md	-	-	-
 cSTEChangeTerrainUI	city tools and input	ui	-	-	-	-
 (anonymous_namespace)::cParser	network rules	simulation	-	-	-	-
-nsGZWinUtils	widget toolkit	ui	-	-	-	-
+nsGZWinUtils	widget toolkit	ui	widget-misc2.md	-	-	-
 RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
 nsTexUtil	3D scene and models	renderer	-	-	-	-
-MiscGraphTextInfo	widget toolkit	ui	-	-	-	-
+MiscGraphTextInfo	widget toolkit	ui	widget-misc2.md	-	-	-
 SCLuaTableRef	Lua host	framework	-	-	-	-
 cSourceFileDebugInfo	audio	audio	-	-	-	-
 tControllerTime	automata (managers, records)	simulation	-	-	-	-
@@ -931,18 +934,18 @@ LinearRandomIterator	occupants and props	simulation	-	-	-	-
 MatrixRow	widget toolkit	ui	-	-	-	-
 FerryStationInformation	network manager	simulation	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-	-	-	-
-MiscGraphPicture	widget toolkit	ui	-	-	-	-
+MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
 cGXCOMDirector	2D drawing and fonts	renderer	-	-	-	-
 SFX	audio	audio	-	-	-	-
 SC43DGridElement	3D scene and models	renderer	-	-	-	-
-MiscGraphArrow	widget toolkit	ui	-	-	-	-
+MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
 cTablePropertyReader	advisors	simulation	-	-	-	-
 SC4CellRegion	sim grids	simulation	-	-	-	-
 cTutorialString	tutorial	simulation	-	-	-	-
 BoundaryIterator	sim grids	simulation	-	-	-	-
 tBehaviorTemplate	automata (managers, records)	simulation	-	-	-	-
 cGroup_SC4RH	audio	audio	-	-	-	-
-MiscGraphRect	widget toolkit	ui	-	-	-	-
+MiscGraphRect	widget toolkit	ui	widget-misc2.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
