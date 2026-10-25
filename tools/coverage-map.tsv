@@ -289,6 +289,8 @@ cSC4NewRegionDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4ImportCityDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4EstablishCityWinProc	region	region	region-city-dialogs.md	-	-	-
 cSC4ObliterateCity	region	region	region-city-dialogs.md	-	-	-
+fn:SC4ReadCityRegionViewThumbnailBitmapFile	region	region	sim-misc2.md	-	-	-
+fn:SC4WriteCityRegionViewThumbnailBitmapFile	region	region	regional-city-records.md, sim-misc2.md	-	-	-
 fn:SC4*Region*	region	region	-	-	-	-
 cSTEEdgeReconcileInformMismatch	region	region	foundations.md, sim-misc.md	-	-	-
 cSTEEdgeReconcileInformNoMismatch	region	region	sim-misc.md, modal-dialogs.md	-	-	-
@@ -400,6 +402,10 @@ cS3DResSpriteAnim*	model instances	renderer	model-instances.md	core/src/model_in
 cS3DTransform	model instances	renderer	model-instances.md	core/src/model_instances	-	-
 cS3DBoundingBox	3D scene and models	renderer	sim-misc.md, model-instances.md	-	-	-
 cS3DVertexArray	3D scene and models	renderer	sim-misc.md, model-instances.md	-	-	-
+cS3DRect2D	3D scene and models	renderer	sim-misc2.md	-	-	-
+cS3DVector3	3D scene and models	renderer	sim-misc2.md	-	-	-
+cS3DVector4	3D scene and models	renderer	sim-misc2.md	-	-	-
+cS3DMesh	3D scene and models	renderer	sim-misc2.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43DPlaceableObject	occupants and props	simulation	prop-occupant.md	-	-	-
@@ -936,7 +942,7 @@ SCLuaTableRef	Lua host	framework	-	-	-	-
 cSourceFileDebugInfo	audio	audio	-	-	-	-
 tControllerTime	automata (managers, records)	simulation	-	-	-	-
 cADVString	advisors	simulation	advisors.md, sim-misc.md	-	-	-
-fn:gAdviceMessageBox	advisors	simulation	-	-	-	-
+fn:gAdviceMessageBox	advisors	simulation	sim-misc2.md	-	-	-
 LinearRandomIterator	occupants and props	simulation	lot-developer.md, sim-misc.md	-	-	-
 MatrixRow	widget toolkit	ui	-	-	-	-
 FerryStationInformation	network manager	simulation	sim-misc.md, traffic-network.md	-	-	-
@@ -947,32 +953,32 @@ SFX	audio	audio	-	-	-	-
 SC43DGridElement	3D scene and models	renderer	-	-	-	-
 MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
 cTablePropertyReader	advisors	simulation	sim-misc.md	-	-	-
-SC4CellRegion	sim grids	simulation	-	-	-	-
-cTutorialString	tutorial	simulation	-	-	-	-
-BoundaryIterator	sim grids	simulation	-	-	-	-
-tBehaviorTemplate	automata (managers, records)	simulation	-	-	-	-
+SC4CellRegion	sim grids	simulation	zones.md, sim-misc2.md	-	-	-
+cTutorialString	tutorial	simulation	sim-misc2.md	-	-	-
+BoundaryIterator	sim grids	simulation	sim-misc2.md	-	-	-
+tBehaviorTemplate	automata (managers, records)	simulation	automata.md, sim-misc2.md	-	-	-
 cGroup_SC4RH	audio	audio	-	-	-	-
 MiscGraphRect	widget toolkit	ui	widget-misc2.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
 CookieData	web and network	framework	-	core/src/www	-	-
-ilist	container helpers	framework	-	-	-	-
+ilist	container helpers	framework	sim-misc2.md	-	-	-
 cEaseSound	audio	audio	-	-	-	-
 cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
 ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
-SC4QuadGridQuadrant	3D scene and models	renderer	-	-	-	-
-AnyString	persistence and resources	framework	-	-	-	-
-cAutomataOccupantFilter	automata (managers, records)	simulation	-	-	-	-
+SC4QuadGridQuadrant	3D scene and models	renderer	sim-misc2.md	-	-	-
+AnyString	persistence and resources	framework	sim-misc2.md	-	-	-
+cAutomataOccupantFilter	automata (managers, records)	simulation	occupant-manager.md, sim-misc2.md	-	-	-
 LimitTimer	timers	framework	-	-	-	-
-cPortLot	port developers	simulation	-	-	-	-
-ScanningIterator	sim grids	simulation	-	-	-	-
+cPortLot	port developers	simulation	sim-misc2.md	-	-	-
+ScanningIterator	sim grids	simulation	lot-developer.md, sim-misc2.md	-	-	-
 tCrimePropOccupantFilter	crime	simulation	-	-	-	-
-nsSC4TutorialSystem	tutorial	simulation	-	-	-	-
+nsSC4TutorialSystem	tutorial	simulation	sim-misc2.md	-	-	-
 CacheData	web and network	framework	-	-	-	-
-cISTETerrain::tBrushParameters	terrain	simulation	-	-	-	-
+cISTETerrain::tBrushParameters	terrain	simulation	terrain.md, sim-misc2.md	-	-	-
 cCompletionObj	framework services (GZ)	framework	framework-misc3.md	-	-	-
-cSTEWaterWave	3D scene and models	renderer	-	-	-	-
+cSTEWaterWave	3D scene and models	renderer	sim-misc2.md	-	-	-
 SignalPlatformData	framework services (RZ)	framework	framework-misc3.md	-	-	-
 PieGraphSeriesInfo	widget toolkit	ui	-	-	-	-
 ibasic_string	framework services (GZ)	framework	framework-misc3.md	-	-	-
@@ -990,7 +996,25 @@ cSC4PrimitivePool	other SC4 classes	other	sim-misc.md	-	-	-
 cSC4TrafficSimulator::TrafficSourceIterator	other SC4 classes	other	traffic-simulator.md	-	-	-
 cSC4LotConfigurationIdentityInfo	other SC4 classes	other	lot-configuration-editor.md, sim-misc.md	-	-	-
 cSC4TrafficSimulator::TransitSwitch	other SC4 classes	other	sim-misc.md	-	-	-
+cSC4SafeListIterator	other SC4 classes	other	traffic-simulator.md, sim-misc2.md	-	-	-
+cSC4QueryAutomatonFilter	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4QueryStoplightFilter	other SC4 classes	other	city-tools-input.md, sim-misc2.md	-	-	-
+cSC4PlaceLotDemolishFilter	other SC4 classes	other	city-tools-input.md, sim-misc2.md	-	-	-
+cSC4BuildingPropFilter	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4LotConfigurationFilter	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4LotConfigurationFilterByBuildingType	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4TractDeveloperLotConfigurationFilter	other SC4 classes	other	tract-developer.md, sim-misc2.md	-	-	-
+cSC4Automaton::TweenStruct	other SC4 classes	other	automata.md, sim-misc2.md	-	-	-
+cSC4PropPlacementProperties	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4PropPlacementPropertiesFactory	other SC4 classes	other	prop-occupant.md, sim-misc2.md	-	-	-
+cSC4GameDataRegistry::cEntry	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4ConfigRule	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4TrafficSimulator::FerryTerminal	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4Blimp	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4AutoFlushInputMessageQueue	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4AutoDisableAppSwitching	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4*	other SC4 classes	other	-	-	-	-
+cSC24BitRGBColorCustomizer	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
 fn:AppendNetworkName	other free functions	other	small-helpers2.md	-	-	-
 fn:ConvertASCIIArrayToBinaryData	other free functions	other	small-helpers2.md	-	-	-
