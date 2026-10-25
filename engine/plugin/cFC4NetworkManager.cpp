@@ -38,6 +38,7 @@
 #include "cRZCOMDllDirector.h"
 
 #include <vector>
+#include <new>
 
 namespace {
 
@@ -199,7 +200,16 @@ cFC4NetworkTool* ToolOf(uint64_t t) {
                : nullptr;
 }
 
-uint64_t CreateTool(void*, uint32_t type) {
+cFC4NetworkTool* NewTool(void* u, uint32_t type) {
+    auto* tool = new (std::nothrow) cFC4NetworkTool(type, NetToolRegistry::Enabled());
+    if (tool == nullptr) return nullptr;
+    // SPEC-GAP: context transport is unspecified; borrow the owning manager's city interface.
+    tool->SetCity(Self(u)->City());
+    tool->SetMessageServer(Self(u)->Server());
+    return tool;
+}
+
+uint64_t CreateTool(void* u, uint32_t type) {
     // §3.1 step 5 / §7.1: the tool is created with one reference for the core
     // (the original's cache holds it; the core's create/release callbacks own
     // it here). The tool starts at 0 like the original's (§7.1: the factory
@@ -207,7 +217,8 @@ uint64_t CreateTool(void*, uint32_t type) {
     // AddRef'ing after the new. glue29: the tool is live (the fc4_nettool
     // core) exactly when the nettool key is on; otherwise the stand-in
     // glue24's runs were verified with.
-    auto* tool = new cFC4NetworkTool(type, NetToolRegistry::Enabled());
+    auto* tool = NewTool(u, type);
+    if (tool == nullptr) return 0;
     tool->AddRef();
     return fc4::TokenOf(static_cast<cIGZUnknown*>(tool));
 }
@@ -374,7 +385,14 @@ bool cFC4NetworkManager::Shutdown() {
 }
 
 void* cFC4NetworkManager::GetNetworkTool(int32_t type, bool unique) {
-    return fc4::FromToken(fc4_netmgr_get_network_tool(core_, static_cast<uint32_t>(type), unique));
+    if (unique) {
+        if (static_cast<uint32_t>(type) >= 13) return nullptr;
+        // network-manager.md 7.1: native callers take the first reference;
+        // the core host's create_tool callback instead owns a cache reference.
+        AcquireCity(&owner_);
+        return static_cast<cIGZUnknown*>(NewTool(&owner_, static_cast<uint32_t>(type)));
+    }
+    return fc4::FromToken(fc4_netmgr_get_network_tool(core_, static_cast<uint32_t>(type), false));
 }
 
 void cFC4NetworkManager::DestroyNetworkOccupants(SC4List<cISC4Occupant*> const& list) {

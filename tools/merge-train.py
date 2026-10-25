@@ -410,6 +410,15 @@ def union_hunks(wt, rel):
         body_o = body_o.split(NL, 1)[1] if NL in body_o else ""
         body_t = body_t.split(NL, 1)[1] if NL in body_t else ""
         sides = (body_o, body_t)
+        if rel.endswith("CMakeLists.txt"):
+            # Two lanes appending an if() block at one spot share the trailing `endif()` as common context,
+            # so each side's hunk is a block body without its close; close ours before theirs follows
+            # (train218 and train221 gated with one endif short).
+            o_lines = body_o.rstrip(NL).split(NL) if body_o.strip() else []
+            opened = sum(1 for ln in o_lines if re.match(r"\s*if\s*\(", ln)) - \
+                sum(1 for ln in o_lines if re.match(r"\s*endif\s*\(", ln))
+            if opened > 0 and body_t.strip():
+                body_o = body_o.rstrip(NL) + NL + NL.join(["endif()"] * opened) + NL + NL
         merged, terms = [], []
         for raw in (body_o, body_t):
             side = raw.splitlines()

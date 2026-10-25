@@ -36,8 +36,11 @@
 // by the ef17_ vectors); feeding it from the game's resource manager is
 // question 1.
 //
-// Layout (§11): cISC4EffectsManager and cIGZUnknown at +0, cIGZMessageTarget2
-// at +4 (the animation tick). A visual effect has cISC4VisualEffect at +0 and
+// Layout (§18): cISC4EffectsManager and cIGZUnknown at +0, the draw-pass
+// sub-object at +4, and cIGZMessageTarget2 at +8 (the animation tick).
+// Native field storage and the collection identity are retained through +0xE00.
+// Unspecified internal-base dispatch is left unexposed.
+// A visual effect has cISC4VisualEffect at +0 and
 // the effect component at +4 (vtable 0x00AA1148) — two sub-objects, so the
 // overlapping method names live on different classes.
 //
@@ -133,6 +136,23 @@ private:
     float secondary_[3] = {0, 0, 0};
 };
 
+// Section 18.2: this identity belongs to the manager, not to an independently
+// reference-counted object. Its native collection fields start at receiver +4.
+class cFC4EffectsCollection final : public cIGZUnknown {
+public:
+    bool QueryInterface(uint32_t iid, void** out) override;
+    uint32_t AddRef() override;
+    uint32_t Release() override;
+    virtual void BeginCollection();
+    virtual void EndCollection();
+
+private:
+    // SPEC-GAP: native publication calls beyond Begin/End are not exposed until
+    // description value construction/copy contracts have an adapter.
+    unsigned char fields_[0x11C] = {};
+    cFC4EffectsManager* Owner();
+};
+
 class cFC4EffectsManager final : public cFC4ISC4EffectsManager,
                               public cFC4ISC4EffectsDrawPass,
                               public cIGZMessageTarget2 {
@@ -149,8 +169,8 @@ public:
     bool Init() override;
     bool Shutdown() override;
     bool HasVisualEffect(char const* name) override;
-    bool CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) override;
-    bool CreateVisualEffect(char const* name, cISC4VisualEffect** out) override;
+    bool CreateVisualEffectById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) override;
+    bool CreateVisualEffectByName(char const* name, cISC4VisualEffect** out) override;
     void GetStatsString(cIGZString& stats) override;
     cISC4EffectMaps* GetEffectMaps() override;
     float GetTallestBuildingAltitude() override;
@@ -169,11 +189,16 @@ public:
     fc4::EffectsHostContext& Ctx() { return ctx_; }
     // Drops the manager's reference on an effect (a wrapper's last Release).
     void ReleaseEffect(uint32_t id);
+    cFC4EffectsCollection* Collection() { return &collection_; }
 
 private:
-    // The two overload bodies (§4.1, §4.2). The vtable slots classify their first argument and
-    // call one of these, because the SDK's declaration order and the measured one disagree
-    // (question 8).
+    // Section 18.4: direct native fields must not alias core_, ctx_ or host_.
+    // SPEC-GAP: section 18.5 does not specify callable internal-base contracts.
+    unsigned char nativeBases_[0x94 - 12] = {};
+    cFC4EffectsCollection collection_;
+    unsigned char nativeState_[0xE00 - 0x1B4] = {};
+
+    // The two creation bodies (§4.1, §4.2), reached through distinct virtual slots.
     bool CreateByName(char const* name, cISC4VisualEffect** out);
     bool CreateById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out);
     bool LoadDirectory();
@@ -183,7 +208,8 @@ private:
     fc4_effects_directory* dir_ = nullptr;
     fc4::EffectsHostContext ctx_;
     fc4_effects_host host_ = {};
-    uint32_t refs_ = 1;
+    // Director factories return refcount zero; QueryInterface owns the first reference.
+    uint32_t refs_;
     bool inited_ = false;
     std::map<uint32_t, cFC4VisualEffect*> wrappers_;
 };

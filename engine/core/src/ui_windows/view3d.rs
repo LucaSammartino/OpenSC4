@@ -37,10 +37,10 @@
 //! with a catalog popup open loads with it closed, by design.
 
 use super::slots::{
-    as_igzwin, RetChannel, SlotInfo, VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER,
-    VIEW3D_OFF_PRIMARY_VPTR, VIEW3D_OFF_SECONDARY_KIND, VIEW3D_OFF_SECONDARY_WIN,
-    VIEW3D_OFF_TERTIARY_KIND, VIEW3D_OFF_TERTIARY_WIN, VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN,
-    VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE, VIEW3D_SAVE_TYPE, VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
+    as_igzwin, RetChannel, SlotInfo, VIEW3D_OFF_CATALOG_STATE, VIEW3D_OFF_MSG_FILTER, VIEW3D_OFF_PRIMARY_VPTR,
+    VIEW3D_OFF_SECONDARY_KIND, VIEW3D_OFF_SECONDARY_WIN, VIEW3D_OFF_TERTIARY_KIND, VIEW3D_OFF_TERTIARY_WIN,
+    VIEW3D_OFF_VIEW_MANAGER, VIEW3D_OFF_WIN, VIEW3D_SAVE_GROUP, VIEW3D_SAVE_INSTANCE, VIEW3D_SAVE_TYPE,
+    VIEW3D_SAVE_VERSION, VIEW3D_SLOTS,
 };
 use super::win::{WinStore, WinToken};
 
@@ -69,17 +69,14 @@ pub use dialogs::{DialogCall, DialogHost, EstablishData};
 pub use gui::{GuiCall, GuiHost, GuiState, HelperKind};
 pub use helpers::{BackgroundPicture, GraphHost, HelperHost};
 pub use input::{ControlCall, ControlReply, InputEvent, InputHost, MouseContext};
-pub use lifecycle::{
-    Lifecycle, LifecycleCall, LifecycleHost, LifecycleReply, CHEATS, NOTIFICATIONS,
-};
+pub use lifecycle::{Lifecycle, LifecycleCall, LifecycleHost, LifecycleReply, CHEATS, NOTIFICATIONS};
 pub use menus::{CatalogItem, CatalogQuery, OwnedPopup, PopupCall, PopupHost, PopupLayout};
 pub use messages::{MessageCall, MessageHost, Notification, Refresh, WindowMessage};
 pub use motion::{Motion, MotionHost, ViewChange};
 pub use references::{ObjectRecord, ReferenceHost};
 pub use state::{CheatHost, CheatTool, FilterInfo, StateHost, ViewState};
 pub use status::{
-    CostDisplay, CostMode, CursorText, DisplayState, StatusHost, StatusSnapshot, WidgetCall,
-    WidgetHost,
+    CostDisplay, CostMode, CursorText, DisplayState, MissionStatus, StatusHost, StatusSnapshot, WidgetCall, WidgetHost,
 };
 
 #[cfg(test)]
@@ -187,6 +184,13 @@ impl View3DSave {
             VIEW3D_SAVE_INSTANCE,
             VIEW3D_SAVE_VERSION,
         )
+    }
+
+    /// Both record adapters accept the same identity and all versions below 5
+    /// (§6k). Validate before resolving references or assigning trigger pairs.
+    fn accepts_header(header: (u32, u32, u32, u32)) -> bool {
+        let expected = Self::header();
+        (header.0, header.1, header.2) == (expected.0, expected.1, expected.2) && header.3 < 5
     }
 
     /// True when this record carries no UI state — the property that makes
@@ -470,13 +474,7 @@ impl View3DWin {
             header: self.do_save(),
             model_maker: self.owner.view.references[2],
             simulator: self.owner.view.references[3],
-            triggers: self
-                .owner
-                .view
-                .triggers
-                .iter()
-                .map(|(t, &count)| (t, count))
-                .collect(),
+            triggers: self.owner.view.triggers.iter().map(|(t, &count)| (t, count)).collect(),
         }
     }
 
@@ -484,7 +482,7 @@ impl View3DWin {
         self.do_load(&record.header)?;
         self.owner.view.references[2] = record.model_maker;
         self.owner.view.references[3] = record.simulator;
-        self.owner.view.triggers = state::load_triggers(&record.triggers);
+        state::load_triggers(&mut self.owner.view.triggers, &record.triggers);
         Ok(())
     }
 
@@ -496,19 +494,10 @@ impl View3DWin {
     /// `+0x0208`, so a load that leaves them set would be inventing state.
     pub fn do_load(&mut self, record: &View3DSave) -> Result<(), String> {
         let want = View3DSave::header();
-        if (record.group, record.type_id, record.instance) != (want.0, want.1, want.2)
-            || record.version >= 5
-        {
+        if !View3DSave::accepts_header((record.group, record.type_id, record.instance, record.version)) {
             return Err(format!(
                 "View3D record identity {:#010x}/{:#010x}/{}/{} is not {:#010x}/{:#010x}/{}/{}",
-                record.group,
-                record.type_id,
-                record.instance,
-                record.version,
-                want.0,
-                want.1,
-                want.2,
-                want.3
+                record.group, record.type_id, record.instance, record.version, want.0, want.1, want.2, want.3
             ));
         }
         // The whole UI side is cleared: no dialog state, no catalog menus, no
@@ -603,16 +592,10 @@ mod tests {
         let mut v = View3DWin::new(0x2000, 7);
         v.set_secondary(Some(11), 0x09DE_8798);
         v.set_tertiary(Some(12), 0xAB95_4023);
-        v.set_catalog_state(Some(CatalogState {
-            field0: 1,
-            field1: 2,
-        }));
+        v.set_catalog_state(Some(CatalogState { field0: 1, field1: 2 }));
         let rec = v.do_save();
         assert!(!rec.carries_ui_state());
-        assert_eq!(
-            View3DSave::header(),
-            (VIEW3D_SAVE_GROUP, VIEW3D_SAVE_TYPE, 1, 4)
-        );
+        assert_eq!(View3DSave::header(), (VIEW3D_SAVE_GROUP, VIEW3D_SAVE_TYPE, 1, 4));
 
         // A load drops the UI side entirely.
         v.do_load(&rec).unwrap();

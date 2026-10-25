@@ -1,6 +1,25 @@
 # vehicles: answered questions
 
 <!-- from: core-vehicles5 (2026-10-23) -->
+- ~~**VH5 - §5: train-owned algorithms.** Supply car count/model/length/colour
+  selection and random draws, car placement/following geometry and random sound
+  thresholds, StartTrip inputs/path protocol, message payload, and the failure
+  accident parameters. What does TrainCar's network-placement override change?
+  [Do not delegate these owner algorithms to a game vehicle or foreign manager;
+  composition/following/trip return Unsupported. Known ownership, teardown,
+  collision-speed copying and minimum collide timeout are implemented.]~~
+
+  **ANSWERED 2026-10-25 (re-vehicles-vh21):** DIFFERS —
+  [vehicles.md §12.11](../../vehicles.md#1211-train-composition-following-and-trip-start-vh5)
+  specifies low-byte target counts, one-car-per-tick creation, the caboose family,
+  head colour, two-anchor sphere/segment following, fallback/visibility rules,
+  and three-input StartTrip. Rail-accident creation `(head,2,20000)` and the cell
+  message precede the inherited trip attempt, rather than being caused by its
+  failure. The alleged random sound threshold is blocked-train removal:
+  speed modifier >f32(0.01), blocked seconds >=10, unsigned draw <0x7FFFFFFF.
+  Family/count and constructor randomness remain in §12.3; ownership in §12.8.
+
+<!-- from: core-vehicles5 (2026-10-23) -->
 - ~~**VH9 - inherited automaton states and dispatch hooks.** For the named
   traffic/vehicle owners, specify inherited RANDOM_WALK, PLOP_JUMP, ZOT and
   ATTACH_ANIM controller/model contracts and countdown ordering, and the base

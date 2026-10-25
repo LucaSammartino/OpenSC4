@@ -8,11 +8,21 @@ mod crash;
 pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, GroundingTerrain};
 mod following;
 mod inherited;
+mod interface;
+pub use interface::{
+    AutomatonInterfaces, InterfacePointer, Release, DELETING_INTERFACE, LIFECYCLE_INTERFACE, QUERY_INTERFACE_OFFSETS,
+};
+mod lifecycle;
+pub use lifecycle::{InitializationServices, LifecycleServices, ShutdownServices, ShutdownStack, SHUTDOWN_SOUND_EVENT};
 mod math;
+mod models;
 mod movement;
+pub use models::{acquire_model, ModelHandle, ModelServices, ModelStorage};
 mod operations;
 mod owner;
 mod physics;
+mod presentation;
+pub use presentation::{PresentationServices, PresentationSnapshot};
 mod record;
 mod routes;
 mod runtime;
@@ -26,7 +36,7 @@ pub use targets::AiTargets;
 pub use collision::{CollisionQueries, Footprint, ModelGeometry};
 pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
 pub use movement::Gear;
-pub use operations::{candidate_directions, Message, MessageDisposition};
+pub use operations::{assist_pick_new_dir, candidate_directions, Message, MessageDisposition};
 pub use owner::*;
 pub use physics::{Publication, Transform};
 pub use record::{WatercraftRecord, CLASS_ID, RECORD_VERSION};
@@ -34,13 +44,31 @@ pub use routes::{direction_step, quantize_heading, sign, RouteError, RouteReader
 pub use states::CrashCase;
 
 #[cfg(test)]
+mod boundary_vector_tests;
+#[cfg(test)]
 mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
 #[cfg(test)]
+mod command_vector_tests;
+#[cfg(test)]
+mod collision_vector_tests;
+#[cfg(test)]
+mod edge_tests;
+#[cfg(test)]
+mod effect_tests;
+#[cfg(test)]
+mod integration_tests;
+#[cfg(test)]
+mod lifecycle_tests;
+#[cfg(test)]
+mod model_tests;
+#[cfg(test)]
 mod physics_tests;
 #[cfg(test)]
 mod round2_tests;
+#[cfg(test)]
+mod route_vector_tests;
 #[cfg(test)]
 mod runtime_tests;
 #[cfg(test)]

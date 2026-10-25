@@ -133,6 +133,9 @@ impl Terrain for Ground {
     fn terrain_height(&self, _: Vec3) -> f32 {
         self.height
     }
+    fn terrain_height_at_cell(&self, _: Cell) -> f32 {
+        self.height
+    }
     fn sea_level(&self) -> f32 {
         0.0
     }
@@ -231,7 +234,7 @@ fn wc5_h06_through_h10_contact_order_and_strict_gates() {
         b.shore_contact = true;
         b.speed = 1.0;
         b.drive.0[23] = 0.5;
-        // The contact direction must come from C, not terrain normal.
+        // WC12: incoming C must not affect the banked second terrain normal.
         b.transform.basis[2] = [0.0, -1.0, 0.0];
         b.transform.scale = 2.0;
         assert!(b.heel_tick(10.0, &g));
@@ -254,6 +257,119 @@ fn wc5_h06_through_h10_contact_order_and_strict_gates() {
     assert!(!b.heel_tick(10.0, &ground()));
     assert_eq!(publications(&b), 1);
     vector(b.position, [10.0, 22.0, 31.0]);
+}
+
+#[test]
+fn wc12_h11_endpoint_depends_only_on_p24() {
+    for endpoint in [1.0, 2.0] {
+        let mut b = heeling();
+        b.crash_elapsed = 3200.0;
+        b.drive.0[24] = endpoint;
+        b.drive.0[25] = 2.0;
+        assert!(!b.heel_tick(10.0, &ground()));
+        assert_eq!(b.crash_angle, endpoint);
+        assert_eq!(publications(&b), 0);
+    }
+}
+
+#[test]
+fn wc12_h12_contact_ignores_incoming_rotation_and_preserves_scale() {
+    for rotation in [
+        Transform::default().basis,
+        [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]],
+    ] {
+        let mut b = heeling();
+        b.crash_elapsed = 0.0;
+        b.shore_contact = true;
+        b.speed = 1.0;
+        b.drive.0[23] = 0.5;
+        b.transform.basis = rotation;
+        b.transform.scale = 3.0;
+        let revision = b.transform.revision;
+        let g = ground();
+        assert!(b.heel_tick(10.0, &g));
+        let first = b
+            .events
+            .iter()
+            .find_map(|e| match e {
+                Event::Publish(Publication::Transform(t)) => Some(t),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(first.basis, Transform::default().basis);
+        assert_eq!(first.scale, 3.0);
+        assert_eq!(first.revision, revision.wrapping_add(2));
+        assert_eq!(g.samples.get(), 4); // two normals, conversion, heel normal
+    }
+}
+
+struct ChangingNormal {
+    ground: Ground,
+    calls: Counter<u32>,
+}
+impl Terrain for ChangingNormal {
+    fn contains(&self, c: Cell) -> bool {
+        self.ground.contains(c)
+    }
+    fn cell_at(&self, p: Vec3) -> Cell {
+        self.ground.cell_at(p)
+    }
+    fn terrain_height(&self, p: Vec3) -> f32 {
+        self.ground.terrain_height(p)
+    }
+    fn terrain_height_at_cell(&self, c: Cell) -> f32 {
+        self.ground.terrain_height_at_cell(c)
+    }
+    fn sea_level(&self) -> f32 {
+        self.ground.sea_level()
+    }
+    fn water_height(&self, p: Vec3) -> f32 {
+        self.ground.water_height(p)
+    }
+    fn navigable(&self, c: Cell, r: u32, lot: Option<&Resource>) -> bool {
+        self.ground.navigable(c, r, lot)
+    }
+}
+impl GroundingTerrain for ChangingNormal {
+    fn normal(&self, _: Vec3) -> Vec3 {
+        let call = self.calls.get();
+        self.calls.set(call + 1);
+        if call == 0 {
+            [0.0, 1.0, 0.0]
+        } else {
+            [0.0, 0.0, 1.0]
+        }
+    }
+    fn world_inside(&self, p: Vec3) -> bool {
+        self.ground.world_inside(p)
+    }
+    fn cell_height(&self, c: Cell) -> f32 {
+        self.ground.cell_height(c)
+    }
+}
+#[test]
+fn wc12_h13_second_normal_parallel_to_heading_keeps_unguarded_basis() {
+    let mut b = heeling();
+    b.crash_elapsed = 0.0;
+    b.shore_contact = true;
+    b.speed = 1.0;
+    b.drive.0[23] = 0.5;
+    let g = ChangingNormal {
+        ground: ground(),
+        calls: Counter::new(0),
+    };
+    assert!(b.heel_tick(10.0, &g));
+    let first = b
+        .events
+        .iter()
+        .find_map(|e| match e {
+            Event::Publish(Publication::Transform(t)) => Some(t),
+            _ => None,
+        })
+        .unwrap();
+    assert!(first.basis[0].iter().all(|x| x.is_nan()));
+    assert_eq!(g.calls.get(), 3);
+    assert_eq!(b.position, [10.0, 22.0, 31.0]);
 }
 
 #[derive(Default)]
@@ -405,13 +521,13 @@ fn subsidiary_visibility_suppression_completion_and_strict_lighting() {
     assert!(s.animation_tick(7.0, &mut a, &mut [Some(&mut m)], &mut b));
     assert!(m.times.is_empty());
     assert_eq!(a.calls, [17, 15]);
-    assert_eq!(s.animation_elapsed, 0.0);
+    assert_eq!(b.models.event_counter, 0.0);
     a.first = true;
     a.calls.clear();
     s.animation_tick(7.0, &mut a, &mut [Some(&mut m), None], &mut b);
     assert_eq!(m.times, [7.0]);
     assert_eq!(a.calls, [17]);
-    assert_eq!(s.animation_elapsed, 7.0);
+    assert_eq!(b.models.event_counter, 7.0);
     assert_eq!(b.events, [Event::Notify(1, 0)]);
     let mut lights = Lights::default();
     b.record.base.automata_flags = 0;
@@ -423,4 +539,87 @@ fn subsidiary_visibility_suppression_completion_and_strict_lighting() {
     s.lighting_tick(&b, true, [1.0; 3], 4.0, Some(&mut lights));
     assert_eq!(lights.0, 1);
     assert_eq!(s.last_lit_position, b.inherited_position);
+}
+
+#[derive(Default)]
+struct NoSplash(Vec<CrashEffect>);
+impl CrashEffects for NoSplash {
+    fn refresh(&mut self, kind: CrashEffect, _: &Transform) {
+        self.0.push(kind);
+    }
+    fn splash_present(&self) -> bool {
+        false
+    }
+}
+
+fn crashing(kind: u32) -> Fleet {
+    let mut b = heeling();
+    b.crash_elapsed = 100.0;
+    b.crash_angle = 0.0;
+    b.record.base.states.push(State::new(kind));
+    let mut f = Fleet::default();
+    f.insert(1, b).unwrap();
+    f
+}
+
+#[test]
+fn wc5_c02_state_tick_presents_double_time_and_direct_call_single_time() {
+    let cells = [Cell { x: 0, z: 0 }; 4];
+    let mut f = crashing(state::SINK);
+    f.crash_state_tick(1, 10.0, cells, &ground(), &mut Fx::default(), &mut None)
+        .unwrap();
+    let b = f.get(1).unwrap();
+    assert_eq!(b.crash_elapsed, 120.0);
+    near(b.crash_angle, (120.0 / b.drive.0[21]) * b.drive.0[22]);
+    let mut f = crashing(state::SINK);
+    f.crash_sequence_tick(1, 10.0, cells, &ground(), &mut Fx::default(), &mut None)
+        .unwrap();
+    let b = f.get(1).unwrap();
+    assert_eq!(b.crash_elapsed, 110.0);
+    near(b.crash_angle, (110.0 / b.drive.0[21]) * b.drive.0[22]);
+}
+
+#[test]
+fn wc5_c03_outside_city_pushes_72_without_second_increment_or_heel() {
+    let mut g = ground();
+    g.inside = false;
+    let mut f = crashing(state::RUN_AGROUND);
+    let mut fx = Fx::default();
+    assert_eq!(
+        f.crash_state_tick(1, 10.0, [Cell { x: 0, z: 0 }; 4], &g, &mut fx, &mut None),
+        Ok(true)
+    );
+    let b = f.get(1).unwrap();
+    assert_eq!(b.crash_elapsed, 110.0);
+    assert_eq!(b.top_state(), Some(state::IMMEDIATE_REMOVE));
+    assert_eq!(b.crash_angle, 0.0);
+    assert!(fx.0.is_empty());
+    assert_eq!(publications(b), 0);
+}
+
+#[test]
+fn wc5_c04_sinking_without_mushroom_gate_or_splash_still_runs_helper() {
+    let mut f = crashing(state::SINK);
+    let mut fx = NoSplash::default();
+    f.crash_state_tick(1, 10.0, [Cell { x: 0, z: 0 }; 4], &ground(), &mut fx, &mut None)
+        .unwrap();
+    assert!(fx.0.is_empty());
+    let b = f.get(1).unwrap();
+    assert!(b.crash_angle > 0.0);
+    assert_eq!(publications(b), 1);
+}
+
+#[test]
+fn wc2_p03_shore_slide_height_tolerance_is_strict() {
+    for (height, sliding) in [(30.0, false), (29.99, true)] {
+        let mut g = ground();
+        g.height = height;
+        let mut b = heeling();
+        b.crash_elapsed = 0.0;
+        b.shore_contact = true;
+        b.speed = 1.0;
+        assert_eq!(b.drive.0[26], 10.0);
+        assert!(b.heel_tick(10.0, &g));
+        assert_eq!(b.shore_contact, sliding);
+    }
 }

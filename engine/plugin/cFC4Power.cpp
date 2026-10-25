@@ -26,6 +26,7 @@
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
+#include "cFC4PowerPoleOccupant.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
@@ -123,6 +124,19 @@ FC4PowerGame* G(void* u) { return static_cast<FC4PowerGame*>(u); }
 cFC4PowerSimulator* Self(void* u) { return static_cast<cFC4PowerSimulator*>(G(u)); }
 
 cISC4Occupant* OccOf(uint64_t t) { return reinterpret_cast<cISC4Occupant*>(FromToken(t)); }
+// A pole token is the pole interface (the record reads it as 0xA8C86142), not
+// its occupant: §5.6 asks the occupant (QI 0x26BB767E) for IsFlagSet and the
+// properties. A token that already is an occupant answers with itself.
+// Borrowed: the token's holder keeps the object alive.
+cISC4Occupant* OccupantView(uint64_t t) {
+    cIGZUnknown* u = FromToken(t);
+    cISC4Occupant* o = nullptr;
+    if (u == nullptr || !u->QueryInterface(kIID_cISC4Occupant, reinterpret_cast<void**>(&o)) || o == nullptr) {
+        return reinterpret_cast<cISC4Occupant*>(u);
+    }
+    o->Release();
+    return o;
+}
 cFC4ISC4Lot* LotOf(uint64_t t) { return t ? fc4::AsGame(reinterpret_cast<cISC4Lot*>(FromToken(t))) : nullptr; }
 cFC4ISC4DepartmentBudget* DeptOf(uint64_t t) {
     return t ? fc4::AsGame(reinterpret_cast<cISC4DepartmentBudget*>(FromToken(t))) : nullptr;
@@ -307,7 +321,7 @@ uint32_t OccupantType(void*, uint64_t occ) {
 
 bool OccupantProperty(void*, uint64_t occ, uint32_t id, fc4_props* out) {
     if (occ == 0 || !Gate(fc4::Sw::PowerOccupants, "power occupant property read (absent)")) return false;
-    cISCPropertyHolder* h = OccOf(occ)->AsPropertyHolder();  // borrowed
+    cISCPropertyHolder* h = OccupantView(occ)->AsPropertyHolder();  // borrowed
     return h != nullptr && fc4::props::CopyToCore(h, id, out);
 }
 
@@ -315,7 +329,7 @@ void SetOccupantProperty(void*, uint64_t occ, uint32_t id, uint16_t memType, boo
                          size_t count) {
     if (occ == 0 || !Gate(fc4::Sw::PowerOccupants, "power occupant property write")) return;
     if (!Gate(fc4::Sw::PropertyWrites, "power occupant property write")) return;
-    cISCPropertyHolder* h = OccOf(occ)->AsPropertyHolder();
+    cISCPropertyHolder* h = OccupantView(occ)->AsPropertyHolder();
     if (h != nullptr && !fc4::props::SetTyped(h, id, memType, isArray, data, count)) {
         FC4_LOGV("power: property 0x%08X (type 0x%X) not written to occupant %p", id, memType, FromToken(occ));
     }
@@ -357,7 +371,7 @@ void OccupantBoundingCells(void*, uint64_t occ, fc4_cell_rect* out) {
 
 bool OccupantInManager(void*, uint64_t occ) {
     if (occ == 0 || !Gate(fc4::Sw::PowerOccupants, "power occupant IsFlagSet (true)")) return occ != 0;
-    return OccOf(occ)->IsFlagSet(1);
+    return OccupantView(occ)->IsFlagSet(1);
 }
 
 bool BuildingType(void*, uint64_t occ, uint32_t* out) {
@@ -433,6 +447,8 @@ bool LineConnectedPoles(void*, uint64_t, uint64_t*, uint64_t*) {
 using RemoveConnectionFn = void(__fastcall*)(void* self, void* edx, void* other, uint32_t flag);
 
 void RemovePoleConnection(void*, uint64_t first, uint64_t second) {
+    // A FreeCity4 pole (enable = netocc) takes the call through its core.
+    if (FC4NetOccRemovePoleConnection(FromToken(first), FromToken(second), false)) return;
     if (!Gate(fc4::Sw::PowerDirectCalls, "power pole RemoveConnection (direct call)")) return;
     const uintptr_t va = fc4::compat::DirectCall(fc4::compat::Direct::PoleRemoveConnection);
     if (va == 0) return;  // logged once by compat
@@ -825,7 +841,7 @@ void SetLineItemFullExpenses(void*, uint64_t item, int64_t v) {
     if (item != 0) ItemOf(item)->SetFullExpenses(v);
 }
 
-cISCPropertyHolder* HolderOf(uint64_t occ) { return occ ? OccOf(occ)->AsPropertyHolder() : nullptr; }
+cISCPropertyHolder* HolderOf(uint64_t occ) { return occ ? OccupantView(occ)->AsPropertyHolder() : nullptr; }
 
 bool BudgetItemForPurpose(void* u, uint64_t occ, uint32_t purpose, fc4_power_budget_item* out) {
     if (!Gate(fc4::Sw::PowerBudget, "power GetBudgetItemForPurpose (none)")) return false;

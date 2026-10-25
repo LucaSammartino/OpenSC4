@@ -2,6 +2,7 @@
 // lot-records.md 14.1/14.2: scoped records only, no Init, recursion or mutations.
 #include "FC4LotRecordShadow.h"
 #include "FC4LotRecordObservation.h"
+#include "FC4LotRecordView.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
@@ -20,6 +21,7 @@
 
 extern "C" int32_t fc4_lotrec_verify(const uint8_t*, uint32_t, uint8_t*, uint32_t, uint32_t*);
 extern "C" int32_t fc4_lotowner_verify(uint32_t, const uint8_t*, uint32_t, uint8_t*, uint32_t);
+extern "C" bool fc4_lotrec_project_view(const uint8_t*, uint32_t, uint32_t*);
 namespace fc4 { namespace {
 template<class R, class... A> R Call(void* p, unsigned slot, A... args) {
     using F = R (__thiscall*)(void*, A...);
@@ -27,7 +29,9 @@ template<class R, class... A> R Call(void* p, unsigned slot, A... args) {
 }
 struct Sample {
     cISC4City* city;
+    bool viewEnabled = false;
     LotRecordObservation observation;
+    LotRecordObservation views;
     safelots::Block* block = nullptr;
     safelots::FreeFn freeNode = nullptr, freeBlock = nullptr;
     int removed = -1;
@@ -62,6 +66,7 @@ struct Sample {
         void* manager = Call<void*>(city, 33);
         if (!manager) { ++observation.errors; return; }
         observation.expected = Call<uint32_t>(manager, 16);
+        views.expected = observation.expected;
         // A bound rejects corrupt counts explicitly; no failing lot is dropped.
         if (observation.expected > 1000000) { ++observation.errors; return; }
         std::vector<void*> lots(observation.expected);
@@ -75,6 +80,7 @@ struct Sample {
         }
         for (uint32_t i = 0; i < count; ++i) {
             if (!observation.Visit(lots[i])) continue;
+            if (viewEnabled) views.Visit(lots[i]);
             lot = static_cast<cIGZUnknown*>(lots[i]);
             serializable = nullptr;
             captured = false;
@@ -82,6 +88,7 @@ struct Sample {
             if (serializable) { FC4_RELEASE(serializable); serializable = nullptr; }
             if (!safe || !captured) {
                 observation.Record(false, false, false);
+                if (viewEnabled) views.Record(false, false, false);
                 Log("lotrec-shadow: error index=%u reason=capture", i);
                 continue;
             }
@@ -97,6 +104,15 @@ struct Sample {
             // lot is byte-exact. A rejected lot remains an inventory error below.
             if (equal) exactTrips += tripCount;
             observation.Record(true, n >= 0, equal);
+            if (viewEnabled) {
+                uint32_t expected[5] = {};
+                const bool projected = fc4_lotrec_project_view(record.data(),
+                    static_cast<uint32_t>(record.size()), expected);
+                const uint32_t differences = projected ? CompareLotRecordView(lot, expected) : 0;
+                views.Record(true, projected, differences == 0);
+                if (differences && views.differences <= 8)
+                    Log("lotrecview-shadow: difference index=%u mask=0x%02X (center-x,y,z,flags,altitude)", i, differences);
+            }
             if (!equal && observation.errors + observation.differences <= 8) {
                 size_t offset = 0;
                 while (offset < record.size() && offset < encoded.size() && record[offset] == encoded[offset]) ++offset;
@@ -106,6 +122,8 @@ struct Sample {
             }
         }
         observation.Finish(status == safelots::Status::Ok && count == observation.expected,
+            Call<uint32_t>(manager, 16));
+        if (viewEnabled) views.Finish(status == safelots::Status::Ok && count == views.expected,
             Call<uint32_t>(manager, 16));
     }
 };
@@ -242,13 +260,21 @@ void LotRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     static const bool unitEnabled = SettingInt("lotunit_shadow", "FC4_LOTUNIT_SHADOW", 0) != 0;
     static const bool textureEnabled = SettingInt("lotbasetexture_shadow", "FC4_LOTBASETEXTURE_SHADOW", 0) != 0;
     static const bool wallEnabled = SettingInt("lotwall_shadow", "FC4_LOTWALL_SHADOW", 0) != 0;
-    if (!enabled && !tripEnabled && !unitEnabled && !textureEnabled && !wallEnabled) return;
-    Sample sample{city};
-    if ((enabled || tripEnabled) && !SehGuard("LR12 master lot record shadow", &Run, &sample)) ++sample.observation.errors;
-    // The block is non-COM: unregister and C-free on normal and early exits.
-    if (sample.block && (!SehGuard("LR12 iterator cleanup", &Sample::ReleaseIterator, &sample) || sample.removed < 0))
+    static const bool viewEnabled = SettingInt("lotrecview_shadow", "FC4_LOTRECVIEW_SHADOW", 0) != 0;
+    if (!enabled && !tripEnabled && !unitEnabled && !textureEnabled && !wallEnabled && !viewEnabled) return;
+    Sample sample{city, viewEnabled};
+    if ((enabled || tripEnabled || viewEnabled) && !SehGuard("LR12 master lot record shadow", &Run, &sample)) {
         ++sample.observation.errors;
+        if (viewEnabled) ++sample.views.errors;
+    }
+    // The block is non-COM: unregister and C-free on normal and early exits.
+    if (sample.block && (!SehGuard("LR12 iterator cleanup", &Sample::ReleaseIterator, &sample) || sample.removed < 0)) {
+        ++sample.observation.errors;
+        if (viewEnabled) ++sample.views.errors;
+    }
     const auto& s = sample.observation;
+    // Capture/census failures must not turn an early return into an empty exact view.
+    if (viewEnabled && s.errors && !sample.views.errors) ++sample.views.errors;
     if (loaded && city) {
         auto* sim = AsGame(city->GetSimulator());  // borrowed
         if (sim) julian = sim->GetSimDateNumber();
@@ -258,6 +284,12 @@ void LotRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
     if (unitEnabled) { OwnerSample s{{}, city, "lotunit", 0x4A232DA8, 0}; s.Observe(date, loaded); }
     if (textureEnabled) { OwnerSample s{{}, city, "lotbasetexture", 0xC97F987C, 0x497F6D9D}; s.Observe(date, loaded); }
     if (wallEnabled) { OwnerSample s{{}, city, "lotwall", 0x49C05C9F, 0x895D1169}; s.Observe(date, loaded); }
+    if (viewEnabled) {
+        const auto& v = sample.views;
+        Log("lotrecview shadow %04d-%02d-%02d %s: expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u fields=center-x,y,z,flags,altitude; mismatches=%u",
+            date.year, date.month, date.day_of_month, loaded ? "load" : "month", v.expected, v.visited,
+            v.captures, v.exact, v.expected, v.differences, v.errors, v.Mismatches());
+    }
     if (enabled) Log("lotrec shadow %04d-%02d-%02d %s: julian=%d expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u empty=%u bytes=%llu mode=record-only scope=master-lots excluded=off-list,units,occupants,unspecified-props; mismatches=%u",
         date.year, date.month, date.day_of_month, loaded ? "load" : "month", julian,
         s.expected, s.visited, s.captures, s.exact, s.expected,

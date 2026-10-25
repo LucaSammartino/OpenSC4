@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 102;
+pub const FC4_ABI_VERSION: u32 = 103;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1155,6 +1155,7 @@ mod lua_registry_shadow;
 mod scres_shadow;
 mod scres_file_shadow;
 
+
 // GZ11 private bounded queue-manager lookup diagnostic; no public DLL exports.
 mod gzmsg_shadow;
 // MS20: private constructor/record-header dispatch differential, no live replay.
@@ -1182,3 +1183,10 @@ mod viewutil_shadow;
 mod modelinst_shadow;
 // Private construction record-owner factory; not activated as a replacement.
 mod construction_owner;
+
+// Private portable overlay owner factory transport; no public DLL exports.
+mod overlay_owner;
+// Private power-line occupant factory transport (no public DLL exports).
+mod netocc_line;
+// Private power-pole occupant factory transport (no public DLL exports).
+mod netocc_pole;

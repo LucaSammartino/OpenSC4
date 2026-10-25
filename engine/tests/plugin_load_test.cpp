@@ -11091,7 +11091,13 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
 #include "plugin_advisors_replace_test.inc"
+#include "plugin_netrules_replace_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
+#include "plugin_disasters_test.inc"
+#include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
+#include "plugin_netocc_registration_test.inc"
+#include "plugin_lotrec_boundary_test.inc"
+#include "plugin_lotconf_ownership_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11109,6 +11115,10 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
     SetEnvironmentVariableA("FC4_OBSERVE", "1");  // the same lines in release and checked builds
     SetEnvironmentVariableA("FC4_AUTOTEST_SAVE_AFTER_MONTHS", nullptr);
+
+    if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
+        mode == "--effects-guarded")
+        return EffectsRegistrationTest(dll, ini, log, mode);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {
@@ -11186,8 +11196,17 @@ int main(int argc, char** argv) {
     if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
     // The tutorial system (tutorial.md; the glue15 lane).
     if (mode == "--ini-enable-tutorial") return TutorialEnableTest(dll, ini, log);
+    if (mode == "--ini-enable-disasters") return DisastersFactoryTest(dll, ini, true);
+    if (mode == "--ini-disable-disasters") return DisastersFactoryTest(dll, ini, false);
+    if (mode == "--ini-netocc-shadow-factories") return NetOccShadowRegistrationTest(dll, ini);
+    if (mode == "--ini-netocc-line-factory") return NetOccLineRegistrationTest(dll, ini);
+    if (mode == "--ini-netocc-pole-factory") return NetOccPoleRegistrationTest(dll, ini);
     if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
     if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
+    if (mode.rfind("--ini-netrules-", 0) == 0) return NetRulesRegistrationTest(dll, ini, log, mode);
+    if (mode == "--ini-lotrec-boundary") return LotrecBoundaryTest(dll, ini, log, true);
+    if (mode == "--ini-lotrec-default") return LotrecBoundaryTest(dll, ini, log, false);
+    if (mode == "--ini-lotconf-ownership") return LotConfigurationOwnershipTest(dll, ini);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

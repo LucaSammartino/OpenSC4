@@ -4,17 +4,39 @@ use crate::automata::State;
 use super::{state, BoatId, ContractGap, DockManager, Event, Fleet, Result, Watercraft};
 
 impl Fleet {
-    /// Owner enter hooks only; inherited state handling is not replaced here.
+    /// Owner enter hooks with an always-true base HandleEnterState.
     pub fn push_state(&mut self, id: BoatId, state: State, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
+        self.push_state_entered(id, state, manager, &mut |_, _| true)
+            .map(|_| ())
+    }
+
+    /// HandleEnterState (`0x0056E340`): base HandleEnterState runs first and
+    /// its result is returned; the watercraft entry effects still run when
+    /// it is false (§5.7.1).
+    pub fn push_state_entered(
+        &mut self,
+        id: BoatId,
+        state: State,
+        manager: &mut Option<&mut dyn DockManager>,
+        base_enter: &mut dyn FnMut(&mut Watercraft, &State) -> bool,
+    ) -> Result<bool> {
         let kind = state.state_type;
         self.push_raw(id, state)?;
+        let boat = self.boat_mut(id)?;
+        let entered = boat.record.base.states.last().cloned().expect("state was just pushed");
+        let result = base_enter(boat, &entered);
+        self.owner_enter(id, kind, manager)?;
+        Ok(result)
+    }
+
+    fn owner_enter(&mut self, id: BoatId, kind: u32, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         match kind {
             state::PLAYER_DRIVE => {
                 let boat = self.boat_mut(id)?;
                 boat.events.push(Event::ActiveSound(false));
                 boat.player.field_30 = 0.0;
                 boat.player.turn_rate = boat.drive.0[20];
-                boat.player.aems_value = boat.group.sound_value().unwrap_or(1.0);
+                boat.player.aems_value = boat.sound_value().unwrap_or(1.0);
                 boat.player.field_144 = 15;
                 boat.player.shots = 0;
                 boat.player.field_1ac = 2000.0;
@@ -117,10 +139,17 @@ impl Fleet {
     }
 
     pub fn end_towing(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
-        if let Some(towed) = self.boat_mut(id)?.towed.take() {
-            self.pop_state(towed, manager)?;
-            self.boat_mut(towed)?.tug = None;
+        self.end_towing_with(id, |fleet, towed| fleet.pop_state(towed, manager).map(|_| ()))
+    }
+
+    /// Slot 53 can clear or replace the tow link reentrantly (watercraft §3.4).
+    /// Keep the stored link alive across that call, then clear its current value.
+    pub fn end_towing_with(&mut self, id: BoatId, mut pop: impl FnMut(&mut Self, BoatId) -> Result<()>) -> Result<()> {
+        if let Some(towed) = self.boat(id)?.towed {
+            pop(self, towed)?;
+            self.boat_mut(id)?.towed = None;
         }
+        self.boat_mut(id)?.tug = None;
         Ok(())
     }
 
@@ -164,42 +193,27 @@ impl Fleet {
         self.push_state(id, next, manager)
     }
 
-    /// Owner-only state dispatch. Crash animation is not published; its
-    /// accumulator still follows the specified order, then returns WC5.
-    pub fn state_tick(&mut self, id: BoatId, dt: f32, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
-        match self.boat(id)?.top_state() {
-            Some(state::IDLE) => {
-                self.boat_mut(id)?.idle_elapsed += dt;
-                if self.boat(id)?.idle_elapsed > 60_000.0 {
-                    self.push_state(id, State::new(state::SLOW_REMOVE), manager)?;
-                    self.boat_mut(id)?.crash_elapsed += dt;
-                    return Err(ContractGap::CrashSequenceWc5);
-                }
-            }
-            Some(state::RUN_AGROUND | state::SINK) => {
-                self.boat_mut(id)?.crash_elapsed += dt;
-                return Err(ContractGap::CrashSequenceWc5);
-            }
-            Some(state::IMMEDIATE_REMOVE | state::SLOW_REMOVE) => {
-                let immediate = self.boat(id)?.top_state() == Some(state::IMMEDIATE_REMOVE);
-                self.boat_mut(id)?.events.push(Event::Remove(immediate));
-            }
-            Some(state::QUEUE) => self.dock_requests(id, manager)?,
-            Some(state::DOCK | state::TOWED | state::UNDOCK) => {
-                // Geometry services are required; use the corresponding
-                // docking/following/undocking method, not a fake success.
-                return Err(ContractGap::AiMotionWc4);
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
     /// One-shot owner Shutdown, with all owned resource drops in §3 order.
     pub fn shutdown(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<bool> {
         if self.boat(id)?.shut_down {
             return Ok(false);
         }
+        if !self.boat(id)?.initialized {
+            // Only owner cleanup is conditional; inherited Shutdown still runs (§3).
+            let boat = self.boat_mut(id)?;
+            boat.events.push(Event::BaseShutdown);
+            boat.shut_down = true;
+            return Ok(true);
+        }
+        self.owner_shutdown(id, manager)?;
+        let boat = self.boat_mut(id)?;
+        boat.events.push(Event::BaseShutdown);
+        boat.shut_down = true;
+        Ok(true)
+    }
+
+    /// Watercraft-only Shutdown cleanup (§3), before inherited Shutdown.
+    pub(super) fn owner_shutdown(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         if let Some(towed) = self.boat_mut(id)?.towed.take() {
             self.push_state(towed, State::new(state::SLOW_REMOVE), manager)?;
             self.boat_mut(towed)?.tug = None;
@@ -216,9 +230,7 @@ impl Fleet {
                 boat.dock_requests[i] = false;
             }
         }
-        if boat.initialized {
-            boat.events.push(Event::Unregister(super::TOW_MESSAGE));
-        }
+        boat.events.push(Event::Unregister(super::TOW_MESSAGE));
         boat.stations = [None, None];
         boat.current_station = None;
         boat.neighbor = None;
@@ -227,9 +239,7 @@ impl Fleet {
                 boat.events.push(Event::StopEffect(effect));
             }
         }
-        boat.events.push(Event::BaseShutdown);
-        boat.shut_down = true;
-        Ok(true)
+        Ok(())
     }
 }
 

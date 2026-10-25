@@ -21,7 +21,6 @@ pub trait Lighting {
 #[derive(Clone, Debug, Default)]
 pub struct Subsidiary {
     pub visibility: SpeedTween,
-    pub animation_elapsed: f32,
     pub attachments_present: bool,
     pub last_lit_position: Vec3,
     pub last_lit_heading: Vec3,
@@ -69,7 +68,8 @@ impl Subsidiary {
                 boat.events.push(Event::Notify(1, 0));
             }
         }
-        self.animation_elapsed += time;
+        // Slot 103 and slot 100 share +0x1C0; publication consumes this clock.
+        boat.models.event_counter += time;
         true
     }
 
@@ -81,14 +81,37 @@ impl Subsidiary {
         distance_squared: f32,
         lighting: Option<&mut dyn Lighting>,
     ) {
-        if boat.record.base.automata_flags & 0x100000 != 0 || !processed_model {
+        self.lighting_at(
+            boat.record.base.automata_flags,
+            boat.inherited_position,
+            boat.inherited_heading,
+            processed_model,
+            heading_threshold,
+            distance_squared,
+            lighting,
+        );
+    }
+
+    /// Slot 107 with explicit inherited position/heading (§5.1.5).
+    #[allow(clippy::too_many_arguments)] // Owner flags, inherited P/H and renderer configuration.
+    pub fn lighting_at(
+        &mut self,
+        flags: u32,
+        position: Vec3,
+        heading: Vec3,
+        processed_model: bool,
+        heading_threshold: Vec3,
+        distance_squared: f32,
+        lighting: Option<&mut dyn Lighting>,
+    ) {
+        if flags & 0x100000 != 0 || !processed_model {
             return;
         }
         let Some(lighting) = lighting else {
             return;
         };
-        let delta = math::sub(boat.inherited_heading, self.last_lit_heading);
-        let moved = math::sub(boat.inherited_position, self.last_lit_position);
+        let delta = math::sub(heading, self.last_lit_heading);
+        let moved = math::sub(position, self.last_lit_position);
         if delta
             .iter()
             .zip(heading_threshold)
@@ -96,13 +119,38 @@ impl Subsidiary {
             || math::dot(moved, moved) > distance_squared
         {
             lighting.light_model(false);
-            self.last_lit_heading = boat.inherited_heading;
-            self.last_lit_position = boat.inherited_position;
+            self.last_lit_heading = heading;
+            self.last_lit_position = position;
         }
     }
 }
 
 impl Watercraft {
+    /// Execute wake requests through the shared core controller. Stop has an
+    /// immediate slot-104 refresh after every name, even when no name matches.
+    pub fn update_wakes_with_controller(
+        &mut self,
+        time: f32,
+        cell_size: f32,
+        controller: &mut crate::model_reg_effects::ModelRegEffects<'_>,
+        factory: &mut dyn crate::model_reg_effects::EffectFactory,
+    ) {
+        let first = self.events.len();
+        self.update_wakes(time, cell_size);
+        for event in &self.events[first..] {
+            match event {
+                Event::StartWake(name) => {
+                    controller.start_named(name, 0, false, factory);
+                }
+                Event::StopWake(name) => controller.stop_named(name, 0),
+                Event::EffectUpdate => {
+                    self.update_model_effects(controller);
+                }
+                _ => unreachable!("wake helpers emit only wake and effect-update requests"),
+            }
+        }
+    }
+
     /// Execute the shared core controller, including local REGP composition,
     /// ordered traversal and transform-before-speed parameter publication.
     pub fn update_model_effects(

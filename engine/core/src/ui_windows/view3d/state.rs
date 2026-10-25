@@ -310,9 +310,9 @@ fn atof(text: &str, decimal: u8) -> f32 {
     normalized.parse::<f64>().unwrap_or(0.0) as f32
 }
 
-pub(super) fn load_triggers(pairs: &[(u32, u32)]) -> StlHashMap<u32> {
-    // Literal stream-order insertion; reconstruction order is not settled (VW19).
-    let mut map = StlHashMap::with_hint(100);
+pub(super) fn load_triggers(map: &mut StlHashMap<u32>, pairs: &[(u32, u32)]) {
+    // VW19 (§6k/§6l): assign in stream order without clearing or reserving.
+    // Existing nodes must keep their chain position and must not cause growth.
     for &(key, count) in pairs {
         if let Some(old) = map.get_mut(key) {
             *old = count;
@@ -320,5 +320,4 @@ pub(super) fn load_triggers(pairs: &[(u32, u32)]) -> StlHashMap<u32> {
             *map.entry(key, || count) = count;
         }
     }
-    map
 }

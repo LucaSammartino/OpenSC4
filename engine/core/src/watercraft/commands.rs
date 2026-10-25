@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Float-channel commands and shared bookkeeping, watercraft §§6.2.1–6.2.3.
 
-use super::{state, BoatId, DockManager, Event, Fleet, Gear, Result, Watercraft};
+use super::{BoatId, DockManager, Event, Fleet, Gear, Result, Watercraft};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DriveCommand {
@@ -90,9 +90,14 @@ pub trait PlayerEffects {
     fn fire_model_hook(&mut self);
     fn has_waterski(&self) -> bool;
     fn waterski_transform(&mut self, transform: &super::Transform);
+    /// `true` is the skier effect's start(false); `false` is its stop(true) (§6.2.2).
     fn waterski(&mut self, running: bool);
     /// AEMS dispatch for one channel: slot 6 followed by slot 5, event 0x14.
     fn command_event(&mut self, channel: usize, event: u32);
+    /// The optional effect acquired at Init; None represents failed creation.
+    fn rope_throw(&mut self) -> Option<&mut dyn super::RopeEffect> {
+        None
+    }
 }
 
 impl DriveCommand {
@@ -249,7 +254,7 @@ impl Watercraft {
                 command.shared[7].armed = false;
             }
         }
-        let mut group = Some(self.group.as_ref());
+        let mut group = self.group.as_deref();
         let mut skier_group = false;
         while let Some(current) = group {
             skier_group |= current.id == 0x4409;
@@ -291,8 +296,8 @@ impl Watercraft {
             };
             self.turn = (self.turn + step).min(0.0);
         }
-        // WC9: literal §6.2.2 predicates; WC8-08's simultaneous-channel
-        // expectation contradicts this ordered positive-T response.
+        // WC9 correction: the right response tests the T left by the left
+        // response, so simultaneous channels need no neutral case (§6.2.2).
         if command.right >= 0.0 && self.turn >= 0.0 {
             if p[1] * command.right < self.turn {
                 command.right = self.turn / p[1] + dt;
@@ -347,30 +352,22 @@ impl Fleet {
             .translate_drive_commands(dt, command, effects)
             .is_some()
         {
+            let boat = self.boat(id)?;
+            let start_throw =
+                command.tow && boat.group_id() == Some(0x4410) && boat.speed == 0.0 && boat.towed.is_none();
             self.tow_button(id, command.tow, manager)?;
+            if let Some(rope) = effects.rope_throw() {
+                let transform = &self.boat(id)?.transform;
+                if start_throw && !rope.running() {
+                    rope.set_transform(transform);
+                    rope.start(false);
+                }
+                // Refresh is independent of the button, speed and exact group ID.
+                if rope.running() {
+                    rope.set_transform(transform);
+                }
+            }
             self.boat_mut(id)?.complete_drive_commands(dt, command, effects);
-        }
-        Ok(())
-    }
-
-    /// Geometry-aware dispatch for the two fully specified movement ticks.
-    /// Other states retain the ordinary state dispatcher and its explicit gaps.
-    pub fn state_tick_with_geometry(
-        &mut self,
-        id: BoatId,
-        dt: f32,
-        rectangle: [super::Cell; 4],
-        terrain: &dyn super::Terrain,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
-        let active = match self.boat(id)?.top_state() {
-            Some(state::DOCK) => self.docking_tick(id, dt, terrain, manager)?,
-            Some(state::UNDOCK) => self.undocking_tick(id, dt, rectangle, terrain, manager)?,
-            Some(state::TOWED) => self.following_tick(id, dt, terrain)?,
-            _ => return self.state_tick(id, dt, manager),
-        };
-        if !active {
-            self.pop_state(id, manager)?;
         }
         Ok(())
     }

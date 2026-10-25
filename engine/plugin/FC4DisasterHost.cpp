@@ -12,6 +12,8 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4DisasterHost.h"
+#include "FC4DisasterFire.h"
+#include "FC4AutomataInterfaces.h"
 #include "FC4HarnessLogic.h"
 
 #include "FC4CoreProps.h"
@@ -177,6 +179,7 @@ float CellWidth(void*) { return 16.0f; }  // city slot 91 (§5.6)
 void Post(void* u, const fc4_disaster_post* p) {
     if (p == nullptr) return;
     DisasterHostContext* c = C(u);
+    if (c->postOverride) { c->postOverride(*p); return; }
     ++c->posts[p->msg_type];
     if (p->msg_type == kMsgIgnitions) {
         c->postData1Sums[p->msg_type] += static_cast<uint64_t>(p->data1);
@@ -403,17 +406,48 @@ uint64_t CreateFireOccupant(void* u, uint32_t, uint64_t target, uint32_t fire_id
         Wrote(u, "create_fire_occupant (GZCOM has no class 0x29D25F1D)");
         return 0;
     }
-    auto* fo = static_cast<cISC4FireOccupant*>(p);
-    FC4_ACQUIRED(static_cast<cIGZUnknown*>(fo), "GetClassObject");
-    cISC4Occupant* occ = fo->AsOccupant();  // the +0x04 sub-object, borrowed
+    auto* storage = static_cast<cISC4FireOccupant*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(storage), "GetClassObject");
+    auto* fo = new DisasterFire(storage, [c](cISC4Occupant* target, bool burning) {
+        // disasters.md 5.11: retain the target, set BURNING and the removal
+        // lock, and attach controllers; undo all four at Shutdown.
+        if (burning) FC4_ADDREF(target);
+        const uint8_t value = burning ? 1 : 0;
+        props::SetTyped(target->AsPropertyHolder(), kPropBurning, 0x01, false, &value, 1);
+        if (burning) target->SetRemovalFlags(2);
+        else target->UnsetRemovalFlags(2);
+        auto* cm = c->city ? c->city->GetAutomataControllerManager() : nullptr;
+        if (cm && static_cast<uint32_t>(target->GetType()) == kTypeBuilding) {
+            if (burning) AsGame(cm)->AddControllersFromOccupantGroupName(SC4String("fire_occupant"), target, nullptr);
+            else AsGame(cm)->RemoveControllers(target);
+        }
+        if (!burning) FC4_RELEASE_LAST_HOLDER(target);
+    }, [storage] { FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(storage)); });
+    cISC4Occupant* occ = fo->AsOccupant();
+    const uint64_t token = TokenOf(occ);
+    fo->hose = [c, token](int32_t delta) { return c->hoseFire && c->hoseFire(token, delta); };
+    fo->post = [](cISC4Occupant* occupant, uint32_t type, uint32_t data) {
+        // flora.md 9.1: the counted object and void1 must have the same
+        // identity as the pointer inserted into the occupant manager.
+        cIGZMessageServer2Ptr ms;
+        if (!ms) return;
+        auto* message = FC4MakeMessage(type, 0, occupant->IsFlagSet(4) ? 1 : 0, occupant->GetType());
+        message->SetVoid1(occupant);
+        message->SetIGZUnknown(occupant);
+        message->SetData4(data);
+        ms->MessagePost(message, false);
+        message->Release();
+    };
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(static_cast<cISC4FireOccupant*>(fo)), "create fire adapter");
     occ->Init();                            // §5.4 step 7.1
     fo->SetTarget(t);                       // §5.4 step 7.2 (§5.11)
     fo->SetFamily(fire_id);                 // slot 14 SetFireID (§5.11)
     if (cISC4OccupantManager* om = city->GetOccupantManager()) {
         om->InsertOccupant(occ, 0);  // slot 20 (§5.4 step 7.3); the manager takes its own reference
     }
-    const uint64_t token = TokenOf(occ);
     c->fireOccupants[token] = fo;  // our create reference, dropped by remove
+    Log("disasters: Rust fire occupant created target=%p fire_id=%u (native static curves bypassed)",
+        static_cast<void*>(t), fire_id);
     return token;
 }
 void RemoveFireOccupant(void* u, uint64_t fire, uint64_t target) {
@@ -430,6 +464,7 @@ void RemoveFireOccupant(void* u, uint64_t fire, uint64_t target) {
     if (it == c->fireOccupants.end()) return;
     cISC4FireOccupant* fo = it->second;
     c->fireOccupants.erase(it);
+    static_cast<DisasterFire*>(fo)->hose = nullptr;
     if (cISC4OccupantManager* om = c->city ? c->city->GetOccupantManager() : nullptr) {
         om->RemoveOccupant(fo->AsOccupant(), true, 0);  // slot 21
     }
@@ -839,6 +874,16 @@ void DisasterHostReleaseHeld(DisasterHostContext* ctx) {
     if (ctx != nullptr) ctx->held.clear();
 }
 
+void DisasterHostSyncFires(DisasterHostContext* ctx, const fc4_disasters* core) {
+    if (ctx->shadow) return;
+    fc4_disaster_fire fire{};
+    for (size_t n = 0; fc4_disasters_get_fire(core, n, &fire); ++n) {
+        auto it = ctx->fireOccupants.find(fire.occupant);
+        if (it != ctx->fireOccupants.end())
+            static_cast<DisasterFire*>(it->second)->Sync(fire.stage, fire.max_stage, fire.counter, fire.hosed);
+    }
+}
+
 void DisasterHostReleaseAll(DisasterHostContext* ctx) {
     if (ctx == nullptr) return;
     ctx->held.clear();
@@ -852,6 +897,8 @@ void DisasterHostReleaseAll(DisasterHostContext* ctx) {
     // the objects are only released.
     for (auto& [t, fo] : ctx->fireOccupants) {
         (void)t;
+        static_cast<DisasterFire*>(fo)->hose = nullptr;
+        fo->AsOccupant()->Shutdown();
         FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(fo));
     }
     ctx->fireOccupants.clear();

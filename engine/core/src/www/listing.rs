@@ -253,8 +253,8 @@ pub fn next_line(source: &[u8], cursor: &mut u32, output: &mut Vec<u8>) -> bool 
     true
 }
 
-/// 00816230 and 00812970 list effects. An O allocation helper is not implemented here;
-/// Vec storage represents the published node sequence, not native allocator equivalence.
+/// 00816230 and 00812970 list effects. Vec storage supplies the ordered nodes;
+/// native circular-sentinel allocation is an explicit adapter input (§4.15).
 pub fn replace(source: &[u8], selector: u32, list: &mut Vec<Entry>) -> Contract<bool> {
     list.clear();
     let mut cursor = 0;

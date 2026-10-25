@@ -2,6 +2,10 @@
 use super::*;
 use crate::ui_windows::win::WinStore;
 include!("resolved_tests.rs");
+include!("trigger_load_tests.rs");
+include!("closure_tests.rs");
+include!("closure_round3_tests.rs");
+include!("closure_round4_tests.rs");
 
 #[derive(Debug, PartialEq)]
 enum Op {
@@ -53,6 +57,13 @@ enum Op {
 }
 
 struct Host {
+    mission_status: Option<MissionStatus>,
+    mission_updates: Vec<(u32, String, bool, Option<String>)>,
+    advice_calls: Vec<AdviceCall>,
+    advice_available: bool,
+    budget_window: Option<u32>,
+    coverage: CoverageRecorder,
+    graph: GraphRecorder,
     registry: Vec<(u32, &'static str, u32)>,
     funds_value: i32,
     hover: Vec<(bool, u32, u32)>,
@@ -61,12 +72,21 @@ struct Host {
     lighting: Vec<f32>,
     popup_calls: Vec<PopupCall>,
     popup_items: Vec<CatalogItem>,
+    catalog_queries: Vec<CatalogQuery>,
+    ui_visibility: Vec<(&'static str, bool)>,
+    mayor_calls: Vec<(u32, bool)>,
+    mayor_visible: Option<Vec<u32>>,
+    self_scrolling: Vec<u32>,
+    capturing_controls: Vec<u32>,
+    background_2d_absent: bool,
     selection: Option<CatalogItem>,
     reference_calls: Vec<(u64, u32)>,
     written_records: Vec<Option<ObjectRecord>>,
     read_record: Option<ObjectRecord>,
     helper_calls: Vec<(u32, u32)>,
     pictures: Vec<BackgroundPicture>,
+    background_requests: Vec<(bool, String)>,
+    cost_visibility: Vec<bool>,
     ops: Vec<Op>,
     takers: Vec<u32>,
     init_fail: Option<u32>,
@@ -87,11 +107,20 @@ struct Host {
     filter_allocation: bool,
     tabs: std::collections::BTreeMap<u32, bool>,
     established: bool,
+    rejected_gui: Vec<GuiCall>,
+    rejected_city: Vec<CityCall>,
 }
 
 impl Default for Host {
     fn default() -> Self {
         Self {
+            mission_status: None,
+            mission_updates: Vec::new(),
+            advice_calls: Vec::new(),
+            advice_available: true,
+            budget_window: Some(0x41),
+            coverage: CoverageRecorder::default(),
+            graph: GraphRecorder::default(),
             registry: Vec::new(),
             funds_value: 100,
             hover: Vec::new(),
@@ -100,12 +129,21 @@ impl Default for Host {
             lighting: Vec::new(),
             popup_calls: Vec::new(),
             popup_items: Vec::new(),
+            catalog_queries: Vec::new(),
+            ui_visibility: Vec::new(),
+            mayor_calls: Vec::new(),
+            mayor_visible: None,
+            self_scrolling: Vec::new(),
+            capturing_controls: Vec::new(),
+            background_2d_absent: false,
             selection: None,
             reference_calls: Vec::new(),
             written_records: Vec::new(),
             read_record: None,
             helper_calls: Vec::new(),
             pictures: Vec::new(),
+            background_requests: Vec::new(),
+            cost_visibility: Vec::new(),
             ops: Vec::new(),
             takers: Vec::new(),
             init_fail: None,
@@ -126,6 +164,8 @@ impl Default for Host {
             filter_allocation: true,
             tabs: std::collections::BTreeMap::new(),
             established: true,
+            rejected_gui: Vec::new(),
+            rejected_city: Vec::new(),
         }
     }
 }
@@ -199,7 +239,8 @@ impl PopupHost for Host {
         self.popup_calls.push(call);
         reply
     }
-    fn catalog_items(&mut self, _: &CatalogQuery) -> Vec<CatalogItem> {
+    fn catalog_items(&mut self, query: &CatalogQuery) -> Vec<CatalogItem> {
+        self.catalog_queries.push(query.clone());
         self.popup_items.clone()
     }
     fn popup_state(&mut self, _: u32) -> [u32; 2] {
@@ -247,6 +288,17 @@ impl ReferenceHost for Host {
 }
 
 impl HelperHost for Host {
+    fn background_candidates(&mut self, three_d: bool, basename: &str) -> Vec<String> {
+        self.background_requests.push((three_d, basename.into()));
+        if !three_d && self.background_2d_absent {
+            Vec::new()
+        } else {
+            self.background_files(three_d)
+        }
+    }
+    fn background_zoom(&self) -> u8 {
+        self.zoom as u8
+    }
     fn background_mode(&self) -> bool {
         self.moved
     }
@@ -292,6 +344,7 @@ impl LifecycleHost for Host {
         self.registry.push((id, name, flags));
     }
     fn lifecycle(&mut self, call: LifecycleCall) -> LifecycleReply {
+        let success = !matches!(call, LifecycleCall::BaseInit) || self.init_fail != Some(0);
         let object = match call {
             LifecycleCall::LoadKeyMap { .. } if self.filter_allocation => Some(11),
             LifecycleCall::Create { class, .. } if self.filter_allocation => Some(class),
@@ -299,10 +352,7 @@ impl LifecycleHost for Host {
             _ => None,
         };
         self.ops.push(Op::Lifecycle(call));
-        LifecycleReply {
-            success: self.init_fail != Some(0),
-            object,
-        }
+        LifecycleReply { success, object }
     }
     fn cheat_manager_exists(&self) -> bool {
         true
@@ -353,17 +403,42 @@ impl MessageHost for Host {
     fn filter_window_passthrough(&self) -> bool {
         false
     }
+    fn advice_resource(&mut self, manager: u32, id: u32, iid: u32) -> Option<u32> {
+        self.advice_calls.push(AdviceCall::Resource(manager, id, iid));
+        self.advice_available.then_some(77)
+    }
+    fn advice_activate(&mut self, resource: u32, first: u32, second: u32) {
+        self.advice_calls.push(AdviceCall::Activate(resource, first, second));
+    }
+    fn advice_release(&mut self, resource: u32) {
+        self.advice_calls.push(AdviceCall::Release(resource));
+    }
+    fn hide_city_dialog(&mut self) {
+        self.advice_calls.push(AdviceCall::HideDialog);
+    }
+    fn show_graph_type(&mut self, procedure: u32, selector: u32) {
+        self.advice_calls.push(AdviceCall::Graph(procedure, selector));
+    }
+    fn budget_window(&mut self, procedure: u32) -> Option<u32> {
+        self.advice_calls.push(AdviceCall::Budget(procedure));
+        self.budget_window
+    }
+    fn dispatch_child(&mut self, window: u32, message: WindowMessage) {
+        self.advice_calls.push(AdviceCall::Dispatch(window, message));
+    }
 }
 
 impl GuiHost for Host {
     fn gui(&mut self, call: GuiCall) -> Option<u32> {
-        let token = if self.filter_allocation {
+        let token = if self.filter_allocation && !self.rejected_gui.contains(&call) {
             match call {
                 GuiCall::Script { id, .. } => Some(id),
                 GuiCall::Create { class, .. } => Some(class),
                 GuiCall::Helper(kind) => Some(100 + kind as u32),
                 GuiCall::Query(token, iid) => Some(token.wrapping_add(iid)),
-                GuiCall::Child { id, .. } | GuiCall::RecursiveChild { id, .. } => Some(id),
+                GuiCall::Child { id, .. }
+                | GuiCall::RecursiveChild { id, .. }
+                | GuiCall::RecursivePanelChild { id, .. } => Some(id),
                 GuiCall::Image { instance, .. } => Some(instance),
                 GuiCall::CreateBuffer => Some(200),
                 _ => None,
@@ -384,9 +459,10 @@ impl GuiHost for Host {
 
 impl CityHost for Host {
     fn city(&mut self, call: CityCall) -> Option<u32> {
-        let token = if self.filter_allocation {
+        let token = if self.filter_allocation && !self.rejected_city.contains(&call) {
             match call {
-                CityCall::Create(kind) => Some(kind.class_id()),
+                CityCall::Create(kind) | CityCall::Construct(kind) => Some(kind.class_id()),
+                CityCall::QueryGraphics(iid) => Some(iid),
                 CityCall::AcquireSimulator => Some(0x8695_664E),
                 CityCall::CreateSituationControl => Some(1234),
                 _ => None,
@@ -534,9 +610,10 @@ fn disaster_properties_and_global_terrain_close_level_are_literal() {
     assert!(host.ops.is_empty());
     v.set_secondary(Some(100), 1);
     v.invoke_catalog_item(&mut host, 0x6A5A_C478, 6, true);
+    assert_eq!(host.ops, vec![Op::Close(false)]);
     assert_eq!(
-        host.ops,
-        vec![Op::Close(false), Op::Action(ActionCall::GlobalTerrain(6))]
+        host.popup_calls,
+        [PopupCall::TerrainSound, PopupCall::TerrainPost(0x470B_D214, 1)]
     );
     host.ops.clear();
     v.invoke_disaster(&mut host, 0xA9DE_8784);
@@ -596,15 +673,14 @@ fn city_pre_post_initialization_orders_camera_and_gui_then_releases_progress() {
 }
 
 #[test]
-fn city_allocation_failures_are_null_and_obliteration_hides_panel4() {
+fn city_allocation_failure_is_fatal_and_obliteration_hides_panel4() {
     let mut v = view();
     let mut host = Host {
         filter_allocation: false,
         established: false,
         ..Host::default()
     };
-    v.pre_city_init(&mut host);
-    v.post_city_init(&mut host);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| v.pre_city_init(&mut host))).is_err());
     assert!(v.owner.lifecycle.objects.is_empty());
     assert_eq!(v.persistent_controls(), 0);
     assert_eq!(v.owner.view.filter, None);
@@ -643,7 +719,7 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
     assert!(host.ops.contains(&Op::Gui(GuiCall::Move(0x0987_B48F, 645, 591))));
     let fields = v.gui_state().fields.clone();
     let windows = v.gui_state().windows.clone();
-    let overlay = v.gui_state().overlay.unwrap();
+    let overlay = 0xCA5D_3294;
     // Creation reference released as soon as the parent owns the overlay.
     assert!(host.ops.contains(&Op::Gui(GuiCall::Release(overlay))));
     host.ops.clear();
@@ -673,12 +749,11 @@ fn gui_lifetime_removes_filters_before_destruction_and_releases_queries() {
             1
         );
     }
-    assert!(host.ops.contains(&Op::Gui(GuiCall::Destroy(overlay))));
+    assert!(!host.ops.contains(&Op::Gui(GuiCall::Destroy(overlay))));
     assert!(!host.ops.contains(&Op::Gui(GuiCall::Release(overlay))));
     assert!(v.gui_state().fields.is_empty());
     assert!(v.gui_state().windows.is_empty());
     assert!(v.gui_state().panels.iter().all(Vec::is_empty));
-    assert_eq!(v.gui_state().overlay, None);
 }
 
 #[test]
@@ -688,7 +763,7 @@ fn gui_failed_creations_and_shutdown_progress_order() {
         filter_allocation: false,
         ..Host::default()
     };
-    v.add_gui(&mut host);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| v.add_gui(&mut host))).is_err());
     assert!(v.gui_state().fields.is_empty());
     v.remove_gui(&mut host);
     assert!(!host
@@ -701,14 +776,18 @@ fn gui_failed_creations_and_shutdown_progress_order() {
     v.owner.lifecycle.progress = Some(42);
     host.ops.clear();
     v.shutdown(&mut host);
-    let gui_end = host.ops.iter().rposition(|o| matches!(o, Op::Gui(_))).unwrap();
+    let gui_end = host
+        .ops
+        .iter()
+        .rposition(|o| matches!(o, Op::Gui(call) if *call != GuiCall::BaseShutdown))
+        .unwrap();
     let progress = host
         .ops
         .iter()
         .position(|o| *o == Op::Lifecycle(LifecycleCall::ProgressShutdown(42)))
         .unwrap();
     assert!(gui_end < progress);
-    assert_eq!(host.ops.last(), Some(&Op::Lifecycle(LifecycleCall::UnregisterCommands)));
+    assert_eq!(host.ops.last(), Some(&Op::Gui(GuiCall::BaseShutdown)));
 }
 
 #[test]
@@ -920,8 +999,8 @@ fn window_focus_accelerator_button_filter_and_clock_routes() {
     assert!(v.window_message(&mut host, button.clone()));
     assert!(host.ops.is_empty());
     assert!(v.filter_message(&mut host, button));
-    assert!(host.ops.is_empty()); // unknown button has no invented action
-    assert!(host.popup_calls.is_empty());
+    assert!(host.ops.is_empty()); // unknown button still reaches the tutorial follow-up
+    assert_eq!(host.popup_calls, [PopupCall::TutorialButton(19)]);
     for kind in [0x13, 0x0D, 0x14] {
         v.window_message(
             &mut host,
@@ -1092,6 +1171,8 @@ impl InputHost for Host {
                 ControlCall::Init => self.init_fail != Some(id),
                 ControlCall::Event(_) => self.takers.contains(&id),
                 ControlCall::CanStack => true,
+                ControlCall::SelfScrolling => self.self_scrolling.contains(&id),
+                ControlCall::Capturing => self.capturing_controls.contains(&id),
                 _ => false,
             },
             cursor: (call == ControlCall::Cursor).then_some(id + 100),
@@ -1736,6 +1817,7 @@ fn popup_restores_state_reinvokes_selected_tool_and_balances_teardown() {
                 parent: v.as_igzwin(),
                 window: 600
             },
+            PopupCall::TutorialButton(0x2992_0899),
         ]
     );
     assert!(!h
@@ -1834,7 +1916,10 @@ fn button_filter_executes_commands_and_day_night_preferences_in_order() {
             ..WindowMessage::default()
         }
     ));
-    assert_eq!(h.popup_calls, [PopupCall::Execute(0x6A93_5CC9)]);
+    assert_eq!(
+        h.popup_calls,
+        [PopupCall::Execute(0x6A93_5CC9), PopupCall::TutorialButton(0x2A4F_BB08)]
+    );
     h.popup_calls.clear();
     v.handle_button_activated(&mut h, 0xCA35_CB76);
     assert_eq!(
@@ -1844,7 +1929,8 @@ fn button_filter_executes_commands_and_day_night_preferences_in_order() {
             PopupCall::DayNightPreference(1),
             PopupCall::DayNightButton(0xCA35_CB74, false),
             PopupCall::DayNightButton(0xCA35_CB76, true),
-            PopupCall::DayNightButton(0xCA35_CB78, false)
+            PopupCall::DayNightButton(0xCA35_CB78, false),
+            PopupCall::TutorialButton(0xCA35_CB76)
         ]
     );
     assert_eq!(h.ops, [Op::Action(ActionCall::VisualTimeMode(1))]);
@@ -2018,6 +2104,9 @@ fn accelerator_replacement_acquires_before_release_and_null_clears() {
 }
 
 impl StatusHost for Host {
+    fn cost_visibility(&mut self, visible: bool) {
+        self.cost_visibility.push(visible);
+    }
     fn funds(&self) -> i32 {
         self.funds_value
     }
@@ -2056,6 +2145,17 @@ impl StatusHost for Host {
     fn delete_mission_panel(&mut self, _: u32) {}
     fn mission_text(&mut self, _: u32, time: &str, red: bool, _: &str) {
         self.ops.push(Op::Mission(time.into(), red));
+    }
+    fn active_mission_status(&mut self) -> Option<MissionStatus> {
+        self.mission_status.clone()
+    }
+    fn mission_fallback(&mut self, group: u32, instance: u32) -> String {
+        assert_eq!((group, instance), (0x6A23_1EA4, 0xAC2B_D618));
+        "localized fallback".into()
+    }
+    fn mission_update(&mut self, panel: u32, time: &str, red: bool, progress: Option<&str>) {
+        self.mission_updates
+            .push((panel, time.into(), red, progress.map(str::to_owned)));
     }
 }
 
@@ -2185,17 +2285,35 @@ impl CommandHost for Host {
     fn panel_buttons(&mut self, id: u32, on: bool) {
         self.ops.push(Op::Panel(id, on));
     }
-    fn mayor_subpanel(&mut self, _: u32, _: bool) {}
-    fn mayor_subpanel_visible(&self, _: u32) -> bool {
-        self.changed
+    fn mayor_subpanel(&mut self, id: u32, visible: bool) {
+        self.mayor_calls.push((id, visible));
     }
-    fn mysim_visible(&mut self, _: bool) {}
-    fn advisor_visible(&mut self, _: bool) {}
-    fn news_ticker_visible(&mut self, _: bool) {}
-    fn control_panel_visible(&mut self, _: bool) {}
-    fn restore_button_visible(&mut self, _: bool) {}
-    fn auxiliary_ui_visible(&mut self, _: bool) {}
-    fn rotation_ui_visible(&mut self, _: bool) {}
+    fn mayor_subpanel_visible(&self, id: u32) -> bool {
+        self.mayor_visible
+            .as_ref()
+            .map_or(self.changed, |ids| ids.contains(&id))
+    }
+    fn mysim_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("mysim", visible));
+    }
+    fn advisor_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("advisor", visible));
+    }
+    fn news_ticker_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("ticker", visible));
+    }
+    fn control_panel_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("control", visible));
+    }
+    fn restore_button_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("restore", visible));
+    }
+    fn auxiliary_ui_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("auxiliary", visible));
+    }
+    fn rotation_ui_visible(&mut self, visible: bool) {
+        self.ui_visibility.push(("rotation", visible));
+    }
     fn create_query_tool(&mut self, _: QueryTool) -> Option<u32> {
         Some(7)
     }

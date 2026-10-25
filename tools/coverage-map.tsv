@@ -78,9 +78,9 @@ RandomIterator	sim grids	simulation	simgrid.md,weather.md	core/src/grid/random_i
 SpiralIterator	sim grids	simulation	simgrid.md,plumbing.md	core/src/plumbing,core/src/landfill	-	-
 cSC4ResponseCurve	foundations	simulation	foundations.md	core/src/curve.rs	-	-
 # ---- simulation: city managers specified (cores without glue, or no core yet)
-cSC4DisasterLayer	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
-cSC4DisasterManager*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
-cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	-
+cSC4DisasterLayer	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	disasters
+cSC4DisasterManager*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	disasters
+cSC4DisasterInstance*	disasters	simulation	disasters.md	core/src/disasters	disasters_shadow	disasters
 cSC4FireOccupant	disasters	simulation	disasters.md, fire-flames.md	core/src/disasters	-	-
 cSC4Flame	fire flames	renderer	fire-flames.md	-	-	-
 cSC4ToxicOccupant	disasters	simulation	disasters.md	core/src/disasters	-	-
@@ -127,15 +127,15 @@ cSC4VertexHtConstraintSatisfier	network tools	simulation	network-geometry.md	cor
 cSC4NetworkCellInfo	network tools	simulation	network-geometry.md	core/src/network_geometry	-	-
 fn:ReadBridge*	network tools	simulation	network-bridges.md	core/src/network_bridge	-	-
 (anonymous_namespace)::cBridge*	network tools	simulation	network-bridges.md	core/src/network_bridge	-	-
-cSC4TileEvaluator	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	-
-cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	-
-cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	-
+cSC4TileEvaluator	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	netrules
+cSC4TileRule	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	netrules
+cSC4TileInfo	network rules	simulation	network-rules.md	core/src/network_rules	netrules_shadow	netrules
 nSC4Networks*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 fn:ReadIntersection*	network rules	simulation	network-rules.md	core/src/network_rules	-	-
 cSC4PropManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/prop_manager	propmgr_shadow	propmgr
 cSC4LotConfigurationManager	prop / lot configuration managers	simulation	prop-lotconfig.md	core/src/lot_config_manager	lotcfg_shadow	lotcfg
 # lotconf_shadow (glue-lotconf-sim-shadow6, capacity from glue-lotconf-capacity7 applying GLUE22; house profile from train173) derives every loaded configuration's size, masks, stage, flags, slopes, object array and building capacity from resource properties and compares all 1909 native configurations (107845 pairs) at load and each month: 73/73 in regress train186. Raw appended-foundation tags are uninitialised native values excluded by PL23; costs are outside the owner surface (section 4.2) and occupancy needs a lot instance
-cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	lotconf_shadow	-
+cSC4LotConfiguration	lot configuration	simulation	lot-configuration.md	core/src/lot_config_manager	lotconf_shadow	lotcfg
 cSC4TutorialSystem	tutorial	simulation	tutorial.md	core/src/tutorial	tutorial_shadow	tutorial
 cSC4CitySituationManager	city situation	simulation	city-situation.md	core/src/city_situation	citysit_shadow	citysit
 cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolition_shadow	demolition
@@ -180,7 +180,7 @@ fn:operator<<	city and save file	simulation	-	-	-	-
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
 cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
-cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	-	-	-
+cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	core/src/watercraft	-	-
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
@@ -387,7 +387,7 @@ cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43DPlaceableObject	occupants and props	simulation	prop-occupant.md	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
-cSC4View3DWin	3D scene and models	renderer	view3d-window.md, ui-windows.md, view3d.md	-	-	-
+cSC4View3DWin	3D scene and models	renderer	view3d-window.md, ui-windows.md, view3d.md	core/src/ui_windows/view3d	-	-
 cSC4CameraControl	camera and projection	renderer	camera.md	core/src/camera	-	-
 cSC4LightingManager	lighting and shadows	renderer	lighting.md	core/src/lighting	-	-
 cImageARGB8	lighting and shadows	renderer	lighting.md	core/src/lighting	-	-
@@ -433,7 +433,7 @@ cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
 cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-
 fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
-cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	-
+cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	effects
 cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
 cSC4EffectsParser	effects	renderer	effects.md	-	-	-
 cSC4EffectsCollection	effects	renderer	effects.md	-	-	-
@@ -528,7 +528,7 @@ cSC4NewsTickerWinProc	windows and panels	ui	news-ticker.md	-	-	-
 cSC4TutorialUIWinProc	windows and panels	ui	tutorial-window.md	-	-	-
 cSC4GamePreferencesWinProc	windows and panels	ui	game-preferences.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
-cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
+cSC4WinMapView	windows and panels	ui	map-view.md	core/src/map_view	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinLotConfigurationChooser	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinMiniMap*	windows and panels	ui	minimap.md	-	-	-
@@ -635,8 +635,8 @@ cRZLanguage*	strings and language	framework	-	-	-	-
 cRZString	strings and language	framework	rz-strings.md	core/src/language	strings_shadow	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
 fn:UTF16*	strings and language	framework	-	-	-	-
-cGZWWWSystem	web and network	framework	web-network.md	-	-	-
-cRZHTTPClient	web and network	framework	web-network.md	-	-	-
+cGZWWWSystem	web and network	framework	web-network.md	core/src/www	-	-
+cRZHTTPClient	web and network	framework	web-network.md	core/src/www	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
 cRZURL	web and network	framework	web-network.md	core/src/rzurl.rs	-	-
 cRZCookieManager	web and network	framework	web-network.md	core/src/www	-	-

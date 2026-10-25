@@ -155,14 +155,6 @@ public:
             const fc4::Subsystem& s = subsystems[i];
             if (!fc4::SubsystemEnabled(s)) continue;
             for (size_t k = 0; k < s.classCount; ++k) {
-                // The effects replacement fails closed (glue22 question 9): its class is
-                // registered only when the run also sets effects_replace = 1.
-                if (strcmp(s.key, "effects") == 0 &&
-                    fc4::SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) {
-                    FC4_LOGV("AddCls skipped for subsystem 'effects' (glue22 question 9); "
-                             "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
-                    continue;
-                }
                 AddCls(s.classes[k].clsid, s.classes[k].create);
                 FC4_LOGV("AddCls(0x%08X) registered (%s, subsystem '%s')", s.classes[k].clsid, s.classes[k].name, s.key);
             }

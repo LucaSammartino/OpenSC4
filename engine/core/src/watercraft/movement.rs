@@ -4,6 +4,10 @@ use crate::automata::{State, Vec3};
 use super::math;
 use super::{state, BoatId, Cell, ContractGap, DockManager, Fleet, Result, Terrain, Watercraft};
 
+pub(super) fn movement_state_allows(mut top: impl FnMut() -> Option<u32>) -> bool {
+    top() != Some(state::RUN_AGROUND) && top() != Some(state::SINK)
+}
+
 impl Fleet {
     pub fn movement_possible(
         &mut self,
@@ -16,12 +20,13 @@ impl Fleet {
         if boat.record.base.automata_flags & 1 != 0 {
             return Ok(false);
         }
-        if rectangle.into_iter().any(|cell| !terrain.contains(cell)) {
+        if Watercraft::outside_city(rectangle, terrain) {
             self.push_state(id, State::new(state::IMMEDIATE_REMOVE), manager)?;
             return Ok(false);
         }
         let boat = self.boat(id)?;
-        Ok(!matches!(boat.top_state(), Some(state::RUN_AGROUND | state::SINK)))
+        // §3.3 tests the top state twice, short-circuiting on 70, not FindState.
+        Ok(movement_state_allows(|| boat.top_state()))
     }
 
     pub fn dock_requests(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
@@ -29,7 +34,7 @@ impl Fleet {
         let Some(station) = boat.other_station() else {
             return Ok(());
         };
-        if math::length(math::sub(boat.inherited_position, station.position)) >= boat.drive.0[36] {
+        if math::length(math::sub(boat.inherited_position, station.lot_position)) >= boat.drive.0[36] {
             return Ok(());
         }
         let queued = boat.top_state() == Some(state::QUEUE);
@@ -64,7 +69,7 @@ impl Fleet {
         let boat = self.boat(id)?;
         if boat.held_berth
             && boat.current_station.as_ref().is_some_and(|station| {
-                math::length(math::sub(boat.inherited_position, station.position)) > boat.drive.0[36]
+                math::length(math::sub(boat.inherited_position, station.lot_position)) > boat.drive.0[36]
             })
         {
             let boat = self.boat_mut(id)?;
@@ -78,9 +83,9 @@ impl Fleet {
         Ok(())
     }
 
-    /// Final approach only. Far-approach AI motion is explicitly WC4.
-    /// A false return is consumed by the state dispatcher as PopState.
-    pub fn docking_tick(
+    /// Final approach (§5.3.1). `docking_tick_core` selects it for range
+    /// <= p[37]; a false return is consumed by the dispatcher as PopState.
+    pub(super) fn docking_tick(
         &mut self,
         id: BoatId,
         dt: f32,
@@ -95,9 +100,6 @@ impl Fleet {
         let distance = math::length(math::sub(station.position, boat.inherited_position));
         if boat.inherited_heading[1] != 0.0 {
             boat.inherited_heading = math::normalize(math::flat(boat.inherited_heading));
-        }
-        if distance > boat.drive.0[37] {
-            return Err(ContractGap::AiMotionWc4);
         }
         let heading = math::normalize(boat.inherited_heading);
         let target = math::normalize(station.direction);
@@ -149,7 +151,10 @@ impl Fleet {
         let Some(route) = boat.neighbor.as_ref() else {
             return Ok(false);
         };
-        if !terrain.navigable(terrain.cell_at(boat.position), 2, Some(&route.occupant)) {
+        if route.occupant.is_none() {
+            return Ok(false);
+        }
+        if !terrain.navigable(terrain.cell_at(boat.position), 2, route.occupant.as_deref()) {
             return Ok(false);
         }
         let away = math::flat(math::sub(boat.position, route.position));
@@ -203,7 +208,7 @@ impl Watercraft {
     /// Gear selection is specified independently of the summarized speed and
     /// steering response. No AEMS set means the entire command is ignored.
     pub fn select_gear(&self, throttle: f32, reverse: f32) -> Option<(Gear, f32)> {
-        self.group.sound_value()?;
+        self.sound_value()?;
         Some(if throttle >= self.drive.0[33] {
             (Gear::Forward, throttle)
         } else if reverse >= self.drive.0[32] {
@@ -227,7 +232,7 @@ impl Watercraft {
             if self.still_elapsed > 250.0 {
                 for key in super::WAKES {
                     self.events.push(super::Event::StopWake(key));
-                    self.events.push(super::Event::EffectUpdate);
+                    self.request_effect_update();
                 }
             }
         }

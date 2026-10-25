@@ -2,14 +2,8 @@
 //! `cISC4PowerLineOccupant` slots, `SetPosition`, the degenerate bounding
 //! box, `Shutdown`, and the v2 save record.
 //!
-//! §5.1's layout table and its slot table disagree on the offsets of the
-//! cell and the poles (layout: cell `+0x40/+0x44`, poles `+0x48/+0x4C/+0x50`;
-//! slots: `GetCell` = `+0x44/+0x48`, `GetConnectedPoles` = `+0x4C/+0x50` and
-//! byte `+0x54`), and §5.2's record writes references from `+0x4C`, `+0x44`
-//! and `+0x48`. Question NO13 asks for the reconciliation. This module
-//! therefore keeps the live object (named by the *slots*) and the record (a
-//! literal list of the written fields) apart: [`PowerLineRecord`] does not
-//! claim to know which live field each written word comes from.
+//! §5.1–5.2 (NO13 answered) name the same live and saved fields. Preview is
+//! transient; reading a record must not derive its saved cell from position.
 
 use super::identity::{IID_POWER_POLE, OCCUPANT_TYPE_POWER_LINE};
 use crate::automata::OccupantBase;
@@ -45,10 +39,39 @@ impl Default for PowerLine {
 }
 
 impl PowerLine {
+    /// Hydrate the live object before Init, without consulting city services.
+    pub fn from_record(record: PowerLineRecord) -> Self {
+        Self {
+            base: record.base,
+            field_30: 0,
+            position: record.position_bits.map(f32::from_bits),
+            cell: (record.cell[0], record.cell[1]),
+            poles: record.refs,
+            pole_flag: u8::from(record.flag),
+            preview: 0,
+        }
+    }
+
+    /// Snapshot the live state using the v2 record's two counted pole views.
+    pub fn record(&self) -> PowerLineRecord {
+        PowerLineRecord {
+            version: POWER_LINE_RECORD_VERSION,
+            base: self.base.clone(),
+            position_bits: self.position.map(f32::to_bits),
+            cell: [self.cell.0, self.cell.1],
+            flag: self.pole_flag != 0,
+            refs: self.poles.clone(),
+        }
+    }
+
     /// A freshly constructed line: occupant type `0x0990B2EA` (§1.1).
     pub fn new() -> PowerLine {
         PowerLine {
-            base: OccupantBase::new(OCCUPANT_TYPE_POWER_LINE),
+            base: OccupantBase {
+                // occupant-manager 13.1: newly constructed occupants are not indexed.
+                cell_rect: [0xFF, 0, 0, 0],
+                ..OccupantBase::new(OCCUPANT_TYPE_POWER_LINE)
+            },
             field_30: 0,
             position: [0.0; 3],
             cell: (0, 0),
@@ -88,8 +111,7 @@ impl PowerLine {
 
     /// `SetPosition` (`0x0064A460`): stores the position and the cell
     /// `world × 0.0625` per axis through the game's float→int helper. The
-    /// helper's rounding is not stated; truncation toward zero (the C
-    /// conversion) is used (question NO13).
+    /// truncation toward zero is specified by §5.1 (NO13).
     pub fn set_position(&mut self, pos: [f32; 3]) {
         self.position = pos;
         self.cell = ((pos[0] * 0.0625) as i32, (pos[2] * 0.0625) as i32);
