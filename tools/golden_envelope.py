@@ -7,6 +7,7 @@ Only original recordings enter this module; comparisons never learn.
 import base64
 import hashlib
 import json
+import math
 from pathlib import Path
 import shutil
 import statistics
@@ -80,7 +81,11 @@ def digest_fields(row):
             try:
                 result[name] = int(part)
             except ValueError:
-                result[name] = part
+                try:
+                    value = float(part)
+                    result[name] = value if math.isfinite(value) else part
+                except ValueError:
+                    result[name] = part
     return result
 
 
@@ -133,6 +138,7 @@ def build(entry, limit=None):
     records = {}
     byte_count = field_count = record_count = digest_count = 0
     numeric_spreads = []
+    byte_spreads = []
     digest_spreads = {}
     for key in sorted(set().union(*(s.keys() for s in saves))):
         payloads = [s[key] for s in saves if key in s]
@@ -151,6 +157,7 @@ def build(entry, limit=None):
                   for f in sorted(set().union(*(row.keys() for row in decoded_rows)))}
         skip = decoded_spans(key, payloads[0])
         changed_bytes = sum(a != b for i, (a, b) in enumerate(zip(low, high)) if i not in skip)
+        byte_spreads.extend(b - a for i, (a, b) in enumerate(zip(low, high)) if i not in skip and a != b)
         changed_fields = sum(varying(rule) for rule in fields.values())
         structure = int(len(payloads) != n) + int(varying(size))
         record_count += bool(changed_bytes or changed_fields or structure)
@@ -176,6 +183,7 @@ def build(entry, limit=None):
                       'varying_digest_fields': digest_count,
                       'varying_count': field_count + byte_count + digest_count,
                       'median_decoded_numeric_spread': statistics.median(numeric_spreads) if numeric_spreads else 0,
+                      'median_opaque_byte_spread': statistics.median(byte_spreads) if byte_spreads else 0,
                       'digest_spreads': digest_spreads},
             'limits': 'Observed marginal ranges; correlations and unseen variance are not inferred. No gameplay masks.'}
 

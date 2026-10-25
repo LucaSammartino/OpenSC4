@@ -239,6 +239,7 @@ def prepare(args):
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
                 'full_save': True, 'environment': 'explicit switches; FC4_* removed in direct backend',
                 'backend': args.backend, 'autotest_end': 'terminate', 'window': 'minimized after load'}
+    settings['queue_parallel'] = args.backend == 'queue'
     generated = input_script(args.script, args.until)
     settings['effective_script_sha256'] = hashlib.sha256(generated.encode('utf-8')).hexdigest()
     files = {'exe': args.game_root / 'Apps/SimCity 4.exe', 'start.sc4': save,
@@ -394,7 +395,7 @@ def run_queued(args, dll, ini, result, work):
     queue = args.output / 'game-queue'
     queue.mkdir(parents=True, exist_ok=True)
     request = (f'label = {label}\ndll = {staged.relative_to(REPO).as_posix()}\ncity = {args.city}\n'
-               f'seconds = {args.seconds}\ntimeout = {args.seconds + 150}\nend_date = {args.until}\n')
+               f'parallel = 1\nseconds = {args.seconds}\ntimeout = {args.seconds + 150}\nend_date = {args.until}\n')
     if region_ready:
         request += f'region = {args.region}\n'
     request += '[ini]\n' + ini.read_text(encoding='utf-8')

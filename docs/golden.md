@@ -75,21 +75,20 @@ but are labelled `invalid-window` and return 2; they cannot pass or be cached.
 Field diagnostics decode exemplars/cohorts and LTEXT as in `engine/formats`, and
 the simulator's v4 state as in `engine/core/src/save.rs`. A difference prints a
 `play.py --profile shadows` replay command from the same start save through the
-first differing date, retaining earlier simulation history. The suite owner
-must align these arguments with the eventual `play.py` CLI, which is absent on
-this base.
+first differing date, retaining earlier simulation history. Its flags match the
+current `play.py` CLI; suite/play sources remain owned by the suite lane.
 
-Exit codes: 0 = recorded/cached/exact, 1 = candidate differs, 2 = invalid or
-incomplete run/input, 3 = nondeterministic original baseline (also for a
-candidate that happens to match it). An unverified single recording is labelled
-`unverified`; one successful repeat is `reproduced`, never a proof of general
-determinism. A nondeterministic baseline cannot produce a passing compare.
+Exit codes: 0 = qualified exact/envelope cache or compatible candidate,
+1 = candidate differs, 2 = invalid or incomplete run/input, 3 = insufficient
+or still-growing original sampling. `baseline_repeatability` retains the raw
+exact/nondeterministic finding; it does not block an envelope comparison.
 
 Suite integration APIs: `fingerprint`, `run_game`, `cache_record`,
-`compare_artifacts`, `qualification`, `parse_digests`, `shadow_command`, and
+`compare_cached` (qualified exact/envelope comparison), `compare_artifacts`
+(raw exact diagnostic), `qualification`, `parse_digests`, `shadow_command`, and
 `golden_dbpf.compare_saves`. `cache_record` expects a fully validated run.
 `--backend direct --slot N` uses `golden_run.ps1` with the queue's claim mutex;
 it also needs the existing harness's process-inspection privileges. Region
-requests fail explicitly until the coordinator queue supports its `region` key.
+requests use the coordinator queue's `region` key and mirror only slot copies.
 Reach artifacts are retained if supplied to `cache_record`; automatic reach
 export awaits the main queue's per-run reach artifact interface.
