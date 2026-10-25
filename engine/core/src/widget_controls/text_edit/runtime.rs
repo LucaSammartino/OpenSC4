@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Window/resource/timer owner paths, text-edit §§1,5,10 and adapters.
+//! Window/resource/timer owner paths, text-edit sections 1, 5, 10 and adapters.
 use super::*;
 use crate::widget_controls::{Message, Rect};
 
@@ -67,10 +67,15 @@ pub trait TextHost: TextForeign {
     fn bar_image(&mut self, bar: Handle, image: Handle, rect: Rect);
     fn clipboard_copy(&mut self, service: Handle, bytes: &[u8], format: u32, option: u32);
     fn clipboard_paste(&mut self, service: Handle, option: u32) -> Option<Vec<u8>>;
-    fn composed_previous(&mut self, prefix: &[u8], selector: i32) -> u32;
+    fn composed_previous(&mut self, prefix: &[u8], selector: i32) -> u32 {
+        composition::backward(prefix, prefix.len(), selector, self)
+            .expect("TE5 previous composed-character valid-call domain") as u32
+    }
     fn send(&mut self, window: Handle, kind: u32, words: [u64; 3]) -> bool;
     fn draw(&mut self, operation: Paint);
-    fn search(&mut self, text: &[u8], pattern: &[u8], position: u32, forward: bool) -> u32;
+    fn search(&mut self, text: &[u8], pattern: &[u8], position: u32, forward: bool) -> u32 {
+        adapters::search(text, pattern, position, forward)
+    }
     fn sound_acquire(&mut self, id: u32, arguments: [u32; 6]) -> (bool, Option<Handle>);
     fn sound_play(&mut self, sound: Handle) -> bool;
 }
@@ -78,11 +83,17 @@ pub trait TextHost: TextForeign {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Paint {
     Fill(Rect, u32),
-    Image(Handle, Rect),
+    Image {
+        image: Handle,
+        source: Rect,
+        area: Rect,
+        arguments: [u32; 2],
+    },
     EdgeImage {
         image: Handle,
         area: Rect,
-        thirds: [i32; 2],
+        source: Rect,
+        mode: u32,
     },
     Text {
         font: Handle,
@@ -133,11 +144,21 @@ pub struct Runtime {
 
 impl Default for Runtime {
     fn default() -> Self {
+        // TE10: these four native words are uninitialized. Zero is an explicit
+        // deterministic portable substitute, never a native sound-ID default.
+        Self::with_sound_words([0; 4])
+    }
+}
+
+impl Runtime {
+    /// Model construction over caller-supplied sound storage: native stores
+    /// initialize the other fields without touching these four words.
+    pub fn with_sound_words(sound_ids: [u32; 4]) -> Self {
         Self {
             font: None,
             font_style: None,
             background: None,
-            background_option: 0,
+            background_option: 1,
             bars: [None; 2],
             images: [None; 2],
             image_rects: [[0; 4]; 2],
@@ -148,7 +169,7 @@ impl Default for Runtime {
             size: [0; 2],
             visible: [0; 2],
             rows: 0,
-            line_height: 0,
+            line_height: 1,
             horizontal_byte: 0,
             horizontal_pixel: 0,
             colors: [
@@ -159,13 +180,11 @@ impl Default for Runtime {
                 u32::MAX,
                 0x4000_0000,
             ],
-            // TE10: portable zero placeholders until callers resolve native
-            // constructor colors/sound IDs; not a claim of native defaults.
-            caret_color: 0,
-            highlight_color: 0,
-            outline_color: 0,
+            caret_color: 0xff00_0000,
+            highlight_color: 0xff00_0000,
+            outline_color: 0xff00_0000,
             fill_color: 0xff_ffff,
-            sound_ids: [0; 4],
+            sound_ids,
         }
     }
 }
