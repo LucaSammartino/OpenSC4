@@ -507,6 +507,38 @@ fn callback_retained_resources_survive_worker_completion() {
     );
 }
 #[test]
+fn callback_can_retain_request_when_response_is_null() {
+    let (mut client, mut io, worker, request, mut peer) = admitted();
+    io.resolve = None;
+    io.retain_resources = true;
+    io.effects.clear();
+    run_current(&mut client, &mut io, worker, &mut peer, None).unwrap();
+
+    let (job, observed_request, observed_response) = &io.observed[0];
+    assert_eq!(job.status(), 3);
+    assert_eq!(observed_request.as_ref().unwrap().refs, 1);
+    assert!(observed_response.is_none());
+    assert_eq!(client.requests[&request].refs, 1);
+    assert!(client.resources.is_empty());
+    assert!(client.workers[&worker].current.is_none());
+    let notified = io
+        .effects
+        .iter()
+        .position(|e| matches!(e, http::Effect::Notify(..)))
+        .unwrap();
+    assert_eq!(
+        &io.effects[notified + 1..notified + 5],
+        [
+            http::Effect::AddRequest(request),
+            http::Effect::ReleaseMessage,
+            http::Effect::ReleaseClient,
+            http::Effect::ReleaseRequest(request)
+        ]
+    );
+    assert_eq!(client.release_request(&mut io, request).unwrap(), 0);
+    assert!(client.requests.is_empty());
+}
+#[test]
 fn www20_r5_zero_status_leaks_unpublished_local_response() {
     let (mut client, mut io, worker, request, mut peer) = admitted();
     io.reads = [ReadStep::Data(b"HTTP/1.1 0 bad\r\n\r\n".to_vec())].into();
