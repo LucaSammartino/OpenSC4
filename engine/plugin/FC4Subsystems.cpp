@@ -134,6 +134,8 @@ cIGZUnknown* CreateFC4LandValueSimulator();
 cIGZUnknown* CreateFC4WeatherSimulator();
 cIGZUnknown* CreateFC4EffectsManager();
 
+#include "FC4OverlayOwner.h"
+
 namespace fc4 {
 namespace {
 
@@ -481,6 +483,13 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
+// SPEC-GAP: §3.8.1 supplies no native CLSID/Init factory protocol. This FC4
+// identity exercises ownership without guessing a native identity or returning
+// a partial object for IID 0x895D6544. It cannot yet replace live view managers.
+const ClassEntry kOverlayOwnerClasses[] = {
+    {kFC4_CLSID_OverlayOwner, "cFC4OverlayOwner", &CreateFC4OverlayOwner},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -552,6 +561,7 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
+    {"overlays", nullptr, kOverlayOwnerClasses, sizeof(kOverlayOwnerClasses) / sizeof(kOverlayOwnerClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -730,6 +740,9 @@ void Resolve() {
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
     ExemplarFactorySetEnabled(enabledKey("exemplars"));
     Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
+    if (enabledKey("overlays")) {
+        Log("overlays: FC4 owner factory registered; native manager interception=0 (SPEC-GAP)");
+    }
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's
