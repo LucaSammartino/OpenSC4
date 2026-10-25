@@ -10,11 +10,18 @@ pub struct MarkedCells {
 }
 
 pub fn marked_cells(grid: &RawMapGrid, palette: &RawPalette) -> Result<MarkedCells, Unsupported> {
-    let indices: Vec<u8> = match &grid.values {
-        GridValues::U8(v) => v.clone(),
-        GridValues::I8(v) => v.iter().copied().map(i8_index).collect(),
-        _ => return Err(Unsupported::SixteenBitConflict),
-    };
+    marked_cells_scaled(grid, palette, ScaleFactors::default())
+}
+
+pub fn marked_cells_scaled(
+    grid: &RawMapGrid,
+    palette: &RawPalette,
+    factors: ScaleFactors,
+) -> Result<MarkedCells, Unsupported> {
+    let (_, values) = grid.values.raw();
+    let indices: Vec<u8> = (0..values.len())
+        .map(|i| values.index(i, factors))
+        .collect::<Result<_, _>>()?;
     if grid.height == 0 || indices.len() != grid.width * grid.height {
         return Err(Unsupported::GridGeometry);
     }
@@ -33,8 +40,7 @@ pub fn marked_cells(grid: &RawMapGrid, palette: &RawPalette) -> Result<MarkedCel
 }
 
 fn axis(j: usize, source: usize, destination: usize) -> (usize, usize, i64) {
-    // Literal section 4.3 formula; its truncated step conflicts with vector 21
-    // at the 2-to-3 centre (QV16). Do not silently substitute exact ratios.
+    // QV16: the truncated step is authoritative, including the 2-to-3 centre.
     let step = (source as i64 * 65536) / destination as i64;
     let position = step / 2 - 32768 + j as i64 * step;
     if position <= 0 {

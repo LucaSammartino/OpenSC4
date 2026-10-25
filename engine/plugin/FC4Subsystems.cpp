@@ -124,6 +124,7 @@
 #include <cctype>
 #include <cstring>
 #include <string>
+#include "cFC4AdvisorSystem.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -512,6 +513,11 @@ const ClassEntry kDisasterClasses[] = {
     {0xEBFB0403, "cSC4DisasterInstanceToxic", &CreateFC4DisasterInstanceToxic},
 };
 
+// advisors.md §1.1, §14: opt-in replacement of the advisor system.
+const ClassEntry kAdvisorsClasses[] = {
+    {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -584,6 +590,7 @@ const Subsystem kSubsystems[] = {
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
     {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
+    {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -750,13 +757,14 @@ void Resolve() {
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
-    EffectsShadowStartup(enabledKey("effects"));
+    // The guarded class is native unless the diagnostic replacement is actually registered.
+    EffectsShadowStartup(enabledKey("effects") && SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) != 0);
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
     AutomataShadowStartup(enabledKey("automata"));
     // The MySims shadow (FC4MySimsShadow.h; it compares the original MySim agent + advisors).
     MySimsShadowStartup();
-    AdvisorsShadowStartup();  // advisors_shadow = 1 only; no replacement factory
+    AdvisorsShadowStartup();  // advisors_shadow = 1 only; independent of replacement enablement
     // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
     FormatsShadowStartup();
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
@@ -807,20 +815,10 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
-        // The effects replacement fails closed (glue22 question 9): the class is
-        // registered only when the run also sets effects_replace = 1.
-        if (strcmp(kSubsystems[i].key, "effects") == 0) {
-            const long force = SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0);
-            if (force == 0) {
-                static bool warned = false;
-                if (!warned) {
-                    warned = true;
-                    Log("subsystem 'effects': the class replacement is NOT registered (glue22 question 9); "
-                        "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
-                }
-                continue;
-            }
-        }
+        // SPEC-GAP: effects.md section 18.5 leaves the internal native bases unresolved.
+        // Real-city replacement still faults; keep it behind the diagnostic switch.
+        if (strcmp(kSubsystems[i].key, "effects") == 0 &&
+            SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) continue;
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {

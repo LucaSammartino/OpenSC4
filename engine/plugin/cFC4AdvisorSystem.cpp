@@ -15,6 +15,7 @@
 // §8.2, §12.1 and lua-host.md §1.3, §5.1, §8.2 over the Rust core.
 
 #include "cFC4AdvisorSystem.h"
+#include "FC4AdvisorMessage.h"
 
 #include "FC4Log.h"
 #include "FC4AdvisorApi.h"
@@ -445,18 +446,13 @@ void UnsubscribeCb(void* u, uint32_t kind, int32_t, uint64_t token, uint32_t typ
     else if (kind == FC4_ADV_OBJ_ADVISOR) AdvisorNotification(token, type, false);
 }
 
-// fc4.h: obj_kind FC4_ADV_OBJ_HOST names a host object by token; advisor and
-// advice objects are the next round's classes (their tokens come from
-// object_created), so only the host kind carries an object here.
+// §10: all object payloads use the message's IGZUnknown field, independently
+// of data1/data2. SetVoid1 aliases data1 and leaves GetIGZUnknown null.
 void Deliver(const fc4_adv_out_message* m, bool sync) {
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
-    cFC4Message2Standard* msg = cFC4Message2Standard::New();
-    msg->AddRef();
-    msg->SetType(m->msg_type);
-    msg->SetData1(static_cast<intptr_t>(m->data1));
-    msg->SetData2(static_cast<intptr_t>(m->data2));
-    if (m->obj_kind != 0 && m->obj_token != 0) msg->SetVoid1(fc4::FromToken(m->obj_token));
+    cIGZUnknown* object = m->obj_kind != 0 ? fc4::FromToken(m->obj_token) : nullptr;
+    cFC4Message2Standard* msg = fc4::MakeAdvisorMessage(m->msg_type, m->data1, m->data2, object);
     if (sync) ms->MessageSend(msg);
     else ms->MessagePost(msg, false);
     msg->Release();
@@ -545,6 +541,7 @@ cISCLua* HostOf(lua_State* state) {
     cIGZUnknown* thread = *reinterpret_cast<cIGZUnknown**>(reinterpret_cast<char*>(state) - sizeof(void*));
     void* lua = nullptr;
     if (thread == nullptr || !thread->QueryInterface(kIID_cISCLua, &lua)) return nullptr;
+    FC4_ACQUIRED(static_cast<cISCLua*>(lua), "QueryInterface");
     return static_cast<cISCLua*>(lua);  // one reference, released by the caller
 }
 
@@ -552,12 +549,16 @@ cISCLua* HostOf(lua_State* state) {
 // pointer it holds.
 int32_t TagGc(lua_State* state) {
     cISCLua* L = HostOf(state);
-    if (L == nullptr || g_live == nullptr || L != g_live->Lua()) return 0;
+    if (L == nullptr) return 0;
+    // HostOf QIs even when this is another state or non-userdata: balance every path.
     // [abi-ret] eax-or-void (interfaces.tsv cISCLua 73): the value is used as a bool
-    if (!L->IsUserData(1)) return 0;
-    const int32_t tag = L->ToUserTag(1);
-    if (tag != g_tags[0] && tag != g_tags[1]) return 0;
-    if (auto* p = static_cast<cIGZUnknown*>(L->ToUserData(1))) FC4_RELEASE(p);
+    if (g_live != nullptr && L == g_live->Lua() && L->IsUserData(1)) {
+        const int32_t tag = L->ToUserTag(1);
+        if (tag == g_tags[0] || tag == g_tags[1]) {
+            if (auto* p = static_cast<cIGZUnknown*>(L->ToUserData(1))) FC4_RELEASE(p);
+        }
+    }
+    FC4_RELEASE(L);
     return 0;
 }
 

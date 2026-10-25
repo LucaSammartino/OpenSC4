@@ -3,11 +3,19 @@ use super::*;
 use crate::automata::{State, StateExtra};
 use crate::stream::{ByteReader, ByteWriter};
 use crate::vehicles::{PathAdvance, TrafficWorld};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
+
+mod one_shot;
+
+type Trace = Rc<RefCell<Vec<String>>>;
 
 #[derive(Default)]
 struct Random {
     integers: Vec<(i32, i32)>,
     doubles: Vec<(f64, f64)>,
+    words: VecDeque<u32>,
+    spans: Vec<u32>,
+    trace: Option<Trace>,
 }
 impl VehicleRandom for Random {
     fn signed_range(&mut self, a: i32, b: i32) -> i32 {
@@ -16,10 +24,18 @@ impl VehicleRandom for Random {
     }
     fn float_range(&mut self, a: f64, b: f64) -> f64 {
         self.doubles.push((a, b));
+        if let Some(trace) = &self.trace {
+            trace.borrow_mut().push(format!("range:{a}:{b}"));
+        }
         (a + b) * 0.5
     }
     fn uniform(&mut self, n: u32) -> u32 {
-        n - 1
+        self.spans.push(n);
+        if let Some(trace) = &self.trace {
+            trace.borrow_mut().push(format!("bounded:{n}"));
+        }
+        let word = self.words.pop_front().unwrap_or(u32::MAX);
+        ((u64::from(word) * u64::from(n)) >> 32) as u32
     }
 }
 
@@ -39,6 +55,19 @@ struct World {
     road: Option<[i32; 2]>,
     headings: Vec<u8>,
     leader: Option<Vec3>,
+    animation_models: Vec<Option<one_shot::Model>>,
+    trace: Option<Trace>,
+    opacity: Vec<f32>,
+    paused: bool,
+}
+
+impl World {
+    fn log(&mut self, call: String) {
+        if let Some(trace) = &self.trace {
+            trace.borrow_mut().push(call.clone());
+        }
+        self.calls.push(call);
+    }
 }
 impl TrafficWorld for World {
     fn network_at(&mut self, _: RouteStep) -> Option<RefValue> {
@@ -67,7 +96,7 @@ impl TrafficWorld for World {
         self.calls.push("event".into());
     }
     fn removed(&mut self) {
-        self.calls.push("remove".into());
+        self.log("remove".into());
     }
 }
 impl VehicleWorld for World {
@@ -108,14 +137,14 @@ impl VehicleWorld for World {
 }
 impl InitWorld for World {
     fn create_models(&mut self) -> bool {
-        self.calls.push("models".into());
+        self.log("models".into());
         !self.fail_init
     }
     fn init_effects(&mut self) {
-        self.calls.push("effects".into());
+        self.log("effects".into());
     }
     fn init_occupant(&mut self) {
-        self.calls.push("occupant".into());
+        self.log("occupant".into());
     }
     fn refresh_behavior(&mut self) {
         self.calls.push("refresh".into());
@@ -150,10 +179,24 @@ impl PedestrianWorld for World {
         self.calls.push("idle".into());
     }
     fn model_count(&mut self) -> usize {
-        self.models
+        if self.animation_models.is_empty() {
+            self.models
+        } else {
+            self.animation_models.len()
+        }
+    }
+    fn model_present(&mut self, index: usize) -> bool {
+        if self.animation_models.is_empty() {
+            index < self.models
+        } else {
+            self.animation_models[index].is_some()
+        }
     }
     fn instance_value(&mut self, i: usize, v: f32) {
-        self.calls.push(format!("instance:{i}:{v}"));
+        self.log(format!("instance:{i}:{v}"));
+        if let Some(Some(model)) = self.animation_models.get_mut(i) {
+            model.speed = v;
+        }
     }
     fn exemplar_play_count(&mut self, p: u32) -> Vec<u8> {
         assert_eq!(p, 0xEA958845);
@@ -261,11 +304,11 @@ fn one_shot_init_success_failure_and_property_bounds() {
     p.init(Tuning::default(), &mut random, &mut world).unwrap();
     assert_eq!(p.play_count, 7);
     assert!(world.calls.contains(&"instance:1:0.01".into()));
-    assert_eq!(random.integers.last(), Some(&(4, 7)));
+    assert_eq!(random.spans, [4]);
     p.init(Tuning::default(), &mut random, &mut world).unwrap();
     assert_eq!(random.doubles.len(), 1);
-    assert_eq!(random.integers.len(), 3); // derived setup follows each successful base Init
-    assert_eq!(p.consume_play_count(), Err(Unsupported::PlayCountConsumerPn1));
+    assert_eq!(random.integers.len(), 1); // only the constructor's default-speed draw
+    assert_eq!(random.spans, [4, 4]); // derived setup follows each successful base Init
     let mut p = PedestrianOneShot::default();
     world.property = vec![1];
     p.init(Tuning::default(), &mut random, &mut world).unwrap();

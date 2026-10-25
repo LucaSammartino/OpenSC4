@@ -40,3 +40,11 @@
   rejects a commodity count interpreted unsigned above the specified limit, treats negative deal counts
   as an empty signed loop, and publishes a new object only after successful decoding. These are literal
   readings; no additional failure behavior or default entries are inferred for a decoded wire map.
+
+<!-- from: glue-regionalcity-shadow13 (2026-10-24) -->
+- **RY8 - §5 commodity balance / foundations §18.2–18.3:** Does "computed in double precision"
+  override the simulation-wide 24-bit x87 arithmetic contract? Live native records through 2032 differ
+  from ordinary f64 balance arithmetic in 12/73 turbo and 10/73 normal observations (all other fields
+  exact): native -11584.5830078125 versus core -11584.583251953125, for example. [Apply foundations
+  §18.3 literally: load each double without rounding, round each of the two sums and the final
+  subtraction to 24-bit precision; retain the double storage and return type. Please reconcile §5.]

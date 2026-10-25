@@ -70,15 +70,47 @@ pub fn float_index(value: f32) -> Result<u8, Unsupported> {
     Ok(value.trunc() as i64 as u8)
 }
 
-pub fn u16_index(_value: u16, _scale: u32) -> Result<u8, Unsupported> {
-    // QV5: default factors contradict the written formulas. Refuse the entire domain.
-    Err(Unsupported::SixteenBitConflict)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScaleFactors {
+    pub unsigned: u64,
+    pub signed: i64,
 }
 
-pub fn i16_index(_value: i16, _scale: u32) -> Result<u8, Unsupported> {
-    // QV5: arithmetic shift gives 64 in the example requiring 65; do not
-    // substitute division/truncation or hardcode the example.
-    Err(Unsupported::SixteenBitConflict)
+impl Default for ScaleFactors {
+    fn default() -> Self {
+        Self {
+            unsigned: 256,
+            signed: 256,
+        }
+    }
+}
+
+impl ScaleFactors {
+    pub fn from_scale(scale: Option<u32>) -> Self {
+        match scale {
+            Some(s) if s > 1 && s < 1 << 24 => Self {
+                unsigned: 0xffff00 / u64::from(s),
+                signed: 0x7fff00 / i64::from(s),
+            },
+            _ => Self::default(),
+        }
+    }
+
+    pub fn unsigned_index(self, value: u16) -> u8 {
+        ((u64::from(value) * self.unsigned) >> 16).min(255) as u8
+    }
+
+    pub fn signed_index(self, value: i16) -> u8 {
+        (128 + ((i64::from(value) * self.signed) >> 16)).clamp(0, 255) as u8
+    }
+}
+
+pub fn u16_index(value: u16, scale: u32) -> Result<u8, Unsupported> {
+    Ok(ScaleFactors::from_scale(Some(scale)).unsigned_index(value))
+}
+
+pub fn i16_index(value: i16, scale: u32) -> Result<u8, Unsupported> {
+    Ok(ScaleFactors::from_scale(Some(scale)).signed_index(value))
 }
 
 /// Â§3.1's per-channel alpha copy. Rounding to nearest is exact integer
@@ -109,12 +141,13 @@ impl Values<'_> {
         }
     }
 
-    fn index(self, i: usize) -> Result<u8, Unsupported> {
+    pub(super) fn index(self, i: usize, factors: ScaleFactors) -> Result<u8, Unsupported> {
         match self {
             Self::U8(v) => Ok(u8_index(v[i])),
             Self::I8(v) => Ok(i8_index(v[i])),
             Self::F32(v) => float_index(v[i]),
-            Self::U16(_) | Self::I16(_) => Err(Unsupported::SixteenBitConflict),
+            Self::U16(v) => Ok(factors.unsigned_index(v[i])),
+            Self::I16(v) => Ok(factors.signed_index(v[i])),
         }
     }
 }
@@ -122,17 +155,23 @@ impl Values<'_> {
 /// Portable helper contract: refuse unsupported inputs before writing any
 /// output. Native malformed-buffer/failure behavior is not specified (QV6).
 pub fn emit_colors(values: Values<'_>, palette: &RawPalette, output: &mut [u32]) -> Result<(), Unsupported> {
+    emit_colors_scaled(values, palette, output, ScaleFactors::default())
+}
+
+pub fn emit_colors_scaled(
+    values: Values<'_>,
+    palette: &RawPalette,
+    output: &mut [u32],
+    factors: ScaleFactors,
+) -> Result<(), Unsupported> {
     if values.len() != output.len() {
         return Err(Unsupported::BufferLength);
     }
-    if matches!(values, Values::U16(_) | Values::I16(_)) {
-        return Err(Unsupported::SixteenBitConflict);
-    }
     for i in 0..values.len() {
-        values.index(i)?;
+        values.index(i, factors)?;
     }
     for (i, color) in output.iter_mut().enumerate() {
-        *color = palette.lookup(values.index(i)?);
+        *color = palette.lookup(values.index(i, factors)?);
     }
     Ok(())
 }
