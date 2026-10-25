@@ -1193,6 +1193,17 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
 endif()
 
+# disasters.md §2.8: opt-in layer, preserving concrete native managers.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4DisasterLayer.cpp plugin/cFC4DisasterLayer.h)
+    add_test(NAME plugin_ini_enable_disasters_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-disasters)
+    set_tests_properties(plugin_ini_enable_disasters_test PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_ini_disable_disasters_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-disable-disasters)
+    set_tests_properties(plugin_ini_disable_disasters_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+
 if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_advisors_registration
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-advisors)
