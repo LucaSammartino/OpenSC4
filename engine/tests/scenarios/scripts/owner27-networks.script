@@ -1,4 +1,4 @@
-# Isolated copy of Schonerlinde. Rejected placements remain failures.
+# Isolated copy of Kensington. Rejected placements remain failures.
 # Private placement does not exercise mouse dragging or network demolition.
 2000-01-01 mark network setup
 2000-01-01 network 12 12 44 12 0
@@ -18,6 +18,6 @@
 2000-01-01 dezone 14 14 16 16
 2000-01-01 digest
 2000-01-01 speed 2
-2000-05-08 mark end network observation
-2000-05-08 digest
-2000-05-08 save
+2006-07-31 mark end network observation
+2006-07-31 digest
+2006-07-31 save

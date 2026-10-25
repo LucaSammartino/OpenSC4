@@ -93,12 +93,12 @@ as prescriptions for the additional controls; they are not suite inputs.
 | Scenario suffix | Region / city | End date | Action scope |
 |---|---|---|---|
 | growth | London / Kensington | 2006-08-01 | R/C/I zoning, roads, price query, observation, save |
-| networks | Berlin / Schonerlinde | 2000-05-09 | All thirteen network types, crossing, dezone, save |
+| networks | London / Kensington | 2006-08-01 | All thirteen network types, crossing, dezone, save |
 | automata | Berlin / Tegel | 2029-12-21 | Developed city, daytime, observation |
 | effects | Timbuktu / Big City Tutorial | 2016-01-18 | End tutorial, survey, fire attempt, day/night |
-| coast | Berlin / Spandau | 2002-01-10 | Three candidate seaport sites, observation, save |
+| coast | Berlin / Spandau | 2002-01-10 | Previously successful seaport site, observation, save |
 | traffic | London / Fulham | 2007-10-13 | Developed industrial city, observation, full saves |
-| terrain | Berlin / Tempelhof | 2000-05-09 | Small height patch, lower/raise surface, save |
+| terrain | Berlin / Konradshohe | 2026-05-28 | Small height patch, lower/raise surface, save |
 | views | Berlin / Konradshohe | 2026-05-28 | Visual time and explicit lighting hours |
 | resources | London / Kensington | 2006-08-01 | Load interval, full/fast saves, observation |
 

@@ -1,10 +1,10 @@
-# Isolated copy of Tempelhof. Only a small local patch is reshaped.
+# Isolated copy of Konradshohe. Only a small local patch is reshaped.
 # The second height is a different surface, not restoration of the original terrain.
 2000-01-01 mark small terrain and surface water patch
 2000-01-01 speed 2
 2000-01-01 terrain 4 4 8 8 280 1
-2000-02-01 terrain 4 4 8 8 240 1
-2000-03-01 terrain 4 4 8 8 280 1
-2000-05-08 digest
-2000-05-08 mark end terrain observation
-2000-05-08 save
+2026-03-01 terrain 4 4 8 8 240 1
+2026-04-01 terrain 4 4 8 8 280 1
+2026-05-27 digest
+2026-05-27 mark end terrain observation
+2026-05-27 save

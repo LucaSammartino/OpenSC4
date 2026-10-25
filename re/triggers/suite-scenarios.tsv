@@ -1,10 +1,10 @@
 scenario	trigger_group	target_owner_count	unreached_implemented_bytes	coverage_of_trigger	fixture_and_window	notes
 owner27-growth	growth	18	181451	zone/network calls; conditional growth	London/Kensington; 2006-03-31 to 2006-08-01	Target membership is the growth row of actions.tsv; vacant cells/services/demand remain conditions
-owner27-networks	networks	10	180266	private placement types 0..12 and crossing	Berlin/Schonerlinde; 2000-01-08 to 2000-05-09	Target membership is the networks row; interactive drag/demolition remain blocked
+owner27-networks	networks	10	180266	private placement types 0..12 and crossing	London/Kensington; 2006-03-31 to 2006-08-01	Target membership is the networks row; interactive drag/demolition remain blocked; replaces non-advancing Schonerlinde fixture
 owner27-automata	automata	8	89625	developed city observation	Berlin/Tegel; 2029-08-20 to 2029-12-21	Target membership is the automata row; actual generators/vehicles must be measured
 owner27-effects	effects	5	88683	fire attempt and visual time	Timbuktu/Big City Tutorial; 2015-09-17 to 2016-01-18	Target membership is the effects row; fire/tutorial additional; attempted ignition is not successful ignition
-owner27-coast	coast	5	62053	candidate seaport sites and observation	Berlin/Spandau; 2001-09-09 to 2002-01-10	Target membership is the coast row; stage-zero creation does not establish navigability/boats
+owner27-coast	coast	5	62053	measured stage-zero site and observation	Berlin/Spandau; 2001-09-09 to 2002-01-10	Target membership is the coast row; stage-zero creation does not establish navigability/boats; redundant fallback sites removed after successful first site
 owner27-traffic	traffic	3	65889	developed city observation and saves	London/Fulham; 2007-06-12 to 2007-10-13	Target membership is the traffic row; multiple travel modes not guaranteed
-owner27-terrain	terrain	6	81614	local terrain/water changes	Berlin/Tempelhof; 2000-01-08 to 2000-05-09	Target membership is the terrain row; flora/weather reactions conditional
+owner27-terrain	terrain	6	81614	local terrain/water changes	Berlin/Konradshohe; 2026-01-27 to 2026-05-28	Target membership is the terrain row; flora/weather reactions conditional; replaces non-advancing Tempelhof fixture
 owner27-views	views	9	154553	visual time subset	Berlin/Konradshohe; 2026-01-27 to 2026-05-28	Target membership is the views row; pan/zoom/rotation/data-map/legend blocked
 owner27-resources	resources	9	47576	load; full/fast saves	London/Kensington; 2006-03-31 to 2006-08-01	Target membership is the resources row; city save subset additional; no city switch/ASCII authoring
