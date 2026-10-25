@@ -13156,6 +13156,18 @@ bool fc4_adv_mysim_move_in(const fc4_adv_obj* obj, uint8_t slot,
 bool fc4_adv_mysim_notify(const fc4_adv_obj* obj, uint32_t slot,
     uint64_t building, uint32_t data, float x, float z);
 bool fc4_mysim_set_dispatch(fc4_advisors* system, int32_t id, uint64_t dispatch);
+/* Network lot live identity projections; legacy fc4_netlot_lot stays 16 bytes.
+ * Configuration tokens identify the selected object even if saved IDs collide.
+ * Getter outputs are optional, untouched on false; token 0 is unresolved.
+ * Iterator tokens and records come from the same snapshot; false stops it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef bool (*fc4_netlot_configuration_visitor)(void*, int32_t, int32_t, const fc4_netlot_lot*, uint64_t);
+bool fc4_netlot_get_lot_with_configuration(const fc4_netlot* l, int32_t x, int32_t z,
+                                         fc4_netlot_lot* out, uint64_t* configuration);
+bool fc4_netlot_iterate_lots_with_configuration(const fc4_netlot* l,
+                                              fc4_netlot_configuration_visitor cb, void* ctx);
 #ifdef __cplusplus
 }
 #endif

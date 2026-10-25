@@ -211,7 +211,7 @@ public:
     bool Writable() const { return writable_; }
 
     // The lot objects this class handed out, kept alive while the manager is.
-    cISC4NetworkLot* KeepLot(int32_t x, int32_t z, cISC4NetworkOccupant* occ, uint32_t configId);
+    cISC4NetworkLot* KeepLot(int32_t x, int32_t z, cISC4NetworkOccupant* occ, uint64_t configToken);
     // The configuration with the core's token (host identity), or null.
     cFC4NetworkLotConfiguration* ConfigByToken(uint64_t token) const;
 

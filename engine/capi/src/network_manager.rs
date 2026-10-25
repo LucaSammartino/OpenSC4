@@ -1155,10 +1155,26 @@ fn lot_to_c(l: &LotEntry) -> fc4_netlot_lot {
 /// Slot 5 `GetNetworkLot(x, z)`: false when the cell has none.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_netlot_get_lot(p: *const fc4_netlot, x: i32, z: i32, out: *mut fc4_netlot_lot) -> bool {
+    fc4_netlot_get_lot_with_configuration(p, x, z, out, std::ptr::null_mut())
+}
+
+/// Slot 5 projection with the exact live configuration identity, not just its
+/// saved ID. Zero means unresolved; the legacy lot record layout is unchanged.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netlot_get_lot_with_configuration(
+    p: *const fc4_netlot,
+    x: i32,
+    z: i32,
+    out: *mut fc4_netlot_lot,
+    configuration: *mut u64,
+) -> bool {
     with_l(p, false, |h| match h.sim.get_network_lot(x, z) {
         Some(l) => {
             if let Some(o) = out.as_mut() {
                 *o = lot_to_c(&l);
+            }
+            if let Some(token) = configuration.as_mut() {
+                *token = l.config.as_ref().map_or(0, |c| c.token);
             }
             true
         }
@@ -1254,6 +1270,28 @@ pub unsafe extern "C" fn fc4_netlot_iterate_lots(
             let c = lot_to_c(l);
             // SAFETY: the caller's visitor.
             unsafe { f(ctx, x, z, &c) }
+        })
+    })
+}
+
+/// Slot 11 projection preserving the exact configuration from each snapshot
+/// entry, including when a preceding visitor mutates the manager.
+pub type fc4_netlot_configuration_visitor = Option<
+    unsafe extern "C" fn(ctx: *mut c_void, x: i32, z: i32, lot: *const fc4_netlot_lot, configuration: u64) -> bool,
+>;
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netlot_iterate_lots_with_configuration(
+    p: *const fc4_netlot,
+    cb: fc4_netlot_configuration_visitor,
+    ctx: *mut c_void,
+) -> bool {
+    let Some(f) = cb else { return false };
+    with_l(p, false, |h| {
+        h.sim.iterate_all_network_lots(|x, z, l| {
+            let c = lot_to_c(l);
+            // SAFETY: the caller's visitor; both projections use this snapshot.
+            unsafe { f(ctx, x, z, &c, l.config.as_ref().map_or(0, |c| c.token)) }
         })
     })
 }

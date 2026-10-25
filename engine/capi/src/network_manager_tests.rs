@@ -721,6 +721,76 @@ fn save_lots(l: *const fc4_netlot) -> Out {
 }
 
 #[test]
+fn lot_configuration_iteration_keeps_snapshot_identity_during_removal() {
+    let g = Game::new();
+    for (token, cell) in [(1, (1, 1)), (2, (2, 2))] {
+        g.add(
+            token,
+            Occ {
+                piece: 0x77,
+                ..road(cell, token)
+            },
+        );
+    }
+    let mut host = lot_host(&g);
+    host.find_network_tile = Some(find_lot_test_tile);
+    unsafe {
+        let l = fc4_netlot_create(&host, 0, 1);
+        for token in [100, 200] {
+            let mut c = config(42, 0x77, [0x0F; 4]);
+            c.token = token;
+            assert!(fc4_netlot_add_configuration(l, &c));
+        }
+        assert!(fc4_netlot_init(l));
+        for (cell, token) in [(1, 100), (2, 200)] {
+            assert!(fc4_netlot_set_next_configuration_token(l, token));
+            fc4_netlot_update_roads_in_cell(l, cell, cell);
+        }
+        struct Visit {
+            manager: *mut fc4_netlot,
+            seen: Vec<(u64, u64)>,
+        }
+        unsafe extern "C" fn visit(
+            ctx: *mut c_void,
+            _: i32,
+            _: i32,
+            lot: *const fc4_netlot_lot,
+            configuration: u64,
+        ) -> bool {
+            let ctx = &mut *ctx.cast::<Visit>();
+            if ctx.seen.is_empty() {
+                // Remove both live entries before the next snapshot callback.
+                for occupant in [1, 2] {
+                    fc4_netlot_do_message(ctx.manager, OCCUPANT_REMOVED, 0, 0, 0, occupant, 0, std::ptr::null());
+                }
+            }
+            assert_eq!((*lot).config_id, 42);
+            ctx.seen.push(((*lot).occupant, configuration));
+            true
+        }
+        let mut ctx = Visit {
+            manager: l,
+            seen: Vec::new(),
+        };
+        assert!(fc4_netlot_iterate_lots_with_configuration(
+            l,
+            Some(visit),
+            (&mut ctx as *mut Visit).cast()
+        ));
+        ctx.seen.sort_unstable();
+        assert_eq!(ctx.seen, [(1, 100), (2, 200)]);
+        assert_eq!(lot_state(l).lots, 0);
+        assert!(!fc4_netlot_iterate_lots_with_configuration(
+            l,
+            None,
+            std::ptr::null_mut()
+        ));
+        fc4_netlot_destroy(l);
+        assert_eq!((g.refs(1), g.refs(2)), (0, 0));
+    }
+}
+
+#[test]
 fn forced_configuration_uses_exact_token_when_ids_collide() {
     let g = Game::new();
     g.add(
@@ -756,8 +826,39 @@ fn forced_configuration_uses_exact_token_when_ids_collide() {
             assert!(!fc4_netlot_set_next_configuration_token(l, 999));
             fc4_netlot_update_roads_in_cell(l, 1, 1);
             assert_eq!(g.object_tokens.borrow().last(), Some(&token));
+            let mut lot = fc4_netlot_lot::default();
+            let mut selected = 0;
+            assert!(fc4_netlot_get_lot_with_configuration(l, 1, 1, &mut lot, &mut selected));
+            assert_eq!((lot.config_id, selected), (42, token));
+            assert!(fc4_netlot_get_lot_with_configuration(
+                l,
+                1,
+                1,
+                std::ptr::null_mut(),
+                std::ptr::null_mut()
+            ));
+            unsafe extern "C" fn visit(
+                ctx: *mut c_void,
+                x: i32,
+                z: i32,
+                lot: *const fc4_netlot_lot,
+                configuration: u64,
+            ) -> bool {
+                assert_eq!((x, z, (*lot).config_id), (1, 1, 42));
+                *ctx.cast::<u64>() = configuration;
+                false
+            }
+            let mut visited = 0_u64;
+            assert!(!fc4_netlot_iterate_lots_with_configuration(
+                l,
+                Some(visit),
+                (&mut visited as *mut u64).cast()
+            ));
+            assert_eq!(visited, token);
             assert_eq!(lot_state(l).has_forced, 0, "forced choice is consumed");
             fc4_netlot_do_message(l, OCCUPANT_REMOVED, 0, 0, 0, 1, 0, std::ptr::null());
+            assert!(!fc4_netlot_get_lot_with_configuration(l, 1, 1, &mut lot, &mut selected));
+            assert_eq!(selected, token, "missing lot leaves output untouched");
         }
         assert!(fc4_netlot_set_next_configuration_token(l, 200));
         fc4_netlot_clear_next_configuration(l);
@@ -765,6 +866,18 @@ fn forced_configuration_uses_exact_token_when_ids_collide() {
         fc4_netlot_destroy(l);
         assert_eq!(g.refs(1), 0);
         assert!(!fc4_netlot_set_next_configuration_token(std::ptr::null_mut(), 100));
+        assert!(!fc4_netlot_get_lot_with_configuration(
+            std::ptr::null(),
+            1,
+            1,
+            std::ptr::null_mut(),
+            std::ptr::null_mut()
+        ));
+        assert!(!fc4_netlot_iterate_lots_with_configuration(
+            std::ptr::null(),
+            None,
+            std::ptr::null_mut()
+        ));
     }
 }
 
@@ -901,7 +1014,9 @@ fn lot_record_round_trip_through_init() {
         assert!(fc4_netlot_read(l, &s));
         assert_eq!(i.pos, bytes.len());
         let mut lot = fc4_netlot_lot::default();
-        assert!(fc4_netlot_get_lot(l, 3, 4, &mut lot));
+        let mut token = 999;
+        assert!(fc4_netlot_get_lot_with_configuration(l, 3, 4, &mut lot, &mut token));
+        assert_eq!(token, 0, "Read has not resolved the configuration");
         assert_eq!(
             lot,
             fc4_netlot_lot {
@@ -914,7 +1029,8 @@ fn lot_record_round_trip_through_init() {
         );
         assert!(fc4_netlot_add_configuration(l, &config(0x501, 0x77, [0x0F; 4])));
         fc4_netlot_init(l);
-        assert!(fc4_netlot_get_lot(l, 3, 4, &mut lot));
+        assert!(fc4_netlot_get_lot_with_configuration(l, 3, 4, &mut lot, &mut token));
+        assert_eq!(token, 0x501);
         assert_eq!((lot.has_config, lot.config_id), (1, 0x501));
         assert!(
             !fc4_netlot_get_lot(l, 5, 6, std::ptr::null_mut()),

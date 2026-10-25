@@ -1,16 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netlotobj-replace22: network object ownership | Codex / `glue-netlotobj-replace22` (engine) | Ready measured partial: cargo 7642 passed; clippy 0 diagnostics; CTest 91/91; netlotobj22-r5-crew-shadow-20261025 73/73; netlotobj22-r5-crew-house52-20261025 clean through 2032, ref_warnings=0 | Specify crew creation/Init and configuration IID/container ABI; complete three-class replacement |
+| glue-netlotobj-replace22: network object ownership | Codex / `glue-netlotobj-replace22` (engine) | Ready measured partial: cargo 7643 passed; clippy clean; CTest 91/91; netlotobj22-r6-livecfg-shadow-20261025 73/73; netlotobj22-r6-livecfg-house52-20261025 clean through 2032, ref_warnings=0 | Specify crew creation/Init and configuration IID/container; complete three-class replacement |
 
 ## Report
 
-- Prior commits `52a788ed5`, `31aa93259`, `7b220ba6a` fix borrowed lot/cache ownership and pin lot views across replacing iterator callbacks. `3e16477d6`, `52177b0c0` add configuration getters, atomic COM lifetime, and exact-token forced choices; DLL-only tests avoid game allocator use.
-- This round replaces the logging-only crew shutdown callback with the specified slot-5 call (no stack arguments; return ignored). It never dereferences a crew after shutdown can unregister and destroy it.
-- Expanded `plugin_netlot_ownership` checks message-driven reentrant crew unregistration, balanced references, duplicate registrations, absent removal, repeated shutdown, and the specified bounded loop for a crew that does not unregister. Registration and lot/configuration ownership tests remain covered.
-- `qbuild all`: cargo 7642 passed, 0 failed/ignored; clippy 0 diagnostics. Initial native CTest 90/91 exposed the ABI scanner treating typed compatibility-interface probe calls as SDK calls; existing `abi: via cFC4I` markers correct that classification.
-- Final `qbuild verify`: build PASS 49/49 edges; CTest PASS 91/91. Verdict: `build-runs/build-results/qbuild-20261025-084443-build-ctest.verdict`. Initial failed evidence remains in `build-runs/r5-initial-failed-*` and the `qbuild-20261025-082054-build-ctest.verdict`.
-- Exact shadow line: `netlotobj22-r5-crew-shadow-20261025 73/73`; every line mismatches=0, 0 configuration differences, 0 resyncs; clean through 2032-01-17, ref_warnings=0.
-- Full recorded 52-key house profile: `netlotobj22-r5-crew-house52-20261025`, clean through 2032-01-01 in 107.859 seconds, ref_warnings=0, disabled=-. Profile preserved from the preceding measured request; no tools files read or edited.
-- Run evidence: `build-runs/game-results/netlotobj22-r5-crew-shadow-20261025.verdict` and `build-runs/game-results/netlotobj22-r5-crew-house52-20261025.verdict`, with matching logs. Both runs used DLL SHA256 prefix `ff339a63`; no requests outstanding.
-- Still missing: crew creation/six-argument Init contract and Rust-backed crew construction; configuration IID and output-set layout/allocator. Explicit `// SPEC-GAP:` comments remain; the set bridge stays inactive. No complete three-class replacement credit is claimed.
-- Pending branch adds C export `fc4_netlot_set_next_configuration_token`; this round adds no exports. ABI version unchanged; replacement keys and shadows remain default-off. No questions, spec edits, tools edits, README closure tables, or docs/runs records.
+- Lot getters and iterator snapshots now carry the Rust core's exact configuration token into the plugin cache. Distinct configurations sharing a saved ID retain their own object arrays; changing the selected configuration rebuilds the view even when occupant and saved ID match.
+- Two additive C exports: `fc4_netlot_get_lot_with_configuration`, `fc4_netlot_iterate_lots_with_configuration`. Legacy exports and the 16-byte lot record remain compatible; ABI version unchanged.
+- Tests cover colliding IDs, forced choices, unresolved Read before Init, optional/absent outputs, early iterator termination, reentrant snapshot removal, and retained configuration lifetime after cache replacement. Existing registration and reentrant crew-shutdown ownership checks also pass.
+- Focused network ABI tests: 17/17. Owned Rust formatting passed. Final `qbuild all`: 7643 passed, 0 failed/ignored across 52 result groups; clippy 0 diagnostics; queued native build 216/216; CTest 91/91 including `plugin_netlot_ownership`.
+- Native verdict: `build-runs/build-results/qbuild-20261025-092459-build-ctest.verdict`; full logs remain in `build-runs/`.
+- Exact shadow line: `netlotobj22-r6-livecfg-shadow-20261025 73/73`. All lines have mismatches=0; clean through 2032-01-10, ref_warnings=0.
+- Full preserved 52-key house profile: `netlotobj22-r6-livecfg-house52-20261025`, clean through 2032-01-01 in 111.265 seconds, ref_warnings=0, disabled=-. Init reports 525 lots, 543 configurations and 13 network tools.
+- Run records: `build-runs/game-results/netlotobj22-r6-livecfg-shadow-20261025.verdict` and `build-runs/game-results/netlotobj22-r6-livecfg-house52-20261025.verdict`, with matching logs and requests under `game-queue/done/`. Both used DLL SHA256 prefix `81d20927`; no requests outstanding.
+- Still missing: Rust-backed crew construction and its six-argument Init contract; configuration IID and output-set layout/allocator. Existing SPEC-GAP comments remain; the unspecified set bridge stays inactive. No complete three-class replacement credit is claimed.
+- Shadows remain default-off. No questions filed, spec edits, tools edits, README tables or docs/runs records.
