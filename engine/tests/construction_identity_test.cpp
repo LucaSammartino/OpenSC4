@@ -43,6 +43,10 @@ int main() {
     CHECK(acquired->Release() == 1);
 
     owner.wrongOccupant = true;
+    // A broken conversion and a missing expected identity must not compare
+    // equal merely because both pointers are null. No QI is needed here.
+    CHECK(!fc4::ConstructionIdentity(source, nullptr, acquired));
+    CHECK(acquired == nullptr && owner.refs == 1 && owner.adds == 1 && owner.conversions == 1);
     CHECK(!fc4::ConstructionIdentity(source, owner.occupant(), acquired));
     CHECK(acquired != nullptr); // A comparison failure still owns the QI ref.
     CHECK(acquired->Release() == 1);
@@ -57,6 +61,8 @@ int main() {
     CHECK(!fc4::ConstructionIdentity(nullptr, owner.occupant(), acquired));
     CHECK(acquired == nullptr);
     owner.nullView = false;
+    CHECK(!fc4::ConstructionIdentity(source, nullptr, acquired));
+    CHECK(acquired == nullptr && owner.refs == 1);
     owner.throwConversion = true;
     bool caught = false;
     try {

@@ -24,7 +24,7 @@ inline bool ConstructionIdentity(cIGZUnknown* source, cISC4Occupant* expected,
                                  ConstructionView*& acquired) {
     acquired = nullptr;
     void* view = nullptr;
-    if (!source || !source->QueryInterface(kConstructionIID, &view) || !view) return false;
+    if (!source || !expected || !source->QueryInterface(kConstructionIID, &view) || !view) return false;
     acquired = static_cast<ConstructionView*>(view);
     return acquired->AsOccupant() == expected;
 }
