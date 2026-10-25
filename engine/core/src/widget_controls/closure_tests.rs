@@ -92,6 +92,27 @@ fn wc_l27_l31_literal_sort_storage_and_highlight() {
 }
 
 #[test]
+fn wc_l03_l13_drop_selection_and_outline_setters_invalidate() {
+    let (mut l, mut f) = list(true);
+    l.select(1, false, &mut f);
+    f.messages.clear();
+    for _ in 0..2 {
+        let before = f.invalidations;
+        assert!(l.select(99, true, &mut f));
+        assert_eq!(l.selected, 2);
+        assert!(f.invalidations > before);
+        assert!(f.messages.is_empty());
+    }
+    let before = f.invalidations;
+    l.set_flat(true, &mut f);
+    assert!(l.flat && !l.three_d);
+    assert_eq!(f.invalidations, before + 1);
+    l.set_three_d(true, &mut f);
+    assert!(!l.flat && l.three_d);
+    assert_eq!(f.invalidations, before + 2);
+}
+
+#[test]
 fn wc_t17_t24_literal_geometry_and_descriptor_children() {
     let (mut t, mut f, a, _) = tree();
     t.next_handle = 8;
@@ -155,6 +176,59 @@ fn wc_t26_restart_is_not_clean_initialization() {
     t.create_root();
     assert!(t.nodes.is_empty()); // retained stale pointer suppresses root creation
     assert_eq!(f.defaults, defaults);
+}
+
+#[test]
+fn wc_t25_descriptor_preserves_topology_and_false_visibility_but_dirties() {
+    let (mut t, mut f, a, _) = tree();
+    let child = t.insert(descriptor(a, b"child"), &mut f).unwrap();
+    let mut value = t.descriptor(a).unwrap();
+    value.force_branch = true;
+    value.visible = false;
+    value.children = vec![999];
+    t.layout_dirty = false;
+    let before = (f.invalidations, f.refs.len(), f.messages.len());
+    assert!(t.apply_descriptor(a, value.clone(), &mut f));
+    assert!(!t.nodes[&a].force_branch);
+    assert_eq!(t.nodes[&a].children, [child]);
+    assert!(t.layout_dirty);
+    assert!(f.invalidations > before.0);
+    assert_eq!((f.refs.len(), f.messages.len()), (before.1, before.2));
+    assert!(t.get_visible(a));
+    assert!(!t.get_visible(child)); // False visibility did not expand or hide its parent.
+    t.layout_dirty = false;
+    let before = (f.invalidations, f.refs.len(), f.messages.len());
+    assert!(!t.apply_descriptor(999, value, &mut f));
+    assert!(!t.layout_dirty);
+    assert_eq!((f.invalidations, f.refs.len(), f.messages.len()), before);
+}
+
+#[test]
+fn wc_t02_t05_silent_noops_and_exact_selection_payloads() {
+    let (mut t, mut f, a, b) = tree();
+    let before = (f.invalidations, f.messages.len());
+    assert!(!t.set_expanded(999, true, &mut f));
+    assert_eq!((f.invalidations, f.messages.len()), before);
+    t.select(a, false, &mut f);
+    t.select(b, true, &mut f);
+    assert!(!t.deselect(999, &mut f));
+    assert_eq!(t.selection, [b]);
+    assert_eq!(f.messages.len(), 2);
+    assert!(f
+        .messages
+        .iter()
+        .all(|(_, m)| { m.kind == 3 && m.words == [tree_view::SELECTION as i32, 0, 0, 0] }));
+    t.clear_selection(&mut f);
+    t.flags |= 0x10;
+    t.select(a, false, &mut f);
+    t.select(b, false, &mut f);
+    assert_eq!(t.selection, [a, b]);
+    f.messages.clear();
+    assert!(t.clear_selection(&mut f));
+    assert!(t.selection.is_empty());
+    assert_eq!(selection_messages(&f, tree_view::SELECTION), 1);
+    assert!(t.clear_selection(&mut f));
+    assert_eq!(f.messages.len(), 1);
 }
 
 #[test]
@@ -270,6 +344,34 @@ fn wc_t46_drag_ending_on_descendant_cancels_without_restoring_selection() {
 }
 
 #[test]
+fn tree_child_array_adapter_preserves_unwritten_elements_and_missing_outputs() {
+    let (mut t, mut f, a, _) = tree();
+    let child = t.insert(descriptor(a, b"child"), &mut f).unwrap();
+    let first = t.insert(descriptor(a, b"first"), &mut f).unwrap();
+    t.insert(descriptor(child, b"grandchild"), &mut f).unwrap();
+    let before = (f.refs.len(), f.invalidations, f.messages.len(), t.layout_dirty);
+    let mut output = [999; 3];
+    assert_eq!(t.children(a, Some(&mut output)), Ok(true));
+    assert_eq!(output, [first, child, 999]); // Immediate children, in child-list order.
+    assert_eq!(t.children(999, Some(&mut output)), Ok(false));
+    assert_eq!(output, [first, child, 999]);
+    assert_eq!(t.children(a, None), Ok(false));
+    assert_eq!(t.children(first, Some(&mut [])), Ok(true));
+    assert_eq!(t.children(first, Some(&mut output)), Ok(true));
+    assert_eq!(output, [first, child, 999]); // An empty list writes no array elements.
+    let mut short = [999];
+    assert_eq!(
+        t.children(a, Some(&mut short)),
+        Err(Unsupported::Precondition("TreeView child output storage"))
+    );
+    assert_eq!(short, [999]);
+    assert_eq!(
+        (f.refs.len(), f.invalidations, f.messages.len(), t.layout_dirty),
+        before
+    );
+}
+
+#[test]
 fn tree_selection_output_and_borrowed_adapter_inventory() {
     let (mut t, mut f, a, b) = tree();
     assert_eq!(t.copy_selection(None), Ok(true));
@@ -283,7 +385,9 @@ fn tree_selection_output_and_borrowed_adapter_inventory() {
     assert_eq!(t.selected_handles().len(), 2); // O53
     assert_eq!(t.first_selected(), a); // O54, distinct from navigation anchor
     assert!(t.copy_selection(None).is_err());
-    assert!(t.copy_selection(Some(&mut [0])).is_err());
+    let mut short = [999];
+    assert!(t.copy_selection(Some(&mut short)).is_err());
+    assert_eq!(short, [999]);
     for h in [a, b] {
         assert_eq!(t.parent(h), 0);
         assert_eq!(t.insertion_reference(h), -2);
