@@ -1,0 +1,16 @@
+rank	root_kind	root	exclusive_bytes	total_bytes	script	status	precondition_or_missing_driver
+1	tool	cSC4NetworkTool	41281	83895	engine/tests/scenarios/scripts/trigger27-networks.script	untested-hypothesis	clear in-bounds corridors; generic network types; accepted placement required
+2	tool	cSC4ViewInputControlQuery	31714	36840	-	missing	need confirmed UI selection and query click/hover driver; dated plugin grammar has no query action
+3	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4MySimDispatch::DoMessage	11386	15812	-	missing	recover active dispatch/vehicle prerequisites and a driver that establishes them
+4	tool	cSC4PowerLineTool	10788	12884	engine/tests/scenarios/scripts/trigger27-power.script	untested-hypothesis	clear in-bounds cells; network type 5; successful placement required
+5	city	cSC4TrafficSimulator::Read	7728	8439	engine/tests/scenarios/scripts/trigger27-traffic-load.script	untested-hypothesis	suite loads a grown city containing a compatible saved traffic record before dated actions
+6	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4CitySituationManager::DoMessage	5483	13613	-	missing	recover situation activation condition; running the clock alone does not prove branches execute
+7	message	ebb67ef7 kSC4MessageShowSituationPopup -> cSC4CitySituationManager::DoMessage	4852	5001	-	missing	confirm real message producer and applicable situation; direct arbitrary message injection is not a player scenario
+8	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSTEVolcanoLava::DoMessage	4817	5064	-	missing	active volcano/lava instance required; plugin disaster action supports only fire and riot
+9	message	99ef1142 kSC4MessageInsertOccupant -> cSC4ZoneDeveloper::DoMessage	4790	4790	engine/tests/scenarios/scripts/trigger27-growth.script	untested-hypothesis	vacant cells with road/utilities access, funds and positive residential demand; wait for actual lot/building insertion
+10	city	cSC4TrafficSimulator::Write	4732	4795	engine/tests/scenarios/scripts/trigger27-traffic-save.script	untested-hypothesis	grown city with traffic state; full save occurs on deferred framework tick
+11	message	07699455 kSC4MessageZoningChange -> cSC4LandfillDeveloper::DoMessage	4281	6604	engine/tests/scenarios/scripts/trigger27-landfill.script	untested-hypothesis	vacant dry cells and sufficient funds; accept zone type 14 before observing developer processing
+12	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSTESurfaceWater::DoMessage	3749	3790	-	missing	identify creation/activation of transient surface-water simulation; ordinary shoreline is not proof
+13	message	a6b79602 kSC4MessageViewZRChange3 -> cSC4DisasterInstanceFire::DoMessage	3709	3875	-	missing	active fire plus confirmed view zoom/rotation producer; starting a fire alone does not establish this view message
+14	city	cSC4App::SaveCity	3409	8039	engine/tests/scenarios/scripts/trigger27-save.script	untested-hypothesis	loaded city in isolated slot copy; deferred full save and later dated actions must finish
+15	city	cSC4RegionalCity::Read	3315	3516	engine/tests/scenarios/scripts/trigger27-region-load.script	untested-hypothesis	suite region/city setup must read regional city data; dated script only records successful arrival

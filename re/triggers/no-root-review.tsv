@@ -1,0 +1,11 @@
+address	size	name	reached_provisional	hand_check	conclusion
+005ebbf0	5	cSC43DPlaceableObject::GetModelCount	1	005ebbf0-005ebbf4: signed word accessor at this+6; complete body checked	live; missing rendering/object dispatch path
+0060c730	8	cSC4NetworkLotManager::AddRef	1	0060c730-0060c737: increments and returns dword at this+0x6c; complete body checked	live; missing interface reference-management path
+004778a0	7	icf::cSC4FireProtectionSimulator::GetPercentCoverage	1	004778a0-004778a6: returns this+0x9c address; complete body checked	live; folded label does not imply a scalar percent calculation
+0080be90	154	cSC4OrdinanceFreeClinics::GetCurrentMonthlyIncome	1	0080be90-0080bf25: registry virtual calls and numeric conversion; full decoded body checked	live; missing ordinance/budget virtual receiver path
+0090a929	30	HTMLIsSpace	1	0090a929-0090a946: computes a subrange and directly forwards to 0090a820; complete body checked	live; inferred symbol alone does not prove whitespace behavior
+007d2850	73	SC4DrawContext::EnableCullFaceFlag	1	007d2850-007d2896: tests cached bit 0x40; renderer slots +0xb0/+0xb4 only on state changes; complete body checked	live; missing draw-context caller/renderer path
+005ded60	45	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	1	005ded60-005ded8a: copies two groups of three dwords to two output pointers; complete body checked	live; missing occupant/render-query interface path
+0068fd10	7	cSC4BudgetSimulator::GetTotalFunds	1	0068fd10-0068fd16: returns two dwords at this+0x28 and this+0x2c; complete body checked	live; missing budget interface callers
+004494c0	7	cSC4App::GetDebugFunctionalityEnabled	0	004494c0-004494c6: returns byte at this+0x644; complete body checked	absence does not prove debug-only/dead; app-interface caller unresolved
+00459390	28	cSC4City::GetCitySizeType	0	00459390-004593ab: compares stored dimension against 0x40 and 0x80 and classifies it; complete body checked	city size query is meaningful; no-root is unresolved dispatch rather than evidence of dead code
