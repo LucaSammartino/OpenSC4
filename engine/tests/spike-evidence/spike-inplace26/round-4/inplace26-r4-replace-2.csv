@@ -1,0 +1,9 @@
+name,rva,bytes,installed,source,calls,sampled,compared,exact,float_only,different,outside,refused,nested,mutation,detected,max_ulp,recorded,replaced
+box-rectangle,003f7a40,1018,1,corpus,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+box-rectangle,003f7a40,1018,1,dense,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+box-rectangle,003f7a40,1018,1,fixture,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+box-rectangle,003f7a40,1018,1,natural,1943,1943,0,0,0,0,0,0,0,0,0,0,0,1943
+clip2,003f6620,104,1,corpus,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+clip2,003f6620,104,1,dense,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+clip2,003f6620,104,1,fixture,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+clip2,003f6620,104,1,natural,1,1,0,0,0,0,0,0,0,0,0,0,0,1
