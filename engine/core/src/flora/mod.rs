@@ -136,6 +136,7 @@ pub use registry::{
     advance_cluster_type, FloraRecord, FloraRegistry, SharedRegistry, DEFAULT_RECORD_FLAGS, DEFAULT_TABLE_BYTE,
 };
 pub use simulator::{predict_visit, FloraData, FloraSim, VisitOutcome, FLORA_RECORD_VERSION};
+pub mod occupant;
 
 use std::rc::Rc;
 

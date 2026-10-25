@@ -358,11 +358,13 @@ bool Capture(CaptureStream& s) {
 void TakeCensus(Census& c, bool inputs) {
     c.entries.clear();
     if (g_d.om == nullptr) return;
+    uint32_t records = 0, recordMismatches = 0;
     c.list.reset(new OccList());
     g_d.om->GetOccupantsByStandardCityCells(*c.list, nullptr, nullptr, kTypeFlora, 0xFFFFFFFFu);  // slot 41
     for (cISC4Occupant* o : *c.list) {
         if (o == nullptr) continue;
         fc4_flora_census_entry e{};
+        fc4_flora_instance_values persisted{};
         e.token = TokenOf(o);
         void* q = nullptr;
         if (o->QueryInterface(GZIID_cISC4FloraOccupant, &q) && q != nullptr) {
@@ -373,6 +375,7 @@ void TakeCensus(Census& c, bool inputs) {
             e.last_seeding_date = f->GetLastSeedingDate();
             e.state = static_cast<int8_t>(f->GetState());
             e.is_flora = 1;
+            persisted.orientation = f->GetOrientation();
             FC4_RELEASE(reinterpret_cast<cIGZUnknown*>(f));
         }
         e.in_manager = o->IsFlagSet(1) ? 1 : 0;  // slot 32
@@ -388,11 +391,58 @@ void TakeCensus(Census& c, bool inputs) {
         e.bbox_max[0] = mx.fX;
         e.bbox_max[1] = mx.fY;
         e.bbox_max[2] = mx.fZ;
+        if (inputs && e.is_flora != 0) {
+            // Read-only persistence differential, enabled only by flora_shadow.
+            // SPEC-GAP: the referenced occupant-manager §19 runtime/base class
+            // contract is absent; this does not register a replacement class.
+            persisted.flora_type = e.flora_type;
+            persisted.birth = e.birth_date;
+            persisted.last_seed = e.last_seeding_date;
+            persisted.state = e.state;
+            std::memcpy(persisted.position, e.pos, sizeof(e.pos));
+            // SPEC-GAP: false GetLotTag supplies no value; do not assume a wild-flora sentinel.
+            const bool lotTagAvailable = o->GetLotTag(persisted.lot_tag);
+            persisted.flags = static_cast<uint8_t>(o->GetFlags());
+            persisted.highlight = static_cast<uint8_t>(o->GetHighlight());
+            CaptureStream record;
+            void* serializable = nullptr;
+            bool exact = false;
+            if (o->QueryInterface(GZIID_cIGZSerializable, &serializable) && serializable != nullptr) {
+                auto* ser = static_cast<cIGZSerializable*>(serializable);
+                FC4_ACQUIRED(ser, "QueryInterface");
+                exact = ser->Write(record) && record.Good()
+                    && fc4_flora_instance_record_shadow(record.Data(), record.Size(), &persisted, lotTagAvailable);
+                FC4_RELEASE(ser);
+            }
+            ++records;
+            if (!exact) {
+                ++recordMismatches;
+                static uint32_t examples = 0;
+                if (examples++ < 4) {
+                    uint32_t positionBits[3]{};
+                    std::memcpy(positionBits, persisted.position, sizeof(positionBits));
+                    Log("flora record sample: bytes=%u type=%08X birth=%u seed=%u state=%d orientation=%u "
+                        "position=%08X,%08X,%08X lot=%u flags=%02X highlight=%u",
+                        static_cast<unsigned>(record.Size()), persisted.flora_type, persisted.birth,
+                        persisted.last_seed, persisted.state, persisted.orientation, positionBits[0],
+                        positionBits[1], positionBits[2], persisted.lot_tag, persisted.flags, persisted.highlight);
+                    char hex[513]{};
+                    const size_t count = std::min(record.Size(), size_t{256});
+                    for (size_t i = 0; i < count; ++i) {
+                        std::snprintf(hex + i * 2, 3, "%02X", record.Data()[i]);
+                    }
+                    Log("flora record sample bytes: %s", hex);
+                }
+            }
+        }
         if (inputs) {
             e.moisture = g_d.weather ? AsGame(g_d.weather)->GetMoistureType(pos.fX, pos.fZ) : 0;
             e.altitude = g_d.terrain ? g_d.terrain->GetAltitude(pos.fX, pos.fZ) : 0.0f;  // compiled slot 13
         }
         c.entries.push_back(e);
+    }
+    if (inputs && !g_testMode) {
+        Log("flora-record-shadow: compared=%u mismatches=%u owner=cSC4FloraOccupant", records, recordMismatches);
     }
 }
 
