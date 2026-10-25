@@ -718,7 +718,7 @@ void Resolve() {
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
-    // The guarded class is native unless the diagnostic replacement is actually registered.
+    // The mirror is selected only when the replacement class is registered.
     EffectsShadowStartup(enabledKey("effects"));
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).

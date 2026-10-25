@@ -39,6 +39,7 @@
 #include <vector>
 
 class cISC4City;
+struct fc4_effects_directory;
 
 namespace fc4 {
 
@@ -52,6 +53,10 @@ bool EffectsReadDirectory(std::vector<uint8_t>& bytes);
 // `effectsReplaced` is whether `enable = effects` put our class in place.
 void EffectsShadowStartup(bool effectsReplaced);
 void EffectsShadowStop();
+
+// The replacement and its mirror must use the same decoded resource. The
+// core retains its own reference; the caller keeps ownership of this handle.
+void EffectsShadowSetDirectory(const fc4_effects_directory* directory);
 
 // The city session.
 void EffectsShadowCityLoaded(cISC4City* city);

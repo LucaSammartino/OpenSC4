@@ -357,6 +357,7 @@ bool cFC4EffectsManager::Init() {
     }
     if (dir_ == nullptr && !LoadDirectory()) return false;
     if (!fc4_effects_set_directory(core_, dir_)) return false;
+    fc4::EffectsShadowSetDirectory(dir_);
     fc4_effects_set_max_priority(core_, kDefaultMaxPriority);
     // EF2: finish outside the draw pass unless the run asks for the original's
     // draw-pass compat mode.

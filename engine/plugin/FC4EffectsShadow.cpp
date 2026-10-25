@@ -171,6 +171,11 @@ void EffectsShadowStartup(bool effectsReplaced) {
     }
 }
 
+void EffectsShadowSetDirectory(const fc4_effects_directory* directory) {
+    if (g.enabled && g.effectsReplaced && g.core != nullptr)
+        fc4_effects_set_directory(g.core, directory);
+}
+
 void EffectsShadowStop() {
     g_recordEnabled = false;
     if (g.enabled && g.core != nullptr) {
