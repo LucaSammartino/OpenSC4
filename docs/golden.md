@@ -35,6 +35,19 @@ Foundations §6.2 lists independent member, file-local and temporary generators;
 no shared public seed interface is specified. We do not patch their memory.
 Original agents' own timers, rendering and RNGs can still vary.
 
+Raw save variation also includes identity encoding: foundations §2.7 specifies
+that original object IDs are heap addresses, and §§3.3–3.4 specify entry checksums
+that cover those IDs. Neither is controlled by a simulation seed. Header-only
+diagnostic projections may quantify this, but body references and object order
+also need format-aware treatment. The comparator retains them all; it does not
+guess which payload words are references. Inspect monthly digest drift separately
+from raw varying-record and opaque-byte counts.
+
+Finish builds before a repeatability study and pin `--original-dll` to an
+immutable copy, such as the content-addressed DLL under `build-runs/golden-inputs/`.
+Source changes during a run are rejected. Candidate DLLs remain separate inputs
+and never widen the original envelope.
+
 The SHA-256 key covers the executable, installed DAT/DLL/SGR/INI/CFG files,
 observer DLL, start save, entire source region (including neighbours), user
 configuration, source script, generated terminal script and harness sources and
