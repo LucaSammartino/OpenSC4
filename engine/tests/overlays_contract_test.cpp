@@ -8,6 +8,7 @@
 namespace {
 long enabled = 0;
 unsigned calls = 0, observations = 0, summaries = 0;
+unsigned probeFences = 0;
 bool valid = true;
 void __fastcall Unexpected(void*, void*) { std::abort(); }
 bool __fastcall Enabled(void*, void*, uint32_t id) {
@@ -34,6 +35,8 @@ void __fastcall Placement(void*, void*, uint32_t id, void*) {
 }
 
 namespace fc4 {
+ReachProbeScope::ReachProbeScope() : token_(nullptr) { ++probeFences; }
+ReachProbeScope::~ReachProbeScope() = default;
 void OverlayOwnerGameCheck() {}
 long SettingInt(const char*, const char*, long) { return enabled; }
 long PublishedJulian() { return 0; }
@@ -67,7 +70,7 @@ int main() {
     OverlaysShadowOnTick(poison);
     OverlaysShadowMonth(poison, 0);
     OverlaysShadowCityShutdown();
-    if (g_lines || g_fields || observations || summaries) return 2;
+    if (g_lines || g_fields || observations || summaries || probeFences) return 2;
 
     // A city which never exposes a view must fail closed on shutdown. A prior
     // unavailable monthly sample does not cancel the pending load requirement.
@@ -77,6 +80,7 @@ int main() {
     if (!g_loadPending || g_lines) return 3;
     OverlaysShadowMonth(nullptr, 0);
     OverlaysShadowCityShutdown();
+    if (probeFences != 2) return 4;
     if (g_loadPending || g_enabled || g_lines != 2 || g_clean ||
         g_fields != 200 || g_differences != 200 || observations != 8 || summaries != 1) return 4;
     // Shutdown is idempotent; loading another disabled city clears stale totals.

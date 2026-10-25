@@ -34,6 +34,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Reach.h"
 #include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
@@ -601,6 +602,7 @@ public:
         DbpfShadowTick();  // default off; yields between records, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
+            ReachProbeScope reachProbes;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
         }
         // script = <path>: a `save` and the actions behind it (FC4Script.h);
@@ -707,6 +709,12 @@ public:
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 InplaceCityLoaded();
+                if (SettingInt("reach", nullptr, 0) == 1) {
+                    // The first day message has not published a date at city load.
+                    auto* reachCity = CurrentCity();
+                    auto* reachSim = reachCity ? AsGame(reachCity->GetSimulator()) : nullptr;
+                    ReachStart(reachSim ? reachSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
+                }
                 break;
             case kMsgPreSave:
                 DbpfShadowBeforeSave();
@@ -735,6 +743,7 @@ public:
                 break;
             }
             case kMsgPreCityShutdown:
+                ReachStop();
                 DbpfShadowShutdown();
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
@@ -805,6 +814,8 @@ public:
                 const int64_t j = DataOf(msg, &ok);
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
+                ReachNewMonth(julian);
+                ReachProbeScope reachProbes;  // constructed probes are not natural reach
                 if (digest_) WriteDigest(julian);
                 fc4::FeatureShadowMonth();
                 SimGridRecordShadowObserve(CurrentCity(), julian, false);

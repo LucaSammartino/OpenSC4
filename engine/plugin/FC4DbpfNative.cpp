@@ -6,6 +6,7 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Reach.h"
 #include "FC4Observer.h"
 #include "compat/FC4Compat.h"
 #include "fc4.h"
@@ -658,6 +659,7 @@ void HeldSummary(const HeldSample& sample) {
 
 void DbpfShadowTick() {
     if (pending == nullptr || pending->empty()) return;
+    ReachProbeScope reachProbes;  // queued load/month fixtures are not natural entries
     auto& sample = pending->front();
     if (!sample.full && coverageCycle != sample.month / 12 + 1) {
         coverageCycle = sample.month / 12 + 1;

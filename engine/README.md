@@ -2528,6 +2528,40 @@ discovery completeness, capture/exact counts, failures and successful empty
 inventories separately. Full record comparisons preserve reference identities,
 saved texture frames and unnamed bytes; wall-mask growth on Read is a mismatch.
 
+`reach = on` enables a native entry census (default off). `reach_cap = 32`
+limits counted entries per function per window; `reach_window = month` uses
+the observer's calendar messages, including the initial partial month.
+`reach_contracts` selects the ABI `functions.tsv` (default: the build source
+tree's `docs/abi/functions.tsv`). Missing/invalid contracts disable tracing.
+`reach_output` selects the output TSV; harness requests should use the absolute
+worktree `build-runs/game-results/<label>.reach.tsv` path. The default is the
+plugin log path plus `.reach.tsv`. No executable file is opened.
+
+Entries are snapshotted before subsystem entry patches and armed after the
+city-load hooks and probes. Changed entries, preexisting jumps/breakpoints,
+trap-sensitive first instructions, and exception/loader runtime names are
+skipped with reasons. Tracing ends before city shutdown restores other hooks.
+Monthly constructed shadow passes and deferred load probes (overlay, queued
+DBPF and observe snapshot) pause the census process-wide, avoiding
+unbounded traps on fixture-heavy getters. Scripted game actions remain counted.
+`reach_include_probes = 1` disables these pauses for call-count calibration
+(default 0). Calls on other threads during excluded passes are also omitted.
+Consequently this is
+a census of the running city, excluding load/shutdown and monthly fixtures.
+At shutdown the log reports one `reach window N date=YYYY-MM-DD new=N total=N`
+line per window, including empty windows; `new` counts first-seen functions
+and `total` is cumulative. The initial window uses the city-load date.
+The log reports `reach summary functions=... armed=... reached=... skipped=...
+windows=... traps=...`, followed by ignored/aborted/slot-exhaustion/save counters.
+`traps` includes breakpoint and single-step exceptions.
+
+The breakpoint is absent while its first instruction executes. Simultaneous
+calls to the same entry can pass during that interval, so counts are lower
+bounds, not complete call totals for concurrent functions. The synthetic DLL
+test measures this loss separately from exact serialized call-count controls.
+Executable pages stay writable and the VEH's DLL stays pinned until process
+exit so delayed exceptions remain serviceable. This diagnostic is opt-in.
+
 ## S3 in-place oracle experiment (WIP)
 
 All switches default off. `inplace = all` or a comma-separated list of names from

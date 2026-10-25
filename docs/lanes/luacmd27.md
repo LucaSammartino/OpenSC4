@@ -1,6 +1,8 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| luacmd27 - Maxis Lua scenario tooling and catalog sweeps (tools) | Codex / .claude/worktrees/luacmd27 / detached HEAD, reserved luacmd27; main merged e361b7b6a; code through 833657795, evidence 47fdf46d7; ABI unchanged | ready for tools enqueue; pytest 384 passed; Cargo 7844, clippy 0, CTest 117/117; empty/grown r3e clean, shadows 370/383 and 373/444, watchdog samples 1/3; questions none | 1. Coordinator enqueue kind tools at actual HEAD. 2. Review rejected shoreline and grown-city footprints; do not infer full placement coverage. |
+| luacmd27 - Maxis Lua scenario tooling and catalog sweeps (tools) | Codex / .claude/worktrees/luacmd27 / detached HEAD, reserved luacmd27; round 4 main merge in progress; ABI unchanged | wip final round: round-three evidence below retained; fresh gate and reach pending; questions none | 1. Qualify grown/coastal footprints. 2. Compare Lua and no-Lua reach by address. 3. Gate once and enqueue tools at actual HEAD. |
+
+- Round 4 in flight: main merged before further work; no engine implementation changes planned. Keep rejected lot calls and unqualified commands visible.
 
 - AC launch/control: round-two Lua print, rename/read-back and save proof remains accepted; extension control accepted by coordinator. No more extension control or GetSimulationDate work.
 - AC suite: .lua rows emit lua_script plus opt-in lua_extensions; optional same-name dated .script handles terrain. Harvested Lua commands/completion are required; missing, unfinished or rejected commands cannot pass the suite.

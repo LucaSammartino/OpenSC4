@@ -1340,6 +1340,24 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_lotconf_registration_ownership PROPERTIES RUN_SERIAL TRUE)
 endif()
 
+# Opt-in natural-entry reach tracing (no C ABI exports).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4Reach.cpp plugin/FC4Reach.h)
+    target_compile_definitions(FreeCity4 PRIVATE
+        FC4_REACH_CONTRACTS_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/functions.tsv")
+endif()
+if(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_library(fc4_reach_fixture SHARED tests/reach_fixture.cpp)
+    # Incremental-link export thunks start with JMP and would correctly be
+    # refused by the tracer; controls need the actual fixture entry points.
+    target_link_options(fc4_reach_fixture PRIVATE /OPT:NOICF /INCREMENTAL:NO)
+    add_executable(fc4_reach_test tests/reach_test.cpp plugin/FC4Reach.cpp)
+    target_include_directories(fc4_reach_test PRIVATE plugin)
+    target_compile_definitions(fc4_reach_test PRIVATE FC4_REACH_TEST NOMINMAX)
+    target_compile_options(fc4_reach_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME reach_test COMMAND fc4_reach_test "$<TARGET_FILE:fc4_reach_fixture>")
+endif()
+
 # S3 opt-in entry-hook observer and architecture-only mechanics tests.
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4Inplace.cpp plugin/FC4Inplace.h plugin/FC4InplaceDetour.h)
