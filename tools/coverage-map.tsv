@@ -737,6 +737,7 @@ cGZToolsCOMDirector	application	framework	app-directors.md	core/src/application/
 cGZResManCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZGraphicWin32COMDirector	application	framework	com-directors-misc.md	-	-	-
 cGZCOMDirector	application	framework	framework-misc3.md	-	-	-
+cGZScriptCOMDirector	application	framework	script-com-director.md, gz-framework-core.md	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	application.md	-	-	-
 cSC4GameDataRegistry	application	framework	app-directors.md	core/src/game_data_registry	-	-
