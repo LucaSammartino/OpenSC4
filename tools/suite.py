@@ -120,7 +120,7 @@ def extras(values):
         if not match or any(ord(c) < 32 for c in value):
             raise ValueError(f'expected a single key = value: {value!r}')
         key, setting = match[1], match[2].strip()
-        if key in ('label', 'dll', 'region', 'city', 'end_date', 'autoload_city', 'script', 'lua_script', 'fixture_city', 'close_dialogs'):
+        if key in ('label', 'dll', 'region', 'city', 'end_date', 'autoload_city', 'script', 'lua_script', 'fixture_city', 'close_dialogs', 'prepared_city', 'export_city'):
             raise ValueError(f'{key} is selected by the scenario/runner')
         result[key] = setting
     return result
@@ -164,6 +164,9 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                        region=row['region'], city=row['city'], seconds='750',
                        timeout='900', end_date=row['end'], turbo='1', parallel='1')
         ini = dict(base_ini, autotest_unpause='2', autotest_end='quit', popup_dialogs='0', close_dialogs='1')
+        for field, key in (('_prepared_city', 'prepared_city'), ('_export_city', 'export_city')):
+            if row.get(field):
+                ini[key] = row[field]
         if load_only(row):
             request.update(seconds='12', timeout='180', turbo='0')
             del request['end_date']
@@ -393,6 +396,7 @@ def write_results(directory, manifest, results):
     import suite_select
     from collections import Counter
     reached = {name: suite_select.reach(directory / (name + '.reach.tsv'))[0] for name in results}
+    scenarios = {r['scenario']['name']: r['scenario'] for r in manifest['requests']}
     counts = Counter(address for addresses in reached.values() for address in addresses)
     metrics, windows = [], []
     for name, parsed in results.items():
@@ -400,10 +404,12 @@ def write_results(directory, manifest, results):
             **{key: parsed.get(key) for key in ('wall_seconds', 'load_seconds', 'seconds_per_month', 'city_bytes')},
             reach_functions=len(reached[name]) if reached[name] else '-',
             marginal_functions=sum(counts[a] == 1 for a in reached[name]) if reached[name] else '-',
+            prepared_until=scenarios[name].get('_prepared_until', '-'),
+            setup_actions=scenarios[name].get('_setup_actions', 0),
             knee_months=suite_select.knee(parsed.get('reach_windows', []))))
         windows.extend(dict(scenario=name, **window) for window in parsed.get('reach_windows', []))
     write_tsv(directory / 'metrics.tsv', ['scenario', 'wall_seconds', 'load_seconds', 'seconds_per_month',
-              'city_bytes', 'reach_functions', 'marginal_functions', 'knee_months'], metrics)
+              'city_bytes', 'reach_functions', 'marginal_functions', 'knee_months', 'prepared_until', 'setup_actions'], metrics)
     write_tsv(directory / 'saturation.tsv', ['scenario', 'window', 'date', 'new', 'total'], windows)
 
 
@@ -518,6 +524,14 @@ def main(argv=None, root=ROOT):
     run.add_argument('--dry-run', action='store_true', help='stage reproducible inputs without submitting')
     run.add_argument('--slice', help='nightly rotation, zero-based INDEX/COUNT; e.g. 0/6')
     run.add_argument('--reach', action='store_true', help='request reach27 per-scenario address/window evidence')
+    run.add_argument('--states', help='reuse a completed, hash-checked prepared-state tag')
+    prepare = commands.add_parser('prepare', help='run declared setup and export saves outside Documents')
+    prepare.add_argument('--set', default='smoke')
+    prepare.add_argument('--tag', required=True)
+    prepare.add_argument('--dll')
+    prepare.add_argument('--warmup-months', type=int, default=1)
+    prepare.add_argument('--wait-seconds', type=int, default=7200)
+    prepare.add_argument('--dry-run', action='store_true', help='stage setup requests without submitting games')
     select = commands.add_parser('select', help='greedy measured tier 1 or change-targeted cover')
     for command in (run, select):
         command.add_argument('--from', dest='sources', help='comma-separated completed calibration tags; default all')
@@ -533,6 +547,16 @@ def main(argv=None, root=ROOT):
             report(root, args.tag, args.against)
             return 0
         import suite_select
+        if args.command == 'prepare':
+            import suite_states
+            rows = suite_states.prepare(root, read_scenarios(root, args.set), args.tag, args.warmup_months)
+            directory, results = run_scenarios(root, rows, profile='plain', dll=args.dll,
+                                              tag='setup-' + args.tag, wait_seconds=args.wait_seconds,
+                                              dry_run=args.dry_run)
+            if args.dry_run:
+                return 0
+            manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+            return 0 if suite_states.finalize(root, args.tag, manifest, results) else 1
         rows = read_scenarios(root, 'full' if args.command == 'select' or args.set == 'tier1' else args.set)
         if args.budget_seconds <= 0:
             raise ValueError('--budget-seconds must be positive')
@@ -567,6 +591,9 @@ def main(argv=None, root=ROOT):
             if not rows:
                 raise ValueError('empty slice')
         extra = list(args.extra)
+        if args.states:
+            import suite_states
+            rows = suite_states.reuse(root, rows, args.states, resolve_dll(root, args.dll))
         if args.reach:
             extra += ['reach = 1', 'reach_window = month',
                       'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()]

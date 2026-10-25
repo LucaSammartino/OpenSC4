@@ -61,7 +61,8 @@ def measurements(root, scenarios, tags=None):
             continue
         manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
         for request in manifest['requests']:
-            row = request['scenario']
+            actual = request['scenario']
+            row = actual.get('_source_scenario', actual)
             name = row['name']
             result_path = folder / (name + '.json')
             if name not in wanted or not result_path.is_file():
@@ -72,7 +73,12 @@ def measurements(root, scenarios, tags=None):
             source = current['script']
             if source != '-':
                 staged = folder / 'scripts' / (name + Path(source).suffix)
-                if not staged.is_file() or hashlib.sha256(staged.read_bytes()).digest() != hashlib.sha256((root / source).read_bytes()).digest():
+                expected_hash = hashlib.sha256((root / source).read_bytes()).hexdigest()
+                if actual.get('_source_scenario'):
+                    matches_script = actual.get('_source_script_sha256') == expected_hash
+                else:
+                    matches_script = staged.is_file() and hashlib.sha256(staged.read_bytes()).hexdigest() == expected_hash
+                if not matches_script:
                     continue
             parsed = json.loads(result_path.read_text(encoding='utf-8'))
             if not suite.successful({name: parsed}):
