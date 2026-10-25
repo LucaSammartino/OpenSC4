@@ -32,6 +32,7 @@ struct Recording {
     drag_accept: u8,
     drag_return: bool,
     drag_target: Option<i32>,
+    drag_pointer: Option<[i32; 2]>,
     drag_runs: usize,
     owner: grid_owner_tests::Events,
     refs: Vec<(bool, Handle)>,
@@ -1045,9 +1046,11 @@ impl tree_view::TreeForeign for Recording {
         *accept = self.drag_accept;
         self.drag_return
     }
-    fn run_drag(&mut self, t: &mut tree_view::TreeView, _: &tree_view::DragSession) {
+    fn run_drag(&mut self, t: &mut tree_view::TreeView, session: &tree_view::DragSession) {
         self.drag_runs += 1;
-        if let Some(h) = self.drag_target {
+        if let Some([x, y]) = self.drag_pointer {
+            t.notify_drag(x, y, &session.nodes, self).unwrap();
+        } else if let Some(h) = self.drag_target {
             t.select(h, true, self);
         }
     }

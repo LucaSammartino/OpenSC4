@@ -292,13 +292,16 @@ impl TreeView {
         self.dirty(f);
         true
     }
-    pub fn children(&self, h: i32, output: Option<&mut Vec<i32>>) -> bool {
+    /// O49 writes an array prefix, unlike O29's replacement of a child list.
+    pub fn children(&self, h: i32, output: Option<&mut [NodeHandle]>) -> Result<bool> {
         let (Some(n), Some(out)) = (self.nodes.get(&h), output) else {
-            return false;
+            return Ok(false);
         };
-        out.clear();
-        out.extend_from_slice(&n.children);
-        true
+        if out.len() < n.children.len() {
+            return Err(Unsupported::Precondition("TreeView child output storage"));
+        }
+        out[..n.children.len()].copy_from_slice(&n.children);
+        Ok(true)
     }
     pub fn selected_handles(&self) -> &[i32] {
         &self.selection

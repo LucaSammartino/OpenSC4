@@ -167,7 +167,7 @@ fn wc_l23_l30_sizing_sort_search_and_malformed_storage() {
         l.insert(-2, t.to_vec(), 0, &mut f);
     }
     assert_eq!(l.find_text(b"alpha", &mut f), Some(1));
-    assert!(l.select_prefix(b"A", &mut f));
+    assert!(!l.character(b"A", &mut f)); // WC-L28: W152 navigates but returns false.
     assert_eq!(l.selected, 0);
     l.enable_sorting(&mut f);
     l.entries.reverse();
@@ -420,10 +420,10 @@ fn wc_t30_t35_move_remove_and_adapters() {
     assert_eq!(f.invalidations, n);
     t.set_node_color(a, 1, 99, &mut f);
     assert_eq!(t.descriptor(a).unwrap().colors[2], 99);
-    assert!(!t.children(a, None));
-    let mut out = vec![999];
-    assert!(t.children(a, Some(&mut out)));
-    assert!(out.is_empty());
+    assert_eq!(t.children(a, None), Ok(false));
+    let mut out = [999];
+    assert_eq!(t.children(a, Some(&mut out)), Ok(true));
+    assert_eq!(out, [999]); // WC-T34: an empty array copy performs no writes.
     t.flags |= 0x10;
     t.select(a, false, &mut f);
     t.select(b, false, &mut f);
@@ -597,6 +597,7 @@ fn wc_t44_t47_drag_refusal_side_rejection_and_drop() {
     t.mouse_move(199, 90, 0x10, &mut f).unwrap();
     assert_eq!(f.drag_runs, 0);
     assert_eq!(t.selection, [a]);
+    assert!(!f.messages.iter().any(|(_, m)| m.words[0] as u32 == 0x1af5a141));
     t.notify_drag(10, 3, &[a], &mut f).unwrap();
     assert!(t.insertion_side);
     t.notify_drag(10, 7, &[a], &mut f).unwrap();
@@ -615,5 +616,8 @@ fn wc_t44_t47_drag_refusal_side_rejection_and_drop() {
     assert_eq!(t.nodes[&0].children, topology);
     assert!(t.selection.contains(&a));
     assert!(f.messages.iter().any(|(_, m)| m.words[0] as u32 == 0x1af5a141));
+    let last = &f.messages[f.messages.len() - 2..];
+    assert_eq!(last[0].1.words[0] as u32, tree_view::SELECTION);
+    assert_eq!(last[1].1.words[0] as u32, 0x1af5a141); // WC-T47: reselect before drop.
     assert!(!t.insertion_side);
 }
