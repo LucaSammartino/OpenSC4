@@ -394,3 +394,53 @@ fn te8_range_growth_stops_during_insert_or_suffix_without_cleanup() {
         assert_eq!(storage.events, expected[..stopped_copy + 1]);
     }
 }
+
+#[test]
+fn te8_null_range_growth_attempts_low_addresses_before_committing() {
+    for stop in [Some(1), Some(2), None] {
+        let mut h = history::History::default();
+        h.push(action(1));
+        h.push(action(3));
+        let pointer = h.as_ptr();
+        let string = h[0].restore.as_ptr();
+        let mut storage = Storage {
+            stop,
+            null: true,
+            ..Storage::default()
+        };
+        let result = h.grow_insert_with(1, &[action(2)], &mut storage);
+        if let Some(stopped_copy) = stop {
+            assert_eq!(result, Err(history::Failure::DependencyStopped));
+            assert_eq!(h.as_ptr(), pointer);
+            assert_eq!(h[0].restore.as_ptr(), string);
+            assert_eq!(h.capacity(), 2);
+            assert_eq!(&**h, &[action(1), action(3)]);
+            assert_eq!(h.invalid_state(), None);
+            let expected = ["allocate:4:240", "copy:60:2", "copy:120:3"];
+            assert_eq!(storage.events, expected[..stopped_copy + 1]);
+        } else {
+            let failure = history::Failure::InvalidVector {
+                begin: 0,
+                end: 180,
+                capacity: 240,
+            };
+            assert_eq!(result, Err(failure));
+            assert_eq!(h.invalid_state(), Some(failure));
+            assert_eq!(
+                storage.events,
+                [
+                    "allocate:4:240",
+                    "copy:60:2",
+                    "copy:120:3",
+                    "destroy:1",
+                    "destroy:3",
+                    "free:4096"
+                ]
+            );
+            let events = storage.events.clone();
+            assert_eq!(h.append_with(&action(4), &mut storage), Err(failure));
+            assert_eq!(h.grow_insert_with(0, &[action(4)], &mut storage), Err(failure));
+            assert_eq!(storage.events, events);
+        }
+    }
+}
