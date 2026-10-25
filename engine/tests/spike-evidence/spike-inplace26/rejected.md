@@ -48,6 +48,12 @@ Other view-utilities section 12 entries, all explicitly not credited:
 | iterator deleting destructor | Deallocation, not reversible replay. |
 | iterator vertex copy; index decode; iterator select group; iterator next | Private iterator/mesh graph (I), not adapted. |
 
+The x87 exclusion reasons above describe the initial selection. The corrected
+bridge preserves extended native x87 results; a comparison transport for those
+scalar values is still absent and the cohort is kept unchanged. Rotation and
+visible-edges remain rejected by the fail-closed entry decoder on both clean
+round-2 runs; contracts exist, but no compatible patch was installed.
+
 No new Rust algorithm was needed for the selected 20; new implementation time
 for missing Rust algorithms is zero. Existing cached-owner and word-transport
 adapters are reused without treating their expected outputs as native truth.

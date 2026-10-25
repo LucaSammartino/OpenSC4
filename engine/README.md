@@ -2537,10 +2537,11 @@ constructed inputs at city load. `inplace_mutate = <names>` changes one result
 word on the first exact sample and logs its detection through the replay
 comparator. `inplace summary` separates natural and fixture counts.
 
-This prototype is WIP: inplace26-fixture-1 faulted in the constructed
-world-viewport call. Native machine-state transparency is unresolved; original
-output-byte restoration is insufficient to claim safe replay. The natural run
-was clean but had unresolved differences, outside changes and refused captures.
+The initial typed wrappers faulted in inplace26-fixture-1. The state bridge now
+preserves incoming and outgoing integer registers, flags, x87/SSE state and
+control modes, including nested entries. Seven synthetic machine-state cases
+and a completed mutation fixture cover that correction. The experiment still
+has outside-change signals, refused aliases and unsupported entry encodings.
 See `tests/spike-evidence/spike-inplace26/` for measured values and rejections.
 Capture observes net changes in containing writable private committed regions
 (64 MiB cap). It misses undone writes, unrelated allocations and image/global
