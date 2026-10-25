@@ -25,6 +25,12 @@ Requests from one worktree run in submission order unless `parallel = 1` opts in
 
 ## Request format
 
+`python tools/suite.py run --set smoke --profile shadows --tag trial` submits the six smoke scenarios concurrently; `--set full` selects all rows in `engine/tests/scenarios/suite.tsv`. Profiles `shadows` and `replace` read the current defaults from `regress.ps1`; `plain` enables neither. `--dll <worktree-or-dll>` stages an immutable copy (default main's DLL), and repeated `--extra 'key = value'` adds ini settings or queue timing options. The poller must include the requesting checkout and support `region` and `parallel`.
+
+`python tools/suite.py report trial` reprints `build-runs/suite/trial/{summary,per_key}.tsv`; `--against earlier` compares shadow sample lines after removing wall-clock/PID prefixes, preserving all payload differences. JSON evidence preserves every shadow aggregate, action result, inplace summary and reach summary. Summary shadow counts use comparison samples (or aggregate-only keys), never count both a sample and its shutdown total, and give no exact credit to resynced evidence or empty format files. Shadow mismatches are findings; a missing end date, failed/pending action or non-clean verdict makes `run` exit nonzero. Queue-wait expiry preserves outstanding requests and records `queue-timeout`.
+
+`python tools/play.py --region Berlin --city Konradshohe --do '2026-02-01 zone 10 10 20 20 1' --until 2026-04-01 --profile plain` runs one city and prints actions and comparison results. Both CLIs accept `--script` through the scenario/play input, `.script` or `.lua`, and `--dry-run` stages inputs without submitting. Play accepts repeated `--do` and combines them with a plugin `.script` (not Lua). Scripts remain opt-in; only slot copies of saves are modified.
+
 `key = value` lines, `#` comments; `[ini]` settings go into `FreeCity4.ini` (switches: `engine/README.md`).
 
 | Key | Default | Meaning |
