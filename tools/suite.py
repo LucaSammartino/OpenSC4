@@ -343,6 +343,10 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         result['wall_seconds'] = float(wall[1])
     elif attached and verdict_at:
         result['wall_seconds'] = (verdict_at - attached).total_seconds()
+    harness_verdict = re.search(r'^verdict:\s*([\w-]+)', verdict_text, re.M)
+    if harness_verdict and harness_verdict[1] != 'clean':
+        result['verdict'] = harness_verdict[1]
+        result['invalid_reason'] = 'harness verdict overrides plugin verdict'
     if only_load:
         result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
     elif speed and float(speed[1]) == 0:
@@ -376,6 +380,7 @@ def write_tsv(path, columns, rows):
 
 def write_results(directory, manifest, results):
     rows = []
+    findings = []
     per_key = {key: dict(key=key, scenarios_run=0, scenarios_exact=0, first_mismatch='-')
                for key in manifest['shadow_keys']}
     for request in manifest['requests']:
@@ -391,8 +396,12 @@ def write_results(directory, manifest, results):
             entry['scenarios_exact'] += int(value['lines'] == value['exact'])
             if value['first_mismatch'] and entry['first_mismatch'] == '-':
                 entry['first_mismatch'] = f'{name} {row["log"]} {value["first_mismatch"]}'
+            if value['first_mismatch']:
+                findings.append(dict(key=key, scenario=name, log=row['log'],
+                                     first_mismatch=value['first_mismatch']))
     write_tsv(directory / 'summary.tsv', COLUMNS, rows)
     write_tsv(directory / 'per_key.tsv', KEY_COLUMNS, [per_key[k] for k in sorted(per_key)])
+    write_tsv(directory / 'findings.tsv', ['key', 'scenario', 'log', 'first_mismatch'], findings)
     import suite_select
     from collections import Counter
     reached = {name: suite_select.reach(directory / (name + '.reach.tsv'))[0] for name in results}
@@ -488,17 +497,36 @@ def report(root, tag, against=None):
             raise ValueError('invalid comparison tag')
         baseline = directory.parent / against
         manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+        other = json.loads((baseline / 'manifest.json').read_text(encoding='utf-8'))
+        other_rows = {r['scenario']['name']: r['scenario'] for r in other['requests']}
+        comparison = []
         print('scenario\tshadow_determinism\tfirst_difference')
         for request in manifest['requests']:
-            name = request['scenario']['name']
+            row = request['scenario']
+            name = row['name']
             paths = [folder / f'{name}.shadows.txt' for folder in (directory, baseline)]
-            if not all(p.exists() for p in paths):
-                print(f'{name}\tmissing\t-'); continue
-            lines = [p.read_text(encoding='utf-8').splitlines() for p in paths]
-            if not any(lines):
-                print(f'{name}\tno-evidence\t-'); continue
-            difference = next((i for i, (a, b) in enumerate(itertools.zip_longest(*lines), 1) if a != b), None)
-            print(f'{name}\t{"different" if difference else "exact"}\t{difference or "-"}')
+            difference = None
+            previous = other_rows.get(name)
+            scripts = [folder / 'scripts' / (name + Path(row['script']).suffix) for folder in (directory, baseline)]
+            same_script = row['script'] == '-' or (all(p.is_file() for p in scripts)
+                          and scripts[0].read_bytes() == scripts[1].read_bytes())
+            if previous is None or not all(p.exists() for p in paths):
+                status = 'missing'
+            elif (manifest['dll_sha256'] != other['dll_sha256'] or manifest['profile'] != other['profile']
+                    or any(row.get(k) != previous.get(k) for k in ('region', 'city', 'end', '_prepared_until'))
+                    or manifest.get('extra') != other.get('extra') or not same_script):
+                status = 'input-different'
+            else:
+                lines = [p.read_text(encoding='utf-8').splitlines() for p in paths]
+                if not all(lines):
+                    status = 'no-evidence'
+                else:
+                    difference = next((i for i, (a, b) in enumerate(itertools.zip_longest(*lines), 1) if a != b), None)
+                    status = 'different' if difference else 'exact'
+            comparison.append(dict(scenario=name, shadow_determinism=status, first_difference=difference or '-',
+                                   log=directory / f'{name}.log', against_log=baseline / f'{name}.log'))
+            print(f'{name}\t{status}\t{difference or "-"}')
+        write_tsv(directory / 'determinism.tsv', ['scenario', 'shadow_determinism', 'first_difference', 'log', 'against_log'], comparison)
 
 
 def new_tag():

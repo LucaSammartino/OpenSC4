@@ -301,6 +301,7 @@ $Ini = $cityFixture.Ini
 if ($cityFixture.Source) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 $suiteState = Resolve-HarnessSuiteState $Ini $Slot (MainCheckout)
 $Ini = $suiteState.Ini
+if ($suiteState.Export -and $KeepSaves) { throw 'export_city requires normal slot backup restoration' }
 if ($suiteState.Source -and $cityFixture.Source) { throw 'prepared_city and fixture_city cannot be combined' }
 if ($suiteState.Source -or $suiteState.Export) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 New-Item -ItemType Directory -Force $OutDir | Out-Null

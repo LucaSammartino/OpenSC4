@@ -57,6 +57,10 @@ class SuiteParsingTests(unittest.TestCase):
     def test_missing_rejected_and_refused_runs_cannot_pass(self):
         missing = suite.parse_log('', '2000-04-01', 'verdict: rejected\nline: unknown region')
         self.assertEqual(missing['verdict'], 'rejected')
+        export_failure = suite.parse_log('AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.0)',
+                                         '2000-04-01', 'verdict: harness-error\nline: state-export-failed: no save')
+        self.assertEqual(export_failure['verdict'], 'harness-error')
+        self.assertFalse(suite.successful({'export': export_failure}))
         self.assertFalse(suite.successful({'missing': missing}))
         refused = suite.parse_log('script: ERROR line 2: unknown action\nscript: REFUSED script\n', '2000-04-01')
         self.assertEqual(refused['actions_failed'], 1)
@@ -179,11 +183,23 @@ class SuiteQueueTests(unittest.TestCase):
             self.assertIn('case.one\treplace\tclean\t1\t8.00', table)
             self.assertEqual(table.count(manifest['dll_sha256']), 2)
             self.assertIn('terrain\t2\t0\tcase.one', (directory / 'per_key.tsv').read_text())
+            findings = (directory / 'findings.tsv').read_text()
+            self.assertIn('terrain\tcase.one\t', findings)
+            self.assertIn('terrain\tother\t', findings)
             self.assertTrue((directory / 'case.one.shadows.txt').exists())
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 suite.report(root, 'v1.0', 'v1.0')
             self.assertIn('case.one\texact\t-', out.getvalue())
+            self.assertIn('case.one\texact\t-', (directory / 'determinism.tsv').read_text())
+            baseline = directory.parent / 'different-dll'
+            shutil.copytree(directory, baseline)
+            changed = dict(manifest, dll_sha256='0' * 64)
+            (baseline / 'manifest.json').write_text(json.dumps(changed))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                suite.report(root, 'v1.0', 'different-dll')
+            self.assertIn('case.one\tinput-different\t-', out.getvalue())
             with self.assertRaises(ValueError):
                 suite.make_batch(root, [row], 'plain', str(root), 'v1.0')
 

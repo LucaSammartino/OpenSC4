@@ -306,6 +306,7 @@ function VerdictWord([string]$v) {
     if ($v -match '^exited') { return "exited" }
     if ($v -match '^no city load') { return "no-load" }
     if ($v -match '^timeout') { return "timeout" }
+    if ($v -match '^state-export-failed') { return "harness-error" }
     if ($v -match '^BLOCKED|^BAD') { return "harness-error" }
     if ($v -match '^REJECTED') { return "rejected" }
     return "unknown"
