@@ -605,6 +605,57 @@ fn www20_r7_redirect_response_survives_next_lookup_failure() {
     );
 }
 #[test]
+fn callback_can_retain_redirect_response_after_lookup_failure() {
+    let (mut client, mut io, worker, request, mut peer) = admitted();
+    let response = redirect_attempt(&mut client, &mut io, worker, &mut peer);
+    io.resolve = None;
+    io.retain_resources = true;
+    io.effects.clear();
+    run_current(&mut client, &mut io, worker, &mut peer, None).unwrap();
+
+    // HTTP lifetime §2.1: an earlier published response stays valid on early failure.
+    assert_eq!(io.observed.len(), 1);
+    let (job, observed_request, observed_response) = &io.observed[0];
+    assert_eq!((job.status(), job.0[6], job.0[4]), (3, response, 100));
+    assert_eq!(observed_request.as_ref().unwrap().refs, 1);
+    assert_eq!(observed_response.as_ref().unwrap().refs, 1);
+    assert_eq!(client.requests[&request].refs, 1);
+    assert_eq!(client.resources[&response].refs, 1);
+    assert!(client.workers[&worker].current.is_none());
+    assert_eq!(
+        releases(&io),
+        [
+            http::Effect::ReleaseRequest(request),
+            http::Effect::ReleaseResource(response)
+        ]
+    );
+
+    // Copied response metadata and body outlive the caller's last request hold.
+    assert_eq!(client.release_request(&mut io, request).unwrap(), 0);
+    assert!(client.requests.is_empty());
+    let retained = &client.resources[&response];
+    assert_eq!(
+        retained.strings,
+        [
+            b"GET".to_vec(),
+            b"http://next.test/b".to_vec(),
+            b"http://origin.test/a".to_vec()
+        ]
+    );
+    assert_eq!((retained.redirects, retained.body.as_slice()), (1, b"r".as_slice()));
+    client.release_resource(&mut io, response).unwrap();
+    assert!(client.resources.is_empty());
+    assert_eq!(
+        &io.effects[io.effects.len() - 4..],
+        [
+            http::Effect::ReleaseRequest(request),
+            http::Effect::DeleteRequest(request),
+            http::Effect::ReleaseResource(response),
+            http::Effect::DeleteResource(response)
+        ]
+    );
+}
+#[test]
 fn www20_r8_new_response_overwrites_old_without_release() {
     let (mut client, mut io, worker, request, mut peer) = admitted();
     let old = redirect_attempt(&mut client, &mut io, worker, &mut peer);
