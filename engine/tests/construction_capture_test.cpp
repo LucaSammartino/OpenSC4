@@ -150,6 +150,20 @@ int RecordFactoryTests(FC4TestSeamFn seam) {
         require(seam(kFC4SeamConstructionCapture, record, nullptr) == 1, "loaded record round trip");
         require(record->Release() == 0, "loaded owner destroyed");
     }
+    // LR13: failed field QI leaves null without poisoning an otherwise valid
+    // stream. The rejected effect must not acquire an owner reference.
+    effect.rejectField = true;
+    record = nullptr;
+    require(seam(kFC4SeamConstructionRecordFactory, &source, &record) == 1 && record,
+            "rejected field interface reads as null");
+    if (record) {
+        require(effect.refs == 1 && ground.refs == 2 && roof.refs == 2 && crew.refs == 2,
+                "retain accepted fields only");
+        require(seam(kFC4SeamConstructionCapture, record, nullptr) == 1,
+                "record with rejected fields round trips as null");
+        require(record->Release() == 0, "rejected-field owner destroyed");
+    }
+    effect.rejectField = false;
     source.shortRecord = true;
     record = reinterpret_cast<cIGZSerializable*>(1);
     require(seam(kFC4SeamConstructionRecordFactory, &source, &record) == 0 && !record,

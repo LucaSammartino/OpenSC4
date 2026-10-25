@@ -66,7 +66,61 @@ pub unsafe extern "C" fn fc4_construction_record_write(owner: *const c_void, out
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stream::{fc4_bytes_sink, fc4_ref};
     use crate::test_streams::{istream, ostream, In, Out};
+
+    // Unlike the shared byte-buffer test stream, a real segment stream reports
+    // exhausted input through GetError (lot-records 9.1.1).
+    struct CheckedInput {
+        base: fc4_istream,
+        failed: bool,
+    }
+
+    impl CheckedInput {
+        fn api(&mut self) -> fc4_istream {
+            macro_rules! track {
+                ($name:ident $(, $arg:ident: $ty:ty)*) => {
+                    unsafe extern "C" fn $name(u: *mut c_void, $($arg: $ty),*) -> bool {
+                        let input = &mut *u.cast::<CheckedInput>();
+                        let ok = input.base.$name
+                            .map(|f| f(input.base.user, $($arg),*))
+                            .unwrap_or(false);
+                        input.failed |= !ok;
+                        ok
+                    }
+                };
+            }
+            track!(get_u8, out: *mut u8);
+            track!(get_u16, out: *mut u16);
+            track!(get_u32, out: *mut u32);
+            track!(get_u64, out: *mut u64);
+            track!(get_f32, out: *mut f32);
+            track!(get_f64, out: *mut f64);
+            track!(get_bytes, out: *mut u8, count: usize);
+            track!(get_str, sink: fc4_bytes_sink, context: *mut c_void);
+            track!(get_ref, iid: u32, out: *mut fc4_ref);
+            track!(skip, count: usize);
+            unsafe extern "C" fn error(u: *mut c_void) -> i32 {
+                let input = &*u.cast::<CheckedInput>();
+                i32::from(input.failed)
+            }
+            fc4_istream {
+                struct_size: std::mem::size_of::<fc4_istream>() as u32,
+                user: (self as *mut Self).cast(),
+                get_u8: Some(get_u8),
+                get_u16: Some(get_u16),
+                get_u32: Some(get_u32),
+                get_u64: Some(get_u64),
+                get_f32: Some(get_f32),
+                get_f64: Some(get_f64),
+                get_bytes: Some(get_bytes),
+                get_str: Some(get_str),
+                get_ref: Some(get_ref),
+                skip: Some(skip),
+                error: Some(error),
+            }
+        }
+    }
 
     #[test]
     fn record_factory_owns_independent_core_records() {
@@ -133,8 +187,12 @@ mod tests {
             // including failure after the final reference has been consumed.
             for length in 0..before.bytes.len() {
                 let mut input = In::new(&before.bytes[..length]);
+                let mut checked = CheckedInput {
+                    base: istream(&mut input),
+                    failed: false,
+                };
                 assert!(
-                    !fc4_construction_record_read(a, &istream(&mut input)),
+                    !fc4_construction_record_read(a, &checked.api()),
                     "accepted truncated record of length {length}"
                 );
                 let mut after = Out::default();
@@ -147,7 +205,12 @@ mod tests {
             let mut replacement = Out::default();
             assert!(fc4_construction_record_write(b, &ostream(&mut replacement)));
             let mut input = In::new(&replacement.bytes);
-            assert!(fc4_construction_record_read(a, &istream(&mut input)));
+            let mut checked = CheckedInput {
+                base: istream(&mut input),
+                failed: false,
+            };
+            assert!(fc4_construction_record_read(a, &checked.api()));
+            assert!(!checked.failed);
             assert_eq!((*a.cast::<ConstructionRecord>()).scalars.next_day, 67890);
             fc4_construction_record_destroy(b);
             fc4_construction_record_destroy(a);
