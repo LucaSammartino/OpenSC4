@@ -141,7 +141,7 @@ class SuiteParsingTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])
 
-    def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
+    def test_starter_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
         # Trigger/Lua lanes append focused scenarios; the original city census
         # keeps its stronger all-actions contract independently of those rows.

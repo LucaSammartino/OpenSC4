@@ -343,6 +343,12 @@ function Finish($job) {
         $s = & powershell -NoProfile -ExecutionPolicy Bypass -File $Sum -Log $log -Width 200 2>&1 | ForEach-Object { "$_" }
         $body += @("", "summary:") + @($s | ForEach-Object { "  $_" })
     } else { $body += @("", "(no plugin log)") }
+    # Optional Lua transcript follows the plugin log into the request checkout.
+    $luaLog = Join-Path $Out "$($job.runLabel).lua.log"
+    if (Test-Path -LiteralPath $luaLog) {
+        Copy-Item -LiteralPath $luaLog -Destination (Join-Path $res "$($job.label).lua.log") -Force
+    }
+    # End optional Lua transcript.
     foreach ($png in @(Get-ChildItem -Path (Join-Path $Out "$($job.runLabel)-*.png") -ErrorAction SilentlyContinue)) {
         Copy-Item -LiteralPath $png.FullName -Destination (Join-Path $res ($png.Name -replace "^$([regex]::Escape($job.runLabel))", $job.label)) -Force
     }
