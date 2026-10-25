@@ -244,49 +244,6 @@ bool cFC4VisualEffect::TestFlag(uint32_t bit) {
 }
 
 
-// ---- the two CreateVisualEffect overloads (question 8) -------------------------------------------
-//
-// effects.md §4.1/§4.2 and docs/abi rows 2274-2275 put the *name* form at slot 7 and the *ID-pair*
-// form at slot 6. The SDK's cISC4EffectsManager.h declares them name-first, which is the opposite
-// order, and callers in this repo compile against that header. A game run settled the practical
-// question: the caller reaches the first CreateVisualEffect slot with (const char*, out**), i.e.
-// the name form. Rather than pick a side and crash, each overload classifies its first argument
-// and dispatches to the right body. Question 8 asks which slot order is the measured one.
-
-// Whether `p` points at a readable, NUL-terminated, printable ASCII string of at most 255
-// characters. Bounded by the page the pointer lands in, so it never walks into unmapped memory.
-static bool ReadableName(const char* p) {
-    if (p == nullptr) return false;
-    MEMORY_BASIC_INFORMATION mbi = {};
-    if (VirtualQuery(p, &mbi, sizeof(mbi)) == 0) return false;
-    if (mbi.State != MEM_COMMIT) return false;
-    const DWORD prot = mbi.Protect & 0xFFu;
-    if (prot != PAGE_READONLY && prot != PAGE_READWRITE && prot != PAGE_EXECUTE_READ &&
-        prot != PAGE_EXECUTE_READWRITE) {
-        return false;
-    }
-    const char* base = static_cast<const char*>(mbi.BaseAddress);
-    const size_t room = (mbi.RegionSize > static_cast<size_t>(p - base))
-                            ? mbi.RegionSize - static_cast<size_t>(p - base)
-                            : 0;
-    const size_t n = room < 256 ? room : 256;
-    for (size_t i = 0; i < n; ++i) {
-        const unsigned char c = static_cast<unsigned char>(p[i]);
-        if (c == 0) return i > 0;
-        if (c < 0x20 || c == 0x7F) return false;
-    }
-    return false;
-}
-
-// Whether `q` can be written as a pointer-sized out-parameter.
-static bool WritableSlot(void* q) {
-    if (q == nullptr) return false;
-    MEMORY_BASIC_INFORMATION mbi = {};
-    if (VirtualQuery(q, &mbi, sizeof(mbi)) == 0) return false;
-    if (mbi.State != MEM_COMMIT) return false;
-    const DWORD prot = mbi.Protect & 0xFFu;
-    return prot == PAGE_READWRITE || prot == PAGE_EXECUTE_READWRITE || prot == PAGE_WRITECOPY;
-}
 // ---- the manager ----------------------------------------------------------------------------------
 
 cFC4EffectsManager* cFC4EffectsCollection::Owner() {
@@ -439,10 +396,8 @@ bool cFC4EffectsManager::HasVisualEffect(char const* name) {
     return fc4_effects_has(core_, name);
 }
 
-// The name form (§4.1). `*out` is always written: a null on failure, so a caller that ignores
-// the return value cannot use an uninitialised pointer.
+// The name form (§4.1): failure leaves the caller's output untouched.
 bool cFC4EffectsManager::CreateByName(char const* name, cISC4VisualEffect** out) {
-    if (WritableSlot(out)) *out = nullptr;
     if (name == nullptr || out == nullptr) return false;  // §4.1 step 1
     if (core_ == nullptr && !Init()) return false;
     uint32_t id = 0;
@@ -457,29 +412,17 @@ bool cFC4EffectsManager::CreateByName(char const* name, cISC4VisualEffect** out)
 // The ID-pair form (§4.2). The description is found by an ID pair; the core's directory lookup is
 // by name, so this form resolves through the description index the pair denotes (question 7).
 bool cFC4EffectsManager::CreateById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) {
-    if (WritableSlot(out)) *out = nullptr;
+    (void)out;
     fc4::Log("effects: CreateVisualEffect(id pair 0x%08X, 0x%08X) is not resolved yet; question 7",
              static_cast<unsigned>(id0), static_cast<unsigned>(id1));
     return false;
 }
 
-bool cFC4EffectsManager::CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) {
-    // The measured-order slot 6. If the caller actually used the name form, `id0` is the name and
-    // `id1` the out-parameter (question 8).
-    if (ReadableName(reinterpret_cast<const char*>(static_cast<uintptr_t>(id0)))) {
-        return CreateByName(reinterpret_cast<const char*>(static_cast<uintptr_t>(id0)),
-                            reinterpret_cast<cISC4VisualEffect**>(static_cast<uintptr_t>(id1)));
-    }
+bool cFC4EffectsManager::CreateVisualEffectById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) {
     return CreateById(id0, id1, out);
 }
 
-bool cFC4EffectsManager::CreateVisualEffect(char const* name, cISC4VisualEffect** out) {
-    // The measured-order slot 7. If the caller actually used the ID-pair form, `name` is a small
-    // id: write nothing through `out` (question 8).
-    if (!ReadableName(name)) {
-        fc4::Log("effects: CreateVisualEffect got a non-string first argument; question 8");
-        return false;
-    }
+bool cFC4EffectsManager::CreateVisualEffectByName(char const* name, cISC4VisualEffect** out) {
     return CreateByName(name, out);
 }
 

@@ -169,8 +169,8 @@ public:
     bool Init() override;
     bool Shutdown() override;
     bool HasVisualEffect(char const* name) override;
-    bool CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) override;
-    bool CreateVisualEffect(char const* name, cISC4VisualEffect** out) override;
+    bool CreateVisualEffectById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) override;
+    bool CreateVisualEffectByName(char const* name, cISC4VisualEffect** out) override;
     void GetStatsString(cIGZString& stats) override;
     cISC4EffectMaps* GetEffectMaps() override;
     float GetTallestBuildingAltitude() override;
@@ -198,9 +198,7 @@ private:
     cFC4EffectsCollection collection_;
     unsigned char nativeState_[0xE00 - 0x1B4] = {};
 
-    // The two overload bodies (§4.1, §4.2). The vtable slots classify their first argument and
-    // call one of these, because the SDK's declaration order and the measured one disagree
-    // (question 8).
+    // The two creation bodies (§4.1, §4.2), reached through distinct virtual slots.
     bool CreateByName(char const* name, cISC4VisualEffect** out);
     bool CreateById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out);
     bool LoadDirectory();

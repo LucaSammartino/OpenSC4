@@ -28,6 +28,16 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
         if (obj != nullptr) {
             // The manager interface starts with cIGZUnknown; GetClassObject owns this reference.
             auto* manager = static_cast<cIGZUnknown*>(obj);
+            // Call native slot numbers directly: a typed overloaded call can
+            // hide an MSVC overload-group reversal in both caller and callee.
+            using CreateById = bool (__thiscall*)(void*, uint32_t, uint32_t, cISC4VisualEffect**);
+            using CreateByName = bool (__thiscall*)(void*, const char*, cISC4VisualEffect**);
+            auto** slots = *reinterpret_cast<void***>(obj);
+            auto* untouched = reinterpret_cast<cISC4VisualEffect*>(obj);
+            CHECK(!reinterpret_cast<CreateById>(slots[6])(obj, 0, 0, &untouched));
+            CHECK(untouched == reinterpret_cast<cISC4VisualEffect*>(obj));
+            CHECK(!reinterpret_cast<CreateByName>(slots[7])(obj, nullptr, &untouched));
+            CHECK(untouched == reinterpret_cast<cISC4VisualEffect*>(obj));
             // Section 18.2 rejects unknown IIDs without changing the caller's
             // output, and neither failure path may acquire a reference.
             void* rejected = obj;
