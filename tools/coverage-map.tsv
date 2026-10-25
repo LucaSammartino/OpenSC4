@@ -455,7 +455,8 @@ SC4*View	3D scene and models	renderer	-	-	-	-
 cSC4PathView	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
-cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-
+cSC4DispatchVehicleView	3D scene and models	renderer	dispatch.md,dispatch-vehicle-view.md	-	-	-
+cSC4DispatchVehicleView::TrackInfo	3D scene and models	renderer	dispatch-vehicle-view.md	-	-	-
 fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
 cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	effects
 cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
@@ -551,6 +552,7 @@ cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
 cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/query_tool	-	-
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControlEffectDisaster	city tools and input	ui	com-directors-misc.md	-	-	-
+cSC4ViewInputControlDispatch	city tools and input	ui	dispatch-vehicle-view.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
