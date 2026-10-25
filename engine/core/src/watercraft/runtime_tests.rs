@@ -153,6 +153,9 @@ impl Terrain for Blocked {
     fn terrain_height(&self, _: Vec3) -> f32 {
         -10.0
     }
+    fn terrain_height_at_cell(&self, _: Cell) -> f32 {
+        -10.0
+    }
     fn sea_level(&self) -> f32 {
         0.0
     }
@@ -255,4 +258,138 @@ fn common_dispatch_crash_completion_pops_and_idle_fallthrough_adds_only_once() {
         .unwrap();
     assert_eq!(f.get(1).unwrap().top_state(), Some(state::SLOW_REMOVE));
     assert_eq!(f.get(1).unwrap().crash_elapsed, 8020.0);
+}
+
+#[test]
+fn full_animation_orders_subsidiaries_wakes_caller_removal_and_lighting_with_two_times() {
+    #[derive(Debug, PartialEq)]
+    enum ModelCall {
+        Visibility(bool, f32),
+        Advance(f32),
+    }
+    struct Model(Vec<ModelCall>);
+    impl AnimatedModel for Model {
+        fn visibility(&mut self, translucent: bool, value: f32) {
+            self.0.push(ModelCall::Visibility(translucent, value));
+        }
+        fn advance(&mut self, time: f32) {
+            self.0.push(ModelCall::Advance(time));
+        }
+        fn frame_count(&self) -> f32 {
+            10.0
+        }
+        fn frame(&self) -> f32 {
+            0.0
+        }
+    }
+    struct Service;
+    impl AnimationService for Service {
+        fn slot17(&mut self) -> bool {
+            true
+        }
+        fn slot15(&mut self) -> bool {
+            panic!("slot 17 true must short-circuit slot 15")
+        }
+    }
+    struct Rope;
+    impl RopeEffect for Rope {
+        fn set_transform(&mut self, _: &Transform) {
+            panic!("no tow")
+        }
+        fn running(&self) -> bool {
+            false
+        }
+        fn start(&mut self, _: bool) {
+            panic!("no tow")
+        }
+        fn stop(&mut self, _: bool) {
+            panic!("already stopped")
+        }
+    }
+    #[derive(Default)]
+    struct Lights(Vec<bool>);
+    impl Lighting for Lights {
+        fn light_model(&mut self, control: bool) {
+            self.0.push(control);
+        }
+    }
+    for protected in [false, true] {
+        let mut f = Fleet::default();
+        let mut b = boat();
+        b.record.base.automata_flags = 0;
+        b.still_elapsed = 5000.0;
+        b.player.speed_tween = SpeedTween {
+            start: 2.0,
+            target: 4.0,
+            duration: 1.0,
+            elapsed: 0.0,
+        };
+        if protected {
+            b.record.base.states.push(State::new(state::IDLE));
+        }
+        f.insert(1, b).unwrap();
+        let mut subsidiary = Subsidiary {
+            visibility: SpeedTween {
+                start: 0.0,
+                target: 1.0,
+                duration: 1.0,
+                elapsed: 0.0,
+            },
+            ..Subsidiary::default()
+        };
+        let mut model = Model(vec![]);
+        let mut models: [Option<&mut dyn AnimatedModel>; 1] = [Some(&mut model)];
+        let mut lights = Lights::default();
+        let mut animation = AnimationServices {
+            subsidiary: &mut subsidiary,
+            models: &mut models,
+            service: &mut Service,
+            rope: Some(&mut Rope),
+            lighting: Some(&mut lights),
+            processed_model: true,
+            heading_threshold: [0.1; 3],
+            distance_squared: 1.0,
+        };
+        let mut queries = Queries::default();
+        let mut motion = MotionServices {
+            terrain: &Water,
+            queries: &mut queries,
+            spatial: &mut Spatial,
+            ai_collisions: true,
+        };
+        assert_eq!(
+            f.animation_tick_core(
+                1,
+                AnimationTimes {
+                    movement: 100.0,
+                    animation: 200.0,
+                    scale: 1.0,
+                    cell_size: 16.0,
+                },
+                &mut motion,
+                &mut animation,
+                &mut Effects,
+                &mut None,
+            ),
+            Ok(protected)
+        );
+        let b = f.get(1).unwrap();
+        assert_eq!(b.still_elapsed, 5100.0);
+        assert_eq!(b.player.speed_tween.elapsed, 0.2);
+        assert_eq!(b.models.event_counter, 200.0);
+        assert_eq!(b.position, [0.0; 3]);
+        let mut expected = vec![Event::Notify(0, 0)];
+        for name in WAKES {
+            expected.extend([Event::StopWake(name), Event::EffectUpdate]);
+        }
+        if protected {
+            expected.extend([Event::EffectUpdate, Event::ModelUpdate]);
+        } else {
+            expected.push(Event::Remove(false));
+        }
+        assert_eq!(b.events, expected);
+        assert_eq!(model.0, [ModelCall::Visibility(true, 0.2), ModelCall::Advance(200.0)]);
+        assert_eq!(lights.0, if protected { vec![false] } else { vec![] });
+        assert_eq!(queries.0, 0);
+    }
 }

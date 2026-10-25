@@ -93,6 +93,10 @@ pub trait PlayerEffects {
     fn waterski(&mut self, running: bool);
     /// AEMS dispatch for one channel: slot 6 followed by slot 5, event 0x14.
     fn command_event(&mut self, channel: usize, event: u32);
+    /// The optional effect acquired at Init; None represents failed creation.
+    fn rope_throw(&mut self) -> Option<&mut dyn super::RopeEffect> {
+        None
+    }
 }
 
 impl DriveCommand {
@@ -249,7 +253,7 @@ impl Watercraft {
                 command.shared[7].armed = false;
             }
         }
-        let mut group = Some(self.group.as_ref());
+        let mut group = self.group.as_deref();
         let mut skier_group = false;
         while let Some(current) = group {
             skier_group |= current.id == 0x4409;
@@ -347,7 +351,21 @@ impl Fleet {
             .translate_drive_commands(dt, command, effects)
             .is_some()
         {
+            let boat = self.boat(id)?;
+            let start_throw =
+                command.tow && boat.group_id() == Some(0x4410) && boat.speed == 0.0 && boat.towed.is_none();
             self.tow_button(id, command.tow, manager)?;
+            if let Some(rope) = effects.rope_throw() {
+                let transform = &self.boat(id)?.transform;
+                if start_throw && !rope.running() {
+                    rope.set_transform(transform);
+                    rope.start(false);
+                }
+                // Refresh is independent of the button, speed and exact group ID.
+                if rope.running() {
+                    rope.set_transform(transform);
+                }
+            }
             self.boat_mut(id)?.complete_drive_commands(dt, command, effects);
         }
         Ok(())
