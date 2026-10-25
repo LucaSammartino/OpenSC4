@@ -345,6 +345,7 @@ cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
 cSC4AudioEventHandlerDisasterFire	audio	audio	audio-scape.md	-	-	-
 cSC4AudioPreferencesWinProc	windows and panels	ui	audio-preferences.md	-	-	-
+cSC4AudioCOMDirector	audio	audio	audio.md,audio-filters.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
@@ -973,7 +974,7 @@ _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	rende
 CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	sim-misc2.md	-	-	-
 cEaseSound	audio	audio	-	-	-	-
-cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
+cAmbienceOccupantFilterIsNature	audio	audio	audio-filters.md	-	-	-
 ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
 SC4QuadGridQuadrant	3D scene and models	renderer	sim-misc2.md	-	-	-
 AnyString	persistence and resources	framework	sim-misc2.md	-	-	-

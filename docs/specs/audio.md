@@ -1964,6 +1964,10 @@ QI/AddRef/Release, two always-true capability predicates and one unique method, 
 and 20 bytes) *[inferred]*. What would settle the remaining question of their role: who looks their CLSIDs up
 (a scan of the 83 IDs against the tuning data, and the `+0x20` constant of §3.4 as a cross-check).
 
+**Settled 2026-10-25 (re-audiofilters8):** they are the ambience layer's filters (audio-ambience.md §8.3–§8.4),
+created by class ID from the layer tuning lists; family B8 is the global stage, A the occupant stage, B20 the cell
+stage. Every class's test is in [audio-filters.md](audio-filters.md).
+
 ### 11.2 The 83 registrations
 
 Format: `CLSID ← factory`. Vtable address is in §11.1's families by factory block.
