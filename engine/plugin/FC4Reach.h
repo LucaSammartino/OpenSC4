@@ -36,6 +36,10 @@ struct Summary {
     uint32_t wxBreakpoints = 0, wxSteps = 0;
 };
 
+struct Window {
+    uint32_t number = 0, newFunctions = 0, total = 0;
+};
+
 // One tracer per process. Prepare must precede other entry patches; Start
 // must follow them. Stop restores bytes but retains the VEH for in-flight
 // breakpoint/step exceptions. Destroy only after traced threads have joined.
@@ -54,6 +58,7 @@ public:
     void Resume();
     std::vector<Row> Rows() const;
     Summary GetSummary() const;
+    std::vector<Window> Windows() const;
     bool Write(const std::string& path) const;
     // Future entry-hook installers can use this before taking an entry.
     bool Owns(uintptr_t address) const;
@@ -70,7 +75,7 @@ private:
 // Off unless reach=on. Snapshot before Subsystems(), arm after city-load
 // shadow/replace/compare installation, stop before those hooks are restored.
 void ReachPrepare();
-void ReachStart();
+void ReachStart(int32_t julian);
 void ReachNewMonth(int32_t julian);
 void ReachStop();
 

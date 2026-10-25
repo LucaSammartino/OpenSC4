@@ -602,6 +602,7 @@ public:
         DbpfShadowTick();  // default off; yields between records, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
+            ReachProbeScope reachProbes;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
         }
         // script = <path>: a `save` and the actions behind it (FC4Script.h);
@@ -708,7 +709,7 @@ public:
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
                 InplaceCityLoaded();
-                ReachStart();  // all city-load entry hooks and fixtures finished
+                ReachStart(static_cast<int32_t>(PublishedJulian()));  // entry hooks installed
                 break;
             case kMsgPreSave:
                 DbpfShadowBeforeSave();

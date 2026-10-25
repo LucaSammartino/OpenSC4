@@ -17,6 +17,7 @@
 
 #ifndef FC4_REACH_TEST
 #include "FC4Config.h"
+#include "FC4HarnessLogic.h"
 #include "FC4Log.h"
 #endif
 
@@ -446,6 +447,21 @@ Summary Tracer::GetSummary() const {
     return out;
 }
 
+std::vector<Window> Tracer::Windows() const {
+    std::vector<Window> windows(state_->window.load());
+    for (const auto& row : Rows()) {
+        if (row.firstWindow && row.firstWindow <= windows.size())
+            ++windows[row.firstWindow - 1].newFunctions;
+    }
+    uint32_t total = 0;
+    for (size_t i = 0; i < windows.size(); ++i) {
+        windows[i].number = static_cast<uint32_t>(i + 1);
+        total += windows[i].newFunctions;
+        windows[i].total = total;
+    }
+    return windows;
+}
+
 bool Tracer::Write(const std::string& path) const {
     std::ofstream out(path, std::ios::binary);
     if (!out) return false;
@@ -483,6 +499,7 @@ namespace {
 reach::Tracer* g_reach = nullptr;
 std::string g_reachOutput;
 int32_t g_reachMonth = INT32_MIN;
+std::vector<int32_t> g_reachDates;
 bool g_reachStarted = false, g_reachStopped = false;
 bool g_reachIncludeProbes = false;
 uint32_t g_reachProbePauses = 0;
@@ -517,7 +534,7 @@ void ReachPrepare() {
         static_cast<unsigned>(contracts.size()), path.c_str());
 }
 
-void ReachStart() {
+void ReachStart(int32_t julian) {
     if (!g_reach || g_reachStarted || g_reachStopped) return;
     const std::string window = Setting("reach_window", nullptr);
     if (!window.empty() && window != "month") {
@@ -530,6 +547,8 @@ void ReachStart() {
         return;
     }
     g_reachStarted = true;
+    g_reachMonth = julian;
+    g_reachDates.push_back(julian);
     g_reachIncludeProbes = SettingInt("reach_include_probes", nullptr, 0) == 1;
     // The VEH must remain executable for in-flight exceptions through exit.
     HMODULE pinned = nullptr;
@@ -546,7 +565,7 @@ void ReachNewMonth(int32_t julian) {
     if (!g_reachStarted || g_reachStopped || julian == g_reachMonth) return;
     g_reachMonth = julian;
     g_reach->NextWindow();
-    Log("reach window=%u julian=%d", g_reach->GetSummary().windows, julian);
+    g_reachDates.push_back(julian);
 }
 
 void ReachStop() {
@@ -555,6 +574,11 @@ void ReachStop() {
     g_reach->Stop();
     const bool saved = g_reach->Write(g_reachOutput);
     const auto s = g_reach->GetSummary();
+    for (const auto& window : g_reach->Windows()) {
+        const auto date = harness::CivilFromJulian(g_reachDates[window.number - 1]);
+        Log("reach window %u date=%04d-%02d-%02d new=%u total=%u", window.number,
+            date.year, date.month, date.day, window.newFunctions, window.total);
+    }
     for (const auto& r : g_reach->Rows())
         if (r.skipped == "late-entry-conflict" || r.skipped == "thread-slot-exhaustion")
             Log("reach skip address=%08x reason=%s", r.address, r.skipped.c_str());

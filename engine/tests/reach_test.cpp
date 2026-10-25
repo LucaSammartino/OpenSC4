@@ -194,6 +194,12 @@ int main(int argc, char** argv) {
         tracer.Stop();
         CHECK(a(0) == 7);
         CHECK(RowAt(tracer, fn[0]).entries == 29);
+        const auto windows = tracer.Windows();
+        CHECK(windows.size() == 3);
+        CHECK(windows[0].number == 1 && windows[0].newFunctions == 2 && windows[0].total == 2);
+        CHECK(windows[1].number == 2 && windows[1].newFunctions == 0 && windows[1].total == 2);
+        CHECK(windows[2].number == 3 && windows[2].newFunctions == 4 && windows[2].total == 6);
+        CHECK(windows.back().total == tracer.GetSummary().reached);
         CHECK(tracer.Write("reach-synthetic.tsv"));
         std::printf("reach synthetic exact A=29/29 B=44/44 float=2/2 flags=2/2 ret=2/2 fault=2/2 windows=3 cap=32 ignored=5 skipped=3 suspend_resume=1 traps=%u aborted=%u\n", s.traps, s.abortedSteps);
     }
