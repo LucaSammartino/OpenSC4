@@ -10,6 +10,7 @@ from decimal import Decimal
 import json
 from pathlib import Path
 import re
+import shutil
 
 from scenario_runs import ACTION, FAMILY, FORMATS, ROOT, SHADOW, shadow_differs, write_tsv
 
@@ -141,14 +142,46 @@ def summarize(out, manifest):
     return months, firsts, nonexact
 
 
+def freeze_candidates(out, manifest, nonexact):
+    """Propose fixed suite inputs in build-runs; never edit the shared suite."""
+    selected = {row["scenario"] for row in nonexact}
+    proposals = []
+    for run in manifest["runs"]:
+        results = ROOT / run["root"] / "build-runs/game-results"
+        if run["scenario"] not in selected or not (results / (run["scenario"] + ".verdict")).exists():
+            continue  # do not freeze a partial observation as a completed run
+        slug = re.sub(r"[^a-z0-9]+", "-", run["city"].lower()).strip("-")
+        name = f"gen27-{slug}-s{run['seed']}-{run['mix']}"
+        source = ROOT / run["script"]
+        target = ROOT / "engine/tests/scenarios/scripts" / (name + ".script")
+        if target.exists() and target.read_text(encoding="utf-8") != source.read_text(encoding="utf-8"):
+            raise ValueError("fixed scenario already exists with different actions: " + name)
+        candidate = out / "freeze" / (name + ".script")
+        candidate.parent.mkdir(exist_ok=True)
+        shutil.copy2(source, candidate)
+        first = next(row for row in nonexact if row["scenario"] == run["scenario"])
+        proposals.append(dict(name=name, region=manifest.get("region", "FC4 Test"), city=run["city"],
+            script=target.relative_to(ROOT).as_posix(), end=run["end"], sets="gen",
+            notes=f"Seed {run['seed']} {run['mix']}; {manifest.get('months', '?')} months; "
+                  f"first non-exact {first['key']} log line {first['log_line']}; source {run['scenario']}"))
+    write_tsv(out / "suite-additions.tsv", ("name", "region", "city", "script", "end", "sets", "notes"), proposals)
+    print(f"freeze: {len(proposals)} completed scenarios proposed in {out / 'suite-additions.tsv'}; "
+          "inputs staged under freeze/ for review and apply_patch")
+    return proposals
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
+    parser.add_argument("--freeze", action="store_true", help="stage fixed regression candidates in build-runs")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,24}", args.tag):
         parser.error("invalid tag")
     out = ROOT / "build-runs/suite" / args.tag
-    summarize(out, json.loads((out / "manifest.json").read_text(encoding="utf-8")))
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    _, _, nonexact = summarize(out, manifest)
+    if args.freeze:
+        freeze_candidates(out, manifest, nonexact)
 
 
 if __name__ == "__main__":

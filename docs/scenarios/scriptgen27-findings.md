@@ -71,3 +71,9 @@ priority and `close_dialogs = 1`; the worker also scans the main coordinator
 queue so waiting regress requests take precedence. The suite can use monthly
 first-seen keys and mismatch dates to choose shorter regression windows. This
 does not assert that a month without new keys has no new input behavior.
+
+`python tools/scenario_discovery.py --tag gen27-r3 --freeze` stages scripts for
+completed scenarios with non-exact lines under the ignored `freeze/` directory
+and proposes agreed-format rows in `suite-additions.tsv`. It leaves the tracked
+suite untouched. Pending jobs are excluded; script text is preserved rather
+than regenerated with possibly changed generator code.

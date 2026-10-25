@@ -10,6 +10,29 @@ import scenario_discovery as discovery
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_freeze_only_completed_findings_and_leave_suite_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = root / "build-runs/suite/test"
+            out.mkdir(parents=True)
+            results = root / "worker/build-runs/game-results"
+            results.mkdir(parents=True)
+            (root / "input.script").write_text("2029-08-21 mark test\n", encoding="utf-8")
+            run = dict(scenario="test", root="worker", script="input.script", city="New City", seed=2,
+                       mix="edge", end="2031-08-21")
+            manifest = dict(runs=[run], months=24, region="FC4 Test")
+            issues = [dict(scenario="test", key="dbpf", log_line=27)]
+            with patch.object(discovery, "ROOT", root):
+                self.assertEqual(discovery.freeze_candidates(out, manifest, issues), [])
+                (results / "test.verdict").write_text("verdict: clean\n", encoding="utf-8")
+                proposals = discovery.freeze_candidates(out, manifest, issues)
+            self.assertEqual(len(proposals), 1)
+            self.assertEqual(proposals[0]["name"], "gen27-new-city-s2-edge")
+            self.assertEqual(proposals[0]["sets"], "gen")
+            self.assertEqual((out / "freeze/gen27-new-city-s2-edge.script").read_bytes(),
+                             (root / "input.script").read_bytes())
+            self.assertFalse((root / "engine").exists())
+
     def test_months_stale_dates_windows_and_union(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
