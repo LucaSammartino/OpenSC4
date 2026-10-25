@@ -52,6 +52,18 @@ replace runs no original, replay leaves inputs isolated, and lowering the write
 cap does not truncate replay. Schema tests prove pointer/padding stripping and
 preservation of scalar strided fields without persisting stride gaps.
 
+Final source check: `inplace26-r4-final-2`, DLL `23e6068b`, ran after the
+argument-only binding fix and the successful full gate. Clean/ref_warnings=0;
+2409/2409 natural, 640/640 fixture, 2478/2478 corpus and 19808/19808 dense
+comparisons exact; all 95 mutations detected and located. Zero outside signals,
+zero ordinary differences; one natural clip3 output-alias refusal and 16 dense
+language-domain refusals. The four installation declines remain unchanged.
+The prior `final-1` and `replace-2` measurements used DLL `dd354cea`, before that
+last fix; their JSON/CSV files remain separate rather than relabelled as current.
+Final gate on the current engine sources: cargo 7844 passed/0 failed, clippy
+clean, CTest 117/117; owned Rust fmt 3 files/0 differences. Full logs are retained
+in the lane worktree build-runs. No further engine changes followed the gate.
+
 Limitations: net changes in containing private allocations only; undone writes,
 unrelated allocations and image globals are not watched. Concurrent changes are
 unattributed. Aliases and unsupported adapter domains refuse matching evidence.
