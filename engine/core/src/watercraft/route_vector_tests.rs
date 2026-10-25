@@ -225,9 +225,7 @@ fn wc7_u01_impossible_unnavigable_or_missing_occupant_return_false() {
     assert_eq!(f.undocking_tick(1, 1.0, rectangle, &Unnavigable, &mut None), Ok(false));
     let mut f = undocking([12.0, 0.0, 10.0], None, [10.0, 0.0, 10.0]);
     assert_eq!(f.undocking_tick(1, 1.0, rectangle, &Water, &mut None), Ok(false));
-    for f in [&f] {
-        assert!(f.get(1).unwrap().events.is_empty());
-    }
+    assert!(f.get(1).unwrap().events.is_empty());
 }
 
 #[test]
@@ -280,7 +278,7 @@ fn wc7_r01_direction_helper_uses_signed_remainder() {
     let values: Vec<i32> = (0..8).map(|k| assist_pick_new_dir(2, k)).collect();
     assert_eq!(values, [2, 3, 1, 4, 0, 5, -1, 6]);
     // The picker skips the reverse direction; negative values have no tried bit.
-    let picked: Vec<i32> = candidate_directions(0, 0xFF & !0b11).collect();
+    let picked: Vec<i32> = candidate_directions(0, !0b11).collect();
     assert_eq!(picked, [0, 1, -1, -2, -3]);
 }
 

@@ -44,6 +44,8 @@ pub use routes::{direction_step, quantize_heading, sign, RouteError, RouteReader
 pub use states::CrashCase;
 
 #[cfg(test)]
+mod boundary_vector_tests;
+#[cfg(test)]
 mod closure_tests;
 #[cfg(test)]
 mod collision_tests;

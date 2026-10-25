@@ -130,7 +130,7 @@ fn wc8_13_missing_group_or_aems_returns_false_without_command_effects() {
             steering: 0.05,
             ..DriveCommand::default()
         };
-        let before = command.clone();
+        let before = command;
         let mut effects = Effects::default();
         assert_eq!(b.translate_drive_commands(10.0, &mut command, &mut effects), None);
         assert_eq!((b.speed, b.turn), (0.2, 0.05));
@@ -221,7 +221,10 @@ fn wc6_04_tug_button_arms_without_rope_effect() {
         ..DriveCommand::default()
     };
     let mut effects = Effects::default();
-    assert_eq!(f.player_commands(1, 10.0, &mut command, &mut effects, &mut None), Ok(()));
+    assert_eq!(
+        f.player_commands(1, 10.0, &mut command, &mut effects, &mut None),
+        Ok(())
+    );
     let b = f.get(1).unwrap();
     assert!(b.tow_armed);
     assert!(b.events.contains(&Event::PlayEffect("tugropethrow")));

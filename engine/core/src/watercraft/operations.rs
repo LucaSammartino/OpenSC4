@@ -53,9 +53,10 @@ impl Fleet {
         }
         if self.boat(id)?.count_idle_always {
             self.boat_mut(id)?.idle_elapsed += second_dt;
-            if self.boat(id)?.idle_elapsed > 60_000.0 {
-                self.push_state(id, State::new(state::SLOW_REMOVE), manager)?;
-            }
+        }
+        // The threshold is tested whether or not the spawn mode is set (§5.1.2).
+        if self.boat(id)?.idle_elapsed > 60_000.0 {
+            self.push_state(id, State::new(state::SLOW_REMOVE), manager)?;
         }
         Ok(true)
     }
