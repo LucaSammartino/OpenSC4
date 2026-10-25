@@ -1355,8 +1355,11 @@ The getter loads the low word into EAX and high word into EDX without alteration
 `StaticInit` has run; `InitPowerLineControlVariables` alone only updates the six controls
 above. Thus changing `0xE9A18D3F` alone never changes this demolition quote.
 
-`GetBoundingBox` (`0x00649A00`) uses the cell-size floats `0x00B4675C`/`0x00B46760` (`Init` reads city slots
-0x16C/0x170 into them).
+The x cell width is `0x00B46760`; the z cell depth is `0x00B4675C`. Occupant `Init`
+reads city slots 91/92 (vtable byte offsets `0x16C`/`0x170`) into those globals respectively
+(`0x00649FB3–0x00649FC9`). Both GetBoundingBox and the local GetLineCells walk divide x by
+width and z by depth; bounds multiply each signed cell result by the same axis's size
+(`0x00649A11–0x00649A3A`, `0x00649AB8–0x00649B12`, `0x0064BF1C–0x0064BF38`).
 
 ### 4.4 Save record *[compat]*
 
@@ -2830,6 +2833,8 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     An empty-wire record targeting `(9,9)` changes nothing. A nonempty record targeting `(3,1)`
     gives min `(16,7,16)`, max `(64,110,48)`. Changing that record while dirty=false leaves the
     cached x/z rectangle unchanged; changing position.y still changes the returned maximum y.
+    Separately, x width=8 (`0x00B46760`), z depth=32 (`0x00B4675C`), position `(8,50,64)`,
+    floor height=7, no sampled wires and dirty=true give min `(8,7,64)`, max `(16,110,96)`.
 55. **Pole bounds unsigned quirk** (§4.7.2). Seed dirty=true, position cell `(1,2)`, and a nonempty
     record targeting x=`0xFFFFFFFF`, z=2. With extents 16×16, minX stays 1 and maxX becomes
     `0xFFFFFFFF`; the wrapped increment gives returned maximum world x=0, less than minimum x=16.
@@ -2902,6 +2907,9 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     the sentinel untouched and returns false. A non-owning record with a destination makes that
     pole's slot-16 call and returns its result; with a null destination it walks locally instead.
     Changing stored starting +C8/+CC or the destination's current position does not change a local walk.
+    With x width=8 (`0x00B46760`), z depth=32 (`0x00B4675C`), position `(8,50,64)` and
+    destination `(3,3)`, the local result is `(1,2),(2,2),(3,3)`. This distinguishes the two
+    axis globals, which the square-cell fixtures cannot do.
 66. **Diagonal floor rounding** (§4.7.1). For either model high word `0x0503` or `0x0504`, at
     position `(0,20,0)` the four `(x,z)` **f32 bit pairs**, in floor order, are
     `(B8714000,C0E24630)`, `(C0E24630,38714000)`, `(38714000,40E24630)`,
