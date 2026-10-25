@@ -1,8 +1,9 @@
 # Scenario activation and owner-level reach
 
-Status: planning contract, 2026-10-25. The scenarios below are unmeasured
-candidates. Four deliberately stop with a prerequisite error. They must not
-be reported as completed activation tests.
+Status: planning and observation contract, 2026-10-25. Round 3 registers nine
+dated drivers in the shared `full` suite (section 5). The section-3 table is the
+historical candidate list; its Lua drivers remain candidates, and four deliberately
+stop with a prerequisite error. Do not count those as completed activation tests.
 
 ## 1. What activation means
 
@@ -76,7 +77,49 @@ or a shadow counter as proof that all methods of its owner ran.
 
 The offscreen, web, mission and text-authoring files deliberately fail before
 doing work. Keep them out of automated smoke sets until their required drivers
-exist. The remaining candidates need action and scene verification before
+exist. The unregistered candidates need action and scene verification before
 admission. Retain failed placements, failed starts and partial runs distinctly.
 Shadow or replacement differences are findings; record the scenario, key and
 first differing log line without assigning a cause from temporal proximity.
+
+## 5. Registered dated scenarios (round 3)
+
+The shared suite now contains nine `owner27-*` rows in set `full`. These replace
+the corresponding section-3 fixture choices and execution files. Six dated
+candidates were completed, and terrain, visual-time and resource/save subsets
+were translated into the existing dated grammar. The older Lua files are retained
+as prescriptions for the additional controls; they are not suite inputs.
+
+| Scenario suffix | Region / city | End date | Action scope |
+|---|---|---|---|
+| growth | London / Kensington | 2006-08-01 | R/C/I zoning, roads, price query, observation, save |
+| networks | Berlin / Schonerlinde | 2000-05-09 | All thirteen network types, crossing, dezone, save |
+| automata | Berlin / Tegel | 2029-12-21 | Developed city, daytime, observation |
+| effects | Timbuktu / Big City Tutorial | 2016-01-18 | End tutorial, survey, fire attempt, day/night |
+| coast | Berlin / Spandau | 2002-01-10 | Three candidate seaport sites, observation, save |
+| traffic | London / Fulham | 2007-10-13 | Developed industrial city, observation, full saves |
+| terrain | Berlin / Tempelhof | 2000-05-09 | Small height patch, lower/raise surface, save |
+| views | Berlin / Konradshohe | 2026-05-28 | Visual time and explicit lighting hours |
+| resources | London / Kensington | 2006-08-01 | Load interval, full/fast saves, observation |
+
+Each requests `close_dialogs=1` when run. All source saves remain read-only;
+only the queue's region copy may change. Setup dates are overdue so actions
+run at the first new simulated day. If a save cannot enter running city mode,
+no dated setup action can resolve that prerequisite; report the blocked actions
+and actual last date rather than claiming the end window was observed.
+
+Saved-date metadata supplies planned windows, not a guarantee of initial live
+state. Native logs must confirm the actual starting date and final date. Record
+failed site placements separately from successful save or speed actions.
+
+The command names in the documented grammar must also be supported by the
+selected DLL. A parser refusal invalidates the whole file. Keep results from a
+stale DLL separate from a rerun with a current DLL; pin both DLL hashes and the
+script hashes. A clean process verdict alone does not certify script completion,
+successful city changes, exact shadows or target-owner entry coverage.
+
+Native interface calls explicitly logged by a completed action can establish
+that entry route. Shadow-state or digest observations support activity of a
+family but do not identify every contributing original method. Until address
+entry records are available, report these evidence levels separately and leave
+function precision/recall and newly reached body bytes unmeasured.

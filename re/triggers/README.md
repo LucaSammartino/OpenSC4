@@ -1,6 +1,31 @@
 # Executable trigger map — RE census, 2026-10-25
 
-## Round 2: owner activation
+## Round 3: runnable subset and missing actions
+
+`suite-scenarios.tsv` supersedes the nine corresponding round-2 fixture/driver
+prescriptions for execution. Its nine primary groups contain 73 threshold owners
+and 951,710 implemented-but-unobserved bytes in the pinned round-2 population.
+These are targets, not earned reach. Full group membership remains in `actions.tsv`.
+The public suite adds nine `owner27-*` rows in set `full`; its notes use group
+keys, keeping original owner names out of engine-visible files.
+
+`missing-actions.tsv` specifies a driver for each of the eleven other top-20
+groups, plus interactive-network and view controls omitted by the dated subset.
+Its byte column is the **whole group's provisional owner gap**, an upper bound
+on opportunity, not a transitive or exclusive unlock measurement. Network/view
+rows overlap runnable groups; lifecycle/command/UI execution also overlaps.
+Do not sum this table with the runnable table. High confidence in a call contract
+does not establish that the full group will activate. Format and ASCII-authoring
+prerequisites remain explicit.
+
+Execution is opt-in, isolated-slot only, with `close_dialogs=1`. Raw requests,
+DLL/script hashes, results and logs live in this lane's `build-runs/suite/`.
+Default-DLL batch `triggermap27-r3` is retained separately from corrected-source
+`triggermap27-r3-current`: the former rejects documented newer grammar. Neither
+batch replaces a per-address entry census. No additional constructor candidates
+or function-root controls were analyzed this round.
+
+## Round 2: owner activation (historical)
 
 The owner census supersedes the function graph as the scenario-planning unit.
 `owner-population.tsv` groups every implemented entry by the same attribution
