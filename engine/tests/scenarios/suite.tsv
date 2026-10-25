@@ -1,0 +1,10 @@
+name	region	city	script	end	sets	notes
+lua-calibrate	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-calibrate.lua	2028-02-01	full	WIP: argument/return calibration blocked before region init; see docs/ops/lua-commands.md
+lua-civics	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-civics.lua	2028-02-01	full	WIP: every catalog civic category; units and effects unverified
+lua-demolish	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-demolish.lua	2028-02-01	full	WIP: zones networks civics with Sim None Explode; unverified
+lua-networks	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-networks.lua	2028-02-01	full	WIP: types 0..12 stations stops and tool selection; unverified
+lua-ui	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-ui.lua	2028-02-01	full	WIP: dialog closing and button IDs require calibration; may block
+lua-terrain	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-terrain.lua	2028-02-01	full	WIP: altitude rectangle and sea-level round trip; unverified
+lua-cheats	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-cheats.lua	2028-02-01	full	WIP: IGN player-documented strings; effects unverified
+lua-roundtrip	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-roundtrip.lua	2028-02-01	full	WIP: save Konradshohe load Tegel save load first again; unverified
+lua-emergency	FC4 Test	Konradshohe	engine/tests/scenarios/scripts/lua-emergency.lua	2028-02-01	full	WIP: ToxicSpill and dispatch-tool selection only; map dispatch unverified
