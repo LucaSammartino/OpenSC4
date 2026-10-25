@@ -5,12 +5,14 @@
 //   bool OccGet(FC4OccBase&);  void OccPut(const FC4OccBase&);
 //   std::recursive_mutex& OccLock();  cFC4PropertyHolder& OccHolder();
 // and overrides the slots that are its own (type, position, bounds, Init,
-// Shutdown, ...). The exemplar parent of the property holder is resolved here.
+// Shutdown, ...). The exemplar parent of the property holder and the lazy
+// placeable object (prop-occupant.md §6.1) are kept here.
 #pragma once
 #include "FC4PropertyHolder.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "GZServPtrs.h"
+#include "compat/FC4Compat.h"
 #include "cFC4Message2Standard.h"
 #include "cIGZMessageServer2.h"
 #include "cISC4Occupant.h"
@@ -86,12 +88,34 @@ public:
         return s.flags;
     }
 
-    // ---- slots 19-21 -------------------------------------------------------
-    // SPEC-GAP: occupant-manager §13.1 names the lazy creator (FUN_005EBDF0 +
-    // FUN_005EC370) but not what it builds; these occupants keep none.
-    cISC43DPlaceableObject* GetPlaceableObject() override { return nullptr; }
-    cISC43DPlaceableObject* GetOrCreatePlaceableObject() override { return nullptr; }
-    cISC43DPlaceableObject* SetPlaceableObject(cISC43DPlaceableObject*) override { return nullptr; }
+    // ---- slots 19-21: the placeable object (prop-occupant.md §6.1) ---------
+    // The occupant holds one game cSC43DPlaceableObject (not an occupant
+    // class), made lazily from the game's placeable pool exactly as
+    // GetOrCreatePlaceableObject 0x005E91C0 does; the model maker and the
+    // view windows hang the models they make on it.
+    cISC43DPlaceableObject* GetPlaceableObject() override {
+        std::lock_guard<std::recursive_mutex> g(self().OccLock());
+        return placeable_;
+    }
+    cISC43DPlaceableObject* GetOrCreatePlaceableObject() override {
+        std::lock_guard<std::recursive_mutex> g(self().OccLock());
+        if (placeable_ == nullptr) {
+            const uintptr_t alloc = fc4::compat::DirectCall(fc4::compat::Direct::PlaceablePoolAllocate);
+            const uintptr_t ctor = fc4::compat::DirectCall(fc4::compat::Direct::PlaceableConstruct);
+            if (alloc == 0 || ctor == 0) return nullptr;  // logged once by compat
+            void* node = reinterpret_cast<void*(__cdecl*)(uint32_t)>(alloc)(0x30);
+            if (node == nullptr) return nullptr;
+            void* made = reinterpret_cast<void*(__fastcall*)(void*, void*)>(ctor)(node, nullptr);
+            SwapPlaceable(static_cast<cISC43DPlaceableObject*>(made));
+        }
+        return placeable_;
+    }
+    // 0x0078DAF0: AddRef the new one, Release the old one.
+    cISC43DPlaceableObject* SetPlaceableObject(cISC43DPlaceableObject* p) override {
+        std::lock_guard<std::recursive_mutex> g(self().OccLock());
+        SwapPlaceable(p);
+        return placeable_;
+    }
 
     // ---- slots 22-24: groups (property 0xAA1DD396, own or inherited) -------
     bool IsOccupantGroup(uint32_t group) override {
@@ -154,9 +178,9 @@ public:
     }
 
 protected:
-    // The derived members (the holder) are gone by now; only the parent
-    // exemplar reference is returned here.
-    ~FC4OccupantAdapter() = default;
+    // The derived members (the holder) are gone by now; the placeable and
+    // the parent exemplar references are returned here.
+    ~FC4OccupantAdapter() { SwapPlaceable(nullptr); }
 
     // occupant-manager §13: loaded Init calls SetHighlight(0, false) and posts
     // no Create; a fresh Init posts Create (0x99EF1140).
@@ -212,5 +236,15 @@ private:
         Put(s);
         return s.removal;
     }
+    void SwapPlaceable(cISC43DPlaceableObject* p) {
+        cISC43DPlaceableObject* old = placeable_;
+        if (p == old) return;
+        if (p) Unknown(p)->AddRef();
+        placeable_ = p;
+        if (old) Unknown(old)->Release();
+    }
+    // Slots 0-2 of the placeable are cIGZUnknown's (prop-occupant.md §6.1).
+    static cIGZUnknown* Unknown(cISC43DPlaceableObject* p) { return reinterpret_cast<cIGZUnknown*>(p); }
     std::unique_ptr<fc4::props::Exemplar> parent_;
+    cISC43DPlaceableObject* placeable_ = nullptr;
 };

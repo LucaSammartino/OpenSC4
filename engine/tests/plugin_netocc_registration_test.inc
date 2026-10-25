@@ -193,6 +193,9 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
             CHECK(count == 0);
             cISC4Occupant* occ = pole->AsOccupant();
             CHECK(occ != nullptr);
+            // The model maker reaches the pole's primary as occupant - 8
+            // (model-maker.md §12.6), as in the game's layout (§4.1).
+            CHECK(reinterpret_cast<char*>(occ) == static_cast<char*>(raw) + 8);
             if (occ) {
                 CHECK(occ->GetType() == 0x2890D4DE);
                 uint8_t box[8]{}; CHECK(!occ->GetOccupantManagerBBox(box));  // not indexed
