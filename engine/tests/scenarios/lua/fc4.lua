@@ -1,5 +1,5 @@
 -- Maxis test-script helpers. Interface facts: 0xC0000054's public command docs.
--- These candidates still require calibration on 1.1.641; see docs/ops/lua-commands.md.
+-- State, return convention and saving verified on 1.1.641; other commands need calibration.
 -- The launcher sets FC4_ROOT to the private slot's LuaScripts directory.
 fc4 = { sequence = 0, scenario = 'startup', log_backend = 'markers' }
 fc4.unpack = unpack or (table and table.unpack)
@@ -14,6 +14,11 @@ end
 function fc4.log(message)
     fc4.sequence = fc4.sequence + 1
     local line = fc4.text(fc4.sequence) .. ' ' .. fc4.scenario .. ' ' .. message
+    if print then
+        print('FC4_LUA ' .. line)
+        fc4.log_backend = 'print'
+        return
+    end
     if io and io.open then
         local file = io.open(FC4_ROOT .. '/fc4-lua.log', 'a')
         if file then
@@ -40,11 +45,18 @@ function fc4.log(message)
 end
 
 function fc4.delay(frames)
-    sc4app.GameDelay('frames', frames or 1)
+    while sc4app.GameDelay('frames', frames or 1) == 1 do end
+end
+
+-- Maxis commands return a status FIRST (0 = success), then their payload.
+function fc4.state()
+    local status, state = sc4app.GetAppState()
+    if status ~= 0 then error('fc4: GetAppState status=' .. fc4.text(status)) end
+    return state
 end
 
 function fc4.require_state(expected)
-    local actual = sc4app.GetAppState()
+    local actual = fc4.state()
     if actual ~= expected then
         fc4.log('wrong-state expected=' .. expected .. ' actual=' .. fc4.text(actual))
         return false
@@ -69,9 +81,10 @@ function fc4.call(scope, command, args)
     -- A Before without a corresponding Return is an incomplete command, not
     -- proof of a crash or a failure. Inspect the game log and process verdict.
     fc4.log('Before ' .. command .. detail)
-    local a, b, c, d, e = sc4app[command](fc4.unpack(args))
-    fc4.log('Return ' .. command .. ' ' .. fc4.text(a) .. ' ' .. fc4.text(b) .. ' ' ..
+    local status, a, b, c, d, e = sc4app[command](fc4.unpack(args))
+    fc4.log('Return ' .. command .. ' status=' .. fc4.text(status) .. ' ' .. fc4.text(a) .. ' ' .. fc4.text(b) .. ' ' ..
             fc4.text(c) .. ' ' .. fc4.text(d) .. ' ' .. fc4.text(e))
+    if status ~= 0 then error('fc4: ' .. command .. ' status=' .. fc4.text(status)) end
     return a, b, c, d, e
 end
 
@@ -82,12 +95,12 @@ function fc4.region(command, args) return fc4.call('region', command, args) end
 function fc4.wait_state(expected, max_polls)
     fc4.log('wait-state ' .. expected)
     local poll = 0
-    while sc4app.GetAppState() ~= expected do
+    while fc4.state() ~= expected do
         if poll >= (max_polls or 12000) then
             fc4.log('timeout wait-state ' .. expected)
             error('fc4: application state wait timed out')
         end
-        fc4.delay(1)
+        -- Auto-yield schedules this poll across game frames, including startup.
         poll = poll + 1
     end
     fc4.log('reached-state ' .. expected)
@@ -96,23 +109,8 @@ end
 function fc4.start(name)
     fc4.scenario = name
     fc4.log('startup backend=' .. fc4.log_backend)
-    if sc4app.GetAppState() ~= 2 then
-        -- 0xCBB5BB45, written in decimal for the retail Lua number parser.
-        local message = 3417684805
-        local token = 'fc4-' .. name .. '-post-region'
-        local state = sc4app.WaitForMessage2(message, token)
-        sc4app.SetScriptAutoYield(-1, true)
-        local polls = 0
-        while state == 1 do
-            polls = polls + 1
-            if polls > 12000 then
-                sc4app.CancelWaitForMessage2(message, token)
-                error('fc4: post-region wait timed out')
-            end
-            state = sc4app.WaitForMessage2(message, token)
-        end
-        sc4app.CancelWaitForMessage2(message, token)
-    end
+    -- The documented post-region message did not release our wait on this exe.
+    -- Poll the payload of GetAppState instead; its first return is status 0.
     sc4app.SetScriptAutoYield(-1, true)
     fc4.wait_state(2)
     fc4.app('SetPopupModalDialogsEnabled', {false})
@@ -127,7 +125,7 @@ function fc4.wait_date(year, month, day, max_polls)
     local target = year * 10000 + month * 100 + day
     local polls = 0
     while fc4.require_state(2) do
-        local y, m, d = sc4app.GetSimulationDate('year', 'month', 'day of month')
+        local y, m, d = fc4.city('GetSimulationDate', {'year', 'month', 'day of month'})
         if type(y) ~= 'number' or type(m) ~= 'number' or type(d) ~= 'number' then
             fc4.log('invalid-date-return ' .. fc4.text(y) .. ' ' .. fc4.text(m) .. ' ' .. fc4.text(d))
             error('fc4: GetSimulationDate did not return three numbers')

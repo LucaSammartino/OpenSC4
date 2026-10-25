@@ -1,10 +1,10 @@
 # Maxis command scripts: luacmd27 calibration status
 
-**WIP, 2026-10-25. No Lua command has yet been verified on this host.**
-The installed executable reports file version **1.1.641.0**. The harness stages
-and passes a private script path, but the game fails before region initialization.
-Do not interpret the candidate scenarios, a command returning, or zero shadow
-lines as evidence that a player action worked.
+**2026-10-25: Lua entry and a city mutation are proved on 1.1.641.0.**
+`luacmd27-proof-r7` printed through Lua Extensions, reached city view, changed the
+city name, read the changed name back, restored it, and saved the slot copy.
+The nine larger candidate scenarios remain WIP; their round-one failures below
+are historical evidence, not results from running the corrected helper.
 
 ## Launching a candidate
 
@@ -12,6 +12,8 @@ Put this harness key in the request's ini text (absent by default):
 
 ```ini
 lua_script = engine/tests/scenarios/scripts/lua-calibrate.lua
+lua_extensions = 1
+close_dialogs = 1
 ```
 
 `tools/ingame_run.ps1` requires `-Slot`, rejects absolute/outside-repository paths
@@ -24,6 +26,56 @@ dependencies are not automatically staged. The original script is unchanged.
 The plugin currently warns that the harness-only `lua_script` key is unknown;
 that warning does not say whether the game executed the command-line script.
 
+`lua_extensions = 1` copies the user's unchanged `SC4LuaExtensions.dll` and
+`.dat` from `<main>/build-runs/thirdparty/sc4-lua-extensions/` into the private
+slot's Plugins folder. It requires `-Slot`, is absent by default, and the next
+slot run's normal plugin cleanup removes it when disabled. Nothing is staged
+in Documents or the install's Plugins. These LGPL-3.0 binaries are not committed.
+After a run, the harness harvests `SC4LuaExtensions.log` and Lua lines from other
+slot logs into `<main>/build-runs/game-results/<harness-label>.lua.log`, also
+copied beside the plugin log in the invoking worktree's `build-runs/`. Queue
+harness labels have the `q-<root>-<request-label>` prefix. `fc4.log` prefers the
+extension's `print`; a harvested print line proves execution of its script.
+
+## Verified in round 2
+
+Use `lua_script = engine/tests/scenarios/lua/proof.lua` for the short probe.
+It is a calibration probe, not an added suite scenario. Its clean plugin verdict
+had zero foreign exceptions, watchdog stalls, RTC, overruns and ref warnings.
+Raw console, plugin and `.lua.log` evidence uses the labels below in `build-runs/`.
+All corrected probes used DLL SHA-256 prefix `13f21803` explicitly.
+
+| Command / facility | Measurement |
+|---|---|
+| Lua startup / `print` | `luacmd27-entry-r4.lua.log`: `FC4_LUA r4 entered startup`. |
+| `GetAppState()` | Returns **status, state**, not state alone: `0,0` at startup and `0,2` in city view (`entry-r6`). |
+| `SetScriptAutoYield(-1, true)` | Status `0`; a loop polling the **second** GetAppState return let the city load. Disable with `false` before an uninterrupted mutation sequence if needed. |
+| `GetCityName()` | `0, 'Konradshohe'` (`proof-r7`). |
+| `SetCityName('FC4 Lua proof')` | Status `0`; next GetCityName returned `0, 'FC4 Lua proof'`; restoring the original also returned `0`. This is a verified city effect. |
+| `SaveCityQuick(true)` | Status `0`, completed without confirmation (`entry-r6`, `proof-r7`). Slot save changed; Documents source stayed unchanged. |
+| `GetCitySize()` | `0,128,128` for Konradshohe. Placement coordinate units/inclusivity remain uncalibrated. |
+| `SetPopupModalDialogsEnabled(false)`, `SimSpeedFast()` | Status `0` only; no separate UI/speed-effect qualification claimed. |
+| `GameDelay('frames',10)` | Polling while status is `1` returned and printed the after-delay marker (`date-r8`); exact elapsed frames are uncalibrated. |
+| `io.open` | Present and wrote `FC4_LUA io.open file proof` to the slot's `LuaScripts/io-proof-r8.txt`. Print remains the harvested script log. |
+| `GetSimulationDate` | **Blocked**: lowercase single/multiple fields, CamelCase fields, embedded quoted fields and no fields all returned `0` with no payload (`date-r8`). The date helper refuses this result; dated scenarios are not qualified. |
+| `WaitForMessage2(3417684805, token)` | Returned `1`; with the documented registration/yield sequence the city loaded but the post-region wait never completed (`entry-r5`). The helper uses state polling instead. |
+
+Command wrappers discard the first return only after checking it is status `0`,
+then return the payload. `Before` without `Return` is incomplete evidence.
+Startup `entry-r4` enabled auto-yield before registering the message wait and
+stalled without a city for 180 s; it is distinct from the corrected probes.
+`entry-r6` proved a save but reported `watchdog_stalls=1`; the later shared-helper
+proof `proof-r7` was clean with **0** stalls. The source save SHA-256 was
+`864e0a8817e2b450f76bd0bc` (prefix); the saved r6 slot copy was
+`0ee812d930a706e4f714525a` (prefix), 1,323,907 bytes, written at 19:57:58.
+
+Plain `luacmd27-plain-r4` and scripted r5/r6/r7 all showed **Could not initialize
+Direct Draw**, accepted the software-driver fallback and eventually loaded.
+Their launch switches were `-CPUCount:1 -w -intro:off -UserDir:"<slot11>\\"`,
+plus `-LuaScript:"<slot script>"` only for scripts. No command-line difference
+eliminated DirectDraw failure. The first measured change that enabled progress
+after Lua entry was the wait algorithm; no renderer workaround is claimed.
+
 Use reserved slots 11/12 for this lane. Never write to the original Regions
 folder. All nine candidate rows use region `FC4 Test`, city `Konradshohe`, a
 2028-02-01 end date, and set `full`; none is a smoke test. The round trip also
@@ -31,7 +83,7 @@ uses `Tegel` in the same region. Both saves exist in Documents, and only their
 slot copies may change. `fc4.finish()` waits to 2028-01-01, requests a quick save,
 and logs completion, leaving a month before the harness's end date.
 
-## What actually ran
+## Historical round-one attempts
 
 Evidence is in this worktree's ignored `build-runs/`, not in Documents:
 
@@ -106,9 +158,9 @@ a crash. A return value alone does not prove an action changed the city.
 
 ## Argument contracts to calibrate
 
-The following are **public interface facts and candidate arguments**, not
-measurements on our exe. Every command listed below remains **not reached**;
-there are currently **0 works, 0 command failures, 0 command-attributed crashes**.
+The following are **public interface facts and candidate arguments**. Only the
+subset in the round-two measurement table above has now been reached; all other
+commands remain unqualified. No command-attributed crash has been demonstrated.
 
 | Commands used | Candidate arguments / unresolved measurement |
 |---|---|
