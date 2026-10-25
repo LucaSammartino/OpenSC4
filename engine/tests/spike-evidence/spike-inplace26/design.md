@@ -1,7 +1,8 @@
 # S3 in-place experiment
 
-Start milestone: the commit introducing this file. End: the final implementation
-commit (report-only commits excluded). Also report elapsed time from the supplied
+Start milestone: the commit introducing this file. End: the measured evidence
+commit, including build/queue/game waiting (report-only commits excluded).
+Also report elapsed time from the supplied
 base commit, conservatively, so setup time is visible.
 
 Select 20 entries from view-utilities.md sections 12-13: its 18 cached-input
