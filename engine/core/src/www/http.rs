@@ -370,6 +370,16 @@ impl Client {
     pub fn set_cache_setting(&mut self, value: &[u8]) {
         self.cache_setting = value.to_vec();
     }
+    /// Acquire a caller hold while the request is valid (HTTP lifetime §2.1).
+    pub fn retain_request(&mut self, host: &mut impl Host, id: u32) -> Contract<u32> {
+        let request = self
+            .requests
+            .get_mut(&id)
+            .ok_or(Unsupported::NativeInputDomain("request identity"))?;
+        request.refs = request.refs.wrapping_add(1);
+        host.effect(Effect::AddRequest(id));
+        Ok(request.refs)
+    }
     /// 00817790: zero and one both invoke deleting destructor; no zero guard.
     pub fn release_request(&mut self, host: &mut impl Host, id: u32) -> Contract<u32> {
         let request = self
@@ -467,8 +477,7 @@ impl Client {
             return Ok(0);
         }
         req.normalize();
-        req.refs = req.refs.wrapping_add(1);
-        host.effect(Effect::AddRequest(id));
+        self.retain_request(host, id)?;
         host.effect(Effect::Lock);
         self.counter = self.counter.wrapping_add(1);
         let job = Job([self.counter, 1, 0, 1, 0, id, 0, custom]);
@@ -504,14 +513,8 @@ impl Client {
     pub fn create_response(&mut self, host: &mut impl Host) -> u32 {
         let id = self.identity();
         host.effect(Effect::ConstructResponse(id));
-        self.resources.insert(
-            id,
-            Resource {
-                refs: 1,
-                ..Resource::default()
-            },
-        );
-        host.effect(Effect::AddResponse(id));
+        self.resources.insert(id, Resource::default());
+        self.retain_resource(host, id).expect("new response");
         id
     }
     /// Reached foreign activation dependency, not another WWW inventory row.
@@ -559,6 +562,16 @@ impl Client {
         }
         host.effect(Effect::Unlock);
         false
+    }
+    /// Acquire a caller hold while the response is valid (HTTP lifetime §2.1).
+    pub fn retain_resource(&mut self, host: &mut impl Host, id: u32) -> Contract<u32> {
+        let resource = self
+            .resources
+            .get_mut(&id)
+            .ok_or(Unsupported::NativeInputDomain("resource identity"))?;
+        resource.refs = resource.refs.wrapping_add(1);
+        host.effect(Effect::AddResponse(id));
+        Ok(resource.refs)
     }
     /// Release a completion or caller-owned response hold (HTTP lifetime §2.1).
     pub fn release_resource(&mut self, host: &mut impl Host, id: u32) -> Contract<()> {
