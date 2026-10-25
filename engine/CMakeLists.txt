@@ -1010,7 +1010,7 @@ if(FC4_IS_WIN32_X86)
     foreach(mode enabled disabled default guarded)
         add_test(NAME plugin_effects_registration_${mode}_test
             COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effects-${mode})
-        set_tests_properties(plugin_effects_registration_${mode}_test PROPERTIES RUN_SERIAL TRUE)
+        set_tests_properties(plugin_effects_registration_${mode}_test PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
     endforeach()
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")

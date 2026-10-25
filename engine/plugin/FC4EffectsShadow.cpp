@@ -162,11 +162,12 @@ void EffectsShadowStartup(bool effectsReplaced) {
         const long finish = SettingInt("effects_finish", "FC4_EFFECTS_FINISH", 0);
         fc4_effects_set_finish_mode(g.core, finish != 0 ? FC4_EFFECTS_FINISH_DRAW_PASS : FC4_EFFECTS_FINISH_HOOK);
     }
-    cIGZMessageServer2Ptr ms;
-    if (ms) {
-        ms->AddNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
-    } else {
-        Log("effects shadow: WARNING no message server; the mirror will not tick");
+    // The replacement forwards its own ticks to the mirror. Looking up GZCOM
+    // here can reenter the director while its static construction is in flight;
+    // a second subscription would also count every animation tick twice.
+    if (!g.effectsReplaced) {
+        cIGZMessageServer2Ptr ms;
+        if (ms) ms->AddNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
     }
 }
 
@@ -184,8 +185,10 @@ void EffectsShadowStop() {
         fc4_effects_directory_destroy(g.dir);
         g.dir = nullptr;
     }
-    cIGZMessageServer2Ptr ms;
-    if (ms) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
+    if (!g.effectsReplaced && g.enabled) {
+        cIGZMessageServer2Ptr ms;
+        if (ms) ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(TheTarget()), kMsgAnimationTick);
+    }
     g.byName.clear();
     g = Shadow();
 }
