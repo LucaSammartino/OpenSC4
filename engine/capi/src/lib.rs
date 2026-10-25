@@ -1182,3 +1182,5 @@ mod viewutil_shadow;
 mod modelinst_shadow;
 // Private power-line occupant factory transport (no public DLL exports).
 mod netocc_line;
+// Private power-pole occupant factory transport (no public DLL exports).
+mod netocc_pole;
