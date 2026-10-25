@@ -32,6 +32,7 @@ async function agent(prompt, opts) {
       out = execSync(`python "${resolve(REPO, '.claude/lane-bin/laneguard.py')}" ${m[2]} --no-handshake`,
         { env: { ...process.env, FC4_LANEGUARD_MAIN: sc.guardMain }, encoding: 'utf8' })
     } catch (e) {
+      if (!e.stdout?.length) throw e
       out = String(e.stdout || '')
     }
     const line = out.trim()

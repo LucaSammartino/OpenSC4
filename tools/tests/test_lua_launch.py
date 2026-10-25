@@ -24,12 +24,19 @@ def stage(tmp_path, ini, slot=11):
     helper = repo / "engine/tests/scenarios/lua/fc4.lua"
     helper.parent.mkdir(parents=True)
     helper.write_text("fc4 = {}\n", encoding="utf-8")
+    extensions = repo / "build-runs/thirdparty/sc4-lua-extensions"
+    extensions.mkdir(parents=True)
+    for name in ("SC4LuaExtensions.dll", "SC4LuaExtensions.dat"):
+        (extensions / name).write_bytes(name.encode())
     user = tmp_path / "slot with spaces"
     env = dict(os.environ, FC4_LUA_TEST_ROOT=str(repo / "tools"), FC4_LUA_TEST_SLOT=str(user),
                FC4_LUA_TEST_INI=ini, FC4_LUA_TEST_NUMBER=str(slot))
     code = ("$ErrorActionPreference='Stop'; $PSScriptRoot=$env:FC4_LUA_TEST_ROOT; "
             "$UserDir=$env:FC4_LUA_TEST_SLOT; $Ini=$env:FC4_LUA_TEST_INI; "
             "$Slot=[int]$env:FC4_LUA_TEST_NUMBER; $gameArgs=@('-CPUCount:1'); "
+            "$Plugins=Join-Path $UserDir 'Plugins'; "
+            "function MainCheckout { Split-Path $env:FC4_LUA_TEST_ROOT }; "
+            "if ($Ini -match 'lua_extensions.*1') { $null=New-Item -ItemType Directory -Force $Plugins }; "
             "# Optional Maxis command script;" + BLOCK +
             "ConvertTo-Json -Compress -InputObject @($gameArgs)")
     result = subprocess.run([PS, "-NoProfile", "-NonInteractive", "-Command", code], env=env,
@@ -70,3 +77,42 @@ def test_rejects_documents_run(tmp_path):
     assert result.returncode != 0
     assert "requires -Slot" in result.stderr
     assert not user.exists()
+
+
+def test_extensions_are_opt_in_and_staged_only_in_slot(tmp_path):
+    result, _, user = stage(tmp_path, "lua_extensions = 1\n")
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.splitlines()[-1]) == ["-CPUCount:1"]
+    for name in ("SC4LuaExtensions.dll", "SC4LuaExtensions.dat"):
+        assert (user / "Plugins" / name).read_bytes() == name.encode()
+
+
+def test_extensions_refuse_documents(tmp_path):
+    result, _, _ = stage(tmp_path, "lua_extensions = 1\n", slot=0)
+    assert result.returncode != 0
+    assert "requires -Slot" in result.stderr
+
+
+def test_harvests_extension_print_and_game_lua_errors(tmp_path):
+    user = tmp_path / "private slot"
+    plugins = user / "Plugins"
+    plugins.mkdir(parents=True)
+    (plugins / "SC4LuaExtensions.log").write_text("FC4_LUA entry\nLua error: bad command\n")
+    (plugins / "FreeCity4.log").write_text("unrelated heartbeat\nLua error from game\n")
+    env = dict(os.environ, FC4_TEST_SLOT=str(user), FC4_TEST_MAIN=str(tmp_path))
+    block = LAUNCH.split("# Optional Lua evidence;", 1)[1].split("# End optional Lua evidence.", 1)[0]
+    code = ("$ErrorActionPreference='Stop'; $luaExtensions=$true; "
+            "$UserDir=$env:FC4_TEST_SLOT; $OutDir=Join-Path $env:FC4_TEST_MAIN 'out'; "
+            "$null=New-Item -ItemType Directory -Force $OutDir; $Label='probe'; "
+            "function MainCheckout { $env:FC4_TEST_MAIN }; "
+            "function ReadShared($path) { [IO.File]::ReadAllText($path) }; "
+            "# Optional Lua evidence;" + block)
+    result = subprocess.run([PS, "-NoProfile", "-NonInteractive", "-Command", code], env=env,
+                            capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    evidence = (tmp_path / "build-runs/game-results/probe.lua.log").read_text()
+    assert "FC4_LUA entry" in evidence
+    assert "Lua error: bad command" in evidence
+    assert "Lua error from game" in evidence
+    assert "unrelated heartbeat" not in evidence
+    assert (tmp_path / "out/probe.lua.log").read_text() == evidence

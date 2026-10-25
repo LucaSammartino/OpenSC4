@@ -401,6 +401,19 @@ try {
         $gameArgs = @("-CPUCount:1", "-w", "-intro:off")
         if ($Slot -gt 0) { $gameArgs += "-UserDir:`"$UserDir\`"" }
         # Optional Maxis command script; execute only a private slot copy, with the shared Lua helpers.
+        $luaExtensions = $Ini -match '(?im)^[ \t]*lua_extensions[ \t]*=[ \t]*1[ \t]*\r?$'
+        if ($luaExtensions) {
+            if ($Slot -eq 0) { throw 'lua_extensions requires -Slot (third-party plugins are slot-only)' }
+            $extensionSource = Join-Path (MainCheckout) 'build-runs\thirdparty\sc4-lua-extensions'
+            foreach ($name in 'SC4LuaExtensions.dll', 'SC4LuaExtensions.dat') {
+                $source = Join-Path $extensionSource $name
+                if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "lua_extensions: missing $source" }
+            }
+            foreach ($name in 'SC4LuaExtensions.dll', 'SC4LuaExtensions.dat') {
+                Copy-Item -LiteralPath (Join-Path $extensionSource $name) -Destination $Plugins -Force
+            }
+            Write-Output 'lua_extensions: staged DLL and DAT in the private slot Plugins folder'
+        }
         if ($Ini -match '(?im)^[ \t]*lua_script[ \t]*=[ \t]*([^\r\n]+)') {
             if ($Slot -eq 0) { throw 'lua_script requires -Slot (scripts must never change Documents)' }
             $luaRelative = $Matches[1].Trim()
@@ -590,6 +603,27 @@ if ($p -and -not $p.HasExited) {
 }
 Start-Sleep -Seconds 2
 Copy-Item $Log (Join-Path $OutDir "$Label.log") -Force
+# Optional Lua evidence; never read another slot's or the install's shared logs.
+if ($luaExtensions) {
+    $luaEvidence = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($file in Get-ChildItem -LiteralPath $UserDir -Recurse -File -Filter '*.log' | Sort-Object FullName) {
+        $content = ReadShared $file.FullName
+        if ($file.Name -in 'SC4LuaExtensions.log', 'fc4-lua.log' -or $file.Name -match '^Lua') {
+            $luaEvidence.Add("--- $($file.FullName.Substring($UserDir.Length + 1)) ---")
+            $luaEvidence.Add($content)
+        } else {
+            foreach ($line in ($content -split '\r?\n')) {
+                if ($line -match '(?i)\blua\b|FC4_LUA') { $luaEvidence.Add("$($file.Name): $line") }
+            }
+        }
+    }
+    $luaResult = Join-Path (MainCheckout) "build-runs\game-results\$Label.lua.log"
+    $null = New-Item -ItemType Directory -Force (Split-Path -Parent $luaResult)
+    [IO.File]::WriteAllLines($luaResult, $luaEvidence, (New-Object Text.UTF8Encoding($false)))
+    Copy-Item -LiteralPath $luaResult -Destination (Join-Path $OutDir "$Label.lua.log") -Force
+    Write-Output "lua log: $luaResult ($($luaEvidence.Count) records)"
+}
+# End optional Lua evidence.
 if ($cityBak -and (Get-FileHash $cityPath).Hash -ne $cityHash) {
     Copy-Item $cityBak $cityPath -Force
     $restored = if ((Get-FileHash $cityPath).Hash -eq $cityHash) { "restored" } else { "RESTORE FAILED" }
