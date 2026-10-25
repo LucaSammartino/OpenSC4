@@ -52,10 +52,11 @@ def generate(seed, size, start, months, mix="default"):
     zone_types = list(range(16))
     rng.shuffle(zone_types)
     lines = [
-        "# scenario_gen v1: seed={} size={} start={} months={} mix={}".format(
+        "# scenario_gen v2: seed={} size={} start={} months={} mix={}".format(
             seed, size, start.isoformat(), months, mix),
         "# Cells stay inside the tile. Native refusals are expected in edge/churn.",
         "# pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.",
+        "# Disaster starts run on the final date: native emergency mode can stop new days.",
     ]
 
     def emit(day, action):
@@ -115,10 +116,6 @@ def generate(seed, size, start, months, mix="default"):
         emit(day, "terrain {} {} {} {} {} {}".format(
             *rect, rng.choice((250, 270, 300, 450)), month % 7))
         emit(day, "disaster survey")
-        # Cover explicit coordinates and the survey-selected auto forms.
-        disaster = "fire" if month % 2 == 0 else "riot"
-        target = "auto" if (month // 2) % 2 else "{} {}".format(x, z)
-        emit(day, "disaster {} {}".format(disaster, target))
         emit(day, "save" if month % 2 == 0 else "save fast")
         emit(day, "speed {}".format(month % 3))
         emit(day, "pause")
@@ -165,7 +162,16 @@ def generate(seed, size, start, months, mix="default"):
             when = min(stop - timedelta(days=1), day + timedelta(days=offset))
             {"grow": grow, "churn": churn, "edge": edge}[phase](when, month)
         emit(stop - timedelta(days=1), "digest")
-    emit(end - timedelta(days=1), "mark seed={} mix={} complete".format(seed, mix))
+    if mix in ("churn", "default"):
+        # Riot mode can hold EmergencyPause until player intervention. Exercise
+        # all start forms only once the requested months have elapsed. At the
+        # end-date new-day callback the harness still drains due actions and
+        # deferred saves before quitting; no future SimNewDay is needed here.
+        for disaster in ("fire", "riot"):
+            for target in ("{} {}".format(rng.randrange(side), rng.randrange(side)), "auto"):
+                emit(end, "disaster survey")
+                emit(end, "disaster {} {}".format(disaster, target))
+    emit(end, "mark seed={} mix={} complete".format(seed, mix))
     return "\n".join(lines) + "\n"
 
 

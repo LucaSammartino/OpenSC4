@@ -73,7 +73,7 @@ class ScenarioGeneratorTests(unittest.TestCase):
                         continue
                     raw_day, op, *args = line.split()
                     day = date.fromisoformat(raw_day)
-                    self.assertTrue(start <= last_day <= day < end, line)
+                    self.assertTrue(start <= last_day <= day <= end, line)
                     if day != last_day:
                         self.assertFalse(paused or stopped or turbo_off, line)
                     last_day = day
@@ -132,6 +132,10 @@ class ScenarioGeneratorTests(unittest.TestCase):
                 self.assertEqual({int(p[6]) for p in lines if p[1] == "network"}, set(range(13)))
                 self.assertEqual({tuple(p[2:]) for p in lines if p[1] == "disaster" and p[3:] == ["auto"]},
                                  {("fire", "auto"), ("riot", "auto")})
+                # Native disaster mode can stop calendar time. No later day
+                # should be needed to reach the requested game end date.
+                self.assertEqual({p[0] for p in lines if p[1] == "disaster" and p[2] != "survey"},
+                                 {"2028-01-01"})
             if mix in ("edge", "default"):
                 self.assertEqual({int(p[6]) for p in lines if p[1] == "pricezone" and p[2:6] == ["0", "0", "63", "63"]},
                                  set(range(16)))

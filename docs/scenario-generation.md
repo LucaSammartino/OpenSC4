@@ -24,6 +24,11 @@ Documents game folder**. `save` saves the isolated copy in place.
 Pause/resume, speed 0/2 and turbo off/on are adjacent on the same date so a
 future action never waits behind a stopped simulation clock. Saves defer to
 a framework tick and may delay subsequent actions by several game days.
+Disaster surveys run monthly, but explicit/auto fire and riot starts run on
+the final date, after all requested months: native emergency mode can stop
+new days until player intervention. The script includes that final date;
+set the harness end date to `start + months`. It drains due actions before
+quitting, so the disaster calls need no subsequent calendar progress.
 
 ## Fallback game matrix
 
