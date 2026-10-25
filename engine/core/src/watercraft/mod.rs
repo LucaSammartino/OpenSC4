@@ -36,7 +36,7 @@ pub use targets::AiTargets;
 pub use collision::{CollisionQueries, Footprint, ModelGeometry};
 pub use commands::{CommandChannel, DriveCommand, PlayerEffects, SpeedTween};
 pub use movement::Gear;
-pub use operations::{candidate_directions, Message, MessageDisposition};
+pub use operations::{assist_pick_new_dir, candidate_directions, Message, MessageDisposition};
 pub use owner::*;
 pub use physics::{Publication, Transform};
 pub use record::{WatercraftRecord, CLASS_ID, RECORD_VERSION};
@@ -47,6 +47,8 @@ pub use states::CrashCase;
 mod closure_tests;
 #[cfg(test)]
 mod collision_tests;
+#[cfg(test)]
+mod collision_vector_tests;
 #[cfg(test)]
 mod edge_tests;
 #[cfg(test)]
@@ -61,6 +63,8 @@ mod model_tests;
 mod physics_tests;
 #[cfg(test)]
 mod round2_tests;
+#[cfg(test)]
+mod route_vector_tests;
 #[cfg(test)]
 mod runtime_tests;
 #[cfg(test)]

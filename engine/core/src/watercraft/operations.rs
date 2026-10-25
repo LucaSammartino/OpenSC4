@@ -235,12 +235,20 @@ impl Watercraft {
     }
 }
 
+/// Assist_PickNewDir (`0x00566F60`): alternative k of base `direction`, in
+/// the order straight on, +1, -1, +2, -2, +3, -3, +4, with signed 32-bit
+/// remainder by 8 (negative values are not wrapped, §5.2). The picker only
+/// passes alternatives 0-7.
+pub fn assist_pick_new_dir(direction: i32, alternative: u32) -> i32 {
+    const OFFSETS: [i32; 8] = [0, 1, -1, 2, -2, 3, -3, 4];
+    direction.wrapping_add(OFFSETS[alternative as usize]) % 8
+}
+
 /// Assist_PickNewDir's exact priority and mask rule, independent of any
 /// coordinate convention, navigability, collision or RNG provider.
 pub fn candidate_directions(direction: u32, tried: u8) -> impl Iterator<Item = i32> {
-    [0_i32, 1, -1, 2, -2, 3, -3, 4]
-        .into_iter()
-        .map(move |offset| (direction as i32).wrapping_add(offset) % 8)
+    (0..8)
+        .map(move |alternative| assist_pick_new_dir(direction as i32, alternative))
         .filter(move |candidate| *candidate != (direction as i32).wrapping_add(4) % 8)
         .filter(move |candidate| tried & (1_u32.wrapping_shl((*candidate as u32) & 31) as u8) == 0)
 }
