@@ -594,7 +594,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4RegionalCityShadow.h
         # Default-off live query pick predicates (partial owner observation).
         plugin/FC4QueryToolShadow.cpp
-        plugin/FC4QueryToolShadow.h)
+        plugin/FC4QueryToolShadow.h
+        # Default-off GZ framework constructed-buffer and command differential.
+        plugin/FC4GZFrameworkShadow.cpp
+        plugin/FC4GZFrameworkShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN

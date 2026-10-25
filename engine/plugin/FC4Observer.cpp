@@ -108,6 +108,7 @@
 #include "FC4RegionalCityShadow.h"
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
+#include "FC4GZFrameworkShadow.h"
 #include "FC4RenderPropsShadow.h"
 #include "FC4LightingShadow.h"
 #include "FC4ModelInstShadow.h"
@@ -819,6 +820,7 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
+                GZFrameworkShadowMonth(julian);
                 AppShadowObserve(julian, false);
                 RenderPropsShadowMonth(julian);
                 ModelInstShadowMonth(julian);
