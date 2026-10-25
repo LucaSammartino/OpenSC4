@@ -494,7 +494,7 @@ CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-
 cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cFontCOMDirector	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
-cRZTileSetup	2D drawing and fonts	renderer	-	-	-	-
+cRZTileSetup	2D drawing and fonts	renderer	picture-view.md	-	-	-
 cRZSpanList	2D drawing and fonts	renderer	gz-graphics.md, rz-draw.md	-	-	-
 cRZRGBColorConverter	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 cRZRGBColorConverter::Format	2D drawing and fonts	renderer	rz-draw.md	-	-	-
@@ -502,7 +502,10 @@ fn:SC4CreateSpanList	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 cGZGimexFactory	2D drawing and fonts	renderer	gimex.md	-	-	-
 cGZGimexReader	2D drawing and fonts	renderer	gimex.md	-	-	-
 cGZGimexWriter	2D drawing and fonts	renderer	gimex.md	-	-	-
-cWinBMPView	2D drawing and fonts	renderer	-	-	-	-
+cWinBMPView	2D drawing and fonts	renderer	picture-view.md	-	-	-
+fn:Resample	2D drawing and fonts	renderer	picture-view.md	-	-	-
+fn:GenerateKernelArray	2D drawing and fonts	renderer	picture-view.md	-	-	-
+fn:ConvertKernelToInteger	2D drawing and fonts	renderer	picture-view.md	-	-	-
 SC4DrawContext	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-
 cSC4PackedRenderState	3D draw context	renderer	draw-context.md	-	-	-
 fn:RZDrawBlt*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
@@ -825,7 +828,7 @@ cISC4*	framework services (GZ)	framework	-	-	-	-
 cSC4RigidBody2DSimulator	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 # Owners attributed from the unowned catch-all by re-other-attribution9 (train188; evidence in docs/specs/attribution/other-owners.tsv).
 cDumpSubTreeVisitor	tree diagnostics	framework	-	-	-	-
-cWinBMPViewGVExtra	windows and panels	ui	-	-	-	-
+cWinBMPViewGVExtra	windows and panels	ui	picture-view.md, snapshots.md	-	-	-
 cSTEChangeTerrainUI	city tools and input	ui	-	-	-	-
 (anonymous_namespace)::cParser	network rules	simulation	-	-	-	-
 nsGZWinUtils	widget toolkit	ui	-	-	-	-
