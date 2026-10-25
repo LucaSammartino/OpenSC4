@@ -8,7 +8,22 @@ std::string Setting(const char*,const char*,const char**) {return {};}
 long SettingInt(const char*,const char*,long fallback) {return fallback;}
 }
 unsigned nativeCalls=0,adapterCalls=0;
-extern "C" uint32_t __cdecl AuthoredNative(uint32_t* value) {++nativeCalls;return ++*value;}
+bool enterNested=false;
+FC4_INPLACE_ENTRY(AuthoredInner,1,0)
+void SaveFx(uint8_t* state) {
+    __asm {
+        mov eax,state
+        fxsave [eax]
+    }
+}
+extern "C" uint32_t __cdecl AuthoredNative(uint32_t* value) {
+    ++nativeCalls;
+    if (enterNested) {
+        enterNested=false;
+        reinterpret_cast<uint32_t(__cdecl*)(uint32_t*)>(AuthoredInner)(value);
+    }
+    return ++*value;
+}
 extern "C" bool fc4_compare_adapter(const char*,const uint32_t*,fc4::compare::Buffer* buffers,size_t count,fc4::compare::Result* result) {
     ++adapterCalls;if (count!=1||buffers[0].size!=4) return false;
     uint32_t value;std::memcpy(&value,buffers[0].data,4);++value;
@@ -25,9 +40,7 @@ int main() {
     frame.args[0]=uint32_t(reinterpret_cast<uintptr_t>(value));
     fc4::inplace::MachineState machine;
     const auto run=[&](const char* mode) {
-        modeOverride=mode;*value=41;auto* before=machine.before;
-        __asm {mov eax,before
-            fxsave [eax]}
+        modeOverride=mode;*value=41;SaveFx(machine.before);
         Dispatch(&frame.regs,&machine);
         assert(*value==42&&frame.regs.eax==42);
     };
@@ -40,5 +53,10 @@ int main() {
     persist=true;source=0;recordLimit=1000;
     assert(Record(fn,input));const auto corpus=LoadCorpus(fn);
     assert(!corpus.empty()&&corpus.back().canonical&&corpus.back().windows[0][0]==41);
+    // Unsampled outer calls must release the lock before a sampled inner call.
+    functions[1]=fn;functions[1].counts={};functions[1].name="authored-inner";
+    fn.counts[0].calls=50;*value=41;enterNested=true;SaveFx(machine.before);
+    Dispatch(&frame.regs,&machine);
+    assert(*value==43&&functions[1].counts[0].exact==1);
     VirtualFree(value,0,MEM_RELEASE);
 }

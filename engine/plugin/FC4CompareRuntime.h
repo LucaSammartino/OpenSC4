@@ -226,7 +226,11 @@ void Dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* mac
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
     if (depth) ++count.nested;
     const auto call=++count.calls;const std::string mode=modeOverride.empty()?fn.mode:modeOverride;
-    if (mode!="replace"&&source==0&&!fc4::inplace::Sample(call)) {original();if (locking) ReleaseSRWLockExclusive(&sampleLock);return;}
+    if (mode!="replace"&&source==0&&!fc4::inplace::Sample(call)) {
+        // An unsampled original can enter another selected function. Do not
+        // retain an unmarked outer lock across that call.
+        if (locking) ReleaseSRWLockExclusive(&sampleLock);original();return;
+    }
     ++count.sampled;++depth;
     Capture capture;Input input;std::copy_n(args,fn.argCount,input.args.begin());
     bool valid=true;
