@@ -2298,11 +2298,20 @@ public:
     virtual bool Init() = 0;                                                                 // 3
     virtual bool Shutdown() = 0;                                                             // 4
     virtual bool HasVisualEffect(char const* name) = 0;                                      // 5
-    virtual bool CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) = 0; // 6
-    virtual bool CreateVisualEffect(char const* name, cISC4VisualEffect** out) = 0;           // 7
+    // Distinct virtual names prevent MSVC's overload grouping from reversing
+    // slots with different callee stack cleanup (12 versus 8 bytes).
+    virtual bool CreateVisualEffectById(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) = 0; // 6
+    virtual bool CreateVisualEffectByName(char const* name, cISC4VisualEffect** out) = 0;         // 7
     virtual void GetStatsString(cIGZString& stats) = 0;                                      // 8
     virtual cISC4EffectMaps* GetEffectMaps() = 0;                                            // 9
     virtual float GetTallestBuildingAltitude() = 0;                                          // 10 x87
+
+    bool CreateVisualEffect(uint32_t id0, uint32_t id1, cISC4VisualEffect** out) {
+        return CreateVisualEffectById(id0, id1, out);
+    }
+    bool CreateVisualEffect(char const* name, cISC4VisualEffect** out) {
+        return CreateVisualEffectByName(name, out);
+    }
 };
 
 
