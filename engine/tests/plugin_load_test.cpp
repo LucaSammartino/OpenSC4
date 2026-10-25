@@ -11115,9 +11115,10 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_OBSERVE", "1");  // the same lines in release and checked builds
     SetEnvironmentVariableA("FC4_AUTOTEST_SAVE_AFTER_MONTHS", nullptr);
 
-    if (mode == "--ini-enable-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true);
-    if (mode == "--ini-default-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, false);
-    if (mode == "--ini-mixed-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true, true);
+    if (mode == "--ini-enable-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Alone);
+    if (mode == "--ini-default-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Default);
+    if (mode == "--ini-mixed-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Mixed);
+    if (mode == "--ini-replace-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Replace);
     if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
         mode == "--effects-guarded")
         return EffectsRegistrationTest(dll, ini, log, mode);

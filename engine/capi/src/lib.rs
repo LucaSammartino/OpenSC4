@@ -870,6 +870,10 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 }
 
 pub mod advisors;
+// The MySim dispatch front (enable = mysims; mysims.md §6.2.1, §7.2.1, §7.2.3).
+pub mod mysim_dispatch;
+#[cfg(test)]
+mod mysim_dispatch_tests;
 pub mod audio;
 pub mod aura;
 pub mod aura_shadow;

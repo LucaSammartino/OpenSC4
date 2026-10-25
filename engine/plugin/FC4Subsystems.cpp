@@ -127,6 +127,8 @@
 #include <cstring>
 #include <string>
 #include "cFC4AdvisorSystem.h"
+#include "cFC4MySim.h"
+#include "cFC4MySimDispatch.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -529,6 +531,15 @@ const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
 };
 
+// mysims.md §1, §7 (glue-mysims-replace16): the MySims run in the FC4 advisor
+// system's core (cFC4MySim.h), so `mysims` needs `advisors`; the dispatch is
+// the Rust-backed cFC4MySimDispatch its owner MySim creates through GZCOM.
+const ClassEntry kMySimsClasses[] = {
+    {kFC4_CLSID_cSC4MySim, "cSC4MySim", &CreateFC4MySim},
+    {kFC4_CLSID_cSC4MyStreetSim, "cSC4MyStreetSim", &CreateFC4MyStreetSim},
+    {kFC4_CLSID_cSC4MySimDispatch, "cSC4MySimDispatch", &CreateFC4MySimDispatch},
+};
+
 // network-occupants.md §4, §5 (glue-netocc-replace17): the Rust-backed
 // pole and line on the shared inherited occupant slots (FC4OccupantAdapter.h).
 const ClassEntry kNetOccClasses[] = {
@@ -607,9 +618,8 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
-    // Pending integration: my-street-sim.md has a distinct Street owner;
-    // mysims.md §7.2.3 requires replacing native concrete dispatch callers.
-    {"mysims", nullptr, nullptr, 0, false},
+    // the glue-mysims-replace16 lane: requires `advisors` (Resolve).
+    {"mysims", nullptr, kMySimsClasses, sizeof(kMySimsClasses) / sizeof(kMySimsClasses[0]), false},
     {"overlays", nullptr, kOverlayOwnerClasses, sizeof(kOverlayOwnerClasses) / sizeof(kOverlayOwnerClasses[0]), false},
     {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
@@ -675,12 +685,11 @@ void Resolve() {
         Log("subsystem 'lotrec': replacement unavailable (incomplete live lot ABI); original cSC4Lot retained");
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
-        if (strcmp(s.key, "mysims") == 0) {
+        if (strcmp(s.key, "mysims") == 0 && ListContains(enable, s.key) &&
+            (!ListContains(enable, "advisors") || ListContains(disable, "advisors"))) {
             g_enabled[i] = false;
-            if (ListContains(enable, s.key)) {
-                Log("subsystem 'mysims': replacement unavailable; native factories retained "
-                    "(Street owner integration pending; dispatch requires complete owner boundary)");
-            }
+            Log("subsystem 'mysims': replacement unavailable without 'advisors' (the MySims run in the "
+                "FC4 advisor system); native factories retained");
             continue;
         }
         if (!s.defaultOn && !ListContains(enable, s.key)) {
@@ -831,6 +840,11 @@ void Resolve() {
 }  // namespace
 
 const char* DisabledSubsystemsList() { return g_disabledList; }
+
+bool MySimsReplaced() {
+    const Subsystem* owner = nullptr;
+    return FindEnabledClass(kFC4_CLSID_cSC4MySimDispatch, &owner) != nullptr;
+}
 
 bool SimulatorReplaced() {
     const Subsystem* owner = nullptr;

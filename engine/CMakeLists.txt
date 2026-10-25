@@ -415,6 +415,13 @@ if(FC4_IS_WIN32_X86)
         # The MySims shadow (mysims.md): mysims_shadow (no replacement).
         plugin/FC4MySimsShadow.cpp
         plugin/FC4MySimsShadow.h
+        # The MySim replacement (mysims.md; glue-mysims-replace16): enable = advisors, mysims.
+        plugin/FC4MySimGameHost.cpp
+        plugin/FC4MySimGameHost.h
+        plugin/cFC4MySim.cpp
+        plugin/cFC4MySim.h
+        plugin/cFC4MySimDispatch.cpp
+        plugin/cFC4MySimDispatch.h
         # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
         # The occupant manager (occupant-manager.md): enable = occmgr; its shadow
         # is occmgr_shadow and follows whichever manager is active.
@@ -1203,8 +1210,10 @@ if(TARGET fc4_plugin_load_test)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-mysims)
     add_test(NAME plugin_mysims_default_off_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-default-mysims)
+    add_test(NAME plugin_mysims_replace_factory_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-replace-mysims)
     set_tests_properties(plugin_mysims_factory_boundary_test plugin_mysims_default_off_test
-        PROPERTIES RUN_SERIAL TRUE)
+        plugin_mysims_replace_factory_test PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 # The pending MySim owner group must coexist with a registered replacement.

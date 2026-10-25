@@ -25,6 +25,8 @@
 #include "FC4PropCityCommon.h"
 #include "FC4Streams.h"
 #include "cFC4AdviceSubject.h"
+#include "cFC4MySim.h"
+#include "FC4Subsystems.h"
 #include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
@@ -712,6 +714,8 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
 
 }  // namespace
 
+fc4_advisors* fc4::CurrentAdvisorCore() { return g_live != nullptr ? g_live->Core() : nullptr; }
+
 cIGZUnknown* CreateFC4AdvisorSystem() { return (new cFC4AdvisorSystem())->Primary(); }
 
 // ---- the cheat handler (+8) -------------------------------------------------------------------------------
@@ -736,7 +740,10 @@ cFC4AdvisorSystem::cFC4AdvisorSystem() : cheat_(this) {
     fc4::AdvisorWinProcOps ops{};
     if (fc4::GameAdvisorWinProcOps(&ops)) window_.SetOps(ops);
     host_ = MakeHost(this);
-    core_ = fc4_advisors_create(&host_, nullptr, GetTickCount());  // §9: wall-clock seed
+    // `enable = mysims` (cFC4MySim.h): the core runs the MySim classes and agent.
+    const bool mysims = fc4::MySimsReplaced();
+    if (mysims) fc4::FillMySimReplacementHost(&mysimHost_);
+    core_ = fc4_advisors_create(&host_, mysims ? &mysimHost_ : nullptr, GetTickCount());  // §9: wall-clock seed
     self_ = core_ ? fc4_advisors_system_object(core_) : nullptr;
     if (self_ != nullptr) fc4_adv_obj_set_token(self_, fc4::TokenOf(Primary()));
     global_ = fc4::AdvisorSystemGlobalSlot(fc4::compat::AdvisorSystemGlobal());
@@ -874,6 +881,7 @@ bool cFC4AdvisorSystem::Init() {
     g_live = this;
     const bool ok = core_ != nullptr && fc4_advisors_init(core_);
     initialised_ = true;
+    if (fc4::MySimsReplaced()) fc4::MySimReplacementStart(core_);
     const fc4_advisors_state st = State();
     fc4::Log("advisors Init: ok=%d lua=%p advisors=%u", ok ? 1 : 0, static_cast<void*>(lua_), st.advisor_count);
     return true;
@@ -881,6 +889,7 @@ bool cFC4AdvisorSystem::Init() {
 
 bool cFC4AdvisorSystem::Shutdown() {
     if (core_ != nullptr) fc4_advisors_shutdown(core_);
+    if (fc4::MySimsReplaced()) fc4::MySimReplacementStop(core_);
     ReleaseLua();
     if (g_live == this) g_live = nullptr;
     initialised_ = false;
