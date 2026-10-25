@@ -1,23 +1,17 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-lotconfobj-replace22: Rust-backed lot configurations | Codex / `glue-lotconfobj-replace22` (engine lane, detached HEAD) | in progress; native build 279/279 and CTest 94/94 PASS; formatting PASS; workspace gate and game pending | Collect existing operations below; finish corrected house run and gate before enqueueing. |
+| glue-lotconfobj-replace22: Rust-backed lot configurations | Codex / `glue-lotconfobj-replace22` (engine lane, detached HEAD) | ready; cargo 7644/0, clippy clean, CTest 94/94; house clean to 2032, ref_warnings=0; lotconf shadow 73/73 exact | Coordinator review and coverage credit under lotcfg. |
 
-## Handoff
-- Code milestone: `c4f269d06b46580b7e9287d41445583ab6792126`; this final amend adds only this report.
-- Rust `LotConfiguration` owns loaded fields/geometry; opaque mutex-backed C ABI owns, loads, snapshots and frees it.
-- Manager allocation uses one shared FreeCity4 factory, never GZCOM for configuration objects (spec 1.1).
-- C++ Load projects Rust geometry into game-shaped mutable arrays; removed its duplicate geometry parser.
-- Added retained-exemplar/reload Rust test and plugin registration/reference ownership test, seam 75.
-- Four C ABI exports added; ABI version unchanged. Shadows remain default-off.
-- Native verify terminal PASS: `qbuild-20261025-043648-build-ctest`, build 279/279, CTest 94/94 (ownership test 94 passed).
-- Logs: `build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`; build 221.0 s, CTest 488.5 s.
-- Full gate already running: unified exec session **9553**, `qbuild.py --wt <WT> all`; collect THIS operation, do not duplicate it.
-- Focused Cargo was stopped to reduce contention, terminal exit 15; preserved `build-runs/focused-lotconf.log`. Full gate includes that test.
-- Game request outstanding: **lc22-r1-house-20261025a**, turbo to 2032, lotconf_shadow=1; event-driven wait session **82573**.
-- Collect that SAME wait. Completed verdict remains valid; helper `build-runs/wait-lotconf-verdict.ps1` blocks on filesystem events without qwait.
-- IMPORTANT: request a omitted flora, lotdev, commercial, industrial. Preserve its result, then submit unique label b adding those four to its enable list.
-- The request otherwise includes all class replacement keys plus span565/span4444/span1555; canonical tools profile was not read (clean-room prohibition).
-- Need corrected full replacement run clean through 2032, ref_warnings=0, exact lotconf line count; normal-speed rerun only if turbo differs.
-- No game verdict or exact count collected yet. No merge-queue entry written. No run records, tools edits, or spec edits.
-- Known gap: legacy version-1 tags use deterministic process serial without GZCOM clock seed (`SPEC-GAP` comment); shipped version-2 geometry measured next.
-- Next: collect sessions 9553 and 82573, run corrected request, report actual counts, amend this <=25-line file and enqueue full 40-character tip when ready.
+Rust `LotConfiguration` owns loaded fields and geometry through four new mutex-backed C ABI exports; ABI version unchanged.
+The replacement manager allocates FreeCity4 configurations directly through its shared factory; no native configuration factory is used.
+C++ Load projects Rust geometry into mutable game-shaped arrays; its duplicate geometry parser was removed.
+Tests cover missing GZCOM configuration registration (spec 1.1), catalogue reference ownership (seam 75), retained geometry after exemplar release, reload replacement, and concurrent snapshots.
+Implementation: `c4f269d06`; concurrency test: `3a69b1476`; this commit corrects its element-count byte fixture.
+Final `qbuild all`: PASS, Rust 7644 passed / 0 failed / 0 ignored; Clippy 0 diagnostics; owned-file fmt PASS.
+Native queue `qbuild-20261025-064840-build-ctest`: PASS, build 46/46 (2.3 s), CTest 94/94 (91.2 s).
+Full-house replacement run `lc22-r2-house-20261025b`: clean, 2032-01-01, ref_warnings=0; includes flora, lotdev, commercial, industrial and all three span keys.
+Native comparison with `lotconf_shadow=1`: `lc22-r2-native-20261025c 73/73`; totals lines=73 exact=73 mismatched=0 incomplete=0, clean through 2032-01-07, ref_warnings=0.
+Evidence: `build-runs/game-results/<label>.log` and `.verdict`, `build-runs/qbuild-test.log`, `build-runs/qbuild-clippy.log`, `build-runs/fc4verify-{build,ctest}.log`.
+Earlier failed fixture evidence remains in `build-runs/qbuild-test-failed-r2.log`; corrected concurrency and retention tests both pass in the final gate.
+Shadows remain default-off. No spec questions, tool edits, coverage edits or run records added.
+Remaining limit: legacy version-1 tags use a deterministic process serial without the GZCOM clock seed (`SPEC-GAP`); shipped version-2 data is measured above.
