@@ -4,8 +4,9 @@
 `luacmd27-proof-r7` printed through Lua Extensions, reached city view, changed the
 city name, read the changed name back, restored it, and saved the slot copy.
 The nine older candidate scripts remain unqualified and are not suite rows.
-The registered `lua-lots-empty` and `lua-lots-grown` rows exercise the installed
-catalog's 175 categorized ploppable lots, then partially demolish the plan.
+The registered `lua-lots-empty`, `lua-lots-grown` and
+`lua-lots-grown-qualified` rows exercise the installed catalog's 175
+categorized ploppable lots, then partially demolish the plan.
 Their measured results and limitations are recorded below; a zero command status
 alone does not prove that a lot exists in the save.
 
@@ -37,9 +38,135 @@ The initial slot-derived DLL `d242df85` ignored `reach`, `reach_cap`,
 `reach_contracts` and `reach_output`. All `r4-reach`, `r4-corrected` and
 `r4-categories` results using that DLL are **non-reach evidence**. Fresh replay
 uses the merged-main build `8fd69cb79aaa7930fe70416f93b4454b6fc385b5c192b1a2ce27439bfe50a310`;
-its measured results are recorded below when complete. Self-contained scripts
+its measured results follow. Self-contained scripts
 with main-relative worktree paths bridge the old running queue launcher; no
 main checkout files were edited to run them.
+
+### Reach measurements (fresh DLL only)
+
+`luacmd27-r4-final` used the shared queue, regress shadows, `reach=1`,
+`reach_cap=1`, the merged `docs/abi/functions.tsv`, and the default exclusion of
+constructed shadow probes. Counts include only TSV rows with `entries > 0`;
+new addresses are set differences against the same city's no-Lua control.
+Cap 1 bounds counts, and the tracer still omits restore/step/probe intervals.
+
+The full empty sweep finished at **2000-03-01**, clean, **175** placement
+returns (**161 accepted / 14 rejected**), Lua complete, no pending calls;
+shadows **375/388** exact. It reached **7,976** functions against **4,018**
+in the no-Lua control: **3,974 new addresses**. Full sweep plus category probes
+reached **4,188** addresses absent from that control in union.
+
+| Bounded category probe | New addresses, empty | Placement accepted/rejected |
+|---|---:|---:|
+| power | 3142 | 8/0 |
+| water | 3013 | 4/0 |
+| garbage | 3026 | 3/0 |
+| police | 3309 | 6/0 |
+| fire | 3203 | 3/0 |
+| health | 3216 | 3/0 |
+| education | 3071 | 13/0 |
+| parks | 2990 | 24/1 |
+| landmarks | 2990 | 40/0 |
+| rewards | 3540 | 50/3 |
+| transit | 3755 | 19/8 |
+| utilities union | 3190 | 13/0 |
+
+All twelve empty probes completed their Lua and reached the target date cleanly.
+The category probes omit the full sweep's frame waits; they place only their
+selected catalog subset and demolish its first three entries. **These counts
+overlap and include shared establishment, terrain and simulation paths.** The
+no-Lua empty control remained in god mode at 2000-01-01, whereas Lua established
+mayor mode and advanced two months. These are observed scenario deltas, not
+functions uniquely attributable to a building category. No category measured
+zero new functions; do not add the category counts together.
+
+Every grown reach delta is **unavailable, not zero**. The no-Lua West Weburg
+control exited with **0xC0000005** at 2197-03-22 without a verdict or reach TSV;
+the full qualified sweep exited after **24 lot returns, 18/6 accepted/rejected**,
+before its completion marker. Across the fourteen grown requests (control,
+full sweep, twelve categories), **10 exited / 4 stalled**, no usable census
+files. The power/fire/health/police/education category probes returned
+**7/1, 2/1, 2/1, 6/0, 11/2** respectively before their process exits; the
+garbage probe never left its startup state wait. These are partial placement
+evidence, never grown reach credit. No tracer or engine implementation changed.
+
+The fresh no-reach West Weburg control reached 2197-05-20 clean, **375/394**
+shadows exact. Its paired qualified sweep also reached **2197-05-20 clean**:
+**175** returns, **133 accepted / 42 rejected**, Lua complete, zero pending;
+**377/432** shadows exact. Both this run and the empty reach full sweep had
+**zero foreign exceptions, watchdog stalls, RTC failures, overruns and reference
+warnings**. The paired results are in `build-runs/suite/luacmd27-r4-qualified/`.
+
+| Category | Qualified grown accepted/rejected |
+|---|---:|
+| power | 8/0 |
+| water | 3/1 |
+| garbage | 2/1 |
+| police | 6/0 |
+| fire | 3/0 |
+| health | 2/1 |
+| education | 11/2 |
+| parks | 24/1 |
+| landmarks | 28/12 |
+| rewards | 42/11 |
+| transit | 11/16 |
+| utilities union | 12/1 |
+
+Among the 37 substituted civic pads, **33 accepted / 4 rejected**. The rejected
+calls remain explicit: `04000004` water purification, `0A287457` disease
+research center, `0BB9376A` large high school and `EA28722B` university.
+All returned **status 2**. The original grown run had power **0/8**, fire
+**0/3**, health **0/3**, police **2/4**, education **8/5**; the new footprints
+improve these measured placement outcomes without establishing full coverage.
+
+Full-sweep shadow findings (key and first log line), retained without fixes:
+
+- Empty: aura 3776; automataowners 4080; dbpf 3864; dbpf_bounds 3865;
+  mysims 4310; occmgr 4286; ports 4458; traffic 3907.
+- Qualified grown: aura 3915; automataowners 3578; citysit 2679; demand 3212;
+  landvalue 3502; lotdev 3756; neighbours 4001; netmgr 3765; netocc 3582;
+  nettool_plan 2670; occmgr 3769; pollution 3088; powerline_plan 2671;
+  regionalcity 3563; terrain 3801; tract 4323; traffic 3077; weather 3746.
+
+These refer respectively to the final empty and qualified suite directories.
+The per-key tables retain full first-mismatch payloads. There is no compare or
+replacement credit. `luacmd27-r4-final/placements.tsv` retains every return from
+both completed 175-lot sweeps, including all rejected IIDs and category names.
+
+The fresh coastal retry `luacmd27-coastal-r4b` also failed before its city-state
+wait completed (watchdog **stalled**, date unset, **zero PlaceLot calls**).
+Thus neither Zoe startup attempt qualifies ferry, seaport, airport stages or
+pumps at a shoreline. Existing rejected calls remain in the round-three and
+empty full/category tables; no coastal coverage or persistence is inferred.
+
+Raw per-category returns, verdicts and address counts:
+`build-runs/suite/luacmd27-r4-final/{summary,per_key,categories,new-addresses}.tsv`.
+Each labelled `.reach.tsv` is in this worktree's `build-runs/game-results/`.
+The running old queue's Lua transcripts were copied from main's labelled
+outputs before recomputing the suite tables; the committed queue fix makes
+this transfer automatic on future runs. SHA-256 checks found all three
+Documents originals unchanged; no city save or third-party DLL is committed.
+
+### Missing-driver mapping (information only)
+
+For `re/triggers/missing-actions.tsv`, the already verified Lua calls provide
+only these subsets; no additional UI or command probes were started:
+
+| Rank/group | Exact Lua call or candidate | Qualification |
+|---|---|---|
+| 4 networks | `sc4app.Demolish(40,85,75,122,'None')` | Verified clearing/cost; does not supply interactive tool drag input. |
+| 7 city | `sc4app.SaveCityQuick(true)` | Verified save subset. QuitCity/LoadCity round trip remains unqualified. |
+| 11 commands | `sc4app.GetAppState()`, `sc4app.GetCityName()`, `sc4app.SetCityName('FC4 Lua proof')` | Verified command route, rename/read-back/restore. No explicit `sc4app.ExecuteCommand(text)` call has been proved. |
+| 2 dialogs | `sc4app.OpenAudioOptionsDialog()`, `sc4app.OpenGraphicOptionsDialog()`, `sc4app.OpenPlayOptionsDialog()`, `sc4app.OpenPhotoAlbumDialog()` | Exact named candidates only; opening, controls and closing remain unqualified. |
+| 5 views | `sc4app.Zoom0()` through `sc4app.Zoom5()`, `sc4app.ScrollRightOnce()` | Candidates only; no verified rotation/filter/map driver. |
+| 13 query | `sc4app.QueryTool()`, `sc4app.TrafficQueryTool()` | Candidates only; selecting a tool cannot establish an actual map query. |
+
+Ranks **1 offscreen, 6 driver, 8 budget, 14 mysim, 15 web, 18 missions,
+20 text-effects** have no qualified Lua driver here. In particular no working
+button/parent IDs or text-entry sequence were found; the old `GZWin*` negative
+ID probes are not a way to change budgets or ordinances. The coordinator can
+choose future drivers from this distinction between proved calls and named
+candidates.
 
 ## Round three: catalog sweeps, 2026-10-25
 
