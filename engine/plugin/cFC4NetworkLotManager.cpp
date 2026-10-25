@@ -750,8 +750,11 @@ bool IterateOne(void* p, int32_t x, int32_t z, const fc4_netlot_lot* lot) {
     if (lot->occupant == 0) return true;  // as GetNetworkLot: never a null occupant
     cISC4NetworkLot* l = c->self->KeepLot(
         x, z, reinterpret_cast<cISC4NetworkOccupant*>(static_cast<uintptr_t>(lot->occupant)), lot->config_id);
+    // KeepLot is borrowed. Pin it across the callback, which may replace the
+    // cached cell, and release only this temporary reference afterwards.
+    FC4_ADDREF(l);
     const bool go = c->cb(static_cast<uint32_t>(x), static_cast<uint32_t>(z), l, c->ctx);
-    l->Release();
+    FC4_RELEASE(l);
     return go;
 }
 }  // namespace
@@ -864,6 +867,23 @@ intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
         cFC4NetworkLotManager manager;
         retained = manager.KeepLot(1, 2, a, 0);
         if (manager.KeepLot(1, 2, a, 0) != retained) return 0;
+        fc4_netlot_lot record{};
+        record.occupant = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(a));
+        bool pinned = false;
+        IterateCtx visit{&manager,
+            [](uint32_t x, uint32_t z, cISC4NetworkLot* lot, void* ctx) {
+                const uint32_t refs = lot->AddRef();
+                lot->Release();
+                *static_cast<bool*>(ctx) = x == 1 && z == 2 && refs == 3;
+                return false;  // Early termination must also balance the pin.
+            }, &pinned};
+        if (IterateOne(&visit, 1, 2, &record) || !pinned) return 0;
+        // The cache still owns exactly one reference after iteration.
+        if (retained->AddRef() != 2) {
+            retained->Release();
+            return 0;
+        }
+        retained->Release();
         retained->AddRef();
         auto* replacement = manager.KeepLot(1, 2, b, 0);
         if (replacement == retained || replacement->GetNetworkOccupant() != b) {
