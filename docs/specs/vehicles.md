@@ -1032,7 +1032,9 @@ rate selection still considers both commands and the sign of current speed.
 
 With flag `0x2000`, steering rate is the linear interpolation from parameter
 `+0x24` to `+0x28`, at `clamp(measuredSpeed / forwardBound, 0, 1)`; measured speed
-is drive-state `+0x94`. Without the flag, use parameter `+0x2C`.
+is the automaton's `+0x94`, **not** drive-state `+0x94` (a command timer).
+Without the flag, use parameter `+0x2C`. The receiver is verified at
+`0x0055C707–0x0055C70D`.
 Negative steering is processed first: active subtracts `ds × rate`; absent
 returns a negative steering value toward zero by `ds × returnRate`, stopping
 at zero. Positive steering is then processed: active adds `ds × rate`; absent
@@ -1332,10 +1334,54 @@ fire during one check; it is not an else-if or a single combined random draw.
 The check does not clear the overspeed latch. Evidence:
 `0x00557680–0x005577E0`, threshold constant `0x00A9C7E8` read as **64 bits**.
 
-Train movement follows the front/rear and saved-path contracts in §12.11; its
-tick calls the derail check after motion/collision work and dashboard updates.
-The remaining junction selection and complete displacement/substep instruction
-audit is tracked with VH1; this subsection does not close that portion.
+Train movement follows the front/rear and saved-path contracts in §12.11.
+For nonnegative speed and elapsed time, the head divides this tick into
+`N=clamp(ceil(currentTweenSpeed×dt),1,6)` movement steps, rather than Vehicle's
+time-based count below. Each step's distance is
+`f32((dt/N)×f32(currentTweenSpeed))`. The count uses the x87 product before a
+binary32 speed store; the distance uses the subsequent binary32 speed sample.
+The ceil conversion is the rounding operation described in §12.15; the final
+clamp compares unsigned integers. Evidence: `0x0055971A–0x005597D6`.
+
+Each head step advances the front anchor through slot 133. If advancement
+fails, next-player-path slot 197 must succeed; otherwise call slot 13 with
+false and return true immediately. A successful step gets the rear anchor
+through slot 182, using length and the saved-path deque. Form D=front−rear.
+Only when its length is below `f32(0.00001)` substitute saved direction
+`+0x270`; if that is componentwise within `f32(0.0001)` of the unset vector,
+or its length is also below the length threshold, return true immediately.
+There is no head-direction fallback here. Centre is `front−D×0.5`, computed
+**before** normalizing D. MoveTo with that centre and normalized D, save D,
+clear flag `0x20`, and copy the rear anchor and D into drive-state
+`+0x44/+0x50/+0x38`. This head rule differs from the car-following fallback
+in §12.11. Evidence: `0x005597F3–0x00559A29`.
+
+Then query collision slot 190 with an initially unset direction and fraction
+1. A hit stops the remaining steps; call Vehicle ResolveCollision only if
+the parameter service was obtained. Otherwise continue all N steps. After
+motion/collision, update the dashboard transform and position/heading/velocity
+outputs, then check derail. Finally set the automaton's measured speed
+`+0x94` to actual 3D centre displacement divided by dt, and return the
+inherited Automaton tick result. Early exits above skip these final updates.
+Evidence: `0x00559A2C–0x00559C25`. The dashboard is an interface output;
+it is not the source of the train's integrated target speed.
+
+The next-player-path helper (`0x00559C30`) obtains the adjoining network using
+the opposite exit `(exit+2) mod 4` and current path-type nibble. Missing
+adjoining network returns false. A connected path can be used directly when
+its first point lies at most **2 metres** from the current path's last point.
+Otherwise request candidate paths with the direction-selection outputs of
+slot 171, current last point and distance limit `f32(0.5)`; choose the first
+candidate if any, or use the path service's fallback selection with wildcard
+`0xFF`. A null selected point collection returns false. Success calls trip
+slot 131 with the new network, selected path key and true, notifies
+network-service slot 38 of the adjoining
+network's cell, and also notifies the further network's cell if that lookup
+succeeds. This path switch does not itself move the centre or add another
+collision check. It assumes a usable current point collection; do not turn
+that precondition into a promise of safe empty-path reconstruction.
+Evidence: `0x00559C3E–0x00559E6E`, endpoint comparison
+`0x00559CD6–0x00559D10` (constant `0x00A8825C`, binary32 2).
 
 | Train player-drive conformance setup | Required observation |
 |---|---|
@@ -1350,6 +1396,14 @@ audit is tracked with VH1; this subsection does not close that portion.
 | Eligible dot, draw exactly double threshold / just below it | No curve derail / derail. |
 | Curve triggers and T exceeds duration limit | Observe two collision/flag/event sequences. |
 | T equals duration limit and curve fails | No duration derail. |
+| Speed 0, dt=33 | One zero-distance movement step. |
+| Speed 0.125, dt=16 | Two steps, distance 1 each. |
+| Speed 0.125, dt=64 | Six steps; distance f32((64/6)×0.125) each. |
+| Front (8,0,0), rear (4,0,0) | Centre (6,0,0), direction (1,0,0); halve the unnormalized span. |
+| Coincident anchors, saved direction unset | Return true before MoveTo, dashboard and derail check. |
+| Advance fails and next-player-path fails | Slot 13(false), return true; no remaining steps or final dashboard/derail update. |
+| Collision on step 2 of 6 | No steps 3–6; resolve once if parameters exist, then final dashboard/derail work. |
+| Connected next path endpoint separation 2 / greater than 2 | Direct connected-path acceptance / candidate-or-fallback selection. |
 
 ### 12.13 Tank player drive, firing and interface boundary (VH1)
 
@@ -1520,6 +1574,54 @@ contract. Notifications such as StartTrip's cell message and collision's
 inherited model/effect slots plus the concrete additions above; IO never requires
 running a game's owner method through a foreign manager.
 
-This inventory identifies the dispatch targets without asserting full numeric
-closure of the two large player-motion routines or every Tank aiming branch.
-Those remaining instruction-level requirements stay explicitly in VH1.
+The remaining Vehicle displacement/reattachment instruction audit is tracked
+in VH1. Tank's owner boundary is fully stated in §12.13; projectile-asset
+simulation is delegated to the effects interface rather than invented here.
+
+### 12.15 Vehicle player-motion scheduling (VH1, partial)
+
+Vehicle requires a drive state and drive parameters; absent state, absent
+parameter container, or failure of both direct/service parameter retrieval
+returns false. Before inherited Automaton ticking, an unsigned drive-state
+damage counter greater than parameter `+0x5C` returns true without movement.
+After the inherited tick, a false return stops this owner update. Speed
+updating precedes the movement steps; neither collision nor substepping causes
+another command translation or acceleration integration during the same tick.
+Evidence: `0x00560424–0x005604F3`, `0x005605A7–0x005605C7`.
+
+For ordinary positive elapsed times, Vehicle's step count is
+`N=ceil(dt×bits(0x3CF83E10))`, approximately ceil(dt/33). There is **no**
+Train-style six-step clamp. For both owners the instruction-level ceil
+conversion starts with the x87 product x. Store `x+0.5+12582912` as binary32,
+interpret its bits as a u32, and subtract `0x4B400000` modulo 2³² to obtain B.
+If x equals the signed-integer value of B−1, use B−1 instead of B. This
+preserves exact-integer boundaries of the binary32 rounding trick. Vehicle
+does not clamp a zero count to one: the quotient is still evaluated before
+the loop, so zero dt is not a guaranteed safe physics input.
+
+Sample the speed tween once as binary32. Store substep elapsed time
+`f32(dt/N)` separately; movement distance is
+`f32((dt/N)×sampledSpeed)`, retaining the x87 quotient until the multiply
+before that final store. Do not integrate speed once per substep, normalize
+dt to seconds, use the measured-speed field as the target, or reuse Train's
+distance-dependent step count. Evidence: `0x005605C9–0x00560645`; constants
+`0x00A9D350/0x00A9D0B8` are binary32 `0.030303031206130981/12582912`.
+
+In the off-network movement branch, slot 187 receives the substep elapsed
+time, drive state, distance, parameters and network result. Each such movement
+call is followed by collision slot 190 with unset direction and initial
+fraction 1. A hit resolves collision and terminates the loop; an ordinary
+miss proceeds to the next step. Dashboard work follows the loop. The geometry
+inside slot 187 and the on-network reattachment branch remain explicitly
+unclosed in VH1; the scheduling contract does not substitute straight-line
+movement for those operations. Evidence: `0x00561158–0x00561204`.
+
+| Vehicle scheduling setup | Required observation |
+|---|---|
+| dt=32, speed 0.125 | One step, distance 4. |
+| dt=33, speed 0.125 | Two steps, elapsed 16.5 and distance 2.0625 each: 33 times the stored multiplier is slightly greater than 1. |
+| dt=34, speed 0.125 | Two steps, elapsed 17 and distance 2.125 each. |
+| dt=224, speed 0.125 | Seven steps, distance 4 each; no six-step clamp. |
+| Missing state or parameters | False before owner movement. |
+| Damage counter equals threshold / exceeds threshold | Continue / true before inherited tick and movement. |
+| Off-network collision at step 1 of 2 | One movement, one collision query, one resolution; skip step 2. |
