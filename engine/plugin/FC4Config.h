@@ -674,3 +674,6 @@ std::string IniPath();
 }  // namespace fc4
 // app_shadow = 0 / 1: application paths/lifecycle mode comparison (default 0).
 // app_shadow_path_cache = 0 / 1: AP18 unresolved slots65/66 diagnostics (default 0).
+// dbpf_bounds_shadow = 0 / 1 (default 0): also enable the monthly DBPF reader
+// and compare zero, one, short and exact raw-buffer capacities, including QFS
+// storage bytes, returned lengths and untouched guards against Rust (section 2.6.1).

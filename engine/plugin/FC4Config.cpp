@@ -427,6 +427,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "nettool_plan_shadow", "powerline_plan_shadow",
                                   // Isolated GZ buffers and read-only command parsing, default off.
                                   "gzfw_shadow",
+                                  // EX54 raw read capacities and buffer guards, default off.
+                                  "dbpf_bounds_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
