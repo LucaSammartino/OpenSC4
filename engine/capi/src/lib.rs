@@ -1178,3 +1178,5 @@ mod legacyctl_shadow;
 mod viewutil_shadow;
 // Private finite model-instance fixture transport; no DLL export changes.
 mod modelinst_shadow;
+// Private power-line occupant factory transport (no public DLL exports).
+mod netocc_line;

@@ -14,6 +14,7 @@
 #include "FC4Subsystems.h"
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
+#include "cFC4PowerLineOccupant.h"
 
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
@@ -487,6 +488,10 @@ const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
 };
 
+const ClassEntry kNetOccClasses[] = {
+    {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -559,6 +564,8 @@ const Subsystem kSubsystems[] = {
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
+    // Partial occupant replacement: only the fully specified power-line owner.
+    {"netocc", nullptr, kNetOccClasses, sizeof(kNetOccClasses) / sizeof(kNetOccClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

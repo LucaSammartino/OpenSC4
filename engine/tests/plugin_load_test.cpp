@@ -11188,6 +11188,7 @@ int main(int argc, char** argv) {
     // The tutorial system (tutorial.md; the glue15 lane).
     if (mode == "--ini-enable-tutorial") return TutorialEnableTest(dll, ini, log);
     if (mode == "--ini-netocc-shadow-factories") return NetOccShadowRegistrationTest(dll, ini);
+    if (mode == "--ini-netocc-line-factory") return NetOccLineRegistrationTest(dll, ini);
     if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
     if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
 
