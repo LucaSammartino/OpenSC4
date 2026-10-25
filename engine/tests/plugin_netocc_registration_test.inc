@@ -53,6 +53,24 @@ int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
             CHECK(line->SetPreview(true)); CHECK(line->IsPreview());
             NetOccTestPole pole;
             CHECK(line->SetConnectedPoles(&pole, &pole, true)); CHECK(pole.refs == 3);
+            // Factories create independent occupants, and final Release must
+            // return held pole references even without an explicit Shutdown.
+            void* secondRaw = nullptr;
+            CHECK(director->GetClassObject(0xC9C05C5D, 0xC98F3B24, &secondRaw));
+            if (secondRaw) {
+                auto* second = static_cast<NetOccLineTestInterface*>(secondRaw);
+                CHECK(second != line && !second->IsPreview());
+                cIGZUnknown* secondA = nullptr; cIGZUnknown* secondB = nullptr;
+                bool secondFlag = true;
+                CHECK(second->GetConnectedPoles(secondA, secondB, secondFlag));
+                CHECK(secondA == nullptr && secondB == nullptr && !secondFlag);
+                if (secondA) secondA->Release();
+                if (secondB) secondB->Release();
+                CHECK(second->SetConnectedPoles(&pole, nullptr, false));
+                CHECK(pole.refs == 4);
+                second->Release();
+                CHECK(pole.refs == 3);
+            }
             // Aliasing the old references must acquire before releasing them.
             CHECK(line->SetConnectedPoles(&pole, &pole, true)); CHECK(pole.refs == 3);
             cIGZUnknown* a = nullptr; cIGZUnknown* b = nullptr; bool flag = false;
