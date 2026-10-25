@@ -672,6 +672,8 @@ void Resolve() {
     // GetLandValue's return channel). Keep the native factory until it does.
     if (ListContains(enable, "lotrec"))
         Log("subsystem 'lotrec': replacement unavailable (incomplete live lot ABI); original cSC4Lot retained");
+    if (ListContains(enable, "netocc") && !ListContains(disable, "netocc"))
+        Log("subsystem 'netocc': original power poles retained for native power-line tool connection storage");
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
         if (!s.defaultOn && !ListContains(enable, s.key)) {

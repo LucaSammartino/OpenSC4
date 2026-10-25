@@ -230,9 +230,20 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
             CHECK(pole->QueryInterface(0xE4FDA3D4, reinterpret_cast<void**>(&serial)));
             if (serial) { CHECK(serial->GetGZCLSID() == 0x09C05C6A); serial->Release(); }
             void* second = nullptr;
-            CHECK(director->GetClassObject(0x09C05C6A, 0xA8C86142, &second));
+            if (seam) second = reinterpret_cast<void*>(seam(kFC4SeamNetOccPoleFactory, nullptr, nullptr));
             CHECK(second != nullptr && second != raw);
-            if (second) static_cast<cIGZUnknown*>(second)->Release();
+            if (second) {
+                auto* other = static_cast<NetOccPoleTestInterface*>(second);
+                // The seam must preserve factory isolation without exposing an
+                // incompatible pole to any native tool through the director.
+                CHECK(!other->IsPreview() && !other->IsDistressed());
+                CHECK(other->GetConnectionCount() == 0);
+                CHECK(other->AsOccupant() != occ);
+                other->Release();
+            }
+            void* live = nullptr;
+            CHECK(!director->GetClassObject(0x09C05C6A, GZIID_cIGZUnknown, &live));
+            CHECK(live == nullptr);
             pole->Release();
         }
     }
