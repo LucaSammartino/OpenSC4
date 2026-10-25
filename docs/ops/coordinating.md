@@ -116,6 +116,15 @@ Codex's first read-only identity probe initializes measured usage; missing later
 Its adapter and real watchdog denial were validated before enabling project lanes; see
 [provider validation](lane-providers.md#validation-2026-10-22).
 
+Codex transport errors resume the same session after 60, 180, then 600 seconds (three retries maximum);
+other errors still fail. Each retry is appended to codex-status.json; usage sums all attempts.
+Resumes retain permissions, sandbox, model/effort, MCP, schema/output and --ignore-user-config;
+SessionStart accepts the registered session again and refreshes its transcript, refusing a new session ID.
+Rounds default to 40 minutes (args.roundMinutes overrides), excluding retry waits: five minutes before
+the budget, only git, file reads and the lane's merge-queue write are allowed. Five minutes after it,
+all tools are denied and the backend terminates Codex, preserving commits and returning continue.
+Set codex.service_tier or args.serviceTier (takes precedence) to fast or default; other values are rejected.
+
 The context budget, the "stalled lane" rule and the wind-down order were prompt text, and the models ignored them.
 Measured over the two GLM runs of 2026-10-20/21 ([efficiency-log.md](efficiency-log.md)): 88% of lane context
 tokens were spent above the 150k budget; re-answers35 made 2,789 calls with no output; re-specs22 lost $21 of work by

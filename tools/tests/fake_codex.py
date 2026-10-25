@@ -19,6 +19,8 @@ def main():
     calls.append(dict(args=args, prompt=sys.stdin.read()))
     calls_path.write_text(json.dumps(calls), encoding='utf-8')
     manifest = plan['manifest']
+    if step.get('fatal'):
+        Path(manifest['manifest']).with_suffix('.fatal.json').write_text('{"error":"test hook failure"}')
     session = step.get('session', 'fake-session')
     if not step.get('skip_hooks'):
         transcript = plan_path.with_suffix(f'.{len(calls)}.jsonl')

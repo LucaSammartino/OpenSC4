@@ -298,7 +298,7 @@ def run_codex(m, *, clock=None, sleep=None):
         if fatal or manifest.with_suffix('.fatal.json').exists():
             raise CodexRoundError('Codex hook failed; round stopped. See manifest fatal diagnostic.', usage)
         if timed_out or codexguard.round_elapsed(status, clock()) >= hard_limit:
-            update_codex_status(m, round_timed_out=True)
+            status = update_codex_status(m, round_timed_out=True)
             result = dict(lane=m['lane'], tip=laneguard.worktree_head(m['worktree']), state='continue',
                           gate='n/a', game='n/a', questions='none', abi=False,
                           summary='Round time budget reached; committed work preserved.',

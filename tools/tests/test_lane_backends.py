@@ -151,9 +151,9 @@ class CodexGuard(unittest.TestCase):
         def call(tool, tin, seconds, identity=None):
             return codexguard.handle(self.data('PreToolUse', tool_name=tool, tool_input=tin,
                                               tool_use_id=identity), self.m, clock=lambda:start + seconds)
-        self.assertEqual(call('Bash', {'command':'Get-Date'}, 35*60 - 1)[0], 'allow')
+        self.assertEqual(call('Bash', {'command':'Get-Date'}, 35*60 - 1, 'cached')[0], 'allow')
         denied = ('deny', codexguard.ROUND_MESSAGE)
-        self.assertEqual(call('Bash', {'command':'Get-Date'}, 35*60), denied)
+        self.assertEqual(call('Bash', {'command':'Get-Date'}, 35*60, 'cached'), denied)
         self.assertEqual(call('Write', {'file_path':str(self.f.wt/'new.py')}, 35*60), denied)
         self.assertEqual(call('Bash', self.f.commit_cmd(), 35*60, 'commit')[0], 'allow')
         self.assertEqual(call('Read', {'file_path':str(self.transcript)}, 35*60)[0], 'allow')
@@ -284,6 +284,25 @@ class PromptAndTransport(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'service_tier'):
                     lane_backend.codex_command(m | changes, 'schema', 'final', {})
 
+    def test_resume_keeps_mcp_and_security_options_at_cli_supported_positions(self):
+        m = dict(main='C:/main', worktree='C:/main/.claude/worktrees/test', manifest='C:/manifest.json', kind='re',
+                 git_common='C:/main/.git', git_dir='C:/main/.git/worktrees/test',
+                 codex=dict(model='test-model', model_reasoning_effort='high', service_tier='default'))
+        login = subprocess.CompletedProcess([], 0, 'Logged in using ChatGPT', '')
+        with patch('lane_backend.shutil.which', return_value='codex.exe'), \
+             patch('lane_backend.codex_defaults', return_value={}), \
+             patch('lane_backend.subprocess.run', return_value=login), \
+             patch('lane_backend.laneguard.rea_config', return_value=dict(command='fake-rea', args=['--test'])):
+            original = lane_backend.codex_command(m, 'schema', 'final', {})
+        prefix = original[:original.index('exec')]
+        resumed = lane_backend.codex_resume_command(original, 'same-session')
+        self.assertEqual(resumed[:len(prefix)], prefix)
+        self.assertEqual(resumed[len(prefix):], ['exec', '-C', m['worktree'], '--add-dir',
+            str(Path(m['main'])/'build-runs'), 'resume', '--ignore-user-config', '--strict-config', '--json',
+            '--output-schema', 'schema', '-o', 'final', 'same-session', '-'])
+        self.assertIn('mcp_servers.rea.command="fake-rea"', resumed)
+        self.assertIn('default_permissions="fc4-lane"', resumed)
+
 
 class FakeClock:
     def __init__(self, poll_seconds=.2):
@@ -390,6 +409,33 @@ class CodexProcessTransport(unittest.TestCase):
         self.assertEqual(len(self.calls()), 1)
         self.assertFalse([x for x in self.clock.waits if x != .2])
 
+    def test_bare_nonzero_exit_does_not_resume(self):
+        with self.assertRaisesRegex(lane_backend.CodexRoundError, 'round failed: 2'):
+            self.run_steps([dict(code=2)])
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_mixed_error_types_do_not_resume(self):
+        step = self.failure()
+        step['events'].append(dict(type='turn.failed', error=dict(message='invalid model')))
+        with self.assertRaisesRegex(lane_backend.CodexRoundError, 'invalid model'):
+            self.run_steps([step])
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_hook_failure_does_not_resume(self):
+        with self.assertRaisesRegex(lane_backend.CodexRoundError, 'hook failed'):
+            self.run_steps([self.failure(fatal=True)])
+        self.assertLessEqual(len(self.calls()), 1)
+
+    def test_different_thread_cannot_resume_when_first_hook_was_missing(self):
+        with self.assertRaisesRegex(lane_backend.CodexRoundError, 'thread differs'):
+            self.run_steps([self.failure(skip_hooks=True), self.failure(session='other', skip_hooks=True)])
+        self.assertEqual(len(self.calls()), 2)
+
+    def test_transport_message_patterns(self):
+        for message in ('Reconnecting... 5/5', 'workspace routing discovery timed out', 'stream disconnected',
+                        'request timed out', 'No such host is known', 'error sending request', 'ERROR SENDING REQUEST'):
+            self.assertIsNotNone(lane_backend.TRANSPORT_ERROR.search(message))
+
     def test_thread_event_can_supply_session_before_hook_handshake(self):
         result = self.run_steps([self.failure(skip_hooks=True), self.success()])
         self.assertFalse(result['is_error'])
@@ -411,6 +457,19 @@ class CodexProcessTransport(unittest.TestCase):
         self.assertFalse(result['is_error'])
         self.assertTrue(laneguard.read_json(self.m['status_path'])['round_timed_out'])
         self.assertEqual(laneguard.worktree_head(self.m['worktree']), head)
+
+    def test_error_result_includes_usage_from_failed_attempts(self):
+        self.m.update(state=str(self.manifest.with_suffix('.ledger.json')), result=str(self.manifest.with_suffix('.result.json')))
+        self.manifest.write_text(json.dumps(self.m), encoding='utf-8')
+        laneguard.write_json(self.m['state'], dict(lanes={LANE:dict(pid=os.getpid(), rounds=2)}))
+        error = lane_backend.CodexRoundError('three failed resumes', {'input_tokens':40})
+        with patch.object(sys, 'argv', ['lane_backend.py', '--manifest', str(self.manifest)]), \
+             patch('lane_backend.laneguard.preflight', return_value=(0, '')), \
+             patch('lane_backend.prepare_codex_git'), patch('lane_backend.run_codex', side_effect=error):
+            self.assertEqual(lane_backend.main(), 1)
+        result = laneguard.read_json(self.m['result'])
+        self.assertTrue(result['is_error'])
+        self.assertEqual(result['usage'], {'input_tokens':40})
 
 
 class CodexGitTransport(unittest.TestCase):
