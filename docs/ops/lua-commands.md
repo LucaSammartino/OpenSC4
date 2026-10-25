@@ -43,7 +43,7 @@ Use `lua_script = engine/tests/scenarios/lua/proof.lua` for the short probe.
 It is a calibration probe, not an added suite scenario. Its clean plugin verdict
 had zero foreign exceptions, watchdog stalls, RTC, overruns and ref warnings.
 Raw console, plugin and `.lua.log` evidence uses the labels below in `build-runs/`.
-All corrected probes used DLL SHA-256 prefix `13f21803` explicitly.
+Probes r4-r8 used DLL SHA-256 prefix `13f21803` explicitly.
 
 | Command / facility | Measurement |
 |---|---|
@@ -75,6 +75,13 @@ Their launch switches were `-CPUCount:1 -w -intro:off -UserDir:"<slot11>\\"`,
 plus `-LuaScript:"<slot script>"` only for scripts. No command-line difference
 eliminated DirectDraw failure. The first measured change that enabled progress
 after Lua entry was the wait algorithm; no renderer workaround is claimed.
+After the final build, `luacmd27-plain-ext-r9` and `luacmd27-proof-r10` repeated
+the comparison in **slot 11**, both with DLL **e27dd1c0**, Lua Extensions, the
+same ini and launch switches, differing only in the `-LuaScript` argument.
+Both displayed the same two DirectDraw/software-fallback dialogs and finished
+clean with zero diagnostic counts. The scripted run again printed
+`city-name-effect verified` and `proof-complete`; its name read-back was
+`FC4 Lua proof`. Thus the final built DLL also has a proved Lua/city-command run.
 
 The no-script house controls used the literal regress shadows profile, turbo,
 `close_dialogs=1`, end date 2026-06-01 and the same DLL. Both reached the target
