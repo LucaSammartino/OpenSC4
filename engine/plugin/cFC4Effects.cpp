@@ -320,7 +320,7 @@ bool cFC4EffectsManager::QueryInterface(uint32_t riid, void** ppvObj) {
         AddRef();
         return true;
     }
-    *ppvObj = nullptr;
+    // effects.md section 18.2: an unsupported IID leaves the output untouched.
     return false;
 }
 

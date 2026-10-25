@@ -36,8 +36,11 @@
 // by the ef17_ vectors); feeding it from the game's resource manager is
 // question 1.
 //
-// Layout (§11): cISC4EffectsManager and cIGZUnknown at +0, cIGZMessageTarget2
-// at +4 (the animation tick). A visual effect has cISC4VisualEffect at +0 and
+// Layout (§18): cISC4EffectsManager and cIGZUnknown at +0, the draw-pass
+// sub-object at +4, and cIGZMessageTarget2 at +8 (the animation tick).
+// The remaining native bases and collection adapter are not implemented;
+// registration therefore requires the diagnostic effects_replace switch.
+// A visual effect has cISC4VisualEffect at +0 and
 // the effect component at +4 (vtable 0x00AA1148) — two sub-objects, so the
 // overlapping method names live on different classes.
 //

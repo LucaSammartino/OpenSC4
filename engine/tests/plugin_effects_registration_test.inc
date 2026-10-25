@@ -28,6 +28,14 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
         if (obj != nullptr) {
             // The manager interface starts with cIGZUnknown; GetClassObject owns this reference.
             auto* manager = static_cast<cIGZUnknown*>(obj);
+            // Section 18.2 rejects unknown IIDs without changing the caller's
+            // output, and neither failure path may acquire a reference.
+            void* rejected = obj;
+            CHECK(!manager->QueryInterface(0xFFFFFFFFu, &rejected));
+            CHECK(rejected == obj);
+            CHECK(!manager->QueryInterface(GZIID_cIGZUnknown, nullptr));
+            CHECK(manager->AddRef() == 2);
+            CHECK(manager->Release() == 1);
             void* unknown = nullptr;
             CHECK(manager->QueryInterface(GZIID_cIGZUnknown, &unknown));
             CHECK(unknown == obj);
@@ -38,7 +46,16 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
             if (target != nullptr) {
                 auto* messages = static_cast<cIGZMessageTarget2*>(target);
                 CHECK(messages->DoMessage(nullptr));
-                messages->Release();
+                // The adjusted message-target pointer must round-trip to the
+                // same controlling identity and share its reference count.
+                void* primary = nullptr;
+                CHECK(messages->QueryInterface(0xC97CF5CDu, &primary));
+                CHECK(primary == obj);
+                if (primary != nullptr) CHECK(static_cast<cIGZUnknown*>(primary)->Release() == 2);
+                rejected = obj;
+                CHECK(!messages->QueryInterface(0xFFFFFFFFu, &rejected));
+                CHECK(rejected == obj);
+                CHECK(messages->Release() == 1);
             }
             CHECK(manager->Release() == 0);
         }
