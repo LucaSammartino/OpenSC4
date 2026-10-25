@@ -319,6 +319,7 @@ enum : uint32_t {
     // Isolated factory only: never registered for native power-line tools.
     // Returns an owned cIGZUnknown* (one reference); a and b must be null.
     kFC4SeamNetOccPoleFactory = 0x4E4F0001,
+    kFC4SeamNetworkLotOwnership = 77,  // a,b = unknown prefixes of fake network occupants
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -132,8 +132,7 @@ private:
 // the game's view of one, owned by the manager that hands it out.
 class cFC4NetworkLot final : public cISC4NetworkLot {
 public:
-    cFC4NetworkLot(cISC4NetworkOccupant* occ, cFC4NetworkLotConfiguration* config)
-        : occ_(occ), config_(config) {}
+    cFC4NetworkLot(cISC4NetworkOccupant* occ, std::shared_ptr<cFC4NetworkLotConfiguration> config);
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
     uint32_t AddRef() override;
@@ -143,13 +142,13 @@ public:
     uint32_t GetLotConfigurationObjectCount() override;
     SC4Vector<cSC4LotConfigurationObject>* GetLotConfigurationObjectArray() override;
 
-    cFC4NetworkLotConfiguration* Config() const { return config_; }
+    cFC4NetworkLotConfiguration* Config() const { return config_.get(); }
 
 private:
-    ~cFC4NetworkLot() = default;
-    uint32_t refs_ = 1;
-    cISC4NetworkOccupant* occ_ = nullptr;  // borrowed: the core holds the reference
-    cFC4NetworkLotConfiguration* config_ = nullptr;
+    ~cFC4NetworkLot();
+    std::atomic<uint32_t> refs_{1};
+    cISC4NetworkOccupant* occ_ = nullptr;  // owned, independently of the core's cell entry
+    std::shared_ptr<cFC4NetworkLotConfiguration> config_;
 };
 
 class cFC4NetworkLotManager final : public cFC4ISC4NetworkLotManager,
@@ -217,10 +216,13 @@ private:
     cISC4City* city_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
     std::map<uint64_t, cFC4NetworkLot*> lots_;
-    std::map<uint64_t, std::unique_ptr<cFC4NetworkLotConfiguration>> configs_;
+    std::map<uint64_t, std::shared_ptr<cFC4NetworkLotConfiguration>> configs_;
     std::vector<fc4_props*> configProps_;  // alive until the adds are done
     std::atomic<uint32_t> posts_{0};
 };
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4NetworkLotManager();
+
+// Test seam: exercise retained lot dependencies and the manager's borrowed cache.
+intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second);

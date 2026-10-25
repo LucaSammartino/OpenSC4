@@ -170,6 +170,7 @@ void PostRefresh(void* u, uint64_t n) {
 }
 
 void CrewShutdown(void*, uint64_t crew) {
+    // SPEC-GAP: §7.12 gives no crew creation contract or complete interface; retain opaque registration.
     // §7.12: the crew's own Shutdown. A construction crew arrives as an opaque
     // token; nothing in the simulation reads past it, so this is the log line
     // (fc4.h names this the one callback that may call back into the object).

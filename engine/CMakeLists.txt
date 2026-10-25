@@ -1300,6 +1300,9 @@ if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_netocc_shadow_factory_isolation
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-shadow-factories)
     set_tests_properties(plugin_netocc_shadow_factory_isolation PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_netlot_ownership
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-ownership)
+    set_tests_properties(plugin_netlot_ownership PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 if(TARGET FreeCity4)

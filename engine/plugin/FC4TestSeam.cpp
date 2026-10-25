@@ -18,6 +18,7 @@
 #include "FC4OrdinanceShadow.h"
 #include "cFC4PowerPoleOccupant.h"
 #include "cFC4ConstructionRecord.h"
+#include "cFC4NetworkLotManager.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
@@ -292,6 +293,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             if (pole) pole->AddRef();
             return reinterpret_cast<intptr_t>(pole);
 }
+        case kFC4SeamNetworkLotOwnership:
+            return NetworkLotOwnershipTest(static_cast<cIGZUnknown*>(a), static_cast<cIGZUnknown*>(b));
         default:
             return 0;
     }
