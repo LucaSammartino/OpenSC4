@@ -1,18 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-netocc-replace17 | Codex / glue-netocc-replace17 | ready (measured partial) | Implement occupant factories; do not append netocc to the house list. |
+| glue-netocc-replace17 | Codex / `glue-netocc-replace17` (engine) | continue: measured partial; cargo/clippy PASS; CTest 86/86; netocc-line-r17-20261025b clean, shadow 73/73 | Finalize measured partial queue; remaining factories and full-house trial still open. |
 
-Partial delivery: no `netocc` replace key or occupant factories were added. The credit flip remains unfinished.
-Core commit d7d47e4b8 hydrates live PowerLine state from v2 records and snapshots it back; saved cells, float bits and pole identities survive, while preview remains transient.
-The default-off netocc shadow now exercises that live-state mapping and reports nonempty per-class sample totals.
-The plugin factory-isolation CTest checks that netocc_shadow alone registers none of the thirteen occupant classes.
-Gate: qbuild all PASS; Rust 7526 passed, 0 failed; clippy 0 diagnostics; native build 274/274; CTest 85/85, including the new isolation test.
-Native queue record: qbuild-20261025-013722-build-ctest; logs build-runs/fc4verify-build.log and build-runs/fc4verify-ctest.log.
-Exact tally: `netocc-live-r17-20261025a 73/73`; every netocc sample has mismatches=0.
-Run: shadow-only Konradshohe, turbo, clean at 2032-01-09; ref_warnings=0, exceptions=0, panics=0.
-Run record: build-runs/game-results/netocc-live-r17-20261025a.verdict; plugin evidence in the corresponding .log.
-Sampled records: network 62561, pipe 29419, pipe connection 146, power pole 219, power line 1314; each class exact 73/73.
-The other eight classes had zero samples and are not claimed as measured.
-Questions: none filed; SPEC-GAP comment identifies incomplete inherited folded/lazy-placeable behavior in occupant-manager section 13.1.
-Missing: the inherited occupant adapter, netocc key, all requested factories, and both replacement runs to 2032.
-Next: implement the factory adapters, then run netocc-only and full-house replacement trials. This result does not authorize changing the house replace list.
+Implemented default-off `enable = netocc`, registering only cSC4PowerLineOccupant (0xC9C05C5D).
+The adapter uses Rust PowerLine state and its v2 codec, preserves loaded cells and pole identities, and locks getters.
+Pole ownership covers aliasing setters, counted getter outputs and partial-read cleanup; Read consults no city services.
+Fresh lines use the unindexed box sentinel; loaded Init clears highlighting without posting.
+The new factory CTest checks registration, interfaces, position/cell/bounds, removal counters and reference ownership.
+Full gate: qbuild all PASS; workspace tests passed; clippy no diagnostics; native build 61/61; CTest 86/86.
+Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log.
+The earlier focused compile used core before the sentinel fix and failed that assertion; build-runs/netocc-focused.log preserves it. The full gate passed the corrected test.
+Exact tally: `netocc-line-r17-20261025b 73/73`; every shadow line has mismatches=0.
+Run record: build-runs/game-results/netocc-line-r17-20261025b.verdict and corresponding .log.
+Konradshohe, netocc plus netocc_shadow, turbo, clean 2032-01-10; ref_warnings=0, exceptions=0, panics=0.
+Game factory creation is confirmed in the log; power-line samples were exact 73/73 over 1314 records.
+Missing: the other twelve occupant factories, inherited lazy placeables and cross-module group enumeration (SPEC-GAP comments).
+Full-house trial pending; the current list was requested because tools/regress.ps1 is forbidden to this lane.
+Questions: none filed. Public C ABI unchanged. No tools files, coverage tables or run records edited.
+This partial delivery does not complete the credit flip or authorize adding netocc to the house list.
+
+## Handoff
+Goal: land the measured power-line factory portion; complete netocc credit flip separately.
+Done: 2fd03736d adds factory/transport/tests; b3c953421 fixes loaded Init. Full gate and game above are terminal PASS; no requests outstanding.
+Next: finalize this report and write the READY partial merge-queue entry using actual HEAD; no queue file was written because the guard stopped finalization. No new build or game run is needed for unchanged source.
