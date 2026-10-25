@@ -102,6 +102,8 @@ public:
         std::lock_guard<std::recursive_mutex> g(lock_);
         auto s = State();
         if (s.status & 1) return true;
+        // occupant-manager 13: loaded Init calls SetHighlight(0, false).
+        if (s.status & 2) { s.highlight = 0; s.status &= 15; }
         s.status |= 1; Put(s);
         if (!(s.status & 2)) PostOccupantMessage(0x99EF1140, 0);
         return true;
