@@ -1244,3 +1244,11 @@ if(TARGET fc4_plugin_load_test)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-line-factory)
     set_tests_properties(plugin_netocc_line_factory PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+if(TARGET fc4_plugin_load_test)
+    foreach(netrules_mode host overlap default disabled veto-manager veto-tool)
+        add_test(NAME plugin_netrules_${netrules_mode}
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netrules-${netrules_mode})
+        set_tests_properties(plugin_netrules_${netrules_mode} PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
+endif()
