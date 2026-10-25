@@ -17,6 +17,7 @@
 pattern	subsystem	area	spec	core	shadow	replace
 # ---- simulation: simulators and developers with a spec, a core, a shadow or a replacement
 cSC4Simulator	simulator	simulation	simulator.md	core/src/simulator.rs	-	simulator
+cSC4LimitTimerCalibrator	simulator	simulation	simulator.md, small-owners-b9.md	-	-	-
 cSC4BudgetSimulator*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
 cSC4DepartmentBudget*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
 cSC4LineItem*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
@@ -690,6 +691,7 @@ cGZWinDlg	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWinTreeView::GZWinTreeView_TreeNode	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWin::ChildList	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWinTextEdit::UndoRedoAction	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinCustom	widget toolkit	ui	widget-custom.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	widget-misc.md	-	-	-
@@ -990,11 +992,11 @@ cSTEChangeTerrainUI	city tools and input	ui	sim-misc.md	-	-	-
 (anonymous_namespace)::cParser	network rules	simulation	network-rules.md, sim-misc.md	-	-	-
 nsGZWinUtils	widget toolkit	ui	widget-misc2.md	-	-	-
 RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
-nsTexUtil	3D scene and models	renderer	-	-	-	-
+nsTexUtil	3D scene and models	renderer	small-owners-b9.md	-	-	-
 MiscGraphTextInfo	widget toolkit	ui	widget-misc2.md	-	-	-
 SCLuaTableRef	Lua host	framework	lua-game-extensions.md	-	-	-
 cSourceFileDebugInfo	audio	audio	audio-owner-closure.md	-	-	-
-tControllerTime	automata (managers, records)	simulation	-	-	-	-
+tControllerTime	automata (managers, records)	simulation	automata.md	-	-	-
 cADVString	advisors	simulation	advisors.md, sim-misc.md	-	-	-
 fn:gAdviceMessageBox	advisors	simulation	sim-misc2.md	-	-	-
 LinearRandomIterator	occupants and props	simulation	lot-developer.md, sim-misc.md	-	-	-
@@ -1004,7 +1006,7 @@ _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	rende
 MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
 cGXCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 SFX	audio	audio	audio.md,audio-owner-closure.md	-	-	-
-SC43DGridElement	3D scene and models	renderer	-	-	-	-
+SC43DGridElement	3D scene and models	renderer	render3d.md, small-owners-b9.md	-	-	-
 MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
 cTablePropertyReader	advisors	simulation	sim-misc.md	-	-	-
 SC4CellRegion	sim grids	simulation	zones.md, sim-misc2.md	-	-	-
@@ -1024,7 +1026,7 @@ ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
 SC4QuadGridQuadrant	3D scene and models	renderer	sim-misc2.md	-	-	-
 AnyString	persistence and resources	framework	sim-misc2.md	-	-	-
 cAutomataOccupantFilter	automata (managers, records)	simulation	occupant-manager.md, sim-misc2.md	-	-	-
-LimitTimer	timers	framework	-	-	-	-
+LimitTimer	timers	framework	simulator.md, small-owners-b9.md	-	-	-
 cPortLot	port developers	simulation	sim-misc2.md	-	-	-
 ScanningIterator	sim grids	simulation	lot-developer.md, sim-misc2.md	-	-	-
 tCrimePropOccupantFilter	crime	simulation	-	-	-	-
