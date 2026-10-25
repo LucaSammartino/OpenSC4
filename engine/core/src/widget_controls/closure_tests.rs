@@ -243,6 +243,33 @@ fn tree_primary_insert_wrappers_copy_initialized_defaults_and_failure_data() {
 }
 
 #[test]
+fn wc_t46_drag_ending_on_descendant_cancels_without_restoring_selection() {
+    let (mut t, mut f, a, _) = tree();
+    let child = t.insert(descriptor(a, b"child"), &mut f).unwrap();
+    t.set_expanded(a, true, &mut f);
+    t.paint([0, 0, 200, 100], &mut f).unwrap();
+    t.layout_viewport([0, 0, 200, 100], [200, 100], [0, 0]).unwrap();
+    t.select(a, true, &mut f);
+    f.drag_accept = 1;
+    f.drag_return = true;
+    let row = t.nodes[&child].visible_index.unwrap() as i32;
+    f.drag_pointer = Some([10, row * 16 + 3]);
+    assert_eq!(t.cursor_row(10, row * 16 + 7), Ok(Some(child)));
+    let topology = t.nodes.clone();
+    f.messages.clear();
+    assert_eq!(t.mouse_move(199, 90, 0x10, &mut f), Ok(true));
+    assert_eq!(f.drag_runs, 1);
+    assert!(t.selection.is_empty());
+    assert!(t.nodes.values().all(|node| !node.selected));
+    assert!(!f.messages.iter().any(|(_, m)| m.words[0] as u32 == 0x1af5a141));
+    for (handle, node) in topology {
+        assert_eq!(t.nodes[&handle].children, node.children);
+        assert_eq!(t.nodes[&handle].parent, node.parent);
+    }
+    assert!(!t.insertion_side);
+}
+
+#[test]
 fn tree_selection_output_and_borrowed_adapter_inventory() {
     let (mut t, mut f, a, b) = tree();
     assert_eq!(t.copy_selection(None), Ok(true));
