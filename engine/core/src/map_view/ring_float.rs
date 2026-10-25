@@ -350,4 +350,57 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn multiplication_retains_inherited_precision_and_intermediate_exponent_range() {
+        for (precision, bits) in [
+            (RingPrecision::Bits24, 24),
+            (RingPrecision::Bits53, 53),
+            (RingPrecision::Bits64, 64),
+        ] {
+            for rounding in [
+                RingRounding::Nearest,
+                RingRounding::Down,
+                RingRounding::Up,
+                RingRounding::TowardZero,
+            ] {
+                let context = RingContext { precision, rounding };
+                for neg in [false, true] {
+                    let positive = F {
+                        sig: (1u64 << (bits - 1)) + 1,
+                        exp: 1 - bits,
+                        neg: false,
+                    };
+                    let signed = F { neg, ..positive };
+                    // (1 + ulp)^2 = 1 + 2 ulp + ulp^2. The last term is
+                    // below half an ulp; only rounding away from zero retains it.
+                    let increment = matches!((rounding, neg), (RingRounding::Down, true) | (RingRounding::Up, false));
+                    let expected = F {
+                        sig: positive.sig + 1 + u64::from(increment),
+                        neg,
+                        ..positive
+                    };
+                    assert_eq!(
+                        context.mul(signed, positive).cmp(expected),
+                        Ordering::Equal,
+                        "{context:?}, negative={neg}"
+                    );
+                }
+                for exponent in [-100, 100] {
+                    // Both inputs fit binary32; their exact product need not.
+                    let input = F::float(2f32.powi(exponent));
+                    let expected = F {
+                        sig: 1,
+                        exp: exponent * 2,
+                        neg: false,
+                    };
+                    assert_eq!(
+                        context.mul(input, input).cmp(expected),
+                        Ordering::Equal,
+                        "{context:?}, exponent={exponent}"
+                    );
+                }
+            }
+        }
+    }
 }
