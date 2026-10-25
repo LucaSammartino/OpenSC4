@@ -11093,6 +11093,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_advisors_replace_test.inc"
 #include "plugin_netrules_replace_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
+#include "plugin_mysims_factory_test.inc"
 #include "plugin_disasters_test.inc"
 #include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
 #include "plugin_netocc_registration_test.inc"
@@ -11116,6 +11117,10 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_OBSERVE", "1");  // the same lines in release and checked builds
     SetEnvironmentVariableA("FC4_AUTOTEST_SAVE_AFTER_MONTHS", nullptr);
 
+    if (mode == "--ini-enable-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Alone);
+    if (mode == "--ini-default-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Default);
+    if (mode == "--ini-mixed-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Mixed);
+    if (mode == "--ini-replace-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, MySimsIni::Replace);
     if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
         mode == "--effects-guarded")
         return EffectsRegistrationTest(dll, ini, log, mode);

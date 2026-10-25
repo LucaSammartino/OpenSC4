@@ -10989,6 +10989,70 @@ uint32_t fc4_mysim_distance_to_closest(const fc4_advisors* p, int32_t id, uint32
 uint32_t fc4_mysim_distance_to_closest_special(const fc4_advisors* p, int32_t id, uint32_t building_type);
 /* LocalSchoolGrade / LocalHospitalGrade (§4.9): the grade as a fraction. */
 float fc4_mysim_local_grade(const fc4_advisors* p, int32_t id, uint32_t group, bool hospital);
+/* ---- MySim dispatch (mysims.md §4.6.1, §4.7.1, §6.2.1, §7.2.1, §7.2.3) ------
+ * One cSC4MySimDispatch (CLSID 0xCBC14674) owned by the plugin's class-factory
+ * front under `enable = mysims`. The host supplies the job search's city
+ * services and the synchronous 0x2BA06B99 owner notification (§3.3); the
+ * transport handoffs (automata, stops, route search, the player vehicle, MS18)
+ * are not supplied and report FC4_MYSIM_TRIP_UNSUPPORTED, never an arrival.
+ * The job-search pathfinder runs on an empty network model (no path is
+ * found). Missing callbacks read as absent / 0. Additive; no FC4_ABI_VERSION
+ * bump. */
+typedef struct fc4_mysim_dispatch_obj fc4_mysim_dispatch_obj;
+
+typedef struct fc4_mysim_dispatch_host {
+    uint32_t struct_size; /* sizeof(fc4_mysim_dispatch_host) */
+    void* user;
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    /* An occupant's lot bounding cells {x1, z1, x2, z2}; false = no lot. */
+    bool (*occupant_lot_rect)(void* user, uint64_t occupant, int32_t* rect4);
+    bool (*lot_rect_at)(void* user, int32_t x, int32_t z, int32_t* rect4);
+    /* 0 no lot, 1 a lot without a building, 2 a building (*building). */
+    uint32_t (*lot_at_cell)(void* user, int32_t x, int32_t z, uint64_t* building);
+    bool (*occupant_position)(void* user, uint64_t occupant, float* x, float* z);
+    uint32_t (*wealth)(void* user); /* the owner MySim's GetWealth() */
+    bool (*city_across_connection)(void* user, int32_t x, int32_t z, int32_t* city_x, int32_t* city_z);
+    uint64_t (*region_city)(void* user, int32_t x, int32_t z); /* 0 = none */
+    uint32_t (*connections_of_type_to_city)(void* user, uint32_t connection_type, uint64_t city);
+    bool (*has_owner)(void* user);
+    void (*notify)(void* user, uint32_t sub_id, uint32_t data1, uint32_t data2);
+} fc4_mysim_dispatch_host;
+
+typedef struct fc4_mysim_dispatch_state {
+    uint32_t struct_size;
+    int32_t state, prev_state;
+    uint32_t flags, travel_type;
+    int32_t minutes;
+    uint32_t change_counter, queue_len;
+    uint8_t has_pathfinder, home_in_city, commute_by_commute, reserved;
+    uint64_t home, commute; /* the occupant tokens (0 = none) */
+} fc4_mysim_dispatch_state;
+
+#define FC4_MYSIM_TRIP_ACCEPTED 0u
+#define FC4_MYSIM_TRIP_REJECTED 1u
+#define FC4_MYSIM_TRIP_UNSUPPORTED 2u
+
+fc4_mysim_dispatch_obj* fc4_mysim_dispatch_create(const fc4_mysim_dispatch_host* host);
+void fc4_mysim_dispatch_destroy(fc4_mysim_dispatch_obj* p);
+bool fc4_mysim_dispatch_init(fc4_mysim_dispatch_obj* p);     /* creates the job-search pathfinder */
+void fc4_mysim_dispatch_shutdown(fc4_mysim_dispatch_obj* p);
+void fc4_mysim_dispatch_set_home(fc4_mysim_dispatch_obj* p, uint64_t home); /* SetDefaultDestination */
+uint32_t fc4_mysim_dispatch_commute(fc4_mysim_dispatch_obj* p, bool has_residence, uint8_t mysim_state,
+                                    int32_t hour); /* DispatchCommute, §7.2.1 */
+bool fc4_mysim_dispatch_find_new_job(fc4_mysim_dispatch_obj* p);
+bool fc4_mysim_dispatch_change_job(fc4_mysim_dispatch_obj* p, uint64_t building);
+bool fc4_mysim_dispatch_job_destination(const fc4_mysim_dispatch_obj* p, fc4_mysim_job_destination* out);
+bool fc4_mysim_dispatch_check_flags(const fc4_mysim_dispatch_obj* p, uint32_t mask);
+/* The trip fields of §4.6 (the wait value is the mutating getter of §4.6.1). */
+bool fc4_mysim_dispatch_snapshot(const fc4_mysim_dispatch_obj* p, fc4_mysim_dispatch* out);
+void fc4_mysim_dispatch_minute(fc4_mysim_dispatch_obj* p);        /* message 0x44778231 */
+uint32_t fc4_mysim_dispatch_animation(fc4_mysim_dispatch_obj* p); /* message 0x86AD10EE */
+/* Primary slots 6-8: op 0 CanUDriveIt, 1 EnterUDriveIt, 2 ExitUDriveIt. */
+bool fc4_mysim_dispatch_u_drive(fc4_mysim_dispatch_obj* p, uint32_t op);
+bool fc4_mysim_dispatch_write(const fc4_mysim_dispatch_obj* p, const fc4_ostream* out);
+bool fc4_mysim_dispatch_read(fc4_mysim_dispatch_obj* p, const fc4_istream* in);
+bool fc4_mysim_dispatch_deferred_setup(fc4_mysim_dispatch_obj* p); /* 0x26D31EC1 after a Read */
+bool fc4_mysim_dispatch_get_state(const fc4_mysim_dispatch_obj* p, fc4_mysim_dispatch_state* out);
 
 /* Variable source codes (fc4_adv_src.kind), generated from SrcKind. */
 #define FC4_ADV_SRC_MAYOR_RATING 1u
@@ -12533,6 +12597,8 @@ static_assert(sizeof(fc4_mysim_post) == 24, "fc4_mysim_post layout");
 static_assert(sizeof(fc4_mysim_host) == (sizeof(void*) == 4 ? 196 : 392), "fc4_mysim_host layout");
 static_assert(sizeof(fc4_mysims_agent_state) == 40, "fc4_mysims_agent_state layout");
 static_assert(sizeof(fc4_mysim_state) == 240, "fc4_mysim_state layout");
+static_assert(sizeof(fc4_mysim_dispatch_host) == (sizeof(void*) == 4 ? 52 : 104), "fc4_mysim_dispatch_host layout");
+static_assert(sizeof(fc4_mysim_dispatch_state) == 56, "fc4_mysim_dispatch_state layout");
 static_assert(sizeof(fc4_tract_profile) == 24, "fc4_tract_profile layout");
 static_assert(sizeof(fc4_tract_construction) == 32, "fc4_tract_construction layout");
 static_assert(sizeof(fc4_tract_building_profile) == 12, "fc4_tract_building_profile layout");

@@ -61,5 +61,7 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner = nul
 const char* DisabledSubsystemsList();
 // Our simulator class is registered (replacement mode).
 bool SimulatorReplaced();
+// `enable = mysims` (with `advisors`): the MySim classes are ours (cFC4MySim.h).
+bool MySimsReplaced();
 
 }  // namespace fc4
