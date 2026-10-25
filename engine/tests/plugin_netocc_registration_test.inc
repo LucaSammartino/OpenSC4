@@ -157,9 +157,7 @@ public:
 int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
-    WriteTextFile(ini, "[subsystems]
-enable = netocc
-");
+    WriteTextFile(ini, "[subsystems]\nenable = netocc\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (!hd) return 1;
