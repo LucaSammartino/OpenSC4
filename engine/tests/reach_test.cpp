@@ -60,7 +60,7 @@ fc4::reach::Row RowAt(const fc4::reach::Tracer& t, FARPROC fn) {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) return 2;
+    if (argc != 2 && argc != 3) return 2;
     std::string error;
     std::vector<fc4::reach::Contract> parsed;
     std::istringstream good("# metadata\naddress\tsize\tname\tconvention\r\n00401000\t8\tA\tcdecl\n");
@@ -70,6 +70,14 @@ int main(int argc, char** argv) {
     CHECK(!fc4::reach::ReadContracts(duplicate, parsed, error));
     std::istringstream malformed("address\tsize\tname\n00401000\t-1\tA\n");
     CHECK(!fc4::reach::ReadContracts(malformed, parsed, error));
+    std::istringstream unknownSize("address\tsize\tname\n00401000\t0\t\n");
+    CHECK(fc4::reach::ReadContracts(unknownSize, parsed, error));
+    CHECK(parsed.size() == 1 && parsed[0].size == 0 && parsed[0].name.empty());
+    if (argc == 3) {
+        std::ifstream actual(argv[2]);
+        CHECK(fc4::reach::ReadContracts(actual, parsed, error));
+        std::printf("reach ABI roster parsed rows=%zu error=%s\n", parsed.size(), error.c_str());
+    }
 
     HMODULE dll = LoadLibraryA(argv[1]);
     CHECK(dll != nullptr);
@@ -82,7 +90,7 @@ int main(int argc, char** argv) {
         fn[i] = GetProcAddress(dll, names[i]);
         CHECK(fn[i] != nullptr);
         if (!fn[i]) return 2;
-        contracts.push_back({reinterpret_cast<uint32_t>(fn[i]), 4, names[i]});
+        contracts.push_back({reinterpret_cast<uint32_t>(fn[i]), i == 4 ? 0u : 4u, names[i]});
     }
     std::sort(contracts.begin(), contracts.end(), [](const auto& a, const auto& b) { return a.address < b.address; });
     const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(dll);

@@ -100,7 +100,7 @@ bool ReadContracts(std::istream& input, std::vector<Contract>& out, std::string&
         const auto c = b == std::string::npos ? b : line.find('\t', b + 1);
         Contract row{};
         if (a != 8 || b == std::string::npos || !Number(line.substr(0, a), 16, row.address) ||
-            !Number(line.substr(a + 1, b - a - 1), 10, row.size) || !row.size) {
+            !Number(line.substr(a + 1, b - a - 1), 10, row.size)) {
             error = "invalid contract row " + std::to_string(lineNumber);
             out.clear();
             return false;
@@ -304,11 +304,13 @@ bool Tracer::Prepare(const std::vector<Contract>& contracts, uintptr_t preferred
         e.address = c.address;
         e.code = reinterpret_cast<uint8_t*>(actualBase + (static_cast<uintptr_t>(c.address) - preferredBase));
         if ((i && c.address <= last) || c.address < preferredBase ||
-            static_cast<uintptr_t>(c.address) - preferredBase >= imageSize || !c.size ||
+            static_cast<uintptr_t>(c.address) - preferredBase >= imageSize ||
             c.size > imageSize - (static_cast<uintptr_t>(c.address) - preferredBase)) e.skipped = "outside-image-or-unordered";
         else if (Hazardous(c.name)) e.skipped = "exception-or-loader-runtime";
         else {
-            e.expectedSize = (std::min)(sizeof(e.expected), static_cast<size_t>(c.size));
+            // SPEC-GAP: a vtable-only contract can have unknown size (0);
+            // snapshot only its entry byte and credit no bytes for that row.
+            e.expectedSize = (std::max)(size_t{1}, (std::min)(sizeof(e.expected), static_cast<size_t>(c.size)));
             if (!Executable(const_cast<const uint8_t*>(e.code), e.expectedSize)) e.skipped = "not-readable-executable";
             else {
                 // SPEC-GAP: contracts have no entry bytes; use an in-memory
