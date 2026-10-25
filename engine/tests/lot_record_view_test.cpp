@@ -36,6 +36,16 @@ int main() {
         lot.words[i] ^= 1u;
     }
     for (unsigned count : lot.calls) if (count != 6) return 3;
+    // Floating equality would hide signed-zero and NaN-payload differences.
+    expected[0] = 0;
+    expected[4] = 0;
+    lot.words[0] = 0x80000000u;
+    lot.words[4] = 0x80000000u;
+    if (fc4::CompareLotRecordView(&lot, expected) != 0x11u) return 4;
+    lot.words[0] = 0;
+    lot.words[4] = 0;
+    lot.words[1] = 0x7fc05678u;
+    if (fc4::CompareLotRecordView(&lot, expected) != 0x02u) return 5;
     std::puts("lot record view: exact bits, slot ABI, all five mismatches detected");
     return 0;
 }
