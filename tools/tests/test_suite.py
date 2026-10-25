@@ -57,6 +57,10 @@ class SuiteParsingTests(unittest.TestCase):
     def test_missing_rejected_and_refused_runs_cannot_pass(self):
         missing = suite.parse_log('', '2000-04-01', 'verdict: rejected\nline: unknown region')
         self.assertEqual(missing['verdict'], 'rejected')
+        export_failure = suite.parse_log('AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.0)',
+                                         '2000-04-01', 'verdict: harness-error\nline: state-export-failed: no save')
+        self.assertEqual(export_failure['verdict'], 'harness-error')
+        self.assertFalse(suite.successful({'export': export_failure}))
         self.assertFalse(suite.successful({'missing': missing}))
         refused = suite.parse_log('script: ERROR line 2: unknown action\nscript: REFUSED script\n', '2000-04-01')
         self.assertEqual(refused['actions_failed'], 1)
@@ -68,6 +72,20 @@ class SuiteParsingTests(unittest.TestCase):
                                  'AUTOTEST VERDICT: clean (date=2000-04-01)\n', '2000-04-01')
         self.assertTrue(suite.successful({'case': result}))
         self.assertEqual(result['worst_shadow'], 'terrain:1/1')
+
+    def test_frozen_clock_and_short_windows_fail_but_explicit_load_only_passes(self):
+        text = ('memory: address space 968/2047 MiB; largest free 624 MiB\n'
+                'AUTOTEST VERDICT: clean (date=2000-01-01, real_seconds=1800, days_per_second=0.00)\n')
+        frozen = suite.parse_log(text, '2000-01-01')
+        self.assertEqual(frozen['verdict'], 'invalid')
+        self.assertEqual(frozen['end_reached'], '0')
+        self.assertIn('did not advance', frozen['invalid_reason'])
+        self.assertEqual(len(frozen['memory_lines']), 1)
+        self.assertFalse(suite.successful({'frozen': frozen}))
+        loaded = suite.parse_log(text, '2000-01-01', only_load=True)
+        self.assertTrue(suite.successful({'load': loaded}))
+        short = suite.parse_log(text.replace('0.00', '2.00'), '2000-04-01')
+        self.assertEqual(short['verdict'], 'invalid')
 
     def test_profiles_follow_regress_defaults(self):
         shadows = suite.profile_ini(ROOT, 'shadows')
@@ -85,13 +103,27 @@ class SuiteParsingTests(unittest.TestCase):
 
     def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
-        self.assertGreaterEqual(len(rows), 19)
-        self.assertEqual(len(suite.read_scenarios(ROOT, 'smoke')), 6)
-        self.assertTrue({'Berlin', 'London', 'Timbuktu', 'New York', 'San Francisco'} <= {r['region'] for r in rows})
-        self.assertTrue({'empty-small', 'empty-medium', 'empty-large'} <= {r['name'] for r in rows})
+        # Trigger/Lua lanes append focused scenarios; the original city census
+        # keeps its stronger all-actions contract independently of those rows.
+        cities = [r for r in rows if r['name'].startswith(
+            ('berlin-', 'london-', 'timbuktu-', 'maxisland-', 'paradis-', 'empty-'))]
+        self.assertEqual(len(cities), 108)
+        self.assertGreaterEqual(len(rows), len(cities))
         for row in rows:
-            if Path(row['script']).suffix == '.lua':
-                continue  # Lua has command-return evidence rather than dated plugin actions.
+            if row['script'] != '-':
+                self.assertTrue(suite.script_file(ROOT, row['script']).is_file(), row['name'])
+        self.assertEqual(len(suite.read_scenarios(ROOT, 'smoke')), 6)
+        self.assertEqual({r['region'] for r in cities}, {'Berlin', 'London', 'Timbuktu', 'Maxisland', 'Paradis'})
+        self.assertEqual(sum(r['region'] == 'Maxisland' for r in cities), 44)
+        self.assertEqual(sum(r['region'] == 'Paradis' for r in cities), 47)
+        self.assertTrue({'maxisland-west-weburg', 'maxisland-san-indersty', 'maxisland-simicon-valley', 'paradis-mitras'}
+                        <= {r['name'] for r in suite.read_scenarios(ROOT, 'smoke')})
+        self.assertTrue({'empty-small', 'empty-medium', 'empty-large'} <= {r['name'] for r in rows})
+        for row in cities:
+            if suite.load_only(row):
+                self.assertIn(row['name'], ('berlin-tempelhof', 'berlin-schonerlinde'))
+                self.assertEqual(row['script'], '-')
+                continue
             lines = [line.split() for line in (ROOT / row['script']).read_text().splitlines()
                      if line and not line.startswith('#')]
             actions = {line[1] for line in lines}
@@ -101,7 +133,26 @@ class SuiteParsingTests(unittest.TestCase):
             self.assertTrue({'fire', 'riot'} <= {line[2] for line in lines if line[1] == 'disaster'})
             start, end = date.fromisoformat(lines[0][0]), date.fromisoformat(row['end'])
             self.assertLessEqual((end - start).days, 92)
-            self.assertTrue(all(date.fromisoformat(line[0]) < end for line in lines))
+            self.assertTrue(all(date.fromisoformat(line[0]) <= end for line in lines))
+            self.assertTrue(all(date.fromisoformat(line[0]) == end for line in lines if line[1] == 'disaster'))
+            # Emergency probes can pause the clock; no later game day may be
+            # needed to execute the save/quit protocol.
+            self.assertEqual([line[1] for line in lines[-5:]], ['disaster', 'disaster', 'save', 'digest', 'mark'])
+
+    def test_lua_script_and_load_only_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            (root / 'probe.lua').write_text('print("fixture")\n', encoding='utf-8')
+            row.update(script='probe.lua')
+            loaded = dict(row, name='load', script='-', notes='load-only; unfounded city')
+            directory, manifest = suite.make_batch(root, [row, loaded], 'plain', str(root), 'lua')
+            lua, load = [r['request'] for r in manifest['requests']]
+            self.assertIn('lua_script = build-runs/suite/lua/scripts/case.one.lua', lua)
+            self.assertNotIn('\nscript =', lua)
+            self.assertTrue(all('close_dialogs = 1' in r['request'] for r in manifest['requests']))
+            self.assertIn('seconds = 12', load)
+            self.assertNotIn('end_date =', load)
 
 
 class SuiteQueueTests(unittest.TestCase):
@@ -167,7 +218,7 @@ class SuiteQueueTests(unittest.TestCase):
 
             def queue_tick(_):
                 requests = list((root / 'build-runs/game-queue').glob('*.req'))
-                self.assertEqual(len(requests), 2)  # submit the whole batch before waiting
+                self.assertEqual(len(requests), 2)
                 for request in requests:
                     body = request.read_text(encoding='utf-8')
                     self.assertIn('region = San Francisco', body)
@@ -191,12 +242,25 @@ class SuiteQueueTests(unittest.TestCase):
             self.assertEqual((directory / 'scripts/case.one.script').read_text(), (root / 'actions.script').read_text())
             table = (directory / 'summary.tsv').read_text()
             self.assertIn('case.one\treplace\tclean\t1\t8.00', table)
+            self.assertEqual(table.count(manifest['dll_sha256']), 2)
             self.assertIn('terrain\t2\t0\tcase.one', (directory / 'per_key.tsv').read_text())
+            findings = (directory / 'findings.tsv').read_text()
+            self.assertIn('terrain\tcase.one\t', findings)
+            self.assertIn('terrain\tother\t', findings)
             self.assertTrue((directory / 'case.one.shadows.txt').exists())
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 suite.report(root, 'v1.0', 'v1.0')
             self.assertIn('case.one\texact\t-', out.getvalue())
+            self.assertIn('case.one\texact\t-', (directory / 'determinism.tsv').read_text())
+            baseline = directory.parent / 'different-dll'
+            shutil.copytree(directory, baseline)
+            changed = dict(manifest, dll_sha256='0' * 64)
+            (baseline / 'manifest.json').write_text(json.dumps(changed))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                suite.report(root, 'v1.0', 'different-dll')
+            self.assertIn('case.one\tinput-different\t-', out.getvalue())
             with self.assertRaises(ValueError):
                 suite.make_batch(root, [row], 'plain', str(root), 'v1.0')
 
@@ -209,3 +273,40 @@ class SuiteQueueTests(unittest.TestCase):
                 results = suite.wait_for_batch(root, directory, manifest, 0)
             self.assertEqual(results[row['name']]['verdict'], 'queue-timeout')
             self.assertIn('queue-timeout\t0', (directory / 'summary.tsv').read_text())
+
+    def test_large_batch_refills_only_after_a_completed_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            rows = [dict(row, name=f'case{i}', script='-') for i in range(9)]
+            completed, peak = [], []
+
+            def queue_tick(_):
+                requests = sorted((root / 'build-runs/game-queue').glob('*.req'))
+                peak.append(len(requests))
+                self.assertLessEqual(len(requests), 6)
+                self.assertTrue(requests)
+                request = requests[0]
+                result = root / 'build-runs/game-results' / request.stem
+                result.parent.mkdir(exist_ok=True)
+                Path(str(result) + '.log').write_text(
+                    'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.0)\n', encoding='utf-8')
+                Path(str(result) + '.verdict').write_text('verdict: clean\n', encoding='utf-8')
+                completed.append(request.stem)
+                request.unlink()  # the shared poller has moved it to done/
+
+            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
+                _, results = suite.run_scenarios(root, rows, profile='plain', dll=str(root), tag='bounded')
+            self.assertEqual(len(set(completed)), 9)
+            self.assertEqual(max(peak), 6)
+            self.assertTrue(suite.successful(results))
+
+    def test_expired_batch_distinguishes_unsubmitted_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                _, results = suite.run_scenarios(root, [row], profile='plain', dll=str(root),
+                                                 tag='not-sent', wait_seconds=0)
+            self.assertEqual(results[row['name']]['verdict'], 'not-submitted')
+            self.assertFalse(list((root / 'build-runs/game-queue').glob('*.req')))

@@ -1,6 +1,6 @@
 # Timbuktu: Terraforming Tutorial. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
-# Dates follow the shipped save; end is 90 days after the first action.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
 2022-10-02 mark timbuktu-terraforming: begin local build patch
 2022-10-02 tutorial query
 2022-10-02 tutorial end 1
@@ -25,10 +25,10 @@
 2022-10-07 clockmode 1
 2022-10-08 speed 1
 2022-10-09 pricezone 38 20 41 23 4
-2022-10-12 disaster fire auto
-2022-10-14 disaster riot auto
 2022-10-16 clockmode 0
 2022-10-17 speed 2
-2022-10-22 save
-2022-10-23 digest
-2022-10-24 mark timbuktu-terraforming: script complete
+2022-12-31 disaster fire auto
+2022-12-31 disaster riot auto
+2022-12-31 save
+2022-12-31 digest
+2022-12-31 mark timbuktu-terraforming: script complete

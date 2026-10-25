@@ -1,0 +1,32 @@
+# Paradis: Zoe. Hand-authored local patch (fits a 64-cell tile).
+# Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
+2047-01-03 mark paradis-zoe: begin local build patch
+2047-01-03 speed 0
+2047-01-04 terrain 4 4 54 54 280 1
+2047-01-05 dezone 4 4 54 54
+2047-01-06 network 4 14 52 14 0
+2047-01-06 network 4 28 28 28 3
+2047-01-06 network 32 4 32 50 6
+2047-01-06 network 4 46 52 46 1
+2047-01-06 network 4 16 52 16 4
+2047-01-06 network 4 18 52 18 5
+2047-01-07 zone 6 6 9 9 1
+2047-01-07 zone 12 6 15 9 2
+2047-01-07 zone 18 6 21 9 3
+2047-01-07 zone 6 20 9 23 4
+2047-01-07 zone 12 20 15 23 5
+2047-01-07 zone 18 20 21 23 6
+2047-01-07 zone 6 32 9 35 7
+2047-01-07 zone 12 32 15 35 8
+2047-01-07 zone 18 32 21 35 9
+2047-01-08 clockmode 1
+2047-01-09 speed 1
+2047-01-10 pricezone 38 20 41 23 4
+2047-01-17 clockmode 0
+2047-01-18 speed 2
+2047-03-04 disaster fire auto
+2047-03-04 disaster riot auto
+2047-03-04 save
+2047-03-04 digest
+2047-03-04 mark paradis-zoe: script complete
