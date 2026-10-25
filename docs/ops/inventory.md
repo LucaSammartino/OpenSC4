@@ -27,5 +27,5 @@ workflow documents. Historical snapshots and retired experiments live in Git his
 
 The audit covers every top-level Python/PowerShell tool, every docs folder, and tracked files in `engine/tests/`,
 `re/`, `ghidra/scripts/` and `build-runs/`. Raw file inventory, incoming references, last commit dates and deletion
-sizes are in the prune27 worktree's `build-runs/prune27/`; the lane report `docs/lanes/prune27.md` records acceptance
+sizes are in the prune27 worktree's `build-runs/prune27/`; the [lane report](../lanes/prune27.md) records acceptance
 checks and retained uncertainties. Run evidence cited by `coverage-shadows.tsv` or specs remains available.
