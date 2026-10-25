@@ -64,7 +64,7 @@ function fc4.require_state(expected)
     return true
 end
 
-function fc4.call(scope, command, args)
+function fc4.call(scope, command, args, tolerate_failure)
     if scope == 'city' and not fc4.require_state(2) then return nil end
     if scope == 'region' and not fc4.require_state(1) then return nil end
     if not sc4app[command] then
@@ -84,6 +84,7 @@ function fc4.call(scope, command, args)
     local status, a, b, c, d, e = sc4app[command](fc4.unpack(args))
     fc4.log('Return ' .. command .. ' status=' .. fc4.text(status) .. ' ' .. fc4.text(a) .. ' ' .. fc4.text(b) .. ' ' ..
             fc4.text(c) .. ' ' .. fc4.text(d) .. ' ' .. fc4.text(e))
+    if tolerate_failure then return status, a, b, c, d, e end
     if status ~= 0 then error('fc4: ' .. command .. ' status=' .. fc4.text(status)) end
     return a, b, c, d, e
 end
@@ -91,6 +92,7 @@ end
 function fc4.app(command, args) return fc4.call('app', command, args) end
 function fc4.city(command, args) return fc4.call('city', command, args) end
 function fc4.region(command, args) return fc4.call('region', command, args) end
+function fc4.try_city(command, args) return fc4.call('city', command, args, true) end
 
 function fc4.wait_state(expected, max_polls)
     fc4.log('wait-state ' .. expected)
@@ -117,7 +119,6 @@ function fc4.start(name)
     fc4.city('SimSpeedFast')
     fc4.city('GetCityName')
     fc4.city('GetCitySize')
-    fc4.city('GetSimulationDate', {'year', 'month', 'day of month'})
 end
 
 function fc4.wait_date(year, month, day, max_polls)
