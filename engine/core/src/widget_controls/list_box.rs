@@ -59,6 +59,7 @@ pub struct ListBox {
     pub bar_gap_y: i8,
     pub skin_rect: Rect,
     pub pointer: [i32; 2],
+    raw_bytes: [u8; 4],
 }
 
 impl ListBox {
@@ -134,6 +135,7 @@ impl ListBox {
             .wrapping_add(2 * i32::from(self.y_gutter));
         let available = f.parent_height(self.window).wrapping_sub(self.area[1]).wrapping_sub(2);
         self.area[3] = self.area[1].wrapping_add(desired.min(available));
+        f.set_window_area(self.window, self.area);
         if desired <= available {
             self.whole_rows = n;
             self.first = 0;
@@ -168,6 +170,7 @@ impl ListBox {
         self.area[2] = self.area[0]
             .wrapping_add(width as i32)
             .wrapping_add(2 * i32::from(self.x_gutter));
+        f.set_window_area(self.window, self.area);
         f.invalidate(self.window);
         true
     }
@@ -213,6 +216,7 @@ impl ListBox {
             bar_gap_y: 3,
             skin_rect: [0; 4],
             pointer: [0; 2],
+            raw_bytes: [u8::from(drop_mode), 1, 0, 0],
         }
     }
 
@@ -361,6 +365,7 @@ impl ListBox {
             return false;
         }
         self.area[3] = self.area[1] + self.whole_rows * self.row_height + 2 * i32::from(self.y_gutter);
+        f.set_window_area(self.window, self.area);
         self.update_bar(f);
         f.invalidate(self.window);
         true

@@ -103,24 +103,96 @@ impl TreeView {
     pub fn default_color(&self, index: i32) -> Result<u32> {
         if index >= 4 {
             return Ok(0);
-        } // Negative native indices alias preceding object words.
-        if index < 0 {
-            return Err(Unsupported::Precondition(
-                "default-color index aliases raw object storage",
-            ));
         }
-        Ok(self.colors[index as usize])
+        // The signed upper-only check deliberately exposes preceding words.
+        Ok(match index {
+            0..=3 => self.colors[index as usize],
+            -1 => self.line_style[1],
+            -2 => self.line_style[0],
+            -4 => self.page_count,
+            -7 => self.first as u32,
+            -8 => self.vertical_bar.unwrap_or(0) as u32,
+            -9 => self.horizontal_bar.unwrap_or(0) as u32,
+            -10 => self.working_buffer.unwrap_or(0) as u32,
+            -11 => self.raw_style[4] as u32,
+            -14 => self.raw_style[3] as u32,
+            -15 => self.raw_style[2] as u32,
+            -16 => self.raw_style[1] as u32,
+            -17 => self.raw_style[0] as u32,
+            -18 => self.image_width,
+            -19 => self.row_height as u32,
+            -20 => self.base_color,
+            -22 => {
+                // SPEC-GAP: the unused fourth byte is zero unless supplied by the host.
+                let raw = self.raw_property_words.get(&index).copied().unwrap_or(0);
+                let mut word = raw & 0xff00_0000;
+                for (shift, flag) in [
+                    (0, self.internal_initialized),
+                    (8, self.layout_dirty),
+                    (16, self.selection_dirty),
+                ] {
+                    let byte = (raw >> shift) & 255;
+                    word |= if (byte != 0) == flag { byte } else { u32::from(flag) } << shift;
+                }
+                word
+            }
+            -23 => self.flags,
+            -24 => self.default_font.unwrap_or(0) as u32,
+            -38 => self.next_handle as u32,
+            _ => *self
+                .raw_property_words
+                .get(&index)
+                .ok_or(Unsupported::Precondition("readable raw TreeView property word"))?,
+        })
     }
     pub fn set_default_color(&mut self, index: i32, value: u32) -> Result<()> {
-        if index < 0 {
-            return Err(Unsupported::Precondition(
-                "default-color index aliases raw object storage",
-            ));
-        }
-        if index < 4 {
-            self.colors[index as usize] = value;
+        // Raw writes perform no conversion, retention, dirtying or invalidation.
+        let pointer = (value != 0).then_some(u64::from(value));
+        match index {
+            4..=i32::MAX => {}
+            0..=3 => self.colors[index as usize] = value,
+            -1 => {
+                self.line_style[1] = value;
+                self.raw_style[5] = value as i32;
+            }
+            -2 => self.line_style[0] = value,
+            -4 => self.page_count = value,
+            -7 => self.first = value as i32,
+            -8 => self.vertical_bar = pointer,
+            -9 => self.horizontal_bar = pointer,
+            -10 => self.working_buffer = pointer,
+            -11 => self.raw_style[4] = value as i32,
+            -14 => self.raw_style[3] = value as i32,
+            -15 => self.raw_style[2] = value as i32,
+            -16 => self.raw_style[1] = value as i32,
+            -17 => self.raw_style[0] = value as i32,
+            -18 => self.image_width = value,
+            -19 => self.row_height = value as i32,
+            -20 => self.base_color = value,
+            -22 => {
+                self.raw_property_words.insert(index, value);
+                self.internal_initialized = value as u8 != 0;
+                self.layout_dirty = (value >> 8) as u8 != 0;
+                self.selection_dirty = (value >> 16) as u8 != 0;
+            }
+            -23 => self.flags = value,
+            -24 => self.default_font = pointer,
+            -38 => self.next_handle = value as i32,
+            _ => {
+                *self
+                    .raw_property_words
+                    .get_mut(&index)
+                    .ok_or(Unsupported::Precondition("writable raw TreeView property word"))? = value;
+            }
         }
         Ok(())
+    }
+    pub fn set_stored_pair(&mut self, pair: [u32; 2]) {
+        self.line_style = pair;
+        self.raw_style[5] = pair[1] as i32;
+    }
+    pub fn base_color(&self, f: &mut impl Foreign) -> u32 {
+        f.color_from_storage(self.window(), self.base_color)
     }
     pub fn descriptor(&mut self, h: i32) -> Option<NodeDescriptor> {
         let visible = self.get_visible(h);
@@ -220,13 +292,16 @@ impl TreeView {
         self.dirty(f);
         true
     }
-    pub fn children(&self, h: i32, output: Option<&mut Vec<i32>>) -> bool {
+    /// O49 writes an array prefix, unlike O29's replacement of a child list.
+    pub fn children(&self, h: i32, output: Option<&mut [NodeHandle]>) -> Result<bool> {
         let (Some(n), Some(out)) = (self.nodes.get(&h), output) else {
-            return false;
+            return Ok(false);
         };
-        out.clear();
-        out.extend_from_slice(&n.children);
-        true
+        if out.len() < n.children.len() {
+            return Err(Unsupported::Precondition("TreeView child output storage"));
+        }
+        out[..n.children.len()].copy_from_slice(&n.children);
+        Ok(true)
     }
     pub fn selected_handles(&self) -> &[i32] {
         &self.selection

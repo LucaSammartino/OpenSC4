@@ -1,11 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::list_box::*;
 use super::*;
+#[path = "closure_tests.rs"]
+mod closure;
 #[path = "settled_tests.rs"]
 mod settled;
 
 #[derive(Default)]
 struct Recording {
+    tree_area: Option<Rect>,
+    tree_thickness: [u32; 2],
+    tree_resizes: Vec<[u32; 2]>,
+    measure_override: Option<i32>,
+    base_init_ok: bool,
+    fail_working_buffer: bool,
+    no_graphics: bool,
+    no_default_font: bool,
+    base_flag_calls: Vec<(Handle, u32, u8)>,
+    base_flags: u32,
+    skins: Vec<(Handle, Handle, Rect)>,
     compare_calls: usize,
     parent_limit: Option<i32>,
     capture_owner: Option<Handle>,
@@ -19,6 +32,7 @@ struct Recording {
     drag_accept: u8,
     drag_return: bool,
     drag_target: Option<i32>,
+    drag_pointer: Option<[i32; 2]>,
     drag_runs: usize,
     owner: grid_owner_tests::Events,
     refs: Vec<(bool, Handle)>,
@@ -59,6 +73,7 @@ struct Recording {
     icon_calls: Vec<&'static str>,
     child_ops: Vec<(&'static str, Handle)>,
     grid_dimensions: [i32; 2],
+    area_requests: Vec<(Handle, Rect)>,
 }
 
 impl file_browser::BrowserIo for Recording {
@@ -698,7 +713,22 @@ impl Foreign for Recording {
         self.refs.push((false, h));
     }
     fn base_init(&mut self, _: Handle) -> bool {
-        false
+        self.base_init_ok
+    }
+    fn base_set_flag(&mut self, window: Handle, mask: u32, on: u8) -> Result<u32> {
+        self.base_flag_calls.push((window, mask, on));
+        self.base_flags = if on != 0 {
+            self.base_flags | mask
+        } else {
+            self.base_flags & !mask
+        };
+        Ok(self.base_flags)
+    }
+    fn set_window_area(&mut self, window: Handle, area: Rect) {
+        self.area_requests.push((window, area));
+    }
+    fn bar_skin(&mut self, bar: Handle, buffer: Handle, rect: Rect) {
+        self.skins.push((bar, buffer, rect));
     }
     fn base_shutdown(&mut self, _: Handle) {}
     fn base_query(&mut self, _: Handle, _: u32, _: &mut Option<Handle>) -> bool {
@@ -733,7 +763,7 @@ impl Foreign for Recording {
     }
     fn default_interface(&mut self, key: u32) -> Option<Handle> {
         self.defaults.push(key);
-        Some(100)
+        (!self.no_default_font).then_some(100)
     }
     fn default_color(&mut self, key: u32) -> Option<u32> {
         self.defaults.push(key);
@@ -989,6 +1019,18 @@ fn list_mouse_timer_strictness_and_no_font_background() {
 }
 
 impl tree_view::TreeForeign for Recording {
+    fn graphics_available(&mut self) -> bool {
+        !self.no_graphics
+    }
+    fn tree_area(&mut self, _: Handle) -> Option<Rect> {
+        self.tree_area
+    }
+    fn tree_bar_thickness(&mut self, _: Handle) -> [u32; 2] {
+        self.tree_thickness
+    }
+    fn resize_tree_buffer(&mut self, _: Handle, size: [u32; 2]) {
+        self.tree_resizes.push(size);
+    }
     fn access_mode(&mut self, _: Handle, mode: u32, take: bool) -> bool {
         self.access_calls.push((mode, take));
         !take || self.fail_mode != mode
@@ -1004,9 +1046,11 @@ impl tree_view::TreeForeign for Recording {
         *accept = self.drag_accept;
         self.drag_return
     }
-    fn run_drag(&mut self, t: &mut tree_view::TreeView, _: &tree_view::DragSession) {
+    fn run_drag(&mut self, t: &mut tree_view::TreeView, session: &tree_view::DragSession) {
         self.drag_runs += 1;
-        if let Some(h) = self.drag_target {
+        if let Some([x, y]) = self.drag_pointer {
+            t.notify_drag(x, y, &session.nodes, self).unwrap();
+        } else if let Some(h) = self.drag_target {
             t.select(h, true, self);
         }
     }
@@ -1014,13 +1058,13 @@ impl tree_view::TreeForeign for Recording {
         color
     }
     fn initialize_buffer(&mut self, _: Handle) -> bool {
-        true
+        !self.fail_working_buffer
     }
     fn buffer_access(&mut self, _: Handle, _: bool) -> bool {
         true
     }
     fn measure_text(&mut self, _: Handle, text: &[u8]) -> i32 {
-        text.len() as i32 * 8
+        self.measure_override.unwrap_or(text.len() as i32 * 8)
     }
     fn draw_image(&mut self, image: Handle, rect: Rect) {
         self.draws.push(Draw::Blit { source: image, rect });
