@@ -132,7 +132,7 @@ impl Fleet {
                 });
                 if let Some(other) = picked {
                     let boat = self.boat(other)?;
-                    if boat.group.id == 0x4417
+                    if boat.group_id() == Some(0x4417)
                         && !matches!(
                             boat.top_state(),
                             Some(state::RUN_AGROUND | state::SINK | state::IMMEDIATE_REMOVE | state::SLOW_REMOVE)
@@ -168,7 +168,7 @@ impl Fleet {
     /// §6.2 stopped-tug button branch; sound-set gate applies first.
     pub fn tow_button(&mut self, id: BoatId, pressed: bool, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         let boat = self.boat(id)?;
-        if !pressed || boat.group.sound_value().is_none() || boat.group.id != 0x4410 || boat.speed != 0.0 {
+        if !pressed || boat.sound_value().is_none() || boat.group_id() != Some(0x4410) || boat.speed != 0.0 {
             return Ok(());
         }
         if boat.towed.is_some() {

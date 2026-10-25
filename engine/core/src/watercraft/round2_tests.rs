@@ -19,6 +19,9 @@ impl Terrain for SinkTerrain {
     fn terrain_height(&self, _: Vec3) -> f32 {
         self.height
     }
+    fn terrain_height_at_cell(&self, _: Cell) -> f32 {
+        self.height
+    }
     fn sea_level(&self) -> f32 {
         10.0
     }
@@ -182,7 +185,7 @@ fn wc7_r02_r08_backtrack_survivor_and_fill_to_ten() {
     assert_eq!(b.travel[0].tried, 0x09);
     b.travel.clear();
     b.neighbor = Some(NeighborRoute {
-        occupant: Arc::new(Resource(1)),
+        occupant: Some(Arc::new(Resource(1))),
         position: [0.0; 3],
         cells: (0..12).map(|i| Cell { x: i, z: 0 }).collect::<Vec<_>>().into(),
         next: 0,

@@ -113,7 +113,7 @@ impl Watercraft {
         if t >= duration {
             return false;
         }
-        // §5.7.5 and WC5-H10 supersede §5.7.2's older B=p[25].
+        // WC12: p[24] is the heel endpoint; p[25] only gates contact.
         let b = self.drive.0[24];
         let fraction = t as f64 / duration as f64;
         let target = if self.shore_contact && t < duration * 0.5 {
@@ -136,18 +136,22 @@ impl Watercraft {
             let angle = math::dot(n, back).acos();
             if angle > self.drive.0[25] {
                 self.speed *= self.drive.0[23];
-                let mut c = self.transform.clone();
+                let mut banked = super::Transform::default();
                 // Banking only: do not apply normal bow pitch or lift here.
                 if self.speed > 0.0 {
                     let p = &self.drive.0;
                     let bank = ((self.speed / p[7]) * p[19] * self.turn).clamp(-p[20], p[20]);
-                    c.basis = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-                        .map(|v| rotate(v, math::normalize(self.heading), bank));
-                    c.changed(4);
+                    banked.basis = banked.basis.map(|v| rotate(v, math::normalize(self.heading), bank));
                 }
+                // WC12: sample again into the old -H workspace. Neither the
+                // incoming owner rotation nor the first normal supplies V.
+                let second_normal = terrain.normal(self.position);
                 let v = math::add(
-                    math::add(math::scale(c.basis[0], back[0]), math::scale(c.basis[1], back[1])),
-                    math::scale(c.basis[2], back[2]),
+                    math::add(
+                        math::scale(banked.basis[0], second_normal[0]),
+                        math::scale(banked.basis[1], second_normal[1]),
+                    ),
+                    math::scale(banked.basis[2], second_normal[2]),
                 );
                 let proposed = [
                     self.position[0] + dt * self.drive.0[4] * self.speed * self.heading[0],
@@ -157,6 +161,7 @@ impl Watercraft {
                 if terrain.world_inside(proposed) {
                     let h = terrain.cell_height(terrain.cell_at(proposed));
                     if (h - self.position[1]).abs() < self.drive.0[26] {
+                        let mut c = self.transform.clone();
                         let f = math::normalize(self.heading);
                         let r = math::normalize(math::cross(v, f));
                         c.basis = [r, math::cross(f, r), f];

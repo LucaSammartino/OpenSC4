@@ -263,7 +263,7 @@ cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	-	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	-
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
@@ -387,7 +387,7 @@ cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43DPlaceableObject	occupants and props	simulation	prop-occupant.md	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
-cSC4View3DWin	3D scene and models	renderer	view3d-window.md, ui-windows.md, view3d.md	-	-	-
+cSC4View3DWin	3D scene and models	renderer	view3d-window.md, ui-windows.md, view3d.md	core/src/ui_windows/view3d	-	-
 cSC4CameraControl	camera and projection	renderer	camera.md	core/src/camera	-	-
 cSC4LightingManager	lighting and shadows	renderer	lighting.md	core/src/lighting	-	-
 cImageARGB8	lighting and shadows	renderer	lighting.md	core/src/lighting	-	-
@@ -528,7 +528,7 @@ cSC4NewsTickerWinProc	windows and panels	ui	news-ticker.md	-	-	-
 cSC4TutorialUIWinProc	windows and panels	ui	tutorial-window.md	-	-	-
 cSC4GamePreferencesWinProc	windows and panels	ui	game-preferences.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
-cSC4WinMapView	windows and panels	ui	map-view.md	-	-	-
+cSC4WinMapView	windows and panels	ui	map-view.md	core/src/map_view	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinLotConfigurationChooser	windows and panels	ui	lot-configuration-editor.md	-	-	-
 cSC4WinMiniMap*	windows and panels	ui	minimap.md	-	-	-

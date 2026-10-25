@@ -143,6 +143,30 @@ fn statistics_conformance_and_insertion_quirks() {
 }
 
 #[test]
+fn commodity_balance_rounds_operations_without_rounding_loaded_doubles() {
+    let mut c = RegionalCity::new(2);
+    // The intermediate produced+imported is rounded before subtracting.
+    c.set_produced(3, 16_777_217.0);
+    c.set_imported(3, 0.0);
+    c.set_demanded(3, 16_777_216.0);
+    c.set_exported(3, 0.0);
+    assert_eq!(c.get_commodity_balance(3), 0.0);
+    // A decoded record may contain signed values, without setter clamping.
+    // Rounding these loads before adding would give zero instead of one.
+    c.commodity(3).imported = -16_777_216.0;
+    c.set_demanded(3, 0.0);
+    assert_eq!(c.get_commodity_balance(3), 1.0);
+    c.set_produced(3, 16_777_216.0);
+    c.set_imported(3, 1.0);
+    c.set_demanded(3, 16_777_216.0);
+    assert_eq!(c.get_commodity_balance(3), 0.0);
+    c.set_produced(3, 0.0);
+    c.set_imported(3, 0.0);
+    c.set_demanded(3, 11_584.583251953125);
+    assert_eq!(c.get_commodity_balance(3), -11_584.5830078125);
+}
+
+#[test]
 fn moving_and_copy_outputs() {
     let mut c = RegionalCity::new(2);
     c.position = (3, 4);

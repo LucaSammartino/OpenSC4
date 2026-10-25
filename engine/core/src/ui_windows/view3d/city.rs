@@ -28,9 +28,15 @@ impl CityObject {
 #[derive(Clone, Debug, PartialEq)]
 pub enum CityCall {
     Create(CityObject),
+    /// Required-object factory failure invokes the concrete constructor (§6m).
+    Construct(CityObject),
+    QueryGraphics(u32),
     AcquireSimulator,
     Viewport(u32, i32, i32),
     CameraInit(u32, [f32; 3]),
+    /// Animation/model-maker Init results do not abort city initialization.
+    InitObject(CityObject, u32),
+    /// Graphics QI gates renderer configuration and Init as one block (§6m).
     WireRenderer {
         renderer: u32,
         camera: Option<u32>,
@@ -79,19 +85,32 @@ pub trait CityHost: MessageHost + GuiHost {
 
 impl View3DWin {
     fn city_object(&mut self, host: &mut impl CityHost, offset: u32, kind: CityObject) -> Option<u32> {
-        let token = host.city(CityCall::Create(kind));
-        if let Some(old) = self.owner.lifecycle.objects.remove(&offset) {
-            host.lifecycle(LifecycleCall::Release(old));
+        if let Some(&token) = self.owner.lifecycle.objects.get(&offset) {
+            return Some(token);
         }
+        let mut constructed = false;
+        let token = host.city(CityCall::Create(kind)).or_else(|| {
+            if kind == CityObject::ImageLoader {
+                None
+            } else {
+                constructed = true;
+                Some(
+                    host.city(CityCall::Construct(kind))
+                        .expect("required city object allocation"),
+                )
+            }
+        });
         if let Some(token) = token {
             self.owner.lifecycle.objects.insert(offset, token);
+            if constructed {
+                host.lifecycle(LifecycleCall::AddRef(token));
+            }
         }
         token
     }
 
     pub fn pre_city_init(&mut self, host: &mut impl CityHost) {
-        // VW14: null allocations skip dependent calls; successful references
-        // still follow the specified construction and ownership order.
+        // §6m: required concrete allocation failure is fatal, with no rollback.
         self.owner.lifecycle.city_initializing = true;
         self.owner.motion.city_initializing = true;
         let (width, height) = host.client_size();
@@ -102,14 +121,20 @@ impl View3DWin {
             host.city(CityCall::CameraInit(control, [512.0, 0.0, 512.0]));
         }
         if self.owner.view.filter.is_none() {
-            self.owner.view.filter = host.create_realistic_filter([true; 3]);
+            self.owner.view.filter = Some(
+                host.create_realistic_filter([true; 3])
+                    .expect("required realistic filter allocation"),
+            );
         }
         if let Some(renderer) = self.city_object(host, 0xF4, CityObject::Renderer) {
-            host.city(CityCall::WireRenderer {
-                renderer,
-                camera,
-                control,
-            });
+            if let Some(graphics) = host.city(CityCall::QueryGraphics(0xC47B_747C)) {
+                host.city(CityCall::WireRenderer {
+                    renderer,
+                    camera,
+                    control,
+                });
+                host.lifecycle(LifecycleCall::Release(graphics));
+            }
         }
         self.city_object(host, 0x150, CityObject::ImageLoader);
         self.refresh(host, Refresh::Background);
@@ -117,8 +142,11 @@ impl View3DWin {
             host.city(CityCall::ScriptHook(0x6A23_1EAA, hook));
         }
         host.city(CityCall::Progress);
-        self.city_object(host, 0xE8, CityObject::AnimationManager);
-        self.city_object(host, 0xF8, CityObject::ModelMaker);
+        for (field, kind) in [(0xE8, CityObject::AnimationManager), (0xF8, CityObject::ModelMaker)] {
+            if let Some(object) = self.city_object(host, field, kind) {
+                host.city(CityCall::InitObject(kind, object));
+            }
+        }
         if let Some(simulator) = host.city(CityCall::AcquireSimulator) {
             if let Some(old) = self.owner.lifecycle.objects.insert(0x154, simulator) {
                 host.lifecycle(LifecycleCall::Release(old));

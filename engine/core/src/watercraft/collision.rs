@@ -98,6 +98,12 @@ impl super::Group {
 }
 
 impl Watercraft {
+    /// Occupant rectangles use (xmin,zmin), (xmin,zmax), (xmax,zmin),
+    /// (xmax,zmax); IsOutsideCity has its own short-circuit order (§3.2).
+    pub fn outside_city(rectangle: [Cell; 4], terrain: &dyn Terrain) -> bool {
+        [0, 2, 1, 3].into_iter().any(|i| !terrain.contains(rectangle[i]))
+    }
+
     /// §5.7.4 all occupant queries precede all navigability queries.
     pub fn inanimate_collision(
         &mut self,
@@ -154,7 +160,7 @@ impl Fleet {
         manager: &mut Option<&mut dyn DockManager>,
     ) -> Result<bool> {
         let rectangle = queries.cell_rectangle(id);
-        if [0, 2, 1, 3].into_iter().any(|i| !terrain.contains(rectangle[i])) {
+        if Watercraft::outside_city(rectangle, terrain) {
             self.push_state(id, State::new(state::IMMEDIATE_REMOVE), manager)?;
             return Ok(true);
         }
@@ -242,8 +248,16 @@ impl Fleet {
         if a.boat_crash_threshold_exceeded(b.speed) {
             let player_a = a.top_state() == Some(state::PLAYER_DRIVE);
             let player_b = b.top_state() == Some(state::PLAYER_DRIVE);
-            let size_a = a.group.size_class();
-            let size_b = b.group.size_class();
+            let size_a = a
+                .group
+                .as_deref()
+                .expect("collision size requires a group (§5.7.0)")
+                .size_class();
+            let size_b = b
+                .group
+                .as_deref()
+                .expect("collision size requires a group (§5.7.0)")
+                .size_class();
             if player_a {
                 self.boat_mut(id)?.events.push(Event::Aems(7));
             }

@@ -732,7 +732,8 @@ void Resolve() {
     PropLotShadowStartup(enabledKey("propmgr"), enabledKey("lotcfg"), enabledKey("tutorial"));
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
-    EffectsShadowStartup(enabledKey("effects"));
+    // The guarded class is native unless the diagnostic replacement is actually registered.
+    EffectsShadowStartup(enabledKey("effects") && SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) != 0);
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
     AutomataShadowStartup(enabledKey("automata"));
@@ -789,20 +790,10 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
-        // The effects replacement fails closed (glue22 question 9): the class is
-        // registered only when the run also sets effects_replace = 1.
-        if (strcmp(kSubsystems[i].key, "effects") == 0) {
-            const long force = SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0);
-            if (force == 0) {
-                static bool warned = false;
-                if (!warned) {
-                    warned = true;
-                    Log("subsystem 'effects': the class replacement is NOT registered (glue22 question 9); "
-                        "effects_shadow = 1 is the verified path; set effects_replace = 1 to force it");
-                }
-                continue;
-            }
-        }
+        // SPEC-GAP: effects.md section 18.5 leaves the internal native bases unresolved.
+        // Real-city replacement still faults; keep it behind the diagnostic switch.
+        if (strcmp(kSubsystems[i].key, "effects") == 0 &&
+            SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) continue;
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {

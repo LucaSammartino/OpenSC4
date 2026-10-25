@@ -368,6 +368,13 @@ void OverlaysObservationSample(cISTEOverlayManager* manager, uint32_t type, cons
     if (!fixtureOK || !manager || !capture.Run(manager) || !fc4_overlays_observe(capture.wire.data(), static_cast<uint32_t>(capture.wire.size()), r.data())) {
         ++g_incomplete;
         ++g_checks; ++g_differences;
+        // A requested replay that could not run must not disappear as 0/0 exact.
+        if (fixtureEnabled) {
+            ++g_replayLines;
+            g_replayDifferences += 35;
+            Log("overlayreplay shadow %04d-%02d-%02d type=%u phase=%s: 0/35 mismatches=35 incomplete=1 scope=controlled-suffix init=external-input history=unavailable(OV13) image_bytes=unavailable",
+                date.year, date.month, date.day_of_month, type, phase);
+        }
         Log("overlayrecords shadow %04d-%02d-%02d type=%u phase=%s: 0/1 mismatches=1 incomplete=1 julian=%d stage=%s dynamic=%u shift=%u nx=%d nz=%d overlay_slots=%u handle_slots=%u group_slots=%u scope=observation-invariants", date.year, date.month, date.day_of_month, type, phase, julian, capture.stage,
             (capture.header[5] >> 8) & 255, capture.header[0xe4 / 4], capture.header[0xe8 / 4], capture.header[0xec / 4],
             static_cast<uint32_t>(capture.overlays.live.size()), static_cast<uint32_t>(capture.handles.live.size()), static_cast<uint32_t>(capture.groups.live.size()));

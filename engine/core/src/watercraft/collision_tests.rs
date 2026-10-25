@@ -160,8 +160,9 @@ fn player_involvement_sinks_ai_without_player_mushroom_byte() {
     a.speed = 0.3;
     a.group = std::sync::Arc::new(Group {
         id: 0x4414,
-        ..(*a.group).clone()
-    });
+        ..a.group.as_deref().unwrap().clone()
+    })
+    .into();
     f.insert(1, a).unwrap();
     f.push_state(1, State::new(state::PLAYER_DRIVE), &mut None).unwrap();
     f.insert(2, boat()).unwrap();

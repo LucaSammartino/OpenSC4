@@ -9,6 +9,8 @@ pub struct CatalogQuery {
     pub groups: Vec<u32>,
     pub networks: Vec<u32>,
     pub zone: Option<u32>,
+    /// The owner's reward-unlock cheat overrides reward availability (§3.1).
+    pub all_rewards: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,6 +76,9 @@ pub enum PopupCall {
     TerrainPost(u32, u32),
     TerrainBrush(u32, u32),
     ReconcileEdges,
+    /// Common tutorial follow-up after button routing (§6l), even for the
+    /// explicitly inert vehicle/disaster cases. Tutorial internals stay foreign.
+    TutorialButton(u32),
 }
 
 pub trait PopupHost {
@@ -101,9 +106,7 @@ pub struct OwnedPopup {
 
 impl View3DWin {
     fn close_popup(&mut self, host: &mut impl CommandHost, secondary: bool) {
-        if (secondary && self.secondary_win().is_none())
-            || (!secondary && self.tertiary_win().is_none())
-        {
+        if (secondary && self.secondary_win().is_none()) || (!secondary && self.tertiary_win().is_none()) {
             return;
         }
         if secondary {
@@ -116,10 +119,7 @@ impl View3DWin {
                 if let Some(query) = host.popup(PopupCall::Query(popup.token, 0x8A2C_AD8B)) {
                     let state = host.popup_state(query);
                     if let Some(memory) = popup.memory {
-                        self.owner
-                            .lifecycle
-                            .remembered_catalogs
-                            .insert(memory, state);
+                        self.owner.lifecycle.remembered_catalogs.insert(memory, state);
                     }
                     host.popup(PopupCall::Release(query));
                 }
@@ -186,8 +186,7 @@ impl View3DWin {
             parent: self.as_igzwin(),
             group: 0x96A0_06B0,
             instance,
-            // VW17: caller-data payload is unspecified for these buttons.
-            data: 0,
+            data: target,
         }) {
             if let Some(gen) = host.popup(PopupCall::Query(token, 0x5386_D516)) {
                 host.popup(PopupCall::Filter(token, true));
@@ -215,13 +214,7 @@ impl View3DWin {
         }
     }
 
-    fn finish_popup(
-        &mut self,
-        host: &mut impl CommandHost,
-        secondary: bool,
-        kind: u32,
-        popup: OwnedPopup,
-    ) {
+    fn finish_popup(&mut self, host: &mut impl CommandHost, secondary: bool, kind: u32, popup: OwnedPopup) {
         host.popup(PopupCall::Front(popup.token));
         host.popup(PopupCall::Show(popup.token));
         if secondary {
@@ -238,23 +231,17 @@ impl View3DWin {
         secondary: bool,
         kind: u32,
         background: u32,
-        memory: u32,
+        memory: impl Into<Option<u32>>,
         query: CatalogQuery,
     ) {
+        let memory = memory.into();
         if !self.begin_popup(host, secondary, kind) {
             return;
         }
         let items = host.catalog_items(&query);
-        let max_rows = if secondary || host.popup_height() < 601 {
-            6
-        } else {
-            8
-        };
-        let remembered = self
-            .owner
-            .lifecycle
-            .remembered_catalogs
-            .get(&memory)
+        let max_rows = if secondary || host.popup_height() < 601 { 6 } else { 8 };
+        let remembered = memory
+            .and_then(|key| self.owner.lifecycle.remembered_catalogs.get(&key))
             .copied()
             .unwrap_or_default();
         let layout = PopupLayout {
@@ -278,7 +265,7 @@ impl View3DWin {
                 kind,
                 OwnedPopup {
                     token,
-                    memory: Some(memory),
+                    memory,
                     catalog: true,
                 },
             );
@@ -306,20 +293,32 @@ impl View3DWin {
             0xE991_EE2F => Some((true, 0x4992_F764, 0xE992_F711, 1, 0)),
             0x0991_EE13 => Some((true, 0xE994_9936, 0x6992_3479, 1, 0)),
             0xABB2_7A7A => Some((true, 0x6BB2_7447, 0x8BB2_7C12, 1, 0)),
+            0x36 | 0x8A32_DDDB => Some((true, 0xAAA4_4448, 0xCA35_CBED, button, 0)),
+            0x49E9_5D2B => Some((true, 0xE992_3283, 0x4992_3239, button, 0)),
+            0x8991_EE08 => Some((true, 0x0992_3283, 0x4992_3239, button, 0)),
             1 => Some((false, 0x09DE_3002, 0x09DE_8798, 1, -25)),
             0xAB95_37B7 => Some((false, 0xCB95_403E, 0xAB95_4023, 0xAB95_37B7, -75)),
             _ => None,
         };
-        if let Some((secondary, script, kind, target, margin)) = script {
-            self.invoke_script_menu(host, secondary, script, kind, target, margin);
+        if let Some((secondary, script, kind, _target, margin)) = script {
+            self.invoke_script_menu(host, secondary, script, kind, button, margin);
             if button == 0xABB2_7A7A && self.secondary_kind() == kind {
                 host.popup(PopupCall::SituationVisibility(host.situation_visible()));
             }
             return true;
         }
-        let mut query = CatalogQuery::default();
+        let mut query = CatalogQuery {
+            all_rewards: self.owner.view.all_rewards,
+            ..CatalogQuery::default()
+        };
         let mut secondary = false;
         let mut background = 0;
+        if matches!(button, 0x2B79_E398 | 0xEA6E_379D) {
+            query.catalog = 0x07BD_DF1C;
+            query.kind = 0x4A2B_2467;
+            self.invoke_catalog_popup(host, false, button, 0x1421_5ED2, None, query);
+            return true;
+        }
         // Memory keys without a specified field offset are logical per-menu
         // keys, not invented layout offsets. They are never serialized.
         let mut memory = button;
@@ -339,6 +338,7 @@ impl View3DWin {
                 background = 0x1421_5ED4;
             }
             0x35 | 0x39 | 0x40 => {
+                query.catalog = 0xC8DB_CCBA;
                 query.kind = 0x6A2B_245F;
                 match button {
                     0x35 => {
@@ -387,6 +387,7 @@ impl View3DWin {
                 background = 0x1421_5ED2;
             }
             0x2992_0899 | 0xA998_AF42 | 0xC998_AF00 => {
+                query.catalog = 0x2A38_58E4;
                 query.kind = 0x4A2B_2466;
                 let (group, key) = match button {
                     0x2992_0899 => (0x8A3F_1505, 0x20C),
@@ -395,14 +396,27 @@ impl View3DWin {
                 };
                 query.groups = vec![group];
                 memory = key;
+                background = 0x1421_5ED1;
             }
             0x2992_3215 | 0x1522_31F3 | 0xC992_31DA | 0x6A3D_638C => {
-                query.catalog = button;
+                query.catalog = 0x6A01_FC2A;
                 query.kind = 0x4A2B_2462;
+                let (key, group) = match button {
+                    0xC992_31DA => (0x2A0, 0x6A33_D682),
+                    0x1522_31F3 => (0x2A8, 0xEA33_D694),
+                    0x6A3D_638C => (0x2B0, 0x8A3F_131B),
+                    _ => (0x2B8, 0x8A31_43B7),
+                };
+                memory = key;
+                query.groups = vec![group];
+                background = 0x1421_5ED0;
             }
             0x4A22_EA06 => {
-                query.catalog = button;
+                query.catalog = 0x6A01_FC2A;
                 query.kind = 0xEA5A_D08D;
+                query.groups = vec![0x8A26_02BB];
+                memory = 0x2C8;
+                background = 0x1421_5ED0;
             }
             0xEBFA_C717..=0xEBFA_C719 => {
                 query.catalog = match button {
@@ -417,8 +431,6 @@ impl View3DWin {
                 query.kind = 0x4A2B_2464;
                 secondary = true;
             }
-            // Missing script/catalog identities for the remaining inventory
-            // are deliberately not guessed (VW17).
             _ => return false,
         }
         self.invoke_catalog_popup(host, secondary, button, background, memory, query);
@@ -426,15 +438,18 @@ impl View3DWin {
     }
 
     pub fn update_day_night_buttons(&self, host: &mut impl PopupHost, mode: u32) {
-        for (i, id) in [0xCA35_CB74, 0xCA35_CB76, 0xCA35_CB78]
-            .into_iter()
-            .enumerate()
-        {
+        for (i, id) in [0xCA35_CB74, 0xCA35_CB76, 0xCA35_CB78].into_iter().enumerate() {
             host.popup(PopupCall::DayNightButton(id, i as u32 == mode));
         }
     }
 
     pub fn handle_button_activated(&mut self, host: &mut impl ActionHost, button: u32) -> bool {
+        let handled = self.dispatch_button(host, button);
+        host.popup(PopupCall::TutorialButton(button));
+        handled
+    }
+
+    fn dispatch_button(&mut self, host: &mut impl ActionHost, button: u32) -> bool {
         let command = match button {
             0x6A4F_BB31 => Some(0x6A93_5CB0),
             0x4A4F_BB60 => Some(0x6A93_5CB2),
@@ -447,6 +462,8 @@ impl View3DWin {
             0x9988_7766 => Some(0x6A93_5CF3),
             0x8B96_B73E => Some(0x6A93_5CF4),
             0xE999_C820 => Some(0x6A93_5D36),
+            0xE992_37B4 => Some(0x6A93_5DC9),
+            0x2992_F72C => Some(0x6A93_5DEE),
             0xCA58_EBB7 => Some(0x6A93_5E2A),
             0x098F_4F6C => Some(0x6A93_5E2D),
             0xA98F_4F88 => Some(0x6A93_5E34),
@@ -465,8 +482,7 @@ impl View3DWin {
         match button {
             0x30 => self.invoke_zoning_tool(host, 0),
             0x32 => self.invoke_network_tool(host, 5),
-            0x2992_F72C => self.invoke_network_tool(host, 4),
-            0xE992_37B4 => self.invoke_catalog_item(host, 0x6A2B_245F, 0x0500_0001, false),
+            0xABB2_7B91 | 0x09DE_87AE | 0xE9DE_87A7 => {}
             0x1520_0002 | 0x1520_0003 | 0x49ED_F9B7 | 0x9988_7755 | 0xABC5_4125 => {
                 self.show_mayor_subpanel(host, button)
             }
