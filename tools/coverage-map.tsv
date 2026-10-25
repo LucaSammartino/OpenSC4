@@ -214,7 +214,7 @@ cSC4ControllerGrid	automata (vehicles, animation)	simulation	automata-support.md
 cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	automata-support.md, prop-occupant.md	-	-	-
 tControllerQInfo	automata (vehicles, animation)	simulation	automata.md	-	-	-
 cSC4NetworkToolUI	city tools and input	ui	network-tool-ui.md	-	-	-
-cSC4NetworkPreview	city tools and input	ui	-	-	-	-
+cSC4NetworkPreview	city tools and input	ui	network-tool-owners.md	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
@@ -568,6 +568,9 @@ cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/q
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControlEffectDisaster	city tools and input	ui	com-directors-misc.md	-	-	-
 cSC4ViewInputControlDispatch	city tools and input	ui	dispatch-vehicle-view.md	-	-	-
+cSC4ViewInputControlNetworkTool	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4ViewInputControlNetworkIntxTool	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4ViewInputControlTollBooth	city tools and input	ui	network-tool-owners.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
@@ -879,6 +882,7 @@ cISC4SimGrid	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cISC4BuildingOccupant::BuildingProfile	framework services (GZ)	framework	demand.md, framework-misc3.md	-	-	-
 cISC4CivicBuildingSimulator::ConditionalBuildingStatus	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cISC4ResidentialSimulator::tQueryData	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4NetworkTool::tPlacementParams	framework services (GZ)	framework	network-tool-owners.md	-	-	-
 cRZRefCount	framework services (RZ)	framework	framework-misc3.md	-	-	-
 cGZCOMLibrary	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cGZKeyMessage	framework services (GZ)	framework	framework-misc3.md, framework-misc2.md	-	-	-
