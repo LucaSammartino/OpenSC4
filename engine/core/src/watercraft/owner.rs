@@ -166,6 +166,8 @@ pub enum ContractGap {
     CrashSequenceWc5,
     MissingStationWc7,
     MissingRouteWc7,
+    /// An interface pointer offset with no adjustor for the requested entry.
+    UnknownInterface,
 }
 
 pub type Result<T> = std::result::Result<T, ContractGap>;
@@ -241,6 +243,9 @@ pub struct Watercraft {
     pub(super) initialized: bool,
     pub(super) initialization_attempted: bool,
     pub(super) shut_down: bool,
+    pub(super) destroyed: bool,
+    /// Inherited motion captured when each slot-104/107 request was made.
+    pub(super) presentation_snapshots: Vec<super::PresentationSnapshot>,
 }
 
 impl Watercraft {
@@ -318,6 +323,8 @@ impl Watercraft {
             initialized: false,
             initialization_attempted: false,
             shut_down: false,
+            destroyed: false,
+            presentation_snapshots: Vec::new(),
         }
     }
 

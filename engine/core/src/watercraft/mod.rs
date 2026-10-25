@@ -8,8 +8,12 @@ mod crash;
 pub use crash::{CrashEffect, CrashEffectSet, CrashEffects, CrashInstance, GroundingTerrain};
 mod following;
 mod inherited;
+mod interface;
+pub use interface::{
+    AutomatonInterfaces, InterfacePointer, Release, DELETING_INTERFACE, LIFECYCLE_INTERFACE, QUERY_INTERFACE_OFFSETS,
+};
 mod lifecycle;
-pub use lifecycle::{InitializationServices, LifecycleServices};
+pub use lifecycle::{InitializationServices, LifecycleServices, ShutdownServices, ShutdownStack, SHUTDOWN_SOUND_EVENT};
 mod math;
 mod models;
 mod movement;
@@ -17,6 +21,8 @@ pub use models::{acquire_model, ModelHandle, ModelServices, ModelStorage};
 mod operations;
 mod owner;
 mod physics;
+mod presentation;
+pub use presentation::{PresentationServices, PresentationSnapshot};
 mod record;
 mod routes;
 mod runtime;
@@ -47,6 +53,8 @@ mod edge_tests;
 mod effect_tests;
 #[cfg(test)]
 mod integration_tests;
+#[cfg(test)]
+mod lifecycle_tests;
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]

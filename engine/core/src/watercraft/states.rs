@@ -4,10 +4,32 @@ use crate::automata::State;
 use super::{state, BoatId, ContractGap, DockManager, Event, Fleet, Result, Watercraft};
 
 impl Fleet {
-    /// Owner enter hooks only; inherited state handling is not replaced here.
+    /// Owner enter hooks with an always-true base HandleEnterState.
     pub fn push_state(&mut self, id: BoatId, state: State, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
+        self.push_state_entered(id, state, manager, &mut |_, _| true)
+            .map(|_| ())
+    }
+
+    /// HandleEnterState (`0x0056E340`): base HandleEnterState runs first and
+    /// its result is returned; the watercraft entry effects still run when
+    /// it is false (§5.7.1).
+    pub fn push_state_entered(
+        &mut self,
+        id: BoatId,
+        state: State,
+        manager: &mut Option<&mut dyn DockManager>,
+        base_enter: &mut dyn FnMut(&mut Watercraft, &State) -> bool,
+    ) -> Result<bool> {
         let kind = state.state_type;
         self.push_raw(id, state)?;
+        let boat = self.boat_mut(id)?;
+        let entered = boat.record.base.states.last().cloned().expect("state was just pushed");
+        let result = base_enter(boat, &entered);
+        self.owner_enter(id, kind, manager)?;
+        Ok(result)
+    }
+
+    fn owner_enter(&mut self, id: BoatId, kind: u32, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         match kind {
             state::PLAYER_DRIVE => {
                 let boat = self.boat_mut(id)?;
@@ -214,6 +236,15 @@ impl Fleet {
             boat.shut_down = true;
             return Ok(true);
         }
+        self.owner_shutdown(id, manager)?;
+        let boat = self.boat_mut(id)?;
+        boat.events.push(Event::BaseShutdown);
+        boat.shut_down = true;
+        Ok(true)
+    }
+
+    /// Watercraft-only Shutdown cleanup (§3), before inherited Shutdown.
+    pub(super) fn owner_shutdown(&mut self, id: BoatId, manager: &mut Option<&mut dyn DockManager>) -> Result<()> {
         if let Some(towed) = self.boat_mut(id)?.towed.take() {
             self.push_state(towed, State::new(state::SLOW_REMOVE), manager)?;
             self.boat_mut(towed)?.tug = None;
@@ -239,9 +270,7 @@ impl Fleet {
                 boat.events.push(Event::StopEffect(effect));
             }
         }
-        boat.events.push(Event::BaseShutdown);
-        boat.shut_down = true;
-        Ok(true)
+        Ok(())
     }
 }
 

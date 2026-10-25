@@ -235,7 +235,7 @@ impl Watercraft {
             if self.still_elapsed > 250.0 {
                 for key in super::WAKES {
                     self.events.push(super::Event::StopWake(key));
-                    self.events.push(super::Event::EffectUpdate);
+                    self.request_effect_update();
                 }
             }
         }

@@ -102,6 +102,41 @@ impl Fleet {
         crashes: &mut dyn CrashEffects,
         manager: &mut Option<&mut dyn DockManager>,
     ) -> Result<bool> {
+        let mut none = PresentationServices::default();
+        self.animation_tick(id, time, motion, animation, crashes, manager, &mut none)
+    }
+
+    /// Complete DoAnimationTick: the core order followed by in-order
+    /// execution of its wake, slot 104/107 and slot 100 requests (§5.1).
+    #[allow(clippy::too_many_arguments)] // Independent foreign-service groups and the two frame times.
+    pub fn animation_tick<T: GroundingTerrain>(
+        &mut self,
+        id: BoatId,
+        time: AnimationTimes,
+        motion: &mut MotionServices<'_, T>,
+        animation: &mut AnimationServices<'_, '_>,
+        crashes: &mut dyn CrashEffects,
+        manager: &mut Option<&mut dyn DockManager>,
+        presentation: &mut PresentationServices<'_, '_>,
+    ) -> Result<bool> {
+        let from = self.boat(id)?.events.len();
+        let result = self.animation_tick_body(id, time, motion, animation, crashes, manager);
+        if let Some(boat) = self.boats.get_mut(&id) {
+            boat.execute_presentation(from, animation, presentation);
+        }
+        result
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn animation_tick_body<T: GroundingTerrain>(
+        &mut self,
+        id: BoatId,
+        time: AnimationTimes,
+        motion: &mut MotionServices<'_, T>,
+        animation: &mut AnimationServices<'_, '_>,
+        crashes: &mut dyn CrashEffects,
+        manager: &mut Option<&mut dyn DockManager>,
+    ) -> Result<bool> {
         if !self.animation_budget(id, time.scale, time.animation, manager)? {
             return Ok(true);
         }
@@ -152,18 +187,8 @@ impl Fleet {
             }
         }
         let boat = self.boat_mut(id)?;
-        boat.events.push(Event::EffectUpdate);
-        boat.events.push(Event::ModelUpdate);
-        animation.subsidiary.lighting_tick(
-            boat,
-            animation.processed_model,
-            animation.heading_threshold,
-            animation.distance_squared,
-            animation
-                .lighting
-                .as_mut()
-                .map(|lighting| &mut **lighting as &mut dyn Lighting),
-        );
+        boat.request_effect_update();
+        boat.request_model_update();
         Ok(true)
     }
 
