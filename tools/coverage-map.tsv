@@ -732,6 +732,22 @@ cSCStringDetokenizer*	strings and language	framework	-	-	-	-
 fn:gAdviceDetokenizerFunction	strings and language	framework	advice-tokens.md	-	-	-
 fn:gNeighborDealAdviceDetokenizerFunction	strings and language	framework	advice-tokens.md	-	-	-
 fn:SC4LoadString	strings and language	framework	crime.md	-	-	-
+fn:SC4LoadExemplarString	strings and language	framework	crime.md	-	-	-
+fn:RZFtoaEnglishA	data formats (DBPF, exemplars)	framework	data-formats.md	-	-	-
+fn:RZAtoUint64HexA	data formats (DBPF, exemplars)	framework	data-formats.md	-	-	-
+fn:RZStrtodEnglishA	data formats (DBPF, exemplars)	framework	data-formats.md, small-helpers.md	-	-	-
+fn:SC4GetOccupantViewLevel	occupants and props	simulation	occupant-manager.md	-	-	-
+fn:NetworkNameToID	network rules	simulation	network-rules.md	-	-	-
+fn:LoadOverrideCallback	network rules	simulation	network-rules.md	-	-	-
+fn:Expand	terrain	simulation	terrain.md	-	-	-
+fn:SC4GamePause	application	framework	auto-game-pause.md	-	-	-
+fn:SC4CreateWindowFromScript	windows and panels	ui	ui-windows.md, small-helpers.md	-	-	-
+fn:GetNewTempFilePath	framework services (RZ)	framework	small-helpers.md	-	-	-
+fn:SC4ExportRecordToFile	persistence and resources	framework	small-helpers.md	-	-	-
+fn:SC4DisplayResourceError	application	framework	small-helpers.md	-	-	-
+fn:RZSpawnWait	framework services (RZ)	framework	small-helpers.md	-	-	-
+fn:ConvertBufferFromFormatToFormat	2D drawing and fonts	renderer	small-helpers.md	-	-	-
+fn:S3DTransformLegacyLoad	3D scene and models	renderer	small-helpers.md, lot-records.md	-	-	-
 cRZLanguageUtility	strings and language	framework	language-utility.md	core/src/language	-	-
 cRZLanguageManager	strings and language	framework	strings-language.md	core/src/language	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
