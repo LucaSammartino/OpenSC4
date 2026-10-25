@@ -20,12 +20,14 @@ activated is not a prediction that all of its unobserved methods execute.
 
 `owners.tsv` contains all 185 threshold owners, largest gap first, in the
 requested seven-column format. `owner-creation.tsv` separates constructor and
-creator evidence from the play trigger. The first pass identifies 99 named
-constructors, 41 vtable-writing constructor candidates, 42 lifecycle-only
-witnesses and three non-object groups. Candidates are explicitly unverified;
+creator evidence from the play trigger. The final pass identifies 99 named
+constructors, three spec-confirmed unnamed constructors, six inline construction
+sites, 41 vtable-writing constructor candidates, 33 lifecycle-only witnesses
+and three non-object groups. Candidates are explicitly unverified;
 a vtable store alone can also be a destructor or a base-class initialization.
-Only named constructors/non-object groups can receive high confidence in this
-pass, and an uncertain play driver still lowers that confidence.
+Named/spec-confirmed constructors, checked inline construction and non-object
+groups can receive high confidence; an uncertain play driver still lowers it.
+`owner-evidence.md` records the hand refinements and the remaining limits.
 
 `actions.tsv` now groups owners by their proposed activation trigger, giving
 35 disjoint planning groups. The ranking is the sum of each member owner's
@@ -37,6 +39,23 @@ retained in the work order rather than relabelled as dead code.
 
 The original function-level work order is preserved as
 `actions-functions-r1.tsv`; `triggers.tsv` and its failed controls are unchanged.
+
+`owner-scenarios.tsv` names a region, existing save and public driver for every
+top-20 group. Their 2,140,679-byte gap is a planning sum. There are six dated
+scripts, ten candidate Lua drivers and four Lua files which deliberately refuse
+to proceed without an unresolved format/web/mission/authoring driver. Candidate
+UI scripts still require calibrated map clicks, controls or modal closing;
+none of the twenty is dynamically validated. The engine-facing contract is
+`docs/specs/scenario-activation.md`. No shared suite row is admitted with an
+invented end date; resolve each native saved date and preflight the city first.
+
+`owner-observations.tsv` inventories upstream suite/scriptgen summaries and
+aggregate reach evidence. Their address-record count is zero, so no additional
+owner-reach union is inferred. `owner-observation-inputs.tsv` pins those inspected
+artifacts, and `observed-findings.tsv` gives upstream mismatching keys, scenarios,
+original log paths and first lines. Incomplete runs are classified separately
+and retain `-` when no mismatching line exists. These are upstream observations, not new
+triggermap27 runs or causal diagnoses.
 
 ## Round 1: retained function-level candidate graph
 

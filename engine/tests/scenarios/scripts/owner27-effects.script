@@ -1,0 +1,8 @@
+# Require native ignition of a flammable developed building; keep the active fire in view.
+# Setup is overdue and runs on the first new day; observe four subsequent months.
+2000-01-01 mark visible fire and effects
+2000-01-01 disaster survey
+2000-01-01 disaster fire auto
+2000-01-01 clockmode 2
+2000-01-01 speed 2
+2000-01-01 digest
