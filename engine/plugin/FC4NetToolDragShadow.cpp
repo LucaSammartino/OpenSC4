@@ -73,6 +73,22 @@ void UndoPlan(void* p) {
     tool->ClearCellPreviews();
     tool->Shutdown();
 }
+struct PlanningContext : NetToolContext {
+    fc4_powerline_selection selection{};
+    bool selectionReady = false;
+};
+bool PowerlineDraft(void* u, fc4_nettool_run* run, uint32_t, uint32_t neighbourMode, bool real) {
+    auto& context = *static_cast<PlanningContext*>(static_cast<NetToolContext*>(u));
+    if (run->type_id != 5 || real || neighbourMode != 0) return false;
+    // network-tools sections 5.1/9: slot 53 handles the subclass and returns
+    // true, bypassing the base terrain solve even for a one-step drag.
+    context.selection = {};
+    context.selectionReady = run->dragged_count < 2 ||
+        ReadNetToolPowerlineSelection(&context, &context.selection);
+    run->valid_count = context.selection.valid;
+    // Incomplete observations remain unavailable, never a successful sample.
+    return true;
+}
 bool ClearPlanningOrigin(cISC4City* city, int32_t& x, int32_t& z) {
     auto* occupants = city->GetOccupantManager(); // borrowed
     if (!occupants) return false;
@@ -133,7 +149,7 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
             if (!native) { ++unavailable; continue; }
             FC4_ADDREF(native);
             {
-                NetToolContext context;
+                PlanningContext context;
                 context.city = city;
                 auto gh = MakeNetGeomHost(&context);
                 // No terrain writes, terrain transactions or redisplays in a
@@ -146,8 +162,9 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
                 const auto source = MakeNetToolHost(&context);
                 fc4_nettool_host th{};
                 th.struct_size = sizeof(th);
-                th.user = &context;
+                th.user = static_cast<NetToolContext*>(&context);
                 th.draw_network_line = source.draw_network_line;
+                if (power) th.do_network_specific_placement = &PowerlineDraft;
                 th.validate_and_solve = source.validate_and_solve;
                 th.get_network_occupant = source.get_network_occupant;
                 auto* core = fc4_nettool_create(&th, type);
@@ -171,15 +188,9 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
                     cost = fc4_netgeom_cost(context.geom, 0);
                     cells.resize(fc4_netgeom_get_cells(context.geom, nullptr, 0));
                     fc4_netgeom_get_cells(context.geom, cells.data(), static_cast<uint32_t>(cells.size()));
-                    if (power && state.dragged_count < 2) {
-                        // network-tools section 9: the subclass skips selection
-                        // for a one-step drag and leaves no retained poles/cost.
-                        valid = 0;
-                        failure = 0;
-                        cost = 0;
-                    } else if (power) {
-                        fc4_powerline_selection selection{};
-                        ready = ReadNetToolPowerlineSelection(&context, &selection) && ready;
+                    if (power) {
+                        const auto& selection = context.selection;
+                        ready = context.selectionReady && ready;
                         valid = selection.valid;
                         failure = selection.failure != 0 ? 1u : 0u;
                         cost = selection.cost;
