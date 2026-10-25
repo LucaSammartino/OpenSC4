@@ -1,13 +1,15 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| glue-overlays-replace17 (overlay probe safeguards) | `Codex` / `glue-overlays-replace17` (engine lane) | Ready measured partial: cargo 7525 passed, clippy 0 diagnostics, ctest 82/82; two clean turbo runs through 2032, ref_warnings=0; getters 73/73 each, fixture records/replay 292/292 each; ABI unchanged | Specify native construction/Init interception before implementing or crediting the overlays replacement. |
+| glue-overlays-replace17 (portable overlay owner factory) | `Codex` / `glue-overlays-replace17` (engine lane, detached HEAD) | Ready measured partial: cargo 7527 passed, clippy 0 diagnostics, ctest 85/85; clean turbo through 2032, ref_warnings=0; factory 27/27, shadow 73/73, records/replay 292/292; ABI unchanged; native replacement incomplete | Implement specified native routing/resource adapters and validate the full house list before adding overlays to that list. |
 
-Changes: unavailable requested fixture replay now emits a failing shadow line and contributes 35 mismatches instead of disappearing into a 0/0 replay summary.
-Tests: extended observer ctest covers unavailable fixture accounting/reset; new overlays_contract_test checks actual Rust transport, x86 getter slots/output order, untouched placement outputs, borrowed references, default-off behavior and unavailable-load failure.
-Gate: qbuild all PASS; workspace 7525 passed/0 failed/0 ignored; clippy zero diagnostics; queued native build 272/272 edges, CTest 82/82 including both overlay tests.
-`gor17-750e5ab55-observe-2032 73/73` — clean, 2032-01-19, ref_warnings=0; record observation 292/292 with empty arenas.
-`gor17-750e5ab55-fixture-2032 73/73` — clean, 2032-01-01, ref_warnings=0; populated-record observation 292/292 (12264 checks), controlled replay 292/292 (10220 fields), all mismatches=0, incomplete=0.
-Evidence: both unique-label `.verdict` and `.log` files under `build-runs/game-results/`; requests under `build-runs/game-queue/done/`; native logs `build-runs/fc4verify-{build,ctest}.log`; DLL SHA256 prefix `1452557b` in both verdicts.
-Missing: no overlays replace key/factory was registered. Overlay-manager section 3.8.1 specifies direct construction and direct Init of all four managers, with no class ID or factory interception contract. Header marks this SPEC-GAP; tutorial-style registration cannot intercept those calls.
-Replacement-only and full-house replacement runs remain blocked by that construction boundary. These runs verify original-owner probes and a controlled suffix; complete Init/history/image-byte/drawing equivalence remains unmeasured (OV13 and the spec's renderer residuals).
-Questions: none filed, following revised run-5 instructions; no tools/profile/coverage files changed. The house replace list must not gain overlays from this partial patch.
+Code: default-off `overlays` registers FC4-owned CLSID 0xFC401717/private IID 0xFC401718; native IID 0x895D6544 is rejected. The portable factory owns the production terrain_overlays manager through a Mutex and explicit dimension-bearing inputs.
+Controls: Init/Shutdown, binding decals, removal, alpha, visibility and sticky self-lighting. Tests cover flag retention across repeated Init, reset after Shutdown, sentinel no-ops, invalid/removed handles and simultaneous readers/writers.
+Final-round code extends the live GZCOM lifecycle probe and real-DLL CTest with those flag and handle checks. No public C ABI exports changed.
+Gate: final qbuild all PASS; cargo 7527/0/0, clippy 0 diagnostics; native queue qbuild-20261025-022938-build-ctest, build 55/55 edges, CTest 85/85. Logs: build-runs/qbuild-{test,clippy}.log and build-runs/fc4verify-{build,ctest}.log.
+Diagnostic: first gate failed two incorrect sentinel assertions (84/85); corrected to successful no-ops consistent with core. Original failure retained in build-runs/fc4verify-ctest-sentinel-failure.log and build-results/qbuild-20261025-020649-build-ctest.verdict.
+`gor17-r5-flags-2032-20261025b 73/73` — clean turbo, end_date 2032-01-01, actual verdict date 2032-01-07, ref_warnings=0; DLL SHA256 prefix 359f37ae; enable=overlays, overlays_shadow=1, overlays_fixture=1.
+Live GZCOM factory probe 27/27, mismatches=0; overlay shadow 73/73, records 292/292, replay 292/292, every mismatch count zero; no incomplete samples, panics or structured exceptions.
+Evidence: build-runs/game-results/gor17-r5-flags-2032-20261025b.{verdict,log}; completed request under build-runs/game-queue/done/.
+Open: native_interception=0. Native Init/history/drawing and resource adapters remain unimplemented; the terrain view still returns native managers. This measured portable factory is not yet a cSTEOverlayManager replacement.
+Full-house replacement run remains unperformed; current house list unavailable within permitted sources. Do not append overlays to the house replace list on this evidence.
+Questions: none filed; existing SPEC-GAP comments identify unsupported routing. No specs, tools, profiles, coverage files or run records edited.

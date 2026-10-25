@@ -148,6 +148,8 @@ FC4_DISASTER_FACTORY_DECL(Effect)
 FC4_DISASTER_FACTORY_DECL(Toxic)
 #undef FC4_DISASTER_FACTORY_DECL
 
+#include "FC4OverlayOwner.h"
+
 namespace fc4 {
 namespace {
 
@@ -495,6 +497,13 @@ const ClassEntry kSimGridClasses[] = {
     {0x49B9E60B, "cSC4SimGrid<double>", &CreateFC4SimGridF64},
 };
 
+// SPEC-GAP: §3.8.1 supplies no native CLSID/Init factory protocol. This FC4
+// identity exercises ownership without guessing a native identity or returning
+// a partial object for IID 0x895D6544. It cannot yet replace live view managers.
+const ClassEntry kOverlayOwnerClasses[] = {
+    {kFC4_CLSID_OverlayOwner, "cFC4OverlayOwner", &CreateFC4OverlayOwner},
+};
+
 // Replace managers and instances together: disasters.md §2.8 / DS44.
 const ClassEntry kDisasterClasses[] = {
     {0x61F6ABF5, "cSC4DisasterLayer", &CreateFC4DisasterLayer},
@@ -594,6 +603,7 @@ const Subsystem kSubsystems[] = {
     {"span8888", nullptr, nullptr, 0, false},
     // SR8-2: constructed type2 evidence does not enable this by default.
     {"span8", nullptr, nullptr, 0, false},
+    {"overlays", nullptr, kOverlayOwnerClasses, sizeof(kOverlayOwnerClasses) / sizeof(kOverlayOwnerClasses[0]), false},
     {"disasters", nullptr, kDisasterClasses, sizeof(kDisasterClasses) / sizeof(kDisasterClasses[0]), false},
     {"advisors", nullptr, kAdvisorsClasses, sizeof(kAdvisorsClasses) / sizeof(kAdvisorsClasses[0]), false},
     // Partial occupant replacement: only the fully specified power-line owner.
@@ -781,6 +791,9 @@ void Resolve() {
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
     ExemplarFactorySetEnabled(enabledKey("exemplars"));
     Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
+    if (enabledKey("overlays")) {
+        Log("overlays: FC4 owner factory registered; native manager interception=0 (SPEC-GAP)");
+    }
     // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
     TurboReload(g_enabled[0]);
     // The network tool registry (glue29): with `enable = nettool` the plugin's
