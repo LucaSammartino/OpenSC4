@@ -1,21 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| core-listtree-close14 (ListBox and TreeView owner closure) | `Codex` / `core-listtree-close14` (engine lane) | in progress | (1) Audit spec slots and literal vectors; (2) implement and test gaps; (3) run full gates and enqueue. |
+| core-listtree-close14 (ListBox/TreeView adapters and vectors) | `Codex` / `core-listtree-close14` (engine lane) | in progress; native build 269/269, CTest 81/81; workspace gate pending | (1) Collect session 82857; (2) resolve diagnostics; (3) enqueue after passing. |
+
+## Report
+- 7be4f5c0e implements TreeView O23/O24, descriptor output replacement and selection copying; ListBox raw byte round trips, exact-search output and base-flag service.
+- Added property/resource/input tests and literal selected-child/grandchild root removal; existing README cells updated. FileBrowser/TextEdit rows untouched. ABI unchanged; no game runs or questions filed.
+- Native queued verification qbuild-20261025-001314-build-ctest PASS: 269/269 edges, CTest 81/81. Formatting and diff checks passed.
 
 ## Handoff
-
-- Goal: close cGZWinListBox and cGZWinTreeView in core only, with complete owner/slot/vector coverage.
-- Worktree: reserved detached HEAD; clean at start, no commits ahead of main.
-- Done: audit checkpoint f57839fa5; implemented raw property aliases/stored-pair/base-color adapters, checked stale-root Init, provisional automatic buffer/bar layout and additional literal vector/helper tests.
-- Done: module README now has ListBox slot map and updated owner closure rows; WC7 filed for exact buffer/bar recalculation policy.
-- Stop: two-thirds context threshold reached; no new implementation work. TreeView primary-wrapper and exhaustive assertion audit remain partial.
-- Done: implementation commit e8020b3e3; six-file final formatting PASS. Focused session 9875 collected to terminal: exit 101, obsolete helper-name error; current source uses move_to.
-- Pending: stable-source qbuild all started 2026-10-24 22:50:18 with CARGO_BUILD_JOBS=1; session 90505 remains active. At 23:46:35 only compilation progress (core/formats/conformance/capi), no test summary. Log: build-runs/qbuild-test.log. No duplicate full gate launched.
-- STOP: lane guard denied process diagnostics at the 150k context limit. Only handoff/commit operations remain permitted; no merge-queue entry written.
-- Last collection: original qbuild all session 90505 still running after ten more 60-second waits following checkpoint 084207869; no new output. Collector cell 84 finished normally with the operation still active. The guard now prevents collecting its terminal result in this round.
-- Next: resume collection of the SAME session 90505 (do not launch another all check for progress), read its PASS/FAIL lines and bounded failure excerpts; then explicitly run queued qbuild verify. Resolve diagnostics only; finalize Report + Handoff and merge queue (ready only if gates pass).
-- Gate facts: all began on e8020b3e3 source, unchanged by docs-only checkpoint 084207869; final fmt six files PASS; focused old-source failure terminal/retained; native verify not yet requested. Full owner credit target remains unmet (TreeView 6.1/6.6 wrapper audit, 7 exhaustive assertion audit, open WC7 for 6.5).
-- Evidence: q Bash startup failed in build-runs/q/20261024-222624-28284.log. Original focused failure retained in build-runs/focused-widget-controls.log.
-- Scope: do not edit plugin, capi, coverage-map, FileBrowser or TextEdit rows; ABI unchanged.
-- Gates: final qbuild all plus coordinator-queued qbuild verify; no game request required for core-only work.
-- Manifest: C:/Users/tlori/FreeCity4/build-runs/run4-core-listtree-close14-r1-manifest.json.
+- Context ceiling reached; no ready claim or merge queue. Reserved detached HEAD; supervisor publishes commits.
+- Collect existing qbuild all session 82857 (collector cell 66) to terminal; NEVER duplicate it for progress. qbuild-test.log ends compiling core/formats/conformance/capi, without test summary.
+- Environment: CARGO_BUILD_JOBS=1, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0.
+- Focused session 90880 terminal: exit 101, 90 passed/1 failed on earlier source; clear-mask test setup already fixed with raw_style[4]=3. Unused-mut warning also fixed. Preserve focused-widget-r2.log.
+- Original 90505 unavailable, no live corresponding worktree process; preserved incomplete-session-90505.log. Native session 30695 collected PASS.
+- Next: collect workspace tests/clippy/native verdict, resolve real diagnostics, then final report and ready queue with full HEAD. No further implementation audit planned. SPEC-GAP comments cover silent buffer/bar and flag policies and packed padding.

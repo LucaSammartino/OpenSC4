@@ -306,6 +306,7 @@ fn wc_t13_t16_flatten_anchor_and_viewport() {
     t.set_margins(0, 0, &mut f);
     t.layout_viewport([0, 0, 100, 33], [100, 100], [0, 0]).unwrap();
     assert_eq!((t.viewport_rows, t.page_count), (2, 3));
+    assert_eq!(t.first + t.page_count as i32 - 1, 2); // WC-T16 last paint row
 }
 
 #[test]
@@ -353,6 +354,7 @@ fn wc_t19_t26_properties_order_descriptors_and_restart() {
     t.apply_descriptor(a, value, &mut f);
     assert!(!t.nodes[&a].force_branch);
     assert_eq!(t.nodes[&a].children, topology);
+    assert!(t.get_visible(a)); // WC-T25: visible=false does not hide the node
     let root = t.root;
     let next = t.next_handle;
     t.shutdown(&mut f);
@@ -391,7 +393,7 @@ fn wc_t27_t29_t36_image_retention_metrics_and_failure() {
     let mut t = tree_view::TreeView::new(1);
     f.fail_image_slot = Some(0);
     f.image_attempts.clear();
-    t.init(&mut f);
+    assert!(t.init(&mut f)); // WC-T36: no aggregate image-init failure
     assert_eq!(f.image_attempts, [0, 1, 2, 3]);
     assert!(t.images.iter().all(Option::is_some));
 }

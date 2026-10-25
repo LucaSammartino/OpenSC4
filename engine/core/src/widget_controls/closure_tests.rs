@@ -269,6 +269,30 @@ fn tree_selection_output_and_borrowed_adapter_inventory() {
 }
 
 #[test]
+fn wc_t31_literal_selected_child_and_grandchild_removal_preserves_root() {
+    let (mut t, mut f, a, _) = tree();
+    let child = t.insert_text(a, -3, b"child", 0, &mut f).unwrap();
+    let grandchild = t.insert_text(child, -3, b"grandchild", 0, &mut f).unwrap();
+    t.flags |= 0x10;
+    t.select(child, false, &mut f);
+    t.select(grandchild, false, &mut f);
+    f.messages.clear();
+    let root = t.root;
+    assert!(t.clear_root(&mut f));
+    assert_eq!(t.root, root);
+    assert_eq!(t.nodes.len(), 1);
+    assert!(t.nodes[&0].children.is_empty());
+    assert!(t.selection.is_empty());
+    assert!(!t.nodes.contains_key(&child));
+    assert!(!t.nodes.contains_key(&grandchild));
+    assert_eq!(selection_messages(&f, tree_view::SELECTION), 2);
+    assert!(f
+        .messages
+        .iter()
+        .all(|(_, m)| m.words == [tree_view::SELECTION as i32, 0, 0, 0]));
+}
+
+#[test]
 fn tree_property_setters_and_raw_resource_aliases_have_literal_side_effects() {
     let (mut t, mut f, a, _) = tree();
     // All changed layout properties invalidate once; identical writes do not.
