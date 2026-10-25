@@ -39,9 +39,12 @@ Owner classes specified here (coverage-map owners; byte counts from `tools/cover
 
 See [SC resources](sc-resources.md) for `cGZPersistBufferResource` (BMP/TGA),
 `cGZPersistASCIIWriter`, `cSLTokenRecord`, its text adapter, and `nSCRes` script
-services. Still outside this spec: the persist-buffer factory,
-`cGZPersistBinaryReader`/`Writer`, `cGZPersistSurveyorWriter`,
-`cGZPropertySet*`/`cPropertySet*`, and the remaining `cSL*`/`SL` owners.
+services. Still outside this spec: the persist-buffer factory
+([persist-buffer-factory.md](persist-buffer-factory.md)),
+`cGZPersistBinaryReader`/`Writer` and `cGZPersistSurveyorWriter`
+([persist-graph.md](persist-graph.md)), `cGZPropertySet*`/`cPropertySet*`
+([property-sets.md](property-sets.md)), and the remaining `cSL*`/`SL` owners
+([sl-library.md](sl-library.md)).
 
 ## 2. DB record (`cGZPersistDBRecord`, `cIGZPersistDBRecord` IID `0xE56B8F03`)
 

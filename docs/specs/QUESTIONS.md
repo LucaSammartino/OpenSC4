@@ -44,6 +44,7 @@ generated index: the questions live one file per spec, so read only the file for
 | CA | camera |
 | CB | civic-buildings |
 | CCD | cheat-dialog |
+| CCM | cheat-codes |
 | CD | city-detail |
 | CK | clock24 |
 | CL | command-line |
@@ -114,6 +115,7 @@ generated index: the questions live one file per spec, so read only the file for
 | MMW | minimap |
 | MPR | missing-plugin-reporter |
 | MS | mysims |
+| MST | mysim-tools |
 | MW | mysim-windows |
 | NB | neighbors, network-bridges |
 | NG | neighbors, network-geometry |
@@ -150,6 +152,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RA | radio |
 | RB | rigid-body-2d |
 | RC | resource-catalog |
+| RCI | demand-trend-bars |
 | RD | renderer-driver |
 | RE | resource-exemplar-editor |
 | REV | resource-editor-views |
@@ -164,6 +167,7 @@ generated index: the questions live one file per spec, so read only the file for
 | RS | residential |
 | RY | regional-city |
 | RZ | framework-rz-files |
+| RZD | rz-draw |
 | RZS | rz-strings |
 | SCP | audio-scape |
 | SCR | sc-resources |
@@ -188,6 +192,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TK | animation-tick-manager |
 | TM | timers |
 | TN | traffic-network |
+| TOD | tip-of-the-day |
 | TR | terrain |
 | TS | traffic-simulator |
 | TU | tutorial |
@@ -195,6 +200,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TV | terrain-view |
 | UG | underground-occupants |
 | UIH | ui-helpers |
+| UIS | ui-script-service |
 | VH | vehicles |
 | VIC | view-input-controls |
 | VP | video-preferences |
@@ -202,9 +208,14 @@ generated index: the questions live one file per spec, so read only the file for
 | VW | view3d-window |
 | WC | watercraft |
 | WCB | callout-box |
+| WDD | widget-dragdrop |
 | WE | weather |
 | WG | win-grid |
+| WGN | widget-wingen |
+| WLI | widget-lineinput |
 | WR | water-ripples |
+| WSL | widget-slider |
+| WSP | widget-spinner |
 | WT | widget-toolkit |
 | WTC | widget-toolkit |
 | WTG | widget-toolkit |
@@ -217,7 +228,7 @@ generated index: the questions live one file per spec, so read only the file for
 
 | Spec | Open | Answered | Next free ID | File |
 |---|---:|---:|---|---|
-| advisor-window | 2 | 3 | AW6 | questions/advisor-window.md |
+| advisor-window | 1 | 4 | AW6 | questions/advisor-window.md |
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
 | aircraft | 7 | 4 | AF12 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
@@ -241,6 +252,7 @@ generated index: the questions live one file per spec, so read only the file for
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
 | camera | 2 | 8 | CA11 | questions/camera.md |
 | catalog-view | 2 | 0 | CV3 | questions/catalog-view.md |
+| cheat-codes | 1 | 0 | CCM2 | questions/cheat-codes.md |
 | cheat-dialog | 3 | 0 | CCD4 | questions/cheat-dialog.md |
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
 | city-situation | 2 | 11 | CS14 | questions/city-situation.md |
@@ -256,6 +268,7 @@ generated index: the questions live one file per spec, so read only the file for
 | data-formats | 3 | 60 | EX58 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | - |
+| demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 3 | 44 | DS48 | questions/disasters.md |
 | dispatch | 1 | 12 | DP14 | questions/dispatch.md |
@@ -306,6 +319,7 @@ generated index: the questions live one file per spec, so read only the file for
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
 | model-maker | 1 | 1 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
+| mysim-tools | 3 | 0 | MST4 | questions/mysim-tools.md |
 | mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
 | mysims | 0 | 22 | MS23 | questions/mysims.md |
 | nation | 0 | 4 | NQ5 | questions/nation.md |
@@ -353,7 +367,7 @@ generated index: the questions live one file per spec, so read only the file for
 | regional-city | 8 | 0 | RY9 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
-| render3d | 3 | 1 | RND5 | questions/render3d.md |
+| render3d | 2 | 2 | RND5 | questions/render3d.md |
 | renderer-driver | 6 | 11 | RD13 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
@@ -363,6 +377,7 @@ generated index: the questions live one file per spec, so read only the file for
 | resource-editor-views | 6 | 0 | REV7 | questions/resource-editor-views.md |
 | resource-exemplar-editor | 8 | 0 | RE9 | questions/resource-exemplar-editor.md |
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
+| rz-draw | 1 | 0 | RZD2 | questions/rz-draw.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
 | rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
 | sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
@@ -384,6 +399,7 @@ generated index: the questions live one file per spec, so read only the file for
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
 | timers | 0 | 3 | TM4 | questions/timers.md |
+| tip-of-the-day | 1 | 0 | TOD2 | questions/tip-of-the-day.md |
 | tools-com-director | 2 | 2 | TD5 | questions/tools-com-director.md |
 | traffic-network | 0 | 29 | TN30 | - |
 | traffic-simulator | 0 | 94 | TG27, TS69 | questions/traffic-simulator.md |
@@ -391,6 +407,7 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial-window | 4 | 2 | TUW7 | questions/tutorial-window.md |
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
+| ui-script-service | 1 | 0 | UIS2 | questions/ui-script-service.md |
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 9 | VH12 | questions/vehicles.md |
@@ -403,9 +420,14 @@ generated index: the questions live one file per spec, so read only the file for
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 2 | 0 | Q17 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
-| widget-toolkit | 13 | 7 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-dragdrop | 1 | 0 | WDD2 | questions/widget-dragdrop.md |
+| widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
+| widget-slider | 2 | 0 | WSL3 | questions/widget-slider.md |
+| widget-spinner | 2 | 0 | WSP3 | questions/widget-spinner.md |
+| widget-toolkit | 11 | 9 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-wingen | 2 | 1 | WGN4 | questions/widget-wingen.md |
 | win-filebrowser | 3 | 3 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **655** | **1569** | | |
+| **total** | **668** | **1574** | | |
