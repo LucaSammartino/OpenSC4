@@ -84,7 +84,7 @@ def shadow_reach(data, logs):
     for va, _, index, _ in data["game"]:
         status = data["rows"][index] if index is not None else {}
         shadow = status.get("shadow", "-")
-        name = data["att"].name(va).rsplit("::", 1)[-1].split("(", 1)[0]
+        name = (data["att"].name(va) or "").rsplit("::", 1)[-1].split("(", 1)[0]
         if shadow.endswith("_shadow"):
             candidates[(shadow[:-7], name)].append(va)
     pattern = re.compile(r"\b(\w+) shadow \(([^)]+)\).*?\bcalls=(\d+)\b")

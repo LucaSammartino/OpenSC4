@@ -228,7 +228,7 @@ def test_only_house_log_paths_are_selected(tmp_path):
 
 def test_named_shadow_reach_does_not_credit_entire_owner_or_ambiguous_names(tmp_path):
     names = {0x401000: "A::PlaceZone", 0x402000: "A::Other", 0x403000: "B::PlaceZone",
-             0x404000: "C::Ambiguous", 0x405000: "C::Ambiguous", 0x406000: "C::Zero"}
+             0x404000: "C::Ambiguous", 0x405000: "C::Ambiguous", 0x406000: "C::Zero", 0x407000: None}
     data = dict(game=[(va, 40, 0 if va < 0x403000 else 1, "simulation") for va in names],
                 att=SimpleNamespace(name=names.__getitem__),
                 rows=[dict(shadow="zones_shadow"), dict(shadow="other_shadow")])
