@@ -1,7 +1,7 @@
 """One reserved lane round, using Claude Workflow or Codex subscription CLI.
 
 This is the worker transport. lane_launch.py owns scheduling and round reservations.
-It never changes providers automatically, resumes a model conversation, or merges code.
+It never changes providers automatically or merges code. Transport retries resume the same conversation.
 """
 import argparse
 import json
@@ -145,6 +145,11 @@ def codex_command(m, schema, final, env):
     for key in ('model', 'model_reasoning_effort', 'windows.sandbox'):
         if options.get(key):
             args += ['-c', key + '=' + json.dumps(options[key])]
+    tier = m.get('args', {}).get('serviceTier', options.get('service_tier'))
+    if tier is not None:
+        if tier not in ('fast', 'default'):
+            raise ValueError('Codex service_tier must be fast or default')
+        args += ['-c', 'service_tier=' + json.dumps(tier)]
     if m['kind'] == 're':
         cfg = laneguard.rea_config()
         if not cfg:
@@ -160,6 +165,76 @@ def codex_command(m, schema, final, env):
              '--add-dir', str(Path(m['main'])/'build-runs'),
              '--output-schema', str(schema), '-o', str(final), '-']
     return args
+
+
+def codex_resume_command(command, session_id):
+    # CLI 0.163: cwd/add-dir belong to exec, not its resume subcommand.
+    index = command.index('exec')
+    parent, options = command[:index + 1], command[index + 1:-1]
+    for flag in ('-C', '--add-dir'):
+        while flag in options:
+            i = options.index(flag)
+            parent += options[i:i + 2]
+            del options[i:i + 2]
+    return parent + ['resume', *options, session_id, '-']
+
+
+TRANSPORT_ERROR = re.compile(
+    r'Reconnecting|workspace routing discovery|stream disconnected|request timed out|'
+    r'No such host is known|error sending request', re.I)
+RESUME_PROMPT = ('The connection dropped. Continue the same task from where you stopped; '
+                 're-check git status first.')
+
+
+class CodexRoundError(RuntimeError):
+    def __init__(self, message, usage):
+        super().__init__(message)
+        self.usage = dict(usage)
+
+
+def codex_events(path, offset, usage):
+    errors, session_id = [], None
+    with path.open('rb') as stream:
+        stream.seek(offset)
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if event.get('type') == 'thread.started':
+                session_id = event.get('thread_id')
+            if event.get('type') == 'turn.completed':
+                for key, value in (event.get('usage') or {}).items():
+                    if isinstance(value, (int, float)):
+                        usage[key] = usage.get(key, 0) + value
+            if event.get('type') in ('turn.failed', 'error'):
+                message = event.get('message') or event.get('error') or event
+                if isinstance(message, dict):
+                    message = message.get('message', message)
+                errors.append(str(message))
+    return errors, session_id
+
+
+def stop_codex(proc):
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=NOWIN)
+    else:
+        proc.terminate()
+    try:
+        proc.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
+def update_codex_status(m, **fields):
+    path = Path(m['status_path'])
+    with codexguard.locked(path.with_suffix('.lock')):
+        status = laneguard.read_json(str(path), {})
+        status.update(fields)
+        write_json(path, status)
+    return status
 
 
 def validate_result(result, m):
@@ -183,7 +258,9 @@ def validate_result(result, m):
     return result
 
 
-def run_codex(m):
+def run_codex(m, *, clock=None, sleep=None):
+    clock, sleep = clock or time.time, sleep or time.sleep
+    _, hard_limit = codexguard.round_limits(m)
     manifest = Path(m['manifest'])
     rendered = render(m['args'], 'codex', manifest)
     prompt, schema = manifest.with_suffix('.prompt.txt'), manifest.with_suffix('.schema.json')
@@ -192,32 +269,66 @@ def run_codex(m):
     write_json(schema, rendered['schema'])
     env = codex_environment()
     command = codex_command(m, schema, final, env)
-    with prompt.open('rb') as inp, events.open('wb') as out:
-        # Below normal (children inherit it): the train gate and the game queue run at normal and win the CPU
-        below = subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == 'nt' else 0
-        proc = subprocess.Popen(command, cwd=m['worktree'], stdin=inp, stdout=out,
-                                env=env, creationflags=NOWIN | below)
-        while proc.poll() is None:
-            if manifest.with_suffix('.fatal.json').exists():
-                proc.terminate()
-                proc.wait(timeout=20)
-                raise RuntimeError('Codex hook failed; round stopped. See manifest fatal diagnostic.')
-            time.sleep(.2)
-    status = laneguard.read_json(m['status_path'], {})
+    status = update_codex_status(m, round_started=clock(), paused_seconds=0)
+    usage, resumes = {}, []
+    session_id = status.get('session_id')
+    events.write_bytes(b'')
+    for attempt in range(4):
+        if final.exists():
+            final.replace(final.with_suffix(f'.before-attempt-{attempt}.json'))
+        offset = events.stat().st_size
+        timed_out, fatal = False, False
+        with prompt.open('rb') as inp, events.open('ab') as out:
+            # Children inherit below-normal priority so the gate and game queue win the CPU.
+            below = subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == 'nt' else 0
+            proc = subprocess.Popen(command, cwd=m['worktree'], stdin=inp, stdout=out,
+                                    env=env, creationflags=NOWIN | below)
+            try:
+                while proc.poll() is None:
+                    fatal = manifest.with_suffix('.fatal.json').exists()
+                    timed_out = codexguard.round_elapsed(status, clock()) >= hard_limit
+                    if fatal or timed_out:
+                        stop_codex(proc)
+                        break
+                    sleep(.2)
+            finally:
+                if proc.poll() is None:
+                    stop_codex(proc)
+        errors, thread_id = codex_events(events, offset, usage)
+        if fatal or manifest.with_suffix('.fatal.json').exists():
+            raise CodexRoundError('Codex hook failed; round stopped. See manifest fatal diagnostic.', usage)
+        if timed_out or codexguard.round_elapsed(status, clock()) >= hard_limit:
+            update_codex_status(m, round_timed_out=True)
+            result = dict(lane=m['lane'], tip=laneguard.worktree_head(m['worktree']), state='continue',
+                          gate='n/a', game='n/a', questions='none', abi=False,
+                          summary='Round time budget reached; committed work preserved.',
+                          next=['Continue from git status and the lane notes.'])
+            codexguard.record_result(m, result)
+            return dict(type='result', subtype='success', provider='codex', is_error=False,
+                        result=json.dumps(result), structured_output=result, usage=usage,
+                        session_id=status.get('session_id'), model=status.get('model'))
+        status = laneguard.read_json(m['status_path'], {})
+        observed_session = status.get('session_id') or thread_id
+        if (session_id and observed_session and session_id != observed_session) or (
+                thread_id and observed_session != thread_id):
+            raise CodexRoundError('Codex thread differs from the guard session', usage)
+        session_id = session_id or observed_session
+        if not proc.returncode and not errors:
+            break
+        if attempt == 3 or not session_id or not errors or not all(TRANSPORT_ERROR.search(e) for e in errors):
+            raise CodexRoundError('Codex round failed: ' + '; '.join(errors or [str(proc.returncode)]), usage)
+        wait_started = clock()
+        resumes.append(dict(time=laneguard.now_iso(), attempt=attempt + 1, error='; '.join(errors)))
+        status = update_codex_status(m, resumes=resumes, resume_wait_started=wait_started)
+        sleep((60, 180, 600)[attempt])
+        status = update_codex_status(m, paused_seconds=status.get('paused_seconds', 0) + clock() - wait_started,
+                                     resume_wait_started=None)
+        if attempt == 0:
+            command = codex_resume_command(command, session_id)
+            prompt = manifest.with_suffix('.resume.prompt.txt')
+        prompt.write_text(RESUME_PROMPT, encoding='utf-8')
     if not status.get('session_id') or not status.get('tool_calls'):
-        raise RuntimeError('Codex guard handshake/tool coverage missing; result rejected')
-    usage, errors = {}, []
-    for line in events.read_text(encoding='utf-8').splitlines():
-        try:
-            e = json.loads(line)
-        except ValueError:
-            continue
-        if e.get('type') == 'turn.completed':
-            usage = e.get('usage', {})
-        if e.get('type') in ('turn.failed', 'error'):
-            errors.append(str(e)[:800])
-    if proc.returncode or errors:
-        raise RuntimeError('Codex round failed: ' + '; '.join(errors or [str(proc.returncode)]))
+        raise CodexRoundError('Codex guard handshake/tool coverage missing; result rejected', usage)
     result = validate_result(json.loads(final.read_text(encoding='utf-8')), m)
     codexguard.record_result(m, result)
     return dict(type='result', subtype='success', provider='codex', model=status.get('model'),
@@ -274,6 +385,8 @@ def main():
     except Exception as e:
         result = dict(type='result', subtype='error', provider=m['provider'], is_error=True,
                       result=f'{type(e).__name__}: {e}')
+        if isinstance(e, CodexRoundError):
+            result['usage'] = e.usage
     if m['provider'] == 'codex' and m.get('git_base'):
         try:
             publish_codex_git(m)
