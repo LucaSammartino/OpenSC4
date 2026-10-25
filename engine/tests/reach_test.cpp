@@ -15,11 +15,28 @@ using IntFn = int(__cdecl*)(int);
 using FaultFn = int(__fastcall*)(const int*);
 using FlagsFn = unsigned(__cdecl*)();
 volatile LONG foreignExceptions = 0;
+volatile LONG translatedBreakpoints = 0, translatedSteps = 0;
+
+// Exercise actual INT3/TF delivery and re-arming using the WoW64 status codes,
+// even on a host that delivers only the usual Win32 exception codes.
+LONG CALLBACK AsWx86(EXCEPTION_POINTERS* ep) {
+    auto& code = ep->ExceptionRecord->ExceptionCode;
+    if (code == EXCEPTION_BREAKPOINT) {
+        code = 0x4000001f;
+        InterlockedIncrement(&translatedBreakpoints);
+    } else if (code == EXCEPTION_SINGLE_STEP) {
+        code = 0x4000001e;
+        InterlockedIncrement(&translatedSteps);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
 
 LONG CALLBACK Foreign(EXCEPTION_POINTERS* ep) {
     if (ep->ExceptionRecord->ExceptionCode == 0xe0424242 ||
         ep->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP ||
-        ep->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT) {
+        ep->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT ||
+        ep->ExceptionRecord->ExceptionCode == 0x4000001e ||
+        ep->ExceptionRecord->ExceptionCode == 0x4000001f) {
         InterlockedIncrement(&foreignExceptions);
         return EXCEPTION_CONTINUE_EXECUTION;
     }
@@ -169,7 +186,9 @@ int main(int argc, char** argv) {
         RaiseException(0xe0424242, 0, 0, nullptr);
         RaiseException(EXCEPTION_SINGLE_STEP, 0, 0, nullptr);
         RaiseException(EXCEPTION_BREAKPOINT, 0, 0, nullptr);
-        CHECK(foreignExceptions == 3);
+        RaiseException(0x4000001e, 0, 0, nullptr);
+        RaiseException(0x4000001f, 0, 0, nullptr);
+        CHECK(foreignExceptions == 5);
         const auto s = tracer.GetSummary();
         CHECK(s.ignored == 5 && s.abortedSteps == 1 && s.slotExhaustions == 0);
         tracer.Stop();
@@ -177,6 +196,33 @@ int main(int argc, char** argv) {
         CHECK(RowAt(tracer, fn[0]).entries == 29);
         CHECK(tracer.Write("reach-synthetic.tsv"));
         std::printf("reach synthetic exact A=29/29 B=44/44 float=2/2 flags=2/2 ret=2/2 fault=2/2 windows=3 cap=32 ignored=5 skipped=3 suspend_resume=1 traps=%u aborted=%u\n", s.traps, s.abortedSteps);
+    }
+    {
+        fc4::reach::Tracer tracer;
+        CHECK(tracer.Prepare(contracts, reinterpret_cast<uintptr_t>(dll), reinterpret_cast<uintptr_t>(dll),
+                             nt->OptionalHeader.SizeOfImage));
+        CHECK(tracer.Start(4));
+        void* translator = AddVectoredExceptionHandler(1, AsWx86);
+        CHECK(translator != nullptr);
+        const LONG before = counts[0];
+        for (int i = 0; i < 7; ++i) CHECK(a(i) == i + 7);
+        CHECK(RowAt(tracer, fn[0]).entries == 4);
+        CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0x90);
+        tracer.NextWindow();
+        CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0xcc);
+        for (int i = 0; i < 3; ++i) CHECK(a(i) == i + 7);
+        const auto row = RowAt(tracer, fn[0]);
+        const auto s = tracer.GetSummary();
+        CHECK(row.entries == 7 && row.windowsHit == 2 && row.capped);
+        CHECK(counts[0] - before == 10);
+        CHECK(s.wxBreakpoints == 7 && s.wxSteps == 7 && s.traps == 14 && s.abortedSteps == 0);
+        CHECK(translatedBreakpoints == 7 && translatedSteps == 7);
+        CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0xcc);
+        tracer.Stop();
+        CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0x90);
+        CHECK(RemoveVectoredExceptionHandler(translator) != 0);
+        std::printf("reach WoW64 exact breakpoints=%u steps=%u entries=7/7 body=10/10 windows=2 rearmed=1\n",
+                    s.wxBreakpoints, s.wxSteps);
     }
     {
         // Same-entry concurrency is safe, but byte-restoration necessarily

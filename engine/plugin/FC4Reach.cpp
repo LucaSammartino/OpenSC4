@@ -25,6 +25,8 @@ namespace reach {
 namespace {
 constexpr uint32_t kTrapFlag = 0x100;
 constexpr uint8_t kBreakpoint = 0xcc;
+constexpr DWORD kWx86SingleStep = 0x4000001e;
+constexpr DWORD kWx86Breakpoint = 0x4000001f;
 constexpr size_t kThreadSlots = 4096;
 static_assert(std::atomic<uint32_t>::is_always_lock_free, "VEH counters must be lock free");
 
@@ -153,6 +155,7 @@ struct Tracer::State {
     size_t count = 0;
     Thread threads[kThreadSlots];
     std::atomic<uint32_t> window{0}, traps{0}, ignored{0}, aborted{0}, exhausted{0};
+    std::atomic<uint32_t> wxBreakpoints{0}, wxSteps{0};
     std::atomic<bool> active{false};
     uint32_t cap = 0;
     PVOID handler = nullptr;
@@ -212,10 +215,11 @@ struct Tracer::State {
         if (!s || !ep || !ep->ExceptionRecord || !ep->ContextRecord) return EXCEPTION_CONTINUE_SEARCH;
         const DWORD code = ep->ExceptionRecord->ExceptionCode;
         CONTEXT& ctx = *ep->ContextRecord;
-        if (code == EXCEPTION_BREAKPOINT) {
+        if (code == EXCEPTION_BREAKPOINT || code == kWx86Breakpoint) {
             Entry* e = s->Find(reinterpret_cast<uintptr_t>(ep->ExceptionRecord->ExceptionAddress));
             if (!e || !e->everArmed || !e->writable) return EXCEPTION_CONTINUE_SEARCH;
             s->traps.fetch_add(1, std::memory_order_relaxed);
+            if (code == kWx86Breakpoint) s->wxBreakpoints.fetch_add(1, std::memory_order_relaxed);
             Thread* t = s->Slot(true);
             // An unexpected nested breakpoint/aborted first instruction must
             // not leak a pending step or consume somebody else's TF.
@@ -261,8 +265,9 @@ struct Tracer::State {
             const bool foreignTF = t->previousTF;
             s->FinishStep(*t);
             if (!foreignTF) ctx.EFlags &= ~kTrapFlag;
-            if (code == EXCEPTION_SINGLE_STEP) {
+            if (code == EXCEPTION_SINGLE_STEP || code == kWx86SingleStep) {
                 s->traps.fetch_add(1, std::memory_order_relaxed);
+                if (code == kWx86SingleStep) s->wxSteps.fetch_add(1, std::memory_order_relaxed);
                 if (!foreignTF && !(ctx.Dr6 & 0xf)) return EXCEPTION_CONTINUE_EXECUTION;
             } else s->aborted.fetch_add(1, std::memory_order_relaxed);
         }
@@ -437,12 +442,14 @@ Summary Tracer::GetSummary() const {
     out.windows = state_->window.load(); out.traps = state_->traps.load();
     out.ignored = state_->ignored.load(); out.abortedSteps = state_->aborted.load();
     out.slotExhaustions = state_->exhausted.load();
+    out.wxBreakpoints = state_->wxBreakpoints.load(); out.wxSteps = state_->wxSteps.load();
     return out;
 }
 
 bool Tracer::Write(const std::string& path) const {
     std::ofstream out(path, std::ios::binary);
     if (!out) return false;
+    out << "# entries are capped lower bounds; concurrent entries during restore/step and suspended probe intervals are omitted\n";
     out << "address\tentries\twindows_hit\tfirst_window\tlast_window\tcapped\tskipped\n";
     for (const auto& r : Rows()) {
         out << std::hex << std::setfill('0') << std::setw(8) << r.address << std::dec << '\t'
@@ -551,9 +558,9 @@ void ReachStop() {
     for (const auto& r : g_reach->Rows())
         if (r.skipped == "late-entry-conflict" || r.skipped == "thread-slot-exhaustion")
             Log("reach skip address=%08x reason=%s", r.address, r.skipped.c_str());
-    Log("reach summary functions=%u armed=%u reached=%u skipped=%u windows=%u traps=%u ignored=%u aborted=%u slot_exhaustions=%u saved=%u probe_pauses=%u",
+    Log("reach summary functions=%u armed=%u reached=%u skipped=%u windows=%u traps=%u ignored=%u aborted=%u slot_exhaustions=%u saved=%u probe_pauses=%u wx_breakpoints=%u wx_steps=%u",
         s.functions, s.armed, s.reached, s.skipped, s.windows, s.traps, s.ignored,
-        s.abortedSteps, s.slotExhaustions, saved ? 1 : 0, g_reachProbePauses);
+        s.abortedSteps, s.slotExhaustions, saved ? 1 : 0, g_reachProbePauses, s.wxBreakpoints, s.wxSteps);
 }
 
 ReachProbeScope::ReachProbeScope() : token_(nullptr) {

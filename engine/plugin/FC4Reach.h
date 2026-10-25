@@ -33,6 +33,7 @@ struct Row {
 struct Summary {
     uint32_t functions = 0, armed = 0, reached = 0, skipped = 0, windows = 0, traps = 0;
     uint32_t ignored = 0, abortedSteps = 0, slotExhaustions = 0;
+    uint32_t wxBreakpoints = 0, wxSteps = 0;
 };
 
 // One tracer per process. Prepare must precede other entry patches; Start
