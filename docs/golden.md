@@ -24,11 +24,18 @@ pause, digest, full save and completion mark are appended. Both the log and the
 saved simulator date must reach exactly `--until`. Stalled, incomplete, overshot
 or wrong-subsystem runs cannot be published.
 
-The default `--clock fixed` uses our scheduler with `sim_fixed_step = 1`,
+The default `--clock original` leaves **every subsystem original**, with no
+shadows or compares. `record` launches one original, then reuses that immutable
+cache without another game. `determinism --repeats 3` performs three independent
+original runs. Comparison is byte-exact by default; differing original runs
+mark the key nondeterministic and prevent a passing regression verdict (exit 3).
+Digest and record differences are still reported as diagnostics.
+
+The explicit experiment `--clock fixed` uses our scheduler with `sim_fixed_step = 1`,
 `pacing = original`, and every other subsystem original. The scheduler advances
 at most 64 agent deliveries per frame and yields at every new day, independently
 of wall time and the turbo frame budget. The DLL must acknowledge this switch
-in its log. `--clock original` retains the legacy all-original wall-time audit;
+in its log. `--clock original` retains the all-original wall-time audit;
 `--turbo` cannot speed up that original scheduler. Both choices are in the key.
 `session_seed` fixes our generators, not the game's clock-seeded generators.
 Foundations §6.2 lists independent member, file-local and temporary generators;
@@ -63,11 +70,11 @@ actual launch and mirror sources; these options cannot redirect just the hash.
 An existing entry is verified and reused without launching a game. `--rerun` or
 `determinism` compares an independent original run without overwriting it.
 Each audit is retained as `repeat-<id>.json`; independent originals and their
-hashes are retained under `samples/`. A new `record` starts with three originals,
-then adds runs until the set of varying fields stops growing (up to
-`--max-repeats`, default 9). `determinism` remeasures an existing key. Identical
-originals select exact comparison. Otherwise the cache remains usable with an
-observed envelope: decoded numeric fields and monthly digest components use
+hashes are retained under `samples/`. `determinism` remeasures an existing key.
+For exploratory drift analysis, `--comparison envelope` explicitly requests
+observed ranges. With that option, `determinism` adds runs until the set of
+varying fields stops growing (up to `--max-repeats`, default 9). The envelope is
+not evidence of deterministic simulation: decoded numeric fields and monthly digest components use
 min/max; other decoded values use observed sets; unknown save bytes use explicit
 per-offset min/max with record presence and size checks. Stable fields remain
 exact; there are no gameplay masks. Numeric decoder spans are checked as fields
@@ -80,8 +87,7 @@ Raw attempts, including failures,
 are in `build-runs/golden-runs/`. Save files remain untracked user content.
 
 Comparisons launch only the candidate, validate all original artifact hashes,
-rebuild ranges from those originals (never from the candidate), and write
-`comparison.json` naming the first out-of-envelope or differing digest date/fields and every
+and write `comparison.json` naming the first differing digest date/fields and every
 changed full type/group/instance. Saves are compared after DBPF index matching
 and QFS decompression. Only container layout/header and DIR compression metadata
 are omitted; **no gameplay field, thumbnail or counter is ignored**. Unknown
@@ -93,14 +99,17 @@ the simulator's v4 state as in `engine/core/src/save.rs`. A difference prints a
 `play.py --profile shadows` replay command from the same start save through the
 first differing date, retaining earlier simulation history. Its flags match the
 current `play.py` CLI; suite/play sources remain owned by the suite lane.
+Explicit envelope comparisons rebuild ranges only from originals, never from
+the candidate, and label their verdict `within-envelope` rather than `exact`.
 
-Exit codes: 0 = qualified exact/envelope cache or compatible candidate,
+Exit codes: 0 = recorded/reused cache or compatible candidate,
 1 = candidate differs, 2 = invalid or incomplete run/input, 3 = insufficient
-or still-growing original sampling. `baseline_repeatability` retains the raw
-exact/nondeterministic finding; it does not block an envelope comparison.
+or known original nondeterminism (also insufficient/still-growing sampling in
+explicit envelope mode). `baseline_repeatability` retains the raw finding;
+unverified means no independent repeat has established reproducibility.
 
 Suite integration APIs: `fingerprint`, `run_game`, `cache_record`,
-`compare_cached` (qualified exact/envelope comparison), `compare_artifacts`
+`compare_cached` (exact by default; `rule='envelope'` explicitly opts into ranges), `compare_artifacts`
 (raw exact diagnostic), `qualification`, `parse_digests`, `shadow_command`, and
 `golden_dbpf.compare_saves`. `cache_record` expects a fully validated run.
 `--backend direct --slot N` uses `golden_run.ps1` with the queue's claim mutex;

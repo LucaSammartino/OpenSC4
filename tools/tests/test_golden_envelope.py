@@ -26,10 +26,10 @@ class EnvelopeTests(unittest.TestCase):
         self.assertEqual(envelope['stats']['varying_opaque_bytes'], 1)
         self.assertEqual(env.status(entry, envelope), 'envelope')
         candidate = self.make_run('candidate', b'a\x25z')
-        self.assertTrue(golden.artifacts_exact(golden.compare_cached(entry, candidate)))
+        self.assertTrue(golden.artifacts_exact(golden.compare_cached(entry, candidate, rule='envelope')))
         before = sorted(p.name for p in (entry / 'samples').iterdir())
         package(candidate / 'end.sc4', [((1, 0, 0), b'b\x25z'), ((2, 0, 0), b'new')])
-        report = golden.compare_cached(entry, candidate)
+        report = golden.compare_cached(entry, candidate, rule='envelope')
         self.assertEqual(report['save']['different_records'], 2)
         self.assertEqual(report['save']['records'][0]['first_byte'], 0)
         self.assertEqual(before, sorted(p.name for p in (entry / 'samples').iterdir()))
@@ -48,14 +48,23 @@ class EnvelopeTests(unittest.TestCase):
         candidate = self.make_run('candidate', b'a\x25z')
         golden.write_json(candidate / 'digests.json', golden.parse_digests(
             'DIGEST julian=1 (2026-03-01) funds=25 R/C/I=2/3/4'))
-        self.assertTrue(golden.artifacts_exact(golden.compare_cached(entry, candidate)))
+        self.assertTrue(golden.artifacts_exact(golden.compare_cached(entry, candidate, rule='envelope')))
         golden.write_json(candidate / 'digests.json', golden.parse_digests(
             'DIGEST julian=1 (2026-03-01) funds=31 R/C/I=2/3/4'))
-        first = golden.compare_cached(entry, candidate)['first_digest_difference']
+        first = golden.compare_cached(entry, candidate, rule='envelope')['first_digest_difference']
         self.assertEqual(first['date'], '2026-03-01')
         self.assertEqual(first['fields']['funds']['expected'], {'min': 10, 'max': 30})
         golden.write_json(candidate / 'digests.json', [])
-        self.assertIsNotNone(golden.compare_cached(entry, candidate)['first_digest_difference'])
+        self.assertIsNotNone(golden.compare_cached(entry, candidate, rule='envelope')['first_digest_difference'])
+
+    def test_default_never_treats_observed_variance_as_exact(self):
+        entry = self.three()
+        candidate = self.make_run('candidate', b'a\x25z')
+        report = golden.compare_cached(entry, candidate)
+        self.assertEqual(report['comparison_rule'], 'exact')
+        self.assertEqual(golden.qualification(entry), 'nondeterministic')
+        self.assertEqual(report['save']['different_records'], 1)
+        self.assertFalse(golden.artifacts_exact(report))
 
     def test_corrupt_repeat_cannot_widen_or_qualify_an_envelope(self):
         entry = self.three()
@@ -86,6 +95,6 @@ class EnvelopeTests(unittest.TestCase):
         for i, value in enumerate((250, 270, 260)):
             golden.cache_record(cache, key, {}, run(str(i), value))
         entry = cache / key
-        self.assertTrue(golden.artifacts_exact(golden.compare_cached(entry, run('inside', 256))))
-        report = golden.compare_cached(entry, run('outside', 271))
+        self.assertTrue(golden.artifacts_exact(golden.compare_cached(entry, run('inside', 256), rule='envelope')))
+        report = golden.compare_cached(entry, run('outside', 271), rule='envelope')
         self.assertEqual(report['save']['records'][0]['fields']['level.0.counter']['actual'], 271)

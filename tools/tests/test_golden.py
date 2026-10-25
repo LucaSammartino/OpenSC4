@@ -1,11 +1,14 @@
 """Golden cache invariants, full-TGI/QFS comparison and monthly diagnostics."""
 import hashlib
+import contextlib
+import io
 import json
 from pathlib import Path
 import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import golden
@@ -155,6 +158,30 @@ class GoldenTests(unittest.TestCase):
         (cache / key / 'end.sc4').write_bytes(b'corrupt')
         with self.assertRaisesRegex(ValueError, 'corrupt golden artifact'):
             golden.cache_record(cache, key, {}, run)
+
+    def test_cli_records_once_reuses_cache_and_compares_only_the_candidate(self):
+        run = self.make_run('original')
+        golden.write_json(run / 'verdict.json', {'window_exact': True, 'save_date': '2026-03-01'})
+        key, manifest = 'c' * 64, {'settings': {}}
+        common = ['--city', 'Test', '--until', '2026-03-01', '--output', str(self.root)]
+        defaults = golden.parser().parse_args(['record'] + common)
+        self.assertEqual((defaults.clock, defaults.comparison), ('original', 'exact'))
+        with patch.object(golden, 'prepare', return_value=(key, manifest, '', {})), \
+                patch.object(golden, 'fingerprint', return_value=(key, manifest)), \
+                patch.object(golden, 'run_game', return_value=run) as game, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(golden.main(['record'] + common), 0)
+            self.assertEqual(game.call_count, 1)
+            self.assertEqual(game.call_args.args[2], [])
+            self.assertEqual(golden.main(['record'] + common), 0)
+            self.assertEqual(game.call_count, 1)
+            candidate = ['compare'] + common + ['--dll', str(self.root / 'candidate.dll')]
+            self.assertEqual(golden.main(candidate), 0)
+            self.assertEqual(game.call_count, 2)
+            self.assertEqual(game.call_args.args[2], ['budget', 'simulator'])
+            golden.cache_record(self.root / 'golden', key, manifest, self.make_run('drift', b'different'))
+            self.assertEqual(golden.main(candidate), 3)
+            self.assertEqual(game.call_count, 3)
 
     def test_script_has_a_full_save_and_replay_preserves_history(self):
         generated = golden.input_script(None, '2026-04-01')

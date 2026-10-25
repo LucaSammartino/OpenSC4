@@ -183,18 +183,21 @@ def qualification(entry):
     return 'reproduced' if audits else 'unverified'
 
 
-def compare_cached(entry, run):
-    """Suite API: exact if originals agree, otherwise compare observed ranges.
+def compare_cached(entry, run, *, rule='exact'):
+    """Suite API: byte-exact comparison unless ranges are explicitly requested.
 
     Only the candidate runs. Rebuild derived ranges from verified originals;
     a candidate result never changes the cache or widens its envelope.
     """
+    if rule not in ('exact', 'envelope'):
+        raise ValueError('comparison rule must be exact or envelope')
     _baseline_intact(entry)
     envelope = golden_envelope.build(entry)
     mode = golden_envelope.status(entry, envelope)
-    report = (compare_artifacts(entry, run) if mode in ('exact', 'unverified')
+    use_exact = rule == 'exact' or mode in ('exact', 'unverified')
+    report = (compare_artifacts(entry, run) if use_exact
               else golden_envelope.compare(envelope, run))
-    report.update(comparison_rule='exact' if mode in ('exact', 'unverified') else 'observed-envelope',
+    report.update(comparison_rule='exact' if use_exact else 'observed-envelope',
                   envelope_status=mode, envelope_samples=envelope['samples'], envelope_stats=envelope['stats'])
     return report
 
@@ -518,8 +521,10 @@ def parser():
         sub.add_argument('--queue-timeout', type=int, default=1800)
         sub.add_argument('--seconds', type=int, default=180)
         sub.add_argument('--turbo', action='store_true', help='request turbo (only our simulator supports it)')
-        sub.add_argument('--clock', choices=('fixed', 'original'), default='fixed',
-                         help='fixed delivery scheduler (default); original is the legacy all-original audit')
+        sub.add_argument('--clock', choices=('fixed', 'original'), default='original',
+                         help='original scheduler (default); fixed replaces only the scheduler for an explicit experiment')
+        sub.add_argument('--comparison', choices=('exact', 'envelope'), default='exact',
+                         help='exact (default); envelope is an exploratory range diagnostic, not determinism')
         sub.add_argument('--dll', type=Path, help='candidate worktree or DLL (compare only)')
         sub.add_argument('--replace', default='simulator,budget')
         sub.add_argument('--rerun', action='store_true', help='record: independently repeat an existing key')
@@ -553,7 +558,7 @@ def main(argv=None):
             run = run_game(args, generated, selected, dll, 'compare', allow_window_drift=True)
             if fingerprint(files, manifest['settings'])[0] != key:
                 raise ValueError(f'input changed during comparison; no verdict: {run}')
-            report = compare_cached(entry, run)
+            report = compare_cached(entry, run, rule=args.comparison)
             compatible = 'within-envelope' if report['comparison_rule'] == 'observed-envelope' else 'exact'
             report.update(key=key, baseline_repeatability=qualification(entry), run=str(run),
                           verdict=compatible if artifacts_exact(report) else 'different')
@@ -569,7 +574,10 @@ def main(argv=None):
             print('comparison: ' + str(run / 'comparison.json'))
             if not window['window_exact']:
                 return 2
-            if report['envelope_status'] in ('unverified', 'growing'):
+            if args.comparison == 'exact' and report['baseline_repeatability'] == 'nondeterministic':
+                print('originals are nondeterministic; differences are diagnostic, no regression verdict')
+                return 3
+            if args.comparison == 'envelope' and report['envelope_status'] in ('unverified', 'growing'):
                 print('sampling incomplete; run determinism to qualify the cached comparison')
                 return 3
             return 0 if artifacts_exact(report) else 1
@@ -579,9 +587,11 @@ def main(argv=None):
             mode = golden_envelope.status(entry, envelope)
             print(f'cached: {entry}; repeatability: {qualification(entry)}; sampling: {mode}; no game launched')
             print_envelope(envelope)
+            if args.comparison == 'exact':
+                return 3 if qualification(entry) == 'nondeterministic' else 0
             return 0 if mode in ('exact', 'envelope') else 3
-        count = args.repeats if args.command == 'determinism' or not entry.exists() else 1
-        limit = args.max_repeats if count > 1 else 1
+        count = args.repeats if args.command == 'determinism' else 1
+        limit = args.max_repeats if count > 1 and args.comparison == 'envelope' else count
         mode = 'unverified'
         for attempt in range(limit):
             run = run_game(args, generated, [], args.original_dll, 'original')
@@ -598,9 +608,11 @@ def main(argv=None):
             write_json(entry / 'envelope.json', envelope)
             print_envelope(envelope)
             print('sampling: ' + mode, flush=True)
-            if attempt + 1 >= count and (mode in ('exact', 'envelope') or count == 1):
+            if attempt + 1 >= count and (args.comparison == 'exact' or mode in ('exact', 'envelope') or count == 1):
                 break
         print('baseline repeatability: ' + qualification(entry))
+        if args.comparison == 'exact':
+            return 3 if qualification(entry) == 'nondeterministic' else 0
         return 0 if mode in ('exact', 'envelope') else 3
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         print('golden: ' + str(exc), file=sys.stderr)
