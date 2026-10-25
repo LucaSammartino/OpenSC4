@@ -115,6 +115,23 @@ Addresses are eight lowercase hex digits. `size` sums the inclusive Ghidra addre
 ranges. There are 35,637 exported functions and 11 additional vtable targets without exported ranges; the
 additional targets have size 0 and `no-export-ranges` notes. Names prefer the symbol-port names.
 
+Return decisions use direct callers' EAX/EDX byte reads before overwrite, x87 reads with an empty stack
+before the call, and the last EAX definition on every reachable exit. Demand and decided channels propagate
+through direct call/tail forwarders to a fixed point. AL/AX definitions restrict the comparable bits, including
+mixed full-zero/partial-success paths. A caller's existing x87 temporary is not a callee return.
+Void requires no observed consumer plus preserved EAX or callee/scratch residue on every exit; discarded
+results alone never imply void. `callers-checked`, register consumer counts, and forwarding counts are in notes.
+Indirect callers are not enumerated: these are static evidence decisions, not runtime matching credit.
+Shared epilogues outside Ghidra ranges are followed without changing the exported function size. A missing
+RET pop may be inferred at high confidence from two consistent, fully attributable caller stack balances.
+The small `tools/abi_return_reviews.json` input retains hand-reviewed exceptions with both body and caller
+evidence, including hidden aggregate result buffers. Raw instructions/paths stay in build-runs evidence.
+
+`python tools/abi_report.py --baseline build-runs/abi-functions/round1-functions.tsv` reports decided returns
+and convention/pop confidence over implemented and all game bytes, using coverage.py's attribution/status
+helpers unchanged. It writes remaining undecided rows and the top 20 owners by bytes. The first seeded draw
+of 50 changed implemented functions is persisted in `return-sample.json`; later runs never resample it.
+
 Regenerate and compare the independent sources with standard-library Python 3:
 
 ```powershell
@@ -141,8 +158,10 @@ callee-pop without register inputs selects `stdcall`; zero-pop with stack argume
 Other cases are `unknown`. `this` is `ecx` for thiscall/fastcall, otherwise `none`. `callers` counts distinct
 direct call sites; indirect calls do not contribute. An unused `this` cannot be inferred from body reads alone.
 
-Return labels and x87 stack effects share the virtual-table extractor's rules. Existing reviewed vtable facts
-take precedence; their conflicts remain in notes. `tools/abi_direct_contracts.json` transcribes the 29 complete
+Return labels initially share the virtual-table extractor's vocabulary. Round-2 caller/exit evidence refines
+ambiguous labels; `return-refined-from` retains the source label and `ret-evidence` records the decision kind.
+Reviewed definite vtable facts seed the analysis; conflicting source rows remain in notes.
+`tools/abi_direct_contracts.json` transcribes the 29 complete
 contracts in `direct-calls.md`, including its inline insert_unique alternative and tutorial tables. Reviewed
 semantic returns/unused arguments are retained with the inferred observations, rather than silently replacing
 their evidence. `eax-or-void` does not establish a semantic C++ return type.
