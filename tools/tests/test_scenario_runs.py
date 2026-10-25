@@ -45,6 +45,8 @@ class ScenarioEvidenceTests(unittest.TestCase):
                 "2026-10-25 [pid 1 tid 2] formats shadow: file.dat: 0 exemplar entries, 0 compared, 0 exact, 0 differ, 0 rejected\n"
                 "2026-10-25 [pid 1 tid 2] formats shadow: file.dat: 4 exemplar entries, 4 compared, 4 exact, 0 differ, 0 rejected\n"
                 "2026-10-25 [pid 1 tid 2] heartbeat (periodic): 2026-04-01\n"
+                "2026-10-25 [pid 1 tid 2] fail-fast reports on: a Rust panic, a CRT assert is logged\n"
+                "2026-10-25 [pid 1 tid 2] counters: +0 foreign exceptions\n"
                 "2026-10-25 [pid 1 tid 2] AUTOTEST VERDICT: clean (date=2028-01-01, days_per_second=17.25)\n"
                 "2026-10-25 [pid 1 tid 2] script: all 2 action(s) of 'actions.script' have run\n", encoding="utf-8")
             run = {"scenario": "test", "seed": 7, "mix": "edge", "city": "fixture", "script": "actions.script"}
@@ -57,6 +59,7 @@ class ScenarioEvidenceTests(unittest.TestCase):
             self.assertEqual(sum(c["lines"] for c in shadows.values()), 5)
             self.assertEqual(shadows["formats"]["lines"], 1)
             self.assertEqual(findings[0]["key"], "nettool_plan")
+            self.assertEqual(len(findings), 1)  # startup text and zero counters are not exceptions
             self.assertEqual(findings[0]["log_line"], 5)
             self.assertEqual(findings[0]["preceding_script_line"], 2)
             self.assertTrue(findings[0]["preceding_script_text"].endswith("zone 0 0 1 1 3"))
