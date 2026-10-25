@@ -12,10 +12,10 @@ Raw file bytes before→after below (Python equivalent of wc -c; Git Bash/wc fai
 - docs/lane-tools.md 9788→6178; docs/re-workspace.md 9960→5845.
 - docs/merge-train.md 6614→2283; docs/specs/questions/README.md 3342→1721.
 - CONTRIBUTING.md 4955→3117; .claude/agents/fc4-lane.md 1007→367; .claude/agents/fc4-lane-re.md 1067→443.
-- docs/ops/run4-recovery.md→docs/history/run4-recovery.md 3870→3877 (provider link fixed).
-- docs/ops/acceptance-incident-train121.md→docs/history/acceptance-incident-train121.md 3294→3294.
-- docs/ops/forge-pilot.md→docs/history/forge-pilot.md 12499→12499; docs/ops/efficiency-log.md→docs/history/efficiency-log.md 13482→13482.
-- docs/token-ledger.md→docs/history/token-ledger.md 6857→6857; 80-byte pointer retained for the protected HANDOFF link.
+- Retired run4-recovery note (Git history): 3870→3877 (provider link fixed).
+- Retired acceptance-incident-train121 note (Git history): 3294→3294.
+- Retired forge-pilot and efficiency-log notes (Git history): 12499→12499 and 13482→13482.
+- Token ledger moved to docs/history/token-ledger.md: 6857→6857; the later prune removed its redundant pointer and fixed HANDOFF's link.
 Baseline: build-runs/docs-{bytes,files}-before.log; final: build-runs/docs-final-{bytes,files}.log (earlier after logs retained). Raw bytes include CRLF; doccheck normalizes CRLF.
 Real-tree `python tools/doccheck.py check` printed `doccheck check: ok`; `bytes` printed the kind totals above.
 `python tools/gen_handoff_tables.py --check` printed `out of date: docs\lanes\INDEX.md: lanes`; coordinator regenerates at landing, as directed.
