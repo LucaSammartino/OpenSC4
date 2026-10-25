@@ -37,3 +37,6 @@ gen27-spandau-s1-grow	FC4 Test	Spandau	engine/tests/scenarios/scripts/gen27-span
 gen27-spandau-s1-default	FC4 Test	Spandau	engine/tests/scenarios/scripts/gen27-spandau-s1-default.script	2003-09-10	gen	Seed 1 default; 24 months; first non-exact plumbing log line 3375; source gen27-r3-spandau-s1-default
 gen27-spandau-s2-default	FC4 Test	Spandau	engine/tests/scenarios/scripts/gen27-spandau-s2-default.script	2003-09-10	gen	Seed 2 default; 24 months; first non-exact traffic log line 3360; source gen27-r3-spandau-s2-default
 gen27-tegel-s1-grow	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen27-tegel-s1-grow.script	2031-08-21	gen	Seed 1 grow; 24 months; first non-exact plumbing log line 3281; source gen27-r3-tegel-s1-grow
+gen27-tegel-s2-edge	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen27-tegel-s2-edge.script	2031-08-21	gen	Seed 2 edge; 24 months; first non-exact landvalue log line 3360; source gen27-r3-tegel-s2-edge
+gen27-spandau-s0-edge	FC4 Test	Spandau	engine/tests/scenarios/scripts/gen27-spandau-s0-edge.script	2003-09-10	gen	Seed 0 edge; 24 months; first non-exact traffic log line 3348; source gen27-r3-spandau-s0-edge
+gen27-spandau-s2-churn	FC4 Test	Spandau	engine/tests/scenarios/scripts/gen27-spandau-s2-churn.script	2003-09-10	gen	Seed 2 churn; 24 months; first non-exact dbpf log line 3281; source gen27-r3-spandau-s2-churn
