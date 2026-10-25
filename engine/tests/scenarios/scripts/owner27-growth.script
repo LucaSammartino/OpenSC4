@@ -1,9 +1,14 @@
-# Require dry vacant cells 12..44, existing utilities, jobs, industrial supply and positive demand.
-# Setup is overdue and runs on the first new day; observe four subsequent months.
+# Isolated copy of Kensington. Placement failures and absent growth remain findings.
+# Existing services and demand are prerequisites for construction, not guaranteed by zoning.
 2000-01-01 mark mixed growth setup
 2000-01-01 network 12 12 44 12 0
 2000-01-01 network 12 12 12 44 0
 2000-01-01 zone 14 14 21 21 1
 2000-01-01 zone 24 14 31 21 4
+2000-01-01 zone 14 24 21 31 9
+2000-01-01 pricezone 24 24 27 27 1
 2000-01-01 speed 2
 2000-01-01 digest
+2006-07-31 mark end growth observation
+2006-07-31 digest
+2006-07-31 save

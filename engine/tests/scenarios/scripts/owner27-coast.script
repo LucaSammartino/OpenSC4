@@ -1,6 +1,12 @@
-# Preflight an operating seaport or ferry, navigable water and real boats; the city name is not proof.
-# Setup is overdue and runs on the first new day; observe four subsequent months.
+# Isolated copy of Spandau. Candidate sites can be rejected or lack navigable water.
+# A constructed port alone does not establish boat generation or a working freight route.
 2000-01-01 mark observe active coastal transport
 2000-01-01 speed 2
 2000-01-01 clockmode 1
+2000-01-01 port seaport 60 64 0 0
+2000-01-01 port seaport 80 64 0 0
+2000-01-01 port seaport 60 80 0 0
 2000-01-01 digest
+2002-01-09 mark end coastal observation
+2002-01-09 digest
+2002-01-09 save

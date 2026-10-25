@@ -1,6 +1,8 @@
-# Require working homes-to-jobs trips and multiple transport modes; keep observing after setup.
-# Setup is overdue and runs on the first new day; observe four subsequent months.
+# Isolated copy of Fulham. Observe existing trips; route diversity is not guaranteed.
 2000-01-01 mark observe commuter routes across transport modes
 2000-01-01 speed 2
-2000-01-01 save full
+2000-01-01 save
 2000-01-01 digest
+2007-10-12 mark end commuter observation
+2007-10-12 digest
+2007-10-12 save

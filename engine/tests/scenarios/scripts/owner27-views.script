@@ -1,0 +1,11 @@
+# Isolated copy of Konradshohe. Exercises visual time; pan, zoom and maps need another action.
+2000-01-01 mark daytime and nighttime observation
+2000-01-01 speed 2
+2000-01-01 clockmode 1
+2000-01-01 lightinghour 12
+2026-03-01 clockmode 2
+2026-03-01 lightinghour 23
+2026-04-01 clockmode 0
+2026-04-01 lightinghour 6
+2026-05-27 digest
+2026-05-27 mark end visual time observation

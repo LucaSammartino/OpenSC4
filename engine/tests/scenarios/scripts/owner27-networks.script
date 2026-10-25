@@ -1,5 +1,5 @@
-# Require suitable vacant flat and sloped cells; rejected placements remain failures. Mouse dragging and network demolition need a separate input driver.
-# Setup is overdue and runs on the first new day; observe four subsequent months.
+# Isolated copy of Schonerlinde. Rejected placements remain failures.
+# Private placement does not exercise mouse dragging or network demolition.
 2000-01-01 mark network setup
 2000-01-01 network 12 12 44 12 0
 2000-01-01 network 12 14 44 14 1
@@ -17,3 +17,7 @@
 2000-01-01 network 28 12 28 44 0
 2000-01-01 dezone 14 14 16 16
 2000-01-01 digest
+2000-01-01 speed 2
+2000-05-08 mark end network observation
+2000-05-08 digest
+2000-05-08 save
