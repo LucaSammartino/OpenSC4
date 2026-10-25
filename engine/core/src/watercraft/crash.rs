@@ -100,8 +100,8 @@ impl Watercraft {
             .push(Event::Publish(Publication::Transform(self.transform.clone())));
         self.inherited_heading = self.heading;
         self.events.push(Event::Publish(Publication::Update(true, true)));
-        self.events.push(Event::EffectUpdate);
-        self.events.push(Event::ModelUpdate);
+        self.request_effect_update();
+        self.request_model_update();
         true
     }
 
@@ -211,8 +211,8 @@ impl Watercraft {
 
     fn crash_publication_tail(&mut self) {
         self.events.push(Event::Publish(Publication::Update(true, true)));
-        self.events.push(Event::EffectUpdate);
-        self.events.push(Event::ModelUpdate);
+        self.request_effect_update();
+        self.request_model_update();
     }
 }
 
@@ -239,7 +239,7 @@ impl super::Fleet {
         boat.crash_elapsed += dt;
         for key in ["SMLWake", "SMLWash", "MEDWake", "MEDWash", "LargeWake", "LargeWash"] {
             boat.events.push(Event::StopWake(key));
-            boat.events.push(Event::EffectUpdate);
+            boat.request_effect_update();
         }
         boat.player.speed_tween.retarget(0.0);
         let active = if top == Some(super::state::SINK) {

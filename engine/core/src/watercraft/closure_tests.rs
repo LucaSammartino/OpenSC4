@@ -540,3 +540,86 @@ fn subsidiary_visibility_suppression_completion_and_strict_lighting() {
     assert_eq!(lights.0, 1);
     assert_eq!(s.last_lit_position, b.inherited_position);
 }
+
+#[derive(Default)]
+struct NoSplash(Vec<CrashEffect>);
+impl CrashEffects for NoSplash {
+    fn refresh(&mut self, kind: CrashEffect, _: &Transform) {
+        self.0.push(kind);
+    }
+    fn splash_present(&self) -> bool {
+        false
+    }
+}
+
+fn crashing(kind: u32) -> Fleet {
+    let mut b = heeling();
+    b.crash_elapsed = 100.0;
+    b.crash_angle = 0.0;
+    b.record.base.states.push(State::new(kind));
+    let mut f = Fleet::default();
+    f.insert(1, b).unwrap();
+    f
+}
+
+#[test]
+fn wc5_c02_state_tick_presents_double_time_and_direct_call_single_time() {
+    let cells = [Cell { x: 0, z: 0 }; 4];
+    let mut f = crashing(state::SINK);
+    f.crash_state_tick(1, 10.0, cells, &ground(), &mut Fx::default(), &mut None)
+        .unwrap();
+    let b = f.get(1).unwrap();
+    assert_eq!(b.crash_elapsed, 120.0);
+    near(b.crash_angle, (120.0 / b.drive.0[21]) * b.drive.0[22]);
+    let mut f = crashing(state::SINK);
+    f.crash_sequence_tick(1, 10.0, cells, &ground(), &mut Fx::default(), &mut None)
+        .unwrap();
+    let b = f.get(1).unwrap();
+    assert_eq!(b.crash_elapsed, 110.0);
+    near(b.crash_angle, (110.0 / b.drive.0[21]) * b.drive.0[22]);
+}
+
+#[test]
+fn wc5_c03_outside_city_pushes_72_without_second_increment_or_heel() {
+    let mut g = ground();
+    g.inside = false;
+    let mut f = crashing(state::RUN_AGROUND);
+    let mut fx = Fx::default();
+    assert_eq!(
+        f.crash_state_tick(1, 10.0, [Cell { x: 0, z: 0 }; 4], &g, &mut fx, &mut None),
+        Ok(true)
+    );
+    let b = f.get(1).unwrap();
+    assert_eq!(b.crash_elapsed, 110.0);
+    assert_eq!(b.top_state(), Some(state::IMMEDIATE_REMOVE));
+    assert_eq!(b.crash_angle, 0.0);
+    assert!(fx.0.is_empty());
+    assert_eq!(publications(b), 0);
+}
+
+#[test]
+fn wc5_c04_sinking_without_mushroom_gate_or_splash_still_runs_helper() {
+    let mut f = crashing(state::SINK);
+    let mut fx = NoSplash::default();
+    f.crash_state_tick(1, 10.0, [Cell { x: 0, z: 0 }; 4], &ground(), &mut fx, &mut None)
+        .unwrap();
+    assert!(fx.0.is_empty());
+    let b = f.get(1).unwrap();
+    assert!(b.crash_angle > 0.0);
+    assert_eq!(publications(b), 1);
+}
+
+#[test]
+fn wc2_p03_shore_slide_height_tolerance_is_strict() {
+    for (height, sliding) in [(30.0, false), (29.99, true)] {
+        let mut g = ground();
+        g.height = height;
+        let mut b = heeling();
+        b.crash_elapsed = 0.0;
+        b.shore_contact = true;
+        b.speed = 1.0;
+        assert_eq!(b.drive.0[26], 10.0);
+        assert!(b.heel_tick(10.0, &g));
+        assert_eq!(b.shore_contact, sliding);
+    }
+}

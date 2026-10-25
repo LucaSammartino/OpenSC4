@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Float-channel commands and shared bookkeeping, watercraft §§6.2.1–6.2.3.
 
-use super::{state, BoatId, DockManager, Event, Fleet, Gear, Result, Watercraft};
+use super::{BoatId, DockManager, Event, Fleet, Gear, Result, Watercraft};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DriveCommand {
@@ -90,6 +90,7 @@ pub trait PlayerEffects {
     fn fire_model_hook(&mut self);
     fn has_waterski(&self) -> bool;
     fn waterski_transform(&mut self, transform: &super::Transform);
+    /// `true` is the skier effect's start(false); `false` is its stop(true) (§6.2.2).
     fn waterski(&mut self, running: bool);
     /// AEMS dispatch for one channel: slot 6 followed by slot 5, event 0x14.
     fn command_event(&mut self, channel: usize, event: u32);
@@ -295,8 +296,8 @@ impl Watercraft {
             };
             self.turn = (self.turn + step).min(0.0);
         }
-        // WC9: literal §6.2.2 predicates; WC8-08's simultaneous-channel
-        // expectation contradicts this ordered positive-T response.
+        // WC9 correction: the right response tests the T left by the left
+        // response, so simultaneous channels need no neutral case (§6.2.2).
         if command.right >= 0.0 && self.turn >= 0.0 {
             if p[1] * command.right < self.turn {
                 command.right = self.turn / p[1] + dt;
@@ -367,28 +368,6 @@ impl Fleet {
                 }
             }
             self.boat_mut(id)?.complete_drive_commands(dt, command, effects);
-        }
-        Ok(())
-    }
-
-    /// Geometry-aware dispatch for the two fully specified movement ticks.
-    /// Other states retain the ordinary state dispatcher and its explicit gaps.
-    pub fn state_tick_with_geometry(
-        &mut self,
-        id: BoatId,
-        dt: f32,
-        rectangle: [super::Cell; 4],
-        terrain: &dyn super::Terrain,
-        manager: &mut Option<&mut dyn DockManager>,
-    ) -> Result<()> {
-        let active = match self.boat(id)?.top_state() {
-            Some(state::DOCK) => self.docking_tick(id, dt, terrain, manager)?,
-            Some(state::UNDOCK) => self.undocking_tick(id, dt, rectangle, terrain, manager)?,
-            Some(state::TOWED) => self.following_tick(id, dt, terrain)?,
-            _ => return self.state_tick(id, dt, manager),
-        };
-        if !active {
-            self.pop_state(id, manager)?;
         }
         Ok(())
     }
