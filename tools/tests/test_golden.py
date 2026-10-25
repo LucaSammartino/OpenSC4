@@ -132,6 +132,29 @@ class GoldenTests(unittest.TestCase):
             (run / file).write_text('evidence', encoding='utf-8')
         return run
 
+    def test_pinned_candidate_dll_reports_the_bytes_actually_launched(self):
+        source = self.root / 'build.dll'
+        source.write_bytes(b'first build')
+        first = golden.stage_dll(self.root, source)
+        source.write_bytes(b'second build')
+        second = golden.stage_dll(self.root, source)
+        self.assertNotEqual(first, second)
+        self.assertEqual(first.read_bytes(), b'first build')
+        self.assertEqual(first.stem, golden.sha256(first))
+        second.write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'corrupt staged DLL'):
+            golden.stage_dll(self.root, source)
+        self.assertEqual(second.read_bytes(), b'corrupt')
+
+    def test_build_race_cannot_publish_a_dll_under_the_wrong_hash(self):
+        source = self.root / 'build.dll'
+        source.write_bytes(b'initial build')
+        with patch.object(golden.shutil, 'copyfile',
+                          side_effect=lambda src, dst: Path(dst).write_bytes(b'changed during copy')):
+            with self.assertRaisesRegex(ValueError, 'DLL changed while staging'):
+                golden.stage_dll(self.root, source)
+        self.assertEqual(list((self.root / 'golden-inputs').iterdir()), [])
+
     def test_cache_never_overwrites_a_different_result(self):
         run = self.make_run('first')
         key = 'f' * 64

@@ -57,11 +57,13 @@ and never widen the original envelope.
 
 The SHA-256 key covers the executable, installed DAT/DLL/SGR/INI/CFG files,
 observer DLL, start save, entire source region (including neighbours), user
-configuration, source script, generated terminal script and harness sources and
+configuration, source script, generated terminal script, queue/runner/exporter sources and
 settings. Candidate DLL bytes and replacement keys are excluded intentionally.
 Queue slot selection is recorded as a policy, with the actual slot in each run.
 Source hashes are checked again before publishing a baseline. Original and
 candidate runs explicitly disable known shadow/compare settings.
+Candidate DLLs are pinned atomically before launch; `summary.json` names the
+staged path and SHA-256 of the bytes used, even if a later build changes the source.
 Live runs reject game/region roots that differ from the existing harness's
 actual launch and mirror sources; these options cannot redirect just the hash.
 

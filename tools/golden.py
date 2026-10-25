@@ -39,6 +39,29 @@ def sha256(path):
     return h.hexdigest()
 
 
+def stage_dll(output, source):
+    """Pin the bytes actually launched, including concurrent candidate builds."""
+    digest = sha256(source)
+    staged = Path(output) / 'golden-inputs' / (digest + '.dll')
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    if not staged.exists():
+        temporary = staged.with_suffix('.' + uuid.uuid4().hex + '.tmp')
+        try:
+            shutil.copyfile(source, temporary)
+            if sha256(temporary) != digest:
+                raise ValueError('DLL changed while staging; retry after the build finishes')
+            try:
+                temporary.rename(staged)
+            except OSError:
+                if not staged.exists():
+                    raise
+        finally:
+            temporary.unlink(missing_ok=True)
+    if sha256(staged) != digest:
+        raise ValueError('corrupt staged DLL; immutable input was not overwritten')
+    return staged
+
+
 def write_json(path, data):
     Path(path).write_text(json.dumps(data, indent=2, sort_keys=True, allow_nan=False) + '\n', encoding='utf-8')
 
@@ -247,8 +270,10 @@ def prepare(args):
     settings['effective_script_sha256'] = hashlib.sha256(generated.encode('utf-8')).hexdigest()
     files = {'exe': args.game_root / 'Apps/SimCity 4.exe', 'start.sc4': save,
              'observer.dll': args.original_dll, 'user.cfg': args.regions_root.parent / 'SimCity 4.cfg'}
-    for name in ('ingame_run.ps1', 'city_fixture.ps1', 'sc4mutex.ps1', 'sc4ctl.ps1'):
+    for name in ('ingame_run.ps1', 'city_fixture.ps1', 'sc4mutex.ps1', 'sc4ctl.ps1', 'game_queue.ps1'):
         files['harness/' + name] = root / 'tools' / name
+    for name in ('golden.py', 'golden_run.ps1', 'golden_snapshot.ps1'):
+        files['golden/' + name] = Path(__file__).with_name(name)
     # Neighbour cities and region layout are simulation inputs too.
     for path in sorted((args.regions_root / region).rglob('*')):
         if path.is_file():
@@ -290,6 +315,8 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     # original. Candidates must use the same scheduler and window settings.
     selected = effective_replacements(args.clock, selected)
     validate_harness_sources(args)
+    source_dll = dll.resolve()
+    dll = stage_dll(args.output, source_dll)
     run_id = f'{tag}-{time.strftime("%Y%m%d-%H%M%S")}-{uuid.uuid4().hex[:8]}'
     work = args.output / 'golden-runs' / run_id
     work.mkdir(parents=True)
@@ -346,7 +373,8 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     warnings = [line for line in text.splitlines() if 'WARNING' in line or 'session seed:' in line]
     summary = {'wall_seconds': time.perf_counter() - start, 'game': load_json(result / 'run.json'),
                'days_per_second': figures[-1] if figures else None, 'digest_lines': len(digests),
-               'replacements': selected, 'dll_sha256': sha256(dll), 'warnings': warnings}
+               'replacements': selected, 'dll_sha256': sha256(dll), 'staged_dll': str(dll.resolve()),
+               'source_dll': str(source_dll), 'warnings': warnings}
     write_json(result / 'summary.json', summary)
     # A future reach-enabled harness may export alongside the plugin log.
     # Never copy a stale shared slot reach file into this run.
@@ -389,12 +417,7 @@ def run_queued(args, dll, ini, result, work):
     if args.region != 'FC4 Test' and not region_ready:
         raise ValueError('queue region key is not available yet; refusing an FC4 Test fallback')
     label = 'golden-' + uuid.uuid4().hex
-    staged = args.output / 'golden-inputs' / (sha256(dll) + '.dll')
-    staged.parent.mkdir(parents=True, exist_ok=True)
-    if not staged.exists():
-        shutil.copyfile(dll, staged)
-    if sha256(staged) != sha256(dll):
-        raise ValueError('staged candidate DLL differs')
+    staged = stage_dll(args.output, dll)
     queue = args.output / 'game-queue'
     queue.mkdir(parents=True, exist_ok=True)
     request = (f'label = {label}\ndll = {staged.relative_to(REPO).as_posix()}\ncity = {args.city}\n'
