@@ -24,7 +24,9 @@ writable private VirtualQuery regions, capped for bounded observer cost. Thread
 stack comparison excludes the hook's own active frames. Executable/image memory
 is never snapshotted. A region refusal is an unverified sample, never an exact
 result. Outside changes prevent replay; the original's state remains installed.
-Otherwise restore, run the Rust adapter, compare, and restore the original result.
+Otherwise restore mutable outputs, run the Rust adapter on the pre-call inputs,
+compare, and restore the original result. Read-only receiver/input windows are
+never written back; unexpected changes there are compared to the pre-call copy.
 
 Blind spots: writes later undone, unrelated allocations/global/image storage,
 other stack frames below the caller, uncommitted memory, and unsampled calls.

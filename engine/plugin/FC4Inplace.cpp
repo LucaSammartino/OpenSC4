@@ -128,7 +128,7 @@ struct Capture {
     }
     bool Prepare(uintptr_t stackFloor) {
         if (!ok) return false;
-        // Reject aliases involving outputs rather than silently changing native store order.
+        // SPEC-GAP: output aliases have no replay contract; refuse them.
         for (unsigned i=0; i<windowCount; ++i) for (unsigned j=0; j<i; ++j) {
             const auto& a=windows[i]; const auto& b=windows[j];
             if ((a.output >= 0 || b.output >= 0) &&
@@ -169,7 +169,10 @@ struct Capture {
         return nullptr;
     }
     void Restore(bool after) { for (unsigned i=0; i<windowCount; ++i) {
-        const auto& w=windows[i]; std::memcpy(w.pointer,Saved(w,after),w.size);
+        const auto& w=windows[i];
+        // Never write back read-only receiver/input windows: a concurrent camera
+        // update must not be overwritten by the observer.
+        if (w.output>=0) std::memcpy(w.pointer,Saved(w,after),w.size);
     } }
     bool Outside(unsigned& region, size_t& offset) const {
         for (unsigned j=0; j<regionCount; ++j) { const auto& r=regions[j];
@@ -218,7 +221,7 @@ bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr
     } else {
         capture.Restore(false);
         std::array<uint32_t,0x470/4> owner{};
-        if (self) { std::memcpy(owner.data(),self,sizeof(owner)); fc4_viewutil_shadow_cached(fn.va,owner.data(),input.data(),out.data()); }
+        if (self) { std::memcpy(owner.data(),capture.Saved(capture.windows[0],false),sizeof(owner)); fc4_viewutil_shadow_cached(fn.va,owner.data(),input.data(),out.data()); }
         else fc4_viewutil_shadow_local(fn.va,input.data(),out.data());
         for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
             if (w.output>=0) std::memcpy(w.pointer,out.data()+w.output,w.size);
@@ -229,7 +232,8 @@ bool Observe(unsigned index, void* self, Packet input, Capture& capture, uintptr
         equal=true;floatOnly=true;
         for (unsigned i=0; i<capture.windowCount; ++i) { const auto& w=capture.windows[i];
             for (size_t n=0; n<w.size; n+=4) {
-                uint32_t a,b; std::memcpy(&a,capture.Saved(w,true)+n,4); std::memcpy(&b,w.pointer+n,4);
+                uint32_t a,b; std::memcpy(&a,capture.Saved(w,true)+n,4);
+                std::memcpy(&b,(w.output<0?capture.Saved(w,false):w.pointer)+n,4);
                 if (a==b) continue;
                 // Unexpected owner/input words can contain pointers: report only
                 // their window/offset, never their raw values.
