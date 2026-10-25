@@ -296,6 +296,11 @@ function ParseRequest([string]$root, [string]$file) {
     foreach ($kv in @(@("popup_dialogs", "0"), @("autotest_unpause", "2"), @("autotest_end", "quit"))) {
         if ($text -notmatch "(?m)^\s*$($kv[0])\s*=") { $text += "`n$($kv[0]) = $($kv[1])" }
     }
+    # reach = 1 without reach_output: the tracer writes <slot>\Plugins\FreeCity4.log.reach.tsv, which Finish never copies, so
+    # the run has no labelled reach file. Default it to <label>.reach.tsv next to the results (an explicit reach_output stays).
+    if ($text -match '(?im)^\s*reach\s*=\s*(1|on|true|yes)\s*(#.*)?$' -and $text -notmatch '(?m)^\s*reach_output\s*=') {
+        $text += "`nreach_output = " + (Join-Path (Join-Path $root "build-runs\game-results") "$($q.label).reach.tsv")
+    }
     $q.iniText = $text
     return $q
 }

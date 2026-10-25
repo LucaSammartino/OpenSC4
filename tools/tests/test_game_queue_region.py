@@ -49,6 +49,19 @@ class QueueRegionTests(unittest.TestCase):
         self.assertIn("region 'San Francisco'", self.parse(
             'region = San Francisco\ncity = Missing')['error'])
 
+    def test_reach_output_defaults_to_the_labelled_results_file(self):
+        bare = self.parse('label = trial\n[ini]\nreach = 1')
+        self.assertIsNone(bare['error'])
+        lines = bare['iniText'].split('\n')
+        defaults = [line for line in lines if line.startswith('reach_output = ')]
+        self.assertEqual(len(defaults), 1)
+        self.assertTrue(defaults[0].endswith('build-runs\\game-results\\trial.reach.tsv'), defaults[0])
+        explicit = self.parse('label = trial\n[ini]\nreach = on\nreach_output = C:\\x\\y.tsv')
+        self.assertEqual([line for line in explicit['iniText'].split('\n') if line.startswith('reach_output')],
+                         ['reach_output = C:\\x\\y.tsv'])
+        for off in ('reach = 0', 'popup_dialogs = 0'):
+            self.assertNotIn('reach_output', self.parse('label = trial\n[ini]\n' + off)['iniText'])
+
     def test_parallel_is_opt_in_and_ini_cannot_enable_it(self):
         q = self.parse('label = trial\n[ini]\nparallel = 1')
         self.assertFalse(q['peekParallel'])
