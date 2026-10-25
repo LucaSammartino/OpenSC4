@@ -32,6 +32,7 @@
 #include "FC4LotDevInterfaces.h"  // cFC4ISC4NetworkLotManager
 #include "FC4NetMgrHost.h"        // fc4::NetMgrContext
 #include "cISC4NetworkLot.h"
+#include "cISC4NetworkLotConfiguration.h"
 #include "cSC4LotConfigurationObject.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
@@ -65,12 +66,22 @@ static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
 // glue24-rep-6 - two storages that both hold the records by value double-
 // freed each record's SC4Vector data at Shutdown, the run's heap-corruption
 // crash; one owner only).
-class cFC4NetworkLotConfiguration {
+class cFC4NetworkLotConfiguration final : public cISC4NetworkLotConfiguration {
 public:
-    explicit cFC4NetworkLotConfiguration(uint64_t token) : token_(token) {}
+    static std::shared_ptr<cFC4NetworkLotConfiguration> Create(uint64_t token) {
+        return {new cFC4NetworkLotConfiguration(token), [](cFC4NetworkLotConfiguration* p) { p->Release(); }};
+    }
+    bool QueryInterface(uint32_t riid, void** out) override;
+    uint32_t AddRef() override;
+    uint32_t Release() override;
+    SC4Vector<cSC4LotConfigurationObject>* GetObjectArray() const override { return &records_; }
+    uint32_t GetID() const override { return configId_; }
+    void GetName(cIGZString& name) const override;
+    uint32_t GetNetworkPieceId() const override { return pieceId_; }
 
     void SetToken(uint64_t token) { token_ = token; }
     void SetConfigId(uint32_t id) { configId_ = id; }
+    void SetMetadata(uint32_t pieceId, std::string name) { pieceId_ = pieceId; name_ = std::move(name); }
     void AddIds(std::vector<uint32_t> ids) { ids_.push_back(std::move(ids)); }
     // Builds one record in place: SC4Vector's push_back memmoves the element
     // bytes, so an AddObject(const T&) would share the source's `data` buffer
@@ -117,12 +128,17 @@ public:
     SC4Vector<cSC4LotConfigurationObject>* Objects() { return &records_; }
 
 private:
+    explicit cFC4NetworkLotConfiguration(uint64_t token) : token_(token) {}
+    ~cFC4NetworkLotConfiguration() = default;
+    std::atomic<uint32_t> refs_{1};
     uint64_t token_ = 0;
     uint32_t configId_ = 0;  // the exemplar's property 0x21 (§2.4)
+    uint32_t pieceId_ = 0;
+    std::string name_;
     // The kept records, in property order: the ONLY storage (SC4Vector's
     // push_back memmoves the element bytes, and its destructor runs each
     // element's destructor, so a second copy would free the same data).
-    SC4Vector<cSC4LotConfigurationObject> records_;
+    mutable SC4Vector<cSC4LotConfigurationObject> records_;
     // Per kept-object index: the raw ID list of the object (object_ids).
     std::vector<std::vector<uint32_t>> ids_;
 };
@@ -200,6 +216,7 @@ public:
     cFC4NetworkLotConfiguration* ConfigByToken(uint64_t token) const;
 
 private:
+    friend intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second);
     // §3.2 step 4: every exemplar of exemplar type 0x21 (read once per
     // process), each as a core property holder plus the game's object records.
     void ReadConfigurations();

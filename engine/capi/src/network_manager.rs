@@ -1226,6 +1226,20 @@ pub unsafe extern "C" fn fc4_netlot_clear_next_configuration(p: *mut fc4_netlot)
     with_l(p, (), |h| h.sim.set_lot_configuration_for_next_piece(None))
 }
 
+/// Slot 13 with an exact host identity, including configurations sharing an ID.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netlot_set_next_configuration_token(p: *mut fc4_netlot, token: u64) -> bool {
+    with_l(p, false, |h| {
+        match h.sim.configuration_set().into_iter().find(|c| c.token == token) {
+            Some(c) => {
+                h.sim.set_lot_configuration_for_next_piece(Some(c));
+                true
+            }
+            None => false,
+        }
+    })
+}
+
 /// Slot 11 `IterateAllNetworkLots(cb)`: `cb(ctx, x, z, lot)` in map order;
 /// false at the first false.
 #[no_mangle]

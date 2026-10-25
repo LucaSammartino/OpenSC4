@@ -57,6 +57,7 @@ struct Game {
     lit: RefCell<Vec<(u64, bool)>>,
     zones: RefCell<BTreeMap<(i32, i32), i32>>,
     slope: Cell<f32>,
+    object_tokens: RefCell<Vec<u64>>,
 }
 
 impl Game {
@@ -609,7 +610,18 @@ unsafe extern "C" fn area_slope(u: *mut c_void, _: i32, _: i32) -> f32 {
 unsafe extern "C" fn piece_id(u: *mut c_void, n: u64) -> u32 {
     game(u).occ(n).piece
 }
-unsafe extern "C" fn object_ids(_: *mut c_void, _: u64, _: u32, _: fc4_u32_callback, _: *mut c_void) {}
+unsafe extern "C" fn object_ids(u: *mut c_void, token: u64, _: u32, _: fc4_u32_callback, _: *mut c_void) {
+    game(u).object_tokens.borrow_mut().push(token);
+}
+
+unsafe extern "C" fn find_lot_test_tile(u: *mut c_void, x: i32, z: i32, flags: u32) -> u64 {
+    game(u)
+        .occs
+        .borrow()
+        .iter()
+        .find_map(|(&token, o)| (o.cell == (x, z) && o.flags & flags != 0).then_some(token))
+        .unwrap_or(0)
+}
 
 fn lot_host(g: &Game) -> fc4_netlot_host {
     fc4_netlot_host {
@@ -706,6 +718,54 @@ fn save_lots(l: *const fc4_netlot) -> Out {
     let s = ostream(&mut o);
     assert!(unsafe { fc4_netlot_write(l, &s) });
     o
+}
+
+#[test]
+fn forced_configuration_uses_exact_token_when_ids_collide() {
+    let g = Game::new();
+    g.add(
+        1,
+        Occ {
+            piece: 0x77,
+            ..road((1, 1), 1)
+        },
+    );
+    let mut host = lot_host(&g);
+    host.find_network_tile = Some(find_lot_test_tile);
+    unsafe {
+        let l = fc4_netlot_create(&host, 0, 1);
+        assert!(!l.is_null());
+        let objects = [fc4_netlot_object {
+            kind: 1,
+            ..fc4_netlot_object::default()
+        }];
+        let mut first = config(42, 0x77, [0x0F; 4]);
+        first.token = 100;
+        first.object_count = 1;
+        first.objects = objects.as_ptr();
+        let mut second = config(42, 0x78, [0x0F; 4]);
+        second.token = 200;
+        second.object_count = 1;
+        second.objects = objects.as_ptr();
+        assert!(fc4_netlot_add_configuration(l, &first));
+        assert!(fc4_netlot_add_configuration(l, &second));
+        assert!(!fc4_netlot_set_next_configuration_token(l, 200));
+        assert!(fc4_netlot_init(l));
+        for token in [200, 100, 200] {
+            assert!(fc4_netlot_set_next_configuration_token(l, token));
+            assert!(!fc4_netlot_set_next_configuration_token(l, 999));
+            fc4_netlot_update_roads_in_cell(l, 1, 1);
+            assert_eq!(g.object_tokens.borrow().last(), Some(&token));
+            assert_eq!(lot_state(l).has_forced, 0, "forced choice is consumed");
+            fc4_netlot_do_message(l, OCCUPANT_REMOVED, 0, 0, 0, 1, 0, std::ptr::null());
+        }
+        assert!(fc4_netlot_set_next_configuration_token(l, 200));
+        fc4_netlot_clear_next_configuration(l);
+        assert_eq!(lot_state(l).has_forced, 0);
+        fc4_netlot_destroy(l);
+        assert_eq!(g.refs(1), 0);
+        assert!(!fc4_netlot_set_next_configuration_token(std::ptr::null_mut(), 100));
+    }
 }
 
 #[test]

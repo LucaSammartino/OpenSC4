@@ -31,6 +31,8 @@
 
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
+#include "cIGZString.h"
+#include "cRZBaseString.h"
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
@@ -378,6 +380,29 @@ fc4_netlot_host MakeHost(cFC4NetworkLotManager* self, fc4::NetMgrOwner* owner) {
 
 // ---- cFC4NetworkLotConfiguration ------------------------------------------------------------------------
 
+bool cFC4NetworkLotConfiguration::QueryInterface(uint32_t riid, void** out) {
+    if (out == nullptr) return false;
+    *out = nullptr;
+    // SPEC-GAP: the configuration IID is unspecified; expose only the known unknown identity.
+    if (riid != GZIID_cIGZUnknown) return false;
+    *out = static_cast<cISC4NetworkLotConfiguration*>(this);
+    AddRef();
+    return true;
+}
+
+uint32_t cFC4NetworkLotConfiguration::AddRef() { return ++refs_; }
+
+uint32_t cFC4NetworkLotConfiguration::Release() {
+    const uint32_t remaining = --refs_;
+    if (remaining != 0) return remaining;
+    delete this;
+    return 0;
+}
+
+void cFC4NetworkLotConfiguration::GetName(cIGZString& name) const {
+    name.FromChar(name_.data(), static_cast<uint32_t>(name_.size()));
+}
+
 const std::vector<uint32_t>& cFC4NetworkLotConfiguration::ObjectIds(size_t index) const {
     static const std::vector<uint32_t> kEmpty;
     return index < ids_.size() ? ids_[index] : kEmpty;
@@ -608,9 +633,14 @@ void cFC4NetworkLotManager::ReadConfigurations() {
             // property or 0x88EDCE00, a property with fewer than 10 values is
             // skipped, and an object is kept when its type is 0 or its LOD
             // bits (v1 & 0x30) are below the network detail d = 3).
-            auto record = std::make_shared<cFC4NetworkLotConfiguration>(
+            auto record = cFC4NetworkLotConfiguration::Create(
                 static_cast<uint64_t>(configs_.size()) + 1);
             record->SetConfigId(configId);
+            std::vector<uint32_t> piece;
+            std::vector<uint8_t> name;
+            fc4::props::GetU32s(h, 0xC9A5A1BE, piece);
+            fc4::props::GetRawArrayBytes(h, 0x20, name);
+            record->SetMetadata(piece.empty() ? 0 : piece[0], std::string(name.begin(), name.end()));
             std::vector<fc4_netlot_object> objects;
             for (uint32_t id = 0;; ++id) {
                 std::vector<uint32_t> v;
@@ -705,12 +735,10 @@ cISC4NetworkLot* cFC4NetworkLotManager::GetNetworkLot(int32_t x, int32_t z) {
 }
 
 // Slot 6 (§11.2 / §8.6): the configuration set. `set` is the caller's set of
-// cISC4NetworkLotConfiguration objects; without the configuration-object
-// class of ours nothing is inserted yet [choice] (question NM11: the set's
-// element type is the game's cSC4NetworkLotConfiguration, not specified as
-// creatable).
+// cISC4NetworkLotConfiguration objects.
+// SPEC-GAP: the output container layout/allocator is unspecified; do not write an assumed set ABI.
 void cFC4NetworkLotManager::GetNetworkLotConfigurationSet(intptr_t) {
-    fc4::Log("netlot GetNetworkLotConfigurationSet: the configuration-object bridge is not wired");
+    fc4::Log("netlot GetNetworkLotConfigurationSet: the output container contract is not specified");
 }
 
 // Slot 7 (§8.6): true when a loaded configuration has `id`. The original never
@@ -770,14 +798,19 @@ void cFC4NetworkLotManager::RedevelopLot(uint32_t x, uint32_t z, cISC4NetworkLot
     fc4_netlot_redevelop_lot(core_, static_cast<int32_t>(x), static_cast<int32_t>(z));
 }
 
-// Slot 13 (§8.5): the configuration for the next piece. Without the
-// configuration-object bridge the forced configuration is cleared [choice].
+// Slot 13 (§8.5): only manager-owned configurations have a core identity.
 void cFC4NetworkLotManager::SetLotConfigurationForNextPiece(void* cfg) {
     if (cfg == nullptr) {
         fc4_netlot_clear_next_configuration(core_);
         return;
     }
-    fc4::Log("netlot SetLotConfigurationForNextPiece: the configuration-object bridge is not wired");
+    for (const auto& kv : configs_) {
+        if (static_cast<cISC4NetworkLotConfiguration*>(kv.second.get()) == cfg) {
+            fc4_netlot_set_next_configuration_token(core_, kv.second->Token());
+            return;
+        }
+    }
+    // SPEC-GAP: importing a foreign configuration is unspecified; leave the current choice intact.
 }
 
 // Slot 14 (§11.2): tooling, configurations of version < 2.
@@ -924,13 +957,51 @@ intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
         if (refs != 2) return 0;  // Cache owns one reference after early termination.
     }
 
-    auto config = std::make_shared<cFC4NetworkLotConfiguration>(1);
+    auto config = cFC4NetworkLotConfiguration::Create(1);
     config->SetConfigId(42);
+    config->AddObject(1, 0, 0, false, 1, 2, 3, 4, 5, 0, 0, 0, 123, {456, 789});
+    config->SetMetadata(0x1234, std::string("road\0lot", 8));
+    cISC4NetworkLotConfiguration* iface = config.get();
+    cRZBaseString name;
+    iface->GetName(name);
+    if (iface->GetID() != 42 || iface->GetNetworkPieceId() != 0x1234 || name.Strlen() != 8 ||
+        std::string(name.ToChar(), name.Strlen()) != std::string("road\0lot", 8) ||
+        iface->GetObjectArray() != config->Objects()) return 0;
+    void* unknown = nullptr;
+    if (!iface->QueryInterface(GZIID_cIGZUnknown, &unknown) || unknown != iface ||
+        iface->QueryInterface(GZIID_cIGZUnknown, nullptr)) return 0;
+    void* unsupported = iface;
+    if (iface->QueryInterface(0xFFFFFFFF, &unsupported) || unsupported != nullptr) return 0;
     std::weak_ptr<cFC4NetworkLotConfiguration> weak = config;
     auto* lot = new cFC4NetworkLot(a, config);
     config.reset();
     const bool kept = !weak.expired() && lot->Config()->ConfigId() == 42 &&
         lot->GetLotConfigurationObjectArray() != nullptr;
     lot->Release();
-    return kept && weak.expired() ? 1 : 0;
+    // The shared owner is gone, but the caller's QI reference keeps the COM object alive.
+    const auto* objects = iface->GetObjectArray();
+    const bool comKept = weak.expired() && iface->GetID() == 42 && objects != nullptr &&
+        objects->size() == 1 && objects->begin()->objectID == 123 && objects->begin()->data.size() == 2 &&
+        *objects->begin()->data.begin() == 456;
+    if (static_cast<cIGZUnknown*>(unknown)->Release() != 0 || !kept || !comKept) return 0;
+
+    cFC4NetworkLotManager manager;
+    auto forced = cFC4NetworkLotConfiguration::Create(7);
+    forced->SetConfigId(99);
+    manager.configs_.emplace(7, forced);
+    fc4_netlot_config c{};
+    c.struct_size = sizeof(c);
+    c.token = 7;
+    c.id = 99;
+    c.piece_id = 0x4321;
+    if (!fc4_netlot_add_configuration(manager.core_, &c) || !fc4_netlot_init(manager.core_)) return 0;
+    manager.SetLotConfigurationForNextPiece(static_cast<cISC4NetworkLotConfiguration*>(forced.get()));
+    fc4_netlot_state st{};
+    st.struct_size = sizeof(st);
+    if (!fc4_netlot_get_state(manager.core_, &st) || !st.has_forced || st.forced_id != 99) return 0;
+    // An unowned pointer is never cast/dereferenced; null explicitly clears the choice.
+    manager.SetLotConfigurationForNextPiece(first);
+    if (!fc4_netlot_get_state(manager.core_, &st) || !st.has_forced || st.forced_id != 99) return 0;
+    manager.SetLotConfigurationForNextPiece(nullptr);
+    return fc4_netlot_get_state(manager.core_, &st) && !st.has_forced ? 1 : 0;
 }

@@ -9311,6 +9311,8 @@ bool fc4_netlot_get_state(const fc4_netlot* l, fc4_netlot_state* out);
  * effect props (IID 0x09820792) come back through resolve_ref. */
 bool fc4_netlot_write(const fc4_netlot* l, const fc4_ostream* out);
 bool fc4_netlot_read(fc4_netlot* l, const fc4_istream* in);
+/* Slot 13: select by exact host identity rather than the non-unique saved ID. */
+bool fc4_netlot_set_next_configuration_token(fc4_netlot* l, uint64_t token);
 
 /* ---- network rules (docs/specs/network-rules.md; engine/capi/src/network_rules.rs) ----
  * The rule database (the tile rule files with #Transmogrify, RUL0 intersection
