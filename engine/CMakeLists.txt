@@ -1201,3 +1201,12 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_advisor_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
 endif()
+
+# Construction interface identity and borrowed slot-3 conversion (LR 9.3).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ConstructionIdentity.h)
+    add_executable(fc4_construction_identity_test tests/construction_identity_test.cpp)
+    target_include_directories(fc4_construction_identity_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_options(fc4_construction_identity_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME construction_identity_test COMMAND fc4_construction_identity_test)
+endif()
