@@ -5,6 +5,7 @@ still be returned. Void requires every observed exit to preserve EAX or leave
 a value already consumed as scratch, as well as complete, non-reading callers.
 """
 from collections import defaultdict, deque
+from abi_returns import X87_PUSH, X87_POP1, X87_POP2
 
 DECIDED = {'eax', 'al', 'ax', 'edx:eax', 'x87', 'void'}
 
@@ -114,16 +115,49 @@ def exit_sources(f, reg, access):
             continue
         if ins.mnemonic == 'push' and ins.operands == (reg,):
             rs.add(reg)
-        # A test of the value does not make it scratch (e.g. a conditional
-        # getter). Consuming it in a memory effect / another value does.
-        used |= reg in rs and ins.mnemonic not in ('test', 'cmp', 'bt')
+        used |= reg in rs
         if va == f.address or not predecessors[va]:
             sources.add(('entry', va, used))
         todo.extend((p, used) for p in predecessors[va] if p in reachable)
     return sorted(sources)
 
 
+def x87_depths(f, floating, call_x87_used):
+    """Preserve live caller temporaries across calls; do not credit them as results."""
+    todo, seen, calls, exits = [(f.address, 0)], set(), defaultdict(set), set()
+    while todo:
+        va, depth = todo.pop()
+        if (va, depth) in seen or va not in f.insns:
+            continue
+        seen.add((va, depth))
+        ins = f.insns[va]
+        m = ins.mnemonic
+        if ins.pop is not None:
+            exits.add(depth)
+        elif m == 'call':
+            calls[va].add(depth)
+            if ins.target in floating or depth == 0 and call_x87_used(ins, f):
+                depth += 1
+        elif m in X87_PUSH:
+            depth += 1
+        elif m in X87_POP1:
+            depth -= 1
+        elif m in X87_POP2:
+            depth -= 2
+        elif m == 'emms':
+            depth = 0
+        if not 0 <= depth <= 8:
+            exits.add(-1)  # Keep uncertainty, never silently drop a broken path.
+            continue
+        todo.extend((dst, depth) for dst in f.edges.get(va, ()))
+    return calls, exits
+
+
 def analyse(functions, callsites, vtable, direct, access, call_x87_used):
+    floating = {addr for addr, rows in vtable.items() if any(
+        r['ret'] == 'x87' and r['ret_confidence'] in ('high', 'exact') for r in rows)}
+    floating |= {addr for addr, row in direct.items() if row['ret'] == 'x87'}
+    depths = {addr: x87_depths(f, floating, call_x87_used) for addr, f in functions.items()}
     evidence = {}
     for addr, f in sorted(functions.items()):
         checked = []
@@ -135,9 +169,11 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
             checked.append({'caller': f'{owner:08x}', 'site': f'{site:08x}',
                             'eax': caller_read(call, caller, 'eax', access, functions),
                             'edx': caller_read(call, caller, 'edx', access, functions),
-                            'x87': call_x87_used(call, caller)})
+                            'x87': depths[owner][0].get(site) == {0} and call_x87_used(call, caller),
+                            'x87_depth_before': sorted(depths[owner][0].get(site, ()))})
         evidence[addr] = {'callers': checked, 'eax_exits': exit_sources(f, 'eax', access),
-                          'edx_exits': exit_sources(f, 'edx', access)}
+                          'edx_exits': exit_sources(f, 'edx', access),
+                          'x87_exit_depths': sorted(depths[addr][1])}
 
     result = {addr: ('unknown', 'low', 'unresolved') for addr in functions}
     # Reviewed definite channels seed forwarding; ambiguous source labels do not.
@@ -151,6 +187,43 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
         if row['ret'] in DECIDED:
             seeds[addr] = (row['ret'], 'high', 'reviewed-direct')
 
+    # A consumer of wrapper() also consumes the unchanged value produced by
+    # its terminal call/tail. Solve demand backwards before deciding void, so
+    # a local RET cannot hide a real consumer one or more wrappers away.
+    masks, edx_demand, fp_demand = defaultdict(int), set(), set()
+    for addr, ev in evidence.items():
+        for c in ev['callers']:
+            masks[addr] |= c['eax']['read_mask']
+            if c['edx']['reads']:
+                edx_demand.add(addr)
+            if c['x87']:
+                fp_demand.add(addr)
+        channel = seeds.get(addr, ('unknown',))[0]
+        masks[addr] |= {'eax': 15, 'al': 1, 'ax': 3, 'edx:eax': 15}.get(channel, 0)
+        if channel == 'edx:eax':
+            edx_demand.add(addr)
+        if channel == 'x87':
+            fp_demand.add(addr)
+    todo, queued = deque(sorted(functions)), set(functions)
+    forwarded = defaultdict(set)
+    while todo:
+        addr = todo.popleft()
+        queued.discard(addr)
+        for kind, dst, used in evidence[addr]['eax_exits']:
+            if kind not in ('call', 'tail') or used or dst not in functions:
+                continue
+            before = masks[dst], dst in edx_demand, dst in fp_demand
+            masks[dst] |= masks[addr]
+            if addr in edx_demand:
+                edx_demand.add(dst)
+            if addr in fp_demand:
+                fp_demand.add(dst)
+            if before != (masks[dst], dst in edx_demand, dst in fp_demand):
+                forwarded[dst].add(addr)
+                if dst not in queued:
+                    todo.append(dst)
+                    queued.add(dst)
+
     reverse = defaultdict(set)
     for addr, ev in evidence.items():
         for kind, dst, _ in ev['eax_exits']:
@@ -162,12 +235,13 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
         queued.discard(addr)
         f, ev = functions[addr], evidence[addr]
         callers, exits = ev['callers'], ev['eax_exits']
-        eax = any(c['eax']['reads'] for c in callers)
-        edx = any(c['edx']['reads'] for c in callers)
-        fp = any(c['x87'] for c in callers)
+        eax, edx, fp = bool(masks[addr]), addr in edx_demand, addr in fp_demand
         complete = all(c['eax']['complete'] and c['edx']['complete'] for c in callers)
         width = {write_mask(f.insns[site], 'eax') for kind, site, _ in exits if kind == 'write'}
-        body_channel = 'al' if width == {1} else 'ax' if width == {3} else 'eax'
+        # Full-width zero on one path and SETcc AL on another defines only AL
+        # on *every* path. Comparing all of EAX would credit undefined bits.
+        body_channel = ('al' if 1 in width and width <= {1, 3, 15} else
+                        'ax' if 3 in width and width <= {3, 15} else 'eax')
         channels, reasons = set(), set()
         for kind, site, used in exits:
             if kind in ('call', 'tail'):
@@ -184,15 +258,22 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
                 channels.add('unknown')
         if addr in seeds:
             decided = seeds[addr]
-        elif fp or f.kinds == {'x87'}:
+        elif fp or ev['x87_exit_depths'] == [1]:
             decided = ('x87', 'high', 'caller-st0-read' if fp else 'body-x87-exit')
         elif eax:
-            decided = ('edx:eax' if edx else body_channel, 'high',
+            read_bits = masks[addr]
+            observed = ('al' if read_bits == 1 else 'ax' if read_bits <= 3 else body_channel)
+            if 'al' in channels:
+                observed = 'al'
+            elif 'ax' in channels and observed == 'eax':
+                observed = 'ax'
+            decided = ('edx:eax' if edx else observed, 'high',
                        'caller-eax-edx-read' if edx else 'caller-eax-read')
         elif edx:
             decided = ('unknown', 'low', 'caller-edx-only')
-        elif channels == {'eax'}:
-            decided = ('eax', 'high', '+'.join(sorted(reasons)))
+        elif channels and channels <= {'eax', 'al', 'ax'}:
+            decided = ('al' if 'al' in channels else 'ax' if 'ax' in channels else 'eax',
+                       'high', '+'.join(sorted(reasons)))
         elif channels == {'void'} and complete and exits and f.insns:
             decided = ('void', 'high', 'no-caller-read+' + '+'.join(sorted(reasons)))
         elif channels <= {'eax', 'al', 'ax', 'edx:eax', 'x87'} and len(channels) == 1:
@@ -214,6 +295,7 @@ def analyse(functions, callsites, vtable, direct, access, call_x87_used):
     for addr, ev in evidence.items():
         ret, confidence, kind = result[addr]
         ev.update(ret=ret, confidence=confidence, kind=kind,
+                  forwarding_consumers=[f'{a:08x}' for a in sorted(forwarded[addr])],
                   callers_checked=len(ev['callers']),
                   caller_eax_reads=sum(bool(c['eax']['reads']) for c in ev['callers']),
                   caller_edx_reads=sum(bool(c['edx']['reads']) for c in ev['callers']),

@@ -101,6 +101,64 @@ def test_unknown_indirect_exit_does_not_become_void():
     assert ev[0x1000]['ret'] == 'unknown'
 
 
+def test_full_zero_and_partial_success_define_only_al_on_every_path():
+    _, ev = run('''00001000\t7403\tJZ 0x1005
+00001002\tb001\tMOV AL,0x1
+00001004\tc3\tRET
+00001005\t31c0\tXOR EAX,EAX
+00001007\tc3\tRET''')
+    assert ev[0x1000]['ret'] == 'al'
+
+
+def test_caller_bool_read_and_tail_forwarding_preserve_byte_width():
+    _, ev = run('''00001000\te8fb0f0000\tCALL 0x2000
+00001005\t84c0\tTEST AL,AL
+00001007\tc3\tRET''', '00002000\te9fb0f0000\tJMP 0x3000',
+                '''00003000\tb001\tMOV AL,0x1
+00003002\tc3\tRET''')
+    assert ev[0x2000]['ret'] == 'al'
+
+
+def test_demand_crosses_multiple_call_forwarders_before_void_is_decided():
+    _, ev = run('''00001000\te8fb0f0000\tCALL 0x2000
+00001005\t85c0\tTEST EAX,EAX
+00001007\tc3\tRET''', '''00002000\te8fb0f0000\tCALL 0x3000
+00002005\tc3\tRET''', '''00003000\te8fb0f0000\tCALL 0x4000
+00003005\tc3\tRET''', '''00004000\t8b01\tMOV EAX,dword ptr [ECX]
+00004002\t8902\tMOV dword ptr [EDX],EAX
+00004004\tc3\tRET''')
+    assert ev[0x4000]['ret'] == 'eax'
+    assert ev[0x4000]['forwarding_consumers'] == ['00003000']
+
+
+def test_fpu_status_write_is_not_an_eax_input_or_return_read():
+    i = abi.Insn.parse('00001000\tdfe0\tFNSTSW AX')
+    assert abi.access(i) == (set(), {'eax'})
+    _, ev = run('''00001000\te8fb0f0000\tCALL 0x2000
+00001005\tdfe0\tFNSTSW AX
+00001007\t84e4\tTEST AH,AH
+00001009\tc3\tRET''', '00002000\tc3\tRET')
+    assert ev[0x2000]['caller_eax_reads'] == 0
+
+
+def test_float_temporary_live_across_cleanup_call_is_not_its_return():
+    _, ev = run('''00001000\td901\tFLD dword ptr [ECX]
+00001002\te8f90f0000\tCALL 0x2000
+00001007\td91d00300000\tFSTP dword ptr [0x3000]
+0000100d\tc3\tRET''', '00002000\tc3\tRET')
+    assert ev[0x2000]['caller_x87_reads'] == 0
+    assert ev[0x2000]['callers'][0]['x87_depth_before'] == [1]
+    assert ev[0x2000]['ret'] == 'void'
+
+
+def test_fld_then_memory_compare_does_not_consume_a_call_result():
+    _, ev = run('''00001000\te8fb0f0000\tCALL 0x2000
+00001005\td901\tFLD dword ptr [ECX]
+00001007\td81a\tFCOMP dword ptr [EDX]
+00001009\tc3\tRET''', '00002000\tc3\tRET')
+    assert ev[0x2000]['caller_x87_reads'] == 0
+
+
 def test_empty_leaf_is_void_and_fpu_store_pop_is_not_a_float_return():
     _, ev = run('00001000\tc3\tRET', '''00002000\td901\tFLD dword ptr [ECX]
 00002002\td91a\tFSTP dword ptr [EDX]

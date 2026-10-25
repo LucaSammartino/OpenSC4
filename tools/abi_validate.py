@@ -78,6 +78,9 @@ def validate(export, table, evidence, report_path, sample_path, seed=20261025):
         notes = actual.get('notes', '')
         if diff and 'vtable-conflict=' in notes:
             explain = 'same target has conflicting reviewed and inferred vtable return labels; high-confidence row retained'
+        elif (diff and set(diff) == {'ret'} and
+              f'return-refined-from={r["ret"]}' in notes and 'ret-evidence=' in notes):
+            explain = 'round-2 caller/exit evidence refines the ambiguous vtable return label; original label retained in notes'
         elif diff and not r['callee_pop'] and set(diff) == {'callee_pop'}:
             explain = 'vtable source leaves pop unspecified; export supplies an independently observed pop'
         vt_checks.append({'address': addr, 'class': r['class'], 'slot': r['slot'],

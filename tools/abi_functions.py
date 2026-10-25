@@ -164,6 +164,7 @@ def access(ins):
     if m in ('shld', 'shrd'):
         writes |= {dst} if full_register(dst) else set()
     if m in ('fnstsw', 'fstsw') and dst == 'ax':
+        reads.discard('eax')
         writes.add('eax')
     if m == 'cmpxchg':
         reads.add('eax')
@@ -600,6 +601,8 @@ def required_x87(ins):
              'fninit', 'finit', 'fnop', 'fwait', 'wait'):
         return 0
     if m in X87_PAIR:
+        if any('[' in op for op in ins.operands) or ins.operands == ('st0',):
+            return 1
         return 2
     return 1 if m.startswith('f') else 0
 
@@ -787,6 +790,20 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
         if count:
             cleanups[addr].append({'callsite': f'{site:08x}', 'dwords': attributed,
                                   'batch_dwords': count, 'setup_dwords': setup, 'cleanup_sites': sites})
+    # Tail-import/shared-body functions sometimes have no exported RET. Two
+    # independent caller stack balances can still bound their cleanup. Never
+    # replace conflicting RET bytes or infer from an unknown argument setup.
+    for addr, observed in setups.items():
+        f = functions.get(addr)
+        known = [s for s in observed if s['setup_dwords'] is not None]
+        deltas = {4 * (s['setup_dwords'] - s['cleanup_dwords']) for s in known}
+        if (f and not f.pops and len(known) == len(observed) and len(known) >= 2 and
+                len(deltas) == 1 and next(iter(deltas)) >= 0):
+            pop = next(iter(deltas))
+            if pop == 0 or f.body_args <= pop // 4:
+                f.pops.add(pop)
+                f.notes.add(f'pop-evidence=caller-stack-balance;pop-callers-checked={len(known)}')
+    propagate_pops(functions)
     for f in functions.values():
         returns(f, functions, vtable)
     # Return forwarding also reaches a fixed point, bounded by the finite label vocabulary.
@@ -863,6 +880,8 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
         notes.add(f'ret-evidence={re["kind"]}')
         notes.add(f'callers-checked={re["callers_checked"]};eax-read={re["caller_eax_reads"]};'
                   f'edx-read={re["caller_edx_reads"]};st0-read={re["caller_x87_reads"]}')
+        if re['forwarding_consumers']:
+            notes.add(f'forwarding-consumers={len(re["forwarding_consumers"])}')
         if f.ghidra != 'unknown' and conv != f.ghidra.lstrip('_'):
             notes.add('ghidra=' + f.ghidra.lstrip('_'))
         problematic = {'incomplete-decode', 'incomplete-flow', 'analysis-limit', 'dynamic-stack-read',
