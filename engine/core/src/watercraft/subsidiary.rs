@@ -21,7 +21,6 @@ pub trait Lighting {
 #[derive(Clone, Debug, Default)]
 pub struct Subsidiary {
     pub visibility: SpeedTween,
-    pub animation_elapsed: f32,
     pub attachments_present: bool,
     pub last_lit_position: Vec3,
     pub last_lit_heading: Vec3,
@@ -69,7 +68,8 @@ impl Subsidiary {
                 boat.events.push(Event::Notify(1, 0));
             }
         }
-        self.animation_elapsed += time;
+        // Slot 103 and slot 100 share +0x1C0; publication consumes this clock.
+        boat.models.event_counter += time;
         true
     }
 
@@ -103,6 +103,31 @@ impl Subsidiary {
 }
 
 impl Watercraft {
+    /// Execute wake requests through the shared core controller. Stop has an
+    /// immediate slot-104 refresh after every name, even when no name matches.
+    pub fn update_wakes_with_controller(
+        &mut self,
+        time: f32,
+        cell_size: f32,
+        controller: &mut crate::model_reg_effects::ModelRegEffects<'_>,
+        factory: &mut dyn crate::model_reg_effects::EffectFactory,
+    ) {
+        let first = self.events.len();
+        self.update_wakes(time, cell_size);
+        for event in &self.events[first..] {
+            match event {
+                Event::StartWake(name) => {
+                    controller.start_named(name, 0, false, factory);
+                }
+                Event::StopWake(name) => controller.stop_named(name, 0),
+                Event::EffectUpdate => {
+                    self.update_model_effects(controller);
+                }
+                _ => unreachable!("wake helpers emit only wake and effect-update requests"),
+            }
+        }
+    }
+
     /// Execute the shared core controller, including local REGP composition,
     /// ordered traversal and transform-before-speed parameter publication.
     pub fn update_model_effects(

@@ -11090,8 +11090,11 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 // The glue15 lane: the tutorial system (plugin_glue15_test.inc).
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
+#include "plugin_advisors_replace_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
 #include "plugin_mysims_factory_test.inc"
+#include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
+#include "plugin_netocc_registration_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11113,6 +11116,9 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true);
     if (mode == "--ini-default-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, false);
     if (mode == "--ini-mixed-mysims") return MySimsFactoryBoundaryTest(dll, ini, log, true, true);
+    if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
+        mode == "--effects-guarded")
+        return EffectsRegistrationTest(dll, ini, log, mode);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {
@@ -11190,6 +11196,9 @@ int main(int argc, char** argv) {
     if (mode == "--ini-clock24-shadow") return Clock24ShadowIniTest(dll, ini, log);
     // The tutorial system (tutorial.md; the glue15 lane).
     if (mode == "--ini-enable-tutorial") return TutorialEnableTest(dll, ini, log);
+    if (mode == "--ini-netocc-shadow-factories") return NetOccShadowRegistrationTest(dll, ini);
+    if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
+    if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

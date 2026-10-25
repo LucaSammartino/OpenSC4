@@ -350,7 +350,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
-| regional-city | 7 | 0 | RY8 | questions/regional-city.md |
+| regional-city | 8 | 0 | RY9 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 3 | 1 | RND5 | questions/render3d.md |
@@ -378,7 +378,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
-| terrain | 7 | 36 | TR44 | questions/terrain.md |
+| terrain | 8 | 36 | TR45 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
@@ -408,4 +408,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **659** | **1563** | | |
+| **total** | **661** | **1563** | | |

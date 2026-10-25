@@ -256,7 +256,11 @@ impl RegionalCity {
     }
     pub fn get_commodity_balance(&mut self, c: i32) -> f64 {
         let c = self.commodity(c);
-        (c.produced + c.imported) - (c.demanded + c.exported)
+        // RY8: literal foundations §18.3 simulation precision, despite the
+        // regional-city §5 double-precision wording. Loads stay unrounded;
+        // each arithmetic result rounds separately to the x87 24-bit precision.
+        use crate::x87::r24;
+        r24(r24(c.produced + c.imported) - r24(c.demanded + c.exported))
     }
 
     pub fn set_position(&mut self, x: i32, z: i32, rearrange: bool) {

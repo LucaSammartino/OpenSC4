@@ -249,7 +249,8 @@ fn parent_sound_set_enables_commands_and_tow_button_runs_before_base_translation
         parameters: None,
         aems_value: None,
         parent: Some(group()),
-    });
+    })
+    .into();
     let mut effects = CommandEffects::default();
     let mut command = DriveCommand {
         tow: true,
@@ -310,12 +311,13 @@ fn commands_require_aems_and_fire_consumes_only_successful_shots() {
     b.group = Arc::new(Group {
         aems_value: None,
         ..(*group()).clone()
-    });
+    })
+    .into();
     assert_eq!(b.translate_drive_commands(100.0, &mut command, &mut effects), None);
     assert_eq!(b.speed, 0.0);
     assert_eq!(command.fire, 0.0);
     assert!(effects.calls.is_empty());
-    b.group = group();
+    b.group = Some(group());
     b.translate_drive_commands(0.0, &mut command, &mut effects);
     assert!(command.shared[7].armed);
     assert_eq!(command.shared[7].timer, 42.0);
@@ -335,7 +337,8 @@ fn skier_toggle_and_stop_and_command_translation_order() {
     f.get_mut(1).unwrap().group = Arc::new(Group {
         id: 0x4409,
         ..(*group()).clone()
-    });
+    })
+    .into();
     let mut effects = CommandEffects::default();
     let mut command = DriveCommand {
         throttle: 3000.0,
@@ -372,7 +375,8 @@ fn wc8_11_persistent_toggle_stopped_then_forward_and_wc6_negative_fire() {
             ..(*group()).clone()
         })),
         ..(*group()).clone()
-    });
+    })
+    .into();
     let mut command = DriveCommand {
         skier_toggle: true,
         ..DriveCommand::default()
@@ -413,7 +417,7 @@ fn geometry_dispatch_pops_completed_docking_and_undocking() {
     assert_eq!(f.get(1).unwrap().top_state(), None);
     assert!(!f.get(1).unwrap().docking);
     f.get_mut(1).unwrap().neighbor = Some(NeighborRoute {
-        occupant: Arc::new(Resource(4)),
+        occupant: Some(Arc::new(Resource(4))),
         position: [0.0; 3],
         cells: Arc::from([]),
         next: 0,
@@ -450,6 +454,7 @@ fn station(id: u64, x: f32) -> Arc<Station> {
     Arc::new(Station {
         lot: Arc::new(Resource(id)),
         occupant: Arc::new(Resource(id + 10)),
+        lot_position: [x, 0.0, 0.0],
         position: [x, 0.0, 0.0],
         direction: [1.0, 0.0, 0.0],
         route: Arc::from([]),
@@ -494,6 +499,9 @@ impl Terrain for Water {
         }
     }
     fn terrain_height(&self, _: [f32; 3]) -> f32 {
+        -10.0
+    }
+    fn terrain_height_at_cell(&self, _: Cell) -> f32 {
         -10.0
     }
     fn sea_level(&self) -> f32 {
@@ -732,7 +740,8 @@ fn exact_gear_gates_and_rudder() {
     b.group = Arc::new(Group {
         aems_value: None,
         ..(*group()).clone()
-    });
+    })
+    .into();
     assert_eq!(b.select_gear(1.0, 500.0), None);
     b.turn = 2.0;
     assert_eq!(b.rudder_angle(), -0.25);
@@ -873,7 +882,8 @@ fn tow_message_uses_first_geometric_match_then_group_and_releases_both_links() {
     other.group = Arc::new(Group {
         id: 0x4417,
         ..(*group()).clone()
-    });
+    })
+    .into();
     other.position = [100.0, 0.0, 0.0];
     fleet.insert(2, other).unwrap();
     fleet.boats.get_mut(&1).unwrap().tow_armed = true;
@@ -931,7 +941,7 @@ fn ferry_reader_skips_used_cells_only_once_and_neighbor_exhaustion_removes() {
     assert_eq!(fleet.next_route_cell(1, &mut None), Ok(None));
     fleet.boats.get_mut(&1).unwrap().set_neighbor_route(
         NeighborRoute {
-            occupant: Arc::new(Resource(8)),
+            occupant: Some(Arc::new(Resource(8))),
             position: [0.0; 3],
             cells: route,
             next: 0,
@@ -990,6 +1000,63 @@ fn initialization_acquires_once_shutdown_stops_and_drops_only_owned_resources() 
     );
     fleet.boats.get_mut(&1).unwrap().events.clear();
     assert!(resources.created.iter().all(|r| Arc::strong_count(r) == 1));
+}
+
+#[test]
+fn uninitialized_shutdown_delegates_without_touching_owner_resources_or_peers() {
+    let mut fleet = fleet();
+    fleet.insert(2, boat()).unwrap();
+    fleet.insert(3, boat()).unwrap();
+    fleet.boats.get_mut(&2).unwrap().tug = Some(1);
+    fleet.boats.get_mut(&3).unwrap().towed = Some(1);
+    let a = station(20, 0.0);
+    let b = station(30, 10.0);
+    let effect = Arc::new(Resource(40));
+    let owner = fleet.boats.get_mut(&1).unwrap();
+    assert!(!owner.initialized);
+    owner.towed = Some(2);
+    owner.tug = Some(3);
+    owner.stations = [Some(a.clone()), Some(b.clone())];
+    owner.current_station = Some(a.clone());
+    owner.dock_requests = [true; 2];
+    owner.effects = std::array::from_fn(|_| Some(effect.clone()));
+    let mut manager = Manager::default();
+
+    assert_eq!(fleet.shutdown(1, &mut Some(&mut manager)), Ok(true));
+    assert!(manager.calls.is_empty());
+    let owner = &fleet.boats[&1];
+    assert_eq!(owner.events, [Event::BaseShutdown]);
+    assert_eq!((owner.towed, owner.tug), (Some(2), Some(3)));
+    assert_eq!(owner.dock_requests, [true; 2]);
+    assert!(Arc::ptr_eq(owner.stations[0].as_ref().unwrap(), &a));
+    assert!(Arc::ptr_eq(owner.stations[1].as_ref().unwrap(), &b));
+    assert!(Arc::ptr_eq(owner.current_station.as_ref().unwrap(), &a));
+    assert!(owner.effects.iter().all(|e| Arc::ptr_eq(e.as_ref().unwrap(), &effect)));
+    assert_eq!(fleet.boats[&2].tug, Some(1));
+    assert_eq!(fleet.boats[&3].towed, Some(1));
+    assert_ne!(fleet.boats[&2].top_state(), Some(state::SLOW_REMOVE));
+}
+
+#[test]
+fn initialized_shutdown_returns_both_station_requests_before_base_cleanup() {
+    let mut fleet = fleet();
+    let a = station(20, 0.0);
+    let b = station(30, 10.0);
+    let owner = fleet.boats.get_mut(&1).unwrap();
+    owner.initialized = true;
+    owner.stations = [Some(a.clone()), Some(b.clone())];
+    owner.current_station = Some(a.clone());
+    owner.dock_requests = [true; 2];
+    let mut manager = Manager::default();
+
+    assert_eq!(fleet.shutdown(1, &mut Some(&mut manager)), Ok(true));
+    assert_eq!(manager.calls, ["done:20:1", "done:30:1"]);
+    let owner = &fleet.boats[&1];
+    assert_eq!(owner.events, [Event::Unregister(TOW_MESSAGE), Event::BaseShutdown]);
+    assert_eq!(owner.dock_requests, [false; 2]);
+    assert!(owner.stations.iter().all(Option::is_none));
+    assert!(owner.current_station.is_none());
+    assert_eq!((Arc::strong_count(&a), Arc::strong_count(&b)), (1, 1));
 }
 
 #[test]
@@ -1066,7 +1133,7 @@ fn undocking_moves_horizontally_and_does_not_overshoot() {
     let b = fleet.boats.get_mut(&1).unwrap();
     b.position = [1.0, 4.0, 0.0];
     b.neighbor = Some(NeighborRoute {
-        occupant: Arc::new(Resource(1)),
+        occupant: Some(Arc::new(Resource(1))),
         position: [0.0, -2.0, 0.0],
         cells: Arc::from([]),
         next: 0,

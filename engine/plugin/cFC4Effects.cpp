@@ -289,7 +289,7 @@ static bool WritableSlot(void* q) {
 }
 // ---- the manager ----------------------------------------------------------------------------------
 
-cFC4EffectsManager::cFC4EffectsManager() {
+cFC4EffectsManager::cFC4EffectsManager() : refs_(0) {
     ctx_.shadow = false;
     host_ = fc4::MakeEffectsHost(&ctx_);
 }
@@ -313,7 +313,14 @@ bool cFC4EffectsManager::QueryInterface(uint32_t riid, void** ppvObj) {
         AddRef();
         return true;
     }
-    *ppvObj = nullptr;
+    // effects.md section 18.2: callers need the message sub-object at +8,
+    // not the primary manager pointer.
+    if (riid == 0x452294AAu) {
+        *ppvObj = static_cast<cIGZMessageTarget2*>(this);
+        AddRef();
+        return true;
+    }
+    // effects.md section 18.2: an unsupported IID leaves the output untouched.
     return false;
 }
 
