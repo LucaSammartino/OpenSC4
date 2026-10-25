@@ -1,0 +1,22 @@
+name	region	city	script	end	sets	notes
+berlin-konradshohe	Berlin	Konradshohe	engine/tests/scenarios/scripts/berlin-konradshohe.script	2026-04-29	smoke,full	Old house city; medium 128 cells; saved 2026-01-27
+berlin-schonerlinde	Berlin	Schonerlinde	engine/tests/scenarios/scripts/berlin-schonerlinde.script	2000-04-09	full	Named empty mayor city; medium; saved 2000-01-08
+berlin-spandau	Berlin	Spandau	engine/tests/scenarios/scripts/berlin-spandau.script	2001-12-10	full	Grown medium; saved 2001-09-09
+berlin-tegel	Berlin	Tegel	engine/tests/scenarios/scripts/berlin-tegel.script	2029-11-20	full	Grown medium; saved 2029-08-20
+berlin-tempelhof	Berlin	Tempelhof	engine/tests/scenarios/scripts/berlin-tempelhof.script	2000-04-09	full	Named empty mayor city; medium; saved 2000-01-08
+london-kensington	London	Kensington	engine/tests/scenarios/scripts/london-kensington.script	2006-07-01	smoke,full	Grown medium; saved 2006-03-31
+london-fulham	London	Fulham	engine/tests/scenarios/scripts/london-fulham.script	2007-09-12	full	Industrial medium; saved 2007-06-12
+london-sydenham	London	Sydenham	engine/tests/scenarios/scripts/london-sydenham.script	2000-04-10	full	Named empty mayor city; medium; saved 2000-01-09
+london-woolwich	London	Woolwich	engine/tests/scenarios/scripts/london-woolwich.script	2000-04-09	full	Named empty mayor city; medium; saved 2000-01-08
+timbuktu-big-city	Timbuktu	Big City Tutorial	engine/tests/scenarios/scripts/timbuktu-big-city.script	2015-12-18	smoke,full	Largest shipped population (22618 residents); medium; saved 2015-09-17
+timbuktu-getting-started	Timbuktu	Getting Started Tutorial	engine/tests/scenarios/scripts/timbuktu-getting-started.script	2001-02-09	full	Tutorial; medium; saved 2000-11-09; script ends tutorial before building
+timbuktu-making-money	Timbuktu	Making Money Tutorial	engine/tests/scenarios/scripts/timbuktu-making-money.script	2009-02-03	full	Tutorial; medium; saved 2008-11-03; script ends tutorial before building
+timbuktu-rush-hour	Timbuktu	Rush Hour Tutorial	engine/tests/scenarios/scripts/timbuktu-rush-hour.script	2010-07-31	smoke,full	Tutorial; medium; saved 2010-04-30; script ends tutorial before building
+timbuktu-terraforming	Timbuktu	Terraforming Tutorial	engine/tests/scenarios/scripts/timbuktu-terraforming.script	2022-12-31	full	God-mode tutorial save; medium; saved 2022-09-30; mayor-mode establishment/dialog needs live diagnosis
+new-york-largest	New York	New City (37)	engine/tests/scenarios/scripts/new-york-largest.script	2000-04-18	smoke,full	Largest regional save by file size (1304411 bytes); large; no grown saves exist in this region; god-mode establishment needs live diagnosis
+new-york-second	New York	New City (41)	engine/tests/scenarios/scripts/new-york-second.script	2000-04-04	full	Second-largest regional save (1269623 bytes); large; no grown saves exist in this region; god-mode establishment needs live diagnosis
+san-francisco-largest	San Francisco	New City (55)	engine/tests/scenarios/scripts/san-francisco-largest.script	2000-04-03	full	Largest regional save (1225465 bytes); large; no grown saves exist in this region; god-mode establishment needs live diagnosis
+san-francisco-second	San Francisco	New City (8)	engine/tests/scenarios/scripts/san-francisco-second.script	2000-04-04	full	Second-largest regional save (1224937 bytes); large; no grown saves exist in this region; god-mode establishment needs live diagnosis
+empty-small	Berlin	New City (15)	engine/tests/scenarios/scripts/empty-small.script	2000-04-04	smoke,full	Empty small 64-cell tile; saved 2000-01-03; god-mode establishment needs live diagnosis
+empty-medium	Berlin	New City (10)	engine/tests/scenarios/scripts/empty-medium.script	2000-04-04	full	Empty medium 128-cell tile; saved 2000-01-03; god-mode establishment needs live diagnosis
+empty-large	Berlin	New City (30)	engine/tests/scenarios/scripts/empty-large.script	2000-04-08	full	Empty large 256-cell tile; saved 2000-01-07; god-mode establishment needs live diagnosis

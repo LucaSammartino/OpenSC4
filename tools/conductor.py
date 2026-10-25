@@ -136,7 +136,10 @@ class Run:
             # a round lost before its first commit leaves the branch "already merged"; the launcher refuses that
             sh(['git', '-C', str(wt), 'commit', '-q', '--allow-empty', '-m',
                 f'{lane}: lane start (round {rounds} lost before any commit)'])
-        return self.launch(out)
+        last = self.launch(out)
+        if last.startswith('LAUNCHED'):
+            self.use_note(lane)
+        return last
 
     def refund(self, lane):
         """A round lost to a Codex outage is not lane work: give it back (cap 9 rounds)."""
@@ -150,13 +153,17 @@ class Run:
                 self.state.write_text(json.dumps(st, indent=1), encoding='utf-8')
 
     def take_note(self, lane):
-        """The coordinator's review note for the lane's next round (notes/<lane>-next.txt), used once."""
+        """The coordinator's review note for the lane's next round (notes/<lane>-next.txt); resume marks it used
+        only once the round launched, so a refused launch keeps it for the next try."""
         p = self.dir / 'notes' / f'{lane}-next.txt'
         if not p.exists():
             return ''
-        text = ' '.join(p.read_text(encoding='utf-8').split()) + ' '
-        p.replace(p.with_name(f'{lane}-next.used.txt'))
-        return text
+        return ' '.join(p.read_text(encoding='utf-8').split()) + ' '
+
+    def use_note(self, lane):
+        p = self.dir / 'notes' / f'{lane}-next.txt'
+        if p.exists():
+            p.replace(p.with_name(f'{lane}-next.used.txt'))
 
     def fill_from_pending(self):
         p = self.dir / 'pending.txt'
