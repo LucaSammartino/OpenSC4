@@ -31,7 +31,7 @@ def _slice(data, offset, size):
 
 def _qfs(data, expected):
     """Bounded RefPack decoder; output size is checked against DIR and header."""
-    pos = 4 if len(data) >= 6 and data[4:6] == b'\x10\xfb' else 0
+    pos = 4 if len(data) >= 9 and data[5] == 0xFB and (data[4] & 0xFE) == 0x10 else 0
     head = _slice(data, pos, 5)
     if head[1] != 0xFB or head[0] & 0xFE != 0x10:
         raise ValueError('invalid QFS header')
@@ -101,7 +101,9 @@ def read_records(path):
             raise ValueError(f'duplicate TGI {tgi_text(key)}')
         entries[key] = _slice(data, words[-2], words[-1])
     compressed = {}
-    dir_width = 20 if width == 24 else 16
+    # engine/formats/src/dbpf.rs: DIR uses 16-byte entries regardless of the
+    # index width. A low-instance collision in a 7.1 extension is ambiguous.
+    dir_width = 16
     for key, raw in entries.items():
         if key[0] != DIR:
             continue
@@ -110,7 +112,11 @@ def read_records(path):
         for at in range(0, len(raw), dir_width):
             words = struct.unpack_from('<' + 'I' * (dir_width // 4), raw, at)
             t, g, low = words[:3]
-            ck = (t, g, (words[3] << 32 | low) if width == 24 else low)
+            matches = [candidate for candidate in entries
+                       if candidate[0] == t and candidate[1] == g and candidate[2] & 0xFFFFFFFF == low]
+            if len(matches) != 1:
+                raise ValueError('DIR entry does not identify a unique full TGI')
+            ck = matches[0]
             if ck in compressed or ck not in entries or ck[0] == DIR:
                 raise ValueError('invalid or duplicate DIR entry')
             compressed[ck] = words[-1]

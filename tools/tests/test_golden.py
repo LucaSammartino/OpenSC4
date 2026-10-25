@@ -52,6 +52,7 @@ class GoldenTests(unittest.TestCase):
         # Four literals, then distance 1 count 3, then a terminal marker.
         qfs = b'\x10\xfb\x00\x00\x07\xe0aaaa\x00\x00\xfc'
         self.assertEqual(records._qfs(qfs, 7), b'a' * 7)
+        self.assertEqual(records._qfs(struct.pack('<I', len(qfs)) + qfs, 7), b'a' * 7)
         for data, size in ((qfs, 8), (qfs[:-1], 7),
                            (b'\x10\xfb\x00\x00\x03\x00\x00\xfc', 3)):
             with self.assertRaises(ValueError):
@@ -62,6 +63,18 @@ class GoldenTests(unittest.TestCase):
         entries = [((1, 2, 3), b'one'), ((1, 2, 0x100000003), b'two')]
         package(path, entries, width=24)
         self.assertEqual(records.read_records(path), dict(entries))
+
+    def test_dir_stays_16_bytes_with_24_byte_index(self):
+        path = self.root / 'compressed71.sc4'
+        qfs = b'\x10\xfb\x00\x00\x04\xe0abcd\xfc'
+        key = (1, 2, 0x100000003)
+        package(path, [((records.DIR, 0, 0), struct.pack('<IIII', 1, 2, 3, 4)),
+                       (key, qfs)], width=24)
+        self.assertEqual(records.read_records(path), {key: b'abcd'})
+        package(path, [((records.DIR, 0, 0), struct.pack('<IIII', 1, 2, 3, 4)),
+                       (key, qfs), ((1, 2, 3), b'collision')], width=24)
+        with self.assertRaisesRegex(ValueError, 'unique full TGI'):
+            records.read_records(path)
 
     def test_added_removed_byte_and_decoded_fields(self):
         a, b = self.root / 'a.sc4', self.root / 'b.sc4'
