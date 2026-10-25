@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Native dispatch persistence compatibility, mysims.md §6.2.1.
 //! Decode a captured record through the production codec and compare its write
-//! with the entire capture. This measures persistence, never independent trips.
+//! with the capture (excluding the constructor-unassigned MS22 auxiliary byte).
+//! This measures persistence, never independent trips.
 use std::collections::BTreeMap;
 
 use fc4_core::mysims::dispatch::{DispatchRecordRefs, DispatchState};
@@ -79,7 +80,12 @@ impl OutStream for CapturedWriter {
     }
 }
 
+#[cfg(test)]
 fn compare(native: &[u8]) -> Option<u32> {
+    compare_detail(native, false).map(|(differences, _)| differences)
+}
+
+fn compare_detail(native: &[u8], constructor: bool) -> Option<(u32, u32)> {
     let mut refs = CapturedRefs::default();
     let mut input = ByteReader::with_resolver(native, &mut refs);
     // The read adapter extracts tokens only; the stream resolver records their
@@ -93,18 +99,47 @@ fn compare(native: &[u8]) -> Option<u32> {
         return None;
     }
     let expected = output.0.bytes();
-    Some((native.len().abs_diff(expected.len()) + native.iter().zip(expected).filter(|(a, b)| a != b).count()) as u32)
+    let mut differences = native.len().abs_diff(expected.len()) as u32;
+    let mut first = 0;
+    for (index, (&observed, &written)) in native.iter().zip(expected).enumerate() {
+        // MS22/§7.2.3: +10 is not assigned by construction. Its raw byte may
+        // not be a canonical bool. Initialized records retain this comparison.
+        if constructor && index == 4 {
+            continue;
+        }
+        if observed != written {
+            differences += 1;
+            if first == 0 {
+                first = ((index.min(65535) as u32) << 16) | (u32::from(observed) << 8) | u32::from(written);
+            }
+        }
+    }
+    Some((differences, first))
 }
 
 // Private static-link transport. Not a public C ABI export or factory hook.
 #[no_mangle]
-unsafe extern "C" fn fc4_mysimdispatch_shadow_record(native: *const u8, length: usize) -> u32 {
+unsafe extern "C" fn fc4_mysimdispatch_shadow_record(
+    native: *const u8,
+    length: usize,
+    constructor: u32,
+    first: *mut u32,
+) -> u32 {
     crate::guard(u32::MAX, || {
-        if native.is_null() || length > 16 * 1024 * 1024 {
+        if native.is_null() || length > 16 * 1024 * 1024 || constructor > 1 {
             return u32::MAX;
         }
         // SAFETY: the plugin supplies its captured payload and exact byte count.
-        compare(unsafe { std::slice::from_raw_parts(native, length) }).unwrap_or(u32::MAX)
+        let Some((differences, detail)) =
+            compare_detail(unsafe { std::slice::from_raw_parts(native, length) }, constructor == 1)
+        else {
+            return u32::MAX;
+        };
+        if !first.is_null() {
+            // SAFETY: the plugin supplies a writable diagnostic word or null.
+            unsafe { *first = detail };
+        }
+        differences
     })
 }
 
@@ -157,7 +192,7 @@ mod tests {
         let bytes = payload();
         assert_eq!(compare(&bytes), Some(0));
         assert_eq!(
-            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), bytes.len()) },
+            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), bytes.len(), 0, std::ptr::null_mut()) },
             0
         );
     }
@@ -174,7 +209,7 @@ mod tests {
         assert!(refs.resolve(1, 7).is_some());
         assert!(refs.resolve(2, 7).is_none());
         assert_eq!(
-            unsafe { fc4_mysimdispatch_shadow_record(std::ptr::null(), 0) },
+            unsafe { fc4_mysimdispatch_shadow_record(std::ptr::null(), 0, 0, std::ptr::null_mut()) },
             u32::MAX
         );
     }
@@ -188,6 +223,7 @@ mod tests {
         // A noncanonical true byte reads true but writes one.
         bytes[4] = 0xFF;
         assert_eq!(compare(&bytes), Some(2));
+        assert_eq!(compare_detail(&bytes, false), Some((2, 0x0201)));
     }
 
     #[test]
@@ -207,8 +243,20 @@ mod tests {
         assert_eq!(compare(&bytes), None);
         // A valid pointer to a short buffer must not be read for a rejected size.
         assert_eq!(
-            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), 16 * 1024 * 1024 + 1) },
+            unsafe { fc4_mysimdispatch_shadow_record(bytes.as_ptr(), 16 * 1024 * 1024 + 1, 0, std::ptr::null_mut()) },
             u32::MAX
         );
+    }
+
+    #[test]
+    fn constructor_excludes_only_the_ms22_unassigned_auxiliary_byte() {
+        let mut bytes = payload();
+        for value in 0..=255 {
+            bytes[4] = value;
+            assert_eq!(compare_detail(&bytes, true), Some((0, 0)));
+            assert_eq!(compare(&bytes), Some(u32::from(value > 1)));
+        }
+        bytes[0] = 2;
+        assert_eq!(compare_detail(&bytes, true), Some((1, 0x0201)));
     }
 }

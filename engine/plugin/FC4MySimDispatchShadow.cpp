@@ -21,7 +21,7 @@ extern "C" uint32_t fc4_mysimdispatch_shadow_compare(const uint32_t*, uint32_t);
 extern "C" uint32_t fc4_mysimdispatch_shadow_constructor(const uint8_t*, size_t);
 extern "C" uint32_t fc4_mysimdispatch_shadow_auxiliary(const uint32_t*);
 extern "C" uint32_t fc4_mysimdispatch_shadow_live_range(const uint32_t*);
-extern "C" uint32_t fc4_mysimdispatch_shadow_record(const uint8_t*, size_t);
+extern "C" uint32_t fc4_mysimdispatch_shadow_record(const uint8_t*, size_t, uint32_t, uint32_t*);
 
 namespace fc4 {
 namespace {
@@ -64,10 +64,15 @@ bool Compare(cIGZSerializable* object, bool constructor, uint32_t& fields, uint3
     const auto& bytes = capture.Bytes();
     // §6.2.1 persistence compatibility only: a read/write round trip does not
     // independently verify trip inputs or claim a replaced dispatch owner.
-    const uint32_t recordDifferences = fc4_mysimdispatch_shadow_record(bytes.data(), bytes.size());
+    uint32_t firstDifference = 0;
+    const uint32_t recordDifferences = fc4_mysimdispatch_shadow_record(bytes.data(), bytes.size(), constructor ? 1u : 0u, &firstDifference);
     if (recordDifferences == UINT32_MAX) return false;
+    if (recordDifferences) {
+        Log("mysimdispatch record codec: differences=%u first_byte=%u native=%02X core=%02X",
+            recordDifferences, firstDifference >> 16, (firstDifference >> 8) & 255, firstDifference & 255);
+    }
     differences += recordDifferences;
-    fields += static_cast<uint32_t>(bytes.size());
+    fields += static_cast<uint32_t>(bytes.size()) - (constructor ? 1u : 0u); // MS22 unassigned +10
     ++recordSamples;
     uint32_t words[18]{}, auxiliary[2]{}, routeCount = 0;
     if (!HeaderTail(bytes, words, auxiliary, routeCount)) return false;
