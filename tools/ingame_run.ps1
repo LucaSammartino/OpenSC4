@@ -39,13 +39,13 @@ Several games at once (slots). Every run, slot or not, starts its game under a l
 single-instance mutex (tools\sc4mutex.ps1) as soon as the game holds it, so the next game can start. -Slot N runs the
 game with -UserDir:"<slot root>\slotN\" instead of the Documents user dir; the slot gets its own Plugins
 (FreeCity4.dll and .pdb from -Dll, else the DLL staged in Documents), FreeCity4.ini, FreeCity4.log, SimCity 4.cfg and
-Regions\FC4 Test, mirrored from Documents before every run (so a city a run changed is restored). The slot root is
+Regions\<Region>, mirrored from Documents before every run (so a city a run changed is restored). The slot root is
 <main checkout>\build-runs\sc4slots (override: -SlotRoot or $env:FC4_SLOT_ROOT). A path with a component that starts
 with '.' (like .claude) is refused: the game ignores such a -UserDir and silently uses Documents. A slot game runs on
 its own CPU (affinity 2N; two games on the game's default CPU 0 starve each other), starts visible without
 activation and is minimized once the city has loaded (it simulates at the same rate minimized; -NoMinimize keeps it
 up). Slot runs never use real input: realkey, realclick, realdrag and save actions are refused.
--City <name> sets autoload_city to the user dir's "Regions\FC4 Test\City - <name>.sc4"; in a slot run an
+-Region <folder> defaults to "FC4 Test". -City <name> sets autoload_city to the user dir's "Regions\<Region>\City - <name>.sc4"; in a slot run an
 autoload_city under Documents\SimCity 4 is remapped to the slot. -Dll without -Slot stages the DLL in Documents.
 -EndDate YYYY-MM-DD adds autotest_end_date (the verdict comes at that game date; -AfterLoadSeconds stays the
 timeout). -Turbo adds sim_turbo = 1. -TurboFrom YYYY-MM-DD starts the turbo clock with a script action at that date
@@ -69,6 +69,7 @@ param(
     [ValidateRange(0, 32)][int]$Slot = 0,
     [string]$Dll = "",
     [string]$City = "",
+    [string]$Region = "FC4 Test",
     [string]$EndDate = "",
     [switch]$Turbo,
     [string]$TurboFrom = "",
@@ -84,7 +85,6 @@ $DocsUser = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4"
 $OutDir = Join-Path $PSScriptRoot "..\build-runs"
 $Ctl = Join-Path $PSScriptRoot "sc4ctl.ps1"
 $MutexTool = Join-Path $PSScriptRoot "sc4mutex.ps1"
-$Region = "FC4 Test"
 . (Join-Path $PSScriptRoot 'city_fixture.ps1')
 
 Add-Type -ErrorAction SilentlyContinue @"
@@ -281,6 +281,9 @@ if ($IniFile) {
     $Ini = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $IniFile).Path)
 }
 foreach ($d in @($EndDate, $TurboFrom)) { if ($d -and $d -notmatch '^\d{4}-\d\d-\d\d$') { Write-Output "BAD ARGS: '$d' is not YYYY-MM-DD"; exit 4 } }
+if ($Region -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._()-]*$' -or $Region.EndsWith('.') -or $Region.EndsWith(' ')) { Write-Output "BAD ARGS: region '$Region' must be one folder name"; exit 4 }
+$regionSource = Join-Path $DocsUser "Regions\$Region"
+if (-not (Test-Path -LiteralPath $regionSource -PathType Container)) { Write-Output "BAD ARGS: no such region: $regionSource"; exit 4 }
 
 if ($Slot -gt 0) {
     $root = if ($SlotRoot) { $SlotRoot } elseif ($env:FC4_SLOT_ROOT) { $env:FC4_SLOT_ROOT } else { Join-Path (MainCheckout) "build-runs\sc4slots" }
@@ -289,8 +292,11 @@ if ($Slot -gt 0) {
 } else { $UserDir = $DocsUser }
 $Plugins = Join-Path $UserDir "Plugins"
 $Log = Join-Path $Plugins "FreeCity4.log"
-$CityDir = Join-Path $UserDir "Regions\$Region"
+# A slot mirrors the selected region under the name FC4 Test, as its only region (see the mirror below).
+$CityDir = if ($Slot -gt 0) { Join-Path $UserDir "Regions\FC4 Test" } else { Join-Path $UserDir "Regions\$Region" }
+if ($Slot -eq 0 -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: -Region other than FC4 Test needs -Slot"; exit 4 }
 $cityFixture = Resolve-HarnessCityFixture $Ini $Slot $City (Join-Path (MainCheckout) 'build-runs\fixtures')
+if ($cityFixture.Source -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: fixture_city requires region FC4 Test"; exit 4 }
 $Ini = $cityFixture.Ini
 if ($cityFixture.Source) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -325,8 +331,10 @@ if ($dllSrc -and -not (Test-Path -LiteralPath $dllSrc)) { Write-Output "BAD ARGS
 if ($Slot -gt 0) {
     New-Item -ItemType Directory -Force $Plugins, (Join-Path $UserDir "Regions") | Out-Null
     Copy-Item (Join-Path $DocsUser "SimCity 4.cfg") (Join-Path $UserDir "SimCity 4.cfg") -Force
-    # Mirror the test region (copies only what differs, removes what the last run added).
-    & robocopy (Join-Path $DocsUser "Regions\$Region") $CityDir /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    # The cfg may remember any region (Timbuktu, say); with FC4 Test the slot's only region, the game opens it.
+    foreach ($d in Get-ChildItem -LiteralPath (Join-Path $UserDir "Regions") -Directory) { if ($d.Name -ne "FC4 Test") { Remove-Item -LiteralPath $d.FullName -Recurse -Force } }
+    # Mirror only the selected region (copies only what differs, removes what the last run added).
+    & robocopy $regionSource $CityDir /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { Write-Output "BLOCKED: could not mirror the region into $CityDir (robocopy $LASTEXITCODE)"; exit 3 }
     if ($cityFixture.Source) {
         $fixtureCopy = Copy-HarnessCityFixture $cityFixture.Source $UserDir $DocsUser $City

@@ -597,7 +597,8 @@ def cmd_check(ctx, a):
                                f"(docs/assignments.tsv): pick other work")
     # 3. explicit subsystem claims; use prose only for legacy/invalid declarations.
     try:
-        keys = split_touch_keys(a.touches)
+        # the lane's own name is a self-reference: another lane naming it (a dependency) is not a duplicate
+        keys = [k for k in split_touch_keys(a.touches) if k != lane.lower()]
     except ValueError as exc:
         reasons.append(str(exc))
         keys = []
