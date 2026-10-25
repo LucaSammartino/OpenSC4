@@ -2550,3 +2550,13 @@ Capture observes net changes in containing writable private committed regions
 (64 MiB cap). It misses undone writes, unrelated allocations and image/global
 storage. Concurrent neighbour changes have unknown attribution. Unsupported or
 occupied entries fail closed. Do not enable this experiment in normal runs.
+
+### Function compare harness (run 7)
+
+The S3 facility above is now registry driven: `plugin/compare/<Class>.tsv`
+selects native-layout Rust adapters without per-function plugin C++ changes.
+Use `compare = <names|class:Class|all>` (`inplace` remains an alias). Everything
+is off without that selection. Per-row compare/record/replace modes, bounded
+value-only corpus/case exports and nearby-input replay are documented as a
+stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
+Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).

@@ -1353,11 +1353,12 @@ endif()
 if(TARGET FreeCity4)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     file(GLOB FC4_COMPARE_ROWS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/*.tsv")
+    file(GLOB FC4_COMPARE_CONTRACTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/functions.tsv")
     set(FC4_COMPARE_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/compare/FC4CompareRows.inc")
     add_custom_command(OUTPUT "${FC4_COMPARE_GENERATED}"
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
             --engine "${CMAKE_CURRENT_SOURCE_DIR}" --output "${FC4_COMPARE_GENERATED}"
-        DEPENDS ${FC4_COMPARE_ROWS} "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
+        DEPENDS ${FC4_COMPARE_ROWS} ${FC4_COMPARE_CONTRACTS} "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
         VERBATIM)
     target_sources(FreeCity4 PRIVATE "${FC4_COMPARE_GENERATED}")
     target_include_directories(FreeCity4 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/compare")
