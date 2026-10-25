@@ -10,6 +10,7 @@ control flow or algorithms are recorded. **Engine authors may read and use them*
 |---|---|
 | `interfaces.tsv` | Every interface the engine implements or calls (curated in `re/abi_interfaces.tsv`), one row per slot, using the original class that implements it |
 | `vtables.tsv` | Every named vtable in the executable (853), for lookups beyond the curated set |
+| `functions.tsv` | Every Ghidra-exported function plus vtable-only targets: entry convention, stack/register arguments, return channel and confidence (see below) |
 | `layouts.md` | Field offsets of game objects that original code reads directly |
 | `allocators.md` | Which allocator owns the memory of containers shared with the game (three separate pool instances) |
 | `direct-calls.md` | Non-virtual game functions a replacement calls by address: convention, arguments, pop size, return channel and the expected `this` sub-object |
