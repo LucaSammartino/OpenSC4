@@ -1003,6 +1003,63 @@ fn initialization_acquires_once_shutdown_stops_and_drops_only_owned_resources() 
 }
 
 #[test]
+fn uninitialized_shutdown_delegates_without_touching_owner_resources_or_peers() {
+    let mut fleet = fleet();
+    fleet.insert(2, boat()).unwrap();
+    fleet.insert(3, boat()).unwrap();
+    fleet.boats.get_mut(&2).unwrap().tug = Some(1);
+    fleet.boats.get_mut(&3).unwrap().towed = Some(1);
+    let a = station(20, 0.0);
+    let b = station(30, 10.0);
+    let effect = Arc::new(Resource(40));
+    let owner = fleet.boats.get_mut(&1).unwrap();
+    assert!(!owner.initialized);
+    owner.towed = Some(2);
+    owner.tug = Some(3);
+    owner.stations = [Some(a.clone()), Some(b.clone())];
+    owner.current_station = Some(a.clone());
+    owner.dock_requests = [true; 2];
+    owner.effects = std::array::from_fn(|_| Some(effect.clone()));
+    let mut manager = Manager::default();
+
+    assert_eq!(fleet.shutdown(1, &mut Some(&mut manager)), Ok(true));
+    assert!(manager.calls.is_empty());
+    let owner = &fleet.boats[&1];
+    assert_eq!(owner.events, [Event::BaseShutdown]);
+    assert_eq!((owner.towed, owner.tug), (Some(2), Some(3)));
+    assert_eq!(owner.dock_requests, [true; 2]);
+    assert!(Arc::ptr_eq(owner.stations[0].as_ref().unwrap(), &a));
+    assert!(Arc::ptr_eq(owner.stations[1].as_ref().unwrap(), &b));
+    assert!(Arc::ptr_eq(owner.current_station.as_ref().unwrap(), &a));
+    assert!(owner.effects.iter().all(|e| Arc::ptr_eq(e.as_ref().unwrap(), &effect)));
+    assert_eq!(fleet.boats[&2].tug, Some(1));
+    assert_eq!(fleet.boats[&3].towed, Some(1));
+    assert_ne!(fleet.boats[&2].top_state(), Some(state::SLOW_REMOVE));
+}
+
+#[test]
+fn initialized_shutdown_returns_both_station_requests_before_base_cleanup() {
+    let mut fleet = fleet();
+    let a = station(20, 0.0);
+    let b = station(30, 10.0);
+    let owner = fleet.boats.get_mut(&1).unwrap();
+    owner.initialized = true;
+    owner.stations = [Some(a.clone()), Some(b.clone())];
+    owner.current_station = Some(a.clone());
+    owner.dock_requests = [true; 2];
+    let mut manager = Manager::default();
+
+    assert_eq!(fleet.shutdown(1, &mut Some(&mut manager)), Ok(true));
+    assert_eq!(manager.calls, ["done:20:1", "done:30:1"]);
+    let owner = &fleet.boats[&1];
+    assert_eq!(owner.events, [Event::Unregister(TOW_MESSAGE), Event::BaseShutdown]);
+    assert_eq!(owner.dock_requests, [false; 2]);
+    assert!(owner.stations.iter().all(Option::is_none));
+    assert!(owner.current_station.is_none());
+    assert_eq!((Arc::strong_count(&a), Arc::strong_count(&b)), (1, 1));
+}
+
+#[test]
 fn absent_effect_is_tolerated_and_shutdown_releases_partial_resources() {
     struct Missing;
     impl EffectResources for Missing {

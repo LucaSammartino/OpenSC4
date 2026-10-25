@@ -207,6 +207,13 @@ impl Fleet {
         if self.boat(id)?.shut_down {
             return Ok(false);
         }
+        if !self.boat(id)?.initialized {
+            // Only owner cleanup is conditional; inherited Shutdown still runs (§3).
+            let boat = self.boat_mut(id)?;
+            boat.events.push(Event::BaseShutdown);
+            boat.shut_down = true;
+            return Ok(true);
+        }
         if let Some(towed) = self.boat_mut(id)?.towed.take() {
             self.push_state(towed, State::new(state::SLOW_REMOVE), manager)?;
             self.boat_mut(towed)?.tug = None;
@@ -223,9 +230,7 @@ impl Fleet {
                 boat.dock_requests[i] = false;
             }
         }
-        if boat.initialized {
-            boat.events.push(Event::Unregister(super::TOW_MESSAGE));
-        }
+        boat.events.push(Event::Unregister(super::TOW_MESSAGE));
         boat.stations = [None, None];
         boat.current_station = None;
         boat.neighbor = None;
