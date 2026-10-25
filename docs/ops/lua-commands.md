@@ -1,0 +1,187 @@
+# Maxis command scripts: luacmd27 calibration status
+
+**WIP, 2026-10-25. No Lua command has yet been verified on this host.**
+The installed executable reports file version **1.1.641.0**. The harness stages
+and passes a private script path, but the game fails before region initialization.
+Do not interpret the candidate scenarios, a command returning, or zero shadow
+lines as evidence that a player action worked.
+
+## Launching a candidate
+
+Put this harness key in the request's ini text (absent by default):
+
+```ini
+lua_script = engine/tests/scenarios/scripts/lua-calibrate.lua
+```
+
+`tools/ingame_run.ps1` requires `-Slot`, rejects absolute/outside-repository paths
+and missing/non-Lua files, and copies the script below
+`<slot>/LuaScripts/<repo-relative path>`. It also copies the shared `.lua` helpers
+and prepends `FC4_ROOT`, pointing to that slot's `LuaScripts` directory. The game
+receives `-LuaScript:"<absolute slot copy>"`. Scripts load the library with
+`dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/fc4.lua')`. Other arbitrary
+dependencies are not automatically staged. The original script is unchanged.
+The plugin currently warns that the harness-only `lua_script` key is unknown;
+that warning does not say whether the game executed the command-line script.
+
+Use reserved slots 11/12 for this lane. Never write to the original Regions
+folder. All nine candidate rows use region `FC4 Test`, city `Konradshohe`, a
+2028-02-01 end date, and set `full`; none is a smoke test. The round trip also
+uses `Tegel` in the same region. Both saves exist in Documents, and only their
+slot copies may change. `fc4.finish()` waits to 2028-01-01, requests a quick save,
+and logs completion, leaving a month before the harness's end date.
+
+## What actually ran
+
+Evidence is in this worktree's ignored `build-runs/`, not in Documents:
+
+| Run label | Measured result |
+|---|---|
+| `luacmd27-startup-1` | Stopped before launch: CIM access denied made the existing conservative fallback report other slots as busy. |
+| `luacmd27-startup-2` | Game attached; no city within 120 s; no proof file. This early probe had the wrong decimal message ID and is superseded. |
+| `luacmd27-startup-3` | Correct message ID, CreateGZLog entry marker and I/O probes; Hardware Driver Error: `Could not initialize Direct Draw`; no city within 120 s. |
+| `luacmd27-control` | No Lua switch; no city within 90 s, stopped after `PreFrameWorkInit` too. |
+| `luacmd27-startup-software` | Debugger-injection experiment did **not** append the renderer argument; no city within 120 s. Not a software-renderer result. |
+| `luacmd27-startup-software-2` | Temporary launch-block experiment **did** append `-d:software`; still DirectDraw initialization failure; no city within 100 s. Temporary edit removed. |
+
+The temporary `build-runs/run-lua-probe.ps1` invokes this worktree's actual
+`ingame_run.ps1`. Because CIM is denied in the worker, its local function supplies
+Win32_Process PID/command-line metadata using read-only
+`NtQueryInformationProcess(ProcessCommandLineInformation)`. It preserves the
+slot occupancy check and does not stop or change queue games. This workaround
+and the renderer experiment are not committed harness features.
+
+The shadows attempts use the **literal `shadows` ini profile from
+`tools/regress.ps1`**, plus `lua_script`, turbo, end date and a 1,800-second
+post-load timer. `build-runs/suite/luacmd27-r1/` holds per-scenario console and
+plugin logs, the exact profile, `summary.tsv` and `per_key.tsv`. An initialization
+failure is `failed-start`, not a clean simulation. `actions_ok=actions_failed=0`
+means no action was reached. `worst_shadow=unmeasured`, zero compare counts and
+zero per-key scenario counts give no exactness credit. No replace run is claimed.
+
+Measured initial suite outcomes: **4 failed starts** (`lua-calibrate`,
+`lua-demolish`, `lua-ui`, `lua-emergency`), **4 blocked slot-lock attempts**
+(`lua-civics`, `lua-networks`, `lua-terrain`, `lua-roundtrip`), and **1 metadata
+race before launch** (`lua-cheats`, a process was terminating). A corrected
+metadata wrapper skips only `STATUS_PROCESS_IS_TERMINATING`; the separate
+`luacmd27-lua-cheats-shadows-r2` retry launched, reported DirectDraw failure and
+no city within 90 s. Its evidence is retained separately under
+`build-runs/suite/luacmd27-r2/`; initial results are not overwritten.
+
+The staged Documents DLL was **46e586f2** (SHA-256 prefix). In each of the four
+initial launched suite logs it ignored **43 ini keys**, including `lua_script`
+and many current shadows. These requests used the right profile text but cannot
+qualify that profile. Repeat with a freshly built matching DLL after the host
+graphics problem is resolved. None of these attempts entered a city or produced
+`fc4-lua.log`, a startup marker, or a snapshot proving Lua entry. `ConnectionsReady`
+appears only in a turbo configuration description, not as a city-load event.
+
+Python validation: `python -m pytest tools/tests -q` printed **6 failed, 341 passed
+in 95.17s**. The six failures are unchanged `WorkflowDryRun` tests in
+`test_laneguard.py`: their mock preflight produced `ERROR` with an empty line.
+The underlying cause is unresolved. All **13 new tests** passed (focused runs:
+launcher **7 passed in 2.25s**, catalog **6 passed in 0.05s**).
+
+**I/O remains unknown.** The first probes try `io.open`, then Lua 4's
+`openfile/write/closefile`. Neither an entry marker, text log nor snapshot was
+produced before the graphics failure. This does not prove the I/O library is
+missing. `fc4.log` uses those backends when available; otherwise the documented
+`CreateGZLog` command creates an empty file whose bounded filename carries the
+log message. A `Before` without `Return` is incomplete evidence, not automatically
+a crash. A return value alone does not prove an action changed the city.
+
+## Argument contracts to calibrate
+
+The following are **public interface facts and candidate arguments**, not
+measurements on our exe. Every command listed below remains **not reached**;
+there are currently **0 works, 0 command failures, 0 command-attributed crashes**.
+
+| Commands used | Candidate arguments / unresolved measurement |
+|---|---|
+| `WaitForMessage2`, `CancelWaitForMessage2` | Message **3417684805** (0xCBB5BB45), unique string token; poll while return is 1. |
+| `SetScriptAutoYield` | `-1, true`; current script, allow the game to advance. |
+| `CreateGZLog` | Absolute slot path, empty category string, `false`; empty-file logging fallback. |
+| `GetAppState` | Expected 0 unspecified, 1 region, 2 city. Wrappers refuse city/region calls in another state. |
+| `GameDelay` | `'frames', n` or `'time', n`; public documentation says **milliseconds**, not seconds. |
+| `SetPopupModalDialogsEnabled` | Boolean; manually opened dialog closing is still unresolved. |
+| `GetCityName`, `GetCitySize` | No arguments; size documented as two cell counts. Need actual values and matching digest. |
+| `GetSimulationDate` | `'year', 'month', 'day of month'`; must return three numbers before the bounded date loop can advance. |
+| `GetDateAndTime`, `GetRandomInteger` | Date/time string fields; integer min/max candidate 1,10. Capture actual arity and returns. |
+| `PlaceZone`, `PlaceNetwork` | Type followed by four rectangle/endpoint numbers. Units/inclusivity must be checked against size, digest and saved data. All 13 network types are candidates. |
+| `PlaceLot` | Numeric exemplar IID, cell x,z, facing 0..3, `false,false`; compare numeric vs `'0x03000001'` string form. Facing documented N/E/S/W. Success/return convention unknown. |
+| `PlaceBuilding` | Numeric or hex-string building IID, x,z; **position units unknown**, do not assume cells or metres. |
+| `Demolish` | Four coordinates followed by `'Sim'`, `'None'` or `'Explode'`. Sim is a privilege flag; None/Explode are effects, not three equivalent enums. Multiple rectangles are not yet exercised. |
+| `GetCellAltitude`, `SetCellAltitude` | Cell x,z; setter single-cell or x1,z1,x2,z2,height. Read-before/write/read-after/restore candidates. Height units uncalibrated. |
+| `GetSeaLevel`, `SetSeaLevel` | No arguments / float; candidate +1 then restore. Units/effects uncalibrated. |
+| `GetViewTarget`, `SetViewTarget` | Documented x,y,z; set the returned values back. Units uncalibrated. |
+| `TakeSnapshot` | Absolute slot `.png` path, optional rectangle not yet exercised; file creation/dimensions unresolved. |
+| `SaveCity`, `SaveCityQuick` | `true` suppresses confirmation per reference; check slot save timestamp/content. |
+| `QuitCity` | `false` avoids confirmation per reference; then wait for state 1. |
+| `LoadCity`, `LoadRegion` | Name, `'any','full'` / region name. Loading and Lua continuation across transitions unverified. |
+| `ExecuteCheat` | One player-documented string; acceptance and city effects unverified. |
+| `GZWinIsWindowPresent`, `GZWinClickButton` | Window/parent or button/parent numeric IDs. 0,0 and 1,0 are **negative ID probes**, not known working UI controls. |
+| `GZWinEnableUserInput` | `true`; actual effect unverified. |
+| `OpenAudioOptionsDialog`, `OpenCheatCodeDialog`, `OpenGraphicOptionsDialog`, `OpenPlayOptionsDialog`, `OpenPhotoAlbumDialog`, `OpenSnapshotDialog`, `OpenObliterateCityDialog` | No-argument candidates, snapshot, then `Cancel`. **Closing must be calibrated** before claiming every dialog was visited; never confirm obliteration. |
+| `ToggleGodPanel`, `ToggleMayorPanel`, `ToggleMySimPanel`, `ToggleOptionsPanel`, `ToggleGridVisibility`, `ToggleUIVisibility` | Call twice; restoration is a candidate, not a measured result. |
+| `QueryTool`, `TrafficQueryTool`, `Cancel` | Select/cancel; actual map queries need a map input event. |
+| `Zoom0`..`Zoom5`, `ScrollRightOnce`, `ScrollLeftOnce`, `ScrollUpOnce`, `ScrollDownOnce` | No-argument view candidates. |
+| `EnableDayOnly`, `EnableNightOnly`, `EnableDayAndNight`, `SimSpeedFast` | No-argument candidates. |
+| `RoadTool`, `StreetTool`, `AvenueTool`, `HighwayTool`, `RailTool`, `LightRailTool`, `SubwayTool`, `PowerLinesTool`, `PipesTool` | Select then `Cancel`; tool selection alone does not place a network. |
+| `PlaceBusStopTool`, `PlaceSubwayStationTool`, `PlaceLightRailStationTool`, `PlaceFerryTerminalTool`, `PlacePassengerDepotTool`, `PlaceFreightDepotTool` | Select then `Cancel`; actual placements are separate `PlaceLot` candidates. |
+| `ToxicSpill`, `DispatchFireTool`, `DispatchPoliceTool` | No-argument candidates; dispatch tools are selected/cancelled only. **No actual dispatch or map click is claimed.** |
+
+`build-runs/suite/luacmd27-r1/commands.tsv` expands the individual candidate
+command names per scenario. All are `not-reached` when initialization fails.
+Uncalled reference commands (including `QuitGame`, custom-window creation/text,
+the remaining civic tools, pause/slow/medium and flora) are **untested**, not
+failed or verified. There is no evidence yet for working UI button IDs.
+
+## Lot data inventory
+
+```text
+python tools/lotconfigs.py --output engine/tests/scenarios/lotconfigs.tsv
+```
+
+Measured: **1,909 lots, 22 packages, 0 warnings**. Sources are read-only DBPF
+game data in the installation and Plugins, including `.dat`, `.SC4Lot` and
+`.SC4Desc`. No save files or executable/disassembly inputs are used. The catalog
+records full lot IID/group, internal exemplar name, dimensions, building IDs,
+OccupantGroups and relative source. Binary/QFS and text exemplars, inherited
+cohorts, building families and plugin overrides are supported. Plugin ordering
+is deterministic; arbitrary plugin load-order conflicts remain a calibration
+concern, and the IID-only command cannot select between group collisions.
+
+Categories come from building OccupantGroups (power 0x1400, water 0x1401,
+garbage 0x1402; civic 0x1500..0x150B; transit 0x1003, parks 0x1006).
+Multi-purpose lots retain multiple categories. **1,734 `other` rows** are
+retained rather than guessed from names; the **175 categorized rows** include
+all requested civic classes. `utilities` is the umbrella for power/water/garbage;
+this installation has no additional generic-utility-only lot. Catalog presence
+does not prove that a lot can be plopped (rewards, water/shoreline and funding
+constraints still apply). Regenerate the TSV after changing game data/plugins.
+
+## Public sources and cheat strings
+
+Interface facts only, retrieved 2026-10-25:
+
+- [0xC0000054 command documentation](https://github.com/0xC0000054/sc4-game-command-documentation)
+  ([App](https://github.com/0xC0000054/sc4-game-command-documentation/blob/main/commands/Maxis/AppCommands.md),
+  [City](https://github.com/0xC0000054/sc4-game-command-documentation/blob/main/commands/Maxis/CityCommands.md),
+  [Region](https://github.com/0xC0000054/sc4-game-command-documentation/blob/main/commands/Maxis/RegionCommands.md)).
+- [Public Lua startup example](https://github.com/0xC0000054/sc4-lua-test-scripts/blob/main/test-scripts/AutoLoadCityTestScript.lua):
+  `sc4app.<Name>(...)`, startup ordering, message/token polling and auto-yield.
+  These repositories are GPL-3.0; their interfaces informed independently
+  written candidates. No disassembly-derived implementation was used.
+- [IGN SimCity 4 PC Cheats](https://www.ign.com/wikis/simcity-4/PC_Cheats):
+  `fightthepower`, `hellomynameis <name>`, `howdryiam`, `sizeof <1..100>`,
+  `stopwatch`, `tastyzots`, `weaknesspays`, `whatimeizit <time>`,
+  `whererufrom <name>`, `you don't deserve it`, `zoneria`, `recorder`, `gol`,
+  `dollyllama`. The candidate omits stopwatch/recorder to avoid leaving a clock
+  or recording running; it supplies explicit names/time/zoom for parameterized
+  cheats. IGN's spelling is `whatimeizit` (one t). Other cheat pages returned
+  HTTP 403 and supplied no additional facts.
+
+No TCP listener was enabled. No Documents data, game saves or ABI exports were
+changed. Next: resolve the host graphics initialization failure; prove entry
+and logging; calibrate each call, dialog/button ID and map input; then replace
+these `not-reached` statuses with measured effects and per-scenario shadows.
