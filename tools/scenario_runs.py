@@ -185,7 +185,10 @@ def analyze(log, run):
             heartbeat = re.search(r"heartbeat \(periodic\): (\d{4}-\d\d-\d\d)", line)
             if heartbeat:
                 dates.append(heartbeat[1])
-            perf = re.search(r"([0-9.]+) days/s", line)
+            final_date = re.search(r"AUTOTEST VERDICT:.*\bdate=(\d{4}-\d\d-\d\d)", line)
+            if final_date:
+                dates.append(final_date[1])
+            perf = re.search(r"days_per_second=([0-9.]+)", line)
             if perf:
                 dps = perf[1]
     script_lines = (ROOT / run["script"]).read_text(encoding="utf-8").splitlines()
@@ -218,7 +221,7 @@ def summarize(out, manifest):
         reached = bool(dates and max(dates) >= run["end"])
         # The native end-date announcement is more precise than the periodic
         # heartbeat (which need not land on the final day).
-        reached = reached or bool(re.search(r"end date [^\r\n]*" + re.escape(run["end"]), verdict_text))
+        reached = reached or bool(re.search(r"end date " + re.escape(run["end"]) + r" reached\b", verdict_text))
         rows.append(dict(zip(SUMMARY, (label, "shadows", verdict, str(reached).lower(), dps,
                     sum(c["ok"] for c in acts.values()), sum(c["failed"] for c in acts.values()),
                     total, exact, worst, "-", "-", "-", log.relative_to(ROOT).as_posix()))))

@@ -49,6 +49,10 @@ to six request roots because the legacy queue serializes each root. The
 legacy queue supports only its default FC4 Test region, so it receives no
 new region key. Documents is never a destination.
 
+The harness falls back to a read-only native command-line query if Windows
+denies CIM. If neither query identifies a live game, it still refuses that
+slot; it never assumes an unidentified process belongs to another slot.
+
 `summary.tsv` has the suite interface columns; `actions.tsv` gives completed
 run/ok/failed counts by action and scenario. `per_key.tsv` gives the union;
 `findings.tsv` records first observed mismatches and exceptions per scenario,
