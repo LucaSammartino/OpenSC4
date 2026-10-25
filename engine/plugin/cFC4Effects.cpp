@@ -313,6 +313,13 @@ bool cFC4EffectsManager::QueryInterface(uint32_t riid, void** ppvObj) {
         AddRef();
         return true;
     }
+    // effects.md section 18.2: callers need the message sub-object at +8,
+    // not the primary manager pointer.
+    if (riid == 0x452294AAu) {
+        *ppvObj = static_cast<cIGZMessageTarget2*>(this);
+        AddRef();
+        return true;
+    }
     *ppvObj = nullptr;
     return false;
 }

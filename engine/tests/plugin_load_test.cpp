@@ -11091,7 +11091,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "cISC4TutorialSystem.h"
 #include "plugin_glue15_test.inc"
 #include "plugin_prop_occupant_compare_test.inc"
-#include "plugin_effects_registration_test.inc"
+#include "plugin_effects_registration_test.inc"  // Factory ownership and section 18.2 message-target layout.
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();

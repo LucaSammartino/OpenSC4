@@ -30,6 +30,14 @@ int EffectsRegistrationTest(const std::string& dll, const std::string& ini,
             CHECK(manager->QueryInterface(GZIID_cIGZUnknown, &unknown));
             CHECK(unknown == obj);
             if (unknown != nullptr) static_cast<cIGZUnknown*>(unknown)->Release();
+            void* target = nullptr;
+            CHECK(manager->QueryInterface(0x452294AAu, &target));
+            CHECK(static_cast<char*>(target) == static_cast<char*>(obj) + 8);
+            if (target != nullptr) {
+                auto* messages = static_cast<cIGZMessageTarget2*>(target);
+                CHECK(messages->DoMessage(nullptr));
+                messages->Release();
+            }
             CHECK(manager->Release() == 0);
         }
     }
