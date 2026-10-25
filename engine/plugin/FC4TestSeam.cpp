@@ -16,6 +16,7 @@
 #include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
 #include "FC4OrdinanceShadow.h"
+#include "cFC4PowerPoleOccupant.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
@@ -282,6 +283,12 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return fc4::ConstructionCaptureTest(static_cast<cIGZUnknown*>(a));
         case kFC4SeamLotConfigurationCreate:
             return reinterpret_cast<intptr_t>(CreateFC4LotConfiguration());
+        case kFC4SeamNetOccPoleFactory: {
+            if (a || b) return 0;
+            auto* pole = CreateFC4PowerPoleOccupant();
+            if (pole) pole->AddRef();
+            return reinterpret_cast<intptr_t>(pole);
+}
         default:
             return 0;
     }

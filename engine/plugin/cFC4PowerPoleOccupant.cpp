@@ -159,6 +159,7 @@ public:
         fc4_netpole_destroy(core_, &vt_);
     }
     bool Valid() const { return core_ != nullptr; }
+    FC4OccupantStorage& OccStorage() { return occStorage_; }
     uint64_t Self() const { return Tok(static_cast<const PoleInterface*>(this)); }
 
     // ---- cIGZUnknown (§4.1) ----
@@ -356,6 +357,7 @@ private:
 
     std::atomic<uint32_t> refs_{0};
     std::recursive_mutex lock_;
+    FC4OccupantStorage occStorage_;
     cFC4PropertyHolder holder_;
     void* core_;
     PoleHostVt vt_{};

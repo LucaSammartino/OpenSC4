@@ -315,6 +315,9 @@ enum : uint32_t {
     kFC4SeamAutomataCapture = 73,  // a = reference-only writer, b = requested IID
     kFC4SeamConstructionCapture = 74,  // a = construction writer; 1 exact, 0 mismatch, -1 capture failed
     kFC4SeamLotConfigurationCreate = 75,  // returns the manager's own created reference (not GZCOM).
+    // Isolated factory only: never registered for native power-line tools.
+    // Returns an owned cIGZUnknown* (one reference); a and b must be null.
+    kFC4SeamNetOccPoleFactory = 0x4E4F0001,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -54,6 +54,7 @@ public:
     PowerLine() : holder_(static_cast<LineInterface*>(this)), core_(fc4_netline_create()) {}
     ~PowerLine() { DropPoles(State()); fc4_netline_destroy(core_); }
     bool Valid() const { return core_ != nullptr; }
+    FC4OccupantStorage& OccStorage() { return occStorage_; }
     bool QueryInterface(uint32_t iid, void** out) override {
         if (!out) return false;
         switch (iid) {
@@ -186,9 +187,11 @@ private:
     static bool TrackRead(void*, uint32_t iid, fc4_ref* out) { return ReadRefs::Get(activeRead_, iid, out); }
     std::atomic<uint32_t> refs_{0};
     std::recursive_mutex lock_;
+    FC4OccupantStorage occStorage_;
     cFC4PropertyHolder holder_;
     void* core_;
 };
+static_assert(sizeof(FC4OccupantAdapter<PowerLine>) == sizeof(void*), "native line serializable offset");
 thread_local PowerLine::ReadRefs* PowerLine::activeRead_ = nullptr;
 }
 cIGZUnknown* CreateFC4PowerLineOccupant() {
