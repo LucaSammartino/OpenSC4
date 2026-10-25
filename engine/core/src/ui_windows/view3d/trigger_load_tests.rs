@@ -151,3 +151,56 @@ fn vw_t44_trigger_load_grows_only_when_inserting_new_key() {
         assert_eq!(v.save_record().triggers, expected);
     }
 }
+
+#[test]
+fn trigger_load_uses_unsigned_keys_and_preserves_zero_counts_in_both_save_adapters() {
+    for opaque in [false, true] {
+        let mut v = view();
+        let mut h = Host::default();
+        load_pairs(
+            &mut v,
+            &mut h,
+            opaque,
+            vec![(u32::MAX, u32::MAX), (107, 3), (0x8000_0000, 7), (0, 9), (u32::MAX, 0)],
+        );
+        // Unsigned modulo 193 puts these keys in buckets 0, 54 and 107.
+        // The duplicate overwrites the tail of bucket 107 without moving it.
+        let expected = [(0, 9), (0x8000_0000, 7), (107, 3), (u32::MAX, 0)];
+        assert_eq!(v.owner.view.triggers.bucket_count(), 193);
+        assert_eq!(v.save_record().triggers, expected);
+        assert_eq!(v.save_object_record(&mut h, true).unwrap().triggers, expected);
+        for key in [0, 107, 0x8000_0000, u32::MAX] {
+            assert!(v.global_trigger_state(key));
+        }
+        assert!(!v.global_trigger_state(1));
+        assert!(h.ops.is_empty());
+    }
+}
+
+#[test]
+fn trigger_load_at_grown_capacity_preserves_nodes_and_unmentioned_keys() {
+    for opaque in [false, true] {
+        let mut v = view();
+        let mut h = Host::default();
+        let pairs = [(390, 7), (1, 9)]
+            .into_iter()
+            .chain((2..=388).map(|key| (key, key)))
+            .collect();
+        load_pairs(&mut v, &mut h, opaque, pairs);
+        assert_eq!(v.owner.view.triggers.bucket_count(), 389);
+        let updates = vec![(1, 0); 1024].into_iter().chain([(390, u32::MAX)]).collect();
+        load_pairs(&mut v, &mut h, opaque, updates);
+        let expected: Vec<_> = [(390, u32::MAX), (1, 0)]
+            .into_iter()
+            .chain((2..=388).map(|key| (key, key)))
+            .collect();
+        assert_eq!(v.owner.view.triggers.bucket_count(), 389);
+        assert_eq!(v.save_record().triggers, expected);
+        assert_eq!(v.save_object_record(&mut h, true).unwrap().triggers, expected);
+        load_pairs(&mut v, &mut h, opaque, vec![]);
+        assert_eq!(v.owner.view.triggers.bucket_count(), 389);
+        assert_eq!(v.save_record().triggers, expected);
+        assert!(v.global_trigger_state(1));
+        assert!(h.ops.is_empty());
+    }
+}
