@@ -270,11 +270,9 @@ const char* EffectsShadowSummary(char* buf, unsigned cap) {
     return buf;
 }
 
-namespace {
-
 // Public SDK raw-record path; never requests a decoded resource or invokes
 // its collection reader. OpenDBRecord's borrowed record is closed via rm.
-bool CaptureDirectory(std::vector<uint8_t>& bytes) {
+bool EffectsReadDirectory(std::vector<uint8_t>& bytes) {
     cIGZPersistResourceManagerPtr rm;
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     if (!rm || !com) return false;
@@ -314,6 +312,8 @@ bool CaptureDirectory(std::vector<uint8_t>& bytes) {
     return ok;
 }
 
+namespace {
+
 uint32_t NativeHasName(void* user, const char* name) {
     // Borrowed city manager: no AddRef/Release and no mutation.
     // [abi-ret] effects.md section 4.2: slot 5 answers name existence;
@@ -333,7 +333,7 @@ void CompareNames(void* context) {
     auto& s = *static_cast<NameSample*>(context);
     auto* manager = s.city ? s.city->GetEffectsManager() : nullptr;
     std::vector<uint8_t> bytes;
-    if (!manager || !CaptureDirectory(bytes)) return;
+    if (!manager || !EffectsReadDirectory(bytes)) return;
     s.bytes = static_cast<uint32_t>(bytes.size());
     s.captured = fc4_effects_verify_names(bytes.data(), bytes.size(), NativeHasName, manager, s.counts);
     // EF21 §18.8.2: a load/month callback proves neither owner identity nor

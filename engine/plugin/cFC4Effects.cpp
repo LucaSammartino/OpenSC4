@@ -289,7 +289,36 @@ static bool WritableSlot(void* q) {
 }
 // ---- the manager ----------------------------------------------------------------------------------
 
+cFC4EffectsManager* cFC4EffectsCollection::Owner() {
+    return reinterpret_cast<cFC4EffectsManager*>(reinterpret_cast<unsigned char*>(this) - 0x94);
+}
+
+bool cFC4EffectsCollection::QueryInterface(uint32_t iid, void** out) {
+    return Owner()->QueryInterface(iid, out);
+}
+
+uint32_t cFC4EffectsCollection::AddRef() { return Owner()->AddRef(); }
+uint32_t cFC4EffectsCollection::Release() { return Owner()->Release(); }
+
+void cFC4EffectsCollection::BeginCollection() {
+    // Section 18.6: preserve descriptions and camera values; clear only the
+    // publication vectors and camera-presence byte. No nesting counter.
+    std::memset(fields_ + 0xF0 - 4, 0, 0x18);
+    fields_[0xD0 - 4] = 0;
+}
+
+void cFC4EffectsCollection::EndCollection() {
+    // Empty publication has no bindings or notification indices to resolve.
+}
+
 cFC4EffectsManager::cFC4EffectsManager() : refs_(0) {
+    static_assert(sizeof(cFC4EffectsCollection) == 0x120, "native collection extent");
+    // The tests exercise these receiver offsets in the compiled x86 DLL.
+    uint32_t priority = kDefaultMaxPriority;
+    std::memcpy(reinterpret_cast<unsigned char*>(this) + 0xB90, &priority, sizeof(priority));
+    const int32_t lod = -1;
+    for (size_t offset = 0xC84; offset <= 0xC8C; offset += 4)
+        std::memcpy(reinterpret_cast<unsigned char*>(this) + offset, &lod, sizeof(lod));
     ctx_.shadow = false;
     host_ = fc4::MakeEffectsHost(&ctx_);
 }
@@ -320,6 +349,11 @@ bool cFC4EffectsManager::QueryInterface(uint32_t riid, void** ppvObj) {
         AddRef();
         return true;
     }
+    if (riid == 0xC97CF5CEu) {
+        *ppvObj = &collection_;
+        AddRef();
+        return true;
+    }
     // effects.md section 18.2: an unsupported IID leaves the output untouched.
     return false;
 }
@@ -335,10 +369,13 @@ uint32_t cFC4EffectsManager::Release() {
 }
 
 bool cFC4EffectsManager::LoadDirectory() {
-    // §3: the effect directory resource. The game's resource manager path is
-    // question 1; until it is wired the core's synthetic volcano /
-    // meteor-crater directory stands in (it holds the records §10 needs).
-    dir_ = fc4_effects_directory_volcano();
+    // Sections 3 and 6.2: decode the packed resource into core-owned records.
+    // Never publish native allocator-owned objects into Rust.
+    std::vector<uint8_t> bytes;
+    if (fc4::EffectsReadDirectory(bytes))
+        dir_ = fc4_effects_directory_parse(bytes.data(), bytes.size());
+    // SPEC-GAP: without a resource service retain the standalone directory.
+    if (dir_ == nullptr) dir_ = fc4_effects_directory_volcano();
     if (dir_ == nullptr) return false;
     fc4_effects_directory_counts counts = {};
     if (fc4_effects_directory_get_counts(dir_, &counts)) {
@@ -361,7 +398,8 @@ bool cFC4EffectsManager::Init() {
             return false;
         }
     }
-    if (dir_ != nullptr) fc4_effects_set_directory(core_, dir_);
+    if (dir_ == nullptr && !LoadDirectory()) return false;
+    if (!fc4_effects_set_directory(core_, dir_)) return false;
     fc4_effects_set_max_priority(core_, kDefaultMaxPriority);
     // EF2: finish outside the draw pass unless the run asks for the original's
     // draw-pass compat mode.

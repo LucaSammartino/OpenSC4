@@ -36,10 +36,15 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 class cISC4City;
 
 namespace fc4 {
+
+// Raw packed-directory bytes via the public resource/file interfaces. Does not
+// invoke the native collection reader or transfer native description objects.
+bool EffectsReadDirectory(std::vector<uint8_t>& bytes);
 
 // Starts or stops the shadow from the ini (effects_shadow / FC4_EFFECTS_SHADOW,
 // default off). Native record comparison and replacement-call mirror are

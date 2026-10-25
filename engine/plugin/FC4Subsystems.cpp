@@ -719,7 +719,7 @@ void Resolve() {
     // The effects shadow (FC4EffectsShadow.h; a same-process mirror of the
     // effects manager). It runs beside whichever manager the city uses.
     // The guarded class is native unless the diagnostic replacement is actually registered.
-    EffectsShadowStartup(enabledKey("effects") && SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) != 0);
+    EffectsShadowStartup(enabledKey("effects"));
     TerrainShadowStartup();
     // The automata shadow (FC4AutomataShadow.h; it compares the original automata components).
     AutomataShadowStartup(enabledKey("automata"));
@@ -776,10 +776,6 @@ const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner) {
     Resolve();
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         if (!g_enabled[i]) continue;
-        // SPEC-GAP: effects.md section 18.5 leaves the internal native bases unresolved.
-        // Real-city replacement still faults; keep it behind the diagnostic switch.
-        if (strcmp(kSubsystems[i].key, "effects") == 0 &&
-            SettingInt("effects_replace", "FC4_EFFECTS_REPLACE", 0) == 0) continue;
         const Subsystem& s = kSubsystems[i];
         for (size_t k = 0; k < s.classCount; ++k) {
             if (s.classes[k].clsid == clsid) {
