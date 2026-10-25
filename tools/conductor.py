@@ -264,6 +264,9 @@ def main():
             review.append(n)
         if done:
             run.save_reviewed()
+            # a resumed lane has a new pid: count live lanes again, or it reads as a free slot
+            lanes, pids = run.lanes(), alive_pids()
+            live = {n: e for n, e in lanes.items() if e.get('pid') and str(e['pid']) in pids}
         stalled = [n for n, e in live.items() if idle_minutes(e) > STALL_MINUTES]
         under = len(live) < run.target() and time.time() - start > 60
         if under and not review and not stalled and run.fill_from_pending():
