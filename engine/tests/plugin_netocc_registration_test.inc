@@ -35,6 +35,16 @@ int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         CHECK(std::count(classes.begin(), classes.end(), 0xC9C05C5Du) == 1);
+        // This partial replacement must leave the other occupant factories native,
+        // even when netocc itself is enabled.
+        for (uint32_t clsid : {0xC9C05C6Eu, 0x49C1A034u, 0x49CC1BCDu, 0x8A4BD52Bu,
+                              0x4A10AFC2u, 0x49C05B9Fu, 0xCA16374Fu, 0x8A139184u,
+                              0xEA0A5ACFu, 0xCA15ED6Bu, 0x09C05C6Au, 0x49B6D69Bu}) {
+            CHECK(std::count(classes.begin(), classes.end(), clsid) == 0);
+            void* native = nullptr;
+            CHECK(!director->GetClassObject(clsid, GZIID_cIGZUnknown, &native));
+            CHECK(native == nullptr);
+        }
         void* raw = nullptr;
         CHECK(director->GetClassObject(0xC9C05C5D, 0xC98F3B24, &raw));
         if (raw) {
