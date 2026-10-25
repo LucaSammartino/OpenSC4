@@ -895,6 +895,35 @@ intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
     // Exactly one retained caller reference remains after manager destruction.
     if (retained->Release() != 0 || !alive) return 0;
 
+    {
+        cFC4NetworkLotManager manager;
+        struct ReplaceDuringVisit {
+            cFC4NetworkLotManager* manager;
+            cISC4NetworkOccupant* before;
+            cISC4NetworkOccupant* after;
+            bool alive = false;
+        } ctx{&manager, a, b};
+        fc4_netlot_lot record{};
+        record.occupant = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(a));
+        IterateCtx visit{&manager,
+            [](uint32_t x, uint32_t z, cISC4NetworkLot* lot, void* opaque) {
+                auto& ctx = *static_cast<ReplaceDuringVisit*>(opaque);
+                auto* replacement = ctx.manager->KeepLot(x, z, ctx.after, 0);
+                // Replacing the cell drops its cache reference while the callback
+                // still uses the old borrowed view. Only the iterator pin remains.
+                const uint32_t refs = lot->AddRef();
+                ctx.alive = replacement != lot && replacement->GetNetworkOccupant() == ctx.after &&
+                    lot->GetNetworkOccupant() == ctx.before && refs == 2;
+                lot->Release();
+                return false;
+            }, &ctx};
+        if (IterateOne(&visit, 1, 2, &record) || !ctx.alive) return 0;
+        auto* replacement = manager.KeepLot(1, 2, b, 0);
+        const uint32_t refs = replacement->AddRef();
+        replacement->Release();
+        if (refs != 2) return 0;  // Cache owns one reference after early termination.
+    }
+
     auto config = std::make_shared<cFC4NetworkLotConfiguration>(1);
     config->SetConfigId(42);
     std::weak_ptr<cFC4NetworkLotConfiguration> weak = config;
