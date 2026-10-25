@@ -475,6 +475,7 @@ cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
 cGZDrawContext	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZDrawContextRenderTo*	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+cGZDrawSystem	2D drawing and fonts	renderer	draw-system.md, span-render-4444.md	-	-	-
 cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
