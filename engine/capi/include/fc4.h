@@ -194,8 +194,9 @@ extern "C" {
  * 100 = merge-train batch train195 (glue-mysimdispatch-shadow9, glue-helicopter-shadow10): merged (no C ABI history entry of its own)
  * 101 = merge-train batch train210 (glue-querytool-shadow13): merged (no C ABI history entry of its own)
  * 102 = merge-train batch train212 (re-map-view-qv18, glue-renderprops-shadow13, glue-app-shadow13): merged (no C ABI history entry of its own)
- * 103 = merge-train batch train233 (glue-netrules-replace23, glue-lotconfobj-replace22): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 103u
+ * 103 = merge-train batch train233 (glue-netrules-replace23, glue-lotconfobj-replace22): merged (no C ABI history entry of its own)
+ * 104 = merge-train batch train237 (re-netocc-no33, glue-regionalcity-replace23, glue-floraocc-replace22, glue-formats-shadow24): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 104u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
