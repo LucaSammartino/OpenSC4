@@ -57,6 +57,13 @@ class ResumeTests(unittest.TestCase):
         self.assertIsNone(self.run.resume('x27', {'rounds': 3, 'round_limit': 3}, 'Carry on.'))
         self.assertEqual(self.launched, [])
 
+    def test_note_used_once(self):
+        (self.root / 'notes').mkdir()
+        (self.root / 'notes' / 'x27-next.txt').write_text('Fix A.\nFix B.\n', encoding='utf-8')
+        self.assertEqual(self.run.take_note('x27'), 'Fix A. Fix B. ')
+        self.assertTrue((self.root / 'notes' / 'x27-next.used.txt').exists())
+        self.assertEqual(self.run.take_note('x27'), '')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -149,6 +149,15 @@ class Run:
                 ent['round_limit'] = ent.get('round_limit', 3) + 1
                 self.state.write_text(json.dumps(st, indent=1), encoding='utf-8')
 
+    def take_note(self, lane):
+        """The coordinator's review note for the lane's next round (notes/<lane>-next.txt), used once."""
+        p = self.dir / 'notes' / f'{lane}-next.txt'
+        if not p.exists():
+            return ''
+        text = ' '.join(p.read_text(encoding='utf-8').split()) + ' '
+        p.replace(p.with_name(f'{lane}-next.used.txt'))
+        return text
+
     def fill_from_pending(self):
         p = self.dir / 'pending.txt'
         specs = [l.strip() for l in p.read_text(encoding='utf-8').splitlines() if l.strip()] if p.exists() else []
@@ -257,7 +266,7 @@ def main():
             if kind in ('continue', 'transient'):
                 note = ('Your previous round failed on a transient Codex error; continue from your last commit.'
                         if kind == 'transient' else 'Your previous round ended in state continue; carry on with its next steps.')
-                last = run.resume(n, lanes[n], note)
+                last = run.resume(n, lanes[n], note + ' ' + run.take_note(n))
                 run.log(f'AUTO-RESUMED {n} ({kind}): {last}')
                 if last and last.startswith('LAUNCHED'):
                     continue
