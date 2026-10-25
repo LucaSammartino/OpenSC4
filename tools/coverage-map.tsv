@@ -260,7 +260,7 @@ cSC4TextDecalOccupant	occupants and props	simulation	lot-records.md	-	-	-
 cSC4Occupant*	occupants and props	simulation	occupant-manager.md, lot-records.md	-	-	-
 cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md, demolition.md	-	-	-
 cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-
-cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
+cSC4GameOfLifeSimulator	other simulation	simulation	game-of-life.md, game-of-life-control.md	-	-	-
 SC4QuadGrid	other simulation	simulation	render3d.md	-	-	-
 cSC4TutorialRegistry	tutorial	simulation	tutorial-registry.md	core/src/tutorial	-	-
 cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
@@ -574,6 +574,7 @@ cSC4ViewInputControlDispatch	city tools and input	ui	dispatch-vehicle-view.md	-	
 cSC4ViewInputControlNetworkTool	city tools and input	ui	network-tool-owners.md	-	-	-
 cSC4ViewInputControlNetworkIntxTool	city tools and input	ui	network-tool-owners.md	-	-	-
 cSC4ViewInputControlTollBooth	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4ViewInputControlGameOfLife	city tools and input	ui	game-of-life-control.md, game-of-life.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
