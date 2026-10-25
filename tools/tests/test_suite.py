@@ -83,13 +83,15 @@ class SuiteParsingTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])
 
-    def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
+    def test_starter_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
         self.assertGreaterEqual(len(rows), 19)
         self.assertEqual(len(suite.read_scenarios(ROOT, 'smoke')), 6)
         self.assertTrue({'Berlin', 'London', 'Timbuktu', 'New York', 'San Francisco'} <= {r['region'] for r in rows})
         self.assertTrue({'empty-small', 'empty-medium', 'empty-large'} <= {r['name'] for r in rows})
         for row in rows:
+            if row['name'].startswith(('owner27-', 'trigger27-')):
+                continue  # Targeted trigger fixtures need only their declared actions.
             if Path(row['script']).suffix == '.lua':
                 continue  # Lua has command-return evidence rather than dated plugin actions.
             lines = [line.split() for line in (ROOT / row['script']).read_text().splitlines()

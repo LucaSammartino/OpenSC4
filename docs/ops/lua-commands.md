@@ -9,6 +9,38 @@ catalog's 175 categorized ploppable lots, then partially demolish the plan.
 Their measured results and limitations are recorded below; a zero command status
 alone does not prove that a lot exists in the save.
 
+## Round four: checkout isolation and qualified footprints
+
+The shared queue launches **main's** `ingame_run.ps1` with a lane's staged DLL.
+`lua_script` and its helper library now resolve from the DLL's nearest Git
+checkout, rather than from the launcher's checkout. The slot copy and quoted
+absolute `-LuaScript` argument are unchanged. Queue completion also copies the
+optional Lua transcript back under the request's label; previously it retained
+only the plugin log, leaving the suite without its command-return evidence.
+
+`lua-lots-grown-qualified` retains the 175-IID sweep, substitutes 37 inland
+West Weburg pads for power/water/fire/health/police/education and clears a
+two-cell border around each footprint. These civic pads have disjoint borders;
+other catalog placements can still remove an earlier civic lot. The original
+`lua-lots-grown` row and its rejected calls remain available for comparison.
+This measures placement calls, not simultaneous surviving lots.
+
+The direct cleared-pad probe `luacmd27-grown-pad-r4c` accepted all eight calls
+at cell **53,95**, facing **0**, after clearing **40,85..75,122**: coal,
+small/deluxe fire, clinic/medical center, police, elementary school and pump.
+Subsequent demolition costs supplied independent removal evidence. The script
+completed, but the run stalled before advancing from 2197-03-20; no simulation
+or reach credit is assigned to that probe. The first coastal Zoe attempt did
+not load a city in its 90-second startup allowance and tested no placements.
+
+The initial slot-derived DLL `d242df85` ignored `reach`, `reach_cap`,
+`reach_contracts` and `reach_output`. All `r4-reach`, `r4-corrected` and
+`r4-categories` results using that DLL are **non-reach evidence**. Fresh replay
+uses the merged-main build `8fd69cb79aaa7930fe70416f93b4454b6fc385b5c192b1a2ce27439bfe50a310`;
+its measured results are recorded below when complete. Self-contained scripts
+with main-relative worktree paths bridge the old running queue launcher; no
+main checkout files were edited to run them.
+
 ## Round three: catalog sweeps, 2026-10-25
 
 The tooling is ready to land: `.lua` suite rows now produce `lua_script`, opt in

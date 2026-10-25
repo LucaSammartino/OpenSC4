@@ -139,3 +139,25 @@ def test_harvests_extension_print_and_game_lua_errors(tmp_path):
     assert "Lua error from game" in evidence
     assert "unrelated heartbeat" not in evidence
     assert (tmp_path / "out/probe.lua.log").read_text() == evidence
+
+
+@pytest.mark.parametrize('present', [False, True])
+def test_queue_returns_the_optional_lua_transcript_to_the_request_checkout(tmp_path, present):
+    output = tmp_path / 'coordinator output'
+    results = tmp_path / 'lane results'
+    output.mkdir()
+    results.mkdir()
+    if present:
+        (output / 'q-lane-probe.lua.log').write_text('FC4_LUA scenario-complete\n')
+    queue = (REPO / 'tools/game_queue.ps1').read_text()
+    block = queue.split('# Optional Lua transcript follows', 1)[1].split('# End optional Lua transcript.', 1)[0]
+    code = ("$ErrorActionPreference='Stop'; $Out=$env:FC4_COPY_OUT; $res=$env:FC4_COPY_RESULTS; "
+            "$job=@{runLabel='q-lane-probe';label='probe'}; # Optional Lua transcript follows" + block)
+    result = subprocess.run([PS, '-NoProfile', '-NonInteractive', '-Command', code],
+        env=dict(os.environ, FC4_COPY_OUT=str(output), FC4_COPY_RESULTS=str(results)),
+        capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    copy = results / 'probe.lua.log'
+    assert copy.exists() == present
+    if present:
+        assert copy.read_text() == 'FC4_LUA scenario-complete\n'
