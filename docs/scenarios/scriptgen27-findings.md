@@ -110,8 +110,19 @@ retains all non-exact lines and action windows. These findings do not identify
 engine fixes or establish novelty against an idle baseline.
 
 Tools validation on final tooling source: `python -m pytest tools/tests -q`
-printed **378 passed in 267.34s** ([log](../../build-runs/suite/gen27-r3/tools-tests-final.log)).
+printed **379 passed in 472.18s** ([log](../../build-runs/suite/gen27-r3/tools-tests-with-aborts.log)).
 Native parser validation printed `scripts=300 actions=100800 parse_errors=0`;
 five generator tests passed ([log](../../build-runs/suite/gen27-r3/native-parser.log)).
 Real input metadata/hashes cover all four FC4 Test cities, and the validation
 helper printed `Documents source hashes unchanged: 4/4`.
+
+At 20:47 and 21:01, eight starts were intentionally stopped after 600+ seconds
+with zero completed actions: six New City cases and two Spandau starts. Their
+native logs/verdicts are unchanged. [aborts.tsv](../../build-runs/suite/gen27-r3/aborts.tsv)
+records the operator decision, time, slot, PID and last native line. The summary
+uses `aborted`, and findings retain the original verdict too; these are not
+engine crashes or two-year passes. Process identity was checked against both
+the lane's running marker and the native `-UserDir` command line before stopping.
+There were fourteen game processes across the machine during a read-only
+process census, six belonging to this sweep. This is timing context, not proof
+that contention caused any exception, mismatch or watchdog sample.
