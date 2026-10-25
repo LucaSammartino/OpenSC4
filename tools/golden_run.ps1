@@ -50,7 +50,7 @@ try {
     [IO.File]::WriteAllText((Join-Path $Output 'harness.txt'), (($lines -join "`n") + "`n"), $utf8)
     $log = Join-Path $HarnessRoot "build-runs/$label.log"
     if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination (Join-Path $Output 'game.log') }
-    $save = Join-Path $userDir "Regions/$Region/City - $City.sc4"
+    $save = Join-Path $userDir "Regions/FC4 Test/City - $City.sc4"
     if (Test-Path -LiteralPath $save) { Copy-Item -LiteralPath $save -Destination (Join-Path $Output 'end.sc4') }
     $meta = @{ slot=$Slot; label=$label; exit_code=$code; wall_seconds=$watch.Elapsed.TotalSeconds;
                region=$Region; city=$City; save_source=$save }

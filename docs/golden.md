@@ -2,9 +2,12 @@
 
 `tools/golden.py` is independent of `play.py` and `suite.py`. It uses only Python's
 standard library and the existing PowerShell game queue. It never writes saves
-in Documents. A queue export holds both slot locks and verifies that the slot's
-log still matches the completed run; an export race fails instead of caching a
-different run's save.
+in Documents. The exporter observes the run's unique script in the active slot
+log, queues behind its user-dir lock before completion, and verifies the completed
+queue log before copying. A later slot runner waits for that copy. A missed
+marker or reused slot fails instead of caching a different run's save. The
+runner mirrors any selected source region into its slot's `FC4 Test` folder;
+the exporter uses that actual destination.
 
 ```powershell
 python tools/golden.py determinism --region "FC4 Test" --city Konradshohe --until 2026-04-01 --repeats 3

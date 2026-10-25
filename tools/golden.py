@@ -401,15 +401,10 @@ def run_queued(args, dll, ini, result, work):
     request += '[ini]\n' + ini.read_text(encoding='utf-8')
     temporary = queue / (label + '.tmp')
     temporary.write_text(request, encoding='utf-8')
+    result.mkdir()
     temporary.rename(queue / (label + '.req'))
     verdict_file = args.output / 'game-results' / (label + '.verdict')
-    deadline = time.monotonic() + args.queue_timeout
-    while not verdict_file.exists():
-        if time.monotonic() > deadline:
-            raise ValueError(f'queue wait timed out; request may still run: {queue / (label + ".req")}')
-        time.sleep(1)
-    verdict = verdict_file.read_text(encoding='utf-8-sig')
-    result.mkdir()
+    verdict = wait_snapshot(args, verdict_file, result, work)
     (result / 'harness.txt').write_text(verdict, encoding='utf-8')
     log = verdict_file.with_suffix('.log')
     if log.exists():
@@ -420,17 +415,47 @@ def run_queued(args, dll, ini, result, work):
     if not slot_match:
         raise ValueError('queue result does not identify its slot')
     slot = int(slot_match[1])
-    process = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-                              '-File', str(Path(__file__).with_name('golden_snapshot.ps1')),
-                              '-HarnessRoot', str(args.harness_root.resolve()), '-Output', str(result.resolve()),
-                              '-City', args.city, '-Region', args.region, '-Slot', str(slot)],
-                             capture_output=True, text=True, timeout=150)
-    (work / 'transport.txt').write_text(process.stdout + process.stderr, encoding='utf-8')
-    if process.returncode:
-        raise ValueError(f'completed run could not be exported; see {work / "transport.txt"}')
     wall = re.search(r'wall (\d+) s', verdict)
     write_json(result / 'run.json', {'slot': slot, 'label': label,
                                     'wall_seconds': int(wall[1]) if wall else None, 'backend': 'queue'})
+
+
+def wait_snapshot(args, verdict_file, result, work):
+    """Queue for UserDir while the game owns it, before another job can reuse it."""
+    deadline = time.monotonic() + args.queue_timeout
+    process = None
+    try:
+        while not verdict_file.exists():
+            marker = verdict_file.with_suffix('.running')
+            if process is None and marker.is_file():
+                match = re.search(r'running in slot (\d+)', marker.read_text(encoding='utf-8-sig'))
+                if match:
+                    command = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                               '-File', str(Path(__file__).with_name('golden_snapshot.ps1')),
+                               '-HarnessRoot', str(args.harness_root.resolve()), '-Output', str(result.resolve()),
+                               '-City', args.city, '-Region', args.region, '-Slot', match[1],
+                               '-ScriptPath', str((work / 'actions.script').resolve()),
+                               '-ExpectedLog', str(verdict_file.with_suffix('.log').resolve()),
+                               '-VerdictFile', str(verdict_file.resolve()), '-WaitSeconds', str(args.seconds + 150)]
+                    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            if time.monotonic() > deadline:
+                raise ValueError(f'queue wait timed out; request may still run: {verdict_file.stem}')
+            time.sleep(1)
+        verdict = verdict_file.read_text(encoding='utf-8-sig')
+        if not verdict.startswith('verdict: clean'):
+            (result / 'harness.txt').write_text(verdict, encoding='utf-8')
+            raise ValueError(f'queue did not finish cleanly; see {result / "harness.txt"}')
+        if process is None:
+            raise ValueError('missed active slot marker; no safe save export, retry the run')
+        output, _ = process.communicate(timeout=150)
+        (work / 'transport.txt').write_text(output, encoding='utf-8')
+        if process.returncode:
+            raise ValueError(f'completed run could not be exported; see {work / "transport.txt"}')
+        return verdict
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.communicate(timeout=30)
 
 
 def print_comparison(report, args):
