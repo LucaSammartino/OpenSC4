@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare/run/summarize generated FC4 Test scenarios with the existing game queue.
 
-Fallback for checkouts without tools/suite.py. All generated content and evidence
+Discovery sweep companion to tools/suite.py. All generated content and evidence
 stay in build-runs/suite/<tag>; Documents saves are opened read-only. Six request
 roots let the existing per-root queue policy use six independently locked slots.
 """
@@ -67,6 +67,16 @@ def shadow_profile():
     return match[1].replace("`n", "\n")
 
 
+def discovery_request(text):
+    """Use normal queue priority and close dialogs, including prepared v2 jobs."""
+    head, separator, ini = text.partition("[ini]\n")
+    if not separator:
+        raise ValueError("discovery request has no [ini] section")
+    head = re.sub(r"^\s*(?:priority|region)\s*=.*\n", "", head, flags=re.MULTILINE)
+    ini = re.sub(r"^\s*close_dialogs\s*=.*\n?", "", ini, flags=re.MULTILINE)
+    return head + "region = FC4 Test\npriority = normal\n[ini]\nclose_dialogs = 1\n" + ini
+
+
 def prepare(args, out):
     if (out / "manifest.json").exists():
         raise ValueError("tag already prepared; use a new tag (preserve earlier evidence)")
@@ -110,7 +120,7 @@ def prepare(args, out):
                        "script = " + script.relative_to(root).as_posix()]
                 request = root / "build-runs/game-queue" / (label + ".req")
                 tmp = request.with_suffix(".tmp")
-                tmp.write_text("\n".join(req) + "\n", encoding="utf-8")
+                tmp.write_text(discovery_request("\n".join(req) + "\n"), encoding="utf-8")
                 tmp.rename(request)
                 manifest["runs"].append({"scenario": label, "city": city, "seed": seed, "mix": mix,
                                          "start": start.isoformat(), "end": end.isoformat(),
@@ -129,9 +139,23 @@ def prepare(args, out):
 
 def run_queue(args, out, manifest):
     roots = sorted({str(ROOT / r["root"]) for r in manifest["runs"]})
+    # Prepared requests predate close_dialogs and the region queue key. Update
+    # only pending jobs; completed/claimed evidence must remain untouched.
+    pending = 0
+    for root in roots:
+        for request in (Path(root) / "build-runs/game-queue").glob("*.req"):
+            text = request.read_text(encoding="utf-8")
+            request.write_text(discovery_request(text), encoding="utf-8")
+            pending += 1
+    # Include the coordinator root so waiting train regress jobs are always
+    # considered before this tier-2 sweep, also by this private worker.
+    main = Path(subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "--git-common-dir"], text=True).strip()).resolve().parent
+    roots.insert(0, str(main))
     cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "tools/game_queue.ps1"),
            "-Instance", "gen-" + args.tag, "-Once", "-Slots", str(args.slots), "-Roots", ",".join(roots)]
-    print("running {} requests via {} slot locks; {}".format(len(manifest["runs"]), args.slots, out / "queue.out"), flush=True)
+    print("running {} requests ({} pending, priority=normal, close_dialogs=1) via {} slot locks; {}".format(
+        len(manifest["runs"]), pending, args.slots, out / "queue.out"), flush=True)
     with (out / "queue.out").open("a", encoding="utf-8") as stream:
         result = subprocess.run(cmd, stdout=stream, stderr=subprocess.STDOUT)
     print("queue exit=" + str(result.returncode), flush=True)

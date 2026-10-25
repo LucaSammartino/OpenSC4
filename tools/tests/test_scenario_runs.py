@@ -14,6 +14,18 @@ spec.loader.exec_module(runs)
 
 
 class ScenarioEvidenceTests(unittest.TestCase):
+    def test_discovery_request_does_not_starve_regress_or_keep_dialogs(self):
+        old = "label = case\npriority = high\nregion = Berlin\n[ini]\nclose_dialogs = 0\nscript = a.script\n"
+        request = runs.discovery_request(old)
+        self.assertIn("region = FC4 Test\npriority = normal\n[ini]\nclose_dialogs = 1\n", request)
+        self.assertNotIn("high", request)
+        self.assertEqual(request.count("close_dialogs ="), 1)
+        self.assertEqual(request.count("region ="), 1)
+        self.assertEqual(request, runs.discovery_request(request))
+        self.assertIn("script = a.script\n", request)
+        with self.assertRaises(ValueError):
+            runs.discovery_request("label = no-ini\n")
+
     def test_native_refusals_and_exceptions_are_not_successes(self):
         for text in ("ok=0 error=5 (blocked)", "dry run: ok=0 error=2", "skipped: existing lot",
                      "SetAltitude: 270 -> 270 [structured exception in SetAltitude]", "no effect: disabled",
