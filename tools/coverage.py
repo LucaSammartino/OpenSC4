@@ -682,10 +682,10 @@ def read_regress(path, audit_legacy=True):
         if m:
             out["runs"][m.group(1)] = (m.group(2), int(m.group(3)))
             continue
-        m = re.match(r"^\s+([a-z0-9-]+)\s+(\d+) lines, (\d+) with every mismatch count 0", line)
+        m = re.match(r"^\s+([a-z0-9_-]+)\s+(\d+) lines, (\d+) with every mismatch count 0", line)
         if m and run == "shadows":
             out["shadows"][m.group(1)] = (int(m.group(3)), int(m.group(2)))
-        m = re.match(r"^\s+([a-z0-9-]+) resynced lines: (\d+)\s*$", line)
+        m = re.match(r"^\s+([a-z0-9_-]+) resynced lines: (\d+)\s*$", line)
         if m and run == "shadows":
             label, count = m.group(1), int(m.group(2))
             out["resynced"][label] = max(count, out["resynced"].get(label, 0))
