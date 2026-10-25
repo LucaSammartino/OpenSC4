@@ -1,0 +1,15 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| glue-formats-shadow24 (raw record boundaries and dated sampling) | `Codex` / `glue-formats-shadow24` (engine) | ready; cargo 7713/0, clippy 0 diagnostics, CTest 100/100; gf24-bounds-2032-20261025c clean at 2032-01-01, ref_warnings=0; dbpf_bounds_shadow 73/73 lines exact, 3504080/3504080 checks; DBPF payload 876020/876020; exemplar own/effective 8959/8959 each, cohort own/effective 388/388 each | Coordinator: add measured keys to shadows profile and review read-side credit; verify remaining writer/lifecycle paths separately |
+
+- Added default-off `dbpf_bounds_shadow`: native SDK versus Rust raw reads at zero, one, short and exact capacities, with return/size/bytes and both buffer guards. It enables the existing monthly DBPF reader independently.
+- Fixed dated sampling: accept the target-day sample, reject later samples while the harness drains pending work. Added a slow-reader/advancing-clock scheduling regression and literal C ABI boundary cases for plain, empty and QFS records.
+- Final gate: qbuild all PASS; cargo 7713 passed/0 failed/0 ignored, clippy zero diagnostics, native build 98/98 edges, CTest 100/100. Native job `qbuild-20261025-075348-build-ctest`.
+- Final run: `gf24-bounds-2032-20261025c`, clean, date 2032-01-01, ref_warnings=0, DLL SHA256 prefix `328edd50`. Script turns turbo off and pauses at the target while comparisons finish.
+- Exact aggregate line: `gf24-bounds-2032-20261025c dbpf_bounds: 73/73 clean lines`; 3504080/3504080 boundary checks, mismatches=0, samples 2026-01-27 through 2032-01-01.
+- Existing DBPF reader: 73/73 clean lines; 876020 raw and 876020 decoded record comparisons, including 696078 compressed records; mismatches=0. Completed 83 file visits; all 11 files/111826 unique records covered.
+- Existing `formats_shadow`: exemplar own 8959/8959; exemplar effective 8959/8959; cohort own 388/388; cohort effective 388/388; zero untyped values, zero missing resources, store EXACT.
+- Diagnostic run `gf24-bounds-2032-20261025a`: harness clean but 599 shutdown incompletion refusals; all 8382484 boundary byte comparisons matched. This exposed the unbounded post-target queue fixed in the second code commit.
+- Corrected unpaused run `gf24-bounds-2032-20261025b`: clean/ref_warnings=0, the same 73/73 lines and exact counts as the final run; game advanced to 2042 while draining, so the final scripted run also confirms the requested calendar endpoint.
+- Evidence: each label's `.log` and `.verdict` under `build-runs/game-results/`; gate logs `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`. No ABI exports changed; no questions filed.
+- Remaining: native write/flush/compact, SDF/write-record object lifecycle and InterpretEntry/WriteEntry are unmeasured. These results establish read/raw/decode and exemplar-property-set comparisons, not complete owner verification. Coordinator owns profile/map changes; no tools files were edited.

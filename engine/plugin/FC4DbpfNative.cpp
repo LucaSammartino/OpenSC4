@@ -2,6 +2,7 @@
 // data-formats sections 2 and 8.1. Public SDK calls only; no private ABI.
 #include "FC4DbpfNative.h"
 #include "FC4DbpfRotation.h"
+#include "FC4HarnessLogic.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -575,6 +576,10 @@ void AddCityReader(cIGZCOM* com, HeldSample& sample) {
 void DbpfShadowObserve(int32_t julian) {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
         SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
+    harness::Date end;
+    const bool dated = harness::ParseIsoDate(Setting("autotest_end_date", "FC4_AUTOTEST_END_DATE"), &end);
+    const int32_t endJulian = dated ? harness::JulianFromCivil(end.year, end.month, end.day) : 0;
+    if (!DbpfSampleInWindow(julian, endJulian)) return;
     static std::deque<HeldSample> samples;
     pending = &samples;
     pending->emplace_back();
