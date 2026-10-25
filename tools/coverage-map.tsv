@@ -180,7 +180,7 @@ fn:operator<<	city and save file	simulation	-	-	-	-
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
 cSC4Helicopter	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
-cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	-	-	-
+cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata.md	core/src/watercraft	-	-
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
