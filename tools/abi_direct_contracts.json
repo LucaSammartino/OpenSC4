@@ -4,6 +4,7 @@
   {"address":"006df8c0","convention":"thiscall","pop":0,"args":0,"ret":"al"},
   {"address":"006ac860","convention":"thiscall","pop":0,"args":0,"ret":"al"},
   {"address":"00497a00","convention":"thiscall","pop":4,"args":1,"ret":"eax"},
+  {"address":"004fb6c0","convention":"thiscall","pop":8,"args":2,"ret":"eax"},
   {"address":"004a79a0","convention":"thiscall","pop":4,"args":1,"ret":"void"},
   {"address":"006bf430","convention":"cdecl","pop":0,"args":1,"ret":"eax","note":"review=unused-size-argument-documented"},
   {"address":"006c1e50","convention":"thiscall","pop":20,"args":5,"ret":"eax"},

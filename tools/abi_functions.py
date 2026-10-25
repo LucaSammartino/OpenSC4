@@ -178,7 +178,7 @@ def memory_offset(op, aliases):
 
 
 def memory_width(op):
-    for name, width in (('xmmword', 16), ('oword', 16), ('tbyte', 10), ('qword', 8),
+    for name, width in (('xmmword', 16), ('oword', 16), ('float10', 10), ('tbyte', 10), ('double', 8), ('qword', 8),
                         ('dword', 4), ('word', 2), ('byte', 1)):
         if op.startswith(name):
             return width
@@ -221,6 +221,7 @@ class Function:
     live: set = field(default_factory=set)
     body_args: int = 0
     kinds: set = field(default_factory=set)
+    saved_setup: set | None = None
 
     @property
     def size(self):
@@ -254,7 +255,7 @@ def build_graph(f, instructions, starts, image=None):
             elif m == 'jmp':
                 # Ghidra body ranges include switch destinations; only follow validated table entries.
                 op = ins.operands[0] if ins.operands else ''
-                table = re.search(r'0x([0-9a-f]+)', op)
+                table = re.search(r'(?<!\*)\b0x([0-9a-f]+)', op)
                 if image and table and '*0x4' in op.replace(' ', ''):
                     base = int(table[1], 16)
                     for index in range(4096):
@@ -388,7 +389,7 @@ def stack_and_registers(f, functions):
     f.live |= live
 
 
-def caller_cleanup(call, instructions, max_insns=24):
+def caller_cleanup(call, instructions, max_insns=24, grouped=False):
     """First unambiguous straight-line cleanup; stop at another call/argument setup.
 
     Restoring nonvolatile registers is never argument cleanup. Multiple volatile
@@ -409,6 +410,10 @@ def caller_cleanup(call, instructions, max_insns=24):
             amount = memory_offset(ops[1], tuple(0 if r == 'esp' else None for r in REGS))
         elif m == 'pop' and ops and ops[0] in VOLATILE:
             amount = 4
+        elif grouped and m in ('push', 'call'):
+            pass
+        elif grouped and m == 'sub' and ops and ops[0] == 'esp':
+            pass
         elif m in ('push', 'call', 'ret', 'retn', 'leave', 'pop', 'enter') or m.startswith(('j', 'loop')):
             break
         elif 'esp' in access(ins)[1]:
@@ -422,6 +427,80 @@ def caller_cleanup(call, instructions, max_insns=24):
                 break
         va = ins.end
     return total // 4, evidence
+
+
+def argument_setup(call, instructions, addresses, f):
+    """Most recent outgoing stack block, excluding entry frame/saved registers.
+
+    A preceding call separates batches. The raw batch release is retained, but
+    is not charged in full to its final call (MSVC routinely batches cdecl calls).
+    None means attribution was not established, rather than zero arguments.
+    """
+    if f is None:
+        return None
+    if f.saved_setup is None:
+        f.saved_setup = saved_setups(f)
+    saved = f.saved_setup
+    pos = bisect.bisect_left(addresses, call.address)
+    total, boundary = 0, False
+    expected_end = call.address
+    for va in reversed(addresses[max(0, pos - 1024):pos]):
+        ins = instructions[va]
+        if va not in f.insns or ins.end != expected_end:
+            break
+        m, ops = ins.mnemonic, ins.operands
+        if m == 'call' or m.startswith(('j', 'loop')) or ins.pop is not None:
+            boundary = True
+            break
+        if va not in saved:
+            if m == 'push':
+                total += 4
+            elif m == 'sub' and len(ops) == 2 and ops[0] == 'esp':
+                amount = number(ops[1])
+                if amount is None or amount < 0:
+                    break
+                total += amount
+            elif 'esp' in access(ins)[1] or m in ('pop', 'leave'):
+                boundary = True
+                break
+        if va == f.address:
+            boundary = True
+        expected_end = va
+    return total // 4 if boundary else None
+
+
+def saved_setups(f):
+    saved = set()
+    va = f.address
+    for _ in range(16):
+        ins = f.insns.get(va)
+        if not ins:
+            break
+        m, ops = ins.mnemonic, ins.operands
+        if m == 'push' and ops and ops[0] in PRESERVED:
+            saved.add(va)
+        elif m in ('sub', 'and') and ops and ops[0] == 'esp':
+            saved.add(va)
+        elif not (m == 'mov' and ops in (('ebp', 'esp'), ('edi', 'edi'))):
+            break
+        va = ins.end
+    # Optimized MSVC prologues can defer a nonvolatile save into ordinary code.
+    # A save of the original register, restored on exit, is still not an argument.
+    restored = {i.operands[0] for i in f.insns.values() if i.mnemonic == 'pop' and i.operands}
+    written = set()
+    va = f.address
+    for _ in range(1024):
+        ins = f.insns.get(va)
+        if ins is None:
+            break
+        m, ops = ins.mnemonic, ins.operands
+        if m == 'call' or m.startswith(('j', 'loop')) or ins.pop is not None:
+            break
+        if m == 'push' and ops and ops[0] in PRESERVED & restored - written:
+            saved.add(va)
+        written |= access(ins)[1]
+        va = ins.end
+    return saved
 
 
 def required_x87(ins):
@@ -602,6 +681,7 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
                 queued.add(parent)
     print('stack/register analysis complete', flush=True)
     calls, cleanups = defaultdict(list), defaultdict(list)
+    addresses = sorted(instructions)
     for row in read_tsv(export / 'calls.tsv'):
         try:
             addr, site = int(row['target'], 16), int(row['callsite'], 16)
@@ -611,9 +691,12 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
         if ins is None or ins.mnemonic != 'call' or ins.target != addr:
             continue
         calls[addr].append(site)
-        count, sites = caller_cleanup(ins, instructions)
+        count, sites = caller_cleanup(ins, instructions, max_insns=80, grouped=True)
+        setup = argument_setup(ins, instructions, addresses, functions.get(int(row['caller'], 16)))
+        attributed = min(count, setup) if setup is not None else count
         if count:
-            cleanups[addr].append({'callsite': f'{site:08x}', 'dwords': count, 'cleanup_sites': sites})
+            cleanups[addr].append({'callsite': f'{site:08x}', 'dwords': attributed,
+                                  'batch_dwords': count, 'setup_dwords': setup, 'cleanup_sites': sites})
     for f in functions.values():
         returns(f, functions, vtable)
     # Return forwarding also reaches a fixed point, bounded by the finite label vocabulary.
@@ -631,12 +714,15 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
     for addr, f in sorted(functions.items()):
         body = f.body_args
         cleanup = max((r['dwords'] for r in cleanups[addr]), default=0)
+        batch_cleanup = max((r['batch_dwords'] for r in cleanups[addr]), default=0)
         pop = next(iter(f.pops)) if len(f.pops) == 1 else None
         count = pop // 4 if pop else max(body, cleanup)
         conv = convention(f.live, f.pops, count)
         ret, ret_conf = ret_label(f.kinds, f.pops, ['indirect-jump'] if 'indirect-transfer' in f.notes else [])
         notes = set(f.notes)
         notes.add(f'body_stack_dwords={body};caller_cleanup_dwords={cleanup}')
+        if batch_cleanup != cleanup:
+            notes.add(f'caller_batch_cleanup_dwords={batch_cleanup};cleanup-attributed-per-call')
         if len(f.pops) > 1:
             notes.add('inconsistent-pops=' + '/'.join(map(str, sorted(f.pops))))
         if pop is not None and pop % 4:
@@ -692,6 +778,7 @@ def extract(export, exe, vtables, output, evidence, direct_contracts=()):
                    conf, len(set(calls[addr])), ';'.join(sorted(notes))]))
         rows.append(row)
         raw_evidence[row['address']] = {'body_dwords': body, 'caller_cleanup_dwords': cleanup,
+                    'caller_batch_cleanup_dwords': batch_cleanup,
                     'cleanups': cleanups[addr], 'pops': sorted(f.pops), 'reg_args': sorted(f.live),
                     'inferred_convention': raw_conv, 'inferred_ret': raw_ret, 'ghidra': f.ghidra,
                     'notes': sorted(f.notes), 'ranges': f.ranges, 'instruction_count': len(f.insns)}

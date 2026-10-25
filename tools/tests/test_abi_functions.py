@@ -85,6 +85,44 @@ def test_inconsistent_returns_are_not_collapsed():
     assert f.pops == {4, 8}
 
 
+def test_switch_table_displacement_is_not_its_scale():
+    class Image:
+        def word(self, address):
+            return {0x3000: 0x1007}.get(address)
+    f, ins = fixture('''00001000\tff248500300000\tJMP dword ptr [EAX*0x4 + 0x3000]
+00001007\t8b01\tMOV EAX,dword ptr [ECX]
+00001009\tc20800\tRET 0x8''')
+    abi.build_graph(f, ins, {f.address: f}, Image())
+    abi.stack_and_registers(f, {f.address: f})
+    assert f.live == {'eax', 'ecx'}
+
+
+def test_batched_cleanup_is_attributed_to_each_call():
+    f, ins = fixture('''00001000\t6a01\tPUSH 0x1
+00001002\te8f90f0000\tCALL 0x2000
+00001007\t6a02\tPUSH 0x2
+00001009\te8f21f0000\tCALL 0x3000
+0000100e\t83c408\tADD ESP,0x8
+00001011\tc3\tRET''')
+    for site in (0x1002, 0x1009):
+        assert abi.argument_setup(ins[site], ins, sorted(ins), f) == 1
+        assert abi.caller_cleanup(ins[site], ins, grouped=True)[0] == 2
+
+
+def test_deferred_nonvolatile_save_is_not_an_outgoing_argument():
+    f, ins = fixture('''00001000\t56\tPUSH ESI
+00001001\t8bf1\tMOV ESI,ECX
+00001003\t57\tPUSH EDI
+00001004\t8d7e04\tLEA EDI,[ESI + 0x4]
+00001007\t57\tPUSH EDI
+00001008\te8f30f0000\tCALL 0x2000
+0000100d\t83c404\tADD ESP,0x4
+00001010\t5f\tPOP EDI
+00001011\t5e\tPOP ESI
+00001012\tc3\tRET''')
+    assert abi.argument_setup(ins[0x1008], ins, sorted(ins), f) == 1
+
+
 def test_caller_cleanup_equivalent_pops_and_saved_registers():
     _, ins = fixture('''00001000\te8fb0f0000\tCALL 0x2000
 00001005\t59\tPOP ECX
