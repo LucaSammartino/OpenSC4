@@ -1008,6 +1008,13 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_advisor_api_test PRIVATE plugin)
     target_compile_options(fc4_advisor_api_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_api_test COMMAND fc4_advisor_api_test)
+    # Effects' unsafe diagnostic opt-in must enumerate/create the city manager;
+    # guarded runs retain the native manager and its name-membership shadow.
+    foreach(mode enabled disabled default guarded)
+        add_test(NAME plugin_effects_registration_${mode}_test
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effects-${mode})
+        set_tests_properties(plugin_effects_registration_${mode}_test PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()
