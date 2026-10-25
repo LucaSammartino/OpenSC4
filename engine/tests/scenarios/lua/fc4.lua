@@ -97,13 +97,19 @@ function fc4.try_city(command, args) return fc4.call('city', command, args, true
 function fc4.wait_state(expected, max_polls)
     fc4.log('wait-state ' .. expected)
     local poll = 0
-    while fc4.state() ~= expected do
+    local actual = fc4.state()
+    local previous = nil
+    while actual ~= expected do
+        if actual ~= previous then fc4.log('app-state ' .. fc4.text(actual)) end
+        previous = actual
         if poll >= (max_polls or 12000) then
             fc4.log('timeout wait-state ' .. expected)
             error('fc4: application state wait timed out')
         end
         -- Auto-yield schedules this poll across game frames, including startup.
         poll = poll + 1
+        fc4.delay(1)
+        actual = fc4.state()
     end
     fc4.log('reached-state ' .. expected)
 end
