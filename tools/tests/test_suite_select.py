@@ -27,6 +27,12 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(plan['wall_seconds'], 2)
         self.assertEqual(plan['selected'][0]['marginal_functions'], 3)
 
+    def test_culling_releases_budget_for_a_later_distinct_window(self):
+        plan = select.choose([item('fast', 'ab', 1), item('broad', 'abc', 2), item('extra', 'd', 4)],
+                             slots=1, budget=6)
+        self.assertEqual({r['name'] for r in plan['selected']}, {'broad', 'extra'})
+        self.assertEqual(plan['union_reach'], 4)
+
     def test_ties_choose_smaller_city_and_pack_all_six_slots(self):
         items = [item('big', 'a', 10, 1000), item('small', 'a', 10, 10)]
         items += [item(str(i), {str(i)}, 10) for i in range(5)]

@@ -157,12 +157,12 @@ def choose(items, *, slots=6, budget=900, target_addresses=None, target_keys=Non
         selected.append(best)
         covered.update(best['features'])
         remaining.remove(best)
-    # A later choice can subsume an earlier one. Cull the most costly redundant
-    # rows first; keep one deterministic representative when two are identical.
-    for item in sorted(selected, key=lambda r: (-r['wall_seconds'], -r['city_bytes'], r['name'])):
-        others = set().union(*(r['features'] for r in selected if r is not item))
-        if item['features'] <= others:
-            selected.remove(item)
+        # Cull immediately so the next choice can spend the freed wall budget.
+        # Keep one deterministic representative when two rows are identical.
+        for item in sorted(selected, key=lambda r: (-r['wall_seconds'], -r['city_bytes'], r['name'])):
+            others = set().union(*(r['features'] for r in selected if r is not item))
+            if item['features'] <= others:
+                selected.remove(item)
     counts = Counter(feature for item in selected for feature in item['features'])
     for item in selected:
         item['marginal_functions'] = sum(counts[f] == 1 for f in item['features']) if use_functions else None
