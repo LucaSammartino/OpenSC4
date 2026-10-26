@@ -64,6 +64,8 @@
 #include <string>
 #include <vector>
 
+#include "FC4NetMgrTrace.h"
+
 namespace fc4 {
 namespace {
 
@@ -251,7 +253,9 @@ std::map<uint64_t, std::pair<int32_t, int32_t>> g_decided;
 std::vector<std::pair<int32_t, int32_t>> g_decidedCells;
 std::map<uint64_t, bool> g_terrainBefore;
 std::map<uint64_t, bool> g_terrainAfter;
+std::vector<std::vector<uint64_t>> g_ourSeeds;
 bool g_replayDiffLogged = false;
+unsigned g_nativeLotDepth = 0;
 
 // The captures (reused).
 WriteCapture g_origMgr, g_origLot, g_ourMgr, g_ourLot;
@@ -413,6 +417,7 @@ uint64_t CreateTool(void*, uint32_t) { return NewNetStandIn(kClsidStandInTool); 
 
 void ToolDestroyOccupants(void* u, uint64_t, const uint64_t* list, size_t count) {
     ++g_n.toolCalls;
+    g_ourSeeds.emplace_back(list, list + count);
     for (size_t i = 0; i < count; ++i) {
         const uint64_t n = list[i];
         if (n == 0 || g_decided.count(n) != 0) continue;
@@ -512,15 +517,19 @@ int32_t Variation(int32_t zone, int32_t wealth) {
     }
 }
 
-bool NearDecided(int32_t x, int32_t z) {
-    for (const auto& c : g_decidedCells) {
-        if (std::abs(c.first - x) <= 1 && std::abs(c.second - z) <= 1) return true;
-    }
-    return false;
-}
-
 void CheckTerrain() {
-    // The terrain rule (§7.6).
+    // §7.6.1 compares the direct decision with the ordered slot-50 seeds.
+    // Downstream old-neighbour removal needs observed caller provenance.
+    if (!g_candidates.empty() || !g_ourSeeds.empty() || !nmtrace::seeds.empty()) {
+        if (!nmtrace::complete) PendingDiff("terrain: native tool capture incomplete");
+        if (g_ourSeeds != nmtrace::seeds) {
+            PendingDiff("terrain: ordered direct seeds differ (ours/native groups=%zu/%zu)",
+                        g_ourSeeds.size(), nmtrace::seeds.size());
+            for (const auto& group : g_ourSeeds) {
+                for (uint64_t n : group) Log("netmgr terrain trace ours-seed: id=%p", static_cast<void*>(FromToken(n)));
+            }
+        }
+    }
     for (const auto& d : g_decided) {
         if (Placed(d.first)) {
             ++g_n.keptByOrig;
@@ -545,12 +554,12 @@ void CheckTerrain() {
         // difference. Our reference is kept (it may be the last one).
         uint32_t cx = 0, cz = 0;
         NetOf(c)->GetOccupiedCell(cx, cz);
-        if (NearDecided(static_cast<int32_t>(cx), static_cast<int32_t>(cz))) {
+        const auto removal = nmtrace::removals.find(c);
+        if (nmtrace::complete && removal != nmtrace::removals.end() && removal->second.tool && removal->second.replace) {
             ++g_n.rebuilt;
         } else {
             ++g_n.origOnly;
-            // SPEC-GAP: NM18 leaves the provenance of these extra removals open;
-            // preserve every mismatch and report both handler-boundary flags.
+            // NM18-A: retain removals lacking a witnessed remove/replace scope.
             PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it (placed before/after handler=%d/%d)",
                         static_cast<void*>(FromToken(c)), cx, cz,
                         g_terrainBefore.count(c) ? (g_terrainBefore[c] ? 1 : 0) : -1,
@@ -562,6 +571,9 @@ void CheckTerrain() {
     g_decidedCells.clear();
     g_terrainBefore.clear();
     g_terrainAfter.clear();
+    g_ourSeeds.clear();
+    nmtrace::seeds.clear();
+    nmtrace::removals.clear();
 }
 
 void SettleStep(void*) {
@@ -1147,12 +1159,14 @@ bool MessageCells(const Msg& m, fc4_cell_rect* r) {
 constexpr int32_t kMaxSnapCells = 4096;
 
 void CheckReplayInput(const char* phase, const Msg& m) {
+    // §17.3 forbids treating an in-flight generator as a replay boundary.
+    if (g_nativeLotDepth != 0) return;
     uint32_t original[625] = {}, ours[625] = {}, buckets = 0;
     if (!compat::CaptureNetworkLotRandom(original) || !fc4_netlot_get_random_state(g_lot, ours)) {
         PendingDiff("random capture refused (%s)", phase);
     } else if (std::memcmp(original, ours, sizeof(original)) != 0) {
         PendingDiff("random state differs (%s): next word %u/%u", phase, original[624], ours[624]);
-        // SPEC-GAP: NM19 leaves the census-only lot/random-input divergence unresolved.
+        // NM19-A: retain the first divergent entry; never resync a disagreement.
         if (!g_replayDiffLogged) {
             g_replayDiffLogged = true;
             Log("netmgr replay first difference (%s): message=0x%08X data=%u/%u/%u/%u next word=%u/%u",
@@ -1164,6 +1178,44 @@ void CheckReplayInput(const char* phase, const Msg& m) {
         PendingDiff("pending capture refused (%s)", phase);
     } else if (buckets != fc4_netlot_pending_buckets(g_lot)) {
         PendingDiff("pending buckets differ (%s): %u/%u", phase, buckets, fc4_netlot_pending_buckets(g_lot));
+    }
+}
+
+void __fastcall ObserveForced(void* self, void*, cISC4NetworkLotConfiguration* config) {
+    const auto original = reinterpret_cast<void(__thiscall*)(void*, cISC4NetworkLotConfiguration*)>(nmtrace::Original(self, 13));
+    const uint32_t id = config ? config->GetID() : 0;
+    Log("netmgr lot trace setter: config=%p id=%08X depth=%u replay=%u", config, id,
+        g_nativeLotDepth, g_inMessage ? 1u : 0u);
+    original(self, config);
+    if (!g_inMessage && g_lot) {
+        if (!config) fc4_netlot_clear_next_configuration(g_lot);
+        else if (!fc4_netlot_set_next_configuration(g_lot, id)) {
+            PendingDiff("forced configuration input unavailable: %08X", id);
+        }
+    }
+}
+
+void __fastcall ObserveRedevelop(void* self, void*, uint32_t x, uint32_t z, cISC4NetworkLot* lot) {
+    const auto original = reinterpret_cast<void(__thiscall*)(void*, uint32_t, uint32_t, cISC4NetworkLot*)>(nmtrace::Original(self, 12));
+    Msg entry{};
+    entry.d[0] = x;
+    entry.d[1] = z;
+    if (g_city && lot != g_city->GetNetworkLotManager()->GetNetworkLot(static_cast<int32_t>(x), static_cast<int32_t>(z))) {
+        PendingDiff("direct redevelopment uses a non-current lot at %u,%u", x, z);
+    }
+    Log("netmgr lot trace redevelop: cell=%u,%u lot=%p depth=%u replay=%u", x, z, lot,
+        g_nativeLotDepth, g_inMessage ? 1u : 0u);
+    if (!g_inMessage && g_lot) CheckReplayInput("before direct redevelopment", entry);
+    ++g_nativeLotDepth;
+    original(self, x, z, lot);
+    --g_nativeLotDepth;
+    if (!g_inMessage && g_lot) {
+        g_inMessage = true;
+        if (!fc4_netlot_redevelop_lot(g_lot, static_cast<int32_t>(x), static_cast<int32_t>(z))) {
+            PendingDiff("direct redevelopment input unavailable at %u,%u", x, z);
+        }
+        g_inMessage = false;
+        CheckReplayInput("after direct redevelopment", entry);
     }
 }
 
@@ -1344,7 +1396,11 @@ void CallMessage(void* p) {
 // network lot manager (netmgr_shadow_order = late).
 void OnMessage(cIGZMessage2* msg, bool late) {
     if (msg == nullptr || (g_mgr == nullptr && g_lot == nullptr) || g_inMessage) return;
+    if (!late && g_nativeLotDepth != 0 && IsLotMessage(msg->GetType())) {
+        PendingDiff("nested native lot message requires callback replay: %08X", msg->GetType());
+    }
     if (late && (msg->GetType() == 0x278E6003 || msg->GetType() == 0x6A3B0AFD)) {
+        nmtrace::Stop();
         for (uint64_t n : g_candidates) g_terrainAfter[n] = Placed(n);
         // §7.6 describes this handler's effects. Later removals are not its
         // output: gen27-tegel-s1-grow has candidates placed here but gone
@@ -1403,6 +1459,9 @@ void OnMessage(cIGZMessage2* msg, bool late) {
         g_ctx.held.clear();
     }
     g_inMessage = false;
+    if (!late && m.mgr && (m.type == 0x278E6003 || m.type == 0x6A3B0AFD)) {
+        nmtrace::Start(g_city, m.type, m.d);
+    }
     FC4_RELEASE(s);
 }
 
@@ -1534,6 +1593,10 @@ void NetMgrShadowCityLoaded(cISC4City* city) {
     int32_t julian = 0;
     if (cFC4ISC4Simulator* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     RunOnce(city, julian, "load", true);
+    auto* lots = city->GetNetworkLotManager();
+    const bool setter = nmtrace::Install(lots, 13, 0x0060CB80, reinterpret_cast<void*>(&ObserveForced), nmtrace::lotPatches);
+    const bool redevelop = nmtrace::Install(lots, 12, 0x0060D5E0, reinterpret_cast<void*>(&ObserveRedevelop), nmtrace::lotPatches);
+    if (!setter || !redevelop) PendingDiff("native direct lot input capture incomplete");
     if (g_listening) LateSubscribe(true);
 }
 
@@ -1554,6 +1617,8 @@ void NetMgrShadowTick() {
 
 void NetMgrShadowCityShutdown() {
     if (!g_enabled) return;
+    nmtrace::Stop();
+    nmtrace::Stop(nmtrace::lotPatches);
     LateSubscribe(false);
     Settle();
     if (g_city != nullptr || g_mgr != nullptr || g_lot != nullptr) {

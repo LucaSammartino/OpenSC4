@@ -90,6 +90,8 @@ struct MState {
     crew_calls: Vec<u64>,
     refreshes: Vec<u64>,
     night: bool,
+    // The NM18 worked host operation: A destroys old B and inserts B'.
+    neighbour_rebuild: Option<(u64, u64, u64)>,
 }
 
 #[derive(Default)]
@@ -145,6 +147,14 @@ impl NetworkManagerHost for MFake {
         let mut s = self.s.borrow_mut();
         let ty = s.tool_type[&tool];
         s.destroy_calls.push((ty, occupants.to_vec()));
+        if let Some((seed, old, new)) = s.neighbour_rebuild {
+            if occupants.contains(&seed) {
+                let neighbour = s.occ.remove(&old).unwrap();
+                s.occ.remove(&seed);
+                s.occ.insert(new, neighbour);
+                s.removed.extend([seed, old]);
+            }
+        }
     }
     fn tool_update_underground_heights(&self, tool: u64, cells: &[(i32, i32)], occupants: &[u64], network_type: u32) {
         let mut s = self.s.borrow_mut();
@@ -546,6 +556,32 @@ fn t11_corner_rule() {
 }
 
 #[test]
+fn nm18_direct_seed_excludes_a_kept_neighbour_replaced_by_the_tool() {
+    let (f, m) = manager();
+    f.add(
+        41,
+        Occ {
+            height: 0.02,
+            ..road((5, 5), 1)
+        },
+    );
+    f.add(
+        42,
+        Occ {
+            height: 0.0,
+            ..road((6, 5), 2)
+        },
+    );
+    f.s.borrow_mut().neighbour_rebuild = Some((41, 42, 43));
+    m.do_message(&terrain_msg(0x0005_0006, 0x0005_0006, 1));
+    let state = f.s.borrow();
+    assert_eq!(state.destroy_calls, vec![(0, vec![41])]);
+    assert_eq!(state.removed, vec![41, 42]);
+    assert!(!state.occ.contains_key(&42));
+    assert_eq!(state.occ[&43].cell, (6, 5));
+}
+
+#[test]
 fn terrain_underground_refit_groups_pipes_and_subways() {
     let (f, m) = manager();
     f.add(
@@ -873,6 +909,7 @@ struct LState {
 #[derive(Default)]
 struct LFake {
     s: RefCell<LState>,
+    intersection_callback: RefCell<Option<Box<dyn FnOnce()>>>,
 }
 
 impl LFake {
@@ -957,7 +994,7 @@ impl NetworkLotHost for LFake {
         self.s.borrow_mut().variations.push((n, v));
     }
     fn traffic_map_exists(&self) -> bool {
-        false
+        self.intersection_callback.borrow().is_some()
     }
     fn find_network_tile(&self, x: i32, z: i32, mask: u32) -> Option<u64> {
         let mut s = self.s.borrow_mut();
@@ -967,7 +1004,12 @@ impl NetworkLotHost for LFake {
             .find(|(_, p)| p.cell == (x, z) && p.flags & mask != 0)
             .map(|(t, _)| *t)
     }
-    fn update_intersection(&self, _: u64) {}
+    fn update_intersection(&self, _: u64) {
+        let callback = self.intersection_callback.borrow_mut().take();
+        if let Some(callback) = callback {
+            callback();
+        }
+    }
     fn city_size(&self) -> (i32, i32) {
         CITY
     }
@@ -1237,6 +1279,27 @@ fn nm19_forced_incompatible_lot_is_locked_until_load() {
     loaded.update_lot(60, 20, 20, 0, 0);
     assert_eq!(loaded.get_network_lot(20, 20).unwrap().config_id, 1);
     assert_eq!(*loaded_draws.borrow(), vec![1]);
+}
+
+#[test]
+fn nm19_insertion_rereads_forced_after_object_callbacks() {
+    for initially_forced in [false, true] {
+        let (f, m, draws) = lot_manager(vec![cfg(1, 0x200, &[0])]);
+        f.piece(60, street(0x200, (20, 20)));
+        if initially_forced {
+            m.set_lot_configuration_for_next_piece(Some(Rc::new(cfg(9, 0x999, &[]))));
+        }
+        let weak = Rc::downgrade(&m);
+        *f.intersection_callback.borrow_mut() = Some(Box::new(move || {
+            weak.upgrade()
+                .unwrap()
+                .set_lot_configuration_for_next_piece((!initially_forced).then(|| Rc::new(cfg(10, 0x999, &[]))));
+        }));
+        m.do_network_occupant_inserted(60, 0, 0);
+        assert_eq!(m.get_network_lot(20, 20).unwrap().locked, !initially_forced);
+        assert!(m.snapshot().forced.is_none());
+        assert_eq!(*draws.borrow(), if initially_forced { vec![] } else { vec![1] });
+    }
 }
 
 #[test]
