@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{framework::Face, Result, Unsupported};
+use super::{framework::Face, Result};
+mod color;
+pub use color::{convert_pixel, key_mask, map_rgba, unmap_rgba};
+#[cfg(test)]
+mod tests;
 /// The allocator supplies storage with unspecified contents. The core never
 /// clears it; safe Rust hosts may initialize it to any bytes of their choice.
 pub trait Allocator {
@@ -12,6 +16,7 @@ pub struct Buffer {
     key: u32,
     key_enabled: bool,
     pixels: Option<Vec<u8>>,
+    initialized: bool,
     width: u32,
     height: u32,
     colour_type: u32,
@@ -52,26 +57,46 @@ impl Buffer {
         colour_type: u32,
         bpp: u32,
     ) -> Result<bool> {
-        if self.pixels.is_some() || width == 0 || height == 0 {
+        if self.initialized || width == 0 || height == 0 {
             return Ok(false);
         }
-        let stride = width
-            .checked_mul(bpp >> 3)
-            .and_then(|v| v.checked_add(3))
-            .map(|v| v & !3)
-            .ok_or(Unsupported("GZF6"))?;
-        let size = stride.checked_mul(height).ok_or(Unsupported("GZF6"))? as usize;
-        let pixels = allocator
-            .allocate(size)
-            .filter(|p| p.len() == size)
-            .ok_or(Unsupported("GZF6"))?;
         self.width = width;
         self.height = height;
         self.colour_type = colour_type;
         self.bpp = bpp;
-        self.stride = stride;
-        self.pixels = Some(pixels);
+        self.allocate_pixels(allocator);
+        self.initialized = true;
         Ok(true)
+    }
+    pub fn allocate_pixels(&mut self, allocator: &mut impl Allocator) {
+        self.stride = self.width.wrapping_mul(self.bpp >> 3).wrapping_add(3) & !3;
+        self.pixels = allocator.allocate(self.stride.wrapping_mul(self.height) as usize);
+        self.modified();
+    }
+    pub fn set_format(&mut self, kind: u32, bpp: u32) {
+        self.colour_type = kind;
+        self.bpp = bpp;
+    }
+    pub fn free_pixels(&mut self) {
+        self.pixels = None;
+    }
+    pub fn shutdown(&mut self) {
+        self.free_pixels();
+        self.initialized = false;
+    }
+    pub fn initialized(&self) -> bool {
+        self.initialized
+    }
+    pub fn size(&self) -> u32 {
+        if self.pixels.is_none() {
+            return 0;
+        }
+        (self.width.wrapping_add(3) & !3)
+            .wrapping_mul(self.bpp >> 3)
+            .wrapping_mul(self.height)
+    }
+    pub fn modified(&mut self) {
+        self.modifications = self.modifications.wrapping_add(1);
     }
     pub fn lock(&mut self, flags: u32) -> bool {
         if self.pixels.is_none() {
@@ -114,15 +139,7 @@ impl Buffer {
         self.pixels.as_deref_mut()
     }
     pub fn map_rgb(&self, r: u32, g: u32, b: u32) -> Result<u32> {
-        // span-render-4444 §4 bridge: inputs use only their low bytes.
-        let (r, g, b) = (r & 255, g & 255, b & 255);
-        Ok(match self.colour_type {
-            4 | 6 => 0x8000 | (r & 0xF8) << 7 | (g & 0xF8) << 2 | b >> 3,
-            5 => (r & 0xF8) << 8 | (g & 0xFC) << 3 | b >> 3,
-            7 => 0xF000 | (r >> 4) << 8 | (g >> 4) << 4 | b >> 4,
-            8 | 9 => 0xFF000000 | r << 16 | g << 8 | b,
-            _ => 0,
-        })
+        Ok(map_rgba(self.colour_type, r, g, b, 255))
     }
     pub fn colour_key(&self, out: &mut u32) -> Result<bool> {
         if !self.key_enabled {
@@ -131,12 +148,14 @@ impl Buffer {
         *out = self.key;
         Ok(true)
     }
-    /// Fixture injection, not a claim about the uncovered native key setter.
+    pub fn key_enabled(&self) -> bool {
+        self.key_enabled
+    }
+    pub fn clear_key(&mut self) {
+        self.key_enabled = false;
+    }
     pub fn attach_colour_key(&mut self, key: u32, enabled: bool) {
         self.key = key;
         self.key_enabled = enabled;
-    }
-    pub fn uncovered_storage_operation(&self) -> Result<()> {
-        Err(Unsupported("GZF6"))
     }
 }

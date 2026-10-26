@@ -447,6 +447,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "gdriver_shadow_select",
                                   // Sampled land-value input-change diagnostics (not native Step capture).
                                   "landvalue_shadow_inputs",
+                                  // GZ command stream comparison, independently default off.
+                                  "gzfw_trace",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

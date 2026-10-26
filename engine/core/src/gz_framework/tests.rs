@@ -499,7 +499,7 @@ fn gzc22_25_buffer_storage_locks_and_colour() {
     assert!(b.lock(2));
     assert_eq!(b.nesting, 2);
     assert_eq!(b.lock_flags, 0x8042);
-    assert_eq!(b.modifications, 1);
+    assert_eq!(b.modifications, 2);
     assert!(b.unlock(0));
     assert_eq!(b.nesting, 1);
     assert_eq!(b.lock_flags, 0x8042);
@@ -752,7 +752,11 @@ fn buffer_formats_and_alloc_failure() {
         }
     }
     let mut b = buffer::Buffer::default();
-    assert_eq!(b.init(&mut Fails, 1, 1, 2, 8), Err(Unsupported("GZF6")));
+    assert_eq!(b.init(&mut Fails, 1, 1, 2, 8), Ok(true));
+    assert!(b.initialized());
+    assert_eq!(b.size(), 0);
+    assert_eq!(b.modifications, 1);
+    assert_eq!(b.init(&mut Alloc, 1, 1, 2, 8), Ok(false));
     assert!(!b.lock(0));
     let mut sentinel = 99;
     assert_eq!(b.colour_key(&mut sentinel), Ok(false));
