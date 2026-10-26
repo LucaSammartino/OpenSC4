@@ -1,24 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| replace-overlays28 (terrain overlay native prefix/draw transport) | Codex / `replace-overlays28`, engine lane, detached HEAD; code `611c996d1`, `872eb84af`; ABI unchanged | Blocked final round: cargo 7852, clippy 0, CTest 118/118; prior key-on partial clean to 2032, shadow 73/73; native_interception=0; WIP queue only | Resolve existing OV16; finish pre-Init routing, production services/native drawing, then measure house/gen acceptance. |
+| replace-overlays28 (OV17 rectangle consumer boundary) | Codex / `replace-overlays28`, detached HEAD; code `0450aca23`; ABI unchanged | READY TO LAND OV17 ADAPTER ONLY: cargo 7959, clippy 0, CTest 129/129; clean 2032; shadow 73/73; native_interception=0; native replacement INCOMPLETE | Land the consumer adapter; do NOT flip cSTEOverlayManager replacement credit. Finish pre-Init routing/services and full acceptance. |
 
-611c996d1 puts the native interface at FC4 object+0, draw at +4, canonical unknown/reference word at +8/+0x0c, message target at +0x10; the native arena/member layout is NOT supplied.
-Message slot3 obtains type from message slot4 and routes settings refresh into Rust; DLL tests cover shared identity, x86 draw/message calls, unrelated messages, quality-zero input guards, unchanged placement/resources/subscriptions.
-872eb84af adds an explicit private DrawFrame callback transport for raw model matrix/rows, extension acquisition, lighting, semantic commands, textures and rectangle consumers. Rust retains selection, composition, branch choices and counters.
-Resource identities live independently of service contexts. DLL tests cover source/binding dispatch, C x M order, vertex maxima, land extension/water routes, rough-shadow alpha=0.125, common-exit balancing and drawing retained resources after repeated Init replaces services.
-Native Draw still returns false without touching its context: no native device/context adapter is installed. The portable frame record must NEVER be cast from a game context. Terrain-view construction/Init/drawing still uses native managers.
-Focused corrected-source quick qbuild-20261026-044310-quick PASS: 5920 Rust tests, 50/50 build edges; overlay_factory_{off,on,disabled}_test 3/3 passed. Owned Rust fmt: 3 files, diff_lines=0.
-Earlier qbuild-20261026-042624-quick failed a duplicate selection_byte definition introduced during editing; removed it. Corrected 042743 quick and all later checks passed. A q.py cargo-check attempt failed to start Bash; it compiled nothing.
-Final-round qbuild all (once; unchanged code): PASS, cargo 7852 passed/0 failed, clippy 0 diagnostics, CMake 46/46 edges, CTest 118/118; native job qbuild-20261026-051220-build-ctest.
-Gate logs: build-runs/qbuild-test.log, build-runs/qbuild-clippy.log, build-runs/fc4verify-build.log, build-runs/fc4verify-ctest.log; receipt build-runs/build-results/qbuild-20261026-051220-build-ctest.verdict.
-Prior-round game ro28-r3-native-prefix-draw-2032: shared main queue, parallel=1, DLL SHA256 prefix 580b56df; clean at 2032-01-01, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0 (log line 12745).
-Factory/native-prefix/live-binding probe 70/70, mismatches=0, native_interception=0 (log line 1571); this is a private controlled fixture, not interception/drawing of terrain-view managers.
-(a) NOT MET: only overlays plus defaults enabled, not the full house replace list; native_interception=0 also appears at log line 78. No full-house acceptance claim.
-(b) Key-on baseline exact: contract 73/73, records 292/292 (incomplete=0), controlled replay 292/292; all mismatches=0 (log lines 12546-12548). These still observe native managers; history=unavailable(OV13), sources=0, image data unavailable.
-(c) NOT RUN: gen27-konradshohe-s0-default from engine/tests/scenarios/suite.tsv still needs replace-mode acceptance after actual routing/drawing are implemented.
-Game evidence: C:/Users/tlori/FreeCity4/build-runs/game-results/ro28-r3-native-prefix-draw-2032.verdict and .log; request archived by the shared main queue. Prior r1/r2 partial evidence is separate.
-OV16 remains open in docs/specs/questions/overlay-manager.md: source slots3/4 lack complete arguments/returns and writable info-buffer extent. Native source calls remain stopped at that SPEC-GAP; no new questions filed.
-ABI exports unchanged; overlays remains default-off and is NOT ready for the replace list. Final queue entry is WIP; no ready merge-train enqueue or replacement credit claimed.
-Next: implement version-guarded pre-Init routing and production view/terrain/factory/settings/subscription/lighting services; capture initialization/resource/mutation inputs before the first allocation, not from a late snapshot.
-Next: adapt the native context/device and rectangle consumers to the new DrawingProducer transport; resolve OV16, then rerun qbuild all and measure full-house 2032, key-on owner shadow, and gen action acceptance before enqueueing.
-Final round began with a clean tree at 2c37166a5; no code was in flight, no new implementation or game runs started under the final-round freeze. Ready acceptance cannot be met by the partial factory fixture.
+Merged main first (`2b6c01c66`), including the OV17 answer in overlay-manager section 4.6.1. No speculative call signatures remain at this boundary.
+0450aca23 implements all eight version-gated consumers: complete terrain-view base in ECX, rectangle value/context (20-byte cleanup), context/extension/rectangle value (24), rectangle pointer/context (8); water AL ignored.
+Real-DLL tests exercise all eight x86 calls against independent word-based receivers, ESP balance, both water results, missing targets, extreme bounds and Rust DrawFrame submissions without a second bounds expansion. Focused CTest 3/3; full CTest also passes these tests.
+Native Draw remains disabled: production frame services/device commands and terrain-view pre-Init routing are NOT installed. The portable frame must never be cast from a native context. The overlays key stays default-off.
+One final qbuild all PASS: cargo 7959 passed/0 failed/0 ignored; clippy 0 diagnostics; CMake 43/43 edges; CTest 129/129. No Rust files changed; fmt n/a.
+Gate logs: build-runs/{qbuild-test,qbuild-clippy,fc4verify-build,fc4verify-ctest}.log; receipt build-runs/build-results/qbuild-20261026-173050-build-ctest.verdict. Earlier quick build PASS 326/326 edges; focused wrapper/PATH launches did not execute tests before the direct CTest pass.
+Final gated DLL SHA256 c1113959395fa415c68d7c44a48e7c446f7eccd2409ddb719bbb4ac5ff0429e3; final game runs below both report c1113959.
+Game evidence root: C:/Users/tlori/FreeCity4/build-runs/game-results/; each named run has .verdict and .log. All requests use the shared main queue, parallel=1, at most two outstanding.
+(a) NOT MET: no full-house replacement run. ro28-r8-final-2032-a enables overlays plus defaults, clean at 2032-01-01, ref_warnings=0, foreign_exceptions=0, watchdog_stalls=0 (.log:12008); native_interception=0.
+(b) Key-on baseline exact: contract 73/73; records 292/292, incomplete=0; controlled replay 292/292; all mismatches=0 (ro28-r8-final-2032-a.log:11809-11811).
+Those are native-manager observations, not replacement/history proof: history=unavailable(OV13), source/image data unavailable. No difference is being waived.
+Final baseline probe: targets 8/8 (.log:1574), factory/native-prefix/live-bindings 71/71, mismatches=0 (.log:1581). Targets prove version-gated resolution, not live execution of terrain consumers; native_interception=0.
+(c) NOT MET: ro28-r8-final-gen-a, gen27-konradshohe-s0-default with overlays plus defaults, corrupt at 2028-01-28; foreign_exceptions=1, ref_warnings=0, stalls=0 (.log:18773).
+All 944 gen actions ran (.log:18552); contract 25/25, records/replay 100/100 exact, mismatches=0, incomplete=0 (.log:18563-18565).
+Gen shutdown null-read AV at SimCity 4.exe+0x1D0F94 (.log:18680), matching the previously measured key-off ro28-r7-source-gen-control-a.log:18733 on older DLL 3c1969d2. No unrelated fix or new control claim.
+Earlier quick-build DLL b23026a5: ro28-r8-ov17-2032-a clean, ro28-r8-ov17-gen-a corrupt with the same shutdown fault; both shadow-exact. These are separate from final gated-DLL evidence.
+Questions: none filed; OV17 was answered on main. No specs, coverage files, replace list, C ABI exports or ABI version changed.
+Credit flip requested by the task: cSTEOverlayManager (30,436 B), verified -> replaced. NOT achieved; overlays is NOT ready for the replace list. The ready queue entry lands only the completed OV17 adapter/tests.
+Next: install pre-Init terrain-view routing and production services/native drawing, capture original input history before allocation, then measure full-house 2032 and a clean gen action scenario with overlays before requesting replacement credit.

@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4CitySitShadow.h"
+#include "FC4CitySitRecord.h"
 
 #include "FC4Config.h"
 #include "FC4CoreShadow.h"
@@ -128,7 +129,10 @@ void RunStep(void* p) {
     }
     uint32_t unknownRefs = 0;
     const std::vector<uint8_t> ours = WriteOurs(g_capture, &unknownRefs);
-    const bool same = readOk && !ours.empty() && ours == orig;
+    const bool same = readOk && CitySitRecordEqual(ours, orig);
+    if (same && ours != orig)
+        Log("citysit record: all fields equal; success-map iteration order differs (%u entries)",
+            static_cast<unsigned>((orig.size() - 7) / 6));
     ++compared;
     if (!readOk) {
         d.Add("record read failed");

@@ -1069,6 +1069,8 @@ fn pct(v: f32) -> f32 {
 pub struct ParsedRecord {
     pub version: u16,
     pub state: State,
+    /// WorkOnSimCycle's prelude can clear this without advancing a phase.
+    pub intersection_dirty: bool,
     /// The edge-density records (row 7), in the record's order.
     pub edge_density: StlHashMap<TrafficEdgeDensity>,
     /// The switch count (row 10) and the next switch ID.
@@ -1115,6 +1117,7 @@ pub fn parse_record(h: &dyn TrafficSimHost, base: &State, inp: &mut dyn InStream
     }
     Some(ParsedRecord {
         version: v,
+        intersection_dirty: p.n.intersection_dirty,
         switches: p.n.switches.len(),
         next_switch_id: p.n.next_switch_id,
         edge_density: p.n.edge,

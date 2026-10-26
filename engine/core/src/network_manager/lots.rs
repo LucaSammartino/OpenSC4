@@ -8,7 +8,6 @@
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use crate::grid::CellRect;
@@ -21,7 +20,7 @@ use super::config::{
     wealth_choice, zone_choice, NetworkLotConfig, OBJECT_FLORA, OBJECT_PROP,
 };
 use super::flags::{flag, has_all, has_any};
-use super::ordered::OrderedMap;
+use super::ordered::{OrderedMap, PendingCells};
 use super::{
     key_cell, lot_key, msg, NetworkLotHost, NetworkLotMessage, NetworkLotRandom, Position, CLSID_NETWORK_LOT_MANAGER,
     IID_EFFECT_PROP, IID_NETWORK_OCCUPANT, LOT_RECORD_VERSION,
@@ -581,8 +580,7 @@ impl NetworkLotManager {
     }
 
     /// `UpdateAvenueStyle(x, z)` (`0x0060EF40`): the avenue is styled as one
-    /// block. The work set is taken in ascending key order and a cell
-    /// already accepted or rejected is not added again [inferred] (NM4).
+    /// block. Work and accepted cells use SGI hash-set order (§8.7).
     pub fn update_avenue_style(&self, x: i32, z: i32) {
         let h = &*self.host;
         let Some(s0) = h.find_network_tile(x, z, flag::AVENUE) else {
@@ -590,10 +588,9 @@ impl NetworkLotManager {
         };
         let c = h.is_intersection(s0);
         let size = h.city_size();
-        let mut work: BTreeSet<u16> = BTreeSet::new();
-        let mut accepted_keys: BTreeSet<u16> = BTreeSet::new();
-        let mut rejected: BTreeSet<u16> = BTreeSet::new();
-        let mut accepted: Vec<(i32, i32, u64)> = Vec::new();
+        let mut work = PendingCells::default();
+        let mut accepted_keys = PendingCells::default();
+        let mut rejected = PendingCells::default();
         let mut zone_count = [0u32; 16];
         let mut wealth_count = [0u32; 4];
         work.insert(lot_key(x, z));
@@ -602,7 +599,6 @@ impl NetworkLotManager {
             match h.find_network_tile(cx, cz, flag::AVENUE) {
                 Some(t) if h.is_intersection(t) == c => {
                     accepted_keys.insert(k);
-                    accepted.push((cx, cz, t));
                     let zt = self.zone_type_for_network(cx, cz);
                     if let Some(c) = usize::try_from(zt).ok().and_then(|i| zone_count.get_mut(i)) {
                         *c += 1;
@@ -618,7 +614,12 @@ impl NetworkLotManager {
                         }
                         let (nx, nz) = (cx + DX[d], cz + DZ[d]);
                         let nk = lot_key(nx, nz);
-                        if inside(nx, nz, size) && !accepted_keys.contains(&nk) && !rejected.contains(&nk) {
+                        // §8.7 includes the far edge, before packing to u16.
+                        if (0..=size.0).contains(&nx)
+                            && (0..=size.1).contains(&nz)
+                            && !accepted_keys.contains(&nk)
+                            && !rejected.contains(&nk)
+                        {
                             work.insert(nk);
                         }
                     }
@@ -644,13 +645,16 @@ impl NetworkLotManager {
         let (zt, w) = (zt as i32, w as i32);
         let tex = road_texture(zt, w);
         let var = road_variation(zt, w);
-        for (cx, cz, t) in accepted {
-            if has_all(h.network_flags(t), flag::USABLE) {
-                h.set_under_texture(t, tex);
-                h.set_variation(t, var);
-                self.update_lot(t, cx, cz, zt, w);
+        for &k in accepted_keys.iter() {
+            let (cx, cz) = key_cell(k);
+            if let Some(t) = h.find_network_tile(cx, cz, flag::AVENUE) {
+                if has_all(h.network_flags(t), flag::USABLE) {
+                    h.set_under_texture(t, tex);
+                    h.set_variation(t, var);
+                    self.update_lot(t, cx, cz, zt, w);
+                }
             }
-            self.s.borrow_mut().pending.remove(&lot_key(cx, cz));
+            self.s.borrow_mut().pending.remove(&k);
         }
     }
 

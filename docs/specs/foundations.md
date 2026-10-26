@@ -1330,6 +1330,42 @@ this layout (versions 9, 10 and 13, with the version rules below). None contains
   This holds for **both** saved lists, the first and then the second. Every deal read gets `SetFlags(Silent, true)`.
 - The save-file path is not stored. The region sets it from the file name.
 
+**Read into an existing object (RY7).** `Read` (`0x004AC5B0`, on the serializable view at object `+8`)
+mutates its receiver as it consumes the stream. It does **not** clear the population maps, commodity map,
+connections, pending changes, deals or POI map first. Population entries assign by key (later duplicate wins);
+commodity entries find or insert the key and then overwrite its five doubles (later duplicate wins).
+Consequently a freshly constructed object's zero entries for commodities **1, 2 and 3 remain** unless overwritten;
+an absent key does not erase one. Re-reading an object also retains keys absent from the new stream.
+POI entries find or insert a list and **append** the positions: repeated POI keys concatenate in wire order,
+including any positions already in the object. A repeated key with zero positions does not clear its list.
+Evidence: population assignment `0x004AC841`–`0x004AC846`, commodity lookup and writes
+`0x004ACCBA`–`0x004ACD37`, POI lookup/append `0x004ACFC0`–`0x004AD128`.
+
+The count guards above compare the **unsigned 32-bit representation**, including the commodity count read
+through the signed-integer stream method (`0x004ACC3F`–`0x004ACC4B`). Thus commodity count `FFFFFFFF` fails
+immediately as greater than `0x100000`; it does not mean an empty map. Both deal loops instead test only
+**nonzero**, decrement a 32-bit count and repeat until zero (`0x004ACD4B`–`0x004ACD6A`,
+`0x004ACE46`–`0x004ACE7C`, `0x004ACF56`–`0x004ACF5C`). A negative signed count is **not an empty loop**:
+`FFFFFFFF` requests 4,294,967,295 attempts, subject to allocation/failure behaviour. Do not run such a record
+to completion as a conformance test or infer successful acceptance of a truncated file from this loop.
+
+Object-level failure is **not atomic**: an over-limit count or the final stream-error test can return false
+after earlier fields and containers have changed. There is no rollback. Primitive read results are generally
+not checked individually; the final stream error is checked at the end. This differs from publication by
+`SC4ReadRegionalCity(package, &out)`, which uses a new object and leaves `out` untouched on failed `Read`
+([regional-city-records.md](regional-city-records.md) §2.1). A safe standalone wire decoder may reject malformed
+counts before allocation and publish only on success, but those protections do not describe a native object's
+in-place `Read` contract.
+
+Worked cases: (a) a fresh object reading only commodity keys 1 and 2 with produced values 10 and 20 finishes
+with keys **1, 2, 3**, with key 3 still all zero; writing it emits three entries. (b) two key-1 commodity
+entries with produced values 10 then 25 leave 25; two POI key-7 entries containing positions A then B leave
+`[A, B]`, not `[B]`. (c) a pre-existing object's position `(8,9)` is overwritten by `(2,3)` before an
+over-limit commodity count causes false; the position remains `(2,3)`. The wrapper leaves its caller's old
+object reference untouched in the equivalent failed package read. (d) with a recording stream, a deal count
+`FFFFFFFF` enters the first deal attempt rather than proceeding directly to the second list; stop the trace
+there instead of allocating billions of objects.
+
 ### 11.3 The two deal lists *[compat]*
 
 - **O ("other")**: deals loaded from disk that no simulator has claimed yet, plus the deals of the record's city
@@ -1763,8 +1799,10 @@ the order within a level.
 19. **Exemplar holder**: example (a) of §10.6 round-trips. A stub resource manager resolves the parent, and a
     lookup of a property only the parent has succeeds. An unknown parent key still loads the own properties and
     leaves the parent unset. A key of zeros gives no parent. The key is read as group, type, instance.
-20. **Regional-city record**: a synthetic version-13 record with two connections, two commodities, one deal in
-    each list and two points of interest round-trips byte for byte. The header example of §11.2 decodes to the
+20. **Regional-city record**: check the four Read cases in §11.2, including retention of constructor commodity
+    key 3 and concatenation of duplicate POI keys. A two-commodity wire map does not round-trip byte for byte
+    through a fresh native object. For a canonical round trip include all three default commodity keys and
+    put both deals in O with L empty (both input lists load into O). The header example of §11.2 decodes to the
     stated values. Version 10 reads the workforce as a percentage, version 9 has no workforce, version 12 has no
     difficulty, and version 14 fails. Both saved deal lists load into O, and every loaded deal is Silent.
 21. **Deal claiming**: with region cells for cities X (current), C and D, and deals X–C, C–D, X–D and one with a
@@ -2028,10 +2066,10 @@ effect, on which threads, and what that means for the specs.
 |---|---|---|
 | Process start (C runtime init, before `WinMain`) | CRT `_cinit` → `_fpmath(1)` → `_setdefaultprecision` = `_controlfp(_PC_53, _MCW_PC)` | precision **53-bit**; rounding to nearest; all exceptions masked (Windows default) |
 | Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | `CALL 0x005F85E0` (the first call after the prologue, verified in the bytes at `0x0045236C`), which calls the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 unconditionally | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
-| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit. **If the current precision is already 53-bit the guard skips both calls, so a Lua call can never restore 24-bit** |
-| The exemplar float-expression parser (`nSCRes::ParseFloat` `0x0067BBA0` → `ParseExpression` `0x0067BB20` → the additive parser `0x0067BA40`, reached from `0x0067AC30` and `0x0067BAE0`) | the additive parser `0x0067BA40` calls the getter and, when it reports 24-bit, the helper with mode 1 — and then **returns with no mode-0 call in this chain** | precision **53-bit, and irrecoverably so** (§18.2: nothing can restore 24-bit). Verified in the bytes of `0x0067BA40` (one getter call, one `PUSH 1` + setter call, no setter on the return path at `0x0067BACC`); no function in `0x0067AC30`, `0x0067B990`, `0x0067BA40`, `0x0067BAE0`, `0x0067BB20` or `ParseFloat` restores, and no direct caller of `ParseFloat` (e.g. `cCameraParamsCommand`, `cDecalLifeCommand`) wraps it. **This leak evidently does not fire in a normal session**, because a save written by the unmodified game holds the 24-bit budget result (§18.2) — consistent with `ParseFloat` being reachable only from **text**-format resource parsing, while shipped tuning and building data is binary *[compat: a latent bug in the original]* |
+| Every guarded Lua call (`cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the entry precision is 24-bit: switch to **53-bit** until the call returns, including native callbacks and their re-entry (§18.4), then switch back to 24-bit. Entry at 53-bit or 64-bit skips both changes; an inner guard does not restore an outer guard's 24-bit setting |
+| The exemplar float-expression parser (`nSCRes::ParseFloat` `0x0067BBA0` → `ParseExpression` `0x0067BB20` → the additive parser `0x0067BA40`, reached from `0x0067AC30` and `0x0067BAE0`) | the additive parser `0x0067BA40` calls the getter and, when it reports 24-bit, the helper with mode 1 — and then **returns with no mode-0 call in this chain** | precision **53-bit on return**. Verified in the bytes of `0x0067BA40` (one getter call, one setter call, no setter on the return path at `0x0067BACC`); no function in `0x0067AC30`, `0x0067B990`, `0x0067BA40`, `0x0067BAE0`, `0x0067BB20` or `ParseFloat` restores, and no direct caller of `ParseFloat` (e.g. `cCameraParamsCommand`, `cDecalLifeCommand`) wraps it. It can leave a persistent 53-bit setting; an already active outer Lua guard that entered at 24-bit can still restore 24-bit (§18.4). The unmodified save evidence excludes a persistent leak at those budget settlements, not every transient precision change. Reachability from **text** resource parsing, while shipped tuning and building data is binary, explains why this is a latent bug *[compat]* |
 | Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
-| A DLL `LoadLibrary`d during app init, whose own CRT runs `_fpmath(1)` → `_controlfp(_PC_53, _MCW_PC)` | the CRT of that DLL | precision **53-bit** on the loading thread. Ruled out for the normal session by §18.2 (a save written by the unmodified game holds the 24-bit result, and nothing can restore 24-bit afterwards). Import-table fact that constrains the candidates: `DSOUND.dll`, `OPENGL32.dll` and `WINMM.dll` are **static imports** (CRT init at process start, before our first measurement at 24-bit, so excluded); `DDRAW.DLL` is **not** a static import, so it is loaded on demand and was a candidate before §18.2 ruled the window out |
+| A DLL `LoadLibrary`d during app init, whose own CRT runs `_fpmath(1)` → `_controlfp(_PC_53, _MCW_PC)` | the CRT of that DLL | precision **53-bit** on the loading thread, unless a surrounding scope subsequently restores it. The unmodified save evidence excludes a persistent 53-bit setting at those budget settlements. `DSOUND.dll`, `OPENGL32.dll` and `WINMM.dll` are **static imports** (CRT init at process start, before our first measurement at 24-bit, so excluded from a later load-time change); `DDRAW.DLL` is **not** a static import and is loaded on demand |
 | Truncating conversions through the C runtime's `_ftol` (`0x009EEF04`, the common path) | none: it converts with `fistp` to a **64-bit** integer under the current rounding (nearest), then corrects the result by one unit toward zero when rounding went the wrong way, so the result is truncation toward zero as an `int64` in EDX:EAX. Callers keep the low 32, 16 or 8 bits. NaN, ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000`, whose low 32 bits are **0** | no change to the control word |
 | Inline `fistp` to a 32-bit destination (where a spec says so) | depends on the site | NaN and out-of-range give `0x80000000` |
 
@@ -2050,13 +2088,12 @@ as the cause of the later 53-bit reading (that init had already finished, at 24-
 
 ### 18.2 Threads
 
-- **Main thread: 24-bit precision** from `PreFrameWorkInit` on, for the rest of the session. The simulator, its
-  agents (simulator.md), every grid simulator, the budget and all message handlers run on this thread, so **the
-  whole simulation runs at 24-bit precision** *[inferred: the simulator is driven by the framework's idle and
-  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls (53-bit
-  for the duration of the call, then restored) and the exemplar expression parser (§18.1, row 4). The Lua path does
-  not touch simulation state. The parser's leak **would** poison the whole session if it ever fired, since nothing
-  can restore 24-bit afterwards — but the save evidence below shows it does not fire in a normal session.
+- **Main thread: 24-bit baseline**, established by `PreFrameWorkInit`. The simulator, its agents
+  (simulator.md), grid simulators, budget and message handlers run on this thread *[inferred: the simulator is
+  driven by framework idle/timer callbacks and the game creates no simulation thread]*. Thread identity does
+  **not** establish the precision of an individual invocation. A Lua guard temporarily selects 53-bit and native
+  calls, including simulation reached by a nested modal frame, inherit that setting (§18.4). The scheduler does
+  not assert 24-bit at callback entry. The exemplar parser can also leave 53-bit selected (§18.1).
 - **Worker threads** created by the game (`cRZThread`: background model loader, HTTP client, name lookup,
   file-change notification; and the sound driver's thread) start with the Windows default for new threads
   (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
@@ -2065,8 +2102,9 @@ as the cause of the later 53-bit reading (that init had already finished, at 24-
   of a float-sensitive expression (budget.md §7.2 and Errata round 3: `300 × 0.41f × 100` gives 12300, not
   12299). In an in-game run with the FreeCity4 plugin loaded (run 19), the same original code produced the
   53/64-bit result. Something in that process left the main thread at a higher precision. **Testing rule:**
-  a differential run is only a valid reference for float-sensitive values if the main thread's x87 control word
-  shows PC = 00 (24-bit) while the simulation runs. Harnesses must log it.
+  a differential comparison against the **24-bit** rules requires PC = 00 at the corresponding native arithmetic.
+  A callback at PC = 10 is instead a reference for the 53-bit context of §18.4. Harnesses must log the word and
+  active Lua-call scope on the same OS thread at the affected call; a sample at an unrelated tick is insufficient.
 
 **The expression really is precision-sensitive** (verified in the assembly of
 `cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses`, `0x006ABC93`): `FILD qword` (cost, exact) →
@@ -2083,10 +2121,10 @@ does establish that the unmodified game settled that budget at **24-bit**.
   decompiler renders it as an empty function, so pseudocode cannot be trusted here. The getter `0x00892A0A`
   returns 0 for PC = 00, 1 for PC = 10, 2 for PC = 11.
 - `0x005F85E0` (an unconditional `helper(0)` = 24-bit) has **exactly one xref in the whole image**: `0x0045236C`,
-  the first call of `PreFrameWorkInit`. So the game asserts 24-bit once, at start-up, and never again.
+  the first call of `PreFrameWorkInit`. This is the startup assert, not a scheduler entry guard.
 - Every other mode-0 call site is Lua-related and guarded by the getter. Because the guard skips **both** the
-  set-to-53 and the set-back-to-24 when the thread is not already at 24-bit, **no Lua call can ever restore
-  24-bit** once something else has raised it.
+  set-to-53 and the set-back-to-24 when the thread is not already at 24-bit **at that guard's entry**. An outer
+  guard whose entry was 24-bit still restores 24-bit when it returns, after all its native re-entry (§18.4).
 - The exemplar float-expression parser leaks (§18.1, row 3): verified in the bytes of `0x0067BA40` — one
   `CALL 0x00892A0A`, one `PUSH 1; CALL 0x008929E0`, and no setter call on the return path at `0x0067BACC`.
 
@@ -2099,8 +2137,9 @@ CRT chain, 2026-10-13). Nothing in the image calls `_controlfp`/`_control87` exc
 set-back-to-24 unless the thread is already at 24-bit. `0x005F85E0` — the only unconditional 24-bit assert — is
 called from exactly one place, `PreFrameWorkInit`.
 
-**Consequence: once anything raises the main thread above 24-bit, the game can never bring it back.** Combined
-with a direct A/B on the same expression, this settles the contradiction:
+**Consequence:** a persistent change outside all restoring guards is not repaired by later Lua calls that
+enter at the higher precision. A temporary change inside an active guard is a different case (§18.4).
+The historical A/B observations are:
 
 | Run | What computed the budget | `0x09188F42` / `0x09188F4C` | Precision implied |
 |---|---|---|---|
@@ -2114,15 +2153,14 @@ loaded in run 19. The original code therefore produced 122 with our DLL present 
 measurement that our process raises the precision — not an inference. (Run 19 predates control-word logging, so it
 proves the effect but not the moment; runs 23/24 date it to between PreAppInit and PostAppInit.)
 
-Deduction, independently: the save proves PC = 00 at those settlements; nothing can restore 24-bit after
-`PreFrameWorkInit`; so **no event in the unmodified game's app init raises the precision**. The game genuinely runs
-the whole session at 24-bit, and §18.2's "the whole simulation runs at 24-bit precision" stands.
+The save proves PC = 00 at those settlements. It does **not** prove that every simulation callback in the
+unmodified game runs at 24-bit, or exclude a temporary 53-bit interval that an enclosing Lua guard restores.
+The earlier inference that the whole session must remain at 24-bit is withdrawn (VC29-PC).
 
-This reverses the 2026-10-13 handoff's working assumption ("the original game likely runs at 53-bit too"), and
-restores the run-20 conclusion in `docs/manual-checks.md` (row 20, d90019e): **ours is right**, and it is the
-unmodified game's own in-process run that is wrong. The 24-bit reference behaviour is intact and the float-sensitive
-worked examples recomputed for 24-bit (cde56f4) remain correct. What must be found instead is **what our plugin's
-presence does between PreAppInit and PostAppInit that raises PC to 53-bit**. The plugin's own load-time CRT init is
+The float-sensitive worked examples recomputed for 24-bit (cde56f4) remain correct **in that context**. A native
+53-bit result alone does not show that the original is computing incorrectly: establish whether an enclosing
+Lua guard is active before treating it as a persistent precision leak (§18.4). The historical investigation
+concerned the change between PreAppInit and PostAppInit. The plugin's own load-time CRT init is
 excluded (the control word is still 24-bit at `DLL_PROCESS_ATTACH` *after* our initialisation), and run 19 had
 nothing replaced, so the cause is not a replaced subsystem — it is something our DLL does just by being present.
 The two candidates the enumeration leaves are our code calling a game interface that reaches `nSCRes::ParseFloat`
@@ -2142,10 +2180,9 @@ in the window between PreAppInit and PostAppInit. Two cheap next steps, in order
    initialiser, a CRT startup path, or a dependency we pull in — note that linking or loading a DLL whose CRT runs
    `_fpmath(1)` would do exactly this). If it stays 24-bit, bisect our init steps.
 
-A workaround, if the trigger turns out to be unavoidable, is to re-assert 24-bit ourselves at PostAppInit and at
-the top of each simulation entry point by calling the game's own helper `0x008929E0` with mode 0 (it is
-unconditional, so it works even though the Lua-style guarded pattern cannot restore). Any such fix must be logged,
-because it silently changes what the *original* subsystems compute while our DLL is loaded.
+These historical diagnostics must distinguish an active Lua scope from a persistent change. Re-asserting
+24-bit at every simulation entry changes the original's nested-callback behavior; it is **not** the native
+boundary contract. Restoring a proven external persistent leak is separate from reproducing §18.4's re-entry.
 
 **Calling conventions, verified in the bytes** (needed to call the helper safely):
 
@@ -2156,11 +2193,10 @@ because it silently changes what the *original* subsystems compute while our DLL
   `void (__cdecl *)(int mode)`; a `__stdcall`/`__thiscall` declaration would corrupt the stack.
 - Getter `0x00892A0A` is **cdecl, no arguments, returns `char` in AL**: `fstcw` to a local, mask to `0x300`, return
   0 for PC = 00 (24-bit), 1 for PC = 10 (53-bit), 2 for PC = 11 (64-bit).
-- The Lua pattern is `g := getter(); if g == 0 { setter(1) } … work … if g == 0 { setter(0) }`. Both branches are
-  guarded by the *saved* value, so when the thread is **not** already at 24-bit neither call happens — which is why no
-  Lua call can restore 24-bit. Until the trigger is
-identified, **no differential run against the original code is trustworthy for float-sensitive values**: the
-original computes wrongly inside our process, and the testing rule above (harnesses log PC = 00) is what detects it.
+- The two Lua precision changes are guarded by the **saved entry mode**. A wrapper entered at 53/64-bit
+  performs neither change. A wrapper entered at 24-bit restores that PC field after its entire call, including
+  native callbacks. Differential results are qualified by this invocation context, not by assuming that every
+  original result observed at 53-bit is wrong (§18.4).
 
 ### 18.3 What 24-bit precision means
 
@@ -2190,15 +2226,134 @@ rounded to float32". Shipped percentages then become, for example, 10 → 0.0999
 0.25, 0.5, 0.9f and 1.0. Under point 3 above, a product that is truncated before it is stored is truncated *after*
 its 24-bit rounding: 1200 × 0.01f rounds to 12.0, so `_ftol` gives 12, where the unrounded 11.99999973 would give 11.
 
-There is no "extended precision" intermediate anywhere in the simulation. Specs that said a value "is computed in
-x87 extended precision" before truncation or rounding mean, for the Windows build: **each operation is rounded
-to 24 bits as above**. *[compat]* FreeCity4 reproduces this by doing every simulation arithmetic step as one
+In the **24-bit baseline context**, specs that said a value "is computed in x87 extended precision" before
+truncation or rounding mean, for the Windows build: **each operation is rounded to 24 bits as above**.
+The live-precision exception, including native simulation inside Lua, is §18.4. *[compat]* FreeCity4 reproduces
+the baseline by doing every simulation arithmetic step as one
 `float32` operation (rounding each step), with the operand caveat of point 1: where a spec names a `double`
 constant or a large integer operand, that operand is used **unrounded** for that one operation (compute in `f64`
 and round the result to `f32`; for the four basic operations this gives the correctly rounded result, because
 `f64` has more than twice the significand bits of `f32`).
 
 The Mac build (GCC, SSE or x87 at 64-bit) differs; this section applies only to the Windows build.
+
+### 18.4 Lua-to-native re-entry uses the live precision (VC29-PC)
+
+**The original does not establish a separate 24-bit simulation boundary.** Native callbacks invoked from Lua,
+and framework/simulation callbacks reached before that Lua wrapper returns, use the calling OS thread's live
+x87 precision. The 24-bit rules of §18.3 describe the ordinary startup-established context, not an unconditional
+property of a simulator method. An implementation reproducing these nested calls must carry the active
+precision as invocation context. Forcing 24-bit around each scheduler callback, even with restoration afterwards,
+changes original behavior. Precision is not a saved city field or a permanent higher-precision simulation mode.
+
+**Boundary evidence (GOG 1.1.641, instructions checked with bytes):**
+
+- The precision setter `0x008929E0` changes **only PC**, leaving the other control-word bits as they currently
+  stand. The getter `0x00892A0A` returns the mode, not a saved whole control word. The unconditional startup
+  selector `0x005F85E0` is not called by the scheduler.
+- `cGZLua5Thread::Call` selects 53-bit at `0x008B7F57`, calls Lua at `0x008B7F6D`, and restores the saved
+  24-bit mode at `0x008B7F7A` only after Lua returns. The C-closure path of Lua's dispatcher calls the native
+  function directly at `0x008BBEB9`; it does not lower PC on entry or restore it on return. A nested guarded Lua
+  call sees 53-bit at entry and performs neither precision change.
+- The same scope includes protected-call error reporting: `CallProtected` selects at `0x008B8F50`, invokes
+  Lua at `0x008B8FB9` or `0x008B8FDE`, can call the native error reporter at `0x008B9016`, then restores at
+  `0x008B903A`. `ResumeThread` likewise brackets the resume (`0x008B8B7C`) and error reporter (`0x008B8BBF`)
+  between its selector (`0x008B8B51`) and restorer (`0x008B8C03`). These are normal wrapper-return paths,
+  including handled Lua errors; this does not promise restoration after an escape that bypasses the wrapper.
+- Native modal re-entry really pumps the framework. The modal loop (`0x009DA84F`) invokes framework slot 16
+  at `0x009DA8EA`. The **SC4 framework override** is `0x004735F0` (table entry `0x00A8C9B0`), not the
+  base framework implementation `0x0087A812`. It reaches service callbacks at `0x0047350F` and
+  `0x004736FF`, without a precision guard. The simulator's
+  `OnTick` (`0x00703E70`) also has no guard: it reaches time passage, agents and idle simulation at
+  `0x00703F38`, `0x00703F3F` and `0x00703F4E`. Its existing busy flag may suppress an already active
+  simulator tick, but it does not select a precision. A callback that actually runs inherits the live setting.
+  See also [modal-dialogs §2.3](modal-dialogs.md#23-the-loop-modalmessageloop-slot-63-0x009da84f).
+
+With round-to-nearest and all exception masks unchanged, the normal scopes are:
+
+| Entry to outer guarded Lua call | Inside Lua, its native callback, and a framework frame nested beneath it | After a nested guarded Lua call returns | After the outer wrapper returns |
+|---|---|---|---|
+| `0x007F` (PC 24) | `0x027F` (PC 53) | `0x027F` | `0x007F` |
+| `0x027F` (PC 53) | `0x027F` | `0x027F` | `0x027F` |
+| `0x037F` (PC 64) | `0x037F` | `0x037F` | `0x037F` |
+
+This table assumes the callbacks do not themselves change the control word. The wrapper restores **PC** only
+when its saved entry mode was 24-bit; it does not save/restore the caller's entire word. A 53-bit invocation is
+therefore expected inside the first row's scope and is not, by itself, a precision leak.
+
+#### Arithmetic and storage in the affected methods
+
+At PC 53, round each arithmetic instruction's result to a 53-bit significand in the original order. Preserve
+the actual memory widths and explicit stores: a float store still rounds to float32; a double store retains
+the 53-bit result. Loads do not first round their operands to PC (§18.3). Thus replacing every `r24` with an
+implicit float store is wrong, and widening all stored floats is also wrong. The following qualifies the named
+specs' 24-bit formulas for re-entry; it does not change their ordinary 24-bit vectors.
+
+| Method | Required operation and storage boundaries |
+|---|---|
+| regional-city §5, `GetCommodityBalance` (`0x004A7680`) | Getter order is **produced, imported, demanded, exported**. Form produced + imported, then demanded + exported, then subtract the second sum from the first. The arithmetic at `0x004A76A3`, `0x004A76C5`, `0x004A76CB` uses live PC. The first sum is stored as a **double** (`0x004A76AA`), not a float; the return stays in the x87 register. Double field storage does not imply PC 53 when entered at PC 24. |
+| lot-developer §11.4, `GetAreaSlope` (`0x006C5DC0`) | Minimum/maximum heights and their vertex coordinates are stored as floats. The distance helper (`0x005D76A0`–`0x005D76C2`) does both coordinate subtractions, squares, sum and square root at live PC and returns in the register. Distance, cascade products, height difference and division remain in registers through the return (`0x006C5EAB`–`0x006C5F16`); there is no float spill between those steps. Constants such as 0.3f, 0.35f and 0.4f remain the original float values, loaded exactly. A caller's float store can round the returned slope again. |
+| residential-education-health §4.7, newcomer EQ/HQ blend | The sum with newcomer Q, division by m, multiplication by delta, old-population product, addition and final division use live PC with no intervening float spill of those arithmetic results (`0x006FA96C`–`0x006FA97F`, HQ `0x006FA9D7`–`0x006FA9E9`). The resulting Q **is stored as float32** (`0x006FA983`, `0x006FA9ED`) before being passed to the grid setter; the upper-bound comparison still uses the register result, then substitutes 200 if needed. |
+| residential-education-health §4.8, global EQ/HQ | At each tract, store the first wealth's product as float, then the second wealth's product plus that first result as float. Add the third wealth's product to that subtotal, then add the running sum; store the new running sum as float. EQ stores: `0x006F77D4`, `0x006F7805`, `0x006F7839`; HQ: `0x006F7927`, `0x006F7958`, `0x006F798C`. Each intervening operation uses live PC. The final division by population (`0x006F7863`, HQ `0x006F79B6`) returns in the register without a final float store in these methods. |
+
+#### Worked cases for conformance
+
+**Boundary and regional balance.** Give one commodity produced = 16777216, imported = 1, demanded = 16777216,
+exported = 0, all exact doubles. Call the same read at each stage; the native routine changes no precision.
+
+| Invocation | First sum | Second sum | Balance | Precision on return from the native read |
+|---|---|---|---|---|
+| Directly in ordinary PC 24 | 16777216 (the half-way addition rounds to even) | 16777216 | **0** | PC 24 |
+| In a C callback of a guarded Lua call entered at PC 24 | 16777217 | 16777216 | **1** | PC 53 |
+| In a framework callback dispatched by a modal loop beneath that C callback | 16777217 | 16777216 | **1** | PC 53 |
+| After the outer Lua wrapper returns | 16777216 | 16777216 | **0** | PC 24 |
+
+An inner Lua call within the C callback leaves PC 53 on return to that callback. Repeat with the outer entry
+already at PC 53: the balance is 1 throughout and the outer return remains PC 53. Use the same inputs in both
+contexts; neither a tolerance nor changed serialization is needed to express the distinction.
+
+**Slope with a float sink.** Let the first minimum be height 0 at vertex (0,0), the first maximum height 13 at
+(3,4), and all other sampled vertices strictly between those heights. The initial distance is exactly 5;
+the >6 and >5 branches do not fire, then the >4 branch multiplies by 0.35f (`0x3EB33333`) and returns 13/d.
+
+| Active precision | Scaled d | Slope in the return register | Slope stored by the caller as float32 |
+|---|---|---|---|
+| PC 24 | 1.75 | 7.4285712242126465 | **7.4285712242126465** |
+| PC 53 | 1.7499999701976776 | 7.428571555079248 | **7.428571701049805** |
+
+**Newcomer blend and global query.** Use old population 3, new population 7, delta 4 and both the current Q
+and newcomer Q = float32 0.1 (`0x3DCCCCCD`, exactly 0.100000001490116119384765625). Disable decay and
+generational reset for this case; Q > 0 gives m = 2 and the cap is inactive. The newcomer contribution is
+0.4000000059604645 in both contexts, but the old-population product and final result differ:
+
+| Active precision | Old-population product | Numerator after addition | New Q stored in the grid |
+|---|---|---|---|
+| PC 24 | 0.30000001192092896 | 0.7000000476837158 | **0.10000000894069672** (`0x3DCCCCCE`) |
+| PC 53 | 0.30000000447034836 | 0.7000000104308128 | **0.10000000149011612** (`0x3DCCCCCD`) |
+
+For a subsequent global EQ or HQ query in the same precision context, put those seven residents in R$ at
+one tract, with all other populations zero and population counter = 7. The stored running sum is
+0.7000000476837158 at PC 24 and 0.699999988079071 at PC 53. The final register quotients are respectively
+**0.10000000894069672** and **0.09999999829701015**; if the caller stores that result as float32, the latter
+becomes **0.10000000149011612**. The grid remains float32 in both runs.
+
+#### Runtime observation still needed for reach29-views
+
+The static boundary is settled; the cause of the particular broad-run intervals is not. The cited log already
+shows a return to `0x007F` at tick 106 (line 3554), then `0x027F` at ticks 108 and 180 (lines 3560, 4181).
+This is consistent with a temporary outer guard but does not identify the active call stack at each mismatch.
+The four-shadow run's exact counts do not establish that stack either.
+
+To settle attribution, capture, **without changing precision**, the same OS thread's control word and active
+outer Lua-call depth at entry and exit of the guarded Call/CallProtected/ResumeThread used by the action;
+capture the nested modal/frame entry and the affected balance, slope and residential invocation with their
+input snapshots. One stack showing the affected invocation under the still-active Lua wrapper and modal
+frame, PC 53 there, and PC 24 immediately after that outer wrapper returns establishes Lua re-entry. If no
+such wrapper is active, or PC remains 53 after the last wrapper entered at PC 24 returns, the observation
+instead requires tracing the first other precision writer. Replay the same recorded inputs using the
+observed PC and the storage boundaries above. A tick-level word alone cannot distinguish these cases or
+prove that all listed last-digit differences have the same cause. No native precision change or tolerance
+relaxation follows from the log alone.
 
 ## 19. Threading model *[compat]*
 

@@ -434,6 +434,20 @@ connections, no override, path origin offset 0, cost 0, type `0xC772BF98`.
    `0x04003500`, `0x04003600`, `0x04005200`, `0x04005300`, `0x04005400`, `0x04006900`, `0x04007100`, `0x04007400`,
    `0x04007500`, `0x04008500`, `0x04009000`, `0x04009300`, `0x04009400` (slot 55).
 
+**Packed words (NO32, 2026-10-26).** Each state is a u32 value followed by a u32 mask.
+With x87 round-to-nearest/even the three tuples above produce:
+
+| State | Value | Mask |
+|---|---|---|
+| A, `0x00B45260` | `0x024A91FF` | `0x1FFFFFFF` |
+| B, `0x00B45268` | `0x020001E7` | `0x1E0003FF` |
+| C, `0x00B45270` | `0x0242317F` | `0x1FFFFFFF` |
+
+All three leave stage-1 mode unchanged. B also leaves blend factors, alpha function and alpha
+reference unchanged. Reference `0.1f` (`0x3DCCCCCD`) quantizes to nibble 2 with nearest/even
+rounding. These are computed words: tuple calls in `0x0061C690`, packing field shifts/masks
+in `0x007D2B50–0x007D2D15`, reference quantization at `0x007D2CA2–0x007D2CC9`.
+
 The static shutdown releases the cached textures (§2.11), the texture manager and the resource manager, and clears
 the latch.
 
@@ -490,6 +504,25 @@ connection from side `entry` to side `exit` (answers NO12).
   `0xC772BF98`, data4 0 (`PostOccupantMessage`, flora.md §9.1, would set void1 instead and put the occupant's flag 4
   in data2). `SetTranslucency` uses `PostOccupantMessage(0x99EF1145, 0)`.
 
+**NO32 normal/colour boundary (2026-10-26).** The triangle normal is not packed into colour
+bytes. After the triangle helper `0x005D6EA0`, the owner computes z²+y², then adds x² in x87,
+takes the square root, divides 1 by it, and multiplies each component by that extended-precision
+reciprocal, storing three binary32 components (`0x0061BC57–0x0061BCB9`). No zero-length test,
+epsilon, fallback normal or clamp intervenes. Lighting slot 19 (`+0x4C`) receives the first
+position and normalized normal. Its returned R, G, B are copied to vertex+14, +13, +12 for
+all three vertices; alpha at +15 is preserved (`0x0061BCBB–0x0061BD19`). Part stride is `0x4C`,
+vertex stride `0x18`. The standard provider is `0x007D7840` (lighting.md §4.1, §4.7): store
+binary32(c+49152), add `0xB8C00000` to its word, then output the low byte of u−(u>>8).
+For finite c in [0,1] this is n−(n>>8), n=round(256c); c=(0,0.5,1) yields (0,128,255).
+
+With masked x87 exceptions, a degenerate zero normal yields NaNs passed to the provider. This
+owner supplies no fixed degenerate RGB; it copies the provider's answer. Unmasked exceptions
+can trap before the query. **Worked case:** have a lighting fixture return RGB=(17,34,51).
+Every vertex becomes BGRA=(51,34,17,old alpha). Repeat with three identical positions: expect
+NaNs at the query boundary under masked exceptions, one query and the same byte-copy rule,
+then flag `0x8000` set. Do not assert that a real lighting provider returns the same RGB for
+the two normals. The byte conversion is colour conversion, not a normal-component encoding.
+
 ### 2.8 The prebuilt subclass *(cSC4NetworkOccupantWithPreBuiltModel)*
 
 The constructor `0x0061E1A0` calls the base ctor, sets network flags `0x400000` (`IsImmovable`, zones.md §8.4.1)
@@ -497,12 +530,11 @@ at `+0x13C`, and adds:
 
 | Offset | Meaning |
 |---|---|
-| `+0x170`/`+0x174`/`+0x178` | u32 triplet (written by the record; NO4, §12) |
-| `+0x17C` | u32 |
-| `+0x180` | byte |
-| `+0x184`…`+0x19C` | 7 floats — the **shear transform** inputs; `RecomputeShearTransform` `0x0061D230` uses the constant `0.0625` (`0x00AA81E4`); the ctor seeds `+0x184…+0x1AC` from `0x00B45298` and then zeroes `+0x184…+0x19C` |
-| `+0x194` | float gate: if ≠ 0, `+0x198…+0x1A4` hold 4 more floats; v < 4 records used the legacy `+0x1A8`/`+0x1AC` pair + 2 more |
-| `+0x1B0` | vector (u32) |
+| `+0x178`/`+0x17C`/`+0x180` | three f32 saved by the prebuilt envelope (§2.8.1); semantics remain NO4 |
+| `+0x184`…`+0x198` | six f32 shear-transform values; `RecomputeShearTransform` `0x0061D230` uses `0.0625` (`0x00AA81E4`); these are not a separately serialized array |
+| `+0x19C` | u32 gate: **raw word** nonzero means four more f32 follow in the record |
+| `+0x1A0`…`+0x1AC` | those four optional f32 |
+| `+0x1B0` | saved opaque u32 |
 | `+0x1B4` | byte |
 | `+0x1B8`/`+0x1BC` | int pair, ctor sets both to **−1** |
 | `+0x1C0`/`+0x1C1` | bytes |
@@ -517,7 +549,7 @@ override and using `FUN_00466590`; caches into `+0x140`; if the result lacks `Ha
 pathinfo slot 0x68; then `ResetPathInfo`.
 
 `Shutdown` `0x0061D0D0` releases the model. `Write` `0x0061D8E0` (version 4) / `Read` `0x0061D9B0` (versions
-3…4) are the base record plus the prebuilt fields; the field list is §12 (NO4).
+3…4) use §2.8.1. NO4 remains about field meanings, not their stream representation.
 
 The **bridge** subclass adds: `QueryInterface` `0x00604BC0` (class ID `0x49CC1BCD`), `Init` `0x00604BF0` = the
 prebuilt `Init`, `Shutdown` `0x00604C10` releases the `+0x1D0` model/structure list then the prebuilt
@@ -534,6 +566,78 @@ by `Shutdown` `0x006474F0`); `Write` `0x00647580` (v2) writes the has-pair bool 
 `0xE4FDA3D4`); `Read` `0x00647610` (v2) uses `SC4ReadGZSerializable` IID `0x8A4BD52B`; `Init` `0x006471C0` = the
 prebuilt `Init` + `ClearNetworkFlag(0x4000)`. Creation and pairing are traffic-network.md §4.8 and
 network-geometry.md §6.
+
+#### 2.8.1 Ordered prebuilt, bridge and tunnel envelopes (NO46) *[compat]*
+
+All integer fields below are little-endian; f32 occupies four bytes. The record functions receive the
+serializable view **S = primary object + 8**, just as §2.3 does. This corrects the earlier table's mixing
+of view-relative offsets and primary offsets, and its interpretation of stream slot `+0x30` as u32:
+that slot is Float32, whereas `+0x24` is Uint32 and `+0x14` is Uint8.
+
+The complete prebuilt class `0x49C1A034` writes, in this order:
+
+| Order | Stream field | Object location / rule |
+|---|---|---|
+| 1 | u16 **4** | subclass version, **before** the network-base version |
+| 2 | complete §2.3 record | starts with u16 **8**, then the occupant base, transform, corners, edges, parts, box, flags, path override, path resource key and demolition cost in that section's order |
+| 3 | three f32 | primary `+0x178`, `+0x17C`, `+0x180` (S `+0x170…+0x178`) |
+| 4 | u32 | primary `+0x1B0` (S `+0x1A8`), opaque and retained |
+| 5 | u8 | primary `+0x1B4` (S `+0x1AC`), opaque byte, not normalized to bool |
+| 6 | u32 G | primary `+0x19C` (S `+0x194`) |
+| 7 | four f32, **only if G ≠ 0 as a u32** | primary `+0x1A0`, `+0x1A4`, `+0x1A8`, `+0x1AC` (S `+0x198…+0x1A4`) |
+
+Evidence: version/base call `0x0061D8EA–0x0061D8F4`; fields and raw-word gate
+`0x0061D901–0x0061D996`, with the matching read gate at `0x0061DA87–0x0061DA97`.
+In particular G=`0x80000000` includes the four fields; interpreting G as floating minus zero would
+incorrectly omit them. The suffix after the complete base block is **21 bytes**, or **37** with G nonzero.
+There is no prebuilt reference field or extra count in that suffix.
+
+Read consumes the outer u16 first and accepts only 3 or 4. Another version returns false without
+reading the base. After an accepted version it reads the full base; only a successful base read
+permits the suffix. For version 3, after the three f32 of row 3 it consumes and discards **six u32**,
+then reads rows 4–7, then consumes and discards **one u32**. Version 4 has neither discarded block
+(`0x0061DA18–0x0061DA68`, `0x0061DAD1–0x0061DAE5`). An omitted optional block does not zero the
+existing four live fields. The envelope performs no arithmetic on its f32 fields. The final result
+for an accepted version is the stream-error test, including when a failed base bypasses the suffix.
+
+Read→Write always emits outer version 4 and base version 8. Version-3 discarded words disappear;
+opaque saved fields remain. The inherited read conversions still apply: network flags lose
+`0xE000`, corner/part alpha is canonicalized and older transforms/flags/path overrides follow §2.3.
+Do not treat an entire captured subclass record as bytes that must survive these conversions unchanged.
+
+The **bridge** `0x49CC1BCD` uses exactly this envelope: its serializable vtable `0x00AA725C`
+slots 3/4 are `0x0061D8E0`/`0x0061D9B0`. There is **no bridge version before 4**, and no bridge
+suffix after row 7. Bridge-specific live structure lists are not extra fields of this record.
+
+The **tunnel** `0x8A4BD52B` instead has this full order:
+
+| Order | Stream field | Rule |
+|---|---|---|
+| 1 | u16 **2** | tunnel version; Read accepts exactly 2, otherwise stops here |
+| 2 | complete prebuilt envelope above | starts 4, 8 on Write; Read accepts its 3/4 outer version |
+| 3 | u8 P | Write emits 1 only when the paired portal exists and QI for `cIGZSerializable`, IID `0xE4FDA3D4`, succeeds; otherwise 0 |
+| 4 | serializable reference, only if P ≠ 0 | nonzero P on Read requests IID **`0x8A4BD52B`**, `loadNow=false`; the writer uses the serializable interface |
+
+The pair is primary `+0x1D0` (S `+0x1C8`). Before reading a present reference, Read releases and
+clears the old pair; P=0 also releases and clears it. The input byte is tested for nonzero, so e.g.
+P=2 writes back as 1 if the resolved object supports serialization. Write releases its temporary QI
+reference. Evidence: `0x0064758A–0x006475ED`, `0x00647625–0x006476AC`.
+
+References here are the segment-stream form of foundations.md §2.7: u32 object ID, followed by u32
+class ID iff the ID is nonzero; the referenced object's record is elsewhere. The helpers require
+segment interfaces `0x6999A8FB` on Write / `0x4999A8F5` on Read; a generic non-segment stream does
+not supply this reference payload. The inherited cached-path resource key is a different reference:
+§2.3 row 12 uses three u32 and resolves IID `0xA9667793`. All other inherited fields, including any
+occupant-base reference, retain the format and IIDs of §2.3 and lot-records.md §2.3.
+
+**Worked codec cases.** With an otherwise valid v8 base, choose the three f32 as (1,2,3), the opaque
+word `0x11223344`, byte `0xA5`, G=`0x80000000` and the optional f32 as (4,5,6,7). A prebuilt or bridge
+record begins with 4 then the base's 8 and has a 37-byte suffix after the base; all these suffix fields
+survive Read→Write. Repeat with G=0: suffix 21 bytes, no four-float block. A v3 input with six distinct
+discarded words before the opaque word and one after the optional block writes back with 28 fewer
+suffix bytes and outer version 4. A null-pair tunnel begins 2,4,8 and ends with one zero byte, without
+a reference. A present pair ends with 1, its nonzero object ID and class ID `0x8A4BD52B`; it is not an
+inline second tunnel record. Compare the inherited base after its documented canonicalization.
 
 
 ### 2.9 Geometry *[compat]*
@@ -606,6 +710,17 @@ recomputed (slot 80) and the lighting marked out of date (slot 46).
 
 **`GetSortValue(out)`** (model instance slot 17): with any of flags `0x06000000`, the piece id; otherwise, with
 parts, the first part's texture id; otherwise `0xA821EF94`.
+
+**NO32 numeric inputs and predicate (2026-10-26).** The UV tables above are four binary32 words
+each, containing only 0 and `0x3F800000`. Rotation 1 without flip gives corner UVs
+(0,1), (1,1), (1,0), (0,0). `0x00B0B374` is one cached u32 zoom, initially 5, not a table.
+`SetTextureZoom` copies context+0x14 directly to it (`0x0061C5F4–0x0061C5FF`). GetTexture adds
+that integer exactly when the ID's low nibble is zero (`0x0061C950–0x0061C978`). Thus zoom 3
+maps ID `0x12345000` to `0x12345003`, while `0x12345002` stays unchanged. There is no table
+lookup or range clamp. Draw tests primary slot **9**, HasAnyNetworkFlag, with `0x06000000`
+(`0x0061A9B1–0x0061A9BF`; predicate body `0x00604D30`): either bit enters the surface-texture
+path; neither skips it, continuing to the parts. Test the four masks 0, `0x02000000`,
+`0x04000000`, `0x06000000`: respectively zero, first, second, both quad triangles are eligible.
 
 **Textures** (`GetTexture(id, fallback)`, slot 77, `0x0061C950`): a texture id whose low 4 bits are 0 gets the
 current zoom offset added (`0x00B0B374`, 5 at start). The id is looked up in a static cache; a miss loads the
@@ -848,6 +963,128 @@ The pending flag stops the recursion; the draw pass clears it.
   highlight list with state F (strips). Primitive types: view-utilities.md §7.1.
 - **The occupant type** is the network occupant's `0xC772BF98`: the underground constructor runs the network
   constructor first (`0x0065C354`), which writes it (§2.1), and nothing later changes it (quirk 1; answers NO3).
+
+#### 3.2.1 Custom-piece vertex kernel (NO40, 2026-10-26)
+
+`MakeCustomUndergroundPiece` (`0x0065D160`) takes two UV-inversion bytes, a destination
+vertex-list header, a source vertex array/count, two index-array/count/side triples, and an
+optional ratio-array pointer. Source/output vertices have stride 24: binary32 x,y,z, u32
+colour, binary32 u,v. It clears the destination before building; source UVs are regenerated.
+It queries both selected neighboring cells in its own layer (+264), using the cardinal
+offset table `0x00B0CFE8`. A found neighbor supplies ceiling and flatness through main slot
+93 for the opposite side `(side+2)&3`. For each side, delta is own ceiling +25C minus that
+neighbor ceiling, stored as binary32; absent neighbors give delta=0 and flatness=false.
+Both query references are released on completion, including a zero-count source.
+
+For UV selection it scans source **y and z**, seeding all four extrema with zero. Let
+Yspan=abs(maxY−minY), Zspan=abs(maxZ−minZ). U is binary32((x+8)×0.0625); V is
+binary32((y−minY)/Yspan) when Zspan<Yspan, otherwise binary32((z+8)×0.0625).
+The two inversion bytes respectively replace U and V by binary32(1−coordinate), after
+the first coordinate store. There is no division-by-zero repair. These decisions precede
+the world transform and the neighbor height adjustment (`0x0065D58F–0x0065D667`).
+
+Positions use the matrix at +1FC. Its first three rows are four floats each; x output is
+((x×M0+y×M1)+z×M2)+M3, y output is ((z×M6+x×M4)+y×M5)+M7, z output is
+((x×M8+y×M9)+z×M10)+M11. Each output is stored as binary32 after x87 arithmetic
+(`0x0065D667–0x0065D6FA`). The original local x,y,z are used for all three outputs.
+
+Search the first index list from its beginning for the source vertex number. On a match
+at list position k, use that side's delta and flatness; otherwise search the second list
+the same way. First list wins when both contain the vertex; first occurrence wins within
+a list. A match subtracts delta from transformed y, except that flatness=true with a
+nonnull ratio pointer subtracts delta×ratio[k]. The product/subtraction stay in x87 until
+the y store (`0x0065D700–0x0065D764`). Thus descriptor T1 (word 18) and T2 (word 23)
+are **index-list-position weights**, not source-vertex-number lookups or a second UV scale.
+Their construction is above; reversing the table is a caller decision. Nonmatching vertices
+retain transformed y. Output colour is opaque white, and output order is source order.
+
+**Worked case:** use an identity matrix translated by (100,50,200), source vertex (0,2,0),
+source extrema y=0…2,z=0, no UV inversions, own ceiling 50, neighbor ceiling 46, flatness
+true, and a matching list entry k with ratio[k]=0.25. Output is (100,51,200), UV=(0.5,1).
+Changing flatness to false gives y=48; removing the index match gives y=52. A ratio at the
+source vertex's numeric index is irrelevant unless it is also the matched list position.
+
+#### 3.2.2 Base wall quads and bounds (NO40, 2026-10-26)
+
+`AddWallQuad(a,b,destination)` (`0x0065CFF0`) appends four vertices without clearing the list:
+upper A, lower A, lower B, upper B. Upper uses original height +24C+4×corner; lower uses
+current corner y. Both use that corner's x,z and alpha, with RGB replaced by white. UVs are
+(0,0), (0,d), (1,d), (1,0), where **both** lower vertices use
+d=binary32((originalHeight[A]−currentHeight[A])×0.0625). The subtraction/product are x87
+until the store (`0x0065D069–0x0065D08F`, repeated for B at `0x0065D0AC–0x0065D0FE`).
+This shared-A-drop rule is the same quirk as the connection helper, with different sources.
+
+`CreateWalls(s)` (`0x0065E260`) clears four headers starting at +180 (stride 12), calls
+slot 88 to update the diagonal/hide flags, and resets active count +17C to zero. It starts
+with all four perimeter candidates enabled. An own-cell connection query (class from slot
+82) that succeeds is released and skips the **diagonal selection only**; perimeter testing
+still follows. Without that connection, unequal hide-first/hide-second bools add one diagonal:
+
+| Diagonal bool | Hide-first | Diagonal endpoints | Disabled perimeter sides |
+|---|---|---|---|
+| false | false | (0,2) | 0,3 |
+| false | true | (0,2) | 1,2 |
+| true | false | (1,3) | 0,1 |
+| true | true | (1,3) | 2,3 |
+
+Equal hide bools add no diagonal and leave all candidates enabled. Then visit sides 0…3,
+whose endpoints are (1,0), (0,3), (3,2), (2,1). For each enabled side call slot 47 with the
+network type from slot 102. A false result adds its wall. A true result calls
+IsImaginaryConnection: false skips the wall, true adds it. Each added quad uses the next
+header and increments +17C. With s=true, slot 100 receives true after the loop. This
+replaces the earlier summary's blanket connection/imaginary-connection veto
+(`0x0065E2D0–0x0065E3F5`).
+
+`ComputeBox(min,max)` (`0x00659E00`, primary slot 80) seeds **both distinct outputs** by
+occupant slot 8 (+4 view). For corners 0…3 in order, min compares current x,y,z at +9C
+(stride 24), while max compares current x,z and original height at +24C (stride 4).
+Only a strictly smaller/larger ordered comparison replaces a component; unordered NaN
+comparisons leave the seeded/current result. There is no scan of generated lists or mesh
+resource bounds (`0x00659E05–0x0065A071`).
+
+**Worked cases:** original heights A=100,B=120 and current heights A=80,B=88 give both lower
+V values 1.25, even though B's own drop/16 is 2. For diagonal=false, hide-first=true,
+hide-second=false, no connection and no neighbors, the ordered walls are (0,2), (1,0),
+(2,1). For bounds seeded by position (8,100,8), corners at x/z=(0,0),(0,16),(16,16),(16,0),
+current y=(80,81,82,83), original y=(100,101,102,103), min=(0,80,0), max=(16,103,16).
+A resource mesh extending beyond that box does not expand it.
+
+#### 3.2.3 Remaining selector/transform observation (NO40)
+
+The vertex kernel and wall/bounds rules above are settled statically. The full native
+piece selector in `0x0065D810` is **not** established by this answer. The export's call
+prototypes lose live stack/register arguments: for example its displayed helper calls
+omit the final ratio argument even where the instruction path supplies descriptor word
+18 or 23. Treating those displays as complete calls gives incorrect geometry. The audited
+dispatch distinguishes IDs `0x200`, `0x300`, `0x800`, `0xA00`, `0x1400`, `0x4B00`, `0x14E00`;
+other IDs reach the resource fallback. It releases the six bindings +1CC…+1E0 and mesh
++244, clears both custom lists +1E4/+1F0, and eventually reloads the cap/face bindings from
+descriptor words 35/30. When the first custom texture is null or the first custom list is
+empty, fallback requests model key `(0x5AD0E817,0xBADB57F1,slot105() OR pieceID)`, IID
+`0x9AD0E7E3`, creates instance 0, and assigns owner primary+4. End sets +262=true;
+s=true also calls slot 100(true) (`0x0065D810`, fallback entry `0x0065DBF3`).
+
+**Runtime observation NO40-A:** for pipe and subway descriptors, each of the seven IDs,
+rotations 0…3, flip false/true, and zipper type 0/1/2 for `0x4B00`, break immediately
+before every call to `0x0065D160`. Capture the twelve native argument slots, source vertex
+bytes/count, both index lists/counts, both sides, ratio pointer/data, and matrix +1FC.
+Also capture each texture key and final restored rotation byte. Use unequal neighbor
+ceilings and both flatness outcomes. This settles the missing branch-to-descriptor-word
+mapping without mistaking decompiler argument loss for a null ratio. Compare outputs to
+§3.2.1's independently implemented kernel; do not accept a recorded owner mesh as a
+replacement callback.
+
+Slot 85 `0x0065B700` obtains rotation/flip from main slots 24/25, calls
+GetObjectYRotationAngle (view-utilities.md §2.1), builds +1FC, and finally writes its
+translation from occupant position x/z and ceiling +25C. It also updates compact transform
+translation +8C/+90/+94, marks byte +65 bit 0 and increments counter byte +64. The exact
+composition with a previously nonidentity compact transform and the flip matrix remains
+unsettled here. **Runtime observation NO40-B:** enter slot 85 with compact rotation/scale/
+flags captured, use rotations 0 and 1 with both flips, and repeat with a deliberately
+nonidentity compact rotation. Capture +64…+98 and the sixteen binary32 words +1FC…+238
+before/after. Include a second identical call to detect composition versus replacement.
+Expected translation in a position=(8,99,24), ceiling=80 fixture is (8,80,24) in both
+representations; no bit-exact 3×3 expectation is asserted until those captures agree.
 
 ### 3.3 `cSC4PipeOccupant` *(0x49C05B9F)*
 
@@ -1166,7 +1403,143 @@ without independently transforming a box or ensuring geometry is current. The fu
 `0x00654160` instead calls attached +C8's slot 100 (+190) with true if attached, otherwise does
 nothing; it is main slot 43 Refresh, despite the export's GetWorldBounds name. Neither function
 establishes a missing general GetTransform/SetTransform contract. Complete geometry, Draw and
-view-dependent transform/bounds generation remain open under NO40/UG5.
+view-dependent decisions are refined below in §§3.6.5–3.6.6, including the bounded runtime remainder.
+
+#### 3.6.5 Connection descriptor and build pipeline (NO40/UG5, 2026-10-26)
+
+The descriptor at +23C is twelve four-byte words; pointers below identify input arrays,
+not output buffers. Vertex records are the same 24-byte format as §3.2.1.
+
+| Word / byte | Use | Pipe `0x00B0B6D0` | Subway `0x00B0C388` |
+|---|---|---|---|
+| 0 | face texture ID | `0x095A8D70` | same |
+| 1 | cap texture ID | `0xE95A8D8D` | same |
+| 2 | custom-piece texture ID | `0x0A08B06E` | `0x6A4E6066` |
+| 3 | upper model instance ID | `0x6A089741` | `0x0AD80000` |
+| 4 | lower model instance ID | `0x6A089740` | 0 |
+| 5 | source vertex pointer | `0x00B0B580` | `0x00B0C270` |
+| 6 | source vertex count | 12 | 10 |
+| 7 | upper-y index array | `0x00B0B6A0` | `0x00B0C360` |
+| 8 | lower-y index array | `0x00B0B6B8` | `0x00B0C374` |
+| 9 | count used for **each** index array | 6 | 5 |
+| byte +28 (word 10 low byte) | custom-piece view-dependent rotation enabled | 1 | 0 |
+| byte +29 | per-segment colour/UV mode enabled | 0 | 1 |
+| 11 | binary32 lower-piece height offset | 0 | 3 |
+
+`CreateGeometry` (`0x006562B0`) resets matrix +110 to identity. With descriptor byte +28
+nonzero it obtains the view through renderer slot 8 and uses the negated orientation angle
+returned through `0x007F8340` for its yaw. It sets translation to (position.x,+170,position.z).
+It separately builds matrix +D0 from identity using the view's discrete rotation through
+GetZoomAndRotation and GetObjectYRotationAngle, then gives it that same translation. Last
+it calls CreatePieceModel, CreateWalls, CreateFloor, in that order
+(`0x006567B1–0x006567D3`, `0x00656BD0–0x00656BDE`). These matrices have sixteen binary32
+words, with translation in row offsets +0C,+1C,+2C and homogeneous final element 1.
+
+`CreatePieceModel` (`0x00655850`) clears the +BC list, releases/nulls piece texture +B8
+and both mesh instances +158/+15C. It obtains the texture service, loads descriptor word 2,
+then copies word 6 source vertices from word 5 in order. A linked occupant (+CC), or the
+surface occupant found at the cell when there is no linked one, supplies position.y to
++170. It requests words 3 and 4 as model keys `(0x5AD0E817,0xBADB57F1,ID)`, IID
+`0x9AD0E7E3`; on each successful resource query it creates instance 0, assigns this
+connection as owner if nonnull, and releases the resource. There is no zero-ID special
+case before the resource request.
+
+For every index in word 7, copied local y becomes 0. Without an attached occupant,
++174 becomes binary32(+170−cell size); otherwise its ceiling query supplies the lower
+height (the remaining argument observation is below). It stores delta=binary32(+174−+170);
+every index in word 8 gets local y=binary32(delta−word11)
+(`0x00655B34–0x00655B68`). The second list
+overwrites the first if they overlap. Neither list changes x,z.
+
+It scans copied x,z extrema, each seeded with zero, and takes W=abs(max(xSpan,zSpan)).
+U is binary32((W×0.5+x)×(1/W)) when byte +29 is zero; otherwise it is the binary32
+integer quotient vertexNumber/2. V is binary32(abs(localY)×(1/W)). The reciprocal is
+kept in x87 during this loop; no zero-width fallback is present. All colours become
+`0xFFFFFFFF`. The +110 translation is rewritten from position.x,+170,position.z,1,
+then vertices are transformed in source order. Arithmetic order for x is z×M2+y×M1+x×M0
+then +M3; y uses z×M6+y×M5+x×M4 then +M7; z uses x×M8+z×M10+y×M9 then +M11;
+each sum is left-associated and stored once as binary32
+(`0x00655C7B–0x00655DE9`). Finally it releases/reloads cap +9C and face +64 bindings
+from words 1/0 with texture group `0x891B0E1A`, then consumes ModelStateChanged if needed.
+
+**Worked case:** supply a descriptor with byte +28=0, two source x coordinates −8,+8,
+all z=0, upper/lower index lists [0]/[1], word11=3, position=(100,100,200), +170=100,
+cell size 16 and no attached/linked/surface occupant. W=16. Before world translation the
+two y values are 0 and −19; after it they are 100 and 81. In ordinary UV mode their U
+values are 0,1 and V values 0,1.1875. In segment mode U values are 0,0. This fixture
+tests the descriptor algorithm without borrowing a native owner's generated mesh.
+
+**Connection bounds:** main slot 42 (`0x00653DC0`) seeds both output vectors by primary
+slot 8. It then visits the four surface vertices +1D0 at stride 24: minima use their x,y,z;
+maxima use their x,z and the corresponding original height +160 at stride 4. Only strict
+ordered comparisons replace a component. It ignores generated lists, matrices, +170/+174
+and resource bounds (`0x00653DC0–0x00654028`). The +24C model-view wrapper adjusts this
+by −0x24C before delegating. The worked bounds fixture in §3.2.2 applies with these source
+offsets: it also yields min=(0,80,0), max=(16,103,16).
+
+#### 3.6.6 Connection Draw and bounded observations (NO40/UG5)
+
+Draw `0x00656E90` receives the model view at primary+24C. Before testing self-lit or pass,
+it calls CreateGeometry when byte +17C is nonzero (`0x00656E97–0x00656EA7`). The packed
+states from §3.6.1 have these value/mask words: +B46854=`0x020001A7/0x1E0003FF`,
++B4685C=`0x020A81B7/0x1E1FE3FF`, +B46864=`0x020A8197/0x1E1FE3FF` (addresses are
+`0x00B46854`, etc.; packed-state field rules in draw-context.md §2/§5.1).
+
+| Draw case | Ordered submissions | Result / dirty byte |
+|---|---|---|
+| selfLit=true, any pass | nonempty +AC list: default model transform, state `0x00B46864`, DrawPrims(type 1, format 10, whole list); no texture bind in this branch | 1; +17C unchanged |
+| selfLit=false, pass 0 | cap, then face lists as detailed below | 2; +17C unchanged |
+| selfLit=false, pass 1 | shade, custom strip, upper mesh, lower mesh, shade reset | 1; +17C=false |
+| selfLit=false, other nonzero pass | no geometry submissions | 1; +17C=false |
+
+Pass 0's cap requires nonnull binding +9C and nonempty list +A0. It sets default model
+transform, state `0x00B46854`, the binding's texture, wrap (2,2,0), filters (1,1,0), then
+DrawPrims(type 6, format 10, full cap list). Independently, nonnull face binding +64 with
+active count +68 nonzero sets the same transform/state/wrap/filters and texture, then visits
+the first +68 lists at +6C (header stride 12), drawing each nonempty list as type 6/format 10.
+
+Pass 1 first calls SetSelfLitShade using triple `0x00B0CFB0+12×(+178)`. With nonnull
+piece binding +B8 and nonempty +BC list, it sets default transform, state `0x00B46854`,
+that texture, wrap (3,3,0), filters (1,1,0). Descriptor byte +29=0 draws the entire list
+once as type 1/format 10. Otherwise each successive four-vertex window is drawn separately,
+advancing two vertices (48 bytes): start indices 0,2,… while start<count−2. For each
+window it takes the normal of the first three vertices, normalizes with no zero guard,
+gets the lighting object from renderer +24, calls its slot 23 (`+5C`, normal to float RGB),
+calls SetShade with that RGB, and draws four vertices. It resets shade after the custom
+list. This window lighting is distinct from §2.7's byte-colour query.
+
+For upper mesh +158 then lower mesh +15C, when nonnull, rewrite matrix +D0 translation
+to (position.x,+170 or +174,position.z,1) and submit that matrix (`0x007D4B80`). Read the
+instance's draw attributes through +3C and query IID `0x26A68448` for its mesh/material
+collection. For each collection index in order, obtain material (+18) and mesh (+10),
+OR material flags +4 with `0x10`, set source/destination blend bytes +9/+A to 4/5,
+SetModelShade(instance,null), SetRenderState(material,attributes), RenderMesh, ResetShade.
+Release the collection, including the zero-count case. ResetShade again after both meshes.
+It does not clear culling here. These calls mutate the material before replay; an output
+fixture must not replace this work with a recorded original-owner draw result.
+
+**Worked Draw case:** start +17C=true and empty lists/no meshes. Two ordinary pass-0
+calls each rebuild geometry and return 2, leaving +17C=true. An ordinary pass-1 call
+rebuilds, performs the shade/reset path, returns 1 and clears +17C. A following pass 1
+does not rebuild. A self-lit call instead returns 1 without clearing the byte. With ten
+custom vertices and byte +29=1, the four windows begin at 0,2,4,6; with byte +29=0 there
+is one ten-vertex strip submission. See `0x00656E90–0x00657493` for this pass tree.
+
+**Runtime observation NO40-C / UG5 remainder:** the descriptor-dependent matrix's exact
+binary32 yaw words and the attached ceiling call's side argument are not established by
+this answer. The decompiler expands both matrices into aliased pointer/float temporaries;
+that display is insufficient for a bit-exact transform contract. Capture renderer slot 8's
+view, outputs of `0x007F8340` and GetZoomAndRotation, both matrices +D0/+110 immediately
+before/after `0x006562B0`, and the native arguments/outputs of attached slot 93 inside
+`0x00655850`. Run pipe/subway, view rotations 0…3, two nonzero orientation angles, and
+attached false/true with an unequal neighbor ceiling. Capture descriptor words 5/7/8's
+bounded arrays (12 vertices/6+6 indices for pipe, 10/5+5 for subway), plus the selected
+shade triple at `0x00B0CFB0+12×(+178)`; these are input data, not generated-mesh answers.
+For the zero-angle, discrete-rotation-0, byte+28=0 fixture, matrices must have identity
+linear parts and translation (position.x,+170,position.z) before piece deformation.
+For other angles no bit-exact 3×3 result is claimed here. This observation and NO40-A/B
+are the bounded remainder of NO40/UG5; full geometry/transform owner closure is **not**
+claimed merely because the question entries move to the answered archive.
 
 ## 4. The power pole *(cSC4PowerPoleOccupant, 0x09C05C6A)*
 
@@ -2591,9 +2964,10 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 
 | Path (main model) | Condition | Calls, in order |
 |---|---|---|
-| options skip | option `0x6A845768` true (its byte is saved at `0x0061E97B`) | none: the instance draws the shared flat model |
-| surface | network-flag test (primary slot 8) `0x40000` false | `Bind` `0x00614350`, then `Deform` `0x00614A90`, then `FlipAndLight` `0x00616800` |
-| clipped | `0x40000` true | `Clip` `0x00618B00` **first** (it runs even when the option is set), then `Bind`, then `FlipAndLight` (no `Deform`) |
+| surface, options skip | `0x40000` false and option `0x6A845768` true (its byte is saved at `0x0061E97B`) | none |
+| surface | network-flag test (primary slot 8) `0x40000` false and option false | `Bind` `0x00614350`, then `Deform` `0x00614A90`, then `FlipAndLight` `0x00616800` |
+| clipped, options skip | `0x40000` true and option true | `Clip` `0x00618B00` only |
+| clipped | `0x40000` true and option false | `Clip` **first**, then `Bind`, then `FlipAndLight` (no `Deform`) |
 | second model | option false | `Bind`, then `FlipAndLight` |
 
 `Clip` is called at `0x0061EE60` as `Clip(&lo, &hi, 1)` with
@@ -2601,6 +2975,17 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 - h = (lowest of the four terrain heights at the piece's cell corners) − position y (`0x0061EE07`);
 - the corner heights come from the terrain at `0x00B43CF4`: slot `+0x38` per integer vertex, or, when slot
   `+0x14C` answers true, slot `+0x78` at world (16·x, 16·z) and (16·x+16, 16·z+16).
+
+**NO30, option boundary** (2026-10-26, re-no29). The option suppresses Bind and FlipAndLight on
+the clipped path too. Immediately after Clip (`0x0061EE60`), the saved option byte is tested
+(`0x0061EE65–0x0061EE6B`); a nonzero byte jumps to the alpha handling at `0x0061EF3A`, past both
+Bind (`0x0061EE73`) and the common FlipAndLight call (`0x0061EF35`). This does not suppress the
+earlier model load, transform assignment, clipping, subsequent alpha assignment or cache ownership.
+
+**Worked case:** give the main piece flag `0x40000`, option true, position y=100 and terrain corner
+heights (105, 108, 107, 106). The processing trace is exactly Clip with mode 1 and local lower y=5;
+Bind, Deform and FlipAndLight are absent. With the option false and all other inputs identical,
+the trace is Clip, Bind, FlipAndLight. An alpha byte 128 still sets the instance alpha in both cases.
 
 ### 10.3 The four bodies *(NO21, NO22)*
 
@@ -2832,18 +3217,35 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
   **5** (`PUSH 0x5` at `0x0064B01D`); `Read` rejects < 4. No question remains.
 - **NO10.** ~~The pylon's occupant type~~ — **settled while writing this spec**: the ctor writes `0xA9B6D7DE`
   at `+0x2C` (`0x005F19F9`). No question remains.
-- NO38–NO40 (re-ugbase) and NO42 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+- NO38–NO39 (re-ugbase) and NO42 (re-powerpoles), 2026-10-21, are in [questions/network-occupants.md](questions/network-occupants.md).
+  NO40 was narrowed 2026-10-26: the remaining runtime observations are §3.2.3 NO40-A/B and §3.6.6 NO40-C;
+  the original entry and settled rules are in [the answered archive](questions/answered/network-occupants.md).
   NO41 is answered in §3.6.3/test 51 and the answered archive.
 - NO33 and NO43 are answered by §§4.1–4.3/4.6–4.7 and tests 43–44, 54–55, 62–73;
   NO13's shutdown supplement is §5.1/test 74. Their entries are in the answered archive.
   NO36 is answered by §§6.1–6.2.4 and tests 40–42, 46–48, 52–53, 56–59.
-  UG5 is tracked in
-  [questions/underground-occupants.md](questions/underground-occupants.md); §§3.6–3.6.1 specify its verified
-  record, creation-input, neighbor and state/ref subset.
+  UG5 is narrowed in [the answered archive](questions/answered/underground-occupants.md);
+  §§3.6–3.6.6 specify its settled rules and the exact remaining runtime observation NO40-C.
 
 ---
 
 ## 13. Conformance tests
+
+**Empty-sample accounting (NO47) [choice].** Record comparison and exercised-owner credit are separate
+results. Preserve the sample, its scenario/date, `records=0`, `bytes=0` and every zero class count.
+When both captures are empty and neither capture failed, the empty sequences compare equal, with
+zero differing records, and the sample is **unexercised** for every network-occupant class. It adds
+no exercised-owner denominator or verification credit. An unsupported/nonempty record or capture
+failure remains a comparison failure, even if no record was successfully decoded.
+
+For `lua-lots-empty` load, report **equal, unexercised (0 records)**; retain the two later exercised
+samples and their own verdicts. If a scenario summary requires verified ownership, this scenario's
+load is N/A for that requirement, not a verified pass. A campaign can report “all comparable
+samples equal” only alongside the number of unexercised samples; it cannot turn that into “every
+owner verified in every scenario”. The previous deliberate one-mismatch sentinel is an accounting
+policy, not an original codec discrepancy. Report it separately while adopting this convention;
+do not erase its historical failing result or conflate it with NO46's parse errors. This convention
+does not grant absent owners credit and does not assert that this census was rerun.
 
 Each test names its section. A "city" is a fresh 64 × 64 city unless stated otherwise.
 

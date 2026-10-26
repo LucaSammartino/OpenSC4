@@ -612,7 +612,7 @@ public:
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
         OverlaysShadowOnTick(CurrentCity());  // after city Init exposes all four managers
         fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
-        if (saveDue_) {
+        if (saveDue_ && !DbpfShadowWait()) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
         }
@@ -1033,7 +1033,10 @@ cFC4Observer& Observer() {
 }  // namespace
 
 void ObserverReload() { Observer().Reload(); }
-void ObserverStart() { Observer().Start(); }
+void ObserverStart() {
+    Observer().Start();
+    GDriverShadowStart();
+}
 void ObserverStop() { Observer().Stop(); }
 
 void ObserverTestSetCity(cISC4City* city) {
