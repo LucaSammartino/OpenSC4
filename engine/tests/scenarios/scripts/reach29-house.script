@@ -1,0 +1,6 @@
+# Lifecycle census; no constructed native objects. Save only the isolated copy.
+2026-01-28 mark reach29-house loaded
+2026-01-28 speed 2
+2026-02-02 save fast
+2026-02-03 digest
+2026-02-28 mark reach29-house complete

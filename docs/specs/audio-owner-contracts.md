@@ -200,23 +200,23 @@ Primary QI `0x004F5210` accepts `1`, soundscape IID `0x29E39DB4` (base), and ser
 | 3–4 | `0x004F53E0`, `0x004F5700` | Initialize / shut down (§20.2). |
 | 5 | `0x004F64F0` | Register group using supplied resource, key/flags and lifetime; duplicate key returns false. |
 | 6 | `0x004F6A00` | Remove keyed group; missing key returns false. |
-| 7 | `0x004F65C0` | Keyed group operation; missing key returns false; inner behavior AU42. |
-| 8 | `0x004F6620` | Operate on groups whose saved flags contain every requested mask bit; mode-dependent cleanup AU42. |
+| 7 | `0x004F65C0` | Clear keyed group; missing key returns false; audio-scape §4.3. |
+| 8 | `0x004F6620` | Clear groups whose saved flags contain every requested mask bit; audio-scape §4.3, including keep/no-sound-system behavior. |
 | 9–10 | `0x004F7850`, `0x004F7AF0` | Keyed instance operations; missing group clears instance output and returns false. |
 | 11 | `0x004F57B0` | Enumerate positions: signed capacity check, failure preserves outputs, success copies raw records/metadata; audio §20.4. |
-| 12–17 | `0x004F7300`, `0x004F51E0`, `0x004F6B30`, `0x004F7510`, `0x004F5E30`, `0x004F5A20` | Additional instance/group operations; signatures and behavior AU42. |
+| 12–17 | `0x004F7300`, `0x004F51E0`, `0x004F6B30`, `0x004F7510`, `0x004F5E30`, `0x004F5A20` | Add/convenience-add/remove/move emanation, add/remove definition; full signatures and behavior in audio-scape §§1.1, 4.4, 5. |
 | 18 | `0x004F69E0` | Deleting destructor wrapping `0x004F62C0`. |
 
 Slot 13 `0x004F51E0` is the four-argument wrapper for dynamic slot 12: `(A,B,C,D)`
 becomes `(A,0,0,B,C,D)`, preserving its result. Audio §20.4 adds six capacity/dispatch
-vectors; the other operations and resource contract remain AU42.
+vectors; [audio-scape.md](audio-scape.md) §§3–7 complete AU42's remaining operations.
 
 Service table slots 0–2 are adjustment thunks; slot 3 is `0x00407BA0`, slot 4
 `0x0070C880`, slot 5 `0x004F6230` returns `0x80000000`, slots 6/7 `0x004F6240` /
 `0x004F6250` read/write the enabled byte using the adjusted service view. Slots 8/9
 `0x004F62A0` / `0x004F62B0` wrap initialize/shutdown, slot 10 `0x004F67C0` performs
 the service tick, and slots 11/12 use `0x005DEB40` / `0x004EA510`. Service getters'
-full meanings are AU42; do not infer them from folded names. Table `0x00A942F8` has four
+full meanings are audio-scape §§2.3, 6.2; do not infer them from folded names. Table `0x00A942F8` has four
 entries: adjustment thunks in slots 0–2 and slot 3 `0x004F5200`.
 
 ### 20.2 Lifetime and sound IO
@@ -234,10 +234,10 @@ event **`0x6A451908`** with the instance identifier and three zero arguments whe
 global sound system exists (`0x004F5B80`). Missing global sound system suppresses that
 external call while local removal continues.
 
-Tick `0x004F67C0` uses elapsed timer difference, reduces expiry countdowns without going below
-zero, and stops/removes expired instances. It also advances sound parameters toward targets.
-Full timing widths, smoothing, group/resource format, allocation failures and instance ownership
-remain AU42. These are material open items, so this is not a complete scape algorithm.
+Tick `0x004F67C0` uses unsigned u32 timer differences and saturating countdown subtraction,
+then per-tick signed divide-by-seven channel smoothing. Full timing, in-memory group/definition
+format, allocation requirements and instance ownership are [audio-scape.md](audio-scape.md)
+§§3.5, 6.2, 7.4–7.5 (AU42). This owner does not decode a scape resource.
 
 ### 20.3 Fire-handler integration
 
@@ -273,9 +273,10 @@ Bytes following slot 6 are strings, not further methods.
 | Control notification / initialize dialog | `0x004F35F0` / `0x004F44C0` |
 
 Persistent preferences are separate from the window's state: window references at `+4` / `+8`,
-modal-notification flag at `+0x0C`, preferences pointer at `+0x10`. Construction and the
-complete song enumeration/exclusion format remain AU43. Do not assume a preference rewrite
-merely because a window notification was consumed.
+modal-notification flag at `+0x0C`, preferences pointer at `+0x10`. The full construction,
+defaults, song discovery/exclusion persistence, controls and close ordering are
+[audio-preferences.md](audio-preferences.md) §§1–7, with AU43 worked cases in §9.1.
+Do not assume a preference rewrite merely because a window notification was consumed.
 
 ### 21.2 Sound and preference IO
 
@@ -291,8 +292,9 @@ otherwise zero, followed by three zero arguments. Independently, it posts messag
 system suppresses the direct call but does not suppress the message. *[compat]*
 
 EndDialog posts `0xAA650861` when its modal-notification flag is set, detaches the dialog
-from its parent and releases the held window reference (`0x004F2480`). Shutdown
-`0x004F2210` releases its held window reference. Exact OK/cancel/revert ordering remains AU43.
+through its manager and releases the held window reference (`0x004F2480`). Shutdown
+`0x004F2210` clears P and releases its held **grid** reference. Exact OK/cancel ordering
+and Cancel's restore operation are audio-preferences §§6.5–6.6, 7.3 (AU43).
 
 ### 21.3 Slider rule and notification acceptance
 
@@ -308,12 +310,12 @@ wrapping, and clamp with unsigned comparisons to minimum/maximum. Instruction ev
 loads by adding 2^32. Do not replace this with a double literal 0.001 and nearest rounding.
 Out-of-range slider input is not guaranteed monotonic after integer wrap. *[compat]*
 
-DoWinProcMessage rejects a disabled window or a window other than its own primary/modal view.
+DoWinProcMessage rejects a hidden window or a source other than its dialog window view or grid window.
 For an accepted source, key notification type 5 with Escape (27) invokes the cancel control
 `0xEA5509E3` and returns false. Type `0x9A1552D2` routes to control `0x8A550C56` and also
 returns false. Type 3 is a control notification envelope: recognized notification kinds filter
 which controls are forwarded, and unrecognized kinds return true without dispatch. The complete
-filter matrix and individual control actions are AU43. Handling work and returning false are
+filter matrix and individual control actions are audio-preferences §§7.1–7.5 (AU43). Handling work and returning false are
 therefore compatible outcomes; do not equate the return with whether audio settings changed.
 
 ### 21.4 Additional conformance vectors
@@ -336,7 +338,7 @@ These are spec vectors for implementers; no executable tests or engine files are
 | AU9-12 | Slider 500; min 100, max 1100 | Volume 600; minimum is an offset rather than a multiplier. |
 | AU9-13 | 31 entries in each default music list | Only first 30 selections from each list persisted. |
 | AU9-14 | Escape from an accepted enabled preferences window | Cancel handler invoked; DoWinProcMessage returns false. |
-| AU9-15 | Same Escape from disabled or unrelated window | False with no cancel action. |
+| AU9-15 | Same Escape from hidden or unrelated window | False with no cancel action. |
 
-AU40 and AU44 have additional vectors in audio §§18.4 and 7.4.1. AU41–AU43 still need
-additional vectors when settled, especially numerical edge cases and failure rollback.
+AU40, AU41 and AU44 have additional vectors in audio §§18.4, 19.2 and 7.4.1.
+AU42 vectors are audio-scape §11 and audio §20.4; AU43 vectors are audio-preferences §9.

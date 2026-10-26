@@ -1691,6 +1691,49 @@ would need a separately proved patch, calling convention, storage, lifetime, and
 being used. No hook contract is implied here. Existing objects and saved references are not migrated by changing
 a factory registration; restoration while such objects survive has no specified native mechanism.
 
+#### 15.1.1 Factory-only wall activation (LR-lotocc28-1) *[compat]*
+
+**Serialized-object substitution is a limited load boundary, not complete retaining-wall replacement.**
+An explicitly requested factory for class `0x49C05C9F` (`GetGZCLSID`, `0x005E2990`) may supply a wall for a class-store
+entry. That does not cause native developers to create replacement walls during play, convert existing
+walls, or redirect any of the static helpers. A `lotocc` switch that only registers construction and wall
+factories therefore cannot claim complete wall-owner activation. It may be described and tested as
+factory/load-only substitution, provided the loaded object's ordinary interfaces and lifetime conform to
+§7; this is not an installation contract for the native creation/update paths.
+
+The wall-specific owner dependency is the **lot developer and all three wall operations it invokes**:
+add/remove, update the lot's walls, and update surrounding walls. The complete incoming direct-call set
+is ClearLot and AddLotFoundation to add/remove and surrounding-update, the slot-62 wrapper to update,
+and the helper-to-helper calls shown in §15.1. These are direct calls even when the public entry into the
+lot developer was virtual. In particular, replacing only slot 62 leaves foundation creation and clearing
+on the native path. The constructor edge at `0x005E30E7`–`0x005E30F5` was rechecked against instruction
+bytes: native wall-pool allocation is followed by the native constructor, with no registry lookup.
+
+A replacement lot developer must implement those operations for both loaded and newly created walls,
+including removal of the old models, lot-reference ownership and neighbouring updates (§7). It must be
+installed as the city's actual lot-developer owner before those calls occur; merely implementing helpers
+or registering an occupant factory does not install that owner. If the replacement also supplies lots,
+the zone-developer/lot-manager and lot dependency in §15.1 applies as well. This answer does not require
+replacing lots just to satisfy the wall-specific dependency, and does not establish how an independently
+registered lot developer is installed or restored.
+
+Keeping the native lot developer instead requires a separately proved interception contract for **every**
+incoming edge above, including native storage/allocation, calling conventions, retained lot/occupant
+references, pre-existing walls and restoration. None is supplied here. Without that contract or the owner
+replacement, standalone complete `lotocc` activation with native developers remains unsupported. Restore
+factory registrations only after their replacement instances and all outstanding owner/message references
+have been drained; changing the registration does not change any surviving object's implementation.
+
+**Worked case — distinguish the two scopes.** Register a counting factory for `0x49C05C9F`, then load one
+valid saved wall entry. Expect one factory request for that entry. Independently, with the native lot
+developer still installed, add a foundation on a lot for which §7.1 requests a new wall. Expect **zero**
+additional requests to that factory: `0x006C8C23` reaches `0x005E3070`, which constructs a native wall.
+Clear that lot: `0x006C8A3D` removes its wall and `0x006C8A62` updates neighbours, again without a wall
+factory request. This mixed result passes the limited factory/load test and fails a claim of complete
+wall replacement. For the owner-replacement case, run the same add/clear/neighbour sequence entirely
+through the replacement lot developer and verify §7's models, flags and reference balance for both the
+loaded wall and the new wall; no direct native wall helper may remain on that sequence.
+
 ### 15.2 Other coupling
 
 - **Class registry**: the loader creates every object by class ID through GZCOM (foundations §2.7). A replacement
