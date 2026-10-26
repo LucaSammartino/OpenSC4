@@ -1,25 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| replace-region27 / RegionalCity replacement (engine) | Codex / replace-region27 / detached HEAD | Continue: main merge 07ffb56e4; native hosts 47e43b854; ABI unchanged; cargo 664/0; native link FAIL; replacement acceptance unmeasured; RY9 answered | 1. Replace SDK cell-map construction with ZoneRegionBuffer and pass quick. 2. Register default-off regionalcity factory. 3. Measure (a)-(c), qbuild all, enqueue engine. |
+| replace-region27 / RegionalCity replacement (engine) | Codex / replace-region27 / detached HEAD | Ready: 47e43b854, 09959aa61, 84a9dcb2b; ABI unchanged; cargo 7877/0, clippy 0, CTest 120/120; house2 clean through 2032, shadow 73/73, ref_warnings=0; Tegel neighbour roads and save clean; questions none | - |
 
 ## Handoff
-Round 3 stopped by measured context guard; no merge-queue entry and no outstanding new game request.
-Merged main first (07ffb56e4); rc23-wip and prior lane commits were already included. RY9 is answered on merged source.
-47e43b854 adds cFC4RegionalCity (74-slot primary including destructor, message/serializable views), cache/setup/read hosts and native connection callbacks.
-Private Rust callbacks run reconciliation outside the state lock, preserving getter/setter re-entry. New private symbols do not change C ABI exports.
-RY9 demolition uses true, masked region, privilege 0, flags 1, dezone false, layer filter, null outputs/clicked, zero final coordinates.
-Filter classifier implements occupant-manager 13.2.4 interface/property/group precedence; type/property-holder admissions are unrestricted.
-Added regionalcity_border_contract native test: eleven arguments, layer precedence, masked west strip, callback getter re-entry, edge word, queue drain and ConnectionsReady.
-Focused quick qbuild-20261026-050435-quick: cargo 664/0; native failed Repair alias collision and missing cRZAutoRefCount include; both fixed.
-Latest quick qbuild-20261026-051225-quick: cargo 664/0; native 52/53 edges, LINK FAIL with exactly three unresolved cRZCellMap constructor/destructor/SetValue symbols.
-Exact next fix: FC4RegionalCityConnections.cpp Cells() constructs SDK SC4CellRegion, whose cRZCellMap implementation is not linked. Reuse fc4::ZoneRegionBuffer from cFC4ZoneManager.h:138 (Build(fc4_zone_region), Game()) instead; preserve holes and empty masks.
-Read cFC4ZoneManager.h:129 onward and cFC4ZoneManager.cpp ZoneRegionBuffer::Build before editing; fc4_zone_region is fc4.h:4753.
-Logs: build-runs/fc4verify-build.log and build-runs/qbuild-test.log; latest build has only linker failures. Native contract executable has not been run.
-Formatting: qbuild fmt passed all three owned Rust files after module ordering fix. A temporary formatting helper in build-runs is obsolete; do not reuse it.
-Review remaining glue: records 5.1/5.2 disagree about PostCityShutdown recipients; current native handler uses application's object identity. No new question filed.
-Registration still absent: append CreateFC4RegionalCity declaration/include, CLSID 0x6A037C24 ClassEntry and default-off regionalcity Subsystem in FC4Subsystems.cpp.
-(a) House list + regionalcity through 2032: NOT RUN. Include mysims and all keys from task; simulator/budget remain default-enabled.
-(b) Replacement regionalcity shadow 73/73: NOT RUN. Baseline region27-r2-records2032b was clean to 2032-01-02, ref_warnings=0, shadow 73/73; MAIN/build-runs/game-results/region27-r2-records2032b.verdict and .log.
-(c) Berlin neighbour interaction plus save in replacement: NOT RUN. Existing berlin-spandau/tegel and generated edge scripts stay inside tile; private network script explicitly makes no regional connection. Need a real neighbour-deal or border-connection script path.
-All new requests need top-level parallel=1 and shared MAIN/build-runs/game-queue; no request currently pending. Do not reuse the pre-implementation DLL.
-Next: fix mask linkage, run quick/native focused test, commit milestone and guard; register key, build and measure (a)-(c); qbuild all ONCE when code done, handoff <=25 lines, enqueue kind engine using actual HEAD. regionalcity is not ready for the replace list.
+rc23-wip was already merged before this round (ancestry verified); main conflict resolution is 07ffb56e4.
+47e43b854 supplies the native COM owner, host-owned record elements, cache/preferences/read callbacks and connection reconciliation outside the Rust state lock.
+09959aa61 fixes sparse/empty border-mask linkage using ZoneRegionBuffer and registers default-off `regionalcity` (CLSID 0x6A037C24).
+84a9dcb2b identifies the record's acquired connection references as specified last-holder releases after simulator shutdown (regional-city sections 4.1, 7.2); over-release auditing remains enabled.
+Focused quick passed: cargo 664/0; native 49/49; regionalcity owner and border contract executables passed.
+Full qbuild all PASS: cargo 7877 passed/0 failed/0 ignored; clippy 0 diagnostics; native 55/55; CTest 120/120.
+Gate request: qbuild-20261026-060323-build-ctest; logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
+(a) region27-r4-house2: house replacements + regionalcity + mysims clean through 2032-01-01, ref_warnings=0; both full saves ok=1.
+Evidence (a): C:/Users/tlori/FreeCity4/build-runs/game-results/region27-r4-house2.log and .verdict (verdict line 2; saves log lines 12183, 17684).
+(b) Same run, key on: regionalcity shadow 73/73 exact, 0 resynced; each observation decoded 85 records and compared 16093 fields.
+Evidence (b): C:/Users/tlori/FreeCity4/build-runs/game-results/region27-r4-house2.log:17770; .verdict shadow totals; factory registration log line 175.
+(c) region27-r4-tegel: Berlin Tegel clean through 2029-09-01, ref_warnings=0; 2 existing road connections to neighbours; full save ok=1; shadow 2/2 exact.
+Evidence (c): C:/Users/tlori/FreeCity4/build-runs/game-results/region27-r4-tegel.log:7886 (roads), :8829 (save), and .verdict (line 2).
+Supplement: region27-r4-spandau clean, ref_warnings=0, full save ok=1, shadow 2/2; no neighbour road, so Tegel supplies criterion (c).
+Superseded region27-r4-house reached 2032 with shadow 73/73 but ref_warnings=6; the specified cached-connection final releases were corrected in 84a9dcb2b and remeasured in house2.
+Corrected game runs used DLL SHA256 prefix cd709950, through the shared main game queue; no request outstanding.
+No C ABI exports changed; no questions filed; coverage and the regress replace list were not edited.
+regionalcity is ready for the replace list. No implementation work remains.
