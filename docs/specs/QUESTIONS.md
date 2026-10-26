@@ -248,7 +248,7 @@ generated index: the questions live one file per spec, so read only the file for
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 8 | 17 | BW26 | questions/budget-window.md |
+| budget-window | 5 | 19 | BW26 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
@@ -293,7 +293,7 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
-| graphics-rules | 4 | 6 | GR11 | questions/graphics-rules.md |
+| graphics-rules | 5 | 7 | GR12 | questions/graphics-rules.md |
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
@@ -311,7 +311,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
-| lot-configuration-editor | 10 | 8 | LE19 | questions/lot-configuration-editor.md |
+| lot-configuration-editor | 0 | 18 | LE19 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
@@ -365,7 +365,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
-| region-screen | 4 | 0 | QR5 | questions/region-screen.md |
+| region-screen | 5 | 0 | QR6 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
 | regional-city | 6 | 3 | RY10 | questions/regional-city.md |
 | regional-city-records | 2 | 7 | RR10 | questions/regional-city-records.md |
@@ -396,7 +396,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
-| terrain | 8 | 38 | TR47 | questions/terrain.md |
+| terrain | 9 | 38 | TR48 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
@@ -434,4 +434,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **619** | **1683** | | |
+| **total** | **609** | **1696** | | |

@@ -437,6 +437,10 @@ provider!(u16, grids_u16);
 provider!(f32, grids_f32);
 
 impl ResidentialHost for ShadowHost {
+    fn invocation_precision(&self) -> fc4_core::x87::Precision {
+        crate::invocation::precision()
+    }
+
     fn acquire_services(&self) {
         self.swallow();
     }

@@ -4,6 +4,7 @@
 #include <cassert>
 namespace fc4 {
 void Log(const char*,...) {}
+void ConfigRulesTraceOriginal(const char*,uint32_t,const uint32_t*,uint32_t) {}
 std::string Setting(const char*,const char*,const char**) {return {};}
 long SettingInt(const char*,const char*,long fallback) {return fallback;}
 }

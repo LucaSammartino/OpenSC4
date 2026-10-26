@@ -132,6 +132,7 @@
 #include "cFC4MySimDispatch.h"
 #include "cFC4RegionalCity.h"
 #include "FC4EffectsResource.h"
+#include "cFC4ConfigRules.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -155,6 +156,7 @@ FC4_DISASTER_FACTORY_DECL(Toxic)
 #undef FC4_DISASTER_FACTORY_DECL
 
 #include "FC4OverlayOwner.h"
+#include "FC4GZFramework.h"
 
 namespace fc4 {
 namespace {
@@ -569,6 +571,14 @@ const ClassEntry kEffectsResourceClasses[] = {
     {kFC4_CLSID_cSC4EffectsResource, "cSC4EffectsResource", &CreateFC4EffectsResource},
 };
 
+const ClassEntry kConfigRulesClasses[] = {
+    {0x0A1D8285, "cSC4ConfigRuleManager", &CreateFC4ConfigRules},
+};
+
+const ClassEntry kGZFrameworkClasses[] = {
+    {0xC470D325, "cGZBuffer", &CreateGZBuffer},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -659,6 +669,9 @@ const Subsystem kSubsystems[] = {
     {"formats", nullptr, nullptr, 0, false},
     {"effectsres", nullptr, kEffectsResourceClasses,
         sizeof(kEffectsResourceClasses) / sizeof(kEffectsResourceClasses[0]), false},
+    {"cfgrules", nullptr, kConfigRulesClasses, sizeof(kConfigRulesClasses) / sizeof(kConfigRulesClasses[0]), false},
+    // The command server is a framework service, not a documented COM CLSID.
+    {"gzfw", nullptr, kGZFrameworkClasses, sizeof(kGZFrameworkClasses) / sizeof(kGZFrameworkClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

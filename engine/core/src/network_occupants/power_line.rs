@@ -6,11 +6,17 @@
 //! transient; reading a record must not derive its saved cell from position.
 
 use super::identity::{IID_POWER_POLE, OCCUPANT_TYPE_POWER_LINE};
+use super::pylon::References;
 use crate::automata::OccupantBase;
 use crate::stream::{InStream, OutStream, RefValue};
 
 /// `Write`'s version (§5.2, quirk 6).
 pub const POWER_LINE_RECORD_VERSION: u16 = 2;
+
+/// The adapter forwards the final call through the occupant view, not primary.
+pub trait PowerLineHost: References {
+    fn occupant_shutdown(&mut self, base: &mut OccupantBase) -> bool;
+}
 
 /// A power line occupant's live state (§5.1).
 #[derive(Clone, Debug)]
@@ -94,6 +100,30 @@ impl PowerLine {
         self.pole_flag = flag;
     }
 
+    /// Live slot 4: equal pointers still acquire before releasing, independently
+    /// for each field. RefValue clones alone do not acquire host references.
+    pub fn set_connected_poles_acquired(&mut self, poles: [RefValue; 2], flag: u8, host: &mut impl References) {
+        for (slot, value) in self.poles.iter_mut().zip(poles) {
+            if !value.is_null() {
+                host.add_ref(&value);
+            }
+            if !slot.is_null() {
+                host.release(slot);
+            }
+            *slot = value;
+        }
+        self.pole_flag = flag;
+    }
+
+    pub fn get_connected_poles_acquired(&self, host: &mut impl References) -> (RefValue, RefValue, u8) {
+        for pole in &self.poles {
+            if !pole.is_null() {
+                host.add_ref(pole);
+            }
+        }
+        self.get_connected_poles()
+    }
+
     /// Slot 5 `GetCell`.
     pub fn get_cell(&self) -> (i32, i32) {
         self.cell
@@ -126,6 +156,66 @@ impl PowerLine {
     /// the base `Shutdown` (the caller's).
     pub fn shutdown(&mut self) {
         self.poles = [RefValue::Null, RefValue::Null];
+        self.pole_flag = 0;
+    }
+
+    /// §5.1 / test 74: live setter effects precede the foreign base Shutdown.
+    pub fn shutdown_acquired(&mut self, host: &mut impl PowerLineHost) -> bool {
+        self.set_connected_poles_acquired([RefValue::Null, RefValue::Null], 0, host);
+        host.occupant_shutdown(&mut self.base)
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    #[derive(Default)]
+    struct Host(Vec<&'static str>);
+    impl References for Host {
+        fn add_ref(&mut self, _: &RefValue) {
+            self.0.push("add");
+        }
+        fn release(&mut self, _: &RefValue) {
+            self.0.push("release");
+        }
+    }
+    impl PowerLineHost for Host {
+        fn occupant_shutdown(&mut self, base: &mut OccupantBase) -> bool {
+            self.0.push("base-occupant");
+            if base.status & 1 != 0 {
+                base.status &= !1;
+                self.0.push("99EF1141/0");
+            }
+            true
+        }
+    }
+    #[test]
+    fn line_layout_and_shutdown_forwarding_conformance_74() {
+        let mut line = PowerLine::new();
+        let pole = RefValue::Host { token: 7, class_id: 0 };
+        line.set_connected_poles(pole.clone(), pole.clone(), 1);
+        line.set_position([24., 40., 56.]);
+        line.set_preview(1);
+        line.base.status |= 1;
+        let mut host = Host::default();
+        line.set_connected_poles_acquired([pole.clone(), pole], 1, &mut host);
+        assert_eq!(host.0, ["add", "release", "add", "release"]);
+        host.0.clear();
+        let position = line.position;
+        let cell = line.cell;
+        assert!(line.shutdown_acquired(&mut host));
+        assert_eq!(host.0, ["release", "release", "base-occupant", "99EF1141/0"]);
+        assert!(line.poles.iter().all(RefValue::is_null));
+        assert_eq!(
+            (line.pole_flag, line.preview, line.position, line.cell),
+            (0, 1, position, cell)
+        );
+        host.0.clear();
+        assert!(line.shutdown_acquired(&mut host));
+        assert_eq!(host.0, ["base-occupant"]);
+        let loaded = PowerLine::from_record(line.record());
+        assert_eq!((loaded.position, loaded.cell, loaded.pole_flag), (position, cell, 0));
     }
 }
 
