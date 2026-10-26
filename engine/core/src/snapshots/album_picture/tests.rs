@@ -56,7 +56,7 @@ fn constructor_init_does_not_resize_or_apply_fit() {
     let window = windows.create_default(&mut host);
     let before = windows.get(window).area;
     let mut picture = AlbumPicture::new(window, true);
-    picture.init(&mut host).unwrap();
+    picture.init(&mut windows, &mut host).unwrap();
     assert!(picture.is_large());
     assert_eq!(host.initializations, 1);
     assert_eq!(host.ops, [ViewOp::BitmapFlag { flag: 2, on: true }]);
@@ -98,6 +98,10 @@ fn size_switches_use_base_tree_geometry_and_notify_parent() {
     picture.set_size(&mut windows, &mut host, true);
     assert_eq!(windows.get(window).area, Rect(2, 3, 202, 303));
     assert_eq!(host.notifications.last(), Some(&(parent, 0x9127_484a, [17, 1, 0])));
+    picture.set_size(&mut windows, &mut host, false);
+    picture.init(&mut windows, &mut host).unwrap();
+    assert!(picture.is_large());
+    assert_eq!(windows.get(window).area, Rect(2, 3, 202, 303));
 }
 
 #[test]

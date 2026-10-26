@@ -10,7 +10,8 @@ use crate::widget_controls::Foreign;
 
 use super::album_picture::{AlbumPicture, PictureHost};
 use super::{
-    AlbumAction, CaptionFields, CityContext, Error, FileSystem, Gap, Result, SnapshotAlbum, UiPrimitives, VPath, Zoom,
+    AlbumAction, CaptionFields, CityContext, Error, FileSystem, Gap, GraphicInfo, Result, SnapshotAlbum, UiPrimitives,
+    VPath, Zoom,
 };
 
 /// Already resolved, borrowed UI-script controls. Native control IDs are SN7.
@@ -30,6 +31,15 @@ pub struct Controls {
 pub trait AlbumHost: Host + Foreign + TextForeign + PictureHost + UiPrimitives {
     fn load_picture(&mut self, window: Window, path: Option<&VPath>) -> Result<()>;
     fn information_fields(&mut self, window: Window, fields: Option<&CaptionFields>);
+}
+
+/// Section 3.3's import inputs, distinct from the primitive file service.
+pub struct NewGraphic<'a> {
+    pub file: &'a VPath,
+    pub info: &'a GraphicInfo,
+    pub description: &'a [u8],
+    pub city: &'a CityContext,
+    pub move_source: bool,
 }
 
 #[derive(Debug)]
@@ -93,7 +103,7 @@ impl AlbumWindow {
             return Err(Error::InvalidState);
         }
         self.store.refresh_albums(fs)?;
-        self.controls.picture.init(host)?;
+        self.controls.picture.init(windows, host)?;
         windows.get_mut(self.window).id = SnapshotAlbum::WINDOW_ID;
         self.sync(windows, host)?;
         self.initialized = true;
@@ -190,6 +200,68 @@ impl AlbumWindow {
         self.require_init()?;
         self.save_edit(fs)?;
         self.store.set_current_file(fs, name)?;
+        self.sync(windows, host)
+    }
+
+    pub fn refresh_graphics(
+        &mut self,
+        fs: &mut impl FileSystem,
+        windows: &mut Windows,
+        host: &mut impl AlbumHost,
+    ) -> Result<()> {
+        self.require_init()?;
+        self.save_edit(fs)?;
+        self.store.refresh_pictures(fs)?;
+        self.sync(windows, host)
+    }
+
+    pub fn set_initial_file(
+        &mut self,
+        fs: &mut impl FileSystem,
+        windows: &mut Windows,
+        host: &mut impl AlbumHost,
+        name: Option<&str>,
+    ) -> Result<()> {
+        self.require_init()?;
+        self.save_edit(fs)?;
+        self.store.set_initial_file(fs, name)?;
+        self.sync(windows, host)
+    }
+
+    pub fn add_new_graphic(
+        &mut self,
+        fs: &mut impl FileSystem,
+        windows: &mut Windows,
+        host: &mut impl AlbumHost,
+        graphic: NewGraphic<'_>,
+    ) -> Result<VPath> {
+        self.require_init()?;
+        self.save_edit(fs)?;
+        let destination = self.store.add_new_graphic(
+            fs,
+            graphic.file,
+            graphic.info,
+            graphic.description,
+            graphic.city,
+            graphic.move_source,
+        )?;
+        self.sync(windows, host)?;
+        Ok(destination)
+    }
+
+    pub fn delete_album(
+        &mut self,
+        fs: &mut impl FileSystem,
+        windows: &mut Windows,
+        host: &mut impl AlbumHost,
+        directory: &str,
+    ) -> Result<()> {
+        self.require_init()?;
+        // SPEC-GAP: SN9 is open; deleting the selected album discards its pending edit.
+        if self.store.current_album() != Some(directory) {
+            self.save_edit(fs)?;
+        }
+        self.store.delete_album(fs, directory)?;
         self.sync(windows, host)
     }
 

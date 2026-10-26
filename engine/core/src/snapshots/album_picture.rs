@@ -66,10 +66,11 @@ impl AlbumPicture {
         self.small_area = small;
     }
 
-    pub fn init(&mut self, host: &mut impl PictureHost) -> Result<()> {
+    pub fn init(&mut self, windows: &mut Windows, host: &mut (impl Host + PictureHost)) -> Result<()> {
         host.init_view(self.window)?;
         host.view_op(self.window, ViewOp::BitmapFlag { flag: 2, on: true });
-        // Section 8 quirk: constructor is already large; SetSizeInOut(1) has no effects.
+        // Section 8 quirk: the constructor's large mode makes this a no-op on first Init.
+        self.set_size(windows, host, true);
         Ok(())
     }
 

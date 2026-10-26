@@ -380,3 +380,59 @@ fn failed_description_save_preserves_edit_selection_and_modal_pause() {
     assert_eq!(owner.controls.description.text, b"unsaved");
     assert!(owner.store.description_dirty());
 }
+
+#[test]
+fn import_move_select_and_delete_refresh_the_bound_controls() {
+    let (mut owner, mut fs, mut windows, mut host) = fixture();
+    owner.on_init(&mut fs, &mut windows, &mut host).unwrap();
+    fs.create_dir(&path("Incoming")).unwrap();
+    let source = path("Incoming/shot.png");
+    fs.write(&source, b"image bytes").unwrap();
+    let city = city();
+    let destination = owner
+        .add_new_graphic(
+            &mut fs,
+            &mut windows,
+            &mut host,
+            NewGraphic {
+                file: &source,
+                info: &city.info,
+                description: b"imported",
+                city: &city,
+                move_source: true,
+            },
+        )
+        .unwrap();
+    assert_eq!(destination, path("Albums/Big Town--2/Big Town-Jan 17, 2000.png"));
+    assert!(fs.read(&source).unwrap().is_none());
+    assert_eq!(fs.read(&destination).unwrap(), Some(b"image bytes".to_vec()));
+    assert_eq!(
+        fs.read(&destination.companion("info").unwrap()).unwrap().unwrap()[0],
+        0x28
+    );
+    assert_eq!(owner.controls.description.text, b"imported");
+    assert_eq!(windows.get(owner.controls.count).caption, "(1/1)");
+    assert_eq!(host.images.last(), Some(&Some(destination.clone())));
+    owner
+        .go_to_album(&mut fs, &mut windows, &mut host, "A", 1, true)
+        .unwrap();
+    owner
+        .action(&mut fs, &mut windows, &mut host, AlbumAction::SelectAlbum(1))
+        .unwrap();
+    assert_eq!(owner.store.current_album(), Some("Big Town--2"));
+    owner.refresh_graphics(&mut fs, &mut windows, &mut host).unwrap();
+    owner.set_initial_file(&mut fs, &mut windows, &mut host, None).unwrap();
+    assert_eq!(host.images.last(), Some(&Some(destination)));
+    owner
+        .delete_album(&mut fs, &mut windows, &mut host, "Big Town--2")
+        .unwrap();
+    assert_eq!(owner.controls.albums.entries.len(), 1);
+    assert_eq!(owner.controls.albums.entries[0].text, b"A--1");
+    assert_eq!(owner.controls.albums.selected, -1);
+    assert_eq!(host.images.last(), Some(&None));
+    assert!(fs
+        .entries(&path("Albums"))
+        .unwrap()
+        .iter()
+        .all(|entry| entry.name != "Big Town--2"));
+}
