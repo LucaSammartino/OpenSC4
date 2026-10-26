@@ -506,10 +506,29 @@ pre-aged by 0.1 s, carry 0.
 - **Each frame** (the pre-pass `0x005B8410`, §7 step 4, before the sweep): for every live particle that is alive
   and every element: the element fires when `P.age` − `T` ≤ 0 and `P.age` − `T` + `dt` > 0 (this frame's `dt`,
   `+0x108`), i.e. when the particle's age is about to cross `T` in this frame's update.
-- **Firing** (`0x005B8290`, given the element's name and the particle position `P+0x0C`): the name is combined with
-  the description's own name `D+0x160`, an effect is looked up by it and, when found, started at the particle's
-  position with an identity orientation. *[inferred from damaged pseudocode; the composition of the name is not
-  byte-verified]*
+- **Firing** (`005B8290`): copy the description's own name `D+160`, then append the supplied
+  NUL-terminated suffix verbatim. No underscore, separator, case conversion or numeric age is
+  inserted (`005B82EC–005B8337`). The scratch string at `00B22D5C` is reused. Ask the effect
+  directory at `00B43D1C`, slot +1C, for this complete name. On success, call the returned
+  component's +20 with identity orientation, unit scale and the supplied particle XYZ translation,
+  then +0C with Start argument 0; release the temporary reference through +08. A failed lookup
+  makes neither transform nor Start call (`005B8355–005B8406`).
+
+**PT2 worked case (static, unexecuted).** Block name `smoke`, suffix `_water`, position
+`(10,20,30)` gives lookup `smoke_water`, translation `(10,20,30)`, Start(0), Release.
+Suffix `water` gives `smokewater`. An age-event suffix follows exactly the same composition
+as the collision suffixes `_terrain` and `_water`; a directory miss is a silent missed event.
+
+**PT2 remaining observations.** The runtime list and its name composition are settled; an
+effect-script spelling for populating it has not been identified in the inspected emit/life/block
+parsers. Do not invent an `event` keyword. To settle the compiler channel, compile a known shipped
+particle script containing an age event and record the command-token dispatch and the write of
+the 16-byte element into `D+1CC`; retain its literal suffix and age bytes. The shipped
+`SimCity_1.dat` was not available in the inspected checkout. Record the TGI of its effects-directory
+resource, decoded resource bytes, root version and the **particle section's u16 version** at
+`005A5225–005A52F4`: value 1 selects reader A; every other value selects reader B (§2).
+The root version or a version of another section cannot settle this. These are outstanding
+source-data/compiler observations, not a reason to withhold the runtime event contract.
 
 ## 9. Slot tables *[compat]*
 
@@ -885,8 +904,8 @@ with a minimum denominator of binary32 `0.0001`, releases a previous texture ove
 external opacity and size to 1, and samples its per-instance variance factors. It resets placement
 to implicit. A whole-city flag can instead establish explicit placement using city dimensions.
 It does not first Stop an already-created handle. Do not treat description assignment as a
-transaction that destroys and recreates the renderer object. Runtime RNG output and variance
-sampling precision are not measured here (PT9).
+transaction that destroys and recreates the renderer object. Sampling precision and the
+whole-city service-call sequence are specified in §15.4; runtime RNG outputs remain unmeasured.
 
 Float and pointer setters return a boolean; unknown IDs return false without the handled stores.
 Neither checks the advertised count before these reads (`00582F00–00582FD4`, `00582040`).
@@ -909,12 +928,13 @@ SetTransforms derives implicit X/Z placement, size and angle from the supplied t
 while explicit-placement is false. When flag bit 6 is set and a handle exists, it can immediately
 send updated placement to the renderer. Thus setting an explicit rectangle freezes this implicit
 transform-driven placement until another operation resets the explicit-placement byte.
-Exact composition, angle units and projection record remain PT9.
+The finite composition, angle units and projection record are specified in §15.4.
 
 ### 15.3 Time and renderer boundary
 
-Update ignores an invalid handle. Otherwise it adds dt to elapsed, stores the binary32 result,
-then multiplies by inverse lifetime to obtain normalized phase (`00582933–0058294F`). Mode 1
+Update ignores an invalid handle. Otherwise it adds dt to elapsed and stores the binary32 result.
+The x87 sum remains in the register (FST, without reload); it is that sum which is multiplied by
+inverse lifetime and stored binary32 as normalized phase (`00582933–0058294F`). Mode 1
 wraps phase by subtracting its integer floor. For the other modes, phase **strictly greater than**
 1 causes mode 2 to call Stop(0); other modes clamp to 1. Equality to 1 does not stop mode 2.
 This is distinct from the particle age test. The floor shortcut's domain assumes ordinary finite
@@ -926,13 +946,118 @@ interpolate as `a + fraction*(b-a)`; RGB uses weighted adjacent vectors. Opacity
 Update takes an opacity-only path; otherwise it also updates placement/shape and, for an animated
 colour curve, colour. Curve arrays must be nonempty; there is no checked empty-curve fallback.
 Instruction evidence for scalar interpolation is `00582410–0058247C`, RGB `00582548–005825C4`.
-Exact curve-index rounding outside the ordinary phase domain remains PT9.
+The ordinary finite curve-index domain and outstanding observations are delimited in §15.4.
 
 The renderer service owns drawing: this component submits handles and parameter records rather
 than writing pixels. Its observed foreign calls include creation alternatives +10/+18/+1C,
 get/set projection +38/+34, remove +3C, opacity +44, RGB +48, layer +4C and flag +50.
 Do not assign public interface names or enum meanings to those slots from their numbers alone.
 No local message switch, live-object disk writer, or renderer-failure rollback is established.
+
+### 15.4 PT9: finite decal records and call traces *[compat]*
+
+This section qualifies the component's calls, not the renderer's rasterization. All stored
+scalars and renderer scalar arguments below are binary32. Arithmetic uses x87 intermediates;
+there is no local RGB-to-byte conversion, saturation, or integer colour packing. RGB +48
+receives three consecutive binary32 components. Its renderer may impose a further contract.
+
+**Start's two modes are independent.** The caller's Start argument is tested only for zero
+versus nonzero. The lifetime mode is the byte at effect +15. For an unstarted component:
+
+| Lifetime byte | Start(0) initial phase q | Start(1), Start(2), Start(3) initial phase q |
+|---:|---:|---:|
+| 0 or 1 | 0 | 0 |
+| 2 | 0 | return before acquiring services or creating a handle |
+| 3 | 0 | 1 |
+
+Other lifetime byte values take the 0 row. After successful creation the component stores
+**q itself** to elapsed +114, in seconds, not q times lifetime (`005825E3–005825ED`).
+For lifetime 4 and lifetime byte 3, Start(1) samples the last curve values, but a following
+Update(0) samples phase 1/4. Start(2) and Start(3) give the identical trace. Already started
+objects make no calls for any Start argument. The sentinel remains integer `FFFFFFFF`.
+
+**Variance.** SetDescription samples opacity then size using the separate random state
+**`00B22C10`**, with double endpoints `1−variance,1+variance` and
+`RandomDoubleRangeUniform` (`005834DC–0058353F`). Endpoints are formed by loading the
+binary32 variance into x87 and adding/subtracting double 1; each endpoint is stored double
+before the call, and each result is stored binary32 at +F4/+F8. If rotation variance +60
+is strictly positive, make a third draw with double endpoints `−variance,+variance`, store
+binary32 at +FC; otherwise +FC is exactly 1, with no third draw (`00583545–0058357F`).
+This is a multiplier of the rotation curve, not an additive random angle. Whole-city bit
+`10` sets explicit placement, calls city +168 once, +164 twice, and stores respectively
+Z centre = first result × double 0.5, X centre = second result × double 0.5, size = third
+result (all binary32 stores, `005835B8–00583605`). It does not multiply that size by +F8.
+For supplied service returns `(1024,512,512)`, placement is `(X=256,Z=512,size=512)`.
+
+**Implicit transforms.** Let A be the first transform argument and B the second. Matrix
+rows occupy +04/+08/+0C, +10/+14/+18, +1C/+20/+24; translation is +28/+2C/+30,
+scale +34 and the active-transform byte +01. Initially use B. If A is active and B is
+inactive, use A. If both are active, the X/Z translation is `B.t + B.scale*B.R*A.t`,
+scale is `B.scale*A.scale`, and the two rotation entries needed below are
+`R00=B00*A00+B02*A20+B01*A10` and
+`R20=B20*A00+B22*A20+B21*A10`, with those addition orders
+(`00582614–00582723`). For each translated component, the scaled dot product is
+stored binary32 before adding B's translation. R20 and combined scale are stored
+binary32; R00 remains in x87 until angle extraction. Store X/Z centre, size scale
+`scale*randomSize`, and angle `atan2(−R20,R00)*0.15915493667125702` to binary32
+(`00582723–0058275C`; multiplier bits `3E22F983` at `00B0A210`). Thus angle is in
+**turns**. Identity orientation gives zero; R00=0,R20=−1 gives approximately +0.25.
+Explicit placement bypasses this entire method, including its immediate renderer update.
+
+**Creation and projection.** At initial phase q, creation size is `sizeScale*sizeCurve(q)`
+(external size +10C is used by subsequent placement updates); creation angle is
+`baseAngle+randomRotation*rotationCurve(q)`. The creation argument order is resource or
+texture, pointer to X/Z centre, size, angle. The call selection is:
+
+| Condition, in priority order | Renderer vtable byte offset |
+|---|---:|
+| flags `20` set, regardless of texture override | +1C (resource ID) |
+| flags `20` clear, texture override nonnull | +10 (texture binding) |
+| flags `20` clear, no override | +18 (resource ID) |
+
+Evidence: `0058224B–005822C4`. An integer `FFFFFFFF` result leaves started false and
+skips every remaining configuration call. Missing TerrainView or decal service likewise
+prevents creation; retaining an acquired service is not rolled back on creation failure.
+
+On success the trace is **+38 get projection, +34 set projection, optional +50(handle,1),
++44 opacity, +48 RGB, +4C layer**, then elapsed/started stores. The +38/+34 record is
+seven 32-bit words: +00/+04 preserve the renderer's returned values (initialized zero before
+the get); +08 = `aspectCurve(q)*aspectScale`; +0C/+10 = 1/1 when flags `08` clear,
+otherwise +0C = `mappingScale*description(+64)`, +10 = that unrounded product times
+the stored aspect; +14/+18 copy effect +68/+6C. Each computed record word is stored
+binary32 (`005822CA–005823CF`). The optional +50 call is controlled by flags `02`.
+Calling it an enable request describes the observable boolean; a raster meaning is unmeasured.
+
+**All flag combinations.** The independent decisions above compose: `10` changes placement
+at description assignment, `20` selects creation, `08` changes the two mapping words, `02`
+adds +50, and `40` changes subsequent updates. Bits `01` and `04` have no tested branch in
+these component Start/Update/SetTransforms paths. With `40`, Update sends **only +44** after
+time processing, even for an animated RGB curve; SetTransforms instead performs +38/+34 with
+the size/rotation curves at phase zero when a valid handle exists (`00582762–0058290D`).
+Without `40`, Update sends +34, +44, and +48 only if RGB has more than one element.
+Start always sends RGB, even for a singleton. Projection and opacity setters' results are
+ignored; no retry or rollback is present. Stop's +3C precedes clearing/releasing the service.
+
+**Worked trace (proposed, unexecuted).** Supply successful services, handle 7, X/Z `(10,20)`,
+sizeScale 2, rotation multiplier 1, base angle 0, singleton curves size `[3]`, rotation `[0.25]`,
+aspect `[0.5]`, opacity `[0.75]`, RGB `[(0.25,0.5,1)]`, external factors 1, mappingScale 2,
+description +64=4, +68=0.125,+6C=0.25. For flags 0, Start(0) creates via +18 with
+`(ID,(10,20),6,0.25)`, then +38, +34 record `(returned0,returned1,0.5,1,1,0.125,0.25)`,
++44 `(7,0.75)`, +48 `(7,(0.25,0.5,1))`, +4C `(7,layer)`. Set flags `08` and the
+record's +0C/+10 become 8/4. Add `02` and insert +50 `(7,1)` after +34. Add `20` and
+replace the creation with +1C; supply a texture with `20` clear and use +10 instead.
+Add `40` and Update(0) has only +44; clear it and Update(0) has +34 then +44, with no
++48 for this singleton. The lifetime table supplies the complete Start(0/1/2/3) variations.
+
+**Remaining PT9 observations.** Finite nonempty curves, ordinary normalized phase and successful
+foreign records are the admitted domain. Capture the x87 control word and scalar/RGB argument
+bits at +34/+44/+48 for a two-key halfway sample and just below/at/above each key; also repeat
+with phase below zero, phase beyond the float-index shortcut's range, empty arrays, NaNs and
+infinities to settle exceptional rounding/failure behavior. Record the actual +38 output and
+renderer results under each flag bit, including create failure, to identify raster meanings and
+resource/texture rejection. Record RNG state +00/+04/+08 at `00B22C10` and returned draw doubles
+to establish an executed variance fixture. None of these captures is claimed here; the call
+vectors above are independent test proposals, not game measurements.
 
 ## 16. Dynamic particle system *[compat]*
 
