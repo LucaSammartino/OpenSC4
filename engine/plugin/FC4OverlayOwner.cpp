@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4OverlayOwner.h"
 #include "FC4OverlayBindings.h"
+#include "FC4OverlayRectangles.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Subsystems.h"
@@ -79,7 +80,8 @@ public:
         return n;
     }
     bool Draw(void*) override {
-        // SPEC-GAP: OV17, native rectangle consumers lack argument-order/view-subobject call contracts.
+        // Native Draw stays disabled until production frame services and
+        // pre-Init terrain-view routing are installed. This is not a frame cast.
         return false;
     }
     bool DoMessage(cIGZMessage2* message) override {
@@ -206,6 +208,16 @@ void OverlayOwnerGameCheck() {
     FC4_ACQUIRED(owner, "GetClassObject");
     uint32_t checks = 0, differences = 0;
     auto check = [&](bool exact) { ++checks; if (!exact) ++differences; };
+    const auto consumers = overlay_rectangles::Resolve();
+    uint32_t targets = 0;
+    for (uint32_t dynamic = 0; dynamic != 2; ++dynamic) {
+        targets += consumers.land[dynamic] != nullptr;
+        targets += consumers.extension[dynamic] != nullptr;
+        targets += consumers.water[dynamic] != nullptr;
+        targets += consumers.shadow[dynamic] != nullptr;
+    }
+    check(targets == 8);
+    Log("overlays rectangle boundary: targets=%u/8 scope=version-gated-addresses native_interception=0", targets);
     check(!owner->IsInitialized());
     check(owner->Init(64, 64, 16, true, false));
     const uint32_t id = owner->AddDecal(64, 32, 128, 128, 32, 0);

@@ -83,6 +83,43 @@ impl Windows {
         let [r, g, b] = host.native_to_rgb(self.get(w).draw_buffer, color).unwrap_or([0; 3]);
         0xff000000 | u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b)
     }
+    /// Concrete slot 150 (§14.5.1). Destructive replacement, including failure outputs.
+    pub fn create_private_buffer(&mut self, host: &mut impl Host, w: Window, width: i32, height: i32) -> bool {
+        if width <= 0 && height <= 0 {
+            if let Some(old) = self.get_mut(w).private_buffer.take() {
+                host.event(NativeOp::Release(old));
+            }
+            return false;
+        }
+        if let Some(service) = host.acquire_draw_system() {
+            if let Some(old) = self.get_mut(w).private_buffer.take() {
+                host.event(NativeOp::BufferReleaseSurface(old));
+                host.event(NativeOp::Release(old));
+            }
+            let mut out = None;
+            let ok = host.draw_system_create_buffer(service, &mut out, width, height, 1);
+            self.get_mut(w).private_buffer = out;
+            host.event(NativeOp::Release(service));
+            return ok;
+        }
+        if let Some(old) = self.get(w).private_buffer {
+            host.event(NativeOp::BufferReleaseSurface(old));
+        } else if let Some(graphics) = host.graphics_system() {
+            let mut out = None;
+            host.graphics_system_create_buffer(graphics, &mut out);
+            self.get_mut(w).private_buffer = out;
+        }
+        let Some(buffer) = self.get(w).private_buffer else {
+            return false;
+        };
+        if host.init_buffer(buffer, width, height, 1, 0) {
+            true
+        } else {
+            host.event(NativeOp::Release(buffer));
+            self.get_mut(w).private_buffer = None;
+            false
+        }
+    }
     pub fn private_buffer(&mut self, host: &mut impl Host, w: Window, on: bool) -> bool {
         let mut ok = true;
         if on && self.ancestors_visible(w) {
@@ -90,10 +127,7 @@ impl Windows {
             let r = self.get(w).area;
             let current_size = self.get(w).private_buffer.map(|b| host.buffer_info(b).area);
             if current_size.map(|r| (r.width(), r.height())) != Some((r.width(), r.height())) {
-                // Concrete slot 150 owns buffer allocation/replacement; its internals
-                // are explicitly unsettled in §12. Host returns the resulting buffer.
-                if let Some(buffer) = host.create_private_buffer(w, r.width(), r.height()) {
-                    self.get_mut(w).private_buffer = Some(buffer);
+                if self.create_private_buffer(host, w, r.width(), r.height()) {
                     if self.get(w).flag(0x20000) {
                         self.set_transparency(host, w, true);
                     }
@@ -103,14 +137,14 @@ impl Windows {
                 }
             }
         } else if let Some(buffer) = self.get(w).private_buffer {
-            let content = host.buffer_info(buffer).content;
-            let fade = content && self.get(w).flag(0x20) && self.get(w).flag(0x400000);
+            let initialized = host.buffer_info(buffer).initialized;
+            let fade = initialized && self.get(w).flag(0x20) && self.get(w).flag(0x400000);
             if fade {
                 self.get_mut(w).flags &= !0x400000;
             }
             if fade && !self.get(w).params.contains_key(&FADE_TEMP) && self.ancestors_visible(w) {
                 self.steal_fade_buffer(host, w, buffer);
-            } else if content {
+            } else if initialized {
                 host.event(NativeOp::BufferReleaseSurface(buffer));
             }
             host.event(NativeOp::Release(buffer));
@@ -144,8 +178,7 @@ impl Windows {
     }
     fn steal_fade_buffer(&mut self, host: &mut impl Host, src: Window, buffer: Object) -> Window {
         let s = self.get(src).clone();
-        let tmp = self.create(host, s.manager, s.keyboard);
-        self.set_param(host, tmp, FADE_TEMP, Some(Param::Integer(1)));
+        let tmp = self.create_fade(host, s.manager, s.keyboard);
         self.set_flag(host, tmp, 4, true);
         if let Some(p) = s.parent {
             self.child_add(host, p, tmp);
@@ -244,8 +277,9 @@ impl Windows {
         if let Some(c) = s.draw_context {
             host.event(NativeOp::AddRef(c));
             host.event(NativeOp::Context(c, 3, vec![]));
-            host.event(NativeOp::ContextRect(c, 8, s.draw_origin));
-            host.event(NativeOp::ContextRect(c, 6, s.draw_origin));
+            let origin = s.draw_origin.expect("SetAreaToDrawTo precedes painting (§2)");
+            host.event(NativeOp::ContextRect(c, 8, origin));
+            host.event(NativeOp::ContextRect(c, 6, origin));
             for slot in [4, 15, 10, 19] {
                 host.event(NativeOp::Context(c, slot, vec![]));
             }

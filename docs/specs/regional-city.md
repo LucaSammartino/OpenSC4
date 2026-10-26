@@ -168,8 +168,12 @@ demanded, exported, imported, cost per unit. The getters and setters of slots 54
 commodity, **creating a zero entry** for an unknown one *[quirk]*; every setter stores 0 for a negative value
 (a NaN is stored).
 
-`GetCommodityBalance(c)` (slot 64) is `(produced + imported) − (demanded + exported)`, computed in double precision
-through the slots (produced, then imported, then demanded, then exported).
+`GetCommodityBalance(c)` (slot 64) is `(produced + imported) − (demanded + exported)`, through the slots
+(produced, then imported, then demanded, then exported). Fields and the first sum's spill are **double**;
+the three arithmetic operations use the calling thread's live x87 precision, ordinarily 24-bit, but 53-bit
+during re-entry inside a Lua guard. See [foundations §18.4](foundations.md#184-lua-to-native-re-entry-uses-the-live-precision-vc29-pc)
+for the instruction addresses and a case yielding 0 at PC 24 and 1 at PC 53 with identical stored inputs
+(VC29-PC). Double storage alone does not select 53-bit arithmetic.
 
 `UpdateImportExport` and the deal lists are foundations.md §11.3; neighbors.md §8.2 sets budget, income and the
 commodities through these setters.

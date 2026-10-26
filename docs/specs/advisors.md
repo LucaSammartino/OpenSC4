@@ -195,7 +195,7 @@ reach Lua as userdata of the advice-subject tag (§8.1).
 | own `cRZRandom` | seeded with `0xFFFFFFFF` (wall clock) in the constructor | no | §9 |
 | Lua context (`cISCLua`) | the app's Lua (`SL` global) | no | set in Init |
 | two Lua userdata tags | — | no | §8.1 |
-| lastDay | 0 | no | last simulation day number handled by the ticker |
+| lastDay | 0 | no | signed int32 at primary `cISC4AdvisorSystem` +`0x48` (message-target-2 pointer +`0x44`); last simulation day number handled by the ticker; capture boundary: mysims.md §3.1.1 |
 | idle timer (`cRZTimer`) | — | no | 500 ms paused-update timer |
 | loadedFromSave | false | no | true after a successful `Read`; cleared on PostCityInit |
 | initialised | false | no | |

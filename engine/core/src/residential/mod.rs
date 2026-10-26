@@ -519,6 +519,11 @@ pub mod group {
 /// [`EducationHealthHost`]. Objects are host tokens. Re-entrancy: callbacks
 /// must not call back into the residential simulator.
 pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f32> + EducationHealthHost {
+    /// Live arithmetic context, not saved state (foundations §18.4).
+    fn invocation_precision(&self) -> crate::x87::Precision {
+        crate::x87::Precision::Bits24
+    }
+
     // ---- lifecycle (§4.1, §4.2) ----
     /// `Init` step 1: take and `AddRef` the city, the building development
     /// simulator and the occupant manager, each only if not already held.

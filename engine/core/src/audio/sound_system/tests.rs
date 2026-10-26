@@ -262,7 +262,7 @@ impl EventHandler for Handler {
 fn ss_v15_event_chain_consumes() {
     let trace = Arc::new(Mutex::new(Vec::new()));
     let mut system = SndSys::default();
-    for (name, answer) in [("A", false), ("B", true), ("C", true)] {
+    for (name, answer) in [("C", true), ("B", true), ("A", false)] {
         system.register_handler(Arc::new(Handler {
             name,
             answer,
@@ -378,14 +378,15 @@ impl PlaylistInput for Text {
 fn ss_v21_extended_eof_between_records_succeeds() {
     let mut list = PlayList::default();
     assert_eq!(
-        list.parse_converted("C:/Music", &mut Text::from("#EXTM3U\n#EXTINF:12,Title\n song.mp3 \n")),
+        list.parse_converted("C:/Music/", &mut Text::from("#EXTM3U\n#EXTINF:12,Title\n song.mp3 \n")),
         Ok(true)
     );
     assert_eq!(
         list.entries,
         [Entry {
+            title: "Title".into(),
             path: "C:/Music/song.mp3".into(),
-            decimal_metadata: Some(12)
+            duration: 12
         }]
     );
 }
@@ -402,7 +403,7 @@ fn ss_v22_extended_bad_record_keeps_previous_entries() {
 fn ss_v23_plain_keeps_first_line() {
     let mut list = PlayList::default();
     assert_eq!(
-        list.parse_converted("C:/Music", &mut Text::from(" first.mp3 ")),
+        list.parse_converted("C:/Music/", &mut Text::from(" first.mp3 ")),
         Ok(true)
     );
     assert_eq!(list.entries[0].path, "C:/Music/first.mp3");
@@ -516,19 +517,15 @@ fn track_pause_properties_and_payload_notifications() {
     assert_eq!(track.volume(), Some(88));
     track.executing = false;
     assert_eq!(track.play_one(0xFFFFFFFF), Err(Unsupported("SS1")));
-    assert_eq!(
-        track.property_notifications,
-        PAYLOAD_PROPERTIES.into_iter().zip([-1, 0, 0, 0]).collect::<Vec<_>>()
-    );
+    assert!(track.property_notifications.is_empty());
+    assert_eq!(track.properties[&PAYLOAD_PROPERTIES[0]], -1);
 }
 #[test]
 fn channel_creation_requires_source_qi_and_selects_3d() {
     let child: SoundRef = Arc::new(Child::default());
-    let manager = SndMgr {
-        default_2d: Some(21),
-        default_3d: Some(31),
-        ..Default::default()
-    };
+    let mut manager = SndMgr::default();
+    manager.set_default_2d(21);
+    manager.set_default_3d(31);
     let mut channel = HitChannel::new(Arc::new(manager));
     let mut backend = Backend {
         child: Some(child),
@@ -548,7 +545,7 @@ fn channel_creation_requires_source_qi_and_selects_3d() {
     let mut empty = channel_with(None);
     assert_eq!(empty.load_after_patch(Ok(()), &mut backend), Ok(true));
     assert_eq!(empty.note_on_after_patch(0, Ok(()), &mut backend), Ok(true));
-    assert_eq!(empty.note_on(0, &mut backend), Err(Unsupported("SS3")));
+    assert_eq!(empty.note_on(0, &mut backend), Ok(false));
 }
 
 #[derive(Default)]
@@ -600,18 +597,18 @@ impl IniServices for IniHost {
 }
 #[test]
 fn ini_delegation_defaults_and_missing_services() {
-    let mut ini = HitIniFile { ini: Ini::default() };
+    let mut ini = HitIniFile::new(Ini::default());
     for (section, key, value) in [
         ("Config", "DefaultSndDataSourcePlayer2DClassId", "12"),
         ("Config", "DefaultSndDataSourcePlayer3DClassId", "13"),
-        ("SndFileDefaultDataSourceClassIds", "xa", "14"),
+        ("SndFileDefaultDataSourceClassIds", "1", "14,xa"),
     ] {
         ini.ini.entries.insert((section.into(), key.into()), value.into());
     }
     ini.set_filename("Hit.ini");
     assert_eq!(ini.ini.filename, "Hit.ini");
     assert_eq!(ini.enum_default_entries(&mut IniHost::default()), Ok(()));
-    assert_eq!(ini.ini.requests, 0);
+    assert!(ini.ini.requests > 0);
     let mut host = IniHost {
         manager: true,
         sound: true,
@@ -623,7 +620,7 @@ fn ini_delegation_defaults_and_missing_services() {
     assert_eq!(ini.read_entry("Config", "missing"), None);
     assert_eq!(
         ini.enum_entries("SndFileDefaultDataSourceClassIds"),
-        [("xa".into(), "14".into())]
+        [("1".into(), "14,xa".into())]
     );
 }
 
@@ -633,10 +630,14 @@ fn score() -> ScoreData {
             id: 17,
             volume_word: 513,
             fade_out: 0,
+            ..Default::default()
         }],
         volume_word: 1024,
         starting_coordinates: [2, 3],
         settings: [(9, 8)].into_iter().collect(),
+        rows: 1,
+        columns: 1,
+        ..Default::default()
     }
 }
 #[test]
@@ -649,7 +650,7 @@ fn fresh_initialization_play_and_lock_contention() {
     assert!(player.play(Some(&mut scheduler)));
     assert!(player.play(Some(&mut scheduler)));
     assert_eq!(scheduler.0, [250]);
-    assert_eq!(player.coordinates, [2, 3]);
+    assert_eq!(player.coordinates, [0, 0]);
     assert!(player.timer_running);
     assert!(player.set_zoom(9));
     assert!(player.set_play_percent(25));
@@ -698,8 +699,9 @@ fn cell_stop_fade_poll_and_scaled_forwarding() {
     assert_eq!(host.unregisters, 2);
     cell.update_source(false).unwrap();
     assert_eq!(cell.state, 0);
-    assert!(!cell.set_volume(1024, 513, 1024, 1024, 1024));
-    assert_eq!(child.calls(), ["volume:513"]);
+    assert!(cell.source.is_none());
+    assert!(cell.set_volume(1024, 513, 1024, 1024, 1024));
+    assert!(child.calls().is_empty());
     cell.state = 2;
     cell.set_cell(CellData::default());
     cell.stop(&mut host).unwrap();
@@ -707,7 +709,7 @@ fn cell_stop_fade_poll_and_scaled_forwarding() {
     assert!(cell.set_volume(17, 1, 1, 1, 1));
     cell.state = 2;
     cell.external_controller = true;
-    assert_eq!(cell.stop(&mut host), Err(Unsupported("SS7")));
+    assert_eq!(cell.stop(&mut host), Ok(()));
     assert_eq!(cell.state, 2);
     // Overflow is low-32-bit signed multiplication, with no saturation/clamp.
     cell.local_volume = 1024;
@@ -860,12 +862,22 @@ impl DirectorHost for Factory {
     fn register_handler(&mut self, _: &ForeignRef, _: ForeignRef) {
         self.handlers += 1;
     }
-    fn panic(&mut self, _: &ForeignRef) {
+    fn disable_updates(&mut self, _: &ForeignRef) {
         self.panics += 1;
+    }
+    fn sound_system_service(&mut self) -> Option<ForeignRef> {
+        if self.null {
+            None
+        } else {
+            Some(Arc::new(0u32))
+        }
+    }
+    fn acquire_property_cache(&mut self, _: &ForeignRef) -> Option<Arc<dyn PropertyCache>> {
+        None
     }
 }
 #[test]
-fn director_factories_null_paths_and_panic() {
+fn director_factories_null_paths_and_disable_updates() {
     let mut host = Factory::default();
     let mut director = SoundDirector::construct(&mut host);
     assert_eq!(host.classes, SOUND_CLASSES);
@@ -881,14 +893,17 @@ fn director_factories_null_paths_and_panic() {
     assert_eq!((host.services, host.handlers), (2, 1));
     assert!(director.pre_app_shutdown(&mut host));
     assert_eq!(host.panics, 1);
-    assert_eq!(director.post_app_init(), Err(Unsupported("SS10")));
+    assert_eq!(
+        director.post_app_init(&mut host),
+        Err(NativeFault::MissingPropertyCache)
+    );
     let mut null = Factory {
         null: true,
         ..Default::default()
     };
     let mut director = SoundDirector::construct(&mut null);
     assert!(director.on_start(&mut null));
-    assert_eq!(director.post_app_init(), Ok(false));
+    assert_eq!(director.post_app_init(&mut null), Ok(false));
     assert!(director.pre_app_shutdown(&mut null));
     assert_eq!(null.panics, 0);
     let mut mac = Factory::default();
@@ -899,20 +914,17 @@ fn director_factories_null_paths_and_panic() {
     assert_eq!(mac.services, 2);
 }
 #[test]
-fn playlist_absolute_paths_and_unsettled_formats() {
+fn playlist_absolute_paths_and_incomplete_pls() {
     assert!(PlayList::is_drive_spec("Z:track"));
     assert_eq!(PlayList::make_absolute_path("C:/base", "D:/song"), Ok("D:/song".into()));
     assert_eq!(
         PlayList::make_absolute_path("C:\\base", "song"),
-        Ok("C:\\base\\song".into())
+        Ok("C:\\basesong".into())
     );
-    assert_eq!(
-        PlayList::make_absolute_path("C:/base", "../song"),
-        Err(Unsupported("SS11"))
-    );
+    assert_eq!(PlayList::make_absolute_path("C:/base", "../song"), Ok("".into()));
     assert_eq!(
         PlayList::default().parse_converted("", &mut Text::from("[playlist]\nFile1=a")),
-        Err(Unsupported("SS11"))
+        Ok(false)
     );
 }
 
@@ -1055,12 +1067,12 @@ fn target_removal_is_deferred_through_nested_enumeration() {
     system.register_classified_target(target.clone(), TargetClass::Ordinary);
     system.register_classified_target(target.clone(), TargetClass::Slow);
     system.enumerate_targets(TargetClass::Ordinary);
-    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
     // Retained only by this test and the removing target, not by either list/queue.
     assert_eq!(Arc::strong_count(&target), 2);
     system.enumerate_targets(TargetClass::Slow);
     system.enumerate_targets(TargetClass::Ordinary);
-    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 struct PayloadHandler;
 impl EventHandler for PayloadHandler {

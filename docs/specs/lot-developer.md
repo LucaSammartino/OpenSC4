@@ -26,7 +26,9 @@ Tags:
 - `advisors.md`: the `LotDeveloperNotification` message `0x4C04DE69`.
 
 **Notation**
-- `r24(·)` rounds to float32 (foundations §18). Every x87 operation below is one `r24`.
+- `r24(·)` describes the ordinary 24-bit x87 context (foundations §18.3), not an implicit float store.
+  Native re-entry uses live PC; at PC 53 preserve the original float stores and use 53-bit arithmetic between
+  them ([foundations §18.4](foundations.md#184-lua-to-native-re-entry-uses-the-live-precision-vc29-pc), VC29-PC).
 - `trunc(·)` is the CRT `_ftol` (`0x009EEF04`, mislabelled `_lua_gettop` in the symbol port): int64 truncation toward
   zero; callers keep the low 32 bits unless stated. NaN gives 0 (foundations §18.1).
 - `Uniform(n)` is `cRZRandom::RandomUint32Uniform(n)` (foundations §6.1): one `NextRaw` step, `(raw · n) >> 32`;
@@ -1884,6 +1886,11 @@ return r24(r24(hi − lo) / d)
 ```
 The scale steps are applied **in cascade** to the running value *[quirk]*. Distances are in vertex units, altitudes
 in metres.
+
+The `r24` formulas above assume ordinary PC 24. In a callback entered under Lua's PC 53, the distance helper,
+cascade products, rise and division all use that live precision without an intervening float spill. Stored
+heights/coordinates and loaded scale constants remain floats. Foundations §18.4 gives the exact boundaries
+and a (3,4) distance, rise-13 case whose final float slopes differ by one ulp (VC29-PC).
 
 **`GetLotDevelopmentCost(rect)`** (slot 32, `0x006C5F80`):
 `w := x2 − x1 + 1`, `h := z2 − z1 + 1`, `s := r24(GetAreaSlope(rect, true) · 0.0625)`,

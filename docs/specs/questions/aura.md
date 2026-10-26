@@ -11,27 +11,16 @@
   moves, run one state-3 call of ours? [yes: verify-regress4 does this (the core's 3 -> 3 step); please confirm the
   cursor offset and that a delivery which leaves state and cursor unchanged never consumes a department]
 
-- **AU-GC29-1 - first-cycle Lua occupant cones (sections 5.2, 7, 14.3).**
-  With the foundations section 18.2 simulation precision restoration active,
-  `build-runs/suite/growth-cities29-4/lua-lots-grown.log:3088` still differs in
-  482 park-map tracts (max 100); landmark map is exact. The qualified variant
-  at :3088 differs in 759 park and 233 landmark tracts (max 300/139).
-  State-5 work is exact in both; the first work difference is state 6. Both
-  follow states 1-17, all department-cursor moves and posted occupant messages;
-  subsequent cycles are exact. Demand, pollution, tract and neighbours are
-  now exact in both runs. No tolerance, field or case was excluded.
-  Does section 14.3's separate message-server subscriber observe the same
-  preview-marker presence, occupant position, lot association and effect
-  properties as the original aura recipient during Lua plop/demolish calls?
-  Please specify a supported boundary for capturing those inputs at the
-  original recipient, and whether any cone path bypasses posted messages.
-  Next diagnostic: compare original raw-park (+0x54), department and building
-  effect (+0x50) grids against the followed copies before states 2/3/13;
-  this will separate message-input drift from map-publication timing.
-  Blocks aura in lua-lots-empty, lua-lots-grown and lua-lots-grown-qualified;
-  reach29-views is the same class of case and still needs a corrected rerun.
-
-  Follow-up (`growth-cities29-5`): lua-lots-empty and reach29-views now each
-  compare 2/2 aura cycles exactly. Both grown Lua variants remain 2/3 exact;
-  only their first cycles differ. The remaining block is those two grown
-  scenarios; the empty Lua and reach29-views cases no longer reproduce.
+- **AU-GC29-2 — original state-5 lot inputs across timed slices (2026-10-26, growth-cities29):**
+  After implementing §14.3.1's native cone-helper/service capture, the permanent park
+  and landmark maps are exact in `growth-cities29-12/lua-lots-grown.log:3093`, but
+  93 work cells first differ after state 5; eight base/aura tracts then differ
+  (maximum 225/97). The run is clean, ref0 and reaches its end date. Please specify
+  a native per-lot capture boundary and exact call/argument layouts for the lot
+  enumeration and the state-5 population/wealth/building inputs, including skipped
+  or removed lots, so the shadow can replay the original read sequence independently
+  of its own timed scan. Which live lot/grid results must be retained before the
+  original advances its cursor? This blocks the grown unqualified Lua work/base case,
+  not the permanent cone maps; both grown variants were exact in tag 11, and the
+  qualified variant is exact in tag 12. Evidence root:
+  `C:/Users/tlori/FreeCity4/build-runs/suite/`. No output grid is used to hide a difference.

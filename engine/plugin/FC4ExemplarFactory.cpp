@@ -44,6 +44,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <map>
 #include <utility>
 #include <string>
@@ -364,7 +365,7 @@ public:
     bool Pop_Front(uint32_t riid, void** ppv) override {
         if (!Peek_Front(riid, ppv)) return false;
         items_.front()->Release();
-        items_.erase(items_.begin());
+        items_.pop_front();
         return true;
     }
     bool Pop_Back(uint32_t riid, void** ppv) override {
@@ -374,7 +375,7 @@ public:
         return true;
     }
     bool Clear() override {
-        std::vector<cIGZUnknown*> old;
+        std::deque<cIGZUnknown*> old;
         old.swap(items_);
         for (auto* e : old) e->Release();
         return true;
@@ -403,7 +404,7 @@ private:
     bool Insert(cIGZUnknown* e, bool front) {
         if (e == nullptr) return false;
         e->AddRef();
-        if (front) items_.insert(items_.begin(), e);
+        if (front) items_.push_front(e);
         else items_.push_back(e);
         return true;
     }
@@ -427,12 +428,12 @@ private:
     bool Visit(cIGZUnknown& visitor, cIGZUnknown* a, uint32_t b) {
         using Fn = bool(__thiscall*)(void*, cIGZUnknown*, cIGZUnknown*, uint32_t);
         Fn fn = (*reinterpret_cast<Fn**>(&visitor))[3];
-        const std::vector<cIGZUnknown*> copy = items_;
+        const std::vector<cIGZUnknown*> copy(items_.begin(), items_.end());
         for (auto* e : copy) fn(&visitor, e, a, b);
         return true;
     }
     uint32_t refs_ = 0;  // §8.2: the constructor leaves the count at 0
-    std::vector<cIGZUnknown*> items_;
+    std::deque<cIGZUnknown*> items_;
 };
 
 void Unsupported(const char* what) {
@@ -530,13 +531,18 @@ public:
     // SPEC-GAP: value-property allocation is deferred until first access.
     fc4_exrec* pendingRecord_ = nullptr;
     std::vector<std::pair<uint32_t, size_t>> pending_;
+    // Once the record is materialized, getters need only the holder's lock.
+    // Getters also run off the main thread (lessons 5.1).
+    std::atomic<bool> hasPending_{false};
 
     void ClearPending() {
+        hasPending_.store(false, std::memory_order_release);
         pending_.clear();
         fc4_exrec_destroy(pendingRecord_);
         pendingRecord_ = nullptr;
     }
     void Materialize(uint32_t id) {
+        if (!hasPending_.load(std::memory_order_acquire)) return;
         std::lock_guard<std::recursive_mutex> g(lock_);
         auto it = std::lower_bound(pending_.begin(), pending_.end(), id,
             [](const auto& p, uint32_t key) { return p.first < key; });
@@ -555,6 +561,7 @@ public:
         g_materializeTicks += ReadClock() - start;
     }
     void MaterializeAll() {
+        if (!hasPending_.load(std::memory_order_acquire)) return;
         std::lock_guard<std::recursive_mutex> g(lock_);
         while (!pending_.empty()) Materialize(pending_.back().first);
     }
@@ -1070,8 +1077,7 @@ bool ExHolder::GetPropertyList(cIGZUnknownList** list) const {
         o_->MaterializeAll();
         o_->eff_.EnumProperties([](cISCProperty* p, void* d) { static_cast<std::vector<cISCProperty*>*>(d)->push_back(p); },
                                 &props);
-        std::sort(props.begin(), props.end(),
-                  [](cISCProperty* a, cISCProperty* b) { return a->GetPropertyID() < b->GetPropertyID(); });
+        // The holder enumerates its map in ascending unsigned ID order.
         auto* l = new cFC4UnknownList();
         for (auto* p : props) l->Push_Front(p);
         l->AddRef();
@@ -1176,6 +1182,7 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
         Mirror(id);
     }
     if (pending_.empty()) ClearPending();
+    else hasPending_.store(true, std::memory_order_release);
     return true;
 }
 
@@ -1899,6 +1906,7 @@ void LazyContractTest() {
     unsigned passed = 0;
     if (e->pendingRecord_ != nullptr) {
         e->pending_ = {{0x10, 0}, {0x20, 1}, {0x30, 2}, {0x50, 3}};
+        e->hasPending_.store(true, std::memory_order_release);
         ExHolder& h = e->holder_;
         cISCProperty* first = h.GetProperty(0x10);
         passed += first != nullptr && e->own_.Count() == 1;
@@ -1920,6 +1928,44 @@ void LazyContractTest() {
     FC4_RELEASE_CREATED(outer);
 }
 
+// data-formats 4.4 / foundations 10.2: effective lists retain the actual
+// property, variant and array storage, including an inherited snapshot.
+void IdentityContractTest() {
+    auto* parent = new cFC4ResCohort();
+    auto* child = new cFC4ResExemplar();
+    auto* po = static_cast<cISCResExemplarCohort*>(parent);
+    auto* co = static_cast<cISCResExemplar*>(child);
+    FC4_ADDREF(po);
+    FC4_ADDREF(co);
+    auto* property = new cFC4Property(0x100);
+    FC4_ADDREF(property);
+    uint32_t initial[] = {7, 11, 13};
+    property->Value().SetRefUint32(initial, 3);
+    parent->holder_.AddPropertyRecord(property, false);
+    child->SetParent(po, false);
+    cISCProperty* inherited = child->holder_.GetProperty(0x100);
+    auto* value = fc4::AsGame(inherited->GetPropertyValue());
+    uint32_t* data = value->RefUint32();
+    unsigned passed = inherited == property && data != initial && data[1] == 11;
+    data[1] = 17;
+    passed += property->Value().RefUint32()[1] == 17;
+    parent->holder_.RemoveProperty(0x100, false);
+    passed += child->holder_.GetProperty(0x100) == inherited && value->RefUint32() == data;
+    child->holder_.AddPropertyRecord(inherited, false);
+    child->SetParent(nullptr, false);
+    passed += child->holder_.GetProperty(0x100) == inherited && value->RefUint32() == data && data[1] == 17;
+    cIGZUnknownList* list = nullptr;
+    child->holder_.GetPropertyList(&list);
+    void* popped = nullptr;
+    passed += list != nullptr && list->Pop_Front(kIIDProperty, &popped) && popped == inherited;
+    if (popped != nullptr) static_cast<cISCProperty*>(popped)->Release();
+    if (list != nullptr) list->Release();
+    Log("formats identity contract: %u/5 %s", passed, passed == 5 ? "MATCH" : "DIFF");
+    FC4_RELEASE(property);
+    FC4_RELEASE_CREATED(co);
+    FC4_RELEASE_CREATED(po);
+}
+
 void ContractTest() {
     static const char* kNames[8] = {"list_order",    "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild",
                                     "add_slots_b",   "rebuild_dest_a",        "serialwrite_d",  "tag_text_ef"};
@@ -1930,6 +1976,7 @@ void ContractTest() {
     RunSide2(g_original[0], g_original[1], nat2);
     RunSide2(g_ours[0], g_ours[1], ours2);
     LazyContractTest();
+    IdentityContractTest();
     t_fixture = false;
     int match = 0;
     for (int i = 0; i < 8; ++i) {

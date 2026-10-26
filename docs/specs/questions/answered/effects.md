@@ -429,3 +429,46 @@ corrected: the visual map ends on the exact `(end,FFFFFFFF)` name/index pair.
   flag bytes, not zero offsets. Dot products sum z,x,y with caller x87 precision;
   brush and game have the separately documented binary32 spill boundaries.
   Six proposed conformance vectors include cancellation and signed-zero cases.
+
+<!-- from: replace-effectsres30 (2026-10-26); imported by re-ef31 -->
+- ~~**EF27 - Typed visual-name dictionary insertion boundary (replace-effectsres30):**~~
+
+~~EF26 is implemented for the renderer codecs. Nonempty resource Read now reaches
+the visual name/index map, whose retained layout and traversal are specified in
+effects.md 18.7.2 and whose insertion/terminator behavior is in 18.9.6. The current
+adapter refuses the first nonterminator pair instead of guessing a native call;
+this prevents replacement acceptance for the shipped directory.
+Reproduced with the native manager in `build-runs/game-results/effectsres30-codecs-on1.log`
+in the main checkout, line 166: all description sections were traversed before
+the explicit EF27 refusal; the short run's clean verdict is not payload credit.~~
+
+~~Please specify the independent typed native dictionary-insertion dependency
+used here (not native resource Read): address, receiver, ordered arguments,
+hidden result storage if any, stack cleanup, return channel, key/value layout,
+copy/allocator ownership, duplicate-key behavior, and any spelling normalization.
+The ABI inventory has a string-keyed insert_unique at 0051FDC0 with two stack
+words and void return, but does not identify those words or establish that this
+is the resource's operation. The published string-key lookup cannot establish
+insertion's typed arguments. Alternatively specify the complete string hash,
+bucket growth and chain insertion contract for a compatible independent insert.~~
+
+~~Worked case requested: retain an old entry, read two entries with the same mixed
+case spelling and different indices, then the exact (end,FFFFFFFF) terminator;
+state the resulting nodes/indices/spelling and writer traversal. No helper call
+or hash algorithm has been guessed. effectsres remains default-off and not ready.~~
+
+**ANSWERED 2026-10-26 (re-ef31):** DIFFERS — effects.md §18.9.7: the resource
+calls bucket growth `00587010` then duplicate-preserving insertion `00589E80`,
+not unique insertion `0051FDC0`. Both use dictionary H = C+4 = resource R+8 in
+ECX. Growth takes count+1 by value, callee pop 4; insertion takes an 8-byte
+caller result pointer then the borrowed 16-byte string/index pair pointer,
+callee pop 8, with EAX equal to that result pointer. Result words are new node
+and H. Nodes/key bytes are independently allocated/copied; the numeric index
+is unowned. Keys remain exact counted bytes without normalization. New equal
+keys link immediately after the first equal node; old nodes/indices survive.
+Signed-byte multiply-by-5 hash, unsigned modulus, full prime growth table and
+rehash order are also specified. EF27-C1 gives the requested retained-old-entry,
+two mixed-case duplicates, terminator and writer traversal; C2–C5 cover typed
+ABI/copy ownership, third duplicate, byte-string hash and growth reversal.
+All are static predictions; no runtime observation remains required for this
+boundary, and no replacement acceptance or game payload credit is claimed.

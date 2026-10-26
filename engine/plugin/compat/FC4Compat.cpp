@@ -83,6 +83,17 @@ const ExecutableVersion kVersions[] = {
             0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
             0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
             0x00649BA0,  // native pole GetAttachmentPoints (network-occupants.md §4.6.3)
+            0x0075C420,  // native terrain view Init (terrain.md §15.5.4)
+            0x007560F0,  // native terrain view Shutdown (terrain-view.md §9.3)
+            // Terrain-view rectangle consumers (overlay-manager.md section 4.6.1).
+            0x007541C0,  // static land, rectangle value then context
+            0x007543C0,  // dynamic land
+            0x007545C0,  // static extension land, context/extension/rectangle value
+            0x00754910,  // dynamic extension land
+            0x00755560,  // static water, rectangle value then context
+            0x00755700,  // dynamic water
+            0x00754C60,  // static shadow, rectangle pointer then context
+            0x00754F10,  // dynamic shadow,
             0x0058C580,  // collection constructor (effects.md 18.7.2)
             0x0058D0E0,  // collection publication (effects.md 18.7.3)
             0x005B1660,  // EffectsParticleConstruct (effects.md 18.8-18.10; effects-owners.md 5)
@@ -105,7 +116,8 @@ const ExecutableVersion kVersions[] = {
             0x005ABF50,  // EffectsVisualRead (effects.md 18.8-18.10; effects-owners.md 5)
             0x005AB590,  // EffectsVisualWrite (effects.md 18.8-18.10; effects-owners.md 5)
             0x005B1C80,  // EffectsParticleDrop (effects.md 18.8-18.10; effects-owners.md 5)
-            0x00583700,  // EffectsDynamicDestroy (effects.md 18.8-18.10; effects-owners.md 5)
+            0x00583700,  // EffectsDynamicDestroy (effects.md 18.8-18.10; effects-owners.md 5),
+            0x0074FE40,  // terrain StaticInit (terrain.md section 15.5.12.2)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -556,6 +568,11 @@ uintptr_t DirectCall(Direct which) {
                                          "placeable pool allocate", "placeable constructor",
                                          "texture binding AddRef", "texture binding Release",
                                          "pole GetAttachmentPoints",
+                                         "terrain view Init", "terrain view Shutdown",
+                                         "overlay land rectangle", "overlay dynamic land rectangle",
+                                         "overlay extension land rectangle", "overlay dynamic extension land rectangle",
+                                         "overlay water rectangle", "overlay dynamic water rectangle",
+                                         "overlay shadow rectangle", "overlay dynamic shadow rectangle",
                                          "effects collection construct", "effects collection publish",
                                          "EffectsParticleConstruct",
                                          "EffectsDecalConstruct",
@@ -578,7 +595,7 @@ uintptr_t DirectCall(Direct which) {
                                          "EffectsVisualWrite",
                                          "EffectsParticleDrop",
                                          "EffectsDynamicDestroy",
-                                         };
+                                         "terrain StaticInit"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
@@ -1022,6 +1039,46 @@ bool FeatureManagerSupported(const void* object) {
         if (entries[i] != slots[i] || !CheckCode("feature manager slot", slots[i], v->imageBase)) return false;
     const int32_t count = static_cast<const int32_t*>(object)[2];
     return count > 0 && count < 0x7ffffff0;
+}
+
+bool DrawStreamTables(void*** context, void*** tree, void*** list) {
+    const auto* version = IdentifiedVersion();
+    if (version != &kVersions[0]) return false;
+    const uintptr_t tables[] = {0x00AC16C8, 0x00AE2FE0, 0x00AE1780};
+    const unsigned slots[] = {35, 88, 88};
+    const uintptr_t expected[] = {0x0082C0C0, 0x009D37C6, 0x009CA19A};
+    for (unsigned i = 0; i < 3; ++i) {
+        MEMORY_BASIC_INFORMATION memory{};
+        const auto* table = reinterpret_cast<const uintptr_t*>(tables[i]);
+        if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) ||
+            memory.State != MEM_COMMIT || memory.Type != MEM_IMAGE ||
+            reinterpret_cast<uintptr_t>(memory.AllocationBase) != version->imageBase ||
+            memory.Protect != PAGE_READONLY ||
+            tables[i] + (slots[i] + 1) * sizeof(uintptr_t) > reinterpret_cast<uintptr_t>(memory.BaseAddress) + memory.RegionSize ||
+            table[slots[i]] != expected[i] || !CheckCode("drawstream entry", expected[i], version->imageBase)) return false;
+    }
+    *context = reinterpret_cast<void**>(tables[0]);
+    *tree = reinterpret_cast<void**>(tables[1]);
+    *list = reinterpret_cast<void**>(tables[2]);
+    return true;
+}
+uintptr_t MapViewDrawStreamEntry(unsigned which) {
+    const auto* version = IdentifiedVersion();
+    // _clock's cdecl/no-body-arguments/EAX transport is in docs/abi/functions.tsv.
+    constexpr uintptr_t sites[] = {0x007A2F60, 0x0079ED90, 0x0079F230, 0x009F361F, 0x0099A276};
+    if (version != &kVersions[0] || which >= 5 || !CheckCode("MapView drawstream", sites[which], version->imageBase)) return 0;
+    return sites[which];
+}
+void** MapViewDrawStreamTable(unsigned which) {
+    const auto* version = IdentifiedVersion();
+    constexpr uintptr_t sites[] = {0x00AB838C, 0x00AB8140, 0x00AB7EE0, 0x00ABAB60};
+    if (version != &kVersions[0] || which >= 4) return nullptr;
+    MEMORY_BASIC_INFORMATION memory{};
+    auto** table = reinterpret_cast<void**>(sites[which]);
+    if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) || memory.State != MEM_COMMIT ||
+        memory.Type != MEM_IMAGE || reinterpret_cast<uintptr_t>(memory.AllocationBase) != version->imageBase ||
+        memory.Protect != PAGE_READONLY) return nullptr;
+    return table;
 }
 }  // namespace compat
 }  // namespace fc4

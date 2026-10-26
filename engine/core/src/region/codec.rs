@@ -202,7 +202,7 @@ impl Config {
 }
 
 pub(super) fn localization_id(name: &str) -> Option<u32> {
-    // RM15: most literal prefix parser: up to eight hex digits, stops at a non-hex byte.
+    // RM15: at most eight hex digits after optional whitespace and 0x; ignore the tail.
     let text = name.strip_prefix('#')?.trim_start_matches(char::is_whitespace);
     let text = text
         .strip_prefix("0x")

@@ -10,6 +10,13 @@ inline bool DbpfSampleInWindow(int32_t julian, int32_t endJulian) {
     return endJulian <= 0 || julian <= endJulian;
 }
 
+// data-formats 8.3.2: a tick in a modal save is not a return; a completed
+// save at a later date cannot fill the earlier live-file obligation either.
+inline bool DbpfReplayAtSameCityDate(bool returned, unsigned activeSaves,
+    const void* promisedCity, int32_t promisedDate, const void* city, int32_t date) {
+    return returned && !activeSaves && promisedCity && city == promisedCity && date == promisedDate;
+}
+
 struct DbpfSubset {
     size_t first, count;
     bool Contains(size_t index, size_t files) const {

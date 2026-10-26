@@ -12,7 +12,14 @@ void DbpfShadowObserve(int32_t julian);
 void DbpfShadowTick();
 // Main-thread only: let an autotest quit drain the final dated sample first.
 bool DbpfShadowPending();
-// Invalidate multi-tick comparisons before native save/re-registration.
+// Hold a balanced hidden pause from sample capture until pending reads drain.
+// Tick releases it when the queue empties; Shutdown releases it on interruption.
+bool DbpfShadowWait();
+// Invalidate readers before native save/re-registration; harness saves wait
+// for Pending() to clear at ordinary framework ticks before invoking SaveCity.
 void DbpfShadowBeforeSave();
+// Observed public slot-15 entry and actual caller continuation (EX58).
+void DbpfShadowSaveEnter(void* app, void* caller);
+void DbpfShadowSaveReturned(void* app, bool result);
 void DbpfShadowShutdown();
 }

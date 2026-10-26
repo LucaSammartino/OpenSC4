@@ -597,6 +597,19 @@ impl fc4_automata_ref_host {
     }
 }
 
+impl fc4_core::automata::DerivedRecordRefs for fc4_automata_ref_host {
+    fn add_ref(&self, reference: &RefValue) {
+        if let Some(token) = host_token(reference) {
+            self.add_ref(token);
+        }
+    }
+    fn release(&self, reference: &RefValue) {
+        if let Some(token) = host_token(reference) {
+            self.release(token);
+        }
+    }
+}
+
 unsafe fn obj_of<'a>(o: *const fc4_automata_object) -> Option<&'a Obj> {
     (o as *const Obj).as_ref()
 }
@@ -2141,6 +2154,104 @@ pub unsafe extern "C" fn fc4_helicopter_shadow_fixture(output: *const fc4_ostrea
             owner.class_id()
         } else {
             0
+        }
+    })
+}
+
+/// Record-only replay for concrete automata outside the replacement factory.
+/// 0 = unspecified class, 1 = failed IO, 2 = record methods succeeded. The caller
+/// still checks stream exhaustion and every output byte. No Init or tick runs.
+/// All acquired stream references are released, including after partial reads.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_automata_derived_record_roundtrip(
+    class_id: u32,
+    input: *const fc4_istream,
+    output: *const fc4_ostream,
+    refs: *const fc4_automata_ref_host,
+) -> u32 {
+    use fc4_core::automata::{
+        AircraftPlacementRecord, AircraftRecord, AmbulanceRecord, FireTruckRecord, MassTransitTrainRecord,
+        PedestrianRecord, TankRecord, VehicleWrapperRecord, CLSID_AIRCRAFT, CLSID_AIRPLANE, CLSID_AMBULANCE,
+        CLSID_CARJACKED, CLSID_FIRE_TRUCK, CLSID_HELICOPTER, CLSID_LIMO, CLSID_MASS_TRANSIT_TRAIN, CLSID_TANK,
+    };
+    use fc4_core::vehicles::{Train, TrainCar};
+    use fc4_core::watercraft::WatercraftRecord;
+
+    if !matches!(
+        class_id,
+        CLSID_AIRCRAFT
+            | CLSID_AIRPLANE
+            | CLSID_HELICOPTER
+            | 0x096E_75F5
+            | 0xAA09_DC28
+            | 0xAA9F_4A3D
+            | 0x4A41_6254
+            | 0x8A41_625A
+            | CLSID_CARJACKED
+            | CLSID_LIMO
+            | CLSID_AMBULANCE
+            | CLSID_FIRE_TRUCK
+            | CLSID_TANK
+            | CLSID_MASS_TRANSIT_TRAIN
+    ) {
+        return 0;
+    }
+    guard(1, || {
+        let (Some(input), Some(output), Some(refs)) = (in_stream(input), out_stream(output), table(refs)) else {
+            return 1;
+        };
+        let mut stream = tracking(input);
+        let mut out = COut(output);
+        let ok = match class_id {
+            CLSID_AIRCRAFT => AircraftRecord::read(&mut stream).is_some_and(|r| r.write(&mut out)),
+            CLSID_AIRPLANE | CLSID_HELICOPTER => {
+                AircraftPlacementRecord::read(&mut stream).is_some_and(|r| r.write(&mut out))
+            }
+            0x096E_75F5 => WatercraftRecord::read(&mut stream).is_some_and(|r| r.write(&mut out)),
+            0xAA09_DC28 => PedestrianRecord::read(&mut stream).is_some_and(|r| r.write(&mut out)),
+            // vehicles.md §12.1: Bus and TrainCar share the version-2 wrapper.
+            0xAA9F_4A3D | 0x4A41_6254 => {
+                let mut car = TrainCar::default();
+                car.read(&mut stream) && car.write(&mut out)
+            }
+            0x8A41_625A => {
+                let mut train = Train::default();
+                train.read(&mut stream) && train.write(&mut out)
+            }
+            CLSID_CARJACKED | CLSID_LIMO => {
+                let mut record = VehicleWrapperRecord::default();
+                record.read(&mut stream) && record.write(&mut out)
+            }
+            CLSID_AMBULANCE => {
+                let mut record = AmbulanceRecord::default();
+                record.read(&mut stream) && record.write(&mut out)
+            }
+            CLSID_FIRE_TRUCK => {
+                let mut record = FireTruckRecord::default();
+                let ok = record.read(&mut stream, &refs) && record.write(&mut out);
+                // The wrapper owns an extra reference, separate from Tracking's acquisitions.
+                if let Some(token) = host_token(&record.crew) {
+                    refs.release(token);
+                }
+                ok
+            }
+            CLSID_TANK => {
+                let mut record = TankRecord::default();
+                record.read(&mut stream) && record.write(&mut out)
+            }
+            CLSID_MASS_TRANSIT_TRAIN => {
+                let mut record = MassTransitTrainRecord::default();
+                record.read(&mut stream, &refs) && record.write(&mut out)
+            }
+            _ => unreachable!(),
+        };
+        for &token in &stream.tokens {
+            refs.release(token);
+        }
+        if ok && stream.error() == 0 && out.error() == 0 {
+            2
+        } else {
+            1
         }
     })
 }

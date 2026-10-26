@@ -584,7 +584,15 @@ target is a float grid with tract size S_t and tract width w.
 
 `DoPopulationChange(tv, tx, tz)` runs per tract in state 4 (residential.md §5.5). tv holds the
 population tunables read by `ReadTunablePopulationValues` (§4.13); that read multiplies the decays by the ordinance
-decay factors. The education/health steps, in order:
+decay factors.
+
+**Precision context (VC29-PC):** the ordinary formulas assume PC 24. A simulation callback reached inside a
+Lua guard instead uses live PC 53; it does not change the EQ/HQ grids' float32 storage. In the newcomer blend
+below, intermediate arithmetic remains in registers until the final Q float store. See
+[foundations §18.4](foundations.md#184-lua-to-native-re-entry-uses-the-live-precision-vc29-pc) for addresses,
+storage boundaries and a 3-to-7 population case with distinct exact grid values in the two contexts.
+
+The education/health steps, in order:
 
 1. **Pollution.** For type 0 (air), 1 (water), 2 (garbage): avg := Σ `pollution.GetPollutionValue(type, x, z)`
    over the S × S cells of the tract / S² (u32 division). The sum is a wrapping u32 accumulator and S² a 32-bit
@@ -670,6 +678,11 @@ The exact order of these steps relative to the population and age steps (decay b
 after the EQ/HQ updates) is normative in residential.md §5.5.
 
 ### 4.8 EQ, HQ and LE queries
+
+Precision qualifications are as in §4.7: statements below about rounding every operation to float32 apply to
+ordinary PC 24. At PC 53 the global queries still spill the first wealth product, second wealth subtotal and
+per-tract running sum to float32, but use 53-bit arithmetic between those stores. Their final quotient is
+returned in the x87 register; the caller may subsequently store it as float32 (foundations §18.4, VC29-PC).
 
 **GetTractQuotient(q[3], p[3], x, z)** (internal):
 

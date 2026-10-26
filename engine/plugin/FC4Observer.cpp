@@ -35,6 +35,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Reach.h"
+#include "FC4DrawStreamCapture.h"
 #include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
@@ -118,6 +119,7 @@
 #include "FC4DbpfNative.h"
 #include "FC4AppShadow.h"
 #include "FC4ViewUtilShadow.h"
+#include "FC4SpanRender8888.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -612,7 +614,7 @@ public:
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
         OverlaysShadowOnTick(CurrentCity());  // after city Init exposes all four managers
         fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
-        if (saveDue_) {
+        if (saveDue_ && !DbpfShadowWait()) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
         }
@@ -628,7 +630,6 @@ public:
     bool DoMessage(cIGZMessage2* msg) override {
         if (msg == nullptr) return true;
         FC4_X87_SCOPE("observer DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
-        AppShadowMessage(msg->GetType());
         switch (msg->GetType()) {
             case kMsgPostCityInit: {
                 // Lifecycle tracing is already live during load. Observer
@@ -833,6 +834,7 @@ public:
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
                 ReachNewMonth(julian);
+                DrawStreamMonth(julian);
                 ReachProbeScope reachProbes;  // constructed probes are not natural reach
                 if (digest_) WriteDigest(julian);
                 fc4::FeatureShadowMonth();
@@ -889,6 +891,7 @@ public:
                 OverlaysShadowMonth(CurrentCity(), julian);
                 SCResShadowLine("month", julian);
                 LegacyCtlShadowMonth(julian);
+                SpanRender8888Month(julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.

@@ -23,6 +23,16 @@ pub const MAX_RUBBLE_PROPS: i64 = 1 << 16;
 /// `lo` / `hi` and their vertices; the distance between those vertices is
 /// scaled in cascade (quirk 12).
 pub fn area_slope_of(rect: CellRect, alt: &mut dyn FnMut(i32, i32) -> f32) -> f32 {
+    area_slope_with_precision(rect, alt, crate::x87::Precision::Bits24)
+}
+
+/// Foundations §18.4: distance and cascade stay in registers until the
+/// caller's float store, including during PC53 native re-entry.
+pub fn area_slope_with_precision(
+    rect: CellRect,
+    alt: &mut dyn FnMut(i32, i32) -> f32,
+    pc: crate::x87::Precision,
+) -> f32 {
     let mut lo = f32::MAX;
     let mut hi = -f32::MAX;
     let (mut lo_pos, mut hi_pos) = ((rect.x1, rect.z1), (rect.x1, rect.z1));
@@ -45,27 +55,27 @@ pub fn area_slope_of(rect: CellRect, alt: &mut dyn FnMut(i32, i32) -> f32) -> f3
         }
         x += 1;
     }
-    let dx = f64::from(hi_pos.0) - f64::from(lo_pos.0);
-    let dz = f64::from(hi_pos.1) - f64::from(lo_pos.1);
-    let mut d = r24(r24(r24(dx * dx) + r24(dz * dz)).sqrt());
+    let dx = pc.round(f64::from(hi_pos.0) - f64::from(lo_pos.0));
+    let dz = pc.round(f64::from(hi_pos.1) - f64::from(lo_pos.1));
+    let mut d = pc.round(pc.round(pc.round(dx * dx) + pc.round(dz * dz)).sqrt());
     if d == 0.0 {
         return 0.0;
     }
-    let rise = r24(f64::from(hi) - f64::from(lo));
+    let rise = pc.round(f64::from(hi) - f64::from(lo));
     if d > 6.0 {
-        d = r24(d * 0.25);
+        d = pc.round(d * 0.25);
     }
     if d > 5.0 {
-        d = r24(d * f64::from(0.3f32));
+        d = pc.round(d * f64::from(0.3f32));
     }
     if d > 4.0 {
-        d = r24(d * f64::from(0.35f32));
-        return r24(rise / d) as f32;
+        d = pc.round(d * f64::from(0.35f32));
+        return pc.round(rise / d) as f32;
     }
     if d > 3.0 {
-        d = r24(d * f64::from(0.4f32));
+        d = pc.round(d * f64::from(0.4f32));
     }
-    r24(rise / d) as f32
+    pc.round(rise / d) as f32
 }
 
 /// `GetLotDevelopmentCost(rect)` (slot 32, §11.4) from the area slope

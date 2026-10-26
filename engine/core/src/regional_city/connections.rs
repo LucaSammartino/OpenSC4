@@ -44,8 +44,8 @@ pub struct PreparedChange {
 
 /// Calls on city services. Network occupant handles stay host-owned. The core
 /// owns the algorithm and byte updates, while the host supplies interface calls.
-/// RR3: the semantic demolition/segment calls follow the literal inferred spec;
-/// undecoded native argument meanings are deliberately not invented here.
+/// RR3: adapters use the typed inner-cell query (flags 0xFFFFFFFF), traffic
+/// map slot 11 (x,z only), and tool slot 7 (mask 0, null callback, true, -1).
 pub trait ConnectionHost<C = std::rc::Rc<NeighborConnection>> {
     fn drive_side(&self) -> bool;
     fn other_city_established(&mut self, connection: &C) -> bool;
@@ -239,15 +239,18 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
 }
 const INWARD: [(i32, i32); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)];
 fn update_edges<C>(host: &mut impl ConnectionHost<C>, network: u32, inner: (i32, i32), side: usize, value: u32) {
+    let mut groups = 0;
     for o in host.occupants(network, inner) {
         let word = host.connection_word(o);
+        groups = word & 0x0404_0404;
         host.set_connection_word(o, byte(word, side, value));
-        if let Some(link) = (0..4).find(|&s| (word >> (8 * s)) & 0xFF == 4) {
-            let (dx, dz) = INWARD[link];
-            for other in host.occupants(network, (inner.0 - dx, inner.1 - dz)) {
-                let w = host.connection_word(other);
-                host.set_connection_word(other, byte(w, link, value));
-            }
+    }
+    // RR3: only the last matching occupant's mask controls propagation.
+    if let Some(link) = (0..4).find(|&s| groups & (4 << (8 * s)) != 0) {
+        let (dx, dz) = INWARD[link];
+        for other in host.occupants(network, (inner.0 - dx, inner.1 - dz)) {
+            let w = host.connection_word(other);
+            host.set_connection_word(other, byte(w, side, value));
         }
     }
 }

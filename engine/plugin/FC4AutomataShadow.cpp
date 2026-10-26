@@ -45,6 +45,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -368,6 +369,7 @@ struct OwnerCount {
 
 struct OwnerScan {
     OwnerCount manager, traffic, automaton, controller, construction;
+    std::map<uint32_t, OwnerCount> derived;
     std::unordered_set<const void*> seen;
     uint32_t diagnostics = 0;
 
@@ -380,6 +382,7 @@ struct OwnerScan {
             const uint32_t cls = parent.ClassOf(id);
             const bool isConstruction = cls == 0xA97F909E;  // lot-records §9
             fc4_automata_object* core = isConstruction ? nullptr : fc4_automata_object_create(cls);
+            bool derivedAutomaton = false;
             if (!isConstruction && core == nullptr) {
                 // Other saved occupants are outside these owners. An unknown
                 // automaton/controller is a failure, never a silent coverage gap.
@@ -389,19 +392,24 @@ struct OwnerScan {
                         auto* acquired = reinterpret_cast<cIGZUnknown*>(iface);
                         FC4_ACQUIRED(acquired, "automata owner record classification QI");
                         FC4_RELEASE(acquired);
-                        (iid == 0xA9B40F05u ? automaton : controller).Add(0, 1);
+                        if (iid == 0xA9B40F05u) {
+                            derivedAutomaton = true;
+                            break;
+                        }
+                        controller.Add(0, 1);
                         if (diagnostics++ < 8)
                             Log("automataowners shadow: unsupported record class=0x%08X iid=0x%08X", cls, iid);
                         break;
                     }
                 }
-                continue;
+                if (!derivedAutomaton) continue;
             }
             OwnerCount& count = isConstruction ? construction :
                 (fc4_automata_object_is_controller(core) ? controller : automaton);
             WriteCapture capture(false, true);
             const bool captured = capture.Capture(object);
             uint32_t bad = 1;
+            bool unsupported = false;
             if (captured) {
                 CaptureIn input(capture);
                 RecordOut output;
@@ -409,6 +417,11 @@ struct OwnerScan {
                 if (isConstruction) {
                     bad = !(fc4_automata_construction_roundtrip(input.Get(), output.Get(), &host) &&
                             input.atEnd() && output.bytes == capture.Bytes());
+                } else if (derivedAutomaton) {
+                    const uint32_t status = fc4_automata_derived_record_roundtrip(
+                        cls, input.Get(), output.Get(), &host);
+                    unsupported = status == 0;
+                    bad = !(status == 2 && input.atEnd() && output.bytes == capture.Bytes());
                 } else {
                     const bool read = fc4_automata_object_read(core, input.Get(), &host);
                     bad = !(read && input.atEnd() && fc4_automata_object_write(core, output.Get()) &&
@@ -426,16 +439,21 @@ struct OwnerScan {
                     const auto& original = capture.Bytes();
                     while (first < original.size() && first < output.bytes.size() &&
                            original[first] == output.bytes[first]) ++first;
-                    Log("automataowners shadow: record class=0x%08X bytes=%u/%u roundtrip FAILED "
-                        "(consumed=%u first=%u)", cls, static_cast<unsigned>(original.size()),
-                        static_cast<unsigned>(output.bytes.size()), input.atEnd() ? 1u : 0u,
-                        static_cast<unsigned>(first));
+                    if (unsupported) {
+                        Log("automataowners shadow: unsupported record class=0x%08X iid=0xA9B40F05", cls);
+                    } else {
+                        Log("automataowners shadow: record class=0x%08X bytes=%u/%u roundtrip FAILED "
+                            "(consumed=%u first=%u)", cls, static_cast<unsigned>(original.size()),
+                            static_cast<unsigned>(output.bytes.size()), input.atEnd() ? 1u : 0u,
+                            static_cast<unsigned>(first));
+                    }
                 }
                 References(capture);
             } else {
                 if (diagnostics++ < 8) Log("automataowners shadow: record class=0x%08X capture FAILED", cls);
             }
             count.Add(capture.Bytes().size(), bad);
+            if (derivedAutomaton) derived[cls].Add(capture.Bytes().size(), bad);
             if (core != nullptr) fc4_automata_object_destroy(core);
         }
     }
@@ -762,6 +780,11 @@ void RunCompare(const char* what, int32_t julian) {
         owners.Append(detail, "cSC4Automaton", owners.automaton);
         owners.Append(detail, "cSC4AutomataController", owners.controller);
         owners.Append(detail, "cSC4ConstructionOccupant", owners.construction);
+        for (const auto& entry : owners.derived) {
+            AppendF(detail, " derived[0x%08X]=%u/%u;", entry.first,
+                    static_cast<unsigned>(entry.second.records - entry.second.mismatches),
+                    static_cast<unsigned>(entry.second.records));
+        }
         const uint32_t bad = mismatches + owners.automaton.mismatches + owners.controller.mismatches +
                              owners.construction.mismatches + (owners.manager.records != 4 ? 1u : 0u) +
                              (owners.traffic.records != 2 ? 1u : 0u);
