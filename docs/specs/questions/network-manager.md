@@ -25,6 +25,9 @@
   reported as original-only removals were still placed at the late terrain listener (`1/1`). The comparison
   now checks every candidate, including predicted destructions, at each handler boundary; the next-tick
   path remains the fallback for explicitly selected early-listener mode. NM18 remains about the `1/0` cases.
+  With that correction, `netocc-cities29-bound8-grow.log` reports 12 rather than 17 errors, and
+  `netocc-cities29-bound8-default.log` reports 10 rather than 16. Both are clean/ref_warnings=0; every
+  remaining reported extra removal has `1/0`. These logs are in the main checkout's `build-runs/game-results`.
 
 - **NM19 — Port of Shiganshina's first lot/random divergence (§§8.5, 8.7, 17.3):** the census sample
   `C:/Users/tlori/FreeCity4/build-runs/run7/census3/paradis-port-of-shiganshina.shadows.txt` first differs on
