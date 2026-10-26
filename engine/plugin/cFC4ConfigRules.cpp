@@ -206,7 +206,11 @@ struct LogInput {
     LogInput() {
         App a;
         cRZBaseString path;
-        if (a.app.p && a.app.p->GetAppDirectory(path)) directory = path.ToChar();
+        if (a.app.p) {
+            // application 9: plain path getters copy strings and return no bool.
+            Call<void, cIGZString&>(a.app.p, 51, path);
+            directory = path.ToChar();
+        }
         if (a.app.p && a.app.p->GetPreferences()) {
             const auto* bytes = reinterpret_cast<const uint8_t*>(a.app.p->GetPreferences());
             const unsigned offsets[] = {0xf0d,0xf0e,0xf0f,0xf11,0xf12,0xf13,0xf14,0xf18,0xf15,0xf16,0xf28,0xf10};
@@ -246,8 +250,16 @@ public:
     void Init(cISC4RenderProperties* properties) override {
         App app;
         cRZBaseString data, user;
-        if (!owner_ || !properties || !app.app.p || !app.app.p->GetDataDirectory(data, 0) || !app.app.p->GetUserDataDirectory(user)) {
+        if (!owner_ || !properties || !app.app.p) {
             initialized_ = false; fc4::Log("cfgrules Init refused: application/path acquisition unavailable"); return;
+        }
+        // application 9: SDK directory aliases/signatures differ from the game.
+        // Slot 51 copies the data path, slot 56 the user-data path; neither takes
+        // a language index (that belongs to plugin path slot 53).
+        Call<void, cIGZString&>(app.app.p, 51, data);
+        Call<void, cIGZString&>(app.app.p, 56, user);
+        if (!data.Strlen() || !user.Strlen()) {
+            initialized_ = false; fc4::Log("cfgrules Init refused: empty application paths"); return;
         }
         const auto* prefs = reinterpret_cast<const uint8_t*>(app.app.p->GetPreferences());
         const int status = fc4_cfgrules_owner_init(owner_, properties, Bytes(std::string(data.ToChar())), Bytes(std::string(user.ToChar())), prefs && prefs[0xf0c]);
