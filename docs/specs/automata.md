@@ -1563,11 +1563,12 @@ puts into x/z and whose y it forces to zero (`0x005CE6C6`–`0x005CE71B`). SetOr
 it is a vector setter, not a second creation method or a callback registration. The first call clears
 bit 2 without clearing `0x32000` (native flag method `0x004FAD20`–`0x004FAD4F`).
 
-Later scaffold movement uses A slot 7 (`+0x1C`) **GetPosition(outVec3*)**, not a returned vector or
-pointer: it writes all three `f32`, removing 4 argument bytes. A slot 8 then receives one input-vector
-pointer with only y changed. AddRef/Release have no stack arguments. These signatures matter even when
-the replacement only records workers and does not animate them (`0x00505520`–`0x00505535`,
-`0x005CC3A9`–`0x005CC3C8`).
+Later scaffold movement uses A slot 7 (`+0x1C`) **GetPosition(outVec3*)**: it writes all three `f32`,
+returns **that same output pointer in EAX**, and removes 4 argument bytes. It does not return a vector
+by value, an internal-position pointer, or an x87 value. The scaffold caller ignores EAX and reads its
+own output buffer. A slot 8 then receives one input-vector pointer with only y changed. AddRef/Release
+have no stack arguments. These signatures matter even when the replacement only records workers and
+does not animate them (`0x00505520`–`0x00505535`, `0x005CC3A9`–`0x005CC3C8`; continuation in §7.6.4).
 
 #### 7.6.2 Native internal creation requires concrete embedded views
 
@@ -1671,6 +1672,131 @@ NM17's log observations do not determine which replacement contract failed. The 
 constant `0x29A5D1EC` explains why that value is present among the creation arguments, but neither a
 stack-imbalance diagnosis nor a factory-layout diagnosis follows from the reported crash address alone.
 These rules enable an engine boundary test; they do not report a passing full-profile action run.
+
+#### 7.6.4 Construction continuation and the position return (AT25) *[compat]*
+
+**Position ABI.** Primary `cISC4Automaton` IID `0xA9B40F05`, slot 7, is a one-pointer `__thiscall` with
+4-byte callee cleanup. The original copies the position's x/y/z words into caller-owned storage and
+leaves the **address of that storage in EAX** (`0x00505523`–`0x00505535`). There is no allocation,
+AddRef, ownership transfer, or floating-point-stack result. Preserve this register result when
+implementing the interface; the ABI table's `eax-or-void` does not settle it. It is not permission to
+return the worker's position field or to retain the output pointer.
+
+**The construction consumer.** SetScaffoldHeight walks the saved crew in creation order and skips
+entries whose roof marker is false. For every roof worker it performs exactly this sequence:
+
+| Order | Receiver / slot | Operation and lifetime |
+|---|---|---|
+| 1 | saved primary A, slot 7 (`+0x1C`) | pass a writable local three-`f32` buffer; copy the worker's current position into it |
+| 2 | construction caller | overwrite only the buffer's y word with the supplied scaffold height, already `f32` |
+| 3 | the **same saved A**, slot 8 (`+0x20`) | pass that buffer as input; copy its position during the call; 4-byte callee cleanup |
+
+The caller reloads A from its list, rather than using the getter's EAX as a receiver. It overwrites EAX
+immediately after GetPosition returns (`0x005CC3B3`–`0x005CC3C8`); it consumes **neither** an EAX vector
+reference nor an x87 result. Each call borrows the existing construction reference: no QI, AddRef,
+Release, AsOccupant, new worker, or worker Init/Shutdown occurs in this loop. Repeated identical heights
+still produce the getter/setter pair. Ground workers receive neither call. The setter has §7.5's
+semantics, including model-position updates where applicable; the local buffer expires with the call.
+
+**When this happens.** The first pass is **inside SetLot, before it returns**, not on the first daily
+tick. After CreateConstructionCrew, SetLot adds roof props, dust, sparks and the lot texture, records
+the simulation day, initializes the phase/deadline and zero elapsed animation time, sets building
+completion to zero, then calls SetScaffoldHeight with **`r24(baseY + 0.001)`**. Here `r24` means rounding
+to `f32`; the addition uses the double constant at `0x00AA2270` before that store. This pass moves roof
+workers from their terrain-height spawn to just above the construction base. Crane setup, construction
+messages and renderer insertion follow (`0x005D09C5`–`0x005D09E6`, `0x005D0AFD`–`0x005D0BA8`).
+
+Daily message `0x66956814` calls DoDailySim. It returns without a phase change when there is no building,
+phase is 4, or current day is below the deadline. At a due deadline it resets elapsed animation time
+and performs **one** transition, scheduling the next deadline from the current day; it does not loop
+through missed days (`0x005D0686`–`0x005D06D8`). Let N be the site's scaffold-step count and k its
+completed/entered step counter, initially zero. Durations below are the integer durations
+already computed for the site by SetLot, not worker lifetimes:
+
+| Current phase | Due-day transition | Effect on stored workers at that daily call |
+|---|---|---|
+| 0, initial rise; or 2, building work | increment k; if k ≤ N, enter 1 with next deadline now + lift duration; otherwise enter 3 with next deadline now + lowering duration | no worker call; entering 3 removes construction props, not the crew |
+| 1, scaffold lift | enter 2 with next deadline now + work duration; scatter sparks | no worker call |
+| 3, scaffold lowering | enter 4, set completion to 1, remove the construction occupant and finish the lot's construction transition | occupant teardown reaches §7.6.3's per-worker removal/Release |
+
+The transition bodies are `0x005D06DF`–`0x005D07A2`, `0x005D07EB`–`0x005D081D` and
+`0x005D0842`–`0x005D0872`. Calls on prop/model lists in those bodies are not additional slots on A.
+
+Animation message `0x86AD10EE` supplies an **unsigned integer** time value through message slot 14
+(`+0x38`); the caller divides it by 1000 with integer truncation and passes the quotient to
+DoAnimationTick (`0x005D1267`–`0x005D127E`). The helper adds that integer to the site's elapsed counter,
+converts the unsigned total to floating point, multiplies by the `f32` constant `0x3B03126F`
+(approximately 0.002), and rounds the product to `f32` (`0x005CE116`–`0x005CE14A`). This animation
+clock and the daily deadline are separate inputs; do not infer one animation call per day.
+
+In phases **0, 1 and 3**, the helper computes the current rising/lifting/lowering height, rounds it to
+`f32`, and calls SetScaffoldHeight, hence the same roof-only slot 7/8 pairs. In phase **2** it updates
+building completion instead; in phase **4** it makes no scaffold call. The three height-call sites are
+`0x005CE1A8`, `0x005CE228`, `0x005CE33F`; the phase-2 completion call is `0x005CE2B9`. These paths
+do not recreate the crew. A separate model-rebuild message can also replay DoAnimationTick with zero
+elapsed increment, temporarily treating phase 2 as phase 1 to restore scaffold height; it still uses
+the same stored A (`0x005D1090`, model-rebuild branch).
+
+**Boundary and failure discrimination.** For a manager supplying its own creation and removal bodies,
+this continuation introduces **no concrete pedestrian/occupant/effects layout** and no native worker
+callback. It requires the stable primary interface returned at creation, copied input vectors, a
+working getter/setter, and ownership lasting across all these later calls and through the owner's final
+Release. Do not substitute an occupant view (IID `0x26BB767E`) for A. Native creation/removal or other
+retained native helpers still have their independently documented concrete dependencies (§§7.6.2–7.6.3).
+
+The reported `SimCity 4.exe+0x1CC3B3` is **the dispatch into slot 7**, before GetPosition executes.
+At that instruction ECX is saved A and EAX is the vtable word just loaded from A; EDX is the output-buffer
+address. Thus reported EAX `0x43960000` makes the caller read `0x4396001C` to find slot 7. `0x43960000`
+also encodes `f32` 300.0, but this alone does not identify a write, a stale object, or a bad interface
+adjustment. It cannot be the return value of this not-yet-entered GetPosition call. Validate the stored
+pointer, its live primary vtable and buffer writes across setup and ticks; changing only the getter's
+EAX result cannot repair this dispatch. The other reported thread/crash addresses establish no further
+worker slot or concrete-view requirement.
+
+#### 7.6.5 Worked crew through the first simulated days (AT25)
+
+Use NM17's detail/lot/random-draw fixture to obtain **two ground workers G1/G2 and one roof worker R**,
+all successful. For R choose terrain spawn `(12.5,7,34.5)` and model instance `0x02109000`; ground
+models may be `0x0210B000` and `0x0210C000`. Each request has §7.6.1's group, flags, priority and setter
+sequence. With no optional owners, each worker has one manager reference and one construction reference
+after setup. Record **the actual three primary pointers** for the later calls.
+
+For the continuation fixture, supply a site with base y **7**, initial scaffold target **9**, N = **2**,
+initial-rise duration **1 day**, lift duration **1 day**, work duration **2 days**, lowering duration
+**1 day**, and scaffold step height **3** (the unoverridden value at `0x00B0A7C8`). These are explicit
+fixture inputs/results of site setup; worker count and time of day alone do not determine them. The
+one-day rise/lift/lowering values respect SetLot's signed **minimum with 1**, not a lower bound of 1
+(`0x005D0A44`–`0x005D0ACE`). Disable independent worker movement
+and unrelated rebuild messages for this trace. Take D0 as the setup day and deliver the listed events
+in order. Here q is the elapsed integer animation counter, reset only by a due daily transition.
+
+| Event | Construction phase / clock after event | Expected calls on crew / resulting R position |
+|---|---|---|
+| each successful creation | before the next request | that worker receives slot 30 `(2,false)`, slot 14 horizontal orientation, slot 1 AddRef, in order |
+| finish D0 SetLot | phase 0, k = 0, q = 0, deadline D0 + 1 | R slot 7 then 8; position `(12.5,r24(7.001),34.5)`; G1/G2 skipped |
+| animation increment 250 | phase 0, q = 250; scaled time rounds to 0.5 | R slot 7 then 8; `(12.5,8,34.5)` |
+| another daily delivery on D0 | before deadline; phase 0, q unchanged | no worker call and no new worker |
+| animation increment 250 | phase 0, q = 500; scaled time rounds to 1 | R slot 7 then 8; `(12.5,9,34.5)` |
+| daily D0 + 1 | phase 1, k = 1, q = 0, deadline D0 + 2 | no worker call; the same references remain live |
+| two animation increments of 250 | phase 1, q successively 250, 500 | two R slot 7/8 pairs; R y successively **10.5, 12**; x/z unchanged |
+| daily D0 + 2, then animation increment 250 | phase 2, k = 1, q = 250, next deadline D0 + 4 | building completion changes; no R getter/setter; R stays at y = 12 |
+| daily D0 + 3 | before deadline; phase 2, q unchanged | no worker call |
+| daily D0 + 4, then two animation increments of 250 | phase 1, k = 2, q successively 250, 500, next deadline D0 + 5 | R slot 7 then 8 per increment; y successively **13.5, 15**; the original G1/G2/R pointers are still used |
+| daily D0 + 5 | phase 2, k = 2, q = 0, next deadline D0 + 7 | no worker call |
+| daily D0 + 7, then two animation increments of 250 | phase 3, k = 3, q successively 250, 500, next deadline D0 + 8 | R slot 7/8 per increment; y successively **11, 7**; crew remains owned |
+| daily D0 + 8 | phase 4 and construction teardown | §7.6.3 removal request and owner Release for G1, G2, R, in that order |
+
+The worked heights follow the phase-0 and phase-1 instruction order at `0x005CE15B`–`0x005CE228`;
+the lift fraction is stored to `f32` before multiplication by the step height; lowering uses
+`0x005CE2D8`–`0x005CE33F`. The initial SetLot height
+is `f32` **`0x40E00831`** (about 7.00099993), not exactly decimal 7.001. A native-message test obtains
+each increment 250 from slot-14 value 250000; passing 250 directly to the helper is a distinct test.
+At every roof getter, verify all three output words, EAX equal to its supplied buffer address, unchanged
+stack depth after 4-byte cleanup, and no x87 result; verify the setter copies the buffer and preserves
+the saved A/vtable. Keep G1/G2 unchanged by scaffold passes. At site removal, expect one manager
+`RemoveAutomaton(A,false)` followed by one construction Release per saved worker in creation order;
+exercise the manager-list drain both before and after that final owner Release (§7.6.3). This is a boundary
+oracle, not a claim that the reported generated-action acceptance has passed.
 
 ## 8. Riot and fire hooks *[compat]*
 
