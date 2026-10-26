@@ -19,14 +19,6 @@ source-handler payloads. Start with 0x00938D8E, 0x00937C00, 0x00938BF1,
 export facts, but exact random range/distribution is not yet instruction-verified.
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS3 — Channel tables and property transformations:** [unsettled]
-
-For §4.2, enumerate unnamed tables installed by 0x0093FE12 (primary 0x00AD3FC0)
-and settle QI views, notification dispatch, pitch/volume/pan formulas and patch
-failure recovery (0x0093F07E, 0x0093F136, 0x0093FA5B, 0x0093F687).
-The export's named-vtable query returns no cHitChannel table.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS5 — Track resource byte/text formats and private copies:** [unsettled]
 
 For §5.2, settle TKDT legacy field order, escaping/version handling, serializer

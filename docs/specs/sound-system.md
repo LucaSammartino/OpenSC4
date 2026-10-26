@@ -193,18 +193,18 @@ an owned property set, and a retained framework sound-manager service.
 Its primary table is installed at `0x00AD3FC0`; secondary tables are
 `0x00AD3F78`, `0x00AD3F64`, `0x00AD3F40`, `0x00AD3F30`, `0x00AD3F1C`
 at object offsets `+4`, `+8`, `+0x0C`, `+0x10`, `+0x14` respectively.
-The exported named-vtable index does not enumerate these tables; their full
-slot inventory is SS3, not an assumed copy of the track table.
+The exported named-vtable index does not enumerate these tables; the inventory
+below is recovered from executable table words, not that index.
 
 | Named operation | Address | Confirmed boundary |
 |---|---|---|
 | CreateSnd | `0x0093F304` | obtains a backend sound and associated source interface |
-| UpdatePitch | `0x0093F07E` | source pitch update; numeric law remains SS3 |
-| UpdateVolPan | `0x0093F136` | source volume/pan update; numeric law remains SS3 |
+| UpdatePitch | `0x0093F07E` | source pitch update; numeric law below |
+| UpdateVolPan | `0x0093F136` | source volume/pan update; numeric law below |
 | UpdatePatch | `0x0093F687` | patch/source refresh |
 | NoteOn | `0x0093F806` | refresh patch, load then play source |
 | Load | `0x0093F84D` | refresh patch and forward source Load |
-| HandleNotifySetPropertyValue | `0x0093FA5B` | property notification entry; full dispatch remains SS3 |
+| HandleNotifySetPropertyValue | `0x0093FA5B` | property notification dispatch below |
 
 *[compat]* CreateSnd chooses the manager's default 2D or 3D source-player
 class according to property `0xFFCC156F`, creates it through GZCOM using
@@ -226,6 +226,110 @@ UpdatePatch itself dereferences the source interface after attempting creation
 (`0x0093F687`). A backend creation failure can therefore fail before the
 no-source branch is reached. A replacement may reject such missing dependencies
 safely *[choice]*.
+
+#### Channel views and complete table extents (SS3)
+
+QI `0x0093EC35` accepts exactly sound `0x206077D2` at base, 3D
+`0x306077D2` at `+4`, update `0x5B34F0AF` at `+8`, registers `0xFD584467`
+at `+0x0C`, `0xAA11A64F` at `+0x10`, and source `0x09D002D2` at `+0x14`.
+Success writes the adjusted pointer and AddRefs the base. Other IDs, including
+`1`, return false without touching the output or AddRef. Secondary QI/refcount
+entries adjust back to this same base. Constructor stores confirming the six
+views are `0x0093FE41–0x0093FE63`.
+
+The following table lists every installed slot. Addresses denote folded/unnamed
+entries when assigning an unrelated exported symbol name would be misleading.
+They are callable entry identities, not requirements for an implementation's
+internal layout. All addresses in the next table have prefix `0x00`.
+
+| Table/view | Slots | Entries in increasing slot order |
+|---|---|---|
+| AD3FC0, sound | 0–9 | QI EC35, AddRef EC9F, Release ECA6; Init F937; Shutdown FA21; Play F949; Play F93E; IsPlaying F954; Stop F95C; Kill F964 (all `93xxxx`) |
+| same | 10–19 | `94A5EA`, `949B47`, `93F45D`, `93F46C`, Load `93F84D`, Unload `93F06F`, IsLoaded `93FA4C`, Pause `93F96C`, Unpause `93F97F`, IsPaused `93F990` |
+| same | 20–28 | GetVolume `93ED1E`, SetVolume `93ED08`, `938789`, `94A5EA`, GetPan `93ECC0`, SetPan `93ECCE`, GetFrequency `93ECE4`, SetFrequency `93ECF2`, GetOriginalFrequency `93F44E` |
+| same | 29–39 | `93877E`, `93877E`, `949B47`, `949B73`, `93878E`, `93878E`, `9378BC`, `93877E`, destructor `93FDF6`, `94BC5D`, `968303` |
+| same | 40–46 | NoteOn `93F806`, NoteOff/Kill `93F964`, `93FA2E` (child Kill, true if absent), `93FA3D` (child IsPlaying, false if absent), UpdatePitch `93F07E`, UpdateVolPan `93F136`, `92B33A` |
+| same | 47–53 | `93F47B`, `93F4BA`, `93F4F5`, `93F547`, `93F599`, `93F5E7`, `93F635` (optional child-interface forwards described below) |
+| AD3F78, +4 | 0–16 | `93F9A1`, `93F9A9`, `93F9B1` (QI/refcount thunks); `93F933` (base view); `93ED2C`, `93ED8D`, `93EDE1`, `93EE42`, `93EE96`, `93EF4B`, `949B73`, `93EFE0`, `93EFF0`, `93F012`, `93F022`, `93F044`, `93F05C` |
+| AD3F64, +8 | 0–3 | `93F9B9`, `93F9C1`, `93F9C9` (QI/refcount thunks), `949B73` (folded update) |
+| AD3F40, +0C | 0–8 | `93F9D1`, `93F9D9`, `93F9E1` (QI/refcount thunks); integer SetRegister `93FD3C`, integer GetRegister `93F6BA`, Clear `93F781`, Has `93F7B4`, float SetRegister `93FD99`, float GetRegister `93F71B` |
+| AD3F30, +10 | 0–2 | `93F9E9`, `93F9F1`, `93F9F9` (QI/refcount thunks only) |
+| AD3F1C, +14 | 0–3 | `93FA01`, `93FA09`, `93FA11` (QI/refcount thunks), `93F2F3` (retain/replace source pointer at base +2C; consumes two arguments, ignores the second, returns true) |
+
+For primary slots 47/48, query the child for IID `0x6B0446EB` and forward
+to its `+0x18` with a float / `+0x1C` with an integer respectively. Slots
+49–53 query IID `0x4B79C1A9` and forward to its slots 3–7 with payload
+types float, float, integer, integer, float. The queried interface is released
+after the call. These are optional backend controls, not additional pitch math.
+
+#### Channel transformations and notifications
+
+*[compat]* UpdatePitch runs only with a child that reports loaded (`+0x40`);
+otherwise it returns false. The factor is 1.0 unless float property
+`0xFF3071B9` exists, in which case its value is rounded to a 32-bit float
+local. If integer property `0xFF099DB2` exists, multiply its **signed** 32-bit
+value by that factor in x87 arithmetic, truncate toward zero using `_ftol2`,
+pass the low 32-bit result to child SetFrequency (`+0x6C`), and return the
+inverse of the child's boolean result. If absent, get child GetFrequency
+(`+0x68`), apply the same multiply/truncate and store the result as property
+`0xFF099DB2` with notification suppressed (third argument 1); return true
+without setting the child frequency on that invocation. This peculiar return
+and first-use behavior are visible at `0x0093F0C5–0x0093F12B`.
+
+*[compat]* UpdateVolPan returns true, including with no child. With a child,
+property `0xFFCC156F` zero sends integer `0xFF3EC880` directly to SetPan
+(`+0x64`). Nonzero instead queries the child's 3D IID and applies:
+minimum distance from signed integer `0xFFAAB623` as float at `+0x30`;
+maximum distance from signed integer `0xFFA6A614` as float at `+0x38`,
+substituting **100000.0f only when zero**; position `(0xFFCC4D2D,
+0xFF4A01D6,0xFF469820)` at `+0x14`; velocity `(0xFF444C9A,
+0xFFC20061,0xFFCE9997)` at `+0x1C`. Coordinates are signed integer-to-float
+conversions, not reinterpretations of float bits. Afterwards, for either mode,
+multiply integer properties `0xFF90AAC8` and `0xFF53DBF3`, retain the low
+32 bits as signed, divide by signed 1024 with truncation toward zero, cache
+at `+0x1C`, and send to child SetVolume (`+0x54`). No clamp is applied.
+Instruction evidence: `0x0093F1A2–0x0093F293`, constant `0x00AD3F18`,
+and signed `IMUL/CDQ/IDIV` at `0x0093F2D5–0x0093F2DE`.
+
+HandleNotifySetPropertyValue reads back the property; it is not passed the
+new numeric value. Its complete dispatch (`0x0093FA5B–0x0093FD3B`) is:
+
+| Property ID(s) | Action |
+|---|---|
+| `FF099DB2`, `FF3071B9` | UpdatePitch; return true regardless of helper result. |
+| `FF3EC880`, `FF444C9A`, `FF469820`, `FF4A01D6`, `FF53DBF3`, `FF90AAC8`, `FFC20061`, `FFCC4D2D`, `FFCE9997`, `FF4C97BE` | UpdateVolPan; return its result. For `FF4C97BE`, first rebuild the property's inherited list described below. |
+| `FFA6A614`, `FFAAB623` | UpdateVolPan; discard result and return true. |
+| `FF0AD592` | Test primary slot 43 (child IsPlaying); if false write zero back to this property with the ordinary notification argument 0; return true. This is not a patch-load retry. |
+| `FFB36659` | If child exists, nonzero calls Pause(true), zero Unpause; return true. |
+| `FFAEC905` | Read integer property, discard that value, call this channel's source-view slot 3 with `(null,2)`; return true (`0x0093FC71–0x0093FC83`). |
+| `FF0150F2`, `FF86FE79`, `FF734343`, `FFD3D39B` | Read float and call primary slot 47, 53, 49, 50 respectively. First returns true regardless; others return the forwarded result. |
+| `FFA42951`, `FFBDB196` | Read integer and return primary slot 52, 51 respectively. |
+| all others | Return true, no channel-specific action. In particular `FFCC156F` is read during refresh but has no notification case. |
+
+For `FF4C97BE`, clear the retained property-set list, retain the notifying set,
+then follow its nonzero `FF4C97BE` resource reference: persist key has type
+`0xEBFEE345`, group `0xFC45CAF7`, instance equal to that property, queried
+as IID `0xEBB10CDD`. Append each successfully resolved set and repeat until
+the property is missing/zero or resolution returns null. There is no visited
+set or cycle bound; do not promise cycle recovery (`0x0093FB5B–0x0093FC12`).
+
+*[compat]* UpdatePatch (`0x0093F687–0x0093F6B9`) attempts CreateSnd only
+if child at `+0x24` is null, then unconditionally invokes source at `+0x28`,
+slot 3 with `(retained-source-at-+0x2C,2)`, UpdateVolPan, then UpdatePitch,
+and returns true. There is no rollback or null guard after failed creation/QI;
+it does not discard and recreate an already present child. The failure path
+can fault before returning. An implementation can return failure safely as
+already permitted above; it must not claim the original retries transactionally.
+
+Worked cases: a loaded child, explicit frequency 22051 and factor 0.5f receive
+SetFrequency(11025); a child returning true causes UpdatePitch to return false.
+Without the explicit frequency, child GetFrequency() = 22051 instead stores
+11025 in `FF099DB2`, suppresses notification, and makes no SetFrequency call
+on that first refresh. Volume inputs -3 and 512 produce -1 (not -2), while
+1024 and 512 produce 512. In 3D mode a zero maximum becomes 100000.0f,
+but -1 remains -1.0f. A failed CreateSnd followed by a null source reaches
+an unchecked call, not a successful silent channel; use a failure return in
+a safe replacement and test that no later volume/pitch calls occur *[choice]*.
 
 ## 5. `cHitIniFile` and `cHitPropertySetTrackResource`
 
