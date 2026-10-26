@@ -65,7 +65,13 @@ fn foundations_record_and_deal_lifecycle() {
     let raw = RegionalCity::decode_record(&mut ByteReader::new(out.bytes()), 2).unwrap();
     let mut again = ByteWriter::new();
     assert!(raw.write_record(&mut again));
-    assert_eq!(out.bytes(), again.bytes());
+    // RY7 / foundations §11.2(a): Read retains the constructor's absent key 3.
+    assert_eq!(raw.commodities[&3], Default::default());
+    assert_eq!(again.bytes().len(), out.bytes().len() + 44);
+    c.commodities.entry(3).or_default();
+    let mut normalized = ByteWriter::new();
+    assert!(c.write_record(&mut normalized));
+    assert_eq!(normalized.bytes(), again.bytes());
     let ctx = ReadContext {
         application_default_difficulty: 2,
         default_city_name: b"New City",

@@ -456,7 +456,8 @@ Interface inventory required by that bridge: slots 0–3 QI/AddRef/Release/Init;
 6–7 Lock/Unlock; 9–11 GetWidth/GetHeight/GetRect; 15 GetColorType;
 17 GetBytesPerPixel; 26 GetColorKey; 30 RGB mapping. Exact native signatures
 and return channels are tabulated in span-render-8 §10.7. Sections 6.1–6.6
-complete that inventory (GZF6/GZF12). There are no ordinary message subscriptions here.
+complete that inventory (GZF6/GZF12); §6.7 specifies the complete secondary
+drawing-color face (GZF13). There are no ordinary message subscriptions here.
 
 *[compat]* Init rejects a second initialization and either zero dimension.
 Storage is row-major, each row padded to a four-byte boundary, and allocated
@@ -974,6 +975,101 @@ adds exactly one counter increment. A horizontal DrawLine delegates to fill
 and advances the counter through that fill. A wholly clipped line returns
 true, with no stores and no count change.
 
+### 6.7 Secondary drawing-color face (GZF13)
+
+*[compat, static, 2026-10-26]* For a live primary buffer pointer B,
+QI(`0x86D72B57`, out) returns S = B+4. The constructor installs S's table at
+`0x00AC13EC` (`0x008272EB`–`0x008272F1`). This table has **five entries**, the
+five executable words at `0x00AC13EC`–`0x00AC13FC`; the immediately following
+word at `0x00AC1400` begins the separate primary table. The secondary face does
+not extend the 47-entry primary table. The following are semantic method names.
+
+All five calls take **S in ECX**, with no stack `this`. Arguments below are in
+declaration order, starting at the first argument after the return address.
+Each argument occupies four stack bytes, including each color component.
+The callee removes the listed argument bytes; the caller adds no argument
+cleanup. Boolean results are **AL only**; the rest of EAX is not a normalized
+boolean or an additional result. Reference counts use all 32 bits of EAX.
+
+| Secondary slot / byte offset | Target | Stack arguments after this | Callee pops; return channel | Relation to primary |
+|---|---|---|---|---|
+| 0 / `+0x00` | `0x00826930` | iid (u32), outFace* (pointer to a pointer) | 8; AL | Adjusts S to B; fixed target `0x00825D00`, same as primary slot 0 |
+| 1 / `+0x04` | `0x00445A50` | None | 0; EAX new reference count | Adjusts S to B; fixed target `0x00825D60`, same as primary slot 1 |
+| 2 / `+0x08` | `0x00826940` | None | 0; EAX remaining reference count | Adjusts S to B; fixed target `0x00825D70`, same as primary slot 2 |
+| 3 / `+0x0C` | `0x00826650` | r, g, b, a (low byte of each dword) | 16; AL = 1 | SetDrawingColor; no primary counterpart |
+| 4 / `+0x10` | `0x00826680` | outR*, outG*, outB*, outA* (one writable byte each on success) | 16; AL = 1 if color present, otherwise 0 | GetDrawingColor; no primary counterpart |
+
+The receiver adjustments are instruction-confirmed at `0x00826930`–`0x00826937`,
+`0x00445A50`–`0x00445A57`, and `0x00826940`–`0x00826947`. They preserve the
+primary QI and shared lifetime rules at the start of §6. QI through S accepts
+`1` or `0x20732180` with result B, and `0x86D72B57` with result S; each success
+adds one shared reference. Unsupported IDs leave outFace unchanged and return
+false. There is no separate secondary reference count. Cleanup and return
+evidence is `0x00825D19`–`0x00825D52`, `0x00825D67`, `0x00825D8B`–`0x00825D90`,
+`0x00826671`–`0x00826675`, and `0x008266A9`–`0x008266B2`.
+
+*[compat]* This face holds a separate drawing-color value. Denote its 32-bit
+word by W: bits 0–7 are r, 8–15 g, 16–23 b, and 24–31 a. Thus r=`0x12`,
+g=`0x34`, b=`0x56`, a=`0x78` gives W=`0x78563412`, irrespective of buffer color
+type or bpp. The constructor sets W=`0xFFFFFFFF`, meaning **no drawing color**
+(`0x00827321`). SetDrawingColor replaces W using only the low byte of each
+argument and always returns true (`0x00826650`–`0x00826675`). Setting all four
+components to 255 therefore clears the color's presence, while still returning
+true. There is no additional enable/clear method in this interface.
+
+GetDrawingColor first compares the entire W with `0xFFFFFFFF`. Equal means
+false with **no writes to any output**, including when all four output pointers
+are null. Otherwise it writes one byte to each output in r, g, b, a order and
+returns true. There is no per-pointer null check on that success path; all four
+must be writable. Aliasing the four outputs to the same ordinary byte leaves
+the alpha byte there after the last write. The byte order, sentinel test, write
+widths, and both 16-byte cleanup paths are established by
+`0x00826680`–`0x008266B2`.
+
+Neither color method requires initialized storage or a lock. Neither changes
+pixels, color type, color key, lock state, modification count, cache attachment,
+or cache validity; neither invokes a callback or another virtual method. The
+ordinary primary Init and storage disposal paths leave W unchanged
+(`0x008269B0`–`0x00826A02`, `0x00826350`–`0x00826389`,
+`0x00826A50`–`0x00826A95`, `0x00825CE0`–`0x00825CF2`). Primary slots 18–22,
+28 and 29 still use their explicit pixel/source arguments (§§6.3–6.4).
+Primary slots 30–33 map/unmap **buffer-format pixels**; they do not set or get
+this independent color. In particular secondary slot 4 has four output-pointer
+arguments and **no packed-pixel argument**; it is not primary UnmapRGBA.
+
+The drawing relation is visible in `RZDrawBltEdge`: it queries this IID on the
+source buffer, invokes secondary slot 4, and tests AL at return address
+`0x008D889F` (`0x008D8865`–`0x008D889F`). On success it forms the drawing-context
+color A8:R8:G8:B8 from the four returned bytes; with no color, or failed QI, it
+uses `0xFFFFFFFF` (`0x008D88A1`–`0x008D88DF`). This sets a separate drawing
+context's color, not the buffer's color key or a primary pixel operation.
+It releases its queried face afterward (`0x008D8BA0`–`0x008D8BAE`). The reported
+fault's first return address therefore identifies the missing **getter at
+secondary byte offset `+0x10`**. This static contract does not assert a game
+verdict for a replacement.
+
+**GZB9 — Secondary dispatch, truncation and independent pixels.** Hold one
+owner reference to fresh B and query the secondary IID: AL is true, S=B+4, and
+the shared count becomes two. Before Init, call S slot 4 with four independent
+32-bit output cells, each `0xA5A5A5A5`: AL is false and every cell is unchanged.
+The same call with four null outputs is also false. Then call S slot 3 with
+`0x112`, `0x234`, `0x356`, `0x478`, in that argument order. It pops 16 argument
+bytes and returns AL=true. Calling S slot 4 also pops 16 bytes and returns
+AL=true; the four cells become `0xA5A5A512`, `0xA5A5A534`, `0xA5A5A556`,
+`0xA5A5A578`. No dword output store is permitted.
+
+Initialize B as 2×1 type 9, bpp 32. The secondary getter still returns those
+four bytes. Primary MapRGBA(`0x12`,`0x34`,`0x56`,`0x78`) returns `0x78123456`,
+not the secondary word `0x78563412`. Fill through primary slot 18 with packed
+pixel `0xA1B2C3D4`, null clip: both pixels become `0xA1B2C3D4`, and only the
+fill advances the modification count, by one. Changing the secondary color
+does not recolor those pixels or invalidate an attached cache. Set secondary
+color (255,255,255,255): setter AL is true, then getter AL is false and leaves
+four reset sentinel cells unchanged. A getter with four null outputs is again
+false. Release S returns one; release the owner B returns zero and destroys
+the buffer exactly once. This case exercises the native secondary offsets
+`+0x0C` and `+0x10`, not matching-numbered primary slots.
+
 ## 7. Logging (`nGZLog::cService`)
 
 ### 7.1 Interfaces, inventory and defaults
@@ -1309,10 +1405,16 @@ on failure. Rows involving existing buffer/command specs inherit their fixtures.
 | GZC72 | Initialized logger, accepting backend; Output(C, `x=%d`, 4), OutputLevel(C, 7, `y=%d`, 5) | observed set contains C once; `x=4` level 0, `y=5` level 7 |
 | GZC73 | Initialized logger: set getters before output and after Shutdown, with ref recorder | borrowed distinct sets; observed-category set empty before output; no AddRef; null after Shutdown; prior borrows invalid |
 | GZC74 | Dump with no category overrides, backend dump recorder | global heading/default description/separators emitted; backend receives same borrowed stream; no routing or tick |
+| GZC75 | GZB9: fresh buffer, QI secondary, getter before Init with sentinel cells or null outputs | S=B+4; one added ref; getter AL=false, no output writes, 16-byte callee cleanup |
+| GZC76 | GZB9: secondary setter `0x112,0x234,0x356,0x478`, then getter into sentinel dwords | both AL=true, each pops 16; only low bytes change to `12,34,56,78` |
+| GZC77 | GZB9: primary Init/MapRGBA/fill, secondary color changes with cache recorder | color survives Init; MapRGBA=`0x78123456`; fill writes its explicit pixel; color setter causes no pixel/count/cache change |
+| GZC78 | Secondary setter (255,255,255,255), then getter with sentinel or null outputs | setter AL=true; getter AL=false, all outputs untouched |
+| GZC79 | Secondary QI `1`, `0x20732180`, secondary IID, unknown IID with out sentinel | B, B, S with +1 shared ref each; unknown false/sentinel unchanged; AddRef/Release match primary count |
+| GZC80 | Secondary color `12,34,56,78` (hex), getter with all four outputs the same ordinary byte | AL=true; final output byte `0x78`; no pixel, count or cache change |
 
 ## 11. Remaining work
 
 GZF1–GZF5 and GZF7–GZF9 in the [question file](questions/gz-framework-core.md) bound the
 unrecovered interfaces and failure paths. Static evidence does not establish a
 game verdict, replacement safety, or binary equivalence. No engine conformance
-files were written by this RE lane; §§6.5–6.6 and §10 contain implementation-facing vectors.
+files were written by this RE lane; §§6.5–6.7 and §10 contain implementation-facing vectors.

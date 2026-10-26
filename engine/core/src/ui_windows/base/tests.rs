@@ -36,6 +36,12 @@ impl Host for TestHost {
     fn clock(&mut self) -> u32 {
         self.time
     }
+    fn acquire_graphics_system(&mut self) -> Option<Object> {
+        Some(901)
+    }
+    fn acquire_draw_system(&mut self) -> Option<Object> {
+        Some(902)
+    }
     fn screen_buffer(&mut self) -> Option<Object> {
         Some(900)
     }
@@ -45,22 +51,42 @@ impl Host for TestHost {
     fn buffer_info(&mut self, b: Object) -> BufferInfo {
         self.buffers.get(&b).copied().unwrap_or_default()
     }
-    fn create_private_buffer(&mut self, w: Window, width: i32, height: i32) -> Option<Object> {
+    fn draw_system_create_buffer(
+        &mut self,
+        _: Object,
+        out: &mut Option<Object>,
+        width: i32,
+        height: i32,
+        mode: u32,
+    ) -> bool {
+        assert_eq!(mode, 1);
         if self.fail_create {
-            return None;
+            return false;
         }
-        let b = 1000 + w;
+        let b = 1000 + self.buffers.len() as u64;
         self.buffers.insert(
             b,
             BufferInfo {
                 area: Rect(0, 0, width, height),
                 usable: true,
-                content: true,
+                initialized: true,
                 color: Some(u32::MAX),
                 ..BufferInfo::default()
             },
         );
-        Some(b)
+        *out = Some(b);
+        true
+    }
+    fn query_draw_interface(&mut self, buffer: Object, out: &mut Option<Object>) -> bool {
+        if self.buffer_info(buffer).context.is_some() {
+            *out = Some(buffer);
+            true
+        } else {
+            false
+        }
+    }
+    fn drawing_context(&mut self, interface: Object) -> Option<Object> {
+        self.buffer_info(interface).context
     }
     fn lock_buffer(&mut self, _: Object, _: u32) -> bool {
         !self.fail_lock
@@ -132,7 +158,7 @@ fn wt01_constructor_and_lifecycle() {
         (w.flags, w.fade_periods, w.shade, w.instance_id),
         (0x8903, (500, 500), u32::MAX, 7)
     );
-    assert_eq!((w.fill, w.references, w.unknown_a0_a4), (0, 0, [0; 2]));
+    assert_eq!((w.fill, w.references, w.mouse_down_offset), (0, 0, None));
     s.init(&mut h, p);
     s.init(&mut h, p);
     s.set_accelerator(&mut h, p, Some(70));
@@ -395,7 +421,7 @@ fn wt17_draw_rectangles_and_converters() {
         (d, Rect(0, 0, 20, 10), Rect(15, 25, 35, 35)),
     ] {
         assert_eq!(s.get(w).draw_area, area);
-        assert_eq!(s.get(w).draw_origin, origin);
+        assert_eq!(s.get(w).draw_origin, Some(origin));
     }
     assert_eq!(s.get(p).blit, Rect(100, 50, 500, 450));
     let mut point = (0, 0);
@@ -553,7 +579,7 @@ fn private_buffer_failure_and_absent_draw_service() {
     let r = s.create(&mut h, 0, None);
     s.set_area(&mut h, r, Rect(10, 20, 110, 120));
     assert_eq!(s.get(r).draw_area, Rect(10, 20, 110, 120));
-    assert_eq!(s.get(r).draw_origin, Rect(20, 40, 120, 140));
+    assert_eq!(s.get(r).draw_origin, Some(Rect(20, 40, 120, 140)));
 }
 
 #[test]
