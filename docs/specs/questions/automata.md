@@ -99,7 +99,7 @@ contracts. AT22 stays open.
   owner without delegating its missing methods back to native code. [blocked; no new wrapper or factory]
 
 <!-- from: automata-actions29 (2026-10-26) -->
-- **AT24 - §7.6 (NM17), native construction continuation after balanced worker slots:** The replacement
+- **AT25 - §7.6 (NM17), native construction continuation after balanced worker slots:** The replacement
   manager returns its own primary pedestrian wrapper (class `0x896E75AF`); it does not invoke native
   CreateAutomatonInternal or register a concrete pedestrian factory. Its former argument-free placeholders
   at slots 30/14 left 8/4 bytes on the stack. Those calls now have NM17's signatures; slots 7/8 supply

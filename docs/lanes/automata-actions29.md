@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| automata-actions29: native construction worker slots (engine) | Codex / automata-actions29 / detached HEAD, reserved branch automata-actions29; commits d9aaac58a, 6bd7ce714, 8bce367da, ecf5be204, 83b011895; C ABI +2 exports, no seam reservation | wip; cargo 7883/7883, clippy 0 diagnostics, CTest 125/125; shadow 73/73 exact; s0 216/216, s1/s2 incomplete; AT24 open | 1. Answer AT24. 2. Finish worker continuation and rerun s1/s2 grow. 3. Enqueue kind engine after acceptance passes. |
+| automata-actions29: native construction worker slots (engine) | Codex / automata-actions29 / detached HEAD, reserved branch automata-actions29; commits d9aaac58a, 6bd7ce714, 8bce367da, ecf5be204, 83b011895; C ABI +2 exports, no seam reservation | wip; cargo 7883/7883, clippy 0 diagnostics, CTest 125/125; shadow 73/73 exact; s0 216/216, s1/s2 incomplete; AT25 open | 1. Answer AT25. 2. Finish worker continuation and rerun s1/s2 grow. 3. Enqueue kind engine after acceptance passes. |
 
 Game logs below are in `C:/Users/tlori/FreeCity4/build-runs/game-results/`; build logs are this worktree's `build-runs/`.
 Fix: native worker slots 30/14 had zero-argument placeholders leaving 8/4 stack bytes; now typed, with Rust flag/orientation stores. Scaffold slots 7/8 now copy positions; getter uses a locked C++ snapshot.
@@ -16,6 +16,6 @@ Control PASS: `aa29-control-noauto-a.log`, same DLL/full house minus automata, s
 Shadow PASS: `aa29-shadow-a.log`, clean through 2032-01-13, shutdown aggregate 73/73 samples exact, 438 component records/730783 bytes, 0 mismatches, ref0 (sample total not added to aggregate again).
 Unchanged house PASS: `aa29-house-a.log`, clean, target 2032-01-01 reached, ref0; verdict additionally reports a 58 s hidden-dialog hold after target at 2032-01-02.
 All listed game runs used the shared main queue, parallel=1, at most three outstanding. Post-fix DLL sha256 prefix 451d3caf; later commits change tests/questions/handoff only.
-AT24 filed in `docs/specs/questions/automata.md`: remaining worker continuation, return-register and concrete-view contract is unresolved. No guessed layout/return fix; this item is stopped as instructed.
+AT25 filed in `docs/specs/questions/automata.md`: remaining worker continuation, return-register and concrete-view contract is unresolved. Renamed from the accidentally reused AT24 (already assigned to airport ownership); no new construction answer found on resume. No guessed layout/return fix; this item is stopped as instructed.
 Queue: wip only; not submitted for landing because required s1/s2 acceptance fails despite a passing gate.
-Next: spec writers answer AT24; implement that boundary, rerun s1/s2 and required gate after any fix, then enqueue kind engine with the actual detached HEAD tip.
+Next: spec writers answer AT25; implement that boundary, rerun s1/s2 and required gate after any fix, then enqueue kind engine with the actual detached HEAD tip.
