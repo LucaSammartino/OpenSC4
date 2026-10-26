@@ -489,7 +489,7 @@ def write_results(directory, manifest, results):
     write_tsv(directory / 'saturation.tsv', ['scenario', 'window', 'date', 'new', 'total'], windows)
 
 
-def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slots=6):
+def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slots=6, stop_file=None):
     slots = min(slots, 6)  # Include waiting requests in the shared queue footprint.
     deadline = time.monotonic() + wait_seconds
     pending = {r['scenario']['name']: r for r in manifest['requests']}
@@ -504,8 +504,9 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
     results = {}
     try:
         while pending:
+            stopping = stop_file is not None and stop_file.exists()
             # Include queued requests in this lane's shared footprint.
-            while waiting and len(active) < slots and time.monotonic() < deadline:
+            while waiting and not stopping and len(active) < slots and time.monotonic() < deadline:
                 name = waiting.pop(0)
                 request = pending[name]
                 path = root / 'build-runs/game-queue' / (request['label'] + '.req')
@@ -553,6 +554,10 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                       f'actions={parsed["actions_ok"]} ok/{parsed["actions_failed"]} failed; '
                       f'shadow={parsed["shadow_exact_lines"]}/{parsed["shadow_lines"]}', flush=True)
                 write_results(directory, manifest, results)
+            if stopping and not active:
+                for name, request in pending.items():
+                    results[name] = parse_log('', request['scenario']['end'], 'verdict: not-submitted')
+                break
             if pending and time.monotonic() >= deadline:
                 print('queue wait expired; queued/running: ' + ', '.join(sorted(active))
                       + '; not submitted: ' + ', '.join(waiting), file=sys.stderr)

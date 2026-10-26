@@ -251,6 +251,29 @@ def combine(root, tag, tags):
     (directory / 'sources.json').write_text(json.dumps(tags, indent=2) + '\n', encoding='utf-8')
 
 
+def reach_row(item, weights, fraction=0.98):
+    """A missing trace is unknown, including in per-scenario numeric reports."""
+    addresses = item['reached'] & weights.keys()
+    count = sum(weights[a] for a in addresses)
+    cumulative = defaultdict(int)
+    for address in addresses:
+        cumulative[item['first'][address]] += weights[address]
+    total, saturation = 0, None
+    for window, added in sorted(cumulative.items()):
+        total += added
+        if total >= count * fraction:
+            saturation = window
+            break
+    next_date = next((w['date'] for w in item['windows']
+                      if saturation and w['window'] == saturation + 1), None)
+    present = item['trace_present']
+    return dict(scenario=item['name'], profile=item['row']['profile'], verdict=item['row']['verdict'],
+                trace_present=int(present), implemented_bytes=count if present else '-',
+                percent_implemented=f'{count / sum(weights.values()):.6%}' if present else '-',
+                wall_seconds=item['wall_seconds'], saturation_window=saturation or '-',
+                candidate_end=(date.fromisoformat(next_date) - timedelta(days=1)).isoformat() if next_date else '-')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('tag')
@@ -274,23 +297,10 @@ def main():
         scenario_rows = []
         for item in evidence['scenarios']:
             addresses = item['reached'] & weights.keys()
-            count = sum(weights[a] for a in addresses)
-            print(f'{item["name"]}\t{item["row"]["profile"]}\t{count}\t{count / implemented:.4%}\t{item["wall_seconds"]}')
-            cumulative = defaultdict(int)
-            for address in addresses:
-                cumulative[item['first'][address]] += weights[address]
-            total, saturation = 0, None
-            for window, added in sorted(cumulative.items()):
-                total += added
-                if total >= count * args.fraction:
-                    saturation = window
-                    break
-            next_date = next((w['date'] for w in item['windows'] if saturation and w['window'] == saturation + 1), None)
-            scenario_rows.append(dict(scenario=item['name'], profile=item['row']['profile'],
-                verdict=item['row']['verdict'], trace_present=int(item['trace_present']),
-                implemented_bytes=count, percent_implemented=f'{count / implemented:.6%}',
-                wall_seconds=item['wall_seconds'], saturation_window=saturation or '-',
-                candidate_end=(date.fromisoformat(next_date) - timedelta(days=1)).isoformat() if next_date else '-'))
+            row = reach_row(item, weights, args.fraction)
+            scenario_rows.append(row)
+            print('\t'.join(str(row[key]) for key in ('scenario', 'profile', 'implemented_bytes',
+                                                      'percent_implemented', 'wall_seconds')))
             for name in item['scenario']['sets'].split(',') + ['all']:
                 unions[name].update(addresses)
         lines = []

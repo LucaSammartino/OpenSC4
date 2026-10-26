@@ -389,3 +389,29 @@ class SuiteQueueTests(unittest.TestCase):
                                                  tag='not-sent', wait_seconds=0)
             self.assertEqual(results[row['name']]['verdict'], 'not-submitted')
             self.assertFalse(list((root / 'build-runs/game-queue').glob('*.req')))
+
+    def test_stop_file_drains_claimed_requests_without_refilling(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = dict(checkout(root), script='-')
+            directory, manifest = suite.make_batch(root, [row, dict(row, name='later')],
+                                                    'plain', str(root), 'drain')
+            queue = root / 'build-runs/game-queue'
+            queue.mkdir(parents=True)
+            claimed = queue / (manifest['requests'][0]['label'] + '.req')
+            claimed.write_text(manifest['requests'][0]['request'])
+            stop = directory / 'STOP'
+            stop.touch()
+
+            def finish_claimed(_):
+                self.assertEqual(list(queue.glob('*.req')), [claimed])
+                output = root / 'build-runs/game-results' / claimed.stem
+                output.parent.mkdir(parents=True)
+                Path(str(output) + '.verdict').write_text('verdict: clean\n')
+                Path(str(output) + '.log').write_text(
+                    'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8)\n')
+
+            with patch.object(suite.time, 'sleep', side_effect=finish_claimed), contextlib.redirect_stdout(io.StringIO()):
+                results = suite.wait_for_batch(root, directory, manifest, 60, submit=True, stop_file=stop)
+            self.assertEqual(results[row['name']]['verdict'], 'clean')
+            self.assertEqual(results['later']['verdict'], 'not-submitted')

@@ -158,6 +158,17 @@ def item(name, addresses, wall=100, verdict='clean'):
 
 
 class WeightedTierTests(unittest.TestCase):
+    def test_missing_trace_is_unknown_but_an_observed_empty_trace_is_zero(self):
+        evidence = dict(item('missing', []), first={}, windows=[], trace_present=False)
+        evidence['row']['profile'] = 'shadows'
+        row = metric.reach_row(evidence, {1: 100})
+        self.assertEqual(row['implemented_bytes'], '-')
+        self.assertEqual(row['percent_implemented'], '-')
+        evidence['trace_present'] = True
+        row = metric.reach_row(evidence, {1: 100})
+        self.assertEqual(row['implemented_bytes'], 0)
+        self.assertEqual(row['percent_implemented'], '0.000000%')
+
     def test_greedy_weights_bytes_rather_than_functions_and_keeps_98_percent(self):
         items = [item('many-tiny', range(1, 21)), item('one-big', [21])]
         weights = {**dict.fromkeys(range(1, 21), 1), 21: 1000}
