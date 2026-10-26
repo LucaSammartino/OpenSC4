@@ -242,7 +242,7 @@ generated index: the questions live one file per spec, so read only the file for
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
-| automata | 4 | 44 | A5, AM13, AT34 | questions/automata.md |
+| automata | 9 | 44 | A5, AM13, AT34 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -414,7 +414,7 @@ generated index: the questions live one file per spec, so read only the file for
 | vehicles | 2 | 9 | VH12 | questions/vehicles.md |
 | video-preferences | 0 | 5 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
-| view-utilities | 5 | 13 | VU20 | questions/view-utilities.md |
+| view-utilities | 3 | 15 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 0 | 12 | WC13 | questions/watercraft.md |
@@ -431,4 +431,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **617** | **1672** | | |
+| **total** | **620** | **1674** | | |

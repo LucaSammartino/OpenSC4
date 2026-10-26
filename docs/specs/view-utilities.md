@@ -329,6 +329,49 @@ points (`+0x120`) are computed if not cached. Otherwise (flag := 1), with c the 
 
 `IsBoundingBoxInDrawFrustum` then tests against this frustum.
 
+### 5.1 Cached draw-state layout and isolated fixtures (VU18)
+
+Offsets below are relative to the **0x470-byte utilities owner**, not to a separately allocated
+frustum. All geometry scalars are float32; vectors are packed x,y,z triples. A box is min followed
+by max, each a triple. A plane is nx,ny,nz,d. These are the fields actually copied or built by §5:
+
+| Owner offset | Bytes | Meaning | Whole-viewport source |
+|---|---:|---|---|
+| `+0x228` | 1 | narrowed flag | byte zero |
+| `+0x229`–`+0x22B` | 3 | alignment padding; no §5 geometry field | not copied |
+| `+0x22C/+0x230/+0x234/+0x238` | 16 | signed int32 left, top, right, bottom viewport rectangle | supplied arguments |
+| `+0x23C/+0x248` | 24 | frustum AABB min/max | `+0x78/+0x84` |
+| `+0x254/+0x260` | 24 | city-clipped AABB min/max | `+0x90/+0x9C` |
+| `+0x26C + 12i`, i=0…7 | 96 | corners in §3.1 order | `+0xA8 + 12i` |
+| `+0x2CC/+0x2D0/+0x2D4/+0x2D8/+0x2DC/+0x2E0` | 24 | volume left, right, top, bottom, near, far | `+0x108` through `+0x11C` |
+| `+0x2E4 + 12i`, i=0…3 | 48 | ground points TL, TR, BL, BR | `+0x120 + 12i` (freshly cached) |
+| `+0x314 + 16i`, i=0…5 | 96 | right, left, bottom, top, near, far planes | `+0x160 + 16i` |
+| `+0x374 + 12i`, i=0…5 | 72 | ground-reduced plane triples (nx,nz,d) | `+0x1C0 + 12i` |
+| `+0x3BC/+0x3C0/+0x3C4/+0x3C8` | 16 | line A: origin x,z; direction x,z | `+0x208/+0x20C/+0x210/+0x214` |
+| `+0x3CC/+0x3D0/+0x3D4/+0x3D8` | 16 | line B: origin x,z; direction x,z | `+0x218/+0x21C/+0x220/+0x224` |
+
+There are no other holes between `+0x22C` and the end at `+0x3DC` (exclusive). In particular,
+`+0x374`–`+0x3BB` is **not padding**: the narrowed builder writes the first two reduced-plane
+triples from its right/left planes and zeros the other four; the whole-viewport branch copies all
+six from the view state. The source view reduced-plane array was omitted from §1's summary table.
+The first box, second box, corners and volume have displacement `+0x1C4` from their view counterparts;
+planes, reduced planes and lines instead have displacement `+0x1B4`. A universal displacement is wrong.
+Evidence: whole-copy stores `0x007F9FCA`–`0x007FA1A5`, array copies
+`0x007FA217`–`0x007FA2AE`, line stores `0x007FA2B0`–`0x007FA30B`.
+
+The draw box predicate consumes lines A/B and bottom/top planes at `+0x334/+0x344`, without
+consulting the narrowed flag or either AABB (`0x007F6913`–`0x007F6A9E`). The false branch of
+`GetFrustumAABBCityClipped` selects corner base `+0x26C` directly (`0x007F7F89`–`0x007F7F97`);
+it does not use the cached city-clipped box as input.
+
+**Worked fixture:** in a private owner set line A to (10,0,0,1), line B to (0,0,0,1), bottom plane
+to (0,1,0,0), and top plane to (0,−1,0,10). The box min=(2,2,2), max=(3,3,3) passes the draw
+predicate. The box min=(10,2,2), max=(11,3,3) fails on line A; changing `+0x228` alone cannot
+change either result. For the city-clipped-box call, use city W=D=20 and draw corners
+0=(2,4,3), 3=(8,4,3), 4=(2,−4,11), 7=(8,−4,11). The false selector returns
+min=(2,0,3), max=(8,4,7), regardless of the view corners and cached draw-box canaries. Other
+corners are unconsumed by that call. These read-only fixtures need no renderer/camera provider.
+
 **Failure state:** no valid-flag check precedes this operation. The whole-viewport branch copies the
 cached view state and runs its ground wrappers even with an absent renderer/camera; failed wrappers
 have the indeterminate coordinates described in §4.1. The narrowed branch directly dereferences the
@@ -386,7 +429,8 @@ and a uniform scale s (`+0x34`). Kind 0: none; 1: v + t; 2: s v; 3: s v + t; 4: 
 
 ### 7.1 Triangle walk (`0x0080AE60`–`0x0080B3B0`)
 
-A mesh has vertices (position in the first 12 bytes; 16-bit stride at `+0x04`, data at `+0x08`, count at `+0x06`),
+A mesh refers to a **separate vertex-buffer record** (position in the first 12 bytes of each vertex;
+16-bit stride at buffer `+0x04`, data pointer at buffer `+0x08`, count at buffer `+0x06`),
 optional 16-bit indices, and groups of 12 bytes (type, first, count). Without indices the group's vertices start at
 `first`; with them its indices do. Triangle i of a group of count n, by type (`0x0080AE80` the count,
 `0x0080AEF0` the indices):
@@ -411,6 +455,60 @@ floored), but the walk only uses unsigned 16 bits.
 The native count helper uses signed subtraction without saturation for n−1/n−2 (`0x0080AEA8`, `0x0080AEB8`);
 the iterator's signed comparison makes nonpositive counts stop immediately (`0x0080B3B6`). Invalid vertex
 or index references are unchecked memory accesses, not native skip rules (model-instances §9.1, MI9).
+
+#### 7.1.1 Private mesh resource graph (VU17)
+
+The mesh argument is a **12-byte, three-pointer record**, without a vtable. All pointers here are
+32-bit process addresses. They must point to separately accessible records/arrays for the entire
+synchronous call; MeshPick and iterator select-group neither acquire references nor destroy them.
+
+| Record | Offset/type | Consumed meaning |
+|---|---|---|
+| Mesh (0x0C bytes) | `+0x00` pointer V | vertex-buffer record; null makes MeshPick return false |
+| Mesh | `+0x04` pointer I | optional index descriptor; null means nonindexed |
+| Mesh | `+0x08` pointer G | group descriptor; required once V has a nonzero vertex count |
+| Vertex buffer V (native allocation 0x30 bytes) | `+0x00` uint32 | vertex-format word, copied to iterator `+0x0C` |
+| V | `+0x04` uint16 | byte stride, zero-extended to iterator `+0x10` |
+| V | `+0x06` uint16 | vertex count; MeshPick's early nonzero check |
+| V | `+0x08` pointer | first vertex byte, copied to iterator `+0x14` |
+| V | `+0x0C`–`+0x2F` | unconsumed by these two calls; no bounds/refcount initialization needed for this fixture |
+| Index descriptor I | `+0x00` pointer | first uint16 index; **another indirection**, not inline indices |
+| Group descriptor G (0x10 bytes) | `+0x00` uint16, `+0x02` two bytes | ownership word and padding, unconsumed here |
+| G | `+0x04` pointer | first 12-byte group record |
+| G | `+0x08` pointer | one-past-last group record |
+| G | `+0x0C` pointer | allocation end; unconsumed here |
+| Group (0x0C bytes) | `+0x00/+0x04/+0x08` int32 | primitive type, first element, element count |
+
+MeshPick derives the group count as signed byte difference (G.end−G.begin) divided by 12,
+truncated toward zero; it does not read a scalar count field. Use well-formed begin/end pointers
+and nonnegative counts in fixtures. Select-group indexes G.begin directly, without checking G.end.
+It copies type/count and V's format/stride/data, sets iterator index-format to **3 (uint16)**,
+computes the triangle count, and resets current triangle `+0x28` to zero. With I present it sets
+the iterator index pointer to I.data + 2×first and leaves the vertex base unchanged. Without I it
+sets the index pointer to null and advances the vertex base by stride×first. The vertex-format
+word does not change the 12-byte position copy: the direct copy helper always copies x,y,z bits.
+Only I's first pointer is read: a private four-byte descriptor is sufficient; no index count,
+format, vtable, capacity or other tail field is required by this observer contract. This is a
+consumed-record layout, not a promise about a resource owner's larger allocation/lifetime ABI.
+
+Evidence: V dereference/count `0x007F91CE`–`0x007F91E0`; G count
+`0x007F9218`–`0x007F9238`; complete select-group `0x0080B320`–`0x0080B3A5`;
+12-byte mesh-array stride `0x00806AF4`–`0x00806AF8`; V allocation/initialization
+`0x00801214`–`0x00801226`, `0x006156B7`–`0x00615721`; G allocation/initialization
+`0x0080124D`–`0x00801264`. Do not pass these borrowed fixture records to native resource
+destructors, builders, mutation or ownership routines.
+
+**Worked fixture:** V.format=1, V.stride=12, V.count=4, V.data points to
+v0=(99,99,99), v1=(0,0,0), v2=(2,0,0), v3=(0,2,0). G.begin points to one group
+(type=0, first=1, count=3); G.end=G.begin+12 and G.allocationEnd=G.end. With mesh.I=null,
+select-group produces vertex base V.data+12, index pointer null, triangle count 1 and current 0;
+next-triangle returns v1,v2,v3. With a separate uint16 array (99,1,2,3), I.data pointing to it,
+and mesh.I=&I, the same group produces vertex base V.data, index pointer I.data+2 and the
+same triangle. For either variant, kind-0 transform, pick O=(0.5,0.5,2), D=(0,0,−1) and
+nearest=100, MeshPick returns true and stores nearest=2. Repeating with nearest=2 returns
+false and preserves it. Setting V.count=0 returns false even if G is null; count>0 requires
+the full graph. ModelPick can reuse this graph behind its documented model slot5 provider.
+
 ### 7.2 Geometry predicates, ordering and unsafe resources (VU6/VU10)
 
 `RayIntersectsTriangle` (`0x005D6FF0`) is two-sided Möller–Trumbore with **absolute determinant

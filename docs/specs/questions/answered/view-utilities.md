@@ -1,6 +1,17 @@
 # view-utilities: answered questions (archive)
 <!-- Archive for [view-utilities.md](../../view-utilities.md). Lanes do not read this file. Open questions are in ../view-utilities.md. -->
 
+<!-- from: glue-viewutil-apply12 (2026-10-24) -->
+- ~~**VU17 — private mesh fixture resource layout after VU16:** §13 closes the callable signatures and gives the complete iterator record, but §7.1 publishes only mesh vertex stride/count/data offsets (+04/+06/+08). What are the mesh size and offsets/types for vertex format, optional index buffer, group count and group array, including any nested buffer records, as consumed by MeshPick and iterator select-group? These are needed to create an accessible, isolated mesh fixture rather than guess pointer offsets or inspect live resource memory. [Implement local triangle picking and direct iterator vertex-copy/index-decode using the published iterator layout. Leave MeshPick, ModelPick and iterator select-group uncompared until a complete private resource fixture is specified.]~~
+  **ANSWERED 2026-10-26 (re-vu30):** DIFFERS — §7.1.1: a 12-byte mesh holds V/I/G pointers at +00/+04/+08. Vertex stride/count/data are V-relative. G.begin/end at +04/+08 derive group count; optional I contains a pointer to uint16 data. Complete consumed layouts and indexed/nonindexed worked picking fixtures are published.
+
+<!-- from: close-viewutil29 (2026-10-26), VU17 fixture failure -->
+VU17 follow-up (answered above): treating §7.1's stride/count/data offsets as mesh-relative is not a safe minimal fixture: close-viewutil29-house-r4a faulted at 0x007F91DB reading 0xCCCCCCD2 when unprovided mesh words held canaries, before any mesh comparison completed. Please specify the mesh-to-vertex-buffer pointer relationship explicitly, in addition to group/index layout. The lane withdrew this unsupported fixture and leaves MeshPick complete=0; it does not infer a replacement layout from the fault.
+
+<!-- from: glue-viewutil-apply12 (2026-10-24) -->
+- ~~**VU18 — cached draw-frustum field offsets:** §1 gives the draw state only as the +228–+3D8 range, and §5 identifies flag +228, rectangle +22C and ground points +2E4. What are the exact offsets of its two boxes, corners, volume, planes and ground lines (including any unused gaps)? [The R-class adapter consumes only the fully published view fields. Leave IsBoundingBoxInDrawFrustum and the draw branch of GetFrustumAABBCityClipped uncompared; do not infer a fixed displacement from the view layout.]~~
+  **ANSWERED 2026-10-26 (re-vu30):** DIFFERS — §5.1: boxes +23C/+254, corners +26C, volume +2CC, ground points +2E4, planes +314, reduced-plane triples +374, lines +3BC/+3CC; padding only +229–+22B. Two different view-to-draw displacements apply. Predicate and city-clipped-box fixtures give independent outputs.
+
 <!-- from: re-viewutils (2026-10-20) -->
 - ~~**VU1 - §7.1:** what mesh primitive types 6 and 7 are, and whether their odd triangles are intended: type 6
   gives (2i, 2i + 1, 2i + 2) for even i but (2i, 2i + 2, 2i + 3) for odd i, so a 4-vertex group reads vertices 4
