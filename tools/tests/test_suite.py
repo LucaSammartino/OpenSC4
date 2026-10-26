@@ -242,12 +242,14 @@ class SuiteParsingTests(unittest.TestCase):
             (root / 'probe.lua').write_text('print("fixture")\n', encoding='utf-8')
             row.update(script='probe.lua')
             loaded = dict(row, name='load', script='-', notes='load-only; unfounded city')
-            directory, manifest = suite.make_batch(root, [row, loaded], 'plain', str(root), 'lua')
+            with patch.object(suite, 'city_path', return_value=root / 'fixture.sc4'):
+                directory, manifest = suite.make_batch(root, [row, loaded], 'plain', str(root), 'lua')
             lua, load = [r['request'] for r in manifest['requests']]
             self.assertIn('lua_script = build-runs/suite/lua/scripts/case.one.lua', lua)
             self.assertNotIn('\nscript =', lua)
             self.assertTrue(all('close_dialogs = 1' in r['request'] for r in manifest['requests']))
-            self.assertIn('seconds = 12', load)
+            self.assertIn('seconds = 60\n', load)
+            self.assertIn('timeout = 240\n', load)
             self.assertNotIn('end_date =', load)
 
 

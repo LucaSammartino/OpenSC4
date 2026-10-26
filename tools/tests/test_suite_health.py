@@ -15,7 +15,11 @@ def recorded_batch(root):
     (directory / 'manifest.json').write_text(json.dumps(dict(requests=requests)))
     for name in names[:-1]:
         (directory / (name + '.verdict')).write_text('verdict: clean\n')
-        (directory / (name + '.log')).write_text('AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=2.0)\n')
+        (directory / (name + '.log')).write_text(
+            'script: fixture: 1 action(s)\nscript: line 1 2000-01-01 zone -> ok=' +
+            ('0' if name == 'refused' else '1') + '\n'
+            'foo shadow 2000-04-01: mismatches=0\nreach summary reached=1 saved=1\n'
+            'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=2.0)\n')
         (directory / (name + '.json')).write_text(json.dumps(dict(
             reach_lines=[dict(line=1, text='reach summary reached=1')], shadow_lines=1,
             shadow_exact_lines=1, actions_ok=1, actions_failed=int(name == 'refused'), actions_pending=0)))
@@ -40,6 +44,14 @@ def test_clean_share_preserves_missing_and_refused_evidence(tmp_path):
     assert 'no-reach\treach' in gaps
     assert 'refused\t-\t1' in gaps
     assert 'absent\tclean-end,reach,shadows,pending-actions' in gaps
+
+
+def test_stale_parsed_json_cannot_supply_missing_raw_evidence(tmp_path):
+    directory = recorded_batch(tmp_path)
+    (directory / 'complete.log').write_text('AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=2.0)\n')
+    health, _ = suite_health.audit(tmp_path, 'recorded')
+    assert health['complete'] == 1
+    assert health['strict'] == 0
 
 
 def test_estimated_or_wrong_slot_wall_never_passes_tier(tmp_path):

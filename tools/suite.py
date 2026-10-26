@@ -201,7 +201,11 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             if row.get(field):
                 ini[key] = row[field]
         if load_only(row):
-            request.update(seconds='12', timeout='180', turbo='0')
+            # PostCityInit shadows and reach arming can still be running well
+            # after LoadCity returned. A twelve-second fallback killed these
+            # god-mode runs before they could emit their reach summary.
+            load_seconds = int(allowances['autotest_stall_grace_ms']) // 1000 * 2
+            request.update(seconds=str(load_seconds), timeout=str(load_seconds + 180), turbo='0')
             del request['end_date']
         if source_script:
             script = directory / 'scripts' / (row['name'] + source_script.suffix)

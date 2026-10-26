@@ -24,8 +24,16 @@ def audit(root, tag):
     for request, diagnostic in zip(manifest['requests'], triage):
         scenario = request['scenario']
         name = scenario['name']
-        path = directory / (name + '.json')
-        parsed = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+        log = directory / (name + '.log')
+        verdict = directory / (name + '.verdict')
+        parsed = suite.parse_log(log.read_text(encoding='utf-8-sig', errors='replace') if log.exists() else '',
+                                 scenario['end'], verdict.read_text(encoding='utf-8-sig') if verdict.exists() else '',
+                                 only_load=suite.load_only(scenario))
+        if Path(scenario['script']).suffix.lower() == '.lua':
+            lua = directory / (name + '.lua.log')
+            suite.add_lua_evidence(parsed, lua.read_text(encoding='utf-8-sig', errors='replace') if lua.exists() else '')
+        elif scenario['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
+            parsed['actions_pending'] = 1
         addresses, _ = suite_coverage.reached(directory / (name + '.reach.tsv'))
         union.update(addresses)
         clean = diagnostic['verdict'] == 'clean' and diagnostic['end_reached'] == '1'
@@ -36,7 +44,7 @@ def audit(root, tag):
             missing.append('reach')
         if not parsed.get('shadow_lines'):
             missing.append('shadows')
-        if parsed.get('actions_pending', 1):
+        if not log.exists() or parsed['actions_pending']:
             missing.append('pending-actions')
         # Native refusals are evidence, but do not pass the strict action gate.
         counts['clean'] += clean
@@ -50,10 +58,12 @@ def audit(root, tag):
             gaps.append(dict(scenario=name, missing=','.join(missing) or '-',
                              actions_failed=parsed.get('actions_failed', '-'), log=diagnostic['log']))
         if diagnostic['owner'] == 'game-or-engine':
-            signature = (diagnostic['cause'], diagnostic['address'])
+            signature = (diagnostic['cause'], diagnostic['location'] if diagnostic['location'] != '-'
+                         else diagnostic['address'])
             if signature not in seen:
                 seen.add(signature)
-                candidates.append(dict(scenario=name, cause=signature[0], address=signature[1],
+                candidates.append(dict(scenario=name, cause=signature[0], address=diagnostic['address'],
+                                       location=diagnostic['location'],
                                        evidence=diagnostic['first_exception_or_stall'], log=diagnostic['log']))
     total = len(manifest['requests'])
     health = dict(tag=tag, requested=total, **counts, **shadows,
@@ -65,7 +75,7 @@ def audit(root, tag):
                   census_passed=counts['complete'] >= total * .8,
                   strict_passed=counts['strict'] >= total * .8)
     suite.write_tsv(directory / 'evidence_gaps.tsv', ['scenario', 'missing', 'actions_failed', 'log'], gaps)
-    suite.write_tsv(directory / 'finding_candidates.tsv', ['scenario', 'cause', 'address', 'evidence', 'log'], candidates)
+    suite.write_tsv(directory / 'finding_candidates.tsv', ['scenario', 'cause', 'address', 'location', 'evidence', 'log'], candidates)
     return health, union
 
 
