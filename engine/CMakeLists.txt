@@ -72,10 +72,16 @@ if(FC4_COMPILER_CACHE)
     find_program(FC4_SCCACHE_EXECUTABLE sccache
         HINTS "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin" "$ENV{HOME}/.cargo/bin")
     if(FC4_SCCACHE_EXECUTABLE)
-        set(CMAKE_C_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
-        set(FC4_CARGO_ENV "RUSTC_WRAPPER=${FC4_SCCACHE_EXECUTABLE}" CARGO_INCREMENTAL=0
-            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0)
+        # fc4verify supplies a /showIncludes mapper before sccache: cache hits
+        # may contain another worktree's absolute header paths (train278).
+        set(CMAKE_C_COMPILER_LAUNCHER ${FC4_CACHE_LAUNCHER} "${FC4_SCCACHE_EXECUTABLE}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${FC4_CACHE_LAUNCHER} "${FC4_SCCACHE_EXECUTABLE}")
+        # Preserve fc4verify's wrapper (registry cwd normalization and uncached
+        # clippy diagnostics), also for ctest's Cargo command.
+        set(FC4_CARGO_ENV CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0)
+        if(NOT DEFINED ENV{RUSTC_WRAPPER})
+            list(APPEND FC4_CARGO_ENV "RUSTC_WRAPPER=${FC4_SCCACHE_EXECUTABLE}")
+        endif()
         message(STATUS "FC4_COMPILER_CACHE: compiling through ${FC4_SCCACHE_EXECUTABLE}")
     else()
         message(STATUS "FC4_COMPILER_CACHE: sccache not found, compiling without a cache")

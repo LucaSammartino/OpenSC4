@@ -125,10 +125,14 @@ def run(cmd, cwd, log, env=None):
     return p.returncode, text.splitlines()
 
 
-def cargo_env():
-    env = dict(os.environ)
-    env.update(CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0")
-    return env
+def cargo_env(wt):
+    from fc4verify import build_env
+    return build_env(wt, "fc4lane-" + os.path.basename(wt))
+
+
+def cargo_args(wt, *args):
+    return ["cargo", *args, "--target", "i686-pc-windows-msvc", "--target-dir",
+            os.path.join(wt, "engine", "build-x86", "cargo")]
 
 
 def compile_errors(lines, cap):
@@ -143,8 +147,8 @@ def compile_errors(lines, cap):
 def step_test(wt, logdir, cap):
     log = os.path.join(logdir, "qbuild-test.log")
     with cargo_slot("test"):
-        rc, lines = run(["cargo", "test", "--workspace", "--target", "i686-pc-windows-msvc"],
-                        os.path.join(wt, "engine"), log, cargo_env())
+        rc, lines = run(cargo_args(wt, "test", "--workspace"),
+                        os.path.join(wt, "engine"), log, cargo_env(wt))
     tot = [0, 0, 0]
     for l in lines:
         m = re.search(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", l)
@@ -175,8 +179,8 @@ def step_test(wt, logdir, cap):
 def step_clippy(wt, logdir, cap):
     log = os.path.join(logdir, "qbuild-clippy.log")
     with cargo_slot("clippy"):
-        rc, lines = run(["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
-                        os.path.join(wt, "engine"), log, cargo_env())
+        rc, lines = run([*cargo_args(wt, "clippy", "--workspace", "--all-targets"), "--", "-D", "warnings"],
+                        os.path.join(wt, "engine"), log, cargo_env(wt))
     diags = []
     for i, l in enumerate(lines):
         if re.match(r"^(error|warning)(\[\w+\])?:", l) and "generated" not in l and "could not compile" not in l:

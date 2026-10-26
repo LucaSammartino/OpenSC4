@@ -295,15 +295,21 @@ def sccache_exe():
 
 
 def cache_env(wt):
-    """sccache settings for this worktree: its own server (port from the path); no base dir, see the module doc."""
+    """Private server configuration, shared normalized on-disk cache entries.
+
+    MSVC output must pass through cache_compile.py before Ninja consumes it.
+    A new port range avoids reusing pre-mapping servers from older gates.
+    """
     exe = sccache_exe()
     if not exe:
         return {}
     root = str(Path(wt).resolve())
-    port = 4300 + zlib.crc32(root.lower().encode("utf-8")) % 600
-    return {"RUSTC_WRAPPER": exe, "SCCACHE_SERVER_PORT": str(port),
+    port = 10000 + zlib.crc32(root.lower().encode("utf-8")) % 40000
+    return {"RUSTC_WRAPPER": str(Path(__file__).with_name("rust_cache.cmd")),
+            "FC4_SCCACHE": exe, "FC4_CACHE_PYTHON": sys.executable, "SCCACHE_SERVER_PORT": str(port),
             "SCCACHE_DIR": os.environ.get("SCCACHE_DIR") or str(LOCAL / "sccache"),
             "SCCACHE_CACHE_SIZE": os.environ.get("SCCACHE_CACHE_SIZE") or "20G",
+            "SCCACHE_BASEDIRS": root,
             "SCCACHE_IGNORE_SERVER_IO_ERROR": "1", "SCCACHE_IDLE_TIMEOUT": "900"}
 
 
@@ -390,8 +396,8 @@ def step_test(ctx, _a):
 
 def step_clippy(ctx, _a):
     env = dict(ctx.env)
-    env.pop("RUSTC_WRAPPER", None)  # clippy-driver runs as a workspace wrapper; keep lints out of the cache
-    cmd = ["cargo", "clippy", "--workspace", "--all-targets", "--target-dir", str(ctx.build / "clippy"),
+    cmd = ["cargo", "clippy", "--workspace", "--all-targets", "--target", RUST_TARGET,
+           "--target-dir", str(ctx.build / "cargo"),
            "--", "-D", "warnings"]
     rc, text, secs = run(cmd, ctx.engine, env, ctx.log("clippy"), timeout=5400)
     return {**parse_clippy(text), "seconds": secs, "log": str(ctx.log("clippy"))}
@@ -402,7 +408,14 @@ def step_build(ctx, _a):
     if err:
         return {"ok": False, "summary": err, "seconds": 0, "log": None}
     cache = "ON" if ctx.cached else "OFF"
-    rc, text, s1 = run(["cmake", "-S", ctx.engine, "-B", ctx.build, "-G", "Ninja", f"-DFC4_COMPILER_CACHE={cache}"],
+    roots = [str(main_root(ctx.wt)), *os.environ.get("FC4_CACHE_ROOTS", "").split(os.pathsep)]
+    launcher = [sys.executable, str(Path(__file__).with_name("cache_compile.py")), "--root", str(ctx.wt)]
+    for root in dict.fromkeys(r for r in roots if r):
+        launcher.extend(["--from-root", root])
+    launcher.append("--")
+    rc, text, s1 = run(["cmake", "-S", ctx.engine, "-B", ctx.build, "-G", "Ninja", f"-DFC4_COMPILER_CACHE={cache}",
+                       "-DCMAKE_POLICY_DEFAULT_CMP0141=NEW", "-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded",
+                       "-DFC4_CACHE_LAUNCHER=" + ";".join(launcher)],
                        ctx.engine, ctx.env, ctx.log("configure"), timeout=900)
     cfg = parse_configure(text)
     ctx.results["configure"] = {**cfg, "seconds": s1, "log": str(ctx.log("configure"))}
@@ -410,7 +423,7 @@ def step_build(ctx, _a):
         return {"ok": False, "summary": f"configure: {cfg['summary']}", "seconds": s1, "log": str(ctx.log("configure")),
                 "errors": cfg["errors"]}
     if ctx.cached:
-        subprocess.run([ctx.env["RUSTC_WRAPPER"], "--zero-stats"], env=ctx.env, capture_output=True)
+        subprocess.run([ctx.env["FC4_SCCACHE"], "--zero-stats"], env=ctx.env, capture_output=True)
     rc, text, s2 = run(["cmake", "--build", ctx.build], ctx.engine, ctx.env, ctx.log("build"), timeout=7200)
     res = parse_ninja(text)
     dll = ctx.build / "FreeCity4.dll"
@@ -554,7 +567,7 @@ def sha256(path):
 
 
 def cache_stats(env):
-    p = subprocess.run([env["RUSTC_WRAPPER"], "--show-stats", "--stats-format", "json"], env=env,
+    p = subprocess.run([env.get("FC4_SCCACHE", env["RUSTC_WRAPPER"]), "--show-stats", "--stats-format", "json"], env=env,
                        capture_output=True, text=True, errors="replace")
     try:
         st = json.loads(p.stdout)["stats"]
