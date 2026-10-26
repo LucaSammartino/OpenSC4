@@ -200,23 +200,23 @@ Primary QI `0x004F5210` accepts `1`, soundscape IID `0x29E39DB4` (base), and ser
 | 3–4 | `0x004F53E0`, `0x004F5700` | Initialize / shut down (§20.2). |
 | 5 | `0x004F64F0` | Register group using supplied resource, key/flags and lifetime; duplicate key returns false. |
 | 6 | `0x004F6A00` | Remove keyed group; missing key returns false. |
-| 7 | `0x004F65C0` | Keyed group operation; missing key returns false; inner behavior AU42. |
-| 8 | `0x004F6620` | Operate on groups whose saved flags contain every requested mask bit; mode-dependent cleanup AU42. |
+| 7 | `0x004F65C0` | Clear keyed group; missing key returns false; audio-scape §4.3. |
+| 8 | `0x004F6620` | Clear groups whose saved flags contain every requested mask bit; audio-scape §4.3, including keep/no-sound-system behavior. |
 | 9–10 | `0x004F7850`, `0x004F7AF0` | Keyed instance operations; missing group clears instance output and returns false. |
 | 11 | `0x004F57B0` | Enumerate positions: signed capacity check, failure preserves outputs, success copies raw records/metadata; audio §20.4. |
-| 12–17 | `0x004F7300`, `0x004F51E0`, `0x004F6B30`, `0x004F7510`, `0x004F5E30`, `0x004F5A20` | Additional instance/group operations; signatures and behavior AU42. |
+| 12–17 | `0x004F7300`, `0x004F51E0`, `0x004F6B30`, `0x004F7510`, `0x004F5E30`, `0x004F5A20` | Add/convenience-add/remove/move emanation, add/remove definition; full signatures and behavior in audio-scape §§1.1, 4.4, 5. |
 | 18 | `0x004F69E0` | Deleting destructor wrapping `0x004F62C0`. |
 
 Slot 13 `0x004F51E0` is the four-argument wrapper for dynamic slot 12: `(A,B,C,D)`
 becomes `(A,0,0,B,C,D)`, preserving its result. Audio §20.4 adds six capacity/dispatch
-vectors; the other operations and resource contract remain AU42.
+vectors; [audio-scape.md](audio-scape.md) §§3–7 complete AU42's remaining operations.
 
 Service table slots 0–2 are adjustment thunks; slot 3 is `0x00407BA0`, slot 4
 `0x0070C880`, slot 5 `0x004F6230` returns `0x80000000`, slots 6/7 `0x004F6240` /
 `0x004F6250` read/write the enabled byte using the adjusted service view. Slots 8/9
 `0x004F62A0` / `0x004F62B0` wrap initialize/shutdown, slot 10 `0x004F67C0` performs
 the service tick, and slots 11/12 use `0x005DEB40` / `0x004EA510`. Service getters'
-full meanings are AU42; do not infer them from folded names. Table `0x00A942F8` has four
+full meanings are audio-scape §§2.3, 6.2; do not infer them from folded names. Table `0x00A942F8` has four
 entries: adjustment thunks in slots 0–2 and slot 3 `0x004F5200`.
 
 ### 20.2 Lifetime and sound IO
@@ -234,10 +234,10 @@ event **`0x6A451908`** with the instance identifier and three zero arguments whe
 global sound system exists (`0x004F5B80`). Missing global sound system suppresses that
 external call while local removal continues.
 
-Tick `0x004F67C0` uses elapsed timer difference, reduces expiry countdowns without going below
-zero, and stops/removes expired instances. It also advances sound parameters toward targets.
-Full timing widths, smoothing, group/resource format, allocation failures and instance ownership
-remain AU42. These are material open items, so this is not a complete scape algorithm.
+Tick `0x004F67C0` uses unsigned u32 timer differences and saturating countdown subtraction,
+then per-tick signed divide-by-seven channel smoothing. Full timing, in-memory group/definition
+format, allocation requirements and instance ownership are [audio-scape.md](audio-scape.md)
+§§3.5, 6.2, 7.4–7.5 (AU42). This owner does not decode a scape resource.
 
 ### 20.3 Fire-handler integration
 

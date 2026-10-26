@@ -2,9 +2,6 @@
 <!-- Engine questions for docs/specs/audio.md; append new entries below. -->
 
 <!-- from: re-audio9 (2026-10-23) -->
-- **AU42 — full scape group/instance contract:** supplement §20 inventories all 19 primary slots,
-  but slots 7–17, resource format, parameter smoothing, timer widths, capacity outputs and allocation
-  failures need full behavior. Relevant range `0x004F51E0`–`0x004F7B60`; service tick `0x004F67C0`.
 - **AU43 — preferences construction and song/control rules:** supplement §21 settles the sound IO,
   slider arithmetic and some source/notification filtering. Recover construction/defaults, complete
   OK/cancel/revert ordering, dialog control actions/filter matrix, song discovery and exclusion-list

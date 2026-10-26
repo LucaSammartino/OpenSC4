@@ -2305,11 +2305,12 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 
 ---
 
-## 20.4 Scape position enumeration and convenience insertion (AU42 partial)
+## 20.4 Scape position enumeration and convenience insertion (AU42)
 
 This settles primary slots 11 and 13 from [supplement §20.1](audio-owner-contracts.md#201-scape-construction-and-slots).
-AU42 remains open for resource loading, the other instance/group operations, smoothing,
-timers and allocation failure. These two entry points do not establish complete scape coverage.
+The complete group/instance contract is [audio-scape.md](audio-scape.md) §§3–7, with AU42
+timer widths, capacity/output rules, allocation behavior and worked cases in §§3.5, 6.2,
+7.4–7.5 and 11. Slot 5 copies a name string; there is no scape resource loader in this owner.
 
 Primary slot 11 (`0x004F57B0`) takes `(groupKey, positions, countInOut, metadataOut)`.
 It holds the manager's group lock (`base+0x44`) while looking up the first matching group
@@ -2330,14 +2331,14 @@ still reports the group's stored count, rather than the number actually copied. 
 performs both word writes but no position write (`0x004F5807`–`0x004F584D`). Null count or
 metadata output is not accepted on a successful path; a null positions buffer is harmless
 only when no position is copied. No service/initialized/enabled gate is tested here.
-The resource meaning of the raw metadata word remains part of AU42's resource contract.
+The metadata word is the group's emanation total (audio-scape.md §3.5).
 
 Primary slot 13 (`0x004F51E0`) is a four-argument convenience entry. With arguments
 `(A,B,C,D)`, it dynamically dispatches the same object's **primary slot 12**, passing
 `(A,0,0,B,C,D)` in that order. It adds no checks, locking, output clearing, ownership or
 return conversion; the return register is the slot 12 result. This is a dispatch contract,
 not an independent instance insertion algorithm. Fire-handler calls to slot 13 therefore
-inherit slot 12's full contract once the remaining AU42 work settles it.
+inherit slot 12's full contract in audio-scape.md §5.1.
 
 ### Scape capacity conformance vectors
 

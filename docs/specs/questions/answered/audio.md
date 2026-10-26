@@ -1,5 +1,18 @@
 # audio: answered questions
 
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU42 — full scape group/instance contract:** supplement §20 inventories all 19 primary slots,
+  but slots 7–17, resource format, parameter smoothing, timer widths, capacity outputs and allocation
+  failures need full behavior. Relevant range `0x004F51E0`–`0x004F7B60`; service tick `0x004F67C0`.
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio-scape.md §§3–7 specifies every
+  group/instance slot; §§3.5, 6.2, 7.4–7.5 complete input/ownership, u32 timer wrap,
+  signed channel smoothing, capacity/output rules, sparse grid arithmetic and allocation
+  requirements. There is no resource decoder: slot 5 copies a name string. Metadata is
+  emanation total. Allocation failures have no owner-level false/unwind path. Section 11
+  adds worked timer, channel/cache, output, sparse-grid and sound-band cases. Audio §20.4
+  and supplement §20 now point to this complete contract.
+
 <!-- from: core-audio-close13 (2026-10-24) -->
 - **AU50 — §8.3.1 remaining SoundManager algorithms:** the AU46/AU49 answer says
   UpdateAll applies distance/simulation-pause policies, linked UpdatePosition performs a

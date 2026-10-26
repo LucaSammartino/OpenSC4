@@ -236,7 +236,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
 | application | 12 | 6 | AP19 | questions/application.md |
-| audio | 5 | 15 | AU51 | questions/audio.md |
+| audio | 4 | 16 | AU51 | questions/audio.md |
 | audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **656** | **1598** | | |
+| **total** | **655** | **1599** | | |
