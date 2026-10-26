@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -147,10 +148,14 @@ struct Tracer::State {
         void Unlock() { gate.clear(std::memory_order_release); }
     };
     struct Thread {
+        struct Event {
+            uint32_t entry, code, eip, esp, eax, ecx, edx, ebx, esi, edi, ebp, flags, dr6;
+        } history[32]{};
         std::atomic<uint32_t> id{0};
         Entry* entry = nullptr;
         bool previousTF = false;
         uint32_t ignored = 0;
+        uint32_t events = 0;
     };
     std::unique_ptr<Entry[]> entries;
     size_t count = 0;
@@ -160,7 +165,42 @@ struct Tracer::State {
     std::atomic<bool> active{false};
     uint32_t cap = 0;
     PVOID handler = nullptr;
+    HANDLE diagnostic = INVALID_HANDLE_VALUE;
+    std::atomic<uint32_t> reports{0};
     static std::atomic<State*> current;
+
+    void Record(Thread* t, Entry* e, DWORD code, const CONTEXT& c) {
+#if defined(_M_IX86)
+        if (diagnostic == INVALID_HANDLE_VALUE || !t) return;
+        t->history[t->events++ % 32] = {e ? e->address : 0, code, c.Eip, c.Esp,
+            c.Eax, c.Ecx, c.Edx, c.Ebx, c.Esi, c.Edi, c.Ebp, c.EFlags, c.Dr6};
+#endif
+    }
+
+    void Report(Thread* t, const EXCEPTION_RECORD& r, const CONTEXT& c) {
+#if defined(_M_IX86)
+        if (diagnostic == INVALID_HANDLE_VALUE || reports.fetch_add(1) >= 16) return;
+        char buffer[768];
+        auto write = [&](int n) {
+            DWORD done = 0;
+            if (n > 0) WriteFile(diagnostic, buffer, static_cast<DWORD>((std::min)(n, 767)), &done, nullptr);
+        };
+        write(std::snprintf(buffer, sizeof(buffer),
+            "exception tid=%lu code=%08lx at=%p info=%08lx/%08lx pending=%08x previousTF=%u\n",
+            GetCurrentThreadId(), r.ExceptionCode, r.ExceptionAddress,
+            r.NumberParameters > 0 ? r.ExceptionInformation[0] : 0,
+            r.NumberParameters > 1 ? r.ExceptionInformation[1] : 0,
+            t && t->entry ? t->entry->address : 0, t && t->previousTF ? 1 : 0));
+        Record(t, t ? t->entry : nullptr, r.ExceptionCode, c);
+        if (t) for (uint32_t i = t->events > 32 ? t->events - 32 : 0; i < t->events; ++i) {
+            const auto& e = t->history[i % 32];
+            write(std::snprintf(buffer, sizeof(buffer),
+                "event=%u entry=%08x code=%08x eip=%08x esp=%08x eax=%08x ecx=%08x edx=%08x ebx=%08x esi=%08x edi=%08x ebp=%08x flags=%08x dr6=%08x\n",
+                i, e.entry, e.code, e.eip, e.esp, e.eax, e.ecx, e.edx, e.ebx, e.esi, e.edi, e.ebp, e.flags, e.dr6));
+        }
+        FlushFileBuffers(diagnostic);
+#endif
+    }
 
     Thread* Slot(bool create) {
         const uint32_t tid = GetCurrentThreadId();
@@ -222,6 +262,7 @@ struct Tracer::State {
             s->traps.fetch_add(1, std::memory_order_relaxed);
             if (code == kWx86Breakpoint) s->wxBreakpoints.fetch_add(1, std::memory_order_relaxed);
             Thread* t = s->Slot(true);
+            s->Record(t, e, code, ctx);
             // An unexpected nested breakpoint/aborted first instruction must
             // not leak a pending step or consume somebody else's TF.
             bool previousTF = (ctx.EFlags & kTrapFlag) != 0;
@@ -262,7 +303,9 @@ struct Tracer::State {
             return EXCEPTION_CONTINUE_EXECUTION;
         }
         Thread* t = s->Slot(false);
+        if (code != EXCEPTION_SINGLE_STEP && code != kWx86SingleStep) s->Report(t, *ep->ExceptionRecord, ctx);
         if (t && t->entry) {
+            s->Record(t, t->entry, code, ctx);
             const bool foreignTF = t->previousTF;
             s->FinishStep(*t);
             if (!foreignTF) ctx.EFlags &= ~kTrapFlag;
@@ -288,6 +331,7 @@ Tracer::~Tracer() {
         RemoveVectoredExceptionHandler(state_->handler);
         State::current.store(nullptr, std::memory_order_release);
     }
+    if (state_->diagnostic != INVALID_HANDLE_VALUE) CloseHandle(state_->diagnostic);
     for (size_t i = state_->count; i > 0; --i) {
         auto& e = state_->entries[i - 1];
         if (e.writable) {
@@ -295,6 +339,13 @@ Tracer::~Tracer() {
             VirtualProtect(const_cast<uint8_t*>(e.code), 1, e.oldProtection, &unused);
         }
     }
+}
+
+bool Tracer::Diagnostics(const std::string& path) {
+    if (state_->handler || state_->diagnostic != INVALID_HANDLE_VALUE) return false;
+    state_->diagnostic = CreateFileA(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+                                    nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    return state_->diagnostic != INVALID_HANDLE_VALUE;
 }
 
 bool Tracer::Prepare(const std::vector<Contract>& contracts, uintptr_t preferredBase,
@@ -528,6 +579,9 @@ void ReachPrepare() {
         return;
     }
     g_reach = tracer;
+    const std::string diagnostics = Setting("reach_diagnostics", nullptr);
+    if (!diagnostics.empty() && !tracer->Diagnostics(diagnostics))
+        Log("reach diagnostics unavailable path=%s", diagnostics.c_str());
     g_reachOutput = Setting("reach_output", nullptr);
     if (g_reachOutput.empty()) g_reachOutput = std::string(LogPath()) + ".reach.tsv";
     Log("reach prepared functions=%u contracts=%s (before entry hooks)",

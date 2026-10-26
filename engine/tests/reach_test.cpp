@@ -125,6 +125,7 @@ int main(int argc, char** argv) {
     void* foreign = AddVectoredExceptionHandler(0, Foreign);
     {
         fc4::reach::Tracer tracer;
+        CHECK(tracer.Diagnostics("reach-diagnostics.txt"));
         CHECK(tracer.Prepare(contracts, reinterpret_cast<uintptr_t>(dll), reinterpret_cast<uintptr_t>(dll),
                              nt->OptionalHeader.SizeOfImage));
         // Simulate a hook that kept byte 0 but changed another entry byte.
@@ -201,6 +202,11 @@ int main(int argc, char** argv) {
         CHECK(windows[2].number == 3 && windows[2].newFunctions == 4 && windows[2].total == 6);
         CHECK(windows.back().total == tracer.GetSummary().reached);
         CHECK(tracer.Write("reach-synthetic.tsv"));
+        std::ifstream diagnostics("reach-diagnostics.txt");
+        std::string diagnosticText((std::istreambuf_iterator<char>(diagnostics)), {});
+        CHECK(diagnosticText.find("code=c0000005") != std::string::npos);
+        CHECK(diagnosticText.find("pending=00000000") != std::string::npos);
+        CHECK(diagnosticText.find("event=") != std::string::npos);
         std::printf("reach synthetic exact A=29/29 B=44/44 float=2/2 flags=2/2 ret=2/2 fault=2/2 windows=3 cap=32 ignored=5 skipped=3 suspend_resume=1 traps=%u aborted=%u\n", s.traps, s.abortedSteps);
     }
     {
