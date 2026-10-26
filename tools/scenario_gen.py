@@ -69,7 +69,7 @@ def generate(seed, size, start, months, mix="default"):
     zone_types = list(range(16))
     rng.shuffle(zone_types)
     lines = [
-        "# scenario_gen v3: seed={} size={} start={} months={} mix={}".format(
+        "# scenario_gen v4: seed={} size={} start={} months={} mix={}".format(
             seed, size, start.isoformat(), months, mix),
         "# Cells stay inside the tile. Native refusals are expected in edge/churn.",
         "# pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.",
@@ -103,15 +103,18 @@ def generate(seed, size, start, months, mix="default"):
 
     def grow(day, month):
         if month == 0:
+            # Clear grown residential/commercial lots before laying the grid.
+            # Existing civic lots can still make a native placement fail.
+            zone(day, "dezone", (ox, oz, ox + 32, oz + 32))
             # Land above sea level, small enough to leave most of a tile alone.
             emit(day, "terrain {} {} {} {} 270 1".format(ox, oz, ox + 32, oz + 32))
             for offset in range(0, 33, 8):
                 network(day, ox, oz + offset, ox + 32, oz + offset, 0)
                 network(day, ox + offset, oz, ox + offset, oz + 32, 3)
-            network(day, ox, oz + 1, ox + 32, oz + 1, 4)  # pipe
-            network(day, ox + 1, oz, ox + 1, oz + 32, 5)  # power line
-            network(day, ox, oz + 16, ox + 32, oz + 16, 1)  # rail crossing
-            network(day, ox + 24, oz, ox + 24, oz + 32, 6)  # avenue
+            # Parallel transport types need separate corridors: a rail line
+            # cannot occupy the road's entire row. Keep these outside the grid.
+            network(day, ox, oz + 34, ox + 32, oz + 34, 1)
+            network(day, ox + 36, oz, ox + 36, oz + 32, 6)
         # Every type, including all R/C/I densities, within four months (or
         # within the only available month for a one-month request).
         batches = min(months, 4)
@@ -122,9 +125,12 @@ def generate(seed, size, start, months, mix="default"):
             x, z = ox + col * 8 + 2, oz + row * 8 + 1
             zone(day, "zone", (x, z, x + 3, z + 3), kind)
         # Extend utilities and try new port sites over subsequent months.
-        offset = (month % 4) * 8 + 1
+        # Extend rather than redraw the same four completed utility runs.
+        # Power lines use a corridor outside lots and the road/street grid.
+        offset = month % 31 + 1
         network(day, ox, oz + offset, ox + 32, oz + offset, 4)
-        network(day, ox + offset, oz, ox + offset, oz + 32, 5)
+        power_x, power_z = ox + 34 + (month // 30) % 4, oz + month % 30
+        network(day, power_x, power_z, power_x, power_z + 2, 5)
         if month % 6 == 0:
             emit(day, "port {} {} {} {} 0".format(
                 "airport" if month % 12 == 0 else "seaport",

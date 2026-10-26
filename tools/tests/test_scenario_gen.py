@@ -145,6 +145,17 @@ class ScenarioGeneratorTests(unittest.TestCase):
             self.assertEqual(months, 48)
             self.assertGreater(refills, 1)
 
+    def test_growth_extends_instead_of_repeating_completed_utility_runs(self):
+        for size in gen.SIZES:
+            seen = set()
+            for line in gen.generate(2, size, date(2000, 1, 1), 24, 'grow').splitlines():
+                if ' network ' not in line:
+                    continue
+                _, _, x0, z0, x1, z1, kind = line.split()
+                key = (kind, tuple(sorted(((int(x0), int(z0)), (int(x1), int(z1))))))
+                self.assertNotIn(key, seen, line)
+                seen.add(key)
+
     def test_required_mix_coverage(self):
         for mix in gen.MIXES:
             lines = [line.split() for line in gen.generate(7, "small", date(2026, 1, 1), 24, mix).splitlines()
