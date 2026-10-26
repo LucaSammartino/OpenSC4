@@ -10,9 +10,9 @@ The denominator is the game's own code: **5,584,344 bytes in 29,535 functions** 
 |---|---|---:|---:|---:|---|
 | **Specified** | a clean-room spec in docs/specs describes the owning class | **91.9%** | 5,132,879 | 25,599 | - |
 | **Implemented** | our clean-room code in engine/ implements the owning class | **62.3%** | 3,479,671 | 15,553 | 0.0% implemented without a spec |
-| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train283.out`) | **31.1%** | 1,734,838 | 7,435 | 0.8% verified while its owner is not marked implemented |
+| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train284.out`) | **30.9%** | 1,728,127 | 7,408 | 0.8% verified while its owner is not marked implemented |
 | ↳ strict | ... and exact in every scenario of the test suite that reached it (`sh28-census3`, 179 runs) | **5.9%** | 329,798 | 1,407 | - |
-| **Replaced** | our code runs in the game instead of the original (house replace run) | **29.4%** | 1,639,183 | 6,468 | 2.8% running in the game before it was verified |
+| **Replaced** | our code runs in the game instead of the original (house replace run) | **29.4%** | 1,639,183 | 6,468 | 2.9% running in the game before it was verified |
 
 Reach, not a step: the suite entered 27.9% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
 
@@ -36,7 +36,7 @@ Share of each area's bytes at each step. Shared helpers and unattributed code ha
 
 | Area | Bytes | % of game | Specified | Implemented | Verified | ↳ strict | Replaced | Suite reach |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 1,978,253 | 35.4% | 100.0% | 82.3% | 69.9% | 13.0% | 67.7% | 50.6% |
+| simulation | 1,978,253 | 35.4% | 100.0% | 82.3% | 69.5% | 13.0% | 67.7% | 50.6% |
 | framework | 637,923 | 11.4% | 96.6% | 78.7% | 13.7% | 4.8% | 0.7% | 21.9% |
 | renderer | 1,222,529 | 21.9% | 99.2% | 70.7% | 19.7% | 1.8% | 22.2% | 23.8% |
 | ui | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.1% | 0.0% | 0.0% | 8.6% |
@@ -45,20 +45,20 @@ Share of each area's bytes at each step. Shared helpers and unattributed code ha
 | other | 17,873 | 0.3% | 68.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | shared | 189,808 | 3.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | unattributed | 85,977 | 1.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
-| **all game code** | **5,584,344** | 100.0% | **91.9%** | **62.3%** | **31.1%** | **5.9%** | **29.4%** | **27.9%** |
+| **all game code** | **5,584,344** | 100.0% | **91.9%** | **62.3%** | **30.9%** | **5.9%** | **29.4%** | **27.9%** |
 
 ## By subsystem
 
-One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes. Shadow: clean/total lines in `regress-train283.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run.
+One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes. Shadow: clean/total lines in `regress-train284.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run.
 
 | Area | Subsystem | Owners | Bytes | Specified | Implemented | Verified | ↳ strict | Replaced | Suite reach | Shadow |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | simulation | automata (vehicles, animation) | 33 | 231,259 | 100.0% | 26.1% | 2.3% | 0.0% | 2.3% | 18.3% | 72/72 |
-| simulation | traffic | 9 | 162,482 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 72.2% | 71/71, 72/72 |
+| simulation | traffic | 9 | 162,482 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 72.2% | 72/72 |
 | simulation | network tools | 12 | 150,282 | 100.0% | 94.3% | 80.3% | 0.0% | 70.5% | 82.8% | 73/73 |
 | simulation | network occupants | 28 | 123,459 | 100.0% | 15.2% | 33.1% | 0.0% | 0.0% | 8.3% | 72/72 |
 | simulation | automata (managers, records) | 13 | 121,603 | 100.0% | 99.5% | 99.5% | 22.9% | 99.5% | 47.4% | 72/72 |
-| simulation | terrain | 5 | 84,631 | 100.0% | 99.6% | 87.3% | 0.0% | 87.3% | 30.2% | 624/624 |
+| simulation | terrain | 5 | 84,631 | 100.0% | 99.6% | 87.3% | 0.0% | 87.3% | 30.2% | 617/617 |
 | simulation | mysims | 8 | 80,498 | 100.0% | 100.0% | 53.4% | 0.0% | 80.8% | 47.9% | 73/73 |
 | simulation | advisors | 18 | 71,970 | 100.0% | 99.2% | 90.6% | 61.3% | 90.6% | 63.3% | 73/73 |
 | simulation | occupants and props | 38 | 70,035 | 100.0% | 37.9% | 0.2% | 0.0% | 0.0% | 34.8% | - |
@@ -72,9 +72,9 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | simulation | tract developer | 1 | 36,811 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 72.6% | 145/145 |
 | simulation | city and save file | 11 | 35,103 | 100.0% | 78.2% | 0.0% | 0.0% | 0.0% | 40.8% | - |
 | simulation | budget | 3 | 30,911 | 100.0% | 100.0% | 100.0% | 57.7% | 100.0% | 57.7% | 72/72 |
-| simulation | demand | 2 | 29,573 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 62.1% | 2237/2237 |
+| simulation | demand | 2 | 29,573 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 62.1% | 2236/2236 |
 | simulation | neighbours | 3 | 26,974 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 77.6% | 71/71 |
-| simulation | power | 1 | 26,475 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 75.3% | 389/389 |
+| simulation | power | 1 | 26,475 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 75.3% | 393/393 |
 | simulation | lots and lot records | 5 | 24,896 | 100.0% | 100.0% | 82.6% | 69.1% | 0.0% | 84.6% | 73/73 |
 | simulation | pollution | 1 | 24,357 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 65.2% | 71/71 |
 | simulation | protection | 3 | 23,130 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 55.9% | 288/288 |
@@ -97,7 +97,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | simulation | simulator | 2 | 9,529 | 100.0% | 98.1% | 0.0% | 0.0% | 98.1% | 0.5% | - |
 | simulation | ordinance | 8 | 9,326 | 100.0% | 100.0% | 100.0% | 44.0% | 100.0% | 44.0% | 71/71 |
 | simulation | dispatch | 1 | 7,425 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 20.0% | 73/73 |
-| simulation | landvalue | 1 | 6,711 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 63.6% | 72/72 |
+| simulation | landvalue | 1 | 6,711 | 100.0% | 100.0% | 0.0% | 0.0% | 100.0% | 63.6% | 71/72 |
 | simulation | zones | 1 | 6,513 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 62.3% | 292/292 |
 | simulation | history | 2 | 6,285 | 100.0% | 100.0% | 100.0% | 76.3% | 100.0% | 76.3% | 79/79 |
 | simulation | flammability | 1 | 6,001 | 100.0% | 100.0% | 100.0% | 63.5% | 100.0% | 63.5% | 54/54 |
@@ -128,7 +128,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | framework | tree diagnostics | 1 | 768 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | framework | container helpers | 1 | 109 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | framework | cheats | 1 | 5 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
-| renderer | 3D scene and models | 19 | 177,441 | 100.0% | 62.6% | 24.1% | 0.0% | 0.0% | 33.1% | 624/624 |
+| renderer | 3D scene and models | 19 | 177,441 | 100.0% | 62.6% | 24.1% | 0.0% | 0.0% | 33.1% | 617/617 |
 | renderer | effects | 72 | 171,628 | 100.0% | 93.8% | 0.0% | 0.0% | 39.9% | 24.7% | - |
 | renderer | 3D driver (DirectX 7) | 11 | 152,278 | 97.0% | 96.8% | 0.0% | 0.0% | 0.0% | 36.9% | - |
 | renderer | 2D drawing and fonts | 48 | 146,443 | 96.6% | 17.0% | 0.0% | 0.0% | 0.0% | 8.1% | - |
@@ -330,13 +330,13 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | 35ff9f528cde8b90 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 6c43c60410f315fd | |
+| tools/coverage-map.tsv | 9d4267901e29f5a7 | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
-| tools/regress.ps1 | 307a3c1b5832c0f7 | |
-| engine/plugin/FC4Subsystems.cpp | 88d5e6b3d425f2f9 | |
-| build-runs/regress-train283.out | 9debedd6b12da2cc | regress train283 (PASS; turbo to 2032-01-01, timeout 3600 s; queue (priority high, at the same time); shadows combined); replace run clean |
-| build-runs/regress-train283-replace.log | 3f7cab359d471ddf | function compare evidence |
-| build-runs/regress-train283-shadows.log | 9eb18a282ad53f63 | function compare evidence |
+| tools/regress.ps1 | fe38461524a619f8 | |
+| engine/plugin/FC4Subsystems.cpp | 64c4f29d042ffe43 | |
+| build-runs/regress-train284.out | f0519e42a27273ba | regress train284 (PASS; turbo to 2032-01-01, timeout 3600 s; queue (priority high, at the same time); shadows combined); replace run clean |
+| build-runs/regress-train284-replace.log | 49919374d87e43b1 | function compare evidence |
+| build-runs/regress-train284-shadows.log | ec6a5c7564ad9340 | function compare evidence |
 | engine/plugin/compare/cRZLanguageManager.tsv | ad5d82ba2f45a1c3 | function compare evidence |
 | engine/plugin/compare/cSC4ConfigRuleManager.tsv | 2a3a670db94fd3db | function compare evidence |
 | engine/plugin/compare/cSC4LightingManager.tsv | 03e81a8d1d9e5cc4 | function compare evidence |
@@ -974,4 +974,5 @@ Read from tools/regress.ps1: 55 replace keys, 91 shadows. On by default in FC4Su
 - method evidence 0x0094C413: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x0094C47C: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x009C32AC: name/owner/bytes collision with coverage table; not credited
-- shadow `span8888_shadow` is in the regress list but `regress-train283.out` has no `span8888` lines
+- replace keys in regress.ps1 but not enabled in `regress-train284.out`'s replace run (not credited): gzfw
+- shadow `span8888_shadow` is in the regress list but `regress-train284.out` has no `span8888` lines
