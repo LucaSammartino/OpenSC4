@@ -190,6 +190,13 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                     ini['script'] = setup_copy.relative_to(root).as_posix()
             else:
                 ini['script'] = script.relative_to(root).as_posix()
+        if ini.get('script'):
+            # Inspect the staged dated script (also a Lua setup companion).
+            # Native full SaveCity can exceed the ordinary ten-second watchdog;
+            # the plugin applies this bounded opt-in only inside full saves.
+            dated = (root / ini['script']).read_text(encoding='utf-8-sig')
+            if re.search(r'(?m)^\s*\d{4}-\d\d-\d\d\s+save(?:\s|$)', dated):
+                ini['script_save_grace_ms'] = '60000'
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
