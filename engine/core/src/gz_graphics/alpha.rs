@@ -35,6 +35,10 @@ pub fn alpha_blt_no_clip(
         if source.depth != 16 || !matches!(d.colour_type, 4..=6) {
             return Ok(1);
         }
+        // SPEC-GAP: §6.2.1 requires a separate alias capture; do not invent sampling order.
+        if std::ptr::eq(source.buffer, destination) {
+            return Err(Error::Unsupported("GZG5"));
+        }
         let s = source.buffer.record();
         let a = alpha.record();
         let mut words = Vec::new();
@@ -209,7 +213,7 @@ pub fn generic_buffer_clip_stretch(
     true
 }
 
-/// Ordinary AlphaBlt's local copies; pixel kernels are still delegated (GZG5).
+/// Ordinary AlphaBlt's local copies, also used by the settled 16-bit kernel.
 pub fn clipped_alpha_rectangles(
     area: Rect,
     source: Rect,
