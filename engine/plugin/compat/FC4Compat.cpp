@@ -83,6 +83,8 @@ const ExecutableVersion kVersions[] = {
             0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
             0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
             0x00649BA0,  // native pole GetAttachmentPoints (network-occupants.md §4.6.3)
+            0x0075C420,  // native terrain view Init (terrain.md §15.5.4)
+            0x007560F0,  // native terrain view Shutdown (terrain-view.md §9.3)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -532,7 +534,8 @@ uintptr_t DirectCall(Direct which) {
                                          "UpdateResourcesFromDirectory", "LoadPackageScripts",
                                          "placeable pool allocate", "placeable constructor",
                                          "texture binding AddRef", "texture binding Release",
-                                         "pole GetAttachmentPoints"};
+                                         "pole GetAttachmentPoints",
+                                         "terrain view Init", "terrain view Shutdown"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};

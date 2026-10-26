@@ -230,6 +230,26 @@ public:
 };
 
 // ---- the object's own fields (§2.3) ---------------------------------------------------------------
+// The native view reads these records directly (terrain.md §2.2,
+// terrain-view.md §4.4.1), through the PRIMARY terrain at +0x6C.
+struct TerrainDrawVertex {
+    float altitude;
+    float normal[3];
+    uint8_t reserved[6];
+    uint16_t layers[6];
+    uint16_t flags;
+};
+struct WaterDrawVertex {
+    float depth;
+    uint8_t reserved[12];
+    float velocity[3];
+    float sediment;
+    uint32_t tail;
+};
+static_assert(sizeof(TerrainDrawVertex) == 0x24, "native terrain vertex stride");
+static_assert(offsetof(TerrainDrawVertex, flags) == 0x22, "native diagonal flags");
+static_assert(sizeof(WaterDrawVertex) == 0x24, "native water vertex stride");
+static_assert(offsetof(WaterDrawVertex, sediment) == 0x1C, "native sediment");
 //
 // The game reads these directly, not only through the slots: §1 says
 // QueryInterface returns `this`, `this + 4` and `this + 8`, which is three
@@ -291,6 +311,7 @@ static_assert(offsetof(TerrainFields, cellsZ) == 0x20, "+0x2C");
 static_assert(offsetof(TerrainFields, vertsX) == 0x2C, "+0x38");
 static_assert(offsetof(TerrainFields, sizeX) == 0x44, "+0x50");
 static_assert(offsetof(TerrainFields, vertexCount) == 0x50, "+0x5C");
+static_assert(offsetof(TerrainFields, vertices) == 0x60, "+0x6C");
 static_assert(offsetof(TerrainFields, cachedMin) == 0x64, "+0x70");
 static_assert(offsetof(TerrainFields, seaLevel) == 0x70, "+0x7C");
 static_assert(offsetof(TerrainFields, defaultBrushLevel) == 0xB0, "+0xBC");

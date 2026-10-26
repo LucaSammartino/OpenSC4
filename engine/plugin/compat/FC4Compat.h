@@ -90,6 +90,10 @@ enum class Direct : unsigned {
     TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
     // network-occupants.md §4.6.3: concrete *native* primary pole only.
     PoleAttachmentPoints,  // thiscall (orientation low byte, xyz[4]), pop 8, AL
+    // The terrain's native rendering collaborator (terrain.md §15.5.4;
+    // terrain-view.md §9.3). ECX is the view object base, not IID 0x6771477D.
+    TerrainViewInit,      // thiscall (primary cISTETerrain*), pop 4, AL
+    TerrainViewShutdown,  // thiscall (), pop 0, result ignored
     Count
 };
 
