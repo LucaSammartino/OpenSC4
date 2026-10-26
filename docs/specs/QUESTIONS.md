@@ -379,7 +379,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-draw | 1 | 0 | RZD2 | questions/rz-draw.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 5 | 7 | RZS12 | questions/rz-strings.md |
+| rz-strings | 4 | 8 | RZS12 | questions/rz-strings.md |
 | sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **631** | **1640** | | |
+| **total** | **630** | **1641** | | |

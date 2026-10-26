@@ -201,11 +201,12 @@ for these helpers, Append, Insert, Replace or comparison/search operands.
 
 ## 4. Equality, ordering and search *[compat]*
 
-IsEqual first requires equal counted lengths. In sensitive mode it then uses a
+IsEqual first requires equal ORIGINAL counted lengths. In sensitive mode it then uses a
 NUL-stopping comparison limited to that length. Thus equal-length `A 00 X` and
 `A 00 Y` compare equal through these virtual methods. In insensitive mode it
-lowers two independent counted copies and uses a full byte comparison; the same
-two inputs differ. Pointer/count equality and ordering accept count
+lowers two independent counted copies, requires their resulting lengths to be
+equal too, and uses a full byte comparison; the same two inputs differ.
+Pointer/count equality and ordering accept count
 `0xFFFFFFFF` to mean the source C-string length (`0x0090ED5D`, `0x0090EF5B`).
 This asymmetry is intentional compatibility, not a claim that all native string
 operators behave like slot 10. Sensitive branches were verified at
@@ -213,7 +214,9 @@ operators behave like slot 10. Sensitive branches were verified at
 [variant storage](variant-storage.md) must retain its own contract.
 
 CompareTo compares the common prefix, using the same sensitive NUL-stopping
-comparison or lowered full-byte comparison. If that result is zero, it returns
+comparison or lowered full-byte comparison. The insensitive prefix length is
+the minimum of the two **resulting lowered lengths**, including truncation on
+malformed encoding. If that result is zero, it returns
 the difference between the ORIGINAL byte lengths. Negative/zero/positive convey
 ordering; an unequal compared prefix returns exactly **-1 or +1**, according to
 unsigned-byte ordering, never the arithmetic difference between mismatching bytes
@@ -240,8 +243,27 @@ min(start,length). Both needle overloads ultimately scan the needle to its first
 NUL: even an object needle does not use its stored length for the final search
 (`0x00442850`, `0x005C2620`). The haystack remains a counted range, so a search
 can find bytes after an interior NUL. Insensitive search lowers temporary copies
-first and reports an offset in that resulting byte string; byte-length-changing
-case conversion is not proven to preserve offsets in the original (§5/RZS2).
+first, passes start **unchanged** to the search on the lowered haystack, and
+returns that search's byte offset unchanged. Start, bounds and results therefore
+refer to the resulting byte string. There is no translation to original offsets
+when conversion changes a UTF-8 byte length or drops a malformed suffix (RZS2).
+This applies to slots 23–26 (+0x5C through +0x68): pointer Find passes the original
+start at `0x0090F12B`–`0x0090F134`, object RFind at
+`0x0090F2DA`–`0x0090F2E3`; the other two use the same sequence at
+`0x0090F1BA`–`0x0090F1C3` and `0x0090F24B`–`0x0090F254`.
+The final needle-length scan stops at the first NUL **after** lowering too:
+conversion may introduce that NUL. A malformed needle that lowers to empty uses
+the empty-needle rules above. The receiver and object needle remain unchanged.
+
+Conversion produces ordinary temporary strings, without an error result for
+these owners to propagate. Thus insensitive IsEqual can accept equal original
+lengths whose different malformed suffixes were discarded; it rejects unequal
+original lengths even if their lowered strings are identical. CompareTo instead
+compares the surviving lowered prefixes and then uses the original length
+difference, not the lowered length difference. The post-conversion equality
+length checks are `0x0090ECDB`–`0x0090ECEB` and `0x0090EDD9`–`0x0090EDE9`;
+CompareTo's lowered minimum is `0x0090EEE5`–`0x0090EF09` and
+`0x0090EFD4`–`0x0090EFF9`, with the original-length tie rule in §4 above.
 
 BeginsWith(pointer,count) and EndsWith(pointer,count) compare exactly count
 bytes, without folding and without stopping at NUL. They return false if count
@@ -269,18 +291,15 @@ empty delimiter returns a copy of the receiver without consuming it
 characters. The separately named Delimited/Separated variants are not aliases;
 their remaining edge contract is RZS4.
 
-MakeLower and MakeUpper transform in place. For bytes through 0x7E they use the
-runtime character classification/case mapping, giving ordinary ASCII A–Z/a–z
-folding. Encountering any byte >=0x7F switches to conversion of the whole current
-string to UTF-16, runtime wide-character case mapping of individual 16-bit units,
-and conversion back to framework encoding (`0x0090EAC5`, `0x0090EB8E`). This is
-not normalization or full Unicode case folding; do not assume expansions such as
-one character becoming two. Conversion itself follows [string encoding](string-encoding.md),
-including its nonstandard UTF-8/UTF-16 behavior and the prior MakeLower witness
-linked there. The exact non-ASCII runtime case tables and owner-level handling of
-conversion failure remain RZS2. ASCII/NUL counted transforms
-are specified; cross-platform locale-dependent replacements are not authorized
-by the name MakeLower alone.
+MakeLower and MakeUpper transform in place. Bytes through 0x7E use runtime byte
+classification/case mapping (ordinary A–Z/a–z folding in the C or an
+ASCII-compatible locale). Encountering any byte >=0x7F switches to conversion of
+the whole **current** string to UTF-16, runtime case mapping of individual 16-bit
+units, and conversion back to framework encoding (`0x0090EAC5`, `0x0090EB8E`).
+Section 5.2 defines the tables, failure handling and remaining runtime observation
+for RZS2. These are counted transforms, not normalization or full Unicode case
+folding. Conversion itself remains canonical in [string encoding](string-encoding.md),
+including its nonstandard UTF-8/UTF-16 behavior and the prior MakeLower witness.
 
 Sprintf replaces the receiver with formatted output and returns the receiver,
 not a character count. It builds output separately and assigns the completed
@@ -555,6 +574,105 @@ Evidence: precision/prefix selection `0x0090FA42`–`0x0090FA8A`, sign and width
 accounting `0x0090FA8C`–`0x0090FAFE`, and prefix/precision/digit emission
 `0x0090FB03`–`0x0090FB78`.
 
+### 5.2 Case conversion, failures and runtime boundary (RZS2)
+
+**Owner order and conversion failure.** Scan the counted receiver, including
+interior NULs, and apply the byte classification/mapping before advancing to the
+next byte. On the first byte >=0x7F, stop that scan and convert the entire current
+receiver, including any already modified prefix. Reserve N UTF-16 words, where
+N is its original counted byte length: N <=256 uses the 512-byte stack buffer;
+larger N uses a temporary word vector. Call the framework-to-raw wrapper
+`0x009113EF` with target 0x10 and capacity N. Ignore its consumed-source return;
+the updated capacity is the **produced word count**. Map exactly those words,
+then unconditionally call raw-to-framework wrapper `0x00911358` with that count
+and source 0x10, replacing the receiver. Ignore this wrapper's return too.
+Evidence: lower `0x0090EAE4`–`0x0090EB72`, upper
+`0x0090EBAD`–`0x0090EC3B`; both end as void methods (§2.1).
+
+The custom 8-to-0x10 conversion stops before an invalid/incomplete sequence,
+with only its valid prefix produced. No replacement character, retry, original
+suffix retention or rollback is added by either owner. Zero words still go
+through the reverse wrapper, so failure at the first sequence **clears** the
+receiver. Interior zero words are mapped and encoded as counted zero bytes, not
+terminators. The reverse wrapper assigns its reported byte prefix even for a
+partial result ([string encoding §4.1](string-encoding.md#41-raw-source-to-framework-string-00911358)).
+With ordinary successful allocation its 6-bytes-per-word scratch capacity is
+sufficient for every 16-bit unit, so the reverse custom conversion completes.
+Allocation/overlap failure remains RZS3. This rule composes the prior decoder;
+it does not revise that decoder or replace the prior Latin-1 `Café` → `caf`
+MakeLower witness with a new execution claim.
+
+**Exact wide-case primitive.** Lower calls `0x009F4C35`, upper `0x009F4CE1`.
+Each call obtains the CRT thread's locale-info pointer from thread data +0x64,
+refreshing it against the global locale pointer at `0x00B1921C`. Within that
+locale info, +0x14 is the LC_CTYPE locale handle and +0x04 its code page. This
+is the C runtime locale, not merely the game's stored language ID: successful
+language switching requests `setlocale(LC_ALL,name)` at `0x0092806D`; a failed
+request leaves the previous runtime locale. See [strings and language §4.2](strings-language.md#42-switching-language-and-country-compat).
+
+| Condition for the input 16-bit unit W | Lower result | Upper result |
+|---|---|---|
+| W = FFFF | FFFF | FFFF |
+| LC_CTYPE handle = 0 (C locale) | W+0020 only for 0041..005A; otherwise W | W-0020 only for 0061..007A; otherwise W |
+| Nonzero handle, W <0100, classification mask below absent | W | W |
+| Nonzero handle, eligible W | One-unit runtime mapping with flag 00000100 | One-unit runtime mapping with flag 00000200 |
+
+The sub-0100 gate reads the shipped wide classification table through
+`0x00B19714` (initial table VA `0x00AEA762`). Lower requires bit 0001, present
+exactly at **0041..005A, 00C0..00D6, 00D8..00DE**. Upper requires bit 0002,
+present exactly at **0061..007A, 00DF..00F6, 00F8..00FF**. Other sub-0100 units
+are returned unchanged, even if a host Unicode library would map them; e.g.
+00B5 does not reach the upper mapper. Units >=0100 other than FFFF reach the
+mapper without this classification test. Evidence: C branches
+`0x009F4C4A`–`0x009F4C75`, `0x009F4CF6`–`0x009F4D16`; non-C gates
+`0x009F4BD8`–`0x009F4C07`, `0x009F4C84`–`0x009F4CB3`; table access
+`0x00A01DE7`–`0x00A01DFD`. The ranges above are read from the original PE table,
+not inferred from a modern Unicode database.
+
+The mapping call is the bundled CRT wrapper `0x00A01B82`, with the active
+LC_CTYPE handle, the flag above, source count **1**, destination capacity **1
+word**, and the locale code page. On a nonzero wrapper return the caller takes
+the one destination word; on zero it keeps W, ignoring anything written to the
+destination (`0x009F4C07`–`0x009F4C32`, `0x009F4CB3`–`0x009F4CDE`). Thus an
+unrepresentable multi-unit mapping is not an expansion: if the one-word request
+fails, that unit stays unchanged. No surrogate pair assembly or cross-unit
+context is supplied. Only AX is stored back.
+
+The wrapper probes Windows `LCMapStringW` and caches support at `0x00BADAE0`:
+1 means the wide API succeeded, 2 means its probe failed with error 120
+(CALL_NOT_IMPLEMENTED). On the supported-wide path it forwards the locale,
+flags, one-word source and one-word destination directly to that API
+(`0x00A01B93`–`0x00A01C13`, import at `0x00A801E4`). On the unsupported-wide
+path it bridges through the locale's ANSI code page, `WideCharToMultiByte`
+(flags 0), `LCMapStringA` with the requested case flag, then
+`MultiByteToWideChar` (flags 1); a failed bridge returns zero. A probe
+failure other than 120 leaves support state zero and also tries this ANSI bridge
+for the current request; the next request probes again. States other than 0, 1
+and 2 return zero (`0x00A01C18`–`0x00A01C75`,
+`0x00A01CDA`–`0x00A01DAD`).
+
+**What static evidence cannot make into a fixed table.** Non-C mappings are
+Windows NLS replies for the active locale and installed Windows build. They are
+not a case-pair table shipped in SimCity4.exe. No exact non-C table or default
+locale for an unspecified running installation is inferred, and no host Unicode
+folding substitution is authorized. The settled C table, classification gate,
+wrapper inputs, failure identity and owner/search behavior above can be
+implemented independently of obtaining those replies.
+
+To settle a particular runtime table, record the original process's OS/NLS
+version, CRT locale name, the actual thread locale-info +0x14/+0x04 values and
+the wrapper support state at the string call. For every 0000..FFFF unit, obtain
+the original lower and upper result under that unchanged locale; for eligible
+units also record the mapping wrapper's return count and output word on the
+one-source/one-destination-word request. Record zero-return cases separately
+from successful identity mappings. For registry collation, record the same
+locale's 256 results of `___tolower_mt(locale,unsigned byte)` and its +0x24
+ASCII fast-path flag, +0x28 maximum character width and +0x48 classification
+table (§7.2). These observations, with per-call input/output bytes for RZ70–RZ73,
+would settle the installation-specific remainder of RZS2. They have **not** been
+performed in this static documentation lane. The explicit mapping replies in
+the vectors below are primitive inputs, not claims about every Windows version.
+
 ## 6. cSCStringDetokenizer: state, interface and lifetime *[compat]*
 
 The base object holds a vptr at +0x00, unsigned reference count at +0x04, a
@@ -603,7 +721,8 @@ base parser/converter bypasses the interface contract.
 
 Registry key comparison is a runtime bytewise case-insensitive comparison over
 the common counted prefix, followed by original byte-length ordering. It uses
-the runtime `strnicmp` family, not cRZString::MakeLower. For ordinary ASCII names,
+the runtime `strnicmp` family, not cRZString::MakeLower (§7.2). In the C or an
+ASCII-compatible runtime locale,
 `City`, `city` and `CITY` identify the same key. Registration does not trim the
 name or strip `#`; parsing trims before lookup. Thus registering ` City ` does
 not make it match the parsed token `# City #`.
@@ -700,6 +819,59 @@ that changes it affects the outer result too. Cleaning an inner result and then
 accepting that text in an outer callback can consequently escape it twice. The
 same per-token output remains shared among failed callbacks as specified above;
 recursion does not introduce rollback.
+
+### 7.2 Non-ASCII registry comparison (RZS2)
+
+The value and named-method maps use the predicate at `0x006000F0`. It calls
+`__strnicmp` (`0x00A044F0`) on exactly the minimum of the two counted byte lengths.
+A negative result means the left key is less; a positive result means it is not.
+On a zero result the predicate compares the ORIGINAL unsigned byte lengths.
+Equivalent keys therefore require equal original lengths as well as a zero
+prefix comparison (`0x00600109`–`0x00600148`). No UTF-8 decoding, normalization,
+whole-string wide mapping, length-changing transform or cRZString::IsEqual occurs.
+
+`__strnicmp` captures the current CRT thread locale (refreshing it as in §5.2).
+For the C locale (+0x14 = 0), `0x00A05320` folds only byte 41..5A to 61..7A and
+compares **unsigned** bytes; every other byte, including 80..FF, retains its
+numeric value. A mismatch determines ordering; a NUL in either input or the
+count limit ends comparison. Thus raw C9 and E9 are different keys, and UTF-8
+É (`C3 89`) and é (`C3 A9`) are different keys too. This rule is not Latin-1
+accent folding (`0x00A044F0`–`0x00A04529`, `0x00A0533C`–`0x00A0537A`).
+
+For a nonzero LC_CTYPE handle, each next byte is zero-extended and independently
+passed to `___tolower_mt(locale,byte)` at `0x009F047B`; adjacent bytes are never
+assembled into one character by the registry loop. Compare the returned integer
+values, stopping on a mismatch, a zero left result, or count exhaustion. The
+runtime returns their difference, of which the registry uses only the sign
+(`0x00A0452B`–`0x00A04565`). The byte-mapping primitive has these rules:
+
+| Condition | Result |
+|---|---|
+| Locale +0x24 nonzero and byte <=7F | ASCII A–Z to a–z, otherwise unchanged |
+| Other byte without uppercase bit 0001 in the locale classification table at +0x48 | Unchanged; multibyte-locale classification of these unsigned bytes uses that same table |
+| Uppercase byte requiring runtime mapping | Bundled `___crtLCMapStringA` at `0x009FBEDF`, LC_CTYPE handle, flag 00000100, source count 1 byte, destination capacity 3 bytes, code page from +0x04 and final conversion-control argument 1 |
+| Mapping returns zero | Original unsigned byte |
+| Mapping returns one byte | That zero-extended byte |
+| Mapping returns more than one byte | First output byte ×256 plus second output byte, as an integer comparison value |
+
+Evidence: fast path and classification `0x009F0487`–`0x009F04C9`, mapping request
+`0x009F04EC`–`0x009F0511`, reply interpretation and unchanged fallback
+`0x009F0514`–`0x009F053E`, unsigned-byte classification table access
+`0x009F8722`–`0x009F873A`. This CRT wrapper can itself bridge via Windows wide
+mapping; that does not turn the registry operation into whole-name UTF-8 case
+folding. Its 256 integer replies, rather than a Unicode case table, fully
+determine non-C registry comparisons. They remain installation/locale inputs
+to observe as specified in §5.2. Locale-specific changes can affect ASCII too;
+the unconditional ASCII examples assume the C/ASCII-compatible case path.
+
+Equal prefixes ending at matching interior NULs still fall through to original
+length ordering. For example equal-length `41 00 58` and `61 00 59` are the same
+registry key in the C locale, despite their different suffixes. This differs
+from insensitive cRZString::IsEqual, whose lowered comparison includes those
+suffixes. The maps neither save a locale-specific comparator at registration nor
+rebuild when a caller changes runtime locale. The worked collation cases keep
+the locale unchanged between insertion and lookup; changing it can change the
+predicate on an existing tree and supplies no promised reindexing behavior.
 
 ## 8. Parsing, resource IO and failure results *[compat]*
 
@@ -833,6 +1005,18 @@ are part of the expected result.
 | RZ63 | `ab`; Find(empty,start,sensitive), each overload and sensitivity, starts 0,1,2,3 | 0; 1; 0xFFFFFFFF; 0xFFFFFFFF |
 | RZ64 | Empty haystack; RFind(empty,start,sensitive), each overload and sensitivity, starts 0 and 99 | 0 in every case; forward and reverse differ |
 | RZ65 | `ab`; Find(`b`,1,true), Find(`b`,2,true), each overload | 1; 0xFFFFFFFF (ordinary nonempty search unchanged) |
+| RZ66 | C locale; lower [43 41 46 C3 89], upper [63 61 66 C3 A9] separately | [63 61 66 C3 89]; [43 41 46 C3 A9]; non-ASCII letters unchanged in this locale |
+| RZ67 | C locale; lower / upper Latin-1 bytes [43 61 66 E9] | [63 61 66] / [43 41 46]; the invalid final sequence is dropped, not retained or replaced |
+| RZ68 | C locale; lower [FF 41], with nonempty receiver | Empty receiver; no Boolean/error return; failed decoding still assigns zero produced words |
+| RZ69 | C locale; lower counted [41 00 42 80 58] | [61 00 62]; counted NUL survives, invalid 80 and following suffix are dropped |
+| RZ70 | C locale; haystack [F0 90 81 81 58] (U+10041 then X), needle `X`, both overloads | Sensitive Find(start 0) = 4. Insensitive lowered haystack [61 78]: Find(start 0) = 1, Find(start 2) = failure, RFind(start 99) = 1. Inputs unchanged; decoder supplies low word 0041, not a surrogate pair |
+| RZ71 | C locale; insensitive comparisons of A=[41 80], B=[61 FF], C=[61], both overloads with explicit counts | A and B both lower to [61]: IsEqual(A,B)=true, CompareTo(A,B)=0. IsEqual(A,C)=false from original lengths; CompareTo(A,C)=+1 from original 2−1 |
+| RZ72 | Non-C primitive fixture: W=212A maps successfully to 006B; ASCII X maps to x. Haystack [E2 84 AA 58], needle `X`, both overloads | Lowered [6B 78]; Find(start 0)=1, Find(start 3)=failure, RFind(start 99)=1. Original X offset was 3; start is not translated. IsEqual([E2 84 AA],[6B],false)=false; CompareTo=+2 |
+| RZ73 | Non-C primitive fixture: eligible W=0100 lower mapping returns zero, scratch word happens to be 0078; lower [C4 80] | [C4 80], not [78] or empty; runtime mapping failure preserves the input word |
+| RZ74 | Upper [C2 B5] (U+00B5), C or non-C locale | [C2 B5]; non-C path rejects it at the shipped lower-classification gate, so no OS mapping request occurs |
+| RZ75 | C locale; insensitive A=[41 80] versus B=[61 62], both counted overloads | Lowered A=[61], B=[61 62]: IsEqual=false (different lowered lengths); CompareTo=0 (equal one-byte lowered prefix and equal original lengths) |
+| RZ76 | C locale; haystack `abc`, malformed needle [80], both overloads | Needle lowers to empty. Insensitive Find(start 0)=0, Find(start 3)=failure, RFind(start 99)=3; no conversion-error result |
+| RZ77 | Non-C primitive fixture: W=023A maps successfully to 2C65; X maps to x. Haystack [C8 BA 58], needle `X`, both overloads | Lowered [E2 B1 A5 78]; Find(start 0)=3, Find(start 2)=3, RFind(start 2)=failure. Original X offset was 2; a longer encoding moves it to 3 |
 | DT01 | Fresh base instance; literal `a<b` -> distinct output | true, `a<b`, no callbacks; HTML byte zero |
 | DT02 | Set value `City`=`Oak`; parse `Hi # city #!` | true, `Hi Oak!` |
 | DT03 | Set same key `CITY`=`Elm`; also named callback for `city` | true, `Elm` for `#City#`; callback not invoked |
@@ -859,10 +1043,16 @@ are part of the expected result.
 | DT24 | Named N for X replaces its binding with M, writes `n`, returns true; M writes `m`, returns true; parse `#X# / #X#` | trace N,M; true, `n / m`; replacement affects the next conversion |
 | DT25 | Named N for X uses a context depth flag. At depth zero it writes `outer:`, sets depth one, recursively parses `#X#` into a separate output, appends it and returns true; at depth one it writes `inner` and returns true | trace N at depth zero, N at depth one; inner true/`inner`, outer true/`outer:inner`; both callback outputs start empty |
 | DT26 | HTML initially off. Named X callback switches it on, recursively parses `#Y#` with value Y=`&` into separate output, copies that text to its own output, returns true | inner true/`&amp;`; outer true/`&amp;amp;`; mode is shared and read after callbacks |
+| DT27 | Stable C locale; set raw one-byte value names [C9]=`upper`, [E9]=`lower`; call ConvertToken separately with each raw name | true/`upper`, true/`lower`; registry does not decode the invalid UTF-8 names or accent-fold them |
+| DT28 | Stable C locale; set counted name [41 00 58]=`first`, then [61 00 59]=`second`; ConvertToken either name | true/`second` for both; strnicmp stops at NUL and original lengths are equal |
+| DT29 | Stable non-C byte-mapping fixture: C9→E9 and E9→E9. Set raw [C9]=`first`, then [E9]=`second` | One equivalent key; ConvertToken either name is true/`second`. This is a supplied byte-table reply, not a claim about all Windows locales |
+| DT30 | Stable non-C byte-mapping fixture: C3→E3, 89→89, A9→A9. Set UTF-8 [C3 89]=`upper`, [C3 A9]=`lower`; ConvertToken each | Distinct keys: true/`upper`, true/`lower`; lowering the lead byte does not equate the two continuation bytes |
 
 ## 10. Open boundaries
 
-[RZS2–RZS5](questions/rz-strings.md) track non-ASCII mapping,
-allocation/overlap failures, remaining native split variants and formatter edge
-behavior. They do not weaken the settled vectors above. No in-game or executable
-replacement run was performed for this documentation lane.
+[RZS3–RZS5](questions/rz-strings.md) track allocation/overlap failures, remaining
+native split variants and formatter edge behavior. RZS2's installation-specific
+non-C NLS tables are narrowed to the explicit runtime observations in §5.2;
+their absence does not weaken the settled owner rules or conditional primitive
+vectors above. No in-game or executable replacement run was performed for this
+documentation lane.
