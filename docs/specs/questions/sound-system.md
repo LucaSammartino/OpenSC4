@@ -27,13 +27,6 @@ failure recovery (0x0093F07E, 0x0093F136, 0x0093FA5B, 0x0093F687).
 The export's named-vtable query returns no cHitChannel table.
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS4 — HIT INI complete initialization grammar:** [unsettled]
-
-For §5.1, settle every section's token grammar and initialization order, numeric
-conversion failure, duplicate keys and aggregate success on partial failure.
-Start at EnumDefaultEntries 0x0093756A and the helper inventory in the spec.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS5 — Track resource byte/text formats and private copies:** [unsettled]
 
 For §5.2, settle TKDT legacy field order, escaping/version handling, serializer

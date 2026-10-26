@@ -234,7 +234,7 @@ safely *[choice]*.
 `cHitIniFile` is CLSID `0x3D802D67`. Constructors `0x0093638E` and
 `0x009363F5`, Create `0x00936480`, destructors `0x00936458`/`0x009364DE`.
 It combines the existing INI-file implementation with the HIT initialization
-interface at `+0x4C`, table `0x00AD2394`. That interface's slots 0–7 are
+interface at `+0x3C`, table `0x00AD2394` (constructor store `0x00936417`). That interface's slots 0–7 are
 QueryInterface, AddRef, Release, EnumDefaultEntries, InitDBSegments,
 EnumEntries thunk, SetFilename, ReadEntry thunk. The inherited INI table
 `0x00AD23B8` has slots 0–19: destructor, GetPath, SetPath, folded entry,
@@ -268,9 +268,92 @@ Initialization helpers and callbacks:
 *[compat]* `HitManTypeGroups` entries supply multiple numeric type/group
 associations; they are data, not a hard-coded audio resource-type switch.
 Directory extension binding and the TLO association are already specified
-in [audio.md §10](audio.md#10-sound-data). Full grammar, initialization
-ordering, duplicate keys and partial-failure aggregation remain SS4.
-No drawing or asynchronous message-consumer contract is exposed by this adapter.
+in [audio.md §10](audio.md#10-sound-data).
+
+#### Initialization grammar and order (SS4)
+
+*[compat]* Enumeration uses the inherited INI reader, not a HIT-specific lexer.
+Section lookup lowercases the requested section name. Within a section it reads
+lines in file order, left-trims them, skips empty lines and lines beginning `;`,
+and stops at the next line beginning `[`. It splits at the first `=`, right-trims
+the key and trims both ends of the value; only nonempty key/value pairs reach
+the callback. It does not strip an inline semicolon from the value. Callbacks
+are invoked after collecting the section, in that same order; callback results
+do not stop enumeration (`0x0091D91C`).
+No quoting or escaping layer is added by the HIT helpers.
+
+Except for the direct creator callbacks below, each section is first collected
+in a map from **converted unsigned key** to string value by `0x009368C0`:
+later entries with the same converted key replace earlier values. Processing
+then follows ascending unsigned key order, not file order. Thus `16`, `0x10`
+and `10A?` are not three independent string identifiers (the last converts to
+hexadecimal `0x10A`). Distinct malformed keys converting to zero also collide.
+This conversion is used for numeric values as well: `RZConvertToUint32A`
+(`0x0090FE93`) chooses base 16 for a leading `0x`/`0X`, or when its initial
+scan of decimal digits encounters `A–F`/`a–f`; otherwise it chooses base 10.
+It then calls unsigned 32-bit `strtoul`, without checking an end pointer or
+error status (`0x009F038B`, `0x009F01CC`). A nonnumeric prefix gives zero,
+trailing junk is accepted, a leading minus negates the magnitude modulo
+`2^32`, and positive overflow gives `0xFFFFFFFF`. For example `12tail` is 12,
+`12AB` is `0x12AB`, `-1` is `0xFFFFFFFF`, and `xyz` is zero. The base-selection
+scan does not skip a leading space/sign: ` AB` is therefore zero in base 10.
+There is no separate per-entry conversion-failure return.
+
+`SplitToken` here means: find the first literal delimiter, return the prefix
+and remove prefix plus delimiter from the mutable string. If absent, return
+an empty token and leave the string unchanged (`0x0090E98C`). No token trim
+is implied. Comma loops stop on an empty returned token, then process the
+whole remainder once; leading/repeated commas can therefore terminate a list
+early rather than being ignored. A semicolon inside a DB entry is structural.
+
+| Stage, in EnumDefaultEntries order | Section/key and grammar | Action |
+|---|---|---|
+| 1 | `[Config]`, the two default-player class keys above | Set 2D then 3D class on the sound manager when ReadEntry succeeds. |
+| 2 | `[SndFileDefaultDataSourceClassIds]`, numeric ordering key = `class,extension` | Split once at comma; convert the prefix and pass the entire remainder as the extension to sound-system slot 23 (`+0x5C`). Without a comma the class token is empty (zero) and the whole value is the extension. |
+| 3 | `[PackedDbSegments]`, numeric group = `class;covered-section;path` | Convert class from the start of the original value; extract the middle token as a section name, trim the final path, expand its leading `%DataDirectory%`, and test file existence. If present, create IID `0x286D4A6A`, query `0x656B8F0C`, initialize with `(group,path,false)`, apply `(true,false)` at `+0x18`, add to HIT and persist managers, then collect numeric keys from covered-section into the adapter's persistent exclusion set. Missing files are skipped successfully; COM creation failure returns false locally. |
+| 4a | `[Config] AllowTextAsKey` | When present, compare the value with `true` using the string comparison helper and save the boolean (initial default false). This flag is passed to new directory segments at `+0x40`. |
+| 4b | `[DBSegments]`, group = `class;path` | First pass creates all nonexcluded groups, using class converted from the beginning of the value, IID `0x856C8CF7`, calls `+0x3C` with `(true,true)`, applies AllowTextAsKey, and registers the segment with HIT. |
+| 4c | `[DBSegmentDirectoryFiles]`, group = `type:extension[,type:extension…]` | For each nonexcluded group, find IID `0x856C8CF7`, get its directory interface at `+0x30`, bind each converted type to its extension at directory `+0x0C`, and associate that type with the group at HIT slot 46. The final comma-free remainder is processed too. |
+| 4d | `[DBSegments]`, same entries | Second pass initializes each nonexcluded segment, after discarding `class;` and trimming the remainder; expand a leading `%DataDirectory%`, find IID `0x656B8F0C`, call `(group,path,true)` at `+0x0C`, and on success add it to persist manager `+0x70`. |
+| 5 | `[TrackDataBlocks]`, numeric ordering key = relative filename | Prefix the sound-system data-directory string and call HIT LoadHitFile (slot 9); the map key does not become a track ID. |
+| 6 | `[HitManTypeGroups]`, type = `group[,group…]` | Register every converted group for that type, including the final remainder, at HIT slot 46. |
+| 7a | `[SndDataSourceCreators]`, subsection name = `class,creator-ID` | Direct callback, in file order: create IID `0x9B75709E`, register the creator and converted creator-ID at sound-manager `+0x64`, and save creator-ID → subsection-name in a shared map. Equal creator-IDs replace the saved subsection name. |
+| 7b | Each saved creator subsection, numeric sound-ID = definition string | Visit saved creator-IDs in ascending order, query creator IID `0x9B75709E` through sound-manager `+0x70`, and pass `(sound-ID,definition-string)` to creator `+0x10`. Values are not comma-split here. |
+| 8 | `[SndCreators]`, class = optional definition-section name | Split at first comma. With a comma, use the prefix as the section and ignore the suffix; without one, use the entire value as the section. Create IID `0x3AF9866F`, register at sound-manager `+0x3C`, then enumerate that section if nonempty. Each entry converts its key to a sound-ID and invokes the creator's IID `0x1B6C8B18`, slot 3, with `(ID,value,0,0)`. Direct definition callbacks preserve duplicate entries. |
+| 9 | `[ResourceFactories]`, resource-type = factory-class | Convert the whole value and call persist-manager `+0x4C` with `(factory-class,resource-type,0)`. |
+
+Evidence: helpers `0x00936298–0x00937569`, creator callbacks
+`0x00936253`, `0x009364FA`, `0x009368ED`; delimiter bytes at `0x00A99F14`
+(comma), `0x00A870D0` (semicolon), `0x00AA0424` (colon). Stage 4 is the
+interface's slot 4, not a second call to EnumDefaultEntries. The exclusion set
+is not cleared at the beginning of these helpers. The data-directory expansion
+removes exactly the first 15 characters `%DataDirectory%` before prefixing.
+
+*[compat]* There is no aggregate rollback or all-stages success conjunction.
+The calls at `0x00937762–0x00937791` ignore earlier returns; the final return
+is InitResourceFactories' result, which is unconditionally true on ordinary
+return (`0x009374A0`), even when the persist service is absent. Individual
+segment failures leave earlier registrations installed. Several paths query
+an interface and immediately dereference it without testing success (including
+the directory/creator callbacks); malformed dependencies can crash before
+the nominal successful return. Safe rejection is an implementation choice.
+HitManTypeGroups likewise requires the HIT service when entries exist; missing
+services are only skipped where an explicit check exists.
+
+Worked case: `[TrackDataBlocks]` contains, in order, `16=a.hit`, `2=b.hit`,
+`0x10=c.hit`; stage 5 attempts `data-directory + b.hit`, then
+`data-directory + c.hit`, and never attempts `a.hit`. If loading `b.hit`
+fails, `c.hit` is still attempted and stage 9 is still reached; an absent
+ResourceFactories section still yields true. A directory value
+`0x2026960B:wav,0x00000001:bin` performs two bindings and two type/group
+associations. These cases test replacement, unsigned ordering and continuation.
+
+Runtime boundary: repeated **section headers**, locale-dependent comparison of
+AllowTextAsKey, and missing-backend crash details are inherited dependencies,
+not additional HIT grammar. To settle them, enumerate an INI containing two
+identically named sections, compare `true`/`TRUE` under the target locale, and
+record which callbacks and `+0x40` flag occur. The rules above do not require
+that observation for well-formed, uniquely headed configuration.
 
 ### 5.2 Track property resource
 
