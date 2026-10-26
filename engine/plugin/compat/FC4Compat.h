@@ -386,5 +386,11 @@ bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 
 // feature-manager.md §§2,7: original layout, live app-owned count >0.
 bool FeatureManagerSupported(const void* object);
+
+// gz-graphics 2.1 and widget-controls 5.1/6.1: draw-stream recorder tables.
+bool DrawStreamTables(void*** context, void*** tree, void*** list);
+// map-view §1.3/4.4 and map-color-buffer §1. Version-checked observer sites.
+uintptr_t MapViewDrawStreamEntry(unsigned which);
+void** MapViewDrawStreamTable(unsigned which);
 }  // namespace compat
 }  // namespace fc4

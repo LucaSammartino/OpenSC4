@@ -35,6 +35,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Reach.h"
+#include "FC4DrawStreamCapture.h"
 #include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
@@ -833,6 +834,7 @@ public:
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
                 ReachNewMonth(julian);
+                DrawStreamMonth(julian);
                 ReachProbeScope reachProbes;  // constructed probes are not natural reach
                 if (digest_) WriteDigest(julian);
                 fc4::FeatureShadowMonth();

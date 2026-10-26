@@ -1430,6 +1430,16 @@ if(TARGET fc4_plugin_load_test)
         PROPERTIES RUN_SERIAL TRUE)
 endif()
 
+# Same-invocation UI draw/message transcripts, shared by window shadows.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4MapViewDrawStream.cpp plugin/FC4MapViewDrawStream.h plugin/FC4MapViewDrawBoundary.h plugin/FC4MapViewUIBoundary.h)
+    target_sources(FreeCity4 PRIVATE plugin/FC4DrawStream.h plugin/FC4DrawStreamCapture.cpp plugin/FC4DrawStreamCapture.h)
+    add_executable(fc4_draw_stream_test tests/draw_stream_test.cpp plugin/FC4DrawStreamCapture.cpp)
+    target_include_directories(fc4_draw_stream_test PRIVATE plugin)
+    target_compile_definitions(fc4_draw_stream_test PRIVATE FC4_DRAW_STREAM_TEST)
+    target_compile_options(fc4_draw_stream_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME draw_stream_oracle COMMAND fc4_draw_stream_test)
+endif()
 # Public DX7 slot/arity checks and bounded native transcript forwarding.
 if(TARGET FreeCity4)
     add_executable(fc4_gdriver_trace_test tests/gdriver_trace_test.cpp)

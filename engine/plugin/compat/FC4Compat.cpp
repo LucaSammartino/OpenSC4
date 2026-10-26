@@ -1036,5 +1036,45 @@ bool FeatureManagerSupported(const void* object) {
     const int32_t count = static_cast<const int32_t*>(object)[2];
     return count > 0 && count < 0x7ffffff0;
 }
+
+bool DrawStreamTables(void*** context, void*** tree, void*** list) {
+    const auto* version = IdentifiedVersion();
+    if (version != &kVersions[0]) return false;
+    const uintptr_t tables[] = {0x00AC16C8, 0x00AE2FE0, 0x00AE1780};
+    const unsigned slots[] = {35, 88, 88};
+    const uintptr_t expected[] = {0x0082C0C0, 0x009D37C6, 0x009CA19A};
+    for (unsigned i = 0; i < 3; ++i) {
+        MEMORY_BASIC_INFORMATION memory{};
+        const auto* table = reinterpret_cast<const uintptr_t*>(tables[i]);
+        if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) ||
+            memory.State != MEM_COMMIT || memory.Type != MEM_IMAGE ||
+            reinterpret_cast<uintptr_t>(memory.AllocationBase) != version->imageBase ||
+            memory.Protect != PAGE_READONLY ||
+            tables[i] + (slots[i] + 1) * sizeof(uintptr_t) > reinterpret_cast<uintptr_t>(memory.BaseAddress) + memory.RegionSize ||
+            table[slots[i]] != expected[i] || !CheckCode("drawstream entry", expected[i], version->imageBase)) return false;
+    }
+    *context = reinterpret_cast<void**>(tables[0]);
+    *tree = reinterpret_cast<void**>(tables[1]);
+    *list = reinterpret_cast<void**>(tables[2]);
+    return true;
+}
+uintptr_t MapViewDrawStreamEntry(unsigned which) {
+    const auto* version = IdentifiedVersion();
+    // _clock's cdecl/no-body-arguments/EAX transport is in docs/abi/functions.tsv.
+    constexpr uintptr_t sites[] = {0x007A2F60, 0x0079ED90, 0x0079F230, 0x009F361F, 0x0099A276};
+    if (version != &kVersions[0] || which >= 5 || !CheckCode("MapView drawstream", sites[which], version->imageBase)) return 0;
+    return sites[which];
+}
+void** MapViewDrawStreamTable(unsigned which) {
+    const auto* version = IdentifiedVersion();
+    constexpr uintptr_t sites[] = {0x00AB838C, 0x00AB8140, 0x00AB7EE0, 0x00ABAB60};
+    if (version != &kVersions[0] || which >= 4) return nullptr;
+    MEMORY_BASIC_INFORMATION memory{};
+    auto** table = reinterpret_cast<void**>(sites[which]);
+    if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) || memory.State != MEM_COMMIT ||
+        memory.Type != MEM_IMAGE || reinterpret_cast<uintptr_t>(memory.AllocationBase) != version->imageBase ||
+        memory.Protect != PAGE_READONLY) return nullptr;
+    return table;
+}
 }  // namespace compat
 }  // namespace fc4
