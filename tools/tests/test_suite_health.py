@@ -62,9 +62,9 @@ def test_estimated_or_wrong_slot_wall_never_passes_tier(tmp_path):
         sibling.return_value.load_report_data.return_value = data
         for timing in ({'wall_seconds': 600}, {'wall_seconds': 600, 'slots': 8, 'complete': True},
                        {'wall_seconds': 901, 'slots': 6, 'complete': True}):
-            health = dict(timing=timing, strict=6, requested=6)
+            health = dict(timing=timing, strict=6, complete=6, requested=6)
             suite_health.compare_tier(tmp_path, health, {0x401000}, 'census')
             assert not health['tier1']['passed']
-        health = dict(timing=dict(wall_seconds=900, slots=6, complete=True), strict=6, requested=6)
+        health = dict(timing=dict(wall_seconds=900, slots=6, complete=True), strict=6, complete=6, requested=6)
         suite_health.compare_tier(tmp_path, health, {0x401000}, 'census')
         assert health['tier1']['passed']

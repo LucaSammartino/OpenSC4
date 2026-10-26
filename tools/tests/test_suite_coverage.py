@@ -35,7 +35,7 @@ def batch(root, tag='test', profile='shadows', bodies=None, enable='foo'):
 
 
 class SuiteCreditTests(unittest.TestCase):
-    def test_clean_game_with_a_refused_action_cannot_earn_replacement_credit(self):
+    def test_logged_native_refusal_does_not_erase_observed_exact_comparisons(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             batch(root, profile='replace', bodies={'one':
@@ -43,7 +43,8 @@ class SuiteCreditTests(unittest.TestCase):
                 'script: line 1 2000-01-01 zone -> ok=0 error=5\n'
                 'foo shadow 2000-02-01: mismatches=0; resyncs=0\n'})
             evidence = metric.load(root, 'test')
-            self.assertEqual(evidence['replaced'], set())
+            self.assertEqual(evidence['replaced'], {'foo'})
+            self.assertEqual(evidence['scenarios'][0]['row']['actions_failed'], '1')
             self.assertFalse(evidence['scenarios'][0]['selection_ready'])
 
     def test_only_entered_implemented_bytes_are_exercised_or_verified(self):

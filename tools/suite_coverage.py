@@ -99,7 +99,7 @@ def read_batch(directory, default_enabled=()):
                 parser.add_lua_evidence(parsed, lua.read_text(encoding='utf-8-sig', errors='replace') if lua.exists() else '')
             elif request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
                 parsed['actions_pending'] = 1
-            actual_clean = clean(parsed) and not parsed['actions_failed'] and not parsed['actions_pending']
+            actual_clean = clean(parsed)
             for key, counts in parsed['per_key'].items():
                 if not counts['lines']:
                     continue
@@ -127,7 +127,7 @@ def read_batch(directory, default_enabled=()):
         parsed_path = directory / (name + '.json')
         parsed_metrics = json.loads(parsed_path.read_text(encoding='utf-8')) if parsed_path.is_file() else {}
         selection_ready = (actual_clean and clean(row) and bool(addresses) and bool(ran)
-                           and bool(parsed['reach_lines']))
+                           and bool(parsed['reach_lines']) and not parsed['actions_pending'])
         scenarios.append(dict(name=name, row=row, scenario=request['scenario'], reached=addresses,
                               first=first, ran=ran, exact=exact, enabled=enabled,
                               replace_clean=clean(row) and actual_clean,

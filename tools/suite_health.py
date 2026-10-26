@@ -95,7 +95,7 @@ def compare_tier(root, health, addresses, census):
                           reached_union_bytes=numerator, union_share=share,
                           measured_six_slot_wall=timing.get('wall_seconds'),
                           passed=(reference['census_passed'] and measured and share >= .95
-                                  and health['strict'] == health['requested']))
+                                  and health['complete'] == health['requested']))
 
 
 def main(argv=None):
@@ -112,7 +112,7 @@ def main(argv=None):
     except (OSError, ValueError, KeyError) as exc:
         parser.error(str(exc))
     print(json.dumps(health, sort_keys=True))
-    return 0 if (health.get('tier1', {}).get('passed') if args.census else health['strict_passed']) else 1
+    return 0 if (health.get('tier1', {}).get('passed') if args.census else health['census_passed']) else 1
 
 
 if __name__ == '__main__':
