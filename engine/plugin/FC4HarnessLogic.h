@@ -236,7 +236,7 @@ enum class ScriptOp {
     GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
     UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl,
     BudgetWindow, // budgetwindow: open the native budget UI; explicit script opt-in only
-    GZFrameworkProbe // gzfwprobe: register, parse, dispatch and unregister an isolated command
+    GZFrameworkProbe, // gzfwprobe: register, parse, dispatch and unregister an isolated command
     Span565Probe // span565probe: explicit public software-buffer workload
 };
 
