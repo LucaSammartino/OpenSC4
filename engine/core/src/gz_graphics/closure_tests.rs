@@ -197,6 +197,125 @@ fn gzg_v79_v80_horizontal_directional_lines() {
 }
 
 #[test]
+fn gzg1_integer_line_phase_worked_cases() {
+    let mut e = recorder(0);
+    for (p, clip, expected) in [
+        (
+            [[2.5, 3.5], [6.5, 5.5]],
+            Rect(0, 0, 10, 10),
+            vec![(2, 3), (3, 4), (4, 4), (5, 5)],
+        ),
+        (
+            [[2.5, 3.5], [6.5, 5.5]],
+            Rect(3, 0, 10, 10),
+            vec![(3, 4), (4, 4), (5, 5)],
+        ),
+        (
+            [[2.5, 3.5], [6.5, 1.5]],
+            Rect(0, 0, 10, 10),
+            vec![(2, 3), (3, 3), (4, 2), (5, 2)],
+        ),
+        (
+            [[2.5, 2.5], [5.5, 5.5]],
+            Rect(0, 0, 10, 10),
+            vec![(2, 2), (3, 3), (4, 4)],
+        ),
+    ] {
+        let s = EngineState { clip, ..state() };
+        super::geometry::execute(&mut e, GeometryRoute::Rasterize, 1, &p, &s).unwrap();
+        assert_eq!(
+            spans(take(&e.log)).iter().map(|s| (s.left, s.y)).collect::<Vec<_>>(),
+            expected
+        );
+    }
+    for (p, clip) in [
+        ([[0.5, 0.5], [4.5, 2.5]], Rect(2, 0, 3, 8)),
+        ([[0.5 + 1. / 256., 0.5], [4.5, 2.5]], Rect(0, 0, 8, 8)),
+    ] {
+        assert_eq!(
+            super::geometry::execute(
+                &mut e,
+                GeometryRoute::Rasterize,
+                1,
+                &p,
+                &EngineState { clip, ..state() }
+            ),
+            Err(Error::Unsupported("GZG1"))
+        );
+    }
+}
+
+#[test]
+fn gzg7_stroke_corners_and_constant_cubic_worked_cases() {
+    use super::geometry::{execute, stroke_quad};
+    assert_eq!(
+        stroke_quad([1., 2.], [2., 2.], 2., 2, true),
+        [[1., 1.], [1., 3.], [2., 3.], [2., 1.]]
+    );
+    assert_eq!(
+        stroke_quad([1., 2.], [2., 2.], 2., 2, false),
+        [[0.5, 1.], [0.5, 3.], [2.5, 3.], [2.5, 1.]]
+    );
+    let mut e = recorder(0);
+    for (aa, quad) in [(1, [[0.; 2]; 4]), (0, [[3.5, 5.], [3.5, 3.], [2.5, 3.], [2.5, 5.]])] {
+        let s = EngineState {
+            aa,
+            thickness: 2.,
+            ..state()
+        };
+        execute(&mut e, GeometryRoute::Tessellate, 2, &[[3., 4.]; 4], &s).unwrap();
+        assert_eq!(take(&e.log), vec![Event::Draw(7, quad.repeat(16))]);
+    }
+    // A straight cubic has exact Horner endpoints at i/16, not rounded Bernstein products.
+    execute(
+        &mut e,
+        GeometryRoute::Tessellate,
+        2,
+        &[[1., 2.], [1. + 1. / 3., 2.], [1. + 2. / 3., 2.], [2., 2.]],
+        &EngineState {
+            aa: 1,
+            thickness: 2.,
+            ..state()
+        },
+    )
+    .unwrap();
+    let events = take(&e.log);
+    let [Event::Draw(7, p)] = events.as_slice() else {
+        panic!()
+    };
+    assert_eq!(&p[..2], &[[1., 1.], [1., 3.]]);
+    assert_eq!(&p[62..], &[[2., 3.], [2., 1.]]);
+}
+
+#[test]
+fn gzg1_non_aa_outline_ellipse_topology_worked_case() {
+    let mut e = recorder(0);
+    let p = [[-1., -1.], [1., 1.], [-1., -1.], [1., 1.], [99., 99.]];
+    super::geometry::execute(
+        &mut e,
+        GeometryRoute::Tessellate,
+        4,
+        &p,
+        &EngineState {
+            aa: 0,
+            thickness: 9.,
+            ..state()
+        },
+    )
+    .unwrap();
+    let events = take(&e.log);
+    let [Event::Draw(7, points)] = events.as_slice() else {
+        panic!("one kind-7 submission")
+    };
+    assert_eq!(points.len(), 96);
+    assert_eq!(&points[..2], &[[2., 0.], [1., 0.]]);
+    assert_eq!(&points[..48], &points[48..]);
+    // Sample m=1 adds the offset-transition quad after the first ordinary quad.
+    assert_eq!(&points[4..6], &[points[3], points[2]]);
+    assert_eq!(points[5], points[6]);
+}
+
+#[test]
 fn gzg_v81_triangle_fan_no_second_fallback() {
     let p = [[0., 0.], [1., 2.], [2., 3.], [3., 2.], [4., 0.]];
     for code in [0, 1, 2, 99] {
