@@ -46,4 +46,3 @@
 
 <!-- from: glue-terrain-replace14 (2026-10-24) -->
 - **TR44 - section 15.1 slot 54 and the reported replacement crash:** specify the interface identity, ownership and initialization lifecycle of the render object at terrain `+0xE4`. The slot table says only "render object"; the current plugin initially stores the city there and later replaces it with the terrain-view object base. The task reports a virtual call to `0x41800000` from `0x004918E0` after view creation (callers `0x0050CF71`, `0x00491A1D`, `0x00494495`, `0x00494A18`). Which interface and slot does that caller require, and is its receiver obtained from terrain slot 54, slot 66, surface water, or a direct field? [unresolved; no native signature inferred; slot 66 corrected separately per section 15.5.6]
-
