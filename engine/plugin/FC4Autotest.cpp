@@ -356,7 +356,7 @@ int AutotestOnTick() {
         // sample on framework ticks before requesting quit; the wall deadline,
         // watchdog and external timeout remain active. Shutdown still reports
         // non-exact samples if it interrupts the reader for any other reason.
-        if (DbpfShadowPending()) return 0;
+        if (DbpfShadowWait()) return 0;
         RequestQuitNow(PublishedJulian());
         return 0;
     }

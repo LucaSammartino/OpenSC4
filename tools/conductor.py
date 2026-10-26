@@ -92,7 +92,7 @@ class Run:
 
     def target(self):
         t = self.dir / 'target.txt'
-        return int(t.read_text().strip()) if t.exists() else 13
+        return int(t.read_text(encoding='utf-8-sig').strip()) if t.exists() else 13
 
     def lanes(self):
         """Lanes of the state file with a result path, minus those in <run>/ignore.txt (finished or abandoned)."""
@@ -258,6 +258,9 @@ def heartbeat(run, live, extra=()):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # a lane summary with an arrow must not kill the loop when output is redirected
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(errors='replace')
     ap = argparse.ArgumentParser()
     ap.add_argument('--run', default='build-runs/run7')
     ap.add_argument('--state', default='build-runs/run6-state.json')

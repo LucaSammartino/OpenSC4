@@ -32,8 +32,8 @@ A fix round sets `fix` to the train's failure text. Keep the [game queue](runnin
 running. Copy required external evidence into a lane's `build-runs/` when its transport cannot read it;
 RE lanes use the main checkout's sources as their prompt directs.
 Codex lanes cannot run the native build in their sandbox (MSVC configure hangs), so the coordinator also keeps
-`tools/build_queue.py --jobs 1` running detached from the main checkout; `qbuild.py quick|verify` hands the native steps to it
-while `build-runs/build-queue-worker.alive` is fresh, and it waits while a game run is in progress (`--status` shows the queue).
+`tools/build_queue.py --jobs 3` running detached from the main checkout; `qbuild.py quick|verify` hands the native steps to it
+while `build-runs/build-queue-worker.alive` is fresh; each build gets cores/jobs compile parallelism and a worktree's waiting requests run once together (`--status` shows the queue).
 
 ## Lane context
 
@@ -265,10 +265,10 @@ refusals block ready. `merge-train.py plan` prints claims; `land` prints coverag
 `RUSTC_WRAPPER` to its cargo commands; without sccache it builds as before. MSVC debug info is `/Z7` (cacheable
 objects; the compiler no longer uses mspdbsrv, the linker still writes the PDB; `_MSPDBSRV_ENDPOINT_` stays private
 per worktree/gate). `.claude/lane-bin/fc4verify.py` runs one sccache server per worktree (port from the path,
-`SCCACHE_BASEDIRS` = the worktree) on one shared cache, `%LOCALAPPDATA%\fc4\sccache` (20 GB cap; disk is tight,
-`SCCACHE_CACHE_SIZE` lowers it). C++ objects hit across worktrees; Rust hashes the working directory and test
-binaries are linked, so fresh worktrees still compile Rust. Cached objects carry the first worktree's paths
-in their debug info and `__FILE__` strings.
+no `SCCACHE_BASEDIRS`) on one shared cache, `%LOCALAPPDATA%\fc4\sccache` (20 GB cap; disk is tight,
+`SCCACHE_CACHE_SIZE` lowers it). Objects hit only within their own worktree: a cross-worktree hit replays the other
+worktree's include list, so ninja tracks the wrong headers (stale-object gates, 2026-10-26). A fresh worktree
+compiles everything once.
 
 **Lane checks.** The prompt owns the final `qbuild.py all` cadence. During development, `qbuild.py quick`
 runs `fc4verify.py quick`: `cargo test -p` changed crates, dependents with `--no-run`, then CMake.

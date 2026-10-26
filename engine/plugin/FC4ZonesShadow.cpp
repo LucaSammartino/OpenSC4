@@ -348,7 +348,9 @@ void RunStep(void* p) {
         std::string counts;
         for (int32_t t = 0; t < kTypes; ++t) {
             const uint32_t ours = s != nullptr ? fc4_zones_zone_count(s, t) : o.count[t];
-            const bool differ = o.count[t] != recount[t] || ours != o.count[t] || ours != recount[t];
+            // zones.md 10.1: loaded counts survive Init; they are not rebuilt
+            // from the grid. The native recount is diagnostic, not slot 6.
+            const bool differ = ours != o.count[t];
             if (differ) {
                 ++mismatches;
                 if (s != nullptr) {

@@ -249,6 +249,9 @@ size_t g_pmListed = 0;
 std::set<uint64_t> g_candidates;
 std::map<uint64_t, std::pair<int32_t, int32_t>> g_decided;
 std::vector<std::pair<int32_t, int32_t>> g_decidedCells;
+std::map<uint64_t, bool> g_terrainBefore;
+std::map<uint64_t, bool> g_terrainAfter;
+bool g_replayDiffLogged = false;
 
 // The captures (reused).
 WriteCapture g_origMgr, g_origLot, g_ourMgr, g_ourLot;
@@ -444,7 +447,10 @@ void OccupantsInRect(void* u, const fc4_cell_rect* r, uint32_t mask, fc4_token_c
         u, r, mask,
         [](void* c, uint64_t n) {
             Tap* t = static_cast<Tap*>(c);
-            if (t->record && g_candidates.insert(n).second) NetHold(n);
+            if (t->record && g_candidates.insert(n).second) {
+                NetHold(n);
+                g_terrainBefore[n] = Placed(n);
+            }
             if (t->cb != nullptr) t->cb(t->ctx, n);
         },
         &tap);
@@ -513,7 +519,7 @@ bool NearDecided(int32_t x, int32_t z) {
     return false;
 }
 
-void SettleStep(void*) {
+void CheckTerrain() {
     // The terrain rule (§7.6).
     for (const auto& d : g_decided) {
         if (Placed(d.first)) {
@@ -543,13 +549,23 @@ void SettleStep(void*) {
             ++g_n.rebuilt;
         } else {
             ++g_n.origOnly;
-            PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it", static_cast<void*>(FromToken(c)), cx,
-                        cz);
+            // SPEC-GAP: NM18 leaves the provenance of these extra removals open;
+            // preserve every mismatch and report both handler-boundary flags.
+            PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it (placed before/after handler=%d/%d)",
+                        static_cast<void*>(FromToken(c)), cx, cz,
+                        g_terrainBefore.count(c) ? (g_terrainBefore[c] ? 1 : 0) : -1,
+                        g_terrainAfter.count(c) ? (g_terrainAfter[c] ? 1 : 0) : -1);
         }
     }
     g_candidates.clear();
     g_decided.clear();
     g_decidedCells.clear();
+    g_terrainBefore.clear();
+    g_terrainAfter.clear();
+}
+
+void SettleStep(void*) {
+    CheckTerrain();  // fallback for the explicitly selected early-listener mode
     // Road style (§8.7): the original made the same writes after ours.
     for (const auto& w : g_style) {
         const uint64_t n = w.first;
@@ -1130,12 +1146,18 @@ bool MessageCells(const Msg& m, fc4_cell_rect* r) {
 
 constexpr int32_t kMaxSnapCells = 4096;
 
-void CheckReplayInput(const char* phase) {
+void CheckReplayInput(const char* phase, const Msg& m) {
     uint32_t original[625] = {}, ours[625] = {}, buckets = 0;
     if (!compat::CaptureNetworkLotRandom(original) || !fc4_netlot_get_random_state(g_lot, ours)) {
         PendingDiff("random capture refused (%s)", phase);
     } else if (std::memcmp(original, ours, sizeof(original)) != 0) {
         PendingDiff("random state differs (%s): next word %u/%u", phase, original[624], ours[624]);
+        // SPEC-GAP: NM19 leaves the census-only lot/random-input divergence unresolved.
+        if (!g_replayDiffLogged) {
+            g_replayDiffLogged = true;
+            Log("netmgr replay first difference (%s): message=0x%08X data=%u/%u/%u/%u next word=%u/%u",
+                phase, m.type, m.d[0], m.d[1], m.d[2], m.d[3], original[624], ours[624]);
+        }
     }
     const auto* nlm = g_city ? g_city->GetNetworkLotManager() : nullptr;
     if (!compat::CaptureNetworkLotPending(nlm, &buckets)) {
@@ -1147,7 +1169,7 @@ void CheckReplayInput(const char* phase) {
 
 void TakeSnapshot(void* p) {
     const Msg& m = *static_cast<const Msg*>(p);
-    CheckReplayInput("before message");
+    CheckReplayInput("before message", m);
     g_snap.clear();
     g_snapValid = false;
     fc4_cell_rect r{};
@@ -1311,7 +1333,7 @@ void CallMessage(void* p) {
         g_msgWrites.clear();
         fc4_netlot_do_message(g_lot, m.type, m.d[0], m.d[1], m.d[2], m.void1, m.unknown, m.hasRect ? &m.rect : nullptr);
         NetMgrReleaseHeld(&g_ctx);
-        if (g_late) CheckReplayInput("after message");
+        if (g_late) CheckReplayInput("after message", m);
         if (compare) CompareMessageStyle(m, afterOrig);
         g_snapValid = false;
         g_snap.clear();
@@ -1322,6 +1344,14 @@ void CallMessage(void* p) {
 // network lot manager (netmgr_shadow_order = late).
 void OnMessage(cIGZMessage2* msg, bool late) {
     if (msg == nullptr || (g_mgr == nullptr && g_lot == nullptr) || g_inMessage) return;
+    if (late && (msg->GetType() == 0x278E6003 || msg->GetType() == 0x6A3B0AFD)) {
+        for (uint64_t n : g_candidates) g_terrainAfter[n] = Placed(n);
+        // §7.6 describes this handler's effects. Later removals are not its
+        // output: gen27-tegel-s1-grow has candidates placed here but gone
+        // at the next tick. Check every destruction and survivor at this boundary.
+        CheckTerrain();
+        return;
+    }
     Msg m;
     m.type = msg->GetType();
     m.mgr = !late && IsMgrMessage(m.type);
@@ -1426,6 +1456,10 @@ void LateSubscribe(bool on) {
             ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id);
         }
     }
+    for (uint32_t id : {0x278E6003u, 0x6A3B0AFDu}) {
+        if (on) ok = ms->AddNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id) && ok;
+        else ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id);
+    }
     if (on) {
         Log("netmgr shadow: the lot core's listener (late: after the original network lot manager) registered for %u "
             "message types%s",
@@ -1445,8 +1479,8 @@ void NetMgrShadowStartup() {
     Log("netmgr shadow: ON (netmgr_shadow from %s): two shadow cores (read-only hosts) start from the ORIGINAL network "
         "manager's and network lot manager's records at PostCityInit and follow their 16 messages (the manager's through "
         "a listener registered before any city's, the lot manager's, with netmgr_shadow_order = late, after the "
-        "original); the terrain rule's destructions and the road style writes are recorded and "
-        "checked against the game at the next tick; at PostCityInit, each SimNewMonth and before a scripted save the "
+        "original); terrain effects are checked at handler completion (next tick in early mode), and road style "
+        "writes at the next tick; at PostCityInit, each SimNewMonth and before a scripted save the "
         "component 53 and 11 records (our Write against the original's), the zone and wealth for network at every lot "
         "cell (slots 9, 10) and configurations are compared exactly, using captured random input with pre/post checks "
         "(network-manager.md §17). No record resync or NM10 exemptions. Not compared: the under-texture (no getter), the "
@@ -1554,6 +1588,7 @@ void NetMgrShadowCityShutdown() {
     g_ctx.city = nullptr;
     g_lines = g_exactLines = g_draws = g_resyncs = 0;
     g_randomReady = false;
+    g_replayDiffLogged = false;
     g_n = Counters{};
     g_pendingDiffs.clear();
     g_pendingMismatches = 0;

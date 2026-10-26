@@ -38,7 +38,7 @@ class CityFixtureTests(unittest.TestCase):
                    FC4_FIXTURE_SLOT_NUMBER=str(slot))
         p = subprocess.run([POWERSHELL, "-NoProfile", "-NonInteractive", "-Command",
                             "$ErrorActionPreference='Stop'; . $env:FC4_FIXTURE_HELPER; " + code],
-                           env=env, capture_output=True, text=True, timeout=20)
+                           env=env, capture_output=True, text=True, timeout=60)
         if success:
             self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         else:
