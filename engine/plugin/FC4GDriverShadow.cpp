@@ -23,6 +23,7 @@ using Words = std::array<uint32_t, 72>;
 using Args = std::array<uint32_t, 20>;
 std::recursive_mutex mutex;
 cIGZGDriver* driver = nullptr; // Explicitly acquired for this city.
+bool selectionLogged = false;
 void** table = nullptr;
 void** deviceTable = nullptr;
 std::array<void*, gdriver_trace::DeviceSlots> deviceHooks{};
@@ -346,8 +347,19 @@ void GDriverShadowCityLoaded() {
     if (!version || version->imageBase != 0x00400000 || reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)) != 0x00400000) return;
     cIGZGraphicSystem2Ptr graphics;
     cIGZGDriver* candidate = graphics ? graphics->GetGDriver() : nullptr;
+    const uintptr_t currentTable = candidate ? *reinterpret_cast<uintptr_t*>(candidate) : 0;
+    // SPEC-GAP: driver-selection timing is unspecified; use bounded public enumeration and monthly retries, requiring the documented DX7 identity throughout.
+    if (graphics && currentTable != 0x00AC4660) {
+        const uint32_t count = graphics->GetGDriverCount();
+        for (uint32_t i = 0; i < count && i < 16; ++i) {
+            cIGZGDriver* const entry = graphics->GetGDriverByIndex(i);
+            if (entry && *reinterpret_cast<uintptr_t*>(entry) == 0x00AC4660) { candidate = entry; break; }
+        }
+    }
     if (!candidate || *reinterpret_cast<uintptr_t*>(candidate) != 0x00AC4660) {
-        Log("gdriver: unavailable: native DX7 interface required"); return;
+        if (!selectionLogged) Log("gdriver: unavailable: native DX7 interface required; current_table=0x%08X; retry=monthly", static_cast<unsigned>(currentTable));
+        selectionLogged = true;
+        return;
     }
     driver = candidate; FC4_ADDREF(driver);
     table = *reinterpret_cast<void***>(driver);
@@ -386,6 +398,7 @@ void GDriverShadowCityLoaded() {
 }
 void GDriverShadowMonth(int32_t julian) {
     std::lock_guard<std::recursive_mutex> lock(mutex);
+    if (!driver) GDriverShadowCityLoaded();
     if (!driver) return;
     fc4_date date{}; fc4_date_from_julian(julian, &date);
     Log("gdriver transitions %04d-%02d-%02d: samples=%llu mismatches=%llu refused=%llu frames=%llu scope=device-stream-partial", date.year, date.month, date.day_of_month, compared, differences, refused, frame);
@@ -421,6 +434,7 @@ std::string GDriverShadowProbe() {
 }
 void GDriverShadowCityShutdown() {
     std::lock_guard<std::recursive_mutex> lock(mutex);
+    selectionLogged = false;
     if (!driver) return;
     Restore();
     Log("gdriver: shutdown: %llu/%llu exact; samples=%llu mismatches=%llu refused=%llu scope=device-stream-partial prestate=per-transition", clean, lines, compared, differences, refused);
