@@ -223,9 +223,9 @@ city whose neighbours never changed their connections).
 
 ## 4. `CreateSymmetricConnections` (`0x004AA6D0`) *[compat]*
 
-This answers regional-city.md question RY1. The network-manager and demolition calls are described by what they do to
-the edge cell; their exact arguments are not decoded and the network part is *[inferred]* from the call sequence
-(RR3).
+This answers regional-city.md question RY1. The network-manager calls are described by what they do to the edge cell;
+the network part remains *[inferred]* here (RR3). The exact demolition call arguments and caller-filter rules are
+verified in [regional-city.md](regional-city.md) §6.2.1 (RY9).
 
 Inputs: the record's queue, the current city and its services (the neighbours simulator `N`, the network manager, the
 occupant manager, the demolition utility, the zone manager, the traffic network map). The function reads these city
@@ -280,7 +280,8 @@ it flips the orientation of the marker prop.
 | Subway 6 | 7 | | |
 | LightRail 7 | 8 | | |
 
-For Pipe the occupant filter layer is **3** and for Subway **2**; for all other networks it is **1** *[inferred]*.
+For Pipe the occupant filter layer is **3** and for Subway **2**; for all other networks it is **1** (verified:
+regional-city.md §6.2.1).
 (These network numbers are the same ones neighbors.md §6.5 uses for the reverse mapping.)
 
 ### 4.5 Apply each entry, in sorted order
@@ -305,9 +306,12 @@ coordinate). Each entry clears its own strip, at its own lateral coordinate.
 1. **Select the cells to clear.** Start with all cells of the strip. For a **PowerPole** entry, remove from the set every
    cell that already holds an occupant of type `0x2890D4DE` (power pole) or `0x0990B2EA` (power line piece). For every
    other type, remove every cell for which the traffic network map reports that something is already there.
-2. **Demolish.** Through the demolition utility, demolish what stands on the remaining cells, with an occupant filter
-   whose layer value is the one of §4.4 (1 for roads and the like, 3 for pipes, 2 for subways). The call does not
-   ask for confirmation and does not charge money.
+2. **Demolish.** Through demolition utility slot 6, issue an actual demolition of the remaining cells with
+   **privilege 0, flags `0x1`, dezone false**, and a **view-level occupant filter** for the layer in §4.4. Cost,
+   demolished-set and clicked-occupant pointers are null; the final two coordinates are zero. The result is ignored.
+   There is no confirmation or budget charge. The filter's type-only query admits all types; its occupant query
+   requires a matching classified layer. The utility then applies its own type/removal rules. The exact contract,
+   view-filter caveats and worked case are in [regional-city.md](regional-city.md) §6.2.1 (RY9).
 3. **Dezone.** For a PowerPole entry only, ask the zone manager to dezone the same cells.
 4. **Create the connection:** `CreateConnection(type, x, z, dir)`.
 5. **Place the edge piece.** Ask the network manager's network of that type to lay a segment from the strip's first cell

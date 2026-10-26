@@ -2609,3 +2609,8 @@ bool cFC4NeighborsSimulator::Read(cIGZIStream& s) {
 }
 
 uint32_t cFC4NeighborsSimulator::GetGZCLSID() { return kFC4_CLSID_cSC4NeighborsSimulator; }
+
+bool fc4::NeighborsCollectReleasedElements() {
+    Section sec;
+    return sec.ok() && IsMainThread();
+}

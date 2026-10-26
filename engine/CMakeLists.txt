@@ -1393,3 +1393,13 @@ if(TARGET FreeCity4)
     add_test(NAME compare_dispatch_modes COMMAND fc4_compare_runtime_test)
     set_tests_properties(compare_dispatch_modes PROPERTIES TIMEOUT 20)
 endif()
+
+# RegionalCity private C transport: real Rust owner and host-reference callbacks.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4RegionalCityElements.cpp plugin/FC4RegionalCityElements.h)
+    add_executable(fc4_regionalcity_owner_test tests/regionalcity_owner_test.cpp)
+    target_include_directories(fc4_regionalcity_owner_test PRIVATE plugin)
+    target_compile_options(fc4_regionalcity_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_regionalcity_owner_test PRIVATE fc4_capi)
+    add_test(NAME regionalcity_owner_test COMMAND fc4_regionalcity_owner_test)
+endif()

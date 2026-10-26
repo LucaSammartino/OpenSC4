@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{Commodity, Lifecycle, PendingChange, RegionalCity};
+use super::{Commodity, ConnectionHandle, DealHandle, Lifecycle, PendingChange, RegionalCity};
 use crate::neighbors::{flag, NeighborConnection, NeighborDeal};
 use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, ResKey};
 use std::collections::BTreeMap;
@@ -32,16 +32,32 @@ pub struct ReadContext<'a> {
 
 /// None represents an element that does not answer the serializable IID. The
 /// count is still written from the original list, as required by records §2.1.
-pub trait RecordElements {
-    fn connection(&mut self, c: &NeighborConnection, out: &mut dyn OutStream) -> Option<bool>;
-    fn deal(&mut self, d: &NeighborDeal, out: &mut dyn OutStream) -> Option<bool>;
+pub trait RecordElements<C = std::rc::Rc<NeighborConnection>, D = std::rc::Rc<NeighborDeal>> {
+    fn connection(&mut self, c: &C, out: &mut dyn OutStream) -> Option<bool>;
+    fn deal(&mut self, d: &D, out: &mut dyn OutStream) -> Option<bool>;
 }
 pub struct CoreElements;
+/// Constructs owned elements through the host's interfaces. Failed/partial
+/// decoding drops all elements already returned by this factory.
+pub trait RecordReader<C, D> {
+    fn connection(&mut self, inp: &mut dyn InStream) -> Option<C>;
+    fn deal(&mut self, inp: &mut dyn InStream) -> Option<D>;
+}
+impl RecordReader<std::rc::Rc<NeighborConnection>, std::rc::Rc<NeighborDeal>> for CoreElements {
+    fn connection(&mut self, inp: &mut dyn InStream) -> Option<std::rc::Rc<NeighborConnection>> {
+        let c = NeighborConnection::new();
+        c.read(inp).then_some(c)
+    }
+    fn deal(&mut self, inp: &mut dyn InStream) -> Option<std::rc::Rc<NeighborDeal>> {
+        let d = NeighborDeal::new();
+        d.read(inp).then_some(d)
+    }
+}
 impl RecordElements for CoreElements {
-    fn connection(&mut self, c: &NeighborConnection, out: &mut dyn OutStream) -> Option<bool> {
+    fn connection(&mut self, c: &std::rc::Rc<NeighborConnection>, out: &mut dyn OutStream) -> Option<bool> {
         Some(c.write(out))
     }
-    fn deal(&mut self, d: &NeighborDeal, out: &mut dyn OutStream) -> Option<bool> {
+    fn deal(&mut self, d: &std::rc::Rc<NeighborDeal>, out: &mut dyn OutStream) -> Option<bool> {
         Some(d.write(out))
     }
 }
@@ -78,6 +94,21 @@ impl RegionalCity {
     /// this separate permits the foundations §14.20 same-input codec vector,
     /// while object Read still merges both deal lists and makes deals Silent.
     pub fn decode_record(inp: &mut dyn InStream, default_difficulty: u8) -> Result<Self, RecordError> {
+        Self::decode_record_with(inp, default_difficulty, &mut CoreElements)
+    }
+
+    /// The object's Write always emits version 13, not the input version.
+    pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
+        self.write_record_with(out, &mut CoreElements)
+    }
+}
+
+impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
+    pub fn decode_record_with(
+        inp: &mut dyn InStream,
+        default_difficulty: u8,
+        elements: &mut impl RecordReader<C, D>,
+    ) -> Result<Self, RecordError> {
         macro_rules! get {
             ($f:ident) => {
                 inp.$f().ok_or(RecordError::Truncated)?
@@ -87,7 +118,7 @@ impl RegionalCity {
         if version >= 14 {
             return Err(RecordError::Version);
         }
-        let mut c = Self::new(default_difficulty);
+        let mut c = Self::with_handles(default_difficulty);
         c.position = (get!(get_i32), get!(get_i32));
         c.size = (get!(get_i32), get!(get_i32));
         c.population = get!(get_i32);
@@ -127,11 +158,8 @@ impl RegionalCity {
             c.tax_rates[i as usize] = get!(get_f32);
         }
         for _ in 0..count(inp, 0x100000)? {
-            let conn = NeighborConnection::new();
-            if !conn.read(inp) {
-                return Err(RecordError::Element);
-            }
-            c.connections.push(conn);
+            c.connections
+                .push(elements.connection(inp).ok_or(RecordError::Element)?);
         }
         for _ in 0..count(inp, 0x100000)? {
             c.pending.push(PendingChange::read(inp).ok_or(RecordError::Truncated)?);
@@ -162,11 +190,7 @@ impl RegionalCity {
             let n = get!(get_i32);
             // Literal signed loop: negative deal counts have no iterations (RY7).
             for _ in 0..n {
-                let d = NeighborDeal::new();
-                if !d.read(inp) {
-                    return Err(RecordError::Element);
-                }
-                list.push(d);
+                list.push(elements.deal(inp).ok_or(RecordError::Element)?);
             }
         }
         if version >= 12 {
@@ -182,11 +206,7 @@ impl RegionalCity {
         Ok(c)
     }
 
-    /// The object's Write always emits version 13, not the input version.
-    pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
-        self.write_record_with(out, &mut CoreElements)
-    }
-    pub fn write_record_with(&self, out: &mut dyn OutStream, elements: &mut impl RecordElements) -> bool {
+    pub fn write_record_with(&self, out: &mut dyn OutStream, elements: &mut impl RecordElements<C, D>) -> bool {
         out.put_u16(13);
         out.put_i32(self.position.0);
         out.put_i32(self.position.1);
@@ -269,13 +289,26 @@ impl RegionalCity {
         }
         out.error() == 0
     }
+}
 
+impl RegionalCity {
     pub fn read_record(
         inp: &mut dyn InStream,
         context: &ReadContext<'_>,
         host: &mut impl Lifecycle,
     ) -> Result<Self, RecordError> {
-        let mut c = Self::decode_record(inp, context.application_default_difficulty)?;
+        Self::read_record_with(inp, context, host, &mut CoreElements)
+    }
+}
+
+impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
+    pub fn read_record_with(
+        inp: &mut dyn InStream,
+        context: &ReadContext<'_>,
+        host: &mut impl Lifecycle,
+        elements: &mut impl RecordReader<C, D>,
+    ) -> Result<Self, RecordError> {
+        let mut c = Self::decode_record_with(inp, context.application_default_difficulty, elements)?;
         if !c.established {
             c.difficulty = context.application_default_difficulty;
             c.city_name = context.default_city_name.to_vec();
