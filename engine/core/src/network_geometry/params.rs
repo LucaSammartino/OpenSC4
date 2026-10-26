@@ -61,6 +61,7 @@ pub mod prop {
     pub const RESOLVE_TOLERANCE: u32 = 0xC804_DD86;
     pub const TUNNEL_TRIGGER_SLOPE: u32 = 0xC804_DD87;
     pub const TUNNEL_END_SLOPE: u32 = 0xC804_DD88;
+    pub const PLANE_TOLERANCE: u32 = 0xC804_DD89;
     pub const NEW_CELL_TOLERANCE: u32 = 0xC804_DD93;
     pub const SUPPORT_THRESHOLD: u32 = 0xC804_DD94;
     pub const MAX_SUPPORT_HEIGHT: u32 = 0xC804_DD95;
@@ -115,6 +116,8 @@ pub struct PlacementParams {
     pub tunnel_trigger_slope: f32,
     /// p+0x1C, `0xC804DD88`: tunnel end slope (degrees).
     pub tunnel_end_slope: f32,
+    /// p+0x20: regular-cell plane tolerance in metres (section 9.8).
+    pub plane_tolerance: f32,
     /// p+0x25: straight only (not read from the exemplar; 1 for street).
     pub straight_only: bool,
     /// p+0x34, `0xC804DD93`: new-cell tolerance (m).
@@ -154,6 +157,7 @@ impl Default for PlacementParams {
             resolve_tolerance: 0.0,
             tunnel_trigger_slope: 0.0,
             tunnel_end_slope: 0.0,
+            plane_tolerance: 0.0,
             straight_only: false,
             new_cell_tolerance: 0.0,
             support_threshold: 0.0,
@@ -188,6 +192,7 @@ fn shipped_row(
         resolve_tolerance: resolve,
         tunnel_trigger_slope: tunnel[0],
         tunnel_end_slope: tunnel[1],
+        plane_tolerance: 15.0,
         new_cell_tolerance: tolerances[0],
         support_threshold: tolerances[1],
         max_support_height,
@@ -220,6 +225,7 @@ impl PlacementParams {
                 [10, 100, 20],
             );
             p.earthwork_cost = 0.1;
+            p.plane_tolerance = 35.0;
             p
         };
         let rail = |cell_cost: i32, tunnel_cost: i32, clearance: f32, trigger: f32| {
@@ -337,6 +343,7 @@ impl PlacementParams {
         f(prop::RESOLVE_TOLERANCE, &mut p.resolve_tolerance);
         f(prop::TUNNEL_TRIGGER_SLOPE, &mut p.tunnel_trigger_slope);
         f(prop::TUNNEL_END_SLOPE, &mut p.tunnel_end_slope);
+        f(prop::PLANE_TOLERANCE, &mut p.plane_tolerance);
         f(prop::NEW_CELL_TOLERANCE, &mut p.new_cell_tolerance);
         f(prop::SUPPORT_THRESHOLD, &mut p.support_threshold);
         f(prop::MAX_SUPPORT_HEIGHT, &mut p.max_support_height);

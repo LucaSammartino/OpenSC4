@@ -1,5 +1,51 @@
 # Answered questions — GZ framework core
 
+## GZF6 — Remaining buffer interface
+
+<!-- from: re-gzservices5 (2026-10-23), replacement follow-up replace-gzfw29 -->
+- **GZF6 — Remaining buffer interface (§6):** Reconcile every remaining
+  `0x00AC1400` slot beyond the span-render-8 bridge with semantic names/signatures;
+  specify resize, attached storage, palette, copy/conversion and allocation failure.
+
+**ANSWERED 2026-10-26 (re-gzf29):** DIFFERS —
+[§§6.1–6.4](../../gz-framework-core.md#61-complete-primary-table-inventory-gzf6)
+reconcile all 47 entries and their return channels. There is no preserving resize,
+foreign-storage attachment or palette operation: disposal/reinitialization owns
+replacement heap pixels and types 1/3 resolve from the display format. Null pixel
+allocation still returns successful Init. Packed pixel access, color/key rules,
+clipped fill, line quirks and all type-4–9 copy conversions are specified, including
+no-write successes and overlap. §§6.5–6.6 give creation/fill/cache/release and
+failure/conversion vectors. The previous type-3 palette interpretation is corrected.
+
+## GZF12 — Buffer hardware-cache contract blocks replacement
+
+<!-- from: replace-gzfw29 (2026-10-26) -->
+- **GZF12 — Buffer hardware-cache contract blocks replacement (2026-10-26,
+  replace-gzfw29; GZF6 follow-up):** Please specify native slots 37/38
+  (`GetHardwareCache` / `SetHardwareCache` in the SDK): cache interface identity,
+  getter ownership, setter retention/replacement/null behavior, return value,
+  and storage/modification invalidation obligations. The bounded bridge in §6
+  and span-render-8 §10.7 does not cover these calls. With the new default-off
+  `gzfw` factory enabled, conservative refusal reaches these slots repeatedly
+  before city load and produces a broken region UI and `no-load` after 900 s.
+  Evidence: main `build-runs/game-results/gzfw29-s0-on-r1.log` / `.verdict` and
+  `build-runs/q-main-gzfw29-s0-on-r1-end.png` (DLL f966786a). The same gen27 s0-grow
+  script with the key off executes all 216 actions and has 25/25 exact owner
+  shadows; its only exception is the already-known native construction Shutdown
+  fault. This does not isolate the cache as the sole cause: other GZF6 buffer
+  operations are also conservatively refused. Replacement qualification stops
+  here rather than inventing cache ownership or claiming that no-load is a
+  city-level comparison. Full buffer semantics remain necessary for credit.
+
+**ANSWERED 2026-10-26 (re-gzf29):** DIFFERS —
+[§6.5](../../gz-framework-core.md#65-hardware-cache-attachment-and-lifetime-gzf12)
+specifies the borrowed getter, primary cache IID `0xFA59F7B9`, ordered release /
+Init / retention, false-Init detachment and null-input fault. SimGL keeps a
+borrowed buffer pointer; modifications are detected through slot 36, with explicit
+Invalidate only for color-key changes. Worked attachment, refresh, replacement,
+failure and release cases provide callback/refcount expectations. This is static
+original-program evidence, not a new game-run or replacement-qualification claim.
+
 ## GZF10 — Closure details in §§2, 5–8
 
 <!-- from: core-gzframework5 (2026-10-23) -->

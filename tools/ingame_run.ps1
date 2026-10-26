@@ -75,7 +75,12 @@ param(
     [string]$TurboFrom = "",
     [string]$SlotRoot = "",
     [switch]$NoMinimize,
-    [int]$HeldReportSeconds = 30
+    [int]$HeldReportSeconds = 30,
+    # A calendar that stays on one date this long while the simulator ticks (an emergency pause that never ends, a stuck
+    # clock) ends the run as stalled; 0 turns it off. The plugin's watchdog only sees a stalled main thread.
+    [int]$FrozenCalendarSeconds = 600,
+    # Windows priority class for the game process (the queue passes AboveNormal for priority = high requests).
+    [ValidateSet("", "Idle", "BelowNormal", "Normal", "AboveNormal", "High")][string]$GamePriority = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -233,6 +238,20 @@ function GamesUsing([string]$dir) {
     return $r
 }
 function HasKey([string]$text, [string]$key) { return $text -match "(?m)^\s*$key\s*=" }
+# The last periodic heartbeat's date against the first time this loop saw that date. $state is @{ date; since }.
+# Returns the stalled verdict text once the date has not moved for $limit seconds while OnTick counts, else $null.
+function FrozenCalendar([string]$text, [hashtable]$state, [datetime]$now, [int]$limit) {
+    $beats = [regex]::Matches($text, 'heartbeat \(periodic\): (\d{4}-\d\d-\d\d) \(julian \d+\)[^
+]*?pause (\d+) hidden (\d+) emergency (\d+)[^
+]*?\+(\d+) OnTick')
+    if ($beats.Count -eq 0) { return $null }
+    $b = $beats[$beats.Count - 1]
+    if ($state.date -ne $b.Groups[1].Value) { $state.date = $b.Groups[1].Value; $state.since = $now; return $null }
+    if ([int64]$b.Groups[5].Value -le 0) { return $null }
+    $for = [int]($now - $state.since).TotalSeconds
+    if ($for -lt $limit) { return $null }
+    return "stalled (fallback): frozen calendar at $($state.date) for $for s while the simulator ticked (pause $($b.Groups[2].Value) hidden $($b.Groups[3].Value) emergency $($b.Groups[4].Value))"
+}
 function JulianDate([int64]$jd) { return ([DateTime]"2000-01-01").AddDays($jd - 2451545).ToString("yyyy-MM-dd") }
 # Win32 dialogs of the game (see FC4Run.Dialogs). Each one is logged once with its title, text and buttons, and closed
 # unless -NoDismiss; a dialog still open after 3 close attempts is reported as such. Returns new notes (for the output).
@@ -508,11 +527,13 @@ try {
 } finally { $launch.ReleaseMutex(); $launch.Dispose() }
 
 $env:FC4_GAME_PID = if ($p) { "$($p.Id)" } else { "" }
+if ($GamePriority -and $p) { try { $p.PriorityClass = [Diagnostics.ProcessPriorityClass]$GamePriority } catch { Write-Output "game priority $GamePriority not set: $($_.Exception.Message)" } }
 $env:FC4_GAME_LOG = $Log
 if ($Slot -gt 0) { $env:FC4_NO_REAL_INPUT = "1" }
 $start = Get-Date
 $loadedAt = $null
 $hpSeen = $null; $frozenDate = $null; $frozenCount = 0; $lastBeatCount = 0; $rounds = 0; $clicked = 0
+$calState = @{ date = $null; since = $null }
 $stallSeen = $null; $minimized = $false; $everMinimized = $false; $minTries = 0; $heldSince = $null; $heldDate = $null; $heldNote = $null; $heldMax = 0
 
 while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
@@ -545,6 +566,11 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
             $minimized = [FC4Run]::IsIconic($h)
             if ($minimized) { $everMinimized = $true }
         }
+    }
+
+    if ($FrozenCalendarSeconds -gt 0) {
+        $fz = FrozenCalendar $text $calState (Get-Date) $FrozenCalendarSeconds
+        if ($fz) { $verdict = $fz; Start-Sleep -Seconds 2; break }
     }
 
     # A city held by a dialog: hidden > 0 in the last pause call.

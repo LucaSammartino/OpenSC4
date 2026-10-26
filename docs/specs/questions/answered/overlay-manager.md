@@ -56,3 +56,16 @@
 - ~~**OV16 - §2.7 native texture-source adapter ABI:** specify the exact thiscall prototypes, stack-byte counts and return channels for source slots 3 (dimensions/info) and 4 (driver texture handle). Does slot3 return an info pointer or write caller-owned storage? If it writes storage, specify its complete writable size/alignment, not only the width/height prefix. §2.7 explicitly says the stage-zero push does not establish slot4's arguments, and neither the SDK nor current ABI tables declare these source methods. The implementer has stopped native source calls rather than guessing a signature or writable buffer size; binding-backed adapters continue through the documented factory slots5/6/8/11 and counted-binding calls.~~
 
   **ANSWERED 2026-10-26 (re-ov29):** MATCHES — §2.7.1 specifies ECX=this for both calls. Slot 3 has one writable pointer argument, four argument bytes and four-byte callee cleanup; its complete memory result is 8 bytes aligned to 4, unsigned width/height. The concrete string source leaves EAX equal to the caller's address; adapters consume the memory result with no scalar return. Slot 4 has zero argument/cleanup bytes and returns the opaque 32-bit driver handle in EAX. SetTexture's pending stage zero is preserved across that call. Native vtable/method bytes and two worked calls establish write extent, return channels, cache effects and stack balance; no engine implementation or runtime verification is claimed.
+
+<!-- from: replace-overlays28 (2026-10-26) -->
+- ~~**OV17 - §4.6 native rectangle-consumer call ABI:** please specify the callable argument order and ECX
+  subobject for `0x007541C0`, `0x007543C0`, `0x007545C0`, `0x00754910`, `0x00755560`, `0x00755700`,
+  `0x00754C60` and `0x00754F10`. Section 4.6 establishes by-value vertex rectangles for the first six,
+  a rectangle pointer for the last two, a context, and an extra extension pointer for the two extension
+  consumers. `functions.tsv` establishes 20/24/8 argument bytes and return channels, but neither source
+  identifies their parameter order or whether ECX is the view base or its `cISTETerrainView` at +0x0C.
+  This asks only for the call boundary, not the consumers' geometry algorithms (already OV8).
+  [source dimensions/acquisition/release and frame-zero/source-handle submission are implemented from
+  OV16; native Draw and terrain-view routing remain stopped rather than installing an unproved call ABI]~~
+
+  **ANSWERED 2026-10-26 (re-ov30):** MATCHES — §4.6.1 specifies all eight as thiscall on the complete terrain-view base, retained at manager +0x8C; the terrain-view interface at base +0x0C must first be converted back to the base. Ordinary land/water take (rectangle value, context), extension land takes (context, extension, rectangle value), and shadow land takes (rectangle pointer, context). The rectangle is four signed 32-bit vertex bounds in x0,z0,x1+1,z1+1 order. Callee cleanup is respectively 20/24/8 bytes; the shadow caller's separate 16-byte local is not an argument. Source citations, entry-stack offsets, return channels and one worked call per destination establish the boundary. Geometry algorithms remain OV8.

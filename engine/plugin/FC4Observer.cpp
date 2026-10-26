@@ -612,7 +612,7 @@ public:
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
         OverlaysShadowOnTick(CurrentCity());  // after city Init exposes all four managers
         fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
-        if (saveDue_) {
+        if (saveDue_ && !DbpfShadowWait()) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
         }
@@ -630,7 +630,11 @@ public:
         FC4_X87_SCOPE("observer DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
         AppShadowMessage(msg->GetType());
         switch (msg->GetType()) {
-            case kMsgPostCityInit:
+            case kMsgPostCityInit: {
+                // Lifecycle tracing is already live during load. Observer
+                // comparisons/constructed fixtures are still excluded.
+                {
+                ReachProbeScope reachProbes;
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");
                 FpuLog("city load (PostCityInit)");
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
@@ -718,7 +722,15 @@ public:
                     auto* reachSim = reachCity ? AsGame(reachCity->GetSimulator()) : nullptr;
                     ReachStart(reachSim ? reachSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
                 }
+                }
+                // NextWindow must run after the suspended comparison pass.
+                if (ReachLifecycleEnabled()) {
+                    auto* city = CurrentCity();
+                    auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+                    if (sim) ReachNewMonth(sim->GetSimDateNumber());
+                }
                 break;
+            }
             case kMsgPreSave:
                 DbpfShadowBeforeSave();
                 PropLotShadowPreSave(CurrentCity());  // the records just before the save writes them
@@ -745,8 +757,9 @@ public:
                 if (ok) fc4::AutomataDriverSituationMessage(static_cast<int32_t>(d1));
                 break;
             }
-            case kMsgPreCityShutdown:
-                ReachStop();
+            case kMsgPreCityShutdown: {
+                if (!ReachLifecycleEnabled()) ReachStop();
+                ReachProbeScope reachProbes;  // observer shutdown comparisons, not native teardown
                 DbpfShadowShutdown();
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
@@ -792,7 +805,9 @@ public:
                 DatesProbeSummary("city-shutdown");
                 fc4::FeatureShadowShutdown();
                 break;
+            }
             case kMsgPostCityShutdown:
+                if (ReachLifecycleEnabled()) ReachCheckpoint();
                 AutotestOnCityShutdown(true);
                 ClearUnreadRefs();
                 break;
@@ -1018,7 +1033,10 @@ cFC4Observer& Observer() {
 }  // namespace
 
 void ObserverReload() { Observer().Reload(); }
-void ObserverStart() { Observer().Start(); }
+void ObserverStart() {
+    Observer().Start();
+    GDriverShadowStart();
+}
 void ObserverStop() { Observer().Stop(); }
 
 void ObserverTestSetCity(cISC4City* city) {

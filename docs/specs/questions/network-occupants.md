@@ -8,7 +8,8 @@ implementer of the class tables and records.
 
 <!-- from: the network occupants spec (2026-10-20) -->
 - **NO4 - the prebuilt record's first five fields:** the semantics of the prebuilt `Write` fields
-  `+0x170`/`+0x174`/`+0x178`/`+0x17C`/`+0x180` (network-occupants.md §2.8): model refs? shear inputs?
+  (three f32 at primary `+0x178`/`+0x17C`/`+0x180`, u32 `+0x1B0`, u8 `+0x1B4`; corrected by NO46,
+  network-occupants.md §2.8.1): model refs? shear inputs?
   [not specified]
 
 <!-- from: the network occupants spec (2026-10-20) -->
@@ -57,11 +58,6 @@ implementer of the class tables and records.
   the network caller always uses the fully implemented mode 1. Null lo still returns immediately. [missing]
 
 <!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
-- **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
-  after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
-  the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
-
-<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
 - **NO31 - §10 instance constructor/destructor inventory:** beyond the published object size, base-class
   identity, processor member, resource reference and prebuilt cache lifetimes, what are the initial state
   and teardown side effects of instance ctor `0x00614A30` and destructor `0x00614830`? The pure core models
@@ -70,13 +66,6 @@ implementer of the class tables and records.
   NO29 implementation refinement: the published mode-0 x/z bounds early-out is implemented too. Only a
   mode-0 call that actually needs six-plane cutting returns `UnspecifiedClipMode`; null lo or contained
   x/z bounds return unchanged. No six-plane output is fabricated.
-
-<!-- from: core-netocc-close5 (2026-10-23) -->
-- **NO32 - sections 2.4, 2.5 and 2.7 base-owner closure inputs:** what are the numeric UV tables
-  `0x00AA7D98`/`0x00AA7D88`, the three packed render states made by StaticInit, and the zoom-table
-  `0x00B0B374` entries and exact `0x6000000` Draw predicate? How are normalized triangle normals encoded
-  into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
-  without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
@@ -89,19 +78,33 @@ implementer of the class tables and records.
   §7.2), so where is that copy kept in a save, and under which key? `0x005D9940` writes the key, `0x005D9820` reads
   it. [as read]
 
-<!-- from: re-ugbase (2026-10-20) -->
-- **NO40 - §3.2, §3.6:** the geometry the model builders make: `CreateUndergroundModel` (`0x0065D810`),
-  `MakeCustomUndergroundPiece` (`0x0065D160`), `CreateWalls` / `AddWallQuad` (`0x0065E260`, `0x0065CFF0`), the mesh
-  transform (slot 85, `0x0065B700`), `ComputeBox` (`0x00659E00`), and the connection's `CreateGeometry`,
-  `CreatePieceModel`, `CreateWalls`, `CreateFloor` and `Draw` (`0x006562B0`, `0x00655850`, `0x00655F10`,
-  `0x00656010`, `0x00656E90`); which descriptor words they read and how the ratio tables T1 and T2 enter the
-  vertices. [as read]
-  **Progress 2026-10-23 (re-netocc-poles5):** §3.6.2/tests 49–50 settle the connection's standalone
-  CreateFloor/CreateWalls/AddWallQuad behavior without an attached occupant, clearing/append semantics,
-  attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
-  underground base geometry and Draw/transform/box algorithms remain open.
-
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
+
+## From netocc-cities29 (2026-10-26)
+
+- **NO46 — prebuilt v4 record envelope (extends NO4, §2.8):** please specify the ordered stream fields,
+  including the placement of the subclass/base version words, field widths, reference IIDs and any Read→Write
+  canonicalization, for `cSC4NetworkOccupantWithPreBuiltModel` (`0x49C1A034`). Opaque field semantics are sufficient
+  if they are simply retained. The current shadow sends this class through the plain network v8 codec and fails
+  parsing; §2.8 states a distinct v4 record but does not give its stream layout. This blocks the census's 72
+  prebuilt-containing scenarios, rather than a capture tolerance or timing issue. Fresh baseline evidence:
+  `build-runs/suite/netocc-cities29-before4/lua-lots-grown.log` has class `49C1A034`, capture=1/status=2,
+  and 424 load mismatches; `paradis-port-of-shiganshina.log` has the same failure and 755 load mismatches.
+  The cited runs later stalled and are not acceptance runs; their completed load comparisons establish the
+  codec failure. No prebuilt records have been excluded or normalized past this unsupported envelope.
+  `C:/Users/tlori/FreeCity4/build-runs/game-results/netocc-cities29-probe4-paradis.log` confirms captured
+  versions 4/4/2 for prebuilt `49C1A034`, bridge `49CC1BCD` and tunnel `8A4BD52B`, all status 2. Please include
+  the inherited envelope for the bridge and tunnel as well. This run is corrupt during load (not acceptance);
+  its completed load sample has 755 netocc mismatches and an exact initial netmgr record.
+
+- **NO47 — empty-city shadow sample (census accounting, for the coordinator):** the supplied census's
+  `lua-lots-empty.shadows.txt` load line has `records=0 bytes=0` and every class count zero. The existing
+  shadow deliberately adds one mismatch when no network occupant record exists, to avoid giving owner
+  credit to an empty sample; its later two samples are exact. This is distinct from NO46's parse failure.
+  For the requested "exact in every scenario" metric, how should this proven empty original capture be
+  represented while preserving the rule that absent owners receive no verification credit? No codec
+  output differs in this sample. The lane retains the existing failing sample rather than dropping it,
+  changing its count to zero, or claiming that an unexercised class was verified.
 

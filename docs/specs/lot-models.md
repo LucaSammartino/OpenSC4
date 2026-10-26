@@ -328,6 +328,12 @@ positions/UV/bounds alone. These are explicit terrain/lot/lighting inputs, not a
   cell (`DrawTexturedTerrainQuad`, terrain-view.md §4.4) with its corners and alpha, forced when the draw context's
   `+0x20` is 8.
 
+  **NM20 receiver/lifetime:** this sloping draw takes the terrain drawing interface from draw-context
+  `+0x4C` and calls slot 15 at `0x005E0484` (return `0x005E0487`). It borrows that view without a
+  reference operation. The receiver is view base +0x0C and must retain its initialized terrain;
+  [terrain-view.md §4.4.1](terrain-view.md#441-native-receiver-terrain-lifetime-and-generated-action-fault-nm20-compat)
+  specifies the concrete terrain read and generated-s2 failure observation.
+
 ### 4.1 Corner, placement and update contract (LM6)
 
 The stored cell x and z are **unsigned bytes**, not signed world coordinates (`0x005DFA0C`,
