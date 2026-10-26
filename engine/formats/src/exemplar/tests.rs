@@ -240,6 +240,23 @@ fn t31_duplicate_ids_last_wins() {
     assert_eq!(ex.get(0x10).unwrap().as_u32(), Some(9));
 }
 
+#[test]
+fn ordered_append_then_unsorted_duplicate_keeps_unsigned_order_and_last_value() {
+    let props: Vec<_> = [0, 1, 0x8000_0000, u32::MAX, 1, 2, 0x8000_0000]
+        .into_iter()
+        .enumerate()
+        .map(|(n, id)| u32_prop(id, n as u32))
+        .collect();
+    let refs: Vec<_> = props.iter().map(String::as_str).collect();
+    let ex = parse_ex(&rec(&refs));
+    assert_eq!(
+        ex.properties().iter().map(|p| p.id).collect::<Vec<_>>(),
+        [0, 1, 2, 0x8000_0000, u32::MAX]
+    );
+    assert_eq!(ex.get(1).unwrap().as_u32(), Some(4));
+    assert_eq!(ex.get(0x8000_0000).unwrap().as_u32(), Some(6));
+}
+
 /// §11 row "missing parent: chain resolution tolerant" → the exemplar fails to load (§4.2).
 #[test]
 fn t32_missing_parent_fails_the_exemplar() {

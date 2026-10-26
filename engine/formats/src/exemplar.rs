@@ -1417,6 +1417,7 @@ impl Exemplar {
         let count = r.u32()?;
         // The smallest property (an Empty value: ID, kind, tag) takes 9 bytes; reject impossible counts early.
         r.ensure(u64::from(count), 9)?;
+        ex.properties.reserve(count as usize);
         for _ in 0..count {
             let at = r.pos();
             let id = r.u32()?;
@@ -1625,6 +1626,12 @@ impl Exemplar {
 
 /// Replaces the property with `p.id` in place, or inserts `p` in ID order.
 fn insert_sorted(list: &mut Vec<Property>, p: Property) {
+    // Package records commonly arrive in ID order: avoid a search for every
+    // append while retaining last-wins replacement for duplicates.
+    if !matches!(list.last(), Some(last) if last.id >= p.id) {
+        list.push(p);
+        return;
+    }
     match list.binary_search_by_key(&p.id, |q| q.id) {
         Ok(i) => list[i] = p,
         Err(i) => list.insert(i, p),
