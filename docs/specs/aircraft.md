@@ -122,8 +122,8 @@ The airplane constructor installs phase 0, drop-active false, countdown 0,
 water ammunition 3, zero velocity (+0x234 triple), zero angular fields
 (+0x240 triple), null effect pointers +0x208/+0x20C/+0x210/+0x214, and null
 fire filter +0x344. Loaded-placement byte +0x348 and dispatch state +0x334
-start at zero. Home +0x34C triple starts at zero. These are constructor
-values, not fields restored by the airplane record.
+start at zero. Home +0x34C triple starts at zero. Except for home, these
+constructor values are not fields restored by the airplane record.
 
 The player gains +0x300 through +0x32C, in ascending four-byte order, start
 with binary32 bits `3ECCCCCD,3E99999A,3E4CCCCD,3F800000,3F000000,3E4CCCCD,
@@ -975,11 +975,11 @@ the later LOITER visit activates the drop. Evidence:
 | 0x32 LAND, rotor phase=0 | Request dispatch 0, Pop, then perform goal-0 handling |
 | 0x32 LAND, rotor phase≠0 | Request 6, then perform goal-0 handling |
 | 0, phase=0 | Reset controls, disable spotlight, return |
-| 0, phase≠0 | Invoke engine-enable helper; disable spotlight; steer home; set +0x25C when full 3D home distance <24 |
-| 0x33 destination | Request 3; enable engine; disable spotlight; move toward X/Z destination while outside the completion gate; Pop when inside; building-lift control runs in either case |
+| 0, phase≠0 | Invoke start helper below; disable spotlight; steer home; set +0x25C when full 3D home distance <24 |
+| 0x33 destination | Request 3; invoke start helper; disable spotlight; move toward X/Z destination while outside the completion gate; Pop when inside; building-lift control runs in either case |
 | 0x34 CHASE, missing target or target current goal≠0x10 | Pop; return, without inventing another dispatch state |
-| 0x34 valid target | Engine/spotlight on, then §4.2.2 chase rules |
-| 0x35 LOITER | Request 5; engine/spotlight on; aim at ground height at destination; if 0x36 exists in stack, RespondToCrimeScene; stop horizontal motion; building-lift control |
+| 0x34 valid target | Invoke start helper; spotlight on, then §4.2.2 chase rules |
+| 0x35 LOITER | Request 5; invoke start helper; spotlight on; aim at ground height at destination; if 0x36 exists in stack, RespondToCrimeScene; stop horizontal motion; building-lift control |
 | Unrecognized goal | Pop, then execute LAND/goal-0 handling in this visit |
 
 On home steering, horizontal distance ≤8 selects the horizontal-stop helper;
@@ -988,6 +988,19 @@ otherwise MoveXZ receives the displacement and scalar 10. Horizontal distance
 selects building lift. The <24 completion test uses **3D** distance, not the
 horizontal distance. Evidence: `0x0053C441–0x0053C5AA`; the remaining claim/
 crime/rescue branches at `0x0053BE73–0x0053C43C` need the observation in §9.
+
+The helicopter start helper (`0x00534E20–0x00534F64`) has a phase gate; it
+does **not** unconditionally enable the engine. In phase 0 it sets R+0x1CC
+to 1, requests AEMS start group 9 only when player-driven, then stores phase
+4. In phase 4 it changes to phase 1 with engine flag 1 only when rotor speed
+R+0x148 is ordered ≥400 and vertical velocity R+0xD4 is ordered >0. Every
+other phase, or an unsatisfied phase-4 test, returns without side effects.
+After either successful transition, notify owner +0x134(true), call embedded
+object +0x240 operation +0x18(0), then embedded +0x22C operation +0x1C(1).
+The helper writes phase directly; it does not invoke SetHelicopterState.
+Worked case: phase 0/engine off enters phase 4 and starts spinning. A second
+visit at speed 400 and vertical velocity 0 stays in phase 4; at velocity +1
+it enters phase 1. Calling it in phase 3 with engine off leaves the engine off.
 
 Helicopter `SetDispatchState(s)` is a no-op for repeated state. On a change,
 if goal 0x36 exists and city service +0xBC exists, s=5 requests the owner's
