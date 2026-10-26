@@ -519,7 +519,7 @@ bool NearDecided(int32_t x, int32_t z) {
     return false;
 }
 
-void SettleStep(void*) {
+void CheckTerrain() {
     // The terrain rule (§7.6).
     for (const auto& d : g_decided) {
         if (Placed(d.first)) {
@@ -562,6 +562,10 @@ void SettleStep(void*) {
     g_decidedCells.clear();
     g_terrainBefore.clear();
     g_terrainAfter.clear();
+}
+
+void SettleStep(void*) {
+    CheckTerrain();  // fallback for the explicitly selected early-listener mode
     // Road style (§8.7): the original made the same writes after ours.
     for (const auto& w : g_style) {
         const uint64_t n = w.first;
@@ -1342,6 +1346,10 @@ void OnMessage(cIGZMessage2* msg, bool late) {
     if (msg == nullptr || (g_mgr == nullptr && g_lot == nullptr) || g_inMessage) return;
     if (late && (msg->GetType() == 0x278E6003 || msg->GetType() == 0x6A3B0AFD)) {
         for (uint64_t n : g_candidates) g_terrainAfter[n] = Placed(n);
+        // §7.6 describes this handler's effects. Later removals are not its
+        // output: gen27-tegel-s1-grow has candidates placed here but gone
+        // at the next tick. Check every destruction and survivor at this boundary.
+        CheckTerrain();
         return;
     }
     Msg m;
@@ -1471,8 +1479,8 @@ void NetMgrShadowStartup() {
     Log("netmgr shadow: ON (netmgr_shadow from %s): two shadow cores (read-only hosts) start from the ORIGINAL network "
         "manager's and network lot manager's records at PostCityInit and follow their 16 messages (the manager's through "
         "a listener registered before any city's, the lot manager's, with netmgr_shadow_order = late, after the "
-        "original); the terrain rule's destructions and the road style writes are recorded and "
-        "checked against the game at the next tick; at PostCityInit, each SimNewMonth and before a scripted save the "
+        "original); terrain effects are checked at handler completion (next tick in early mode), and road style "
+        "writes at the next tick; at PostCityInit, each SimNewMonth and before a scripted save the "
         "component 53 and 11 records (our Write against the original's), the zone and wealth for network at every lot "
         "cell (slots 9, 10) and configurations are compared exactly, using captured random input with pre/post checks "
         "(network-manager.md §17). No record resync or NM10 exemptions. Not compared: the under-texture (no getter), the "

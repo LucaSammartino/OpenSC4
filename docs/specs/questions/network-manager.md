@@ -21,6 +21,10 @@
   netocc exact 2/2, netmgr exact 1/3 (16 mismatches). Every reported extra removal was placed at the query
   and absent at the late terrain listener (`placed before/after handler=1/0`). Thus already-removed query
   results and a simple later-tick check do not explain these cases.
+  A separate timing case is now proved in `netocc-cities29-broad6-06.log` (gen27 Tegel grow): some pieces
+  reported as original-only removals were still placed at the late terrain listener (`1/1`). The comparison
+  now checks every candidate, including predicted destructions, at each handler boundary; the next-tick
+  path remains the fallback for explicitly selected early-listener mode. NM18 remains about the `1/0` cases.
 
 - **NM19 — Port of Shiganshina's first lot/random divergence (§§8.5, 8.7, 17.3):** the census sample
   `C:/Users/tlori/FreeCity4/build-runs/run7/census3/paradis-port-of-shiganshina.shadows.txt` first differs on
