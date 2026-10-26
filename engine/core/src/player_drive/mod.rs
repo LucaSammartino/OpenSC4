@@ -313,6 +313,7 @@ impl PlayerDrive {
         Err(Unsupported::UpdateGauges)
     }
     pub fn handle_key_effects(&mut self, _key: u32) -> Result {
+        // SPEC-GAP: DR5 leaves template key effects and ordering with result 13 open.
         Err(Unsupported::HandleKeyEffects)
     }
 
@@ -627,6 +628,7 @@ impl PlayerDrive {
             byte = Some(match host.drive_byte229(a)? {
                 0 => 1,
                 1 => 0,
+                // SPEC-GAP: DR5 publishes no command9 toggle rule outside bytes 0/1.
                 _ => return Err(Unsupported::NonBooleanDriveByte),
             });
         }
@@ -678,7 +680,7 @@ impl PlayerDrive {
         self.key_lookup(host, key)
     }
     pub fn on_key_up(&mut self, host: &mut impl Primitives, key: u32, flags: u32) -> Result {
-        // DR5 only publishes autorepeat suppression for key-down tests.
+        // SPEC-GAP: DR5 only publishes autorepeat suppression for key-down tests.
         if flags & 0x4000_0000 != 0 {
             return Err(Unsupported::ReleaseRepeatPolicy);
         }
@@ -693,6 +695,7 @@ impl PlayerDrive {
             return Err(Unsupported::UnknownCommand);
         }
         if command == 8 {
+            // SPEC-GAP: DR5 gives command8 a mouse path but no keyboard table row.
             return Err(Unsupported::KeyboardCommand8);
         }
         // Even command13 may be consumed by HandleKeyEffects (DR5).
