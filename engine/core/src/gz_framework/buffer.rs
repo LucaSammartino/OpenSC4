@@ -15,6 +15,7 @@ pub struct Buffer {
     pub destroyed: bool,
     key: u32,
     key_enabled: bool,
+    drawing_color: Option<[u8; 4]>,
     pixels: Option<Vec<u8>>,
     initialized: bool,
     width: u32,
@@ -27,6 +28,15 @@ pub struct Buffer {
     pub modifications: u32,
 }
 impl Buffer {
+    /// Secondary-face metadata, independent of storage and pixel-format colors.
+    pub fn set_drawing_color(&mut self, rgba: [u32; 4]) -> bool {
+        let rgba = rgba.map(|value| value as u8);
+        self.drawing_color = (rgba != [255; 4]).then_some(rgba);
+        true
+    }
+    pub fn drawing_color(&self) -> Option<[u8; 4]> {
+        self.drawing_color
+    }
     pub fn query_interface(&mut self, iid: u32, out: &mut Option<Face>) -> bool {
         let face = match iid {
             1 | 0x20732180 => Face::Primary,

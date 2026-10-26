@@ -38,11 +38,12 @@ uint32_t TypeBytes(uint32_t t) { return t>=4 && t<=7 ? 2 : t==8 || t==9 ? 4 : 0;
 uint32_t KeyMask(uint32_t t) { return t==4 || t==6 ? 0x7fff : t==5 ? 0xffff : t==7 ? 0xfff : t==8 || t==9 ? 0xffffff : 0xffffffff; }
 class Buffer;
 class BufferFace : public cIGZUnknown {
-    // SPEC-GAP: GZF13: IID 0x86D72B57's drawing slots beyond QI/AddRef/Release are unspecified.
 public:
     bool QueryInterface(uint32_t, void**) override;
     uint32_t AddRef() override;
     uint32_t Release() override;
+    virtual bool SetDrawingColor(uint32_t, uint32_t, uint32_t, uint32_t) = 0;
+    virtual bool GetDrawingColor(uint8_t*, uint8_t*, uint8_t*, uint8_t*) = 0;
 };
 // Unique names preserve native slot order regardless of C++ overload ordering.
 class BufferPrimary : public cIGZUnknown {
@@ -135,6 +136,18 @@ public:
         const auto n = static_cast<uint32_t>(Call(1));
         if (!n) delete this;
         return n;
+    }
+    bool SetDrawingColor(uint32_t r, uint32_t g, uint32_t b, uint32_t a) override {
+        return Call(27,r,g,b,a)!=0;
+    }
+    bool GetDrawingColor(uint8_t* r, uint8_t* g, uint8_t* b, uint8_t* a) override {
+        uint32_t rgba[4];
+        if (!Call(28,0,0,0,0,rgba)) return false;
+        *r=static_cast<uint8_t>(rgba[0]);
+        *g=static_cast<uint8_t>(rgba[1]);
+        *b=static_cast<uint8_t>(rgba[2]);
+        *a=static_cast<uint8_t>(rgba[3]);
+        return true;
     }
     bool Init(uint32_t w, uint32_t h, uint32_t t, uint32_t bpp) override {
         if (Ready() || !w || !h) return false;

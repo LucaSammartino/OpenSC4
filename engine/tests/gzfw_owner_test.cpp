@@ -207,6 +207,56 @@ void BufferWorkedCases(FC4TestSeamFn seam) {
     for (uint32_t x=0;x<4;++x) Check(Slot<Pixel>(b,21)(b,x,0)==0x8001,"GZB7 forward overlap propagates stores");
     Slot<Get>(b,2)(b);
 }
+void BufferDrawingColorTest(FC4TestSeamFn seam) {
+    using Set=bool(__thiscall*)(void*,uint32_t,uint32_t,uint32_t,uint32_t);
+    using Read=bool(__thiscall*)(void*,uint8_t*,uint8_t*,uint8_t*,uint8_t*);
+    using InitFn=bool(__thiscall*)(void*,uint32_t,uint32_t,uint32_t,uint32_t);
+    using Fill=bool(__thiscall*)(void*,uint32_t,const void*);
+    using Map=uint32_t(__thiscall*)(void*,uint32_t,uint32_t,uint32_t,uint32_t);
+    using Pixel=uint32_t(__thiscall*)(void*,uint32_t,uint32_t);
+    void* b=reinterpret_cast<void*>(seam(kFC4SeamGZFrameworkCreate,nullptr,nullptr));
+    void* s=nullptr;
+    Check(Slot<QI>(b,0)(b,0x86D72B57,&s) && s==static_cast<char*>(b)+4,"GZC75 secondary offset");
+    std::array<uint32_t,4> cells; cells.fill(0xa5a5a5a5);
+    const auto read=[&] { return Slot<Read>(s,4)(s,reinterpret_cast<uint8_t*>(&cells[0]),reinterpret_cast<uint8_t*>(&cells[1]),reinterpret_cast<uint8_t*>(&cells[2]),reinterpret_cast<uint8_t*>(&cells[3])); };
+    uint32_t stackBefore=0,stackAfter=0;
+    __asm mov stackBefore, esp
+    Check(!read() && !Slot<Read>(s,4)(s,nullptr,nullptr,nullptr,nullptr),"GZC75 absent before Init, including null outputs");
+    Check(cells==std::array<uint32_t,4>{0xa5a5a5a5,0xa5a5a5a5,0xa5a5a5a5,0xa5a5a5a5},"GZC75 sentinel cells untouched");
+    Check(Slot<Set>(s,3)(s,0x112,0x234,0x356,0x478) && read(),"GZC76 setter/getter AL");
+    __asm mov stackAfter, esp
+    Check(stackBefore==stackAfter,"GZC75/GZC76 native callee stack cleanup");
+    const std::array<uint32_t,4> expected{0xa5a5a512,0xa5a5a534,0xa5a5a556,0xa5a5a578};
+    Check(cells==expected,"GZC76 truncated channels, byte-only stores");
+    Check(Slot<InitFn>(b,3)(b,2,1,9,32) && read() && cells==expected,"GZC77 metadata survives Init");
+    Check(Slot<Map>(b,32)(b,0x12,0x34,0x56,0x78)==0x78123456,"GZC77 primary RGBA remains format-specific");
+    std::array<void*,9> table{}; table[0]=reinterpret_cast<void*>(&CacheQuery); table[1]=reinterpret_cast<void*>(&CacheAdd); table[2]=reinterpret_cast<void*>(&CacheRelease);
+    table[3]=reinterpret_cast<void*>(&CacheInit); table[8]=reinterpret_cast<void*>(&CacheInvalidate);
+    CacheFixture cache{table.data()};
+    Check(Slot<bool(__thiscall*)(void*,void*)>(b,38)(b,&cache),"GZC77 attach cache");
+    const auto before=Slot<Get>(b,36)(b);
+    Check(Slot<Fill>(b,18)(b,0xa1b2c3d4,nullptr) && Slot<Get>(b,36)(b)==before+1,"GZB9 only fill modifies");
+    Check(Slot<Set>(s,3)(s,1,2,3,4) && Slot<Get>(b,36)(b)==before+1 && cache.invalidations==0,"GZC77 metadata does not dirty or invalidate");
+    Check(Slot<Pixel>(b,21)(b,0,0)==0xa1b2c3d4 && Slot<Pixel>(b,21)(b,1,0)==0xa1b2c3d4,"GZC77 explicit pixels unchanged");
+    Check(Slot<Set>(s,3)(s,255,255,255,255),"GZC78 all-255 setter succeeds");
+    cells.fill(0xa5a5a5a5);
+    Check(!read() && cells==std::array<uint32_t,4>{0xa5a5a5a5,0xa5a5a5a5,0xa5a5a5a5,0xa5a5a5a5} && !Slot<Read>(s,4)(s,nullptr,nullptr,nullptr,nullptr),"GZC78 sentinel restores absent color without writes");
+    for (const auto iid : {1u,0x20732180u,0x86d72b57u}) {
+        void* face=nullptr;
+        Check(Slot<QI>(s,0)(s,iid,&face) && face==(iid==0x86d72b57u ? s : b),"GZC79 secondary QI face identity");
+        Check(Slot<Get>(face,2)(face)==2,"GZC79 QI adds shared reference");
+    }
+    void* face=reinterpret_cast<void*>(0x1234);
+    Check(!Slot<QI>(s,0)(s,0xfffffffe,&face) && face==reinterpret_cast<void*>(0x1234),"GZC79 unknown IID leaves output");
+    Check(Slot<Get>(s,1)(s)==3 && Slot<Get>(b,2)(b)==2,"GZC79 shared AddRef/Release");
+    uint8_t alias=0;
+    Check(Slot<Set>(s,3)(s,0x12,0x34,0x56,0x78) && Slot<Read>(s,4)(s,&alias,&alias,&alias,&alias) && alias==0x78,"GZC80 alias writes in RGBA order");
+    Check(Slot<Get>(b,36)(b)==before+1 && cache.invalidations==0 && Slot<Get>(b,24)(b)==0 && !Slot<bool(__thiscall*)(void*)>(b,8)(b),"GZC80 count/cache/key/lock unchanged");
+    Check(Slot<bool(__thiscall*)(void*)>(b,4)(b) && read() && cells==expected,"drawing color survives storage disposal");
+    Check(Slot<Get>(s,2)(s)==1,"GZB9 secondary release leaves owner");
+    CacheRelease(&cache,nullptr);
+    Check(Slot<Get>(b,2)(b)==0 && cache.refs==0 && cache.freedBeforeRelease,"GZB9 owner destroys once and releases cache");
+}
 void ServerTest(FC4TestSeamFn seam) {
     std::array<void*,25> table{};
     table[0]=reinterpret_cast<void*>(&Query); table[1]=reinterpret_cast<void*>(&Add); table[2]=reinterpret_cast<void*>(&Release);
@@ -290,7 +340,7 @@ int main(int argc,char** argv) {
     if (argc!=2) return 2;
     auto module=LoadLibraryA(argv[1]); if (!module) return 2;
     auto seam=reinterpret_cast<FC4TestSeamFn>(GetProcAddress(module,"FC4TestSeam")); if (!seam) return 2;
-    BufferTest(seam); BufferWorkedCases(seam); ServerTest(seam);
+    BufferTest(seam); BufferWorkedCases(seam); BufferDrawingColorTest(seam); ServerTest(seam);
     std::printf("gzfw native owners: failures=%u\n",failures);
     FreeLibrary(module); return failures ? 1 : 0;
 }

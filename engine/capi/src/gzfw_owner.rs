@@ -210,6 +210,16 @@ pub unsafe extern "C" fn fc4_gzfw_buffer_call(
             v.free_pixels();
             1
         }
+        27 => v.set_drawing_color([a, b, c, d]) as usize,
+        28 => {
+            let Some(rgba) = v.drawing_color() else {
+                return 0;
+            };
+            for (i, value) in rgba.into_iter().enumerate() {
+                *out.add(i) = value.into();
+            }
+            1
+        }
         _ => 0,
     }
 }
