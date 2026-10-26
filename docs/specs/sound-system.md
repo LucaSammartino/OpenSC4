@@ -452,9 +452,39 @@ restores it. UpdateTargets maintains separate ordinary and slower target
 lists, stops each enumeration when its callback returns false, defers target
 changes while enumerating, and drains them when the outermost enumeration
 finishes (`0x00967885`). Registration/removal retain references through
-their queues; UnregisterTarget removes the matching target from both active
-lists, or defers removal during enumeration (`0x00967DD4`, `0x00967E4F`).
-The exact period classifier and timer boundary remain SS8. SetMasterVolume
+their queues. The following list rules are instruction-confirmed (SS12):
+
+- Outside enumeration, registration first unregisters the pointer, then inserts
+  it again: targets at the back of the selected active list, handlers at the
+  front. Repeated registration therefore moves an existing entry; it does not
+  accumulate one entry per call. Target period exactly 20 selects the ordinary
+  list; every other value selects the slower list (`0x00967DFF–0x00967E2F`).
+- Unregistration removes only the first matching pointer in each applicable
+  active list: one handler, or one entry from each of the two target lists.
+  It stops searching that list after erasure. Absence still returns true
+  (`0x00967E9F–0x00967EEA`, `0x00967FAB–0x00967FD5`).
+- During enumeration, requests retain their pointer in separate queues. At the
+  outermost target exit, drain removals FIFO, ordinary additions FIFO (period
+  20), then slower additions FIFO (period 250), irrespective of the original
+  interleaving (`0x0096792E–0x00967995`). Each drained add uses the ordinary
+  registration rule, including its preliminary unregister. Thus a queued slow
+  add wins over a queued fast add of the same pointer, even if requested first.
+- Handler additions enter the **front** of their pending list; removals enter
+  its back. At outermost dispatch exit, drain additions from the front, then
+  removals from the front. Add requests are replayed in reverse request order;
+  removals in request order (`0x00967F1D–0x00967F46`, `0x009690F4–0x00969107`,
+  `0x00967F86–0x00967F98`, `0x009679AD`). Replayed registration inserts at the
+  active front. There is no single chronological mutation log.
+
+*[compat, worked SS12]* Register handlers A, B, A outside dispatch: the active
+order is A, B, with one retained entry for A. While a handler is dispatching,
+request add X, add Y, remove X. Replay adds Y then X, then remove X: the next
+dispatch starts with Y ahead of the old handlers. For an initially absent
+target T, request slow-add T, fast-add T, remove T during one enumeration:
+the removal runs first, then fast-add, then slow-add; exactly one T survives
+in the slow list. A chronological target queue would incorrectly remove it.
+
+The remaining target timing contracts are SS8. SetMasterVolume
 notifies registered audio renderers using the stored master volume
 (`0x009675DF`); no visual drawing operation is involved.
 
@@ -550,6 +580,15 @@ directory; _MakeAbsolutePath processes path segments and allows an absolute
 specification to replace the current base (`0x008D6352`). Drive-letter syntax
 is recognized by a colon in the second character (`0x008D6123`). Exact UNC,
 separator, dot-segment and encoding corner cases remain SS11.
+
+*[compat, SS12 simple-path rule]* The path helper appends the next segment
+directly to the base string; it neither chooses a slash style nor inserts a
+separator (`0x008D6208–0x008D6211`). Its segment delimiter is the literal
+backslash byte `0x5C` (`0x008D608D–0x008D60B5`). With the usual directory base
+`C:\Music\` and entry `sub\a.mp3`, the result is `C:\Music\sub\a.mp3`.
+With a helper base `C:\Music` lacking its trailing separator, `a.mp3` yields
+`C:\Musica.mp3`. Joining with one chosen separator only happens to agree when
+the supplied directory already ends in that separator; it is not the rule.
 
 *[compat]* Extended M3U requires each record header to begin `#EXTINF:` and
 then consumes a following path line, resolves it, and appends a record.
