@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "cIGZUnknown.h"
+#include "FC4OverlayNative.h"
 
 // FC4-owned identities, NOT native cSTEOverlayManager identities. The native
-// interface IID is 0x895D6544 and must never be returned for this interface.
+// interface is a separate subobject with the corrected native vtable.
 constexpr uint32_t kFC4_CLSID_OverlayOwner = 0xFC401717;
 constexpr uint32_t kFC4_IID_OverlayOwner = 0xFC401718;
 
@@ -33,6 +34,9 @@ public:
     virtual bool SetPlacement(uint32_t id, const float* placement) = 0;
     // Failure, direct IDs and the sentinel leave all output words untouched.
     virtual bool Placement(uint32_t id, float* placement) const = 0;
+    // Native resource/service inputs, captured before any allocation. This is
+    // still an explicit boundary; it does not intercept terrain-view Init.
+    virtual bool InitServices(const FC4OverlayHost*, bool dynamic, bool water) = 0;
 };
 
 cIGZUnknown* CreateFC4OverlayOwner();

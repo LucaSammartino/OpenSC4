@@ -5,6 +5,7 @@
 #include "FC4Subsystems.h"
 #include "GZServPtrs.h"
 #include "cIGZCOM.h"
+#include "cIGZString.h"
 #include <atomic>
 
 // Static-library transport only; no additions to fc4.h or DLL exports.
@@ -29,10 +30,15 @@ uint32_t fc4_overlay_owner_draw_state(const void*, uint32_t);
 uint32_t fc4_overlay_owner_set_position(void*, uint32_t, float, float);
 uint32_t fc4_overlay_owner_set_placement(void*, uint32_t, const float*);
 uint32_t fc4_overlay_owner_placement(const void*, uint32_t, float*);
+uint32_t fc4_overlay_native_init(void*, const FC4OverlayHost*, uint32_t, uint32_t);
+uint32_t fc4_overlay_native_add(void*, uint32_t, uintptr_t, const float*, float, float, uint32_t);
+uint32_t fc4_overlay_native_model(void*, uintptr_t, int32_t, const void*, float*, const float*, const void*);
+void fc4_overlay_native_scale(void*, uint32_t, float, float);
+size_t fc4_overlay_native_stats(const void*, char*, size_t);
 }
 
 namespace {
-class OverlayOwner final : public FC4IOverlayOwner {
+class OverlayOwner final : public FC4IOverlayOwner, public FC4INativeOverlay {
 public:
     OverlayOwner() : core_(fc4_overlay_owner_create()) {
         fc4::Log("overlays owner: FC4 factory constructed (portable input boundary)");
@@ -40,8 +46,11 @@ public:
     bool QueryInterface(uint32_t iid, void** out) override {
         if (!out) return false;
         *out = nullptr;
-        if (iid != GZIID_cIGZUnknown && iid != kFC4_IID_OverlayOwner) return false;
-        *out = static_cast<FC4IOverlayOwner*>(this);
+        if (iid == GZIID_cIGZUnknown || iid == kFC4_IID_OverlayOwner)
+            *out = static_cast<FC4IOverlayOwner*>(this);
+        else if (iid == kFC4_IID_NativeOverlay)
+            *out = static_cast<FC4INativeOverlay*>(this);
+        else return false;
         AddRef();
         return true;
     }
@@ -89,6 +98,59 @@ public:
     bool Placement(uint32_t id, float* placement) const override {
         return fc4_overlay_owner_placement(core_, id, placement) != 0;
     }
+    bool InitServices(const FC4OverlayHost* services, bool dynamic, bool water) override {
+        return fc4_overlay_native_init(core_, services, dynamic, water) != 0;
+    }
+    uint32_t AddSource(const void* source, const float* xz, float width, float turns) override {
+        return fc4_overlay_native_add(core_, 0, reinterpret_cast<uintptr_t>(source), xz, width, turns, 0);
+    }
+    uint32_t AddBinding(const void* binding, const float* xz, float width, float turns) override {
+        return fc4_overlay_native_add(core_, 1, reinterpret_cast<uintptr_t>(binding), xz, width, turns, 0);
+    }
+    uint32_t AddKey(const void* key, const float* xz, float width, float turns) override {
+        return fc4_overlay_native_add(core_, 2, reinterpret_cast<uintptr_t>(key), xz, width, turns, 0);
+    }
+    uint32_t AddInstance(uint32_t key, const float* xz, float width, float turns) override {
+        return fc4_overlay_native_add(core_, 3, key, xz, width, turns, 0);
+    }
+    uint32_t AddRound(uint32_t key, const float* xz, float width, float turns) override {
+        return fc4_overlay_native_add(core_, 4, key, xz, width, turns, 0);
+    }
+    uint32_t AddCity(uint32_t key) override {
+        return fc4_overlay_native_add(core_, 5, key, nullptr, 0, 0, 0);
+    }
+    uint32_t AddKeyShadow(const void* key, const float* xz, float width, float turns, uint32_t flip) override {
+        return fc4_overlay_native_add(core_, 6, reinterpret_cast<uintptr_t>(key), xz, width, turns, flip);
+    }
+    uint32_t AddGroupShadow(uint32_t group, const float* xz, float width, float turns, uint32_t flip) override {
+        return fc4_overlay_native_add(core_, 7, group, xz, width, turns, flip);
+    }
+    uint32_t AddModel(const void* binding, int32_t n, const void* source, float* pairs,
+                      const float* box, const void* descriptor) override {
+        return fc4_overlay_native_model(core_, reinterpret_cast<uintptr_t>(binding), n, source, pairs, box, descriptor);
+    }
+    void Move(uint32_t id, const float* xz) override { if (xz) SetPosition(id, xz[0], xz[1]); }
+    void Update(uint32_t id, const float* p) override { SetPlacement(id, p); }
+    void ReadPlacement(uint32_t id, float* p) const override { Placement(id, p); }
+    void Erase(uint32_t id) override { Remove(id); }
+    void Show(uint32_t id, bool on) override { SetShown(id, on); }
+    void Alpha(uint32_t id, float a) override { SetAlpha(id, a); }
+    void Color(uint32_t id, const float* rgb) override { if (rgb) SetColor(id, rgb[0], rgb[1], rgb[2]); }
+    void DrawMode(uint32_t id, uint32_t mode) override { SetDrawState(id, mode); }
+    void SelfLighting(uint32_t id, uint32_t on) override { EnableSelfLighting(id, on); }
+    void TextureScale(uint32_t id, float size, float offset) override {
+        fc4_overlay_native_scale(core_, id, size, offset);
+    }
+    bool Shown(uint32_t id) const override { return IsShown(id); }
+    float GetAlpha(uint32_t id) const override { return Alpha(id); }
+    float* GetColor(float* rgb, uint32_t id) const override { Color(id, rgb); return rgb; }
+    uint8_t GetDrawMode(uint32_t id) const override { return static_cast<uint8_t>(DrawStateIndex(id)); }
+    bool SelfLit(uint32_t id) const override { return IsSelfLit(id); }
+    void Stats(cIGZString& out) override {
+        char text[80] = {};
+        fc4_overlay_native_stats(core_, text, sizeof(text));
+        out.FromChar(text);
+    }
 private:
     // §1.2: destruction and Shutdown are different protocols.
     ~OverlayOwner() { fc4_overlay_owner_destroy(core_); }
@@ -97,7 +159,7 @@ private:
 };
 }
 
-cIGZUnknown* CreateFC4OverlayOwner() { return new OverlayOwner(); }
+cIGZUnknown* CreateFC4OverlayOwner() { return static_cast<FC4IOverlayOwner*>(new OverlayOwner()); }
 
 namespace fc4 {
 void OverlayOwnerGameCheck() {
@@ -163,6 +225,19 @@ void OverlayOwnerGameCheck() {
     check(owner->DrawStateIndex(UINT32_MAX) == 0);
     check(!owner->SetShown(UINT32_MAX - 1, true));
     check(!owner->EnableSelfLighting(UINT32_MAX - 1, 1));
+    FC4INativeOverlay* native = nullptr;
+    check(owner->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&native)) && native);
+    if (native) {
+        FC4_ACQUIRED(native, "QueryInterface");
+        check(native->GetAlpha(id) == 0.51f && native->Shown(id) && native->SelfLit(id));
+        check(native->GetDrawMode(id) == 3);
+        float output[3] = {};
+        check(native->GetColor(output, id) == output && output[0] == -0.25f &&
+              output[1] == 0.5f && output[2] == 1.75f);
+        native->ReadPlacement(id, placement);
+        check(placement[0] == 192 && placement[1] == 224 && placement[8] == 7);
+        FC4_RELEASE(native);
+    }
     check(owner->Remove(id));
     check(!owner->IsShown(id) && !owner->IsSelfLit(id));
     owner->Shutdown();
@@ -174,7 +249,7 @@ void OverlayOwnerGameCheck() {
     check(owner->DrawStateIndex(id) == 0);
     owner->Shutdown();
     FC4_RELEASE_CREATED(owner);
-    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner native_interception=0",
+    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner-and-native-interface native_interception=0",
         checks - differences, checks, differences);
 }
 }

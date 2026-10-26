@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Private FC4 factory transport, not the native overlay interface/Init ABI.
+//! Private static-library transport for the portable and native overlay interfaces.
+mod native;
 use fc4_core::terrain_overlays::{BindingLookup, Handle, OverlayManager, TerrainProvider, TextureBinding};
 use fc4_core::terrain_overlays::{Placement, TextureFactory, ViewProvider};
 use std::sync::{Arc, Mutex};
@@ -58,13 +59,13 @@ impl TextureBinding for Dimensions {
     }
 }
 
-pub struct Owner(Mutex<OverlayManager>);
+pub struct Owner(Mutex<OverlayManager>, Mutex<Option<Arc<native::Host>>>);
 
 // The pointers below are private handles returned by create, valid until destroy.
 // A mutex also covers const getters: the host reads on a second thread.
 #[no_mangle]
 pub extern "C" fn fc4_overlay_owner_create() -> *mut Owner {
-    Box::into_raw(Box::new(Owner(Mutex::new(OverlayManager::new()))))
+    Box::into_raw(Box::new(Owner(Mutex::new(OverlayManager::new()), Mutex::new(None))))
 }
 #[no_mangle]
 pub unsafe extern "C" fn fc4_overlay_owner_destroy(owner: *mut Owner) {
@@ -83,6 +84,9 @@ pub unsafe extern "C" fn fc4_overlay_owner_init(
 ) -> u32 {
     let Some(owner) = owner.as_ref() else { return 0 };
     let Ok(mut core) = owner.0.lock() else { return 0 };
+    if let Ok(mut host) = owner.1.lock() {
+        *host = None;
+    }
     u32::from(
         core.init(Arc::new(Inputs { cells: [nx, nz], width }), dynamic != 0, water != 0)
             .is_ok(),
@@ -93,6 +97,9 @@ pub unsafe extern "C" fn fc4_overlay_owner_shutdown(owner: *mut Owner) {
     if let Some(owner) = owner.as_ref() {
         if let Ok(mut core) = owner.0.lock() {
             core.shutdown();
+            if let Ok(mut host) = owner.1.lock() {
+                *host = None;
+            }
         }
     }
 }
