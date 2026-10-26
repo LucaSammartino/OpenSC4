@@ -11,8 +11,8 @@
 <text x="16" y="136" font-size="16" font-weight="700" fill="#1d2320">Implemented</text>
 <text x="150" y="136" font-size="14" fill="#5b6560">our code exists for it</text>
 <rect x="560" y="118" width="860" height="26" rx="3" fill="#e3e6e0"/>
-<rect x="560" y="118" width="532.2" height="26" rx="3" fill="#e8b04a"/>
-<text x="1432" y="137" font-size="18" font-weight="700" fill="#1d2320">61.9%</text>
+<rect x="560" y="118" width="535.9" height="26" rx="3" fill="#e8b04a"/>
+<text x="1432" y="137" font-size="18" font-weight="700" fill="#1d2320">62.3%</text>
 <text x="16" y="170" font-size="16" font-weight="700" fill="#1d2320">Verified</text>
 <text x="150" y="170" font-size="14" fill="#5b6560">our code gives exactly the original&#x27;s results (house city)</text>
 <rect x="560" y="152" width="860" height="26" rx="3" fill="#e3e6e0"/>
@@ -35,7 +35,7 @@
 <text x="560.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">0%</text>
 <text x="990.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">50%</text>
 <text x="1420.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">100%</text>
-<text x="16" y="282" font-size="13" fill="#5b6560">The map below: one box per class of the original, area = its bytes, grouped by area and subsystem. main 3547d80c6, regress-train282.out, suite sh28-census3.</text>
+<text x="16" y="282" font-size="13" fill="#5b6560">The map below: one box per class of the original, area = its bytes, grouped by area and subsystem. main b646cbf18, regress-train282.out, suite sh28-census3.</text>
 <rect x="18.0" y="322.0" width="74.9" height="114.3" fill="#e8b04a"/>
 <rect x="18.0" y="322.0" width="74.9" height="114.3" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="18.0" y="436.3" width="74.9" height="107.4" fill="#9cc3e4"/>
@@ -1420,13 +1420,13 @@
 <rect x="1127.0" y="563.7" width="51.5" height="23.8" fill="#9cc3e4"/>
 <rect x="1127.0" y="563.7" width="51.5" height="23.8" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="1127.0" y="522.7" width="51.5" height="64.8" fill="none" stroke="#f6f7f4" stroke-width="1.8"/>
-<rect x="1178.5" y="522.7" width="26.8" height="32.3" fill="#9cc3e4"/>
+<rect x="1178.5" y="522.7" width="26.8" height="32.3" fill="#e8b04a"/>
 <rect x="1178.5" y="522.7" width="26.8" height="32.3" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="1205.3" y="522.7" width="23.2" height="32.3" fill="#9cc3e4"/>
+<rect x="1205.3" y="522.7" width="23.2" height="32.3" fill="#e8b04a"/>
 <rect x="1205.3" y="522.7" width="23.2" height="32.3" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="1178.5" y="555.0" width="21.3" height="32.4" fill="#9cc3e4"/>
 <rect x="1178.5" y="555.0" width="21.3" height="32.4" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="1199.8" y="555.0" width="28.7" height="23.7" fill="#9cc3e4"/>
+<rect x="1199.8" y="555.0" width="28.7" height="23.7" fill="#e8b04a"/>
 <rect x="1199.8" y="555.0" width="28.7" height="23.7" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="1199.8" y="578.7" width="24.9" height="8.8" fill="#e8b04a"/>
 <rect x="1199.8" y="578.7" width="24.9" height="8.8" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
@@ -1523,7 +1523,7 @@
 <rect x="573.5" y="1062.2" width="65.8" height="65.8" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="639.3" y="870.4" width="67.6" height="54.1" fill="#e8b04a"/>
 <rect x="639.3" y="870.4" width="67.6" height="54.1" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="706.9" y="870.4" width="51.5" height="54.1" fill="#9cc3e4"/>
+<rect x="706.9" y="870.4" width="51.5" height="54.1" fill="#e8b04a"/>
 <rect x="706.9" y="870.4" width="51.5" height="54.1" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="758.4" y="870.4" width="47.6" height="54.1" fill="#e8b04a"/>
 <rect x="758.4" y="870.4" width="47.6" height="54.1" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
@@ -1667,7 +1667,7 @@
 <rect x="829.5" y="1086.1" width="8.4" height="9.7" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="837.9" y="1086.1" width="7.2" height="9.7" fill="#d5d9d4"/>
 <rect x="837.9" y="1086.1" width="7.2" height="9.7" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="812.3" y="1095.9" width="7.5" height="9.0" fill="#9cc3e4"/>
+<rect x="812.3" y="1095.9" width="7.5" height="9.0" fill="#e8b04a"/>
 <rect x="812.3" y="1095.9" width="7.5" height="9.0" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="812.3" y="1104.8" width="7.5" height="8.1" fill="#9cc3e4"/>
 <rect x="812.3" y="1104.8" width="7.5" height="8.1" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>

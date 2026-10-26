@@ -9,12 +9,12 @@ The denominator is the game's own code: **5,584,344 bytes in 29,535 functions** 
 | Step | What it means | % of game code | Bytes | Functions | Out of order |
 |---|---|---:|---:|---:|---|
 | **Specified** | a clean-room spec in docs/specs describes the owning class | **91.9%** | 5,132,879 | 25,599 | - |
-| **Implemented** | our clean-room code in engine/ implements the owning class | **61.9%** | 3,455,950 | 15,358 | 0.0% implemented without a spec |
+| **Implemented** | our clean-room code in engine/ implements the owning class | **62.3%** | 3,479,671 | 15,553 | 0.0% implemented without a spec |
 | **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train282.out`) | **31.1%** | 1,734,838 | 7,435 | 0.8% verified while its owner is not marked implemented |
 | ↳ strict | ... and exact in every scenario of the test suite that reached it (`sh28-census3`, 179 runs) | **5.9%** | 329,798 | 1,407 | - |
 | **Replaced** | our code runs in the game instead of the original (house replace run) | **29.4%** | 1,639,183 | 6,468 | 2.8% running in the game before it was verified |
 
-Reach, not a step: the suite entered 27.7% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
+Reach, not a step: the suite entered 27.9% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
 
 Verified includes 3,023 bytes of single-method evidence (see Method verification).
 
@@ -38,14 +38,14 @@ Share of each area's bytes at each step. Shared helpers and unattributed code ha
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 1,978,253 | 35.4% | 100.0% | 82.3% | 69.9% | 13.0% | 67.7% | 50.6% |
 | framework | 637,923 | 11.4% | 96.6% | 78.7% | 13.7% | 4.8% | 0.7% | 21.9% |
-| renderer | 1,222,529 | 21.9% | 99.2% | 69.9% | 19.7% | 1.8% | 22.2% | 23.4% |
-| ui | 1,124,610 | 20.1% | 87.7% | 37.1% | 0.1% | 0.0% | 0.0% | 7.7% |
+| renderer | 1,222,529 | 21.9% | 99.2% | 70.7% | 19.7% | 1.8% | 22.2% | 23.8% |
+| ui | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.1% | 0.0% | 0.0% | 8.6% |
 | audio | 214,477 | 3.8% | 100.0% | 9.4% | 0.0% | 0.0% | 0.0% | 5.4% |
 | region | 112,894 | 2.0% | 100.0% | 30.7% | 21.0% | 18.0% | 21.0% | 18.3% |
 | other | 17,873 | 0.3% | 68.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | shared | 189,808 | 3.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | unattributed | 85,977 | 1.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
-| **all game code** | **5,584,344** | 100.0% | **91.9%** | **61.9%** | **31.1%** | **5.9%** | **29.4%** | **27.7%** |
+| **all game code** | **5,584,344** | 100.0% | **91.9%** | **62.3%** | **31.1%** | **5.9%** | **29.4%** | **27.9%** |
 
 ## By subsystem
 
@@ -146,7 +146,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | renderer | view utilities | 3 | 19,748 | 100.0% | 100.0% | 0.4% | 0.0% | 0.0% | 72.4% | - |
 | renderer | model instances | 8 | 15,346 | 100.0% | 100.0% | 0.6% | 0.0% | 0.0% | 75.2% | - |
 | renderer | terrain ripples and selection | 2 | 15,308 | 100.0% | 63.3% | 0.0% | 0.0% | 0.0% | 56.2% | - |
-| renderer | overlay views | 6 | 14,867 | 100.0% | 6.8% | 0.0% | 0.0% | 0.0% | 1.9% | - |
+| renderer | overlay views | 6 | 14,867 | 100.0% | 77.6% | 0.0% | 0.0% | 0.0% | 32.2% | - |
 | renderer | camera and projection | 2 | 14,793 | 100.0% | 65.1% | 0.0% | 0.0% | 0.0% | 45.4% | - |
 | renderer | 3D draw context | 2 | 14,598 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 74.2% | - |
 | renderer | lot models | 3 | 11,439 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 98.7% | - |
@@ -159,7 +159,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | renderer | glyph and string textures | 3 | 4,475 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | renderer | fire flames | 2 | 3,513 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | renderer | graphics formats (FSH, S3D) | 3 | 3,279 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 90.2% | - |
-| ui | widget toolkit | 123 | 466,421 | 87.4% | 48.2% | 0.2% | 0.0% | 0.0% | 14.6% | - |
+| ui | widget toolkit | 123 | 466,421 | 87.4% | 51.0% | 0.2% | 0.0% | 0.0% | 16.5% | - |
 | ui | windows and panels | 72 | 404,342 | 93.6% | 25.7% | 0.0% | 0.0% | 0.0% | 4.8% | - |
 | ui | city tools and input | 34 | 184,793 | 100.0% | 41.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | ui | resource and exemplar editor | 26 | 69,054 | 21.8% | 19.5% | 0.0% | 0.0% | 0.0% | 0.0% | - |
@@ -330,7 +330,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | 35ff9f528cde8b90 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | d3af6b027a2406c0 | |
+| tools/coverage-map.tsv | 6c43c60410f315fd | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | 307a3c1b5832c0f7 | |
 | engine/plugin/FC4Subsystems.cpp | 2f66ead2363d9fd3 | |
