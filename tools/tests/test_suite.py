@@ -136,7 +136,8 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertIn('terrain', replace)
         self.assertIn('netrules', replace)
         self.assertNotIn('enable', shadows)
-        self.assertEqual(suite.profile_ini(ROOT, 'plain'), {})
+        self.assertEqual(suite.profile_ini(ROOT, 'plain'),
+                         {'disable': 'simulator,budget', 'enable': 'none'})
         for value in ('x = 1\ncity = Other', 'region = Other', 'dll = evil.dll', '[ini]', 'script = other'):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])

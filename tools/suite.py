@@ -88,7 +88,9 @@ def script_file(root, value):
 def profile_ini(root, profile):
     """Read the house profiles rather than maintaining another replacement list."""
     if profile == 'plain':
-        return {}
+        # Simulator and budget are on by default in the plugin. Also override
+        # FC4_ENABLE so a native control cannot inherit opt-in replacements.
+        return {'disable': 'simulator,budget', 'enable': 'none'}
     source = (root / 'tools/regress.ps1').read_text(encoding='utf-8-sig')
     if profile == 'replace':
         match = re.search(r'\[string\]\$Replace\s*=\s*"([^"]+)"', source)
