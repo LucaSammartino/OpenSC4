@@ -41,7 +41,6 @@
 #include "FC4LandValueShadow.h"
 #include "FC4Log.h"
 #include "FC4Reach.h"
-#include "FC4DrawStreamCapture.h"
 #include "FC4Observer.h"
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
@@ -151,7 +150,6 @@ public:
         fc4::Log("cFC4Director constructed (FreeCity4 %s, dll %s, log level %d)", FC4_VERSION_STRING,
                  fc4::ModulePath(), fc4::LogLevel());
         fc4::ReachPrepare();  // snapshot entries before subsystem hooks
-        fc4::DrawStreamStartup();
         // Register the classes of every enabled subsystem (FC4Subsystems.cpp).
         size_t n = 0;
         const fc4::Subsystem* subsystems = fc4::Subsystems(&n);
@@ -368,6 +366,7 @@ public:
         fc4::NetRulesShadowStart(); // before original network tools initialize
         fc4::SCResShadowStart(); // also covers late director attachment; start is idempotent
         fc4::FpuLog("hook PostAppInit (exit)");
+        fc4::ReachLifecycleStart();  // reach_lifecycle = 1 only; real city load, after setup probes
         return true;
     }
 

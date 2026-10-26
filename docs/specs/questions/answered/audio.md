@@ -1,5 +1,56 @@
 # audio: answered questions
 
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU43 — preferences construction and song/control rules:** supplement §21 settles the sound IO,
+  slider arithmetic and some source/notification filtering. Recover construction/defaults, complete
+  OK/cancel/revert ordering, dialog control actions/filter matrix, song discovery and exclusion-list
+  persistence (`0x004F2A70`–`0x004F5120`). Existing ui-windows coverage is framework inventory only.
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio-preferences.md §§1–7 supplies
+  construction/defaults, discovery/table format, complete control/filter matrix and close
+  rules; §§3.9, 6.6 and 9.1 make persistence, transaction order and worked cases explicit.
+  OK saves flags/mode before rebuilding the process-static radio lists; Cancel restores
+  the snapshot and updates audio but neither saves nor rebuilds lists. Directory scans
+  enable custom tunes without adding grid rows. Source filtering uses IsVisible, not
+  IsEnabled; accepted type-3 messages can return true without dispatch. Supplement §21
+  now links the completed contract and corrects Shutdown's grid-reference ownership.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU42 — full scape group/instance contract:** supplement §20 inventories all 19 primary slots,
+  but slots 7–17, resource format, parameter smoothing, timer widths, capacity outputs and allocation
+  failures need full behavior. Relevant range `0x004F51E0`–`0x004F7B60`; service tick `0x004F67C0`.
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio-scape.md §§3–7 specifies every
+  group/instance slot; §§3.5, 6.2, 7.4–7.5 complete input/ownership, u32 timer wrap,
+  signed channel smoothing, capacity/output rules, sparse grid arithmetic and allocation
+  requirements. There is no resource decoder: slot 5 copies a name string. Metadata is
+  emanation total. Allocation failures have no owner-level false/unwind path. Section 11
+  adds worked timer, channel/cache, output, sparse-grid and sound-band cases. Audio §20.4
+  and supplement §20 now point to this complete contract.
+
+<!-- from: core-audio-close13 (2026-10-24) -->
+- **AU50 — §8.3.1 remaining SoundManager algorithms:** the AU46/AU49 answer says
+  UpdateAll applies distance/simulation-pause policies, linked UpdatePosition performs a
+  mode-specific volume/pan update, and focus gain calls Resume, but gives none of those
+  bodies. §10.8 names voice-count gates without specifying comparisons, rejection/linking
+  or existing-instance selection. Please specify these algorithms, linked averaging and
+  promotion state/reference transfer, Resume's foreign slots/transition rules, the six
+  constructor position-sentinel bits, and start/position payload reference/return rules.
+  [Implement only specified stages; record explicit Unsupported for voice policy, linked
+  position, distance/simulation pause and Resume. Require sentinel as an explicit input;
+  do not claim complete SoundManager execution or invent foreign Resume slots.]
+  (re-tsound8, 2026-10-25, partial: the instance side, linked averaging and volume/pan by model, distance and
+  simulation pause, Resume and its foreign slots, is audio-owner-closure.md §7; the voice-count gates, UpdateAll
+  and the sentinel bits on the manager side stay open.)
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio.md §8.3.2 completes the manager
+  algorithms and incorporates audio-owner-closure.md §7's sound-side bodies. Last matching
+  instance supplies the 50-tick test, repeated one-shots alone meet the unsigned count gates,
+  loops link to the first master, gain uses the pre-insertion count, refresh order is specified,
+  promotion transfers interfaces/list rather than instance state, all six sentinel words are
+  positive zero, and non-null start/position payloads return true independently of worker success.
+  Worked cases cover admission boundaries, gain, promotion, payload references and Resume.
+
 **ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU41: audio.md §19.2 specifies
 SEM/model defaults, binding, registration, retained-state failure and teardown, and all six
 model slot 5/6 contracts with twelve vectors. Primary slot 4 calls the supplied object's

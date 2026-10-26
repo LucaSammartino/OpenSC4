@@ -1,0 +1,6 @@
+# Different serialized demand/development state; only the slot save is written.
+2029-08-21 mark reach29-tegel loaded
+2029-08-21 speed 2
+2029-09-02 save fast
+2029-09-03 digest
+2029-09-21 mark reach29-tegel complete

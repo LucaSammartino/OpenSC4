@@ -62,7 +62,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DP | dispatch |
 | DQ | demand, demolition |
 | DR | drive-tool |
-| DS | disasters, map-view |
+| DS | disasters |
 | DT | dates |
 | EF | effects |
 | EFP | effects, effects-parser |
@@ -236,13 +236,13 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
 | application | 12 | 6 | AP19 | questions/application.md |
-| audio | 6 | 14 | AU51 | questions/audio.md |
+| audio | 3 | 17 | AU51 | questions/audio.md |
 | audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
-| automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
+| automata | 4 | 39 | A5, AM13, AT26 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -313,7 +313,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 1 | 16 | DS30, QV17 | questions/map-view.md |
+| map-view | 1 | 15 | QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
@@ -385,7 +385,7 @@ generated index: the questions live one file per spec, so read only the file for
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-framework | 4 | 0 | SY5 | questions/sound-framework.md |
 | sound-renderer | 3 | 0 | SRN4 | questions/sound-renderer.md |
-| sound-system | 12 | 0 | SS13 | questions/sound-system.md |
+| sound-system | 12 | 12 | SS13 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
@@ -426,8 +426,8 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-spinner | 2 | 0 | WSP3 | questions/widget-spinner.md |
 | widget-toolkit | 11 | 9 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | widget-wingen | 2 | 1 | WGN4 | questions/widget-wingen.md |
-| win-filebrowser | 3 | 3 | FBQ7 | questions/win-filebrowser.md |
+| win-filebrowser | 0 | 6 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **639** | **1616** | | |
+| **total** | **633** | **1634** | | |

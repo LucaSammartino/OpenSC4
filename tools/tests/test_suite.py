@@ -31,6 +31,19 @@ def checkout(root):
 
 
 class SuiteParsingTests(unittest.TestCase):
+    def test_reach_cli_preserves_explicit_roster(self):
+        with patch.object(suite, 'read_scenarios', return_value=[]), \
+             patch.object(suite, 'run_scenarios', return_value=(ROOT, {})) as run:
+            status = suite.main(['run', '--set', 'reach29', '--reach', '--dry-run',
+                                 '--extra', 'reach_contracts = build-runs/reduced.tsv',
+                                 '--extra', 'reach_cap = 1'], root=ROOT)
+        self.assertEqual(status, 0)
+        settings = suite.extras(run.call_args.kwargs['extra'])
+        self.assertEqual(settings['reach'], '1')
+        self.assertEqual(settings['reach_window'], 'month')
+        self.assertEqual(settings['reach_contracts'], 'build-runs/reduced.tsv')
+        self.assertEqual(settings['reach_cap'], '1')
+
     def test_resume_preserves_claimed_labels_and_only_bounds_unsubmitted_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

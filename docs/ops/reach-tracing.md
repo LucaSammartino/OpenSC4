@@ -1,5 +1,45 @@
 # Reach tracer exclusions and diagnostics
 
+## Opt-in city lifecycle census
+
+`reach_lifecycle = 1` (default **0**, requires `reach = 1`) arms entries at the
+end of `PostAppInit`, after plugin setup, instead of after `PostCityInit`.
+It captures real city deserialization, initialization and native teardown.
+The observer's load/shutdown comparison passes suspend tracing, as monthly
+constructed probes already do. Entries changed by a late hook remain excluded.
+The first window's `2000-01-01` is explicitly a **load sentinel**, not a saved
+city date; `PostCityInit` opens the actual date window. It is unsuitable for
+calendar-based scenario shortening. Post-city-shutdown writes a checkpoint
+without stopping; `PreAppShutdown` stops before plugin hooks are restored.
+No settings or city state change merely by enabling this tracing option.
+
+First generate a reduced roster with `python tools/suite_reach_gaps.py
+--baseline build-runs/suite/BEFORE --out build-runs/gaps
+--contracts build-runs/exact-contracts.tsv`. Lifecycle tracing of the complete
+roster is unqualified: reach29-r1 had three corrupt runs and one clean run.
+Use the generated roster explicitly as `reach_contracts = <absolute path>`;
+it retains reached and unreached implemented functions under baseline-exact
+keys. It changes the instrumentation footprint, never the coverage weights.
+The earlier reduced-roster r2 had three corrupt mature-city runs. The
+continuation found and excluded the false entry at 00707865 (below). The
+rebuilt-DLL `reach29-repaired` replay qualifies all four rows: 4/4 clean and
+end-reaching, 47/47 actions, zero aborted steps or thread-slot exhaustions.
+The complete 35,648-entry roster remains unqualified. The lotdev and pollution
+mismatches in West Weburg also occur with lifecycle off and are separate engine
+findings; lifecycle qualification does not mean every shadow is exact.
+`python tools/suite.py run --set reach29 --profile shadows --slots 4
+--extra "reach = 1" --extra "reach_lifecycle = 1" --extra "reach_cap = 1"
+--extra "reach_contracts = <absolute path>" --tag TAG` runs the four load/save,
+empty-development and Lua-view scenarios in isolated queue slots. Add
+`--scenario NAME` to select a single qualified row. `--reach` may replace the
+first extra setting; explicit roster extras take precedence over its defaults.
+`python tools/suite_reach_gaps.py --baseline build-runs/suite/BEFORE
+--after build-runs/suite/NEW --out build-runs/reach-delta` ranks exact-shadow
+gaps and reports per-owner executed/verified gains and first mismatch lines.
+Both measurements use the same current byte attribution and the conservative
+suite-wide exact-key rule. Capturing a lifecycle does not broaden a shadow's
+documented comparison scope.
+
 The 1.1.641 function roster contains false entries inside instruction operands.
 An entry breakpoint at such an address changes the surrounding instruction;
 the CPU need not execute an INT3. Function names and a plausible first byte do
@@ -20,6 +60,7 @@ also listed in the TSV's comment header. Reach remains a lower bound.
 | 005f5a52 | 005f5a50 | Adjustor thunk displacement |
 | 00656c64 | 00656c61 | Absolute global address |
 | 00682632 | 0068262f | Spinner stack-store displacement |
+| 00707865 | 00707864 | Tract Init absolute global address (00b43d94 becomes 00b43dcc when patched) |
 | 00736559 | 00736558 | Stack-test ModRM |
 | 00786f62 | 00786f60 | Budget UI stack-store SIB |
 
@@ -43,6 +84,19 @@ There was no intervening foreign exception in the diagnostics. This failure
 is a patched operand, not a swallowed game exception or copied/self-read code.
 The matching grown-city baseline exited C0000005 with no diagnostic report;
 do not claim its exact fault context from the disaster evidence.
+
+The reachgen29 continuation isolated mature-city lifecycle corruption using
+four queued roster splits of 3,146, 787, 196 and 49 entries. The only failing
+range at each split contained 00707865. `re_query.py asm 00707864 --max 4`
+decodes the real instruction as `mov eax, dword ptr [0xb43d94]`; the purported
+entry at 00707865 is its address operand. Replacing 94 with CC reads a different
+global, stores it at tract developer +30, and faults later during lot growth.
+Old-DLL controls omitting just that entry reached the end date in all four
+scenarios: three clean, one empty-city stalled exit (19/19 actions). These are
+diagnostic controls, separate from the rebuilt-DLL qualification results.
+`--reach` now supplies defaults before explicit `--extra` values, so the
+selected `reach_contracts` roster is preserved; the first exploratory split
+used the full roster because the earlier CLI silently overwrote that setting.
 
 For investigations only, `reach_diagnostics = <absolute file>` opens a dump
 before arming. It is off by default and requires `reach = 1`. Each thread
