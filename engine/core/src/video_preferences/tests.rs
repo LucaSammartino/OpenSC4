@@ -77,7 +77,7 @@ fn owner(state: RawState) -> Owner {
 }
 
 /// Raw independent callback inputs. No branch, preference, or marker oracle.
-pub(super) struct Inputs {
+struct Inputs {
     checked: Vec<(u32, u8)>,
     utilities: [u8; 2],
     app: Option<Object>,
@@ -715,15 +715,10 @@ fn unsupported_domains_and_unknown_work_never_become_successful_noops() {
     }
     let mut o = owner(state());
     assert_eq!(
-        o.action(&mut Inputs::default(), 0x6a57da49),
-        Err(Unsupported::UnqualifiedEvent(0x6a57da49))
+        o.action(&mut Inputs::default(), 0x123),
+        Err(Unsupported::UnqualifiedEvent(0x123))
     );
     assert!(o.effects().is_empty());
-    assert_eq!(
-        o.action(&mut Inputs::default(), 0xea5e99d9),
-        Err(Unsupported::AutoRedrawVp1Vp4)
-    );
-    assert_eq!(calls(&o), [Call::Global(Global::App)]);
     for (reply, expected) in [
         (Reply::Lookup { al: 1, output: None }, Unsupported::NullRequiredOutput),
         (

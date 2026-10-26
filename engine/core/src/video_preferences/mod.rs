@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Portable `cSC4VideoPreferencesWinProc` from `docs/specs/video-preferences.md`.
 //!
-//! This is not a native constructor, COM layout, widget implementation, or a
-//! complete panel. Raw initial fields and pointer identities are explicit inputs.
+//! Native COM layout and widgets remain foreign. Raw initial fields and pointer
+//! identities are explicit inputs; §9 supplies the normal constructor and bodies.
 //! Calls require valid, nonaliasing foreign storage and no foreign reentry. Rust
 //! cleanup does not perform logical Release/free. Unknown slices fail explicitly.
 
@@ -53,6 +53,11 @@ impl Preferences {
 
     pub fn raw(&self) -> &[u8; 0x29] {
         &self.raw
+    }
+
+    /// The foreign application may mutate the live block, including padding.
+    pub fn raw_mut(&mut self) -> &mut [u8; 0x29] {
+        &mut self.raw
     }
 
     pub fn byte(&self, field: Byte) -> u8 {
@@ -115,8 +120,8 @@ pub enum Unsupported {
     MissingService,
     AllocationFailure,
     UnqualifiedEvent(u32),
-    AutoRedrawVp1Vp4,
     ShowMiddleVp3,
+    RawReferenceCount,
     FreedOwner,
 }
 
@@ -169,6 +174,11 @@ pub trait Host {
     /// Must not reenter the owner or alias its storage. Errors stop the portable
     /// slice; they are never native graceful-failure claims or rollback requests.
     fn call(&mut self, call: &Call) -> Result<Reply, Unsupported>;
+
+    /// App Auto/Apply receive the live preference block, never a candidate copy.
+    fn preferences(&mut self, call: &Call, _preferences: &mut Preferences) -> Result<Reply, Unsupported> {
+        self.call(call)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -213,6 +223,7 @@ pub struct Owner {
     state: RawState,
     effects: Vec<Effect>,
     freed: bool,
+    references: Option<u32>,
 }
 
 impl Owner {
@@ -237,6 +248,7 @@ impl Owner {
             state,
             effects: Vec::new(),
             freed: false,
+            references: None,
         })
     }
 
@@ -267,6 +279,14 @@ impl Owner {
     fn slot(&mut self, host: &mut impl Host, object: Object, slot: u16, args: Vec<Arg>) -> Result<Reply, Unsupported> {
         if object.0 == 0 {
             return Err(Unsupported::InvalidObject);
+        }
+        if object == self.state.owner && self.references.is_some() && matches!(slot, 4 | 8) {
+            self.effects.push(Effect::Call(Call::Slot { object, slot, args }));
+            return Ok(Reply::U32(if slot == 4 {
+                self.add_ref()?
+            } else {
+                self.release(host)?
+            }));
         }
         self.call(host, Call::Slot { object, slot, args })
     }
@@ -635,12 +655,11 @@ impl Owner {
             }
             0xea5e99d9 => {
                 if let Some(app) = self.global(host, Global::App)? {
-                    if self.state.preferences.is_some() {
-                        // VP1/VP4: no literal Auto outputs or full redraw. Stop
-                        // before the unqualified work; do not call a host oracle.
-                        return Err(Unsupported::AutoRedrawVp1Vp4);
-                    }
                     self.slot(host, app, 4, vec![])?;
+                    if self.state.preferences.is_some() {
+                        self.application_preferences(host, app, 0x50)?;
+                        self.redraw(host)?;
+                    }
                     self.slot(host, app, 8, vec![])?;
                 }
             }
@@ -654,7 +673,7 @@ impl Owner {
                 )?;
                 self.release_local(host, &mut local)?;
             }
-            _ => return Err(Unsupported::UnqualifiedEvent(id)),
+            _ => self.selection_event(host, id)?,
         }
         Ok(true)
     }
@@ -663,13 +682,7 @@ impl Owner {
         let app = self.global(host, Global::App)?.ok_or(Unsupported::NullRequiredOutput)?;
         self.slot(host, app, 4, vec![])?;
         self.slot(host, app, 0x44, vec![])?;
-        let payload = self
-            .state
-            .preferences
-            .as_ref()
-            .ok_or(Unsupported::NullPreferences)?
-            .payload();
-        self.slot(host, app, 0x4c, vec![Arg::Payload(payload)])?;
+        self.application_preferences(host, app, 0x4c)?;
         self.slot(host, app, 8, vec![])?;
         let allocation = Self::object(self.call(host, Call::Allocate(44))?)?.ok_or(Unsupported::AllocationFailure)?;
         let message = Self::required(self.call(host, Call::ConstructMessage(allocation))?)?;
@@ -859,6 +872,7 @@ impl Owner {
 }
 
 mod completion;
+pub use completion::{DialogGlobals, BINDINGS};
 #[cfg(test)]
 mod completion_tests;
 #[cfg(test)]

@@ -2,7 +2,143 @@
 //! Settled owner bodies in video-preferences §9; controls remain foreign.
 use super::*;
 
+/// Explicit snapshot of the two serialized global dialog bytes (§7.1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DialogGlobals {
+    pub initialized: u8,
+    pub guard: u8,
+}
+
+pub const BINDINGS: [u32; 35] = [
+    0xea57da6f, 0xea57da59, 0x6a57da48, 0x6a57da49, 0x6a57da4a, 0x6a57da4b, 0x6a57da4c, 0x6a57da4d, 0x6a57da4e,
+    0x6a57da4f, 0x6a57da50, 0x6a57da51, 0x2ab6c373, 0x2ab6c374, 0x2ab6c375, 0x2ab6c376, 0x2ab6c377, 0x6a57da54,
+    0x6a57da55, 0x6a57da56, 0x6a57da57, 0x6a57da58, 0x6a57da5a, 0x6a57da5b, 0x6a57da5c, 0x6a57da5d, 0xea5e99d9,
+    0x6a57da60, 0x0a8b7e00, 0xab81ded5, 0xab81ded6, 0xab81ded7, 0x0b85cf92, 0x2b85cf9f, 0x2b85cfaa,
+];
+
 impl Owner {
+    /// §9.1 constructor. Globals are not reset by constructing another owner.
+    pub fn new(owner: Object, globals: DialogGlobals) -> Result<Self, Unsupported> {
+        let mut result = Self::from_raw(
+            RawState {
+                owner,
+                host: None,
+                preferences: None,
+                baselines: Baselines {
+                    b10: 0,
+                    b12: 0,
+                    b14: 0,
+                    b16: 0,
+                    b18: 0,
+                    b1c: 0,
+                },
+                marker: 0,
+                first_redraw: 1,
+                guard: globals.guard,
+                initialized: globals.initialized,
+            },
+            Domain {
+                valid_objects: true,
+                unaliased_storage: true,
+                no_foreign_reentry: true,
+            },
+        )?;
+        result.references = Some(0);
+        Ok(result)
+    }
+
+    pub fn globals(&self) -> DialogGlobals {
+        DialogGlobals {
+            initialized: self.state.initialized,
+            guard: self.state.guard,
+        }
+    }
+
+    pub fn add_ref(&mut self) -> Result<u32, Unsupported> {
+        self.live()?;
+        let count = self.references.as_mut().ok_or(Unsupported::RawReferenceCount)?;
+        // SPEC-GAP: the shared AddRef arithmetic is unqualified; use wrapping u32 increment.
+        *count = count.wrapping_add(1);
+        self.effects.push(Effect::Count(*count));
+        Ok(*count)
+    }
+
+    pub fn release(&mut self, host: &mut impl Host) -> Result<u32, Unsupported> {
+        let mut count = self.references.ok_or(Unsupported::RawReferenceCount)?;
+        let result = self.release_from_raw_count(host, &mut count)?;
+        self.references = Some(count);
+        Ok(result)
+    }
+
+    pub(super) fn application_preferences(
+        &mut self,
+        host: &mut impl Host,
+        app: Object,
+        slot: u16,
+    ) -> Result<(), Unsupported> {
+        self.live()?;
+        let preferences = self.state.preferences.as_mut().ok_or(Unsupported::NullPreferences)?;
+        let call = Call::Slot {
+            object: app,
+            slot,
+            args: vec![Arg::Payload(preferences.payload())],
+        };
+        self.effects.push(Effect::Call(call.clone()));
+        host.preferences(&call, preferences)?;
+        Ok(())
+    }
+
+    pub(super) fn selection_event(&mut self, host: &mut impl Host, id: u32) -> Result<(), Unsupported> {
+        let groups: &[&[u32]] = &[
+            &[0x6a57da49, 0x6a57da4a, 0x6a57da4b],
+            &[0x6a57da4c, 0x6a57da4d, 0x6a57da4e],
+            &[0x6a57da4f, 0x6a57da50, 0x6a57da51],
+            &[0x2ab6c373, 0x2ab6c374, 0x2ab6c375],
+            &[0x2ab6c376, 0x2ab6c377],
+            &[0x6a57da57, 0x6a57da58],
+            &[0x6a57da5a, 0x6a57da5b, 0x6a57da5c, 0x6a57da5d],
+            &[0x0b85cf92, 0x2b85cf9f, 0x2b85cfaa],
+        ];
+        if let Some(ids) = groups.iter().find(|ids| ids.contains(&id)) {
+            let mut local = None;
+            self.request_group(
+                host,
+                ids,
+                ids.iter().position(|&v| v == id).expect("group member"),
+                &mut local,
+            )?;
+            self.release_local(host, &mut local)?;
+            Ok(())
+        } else if matches!(
+            id,
+            0x6a57da54..=0x6a57da56 | 0x6a57da60 | 0x0a8b7e00 | 0x6a57da52 | 0x6a57da53
+        ) {
+            Ok(())
+        } else {
+            Err(Unsupported::UnqualifiedEvent(id))
+        }
+    }
+
+    /// Full §7.1/§9.4 body. Successful initialization deliberately returns false.
+    pub fn show_dialog(
+        &mut self,
+        host: &mut impl Host,
+        selector: u32,
+        global_preferences: Option<Preferences>,
+    ) -> Result<bool, Unsupported> {
+        if let ShowPrefix::ReturnedAl(al) = self.show_prefix(host, selector, global_preferences)? {
+            return Ok(al);
+        }
+        self.redraw(host)?;
+        for id in BINDINGS {
+            let root = self.root(host)?;
+            let control = Self::required(self.slot(host, root, 0x8c, vec![Arg::U32(id)])?)?;
+            let target = self.root(host)?;
+            self.slot(host, control, 0x158, vec![Arg::Object(Some(target))])?;
+        }
+        self.show_tail(host)
+    }
+
     fn preference_byte(&self, field: Byte) -> Result<u8, Unsupported> {
         Ok(self
             .state
