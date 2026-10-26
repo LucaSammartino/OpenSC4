@@ -125,12 +125,11 @@ The goal stack drives a set of behaviours, each a steering routine over the flig
   approach ray to the base altitude, touch down, `SetAirplaneState`, stop, taxi); `AI_TakeOff` (pick a runway
   direction, taxi to its start, turn, roll and climb); `AI_Taxi`, `AI_Stop`, `AI_TurnToVector`, `AI_FollowRay`,
   `AI_FollowVectorAndTurn`, `AI_ApproachAltitude` *[summary of each control law]*.
-- **Runways.** `PickRunwayDirection` (`0x00502520`) takes the airport's runways from the aircraft manager
-  (`GetRunwayList`) and picks the direction with the best clearance (`EvaluateClearance`: the altitude along the
-  approach against the airplane's height); `PickApproachBox` places the approach start up to 500 units out, clipped
-  to the world.
-- **Fire planes.** `FindFireNearLocation` finds the nearest burning occupant near the target; the plane flies over
-  it and drops water *[summary]*.
+- **Runways.** `PickRunwayDirection` (`0x00502520`) selects from paired runway endpoints using the
+  clearance-derived random weights in §3.3.2. It does not choose a minimum-clearance direction.
+  `PickApproachBox` uses 500 as a minimum nominal leg length, not a maximum (§3.3.3).
+- **Fire planes.** `FindFireNearLocation` uses the first returned burning occupant in a square search
+  region, rather than computing the nearest one (§3.3.2).
 - Dispatch states: dispatch.md §4.3 (3, 4, 5, 6, 0).
 
 #### 3.3.1 Airplane LOITER countdown and ammunition (AF3) *[compat]*
@@ -166,6 +165,82 @@ Evidence: countdown installation/decrement and inclusive expiry
 `0x0050472C–0x00504776`; animation time conversion/cap and countdown update
 `0x00504981–0x005049F7`, goal call `0x00504A6A–0x00504A71`; constructor
 `0x004FD059–0x004FD065`; Read `0x004FD3C0–0x004FD416`.
+
+#### 3.3.2 Runway clearance, selection and fire search (AF3) *[compat]*
+
+`EvaluateClearance(P,D)` samples exactly twenty points, incrementally adding
+`16 × D` to P before each query. Each updated coordinate is stored as binary32.
+At sample i (1 through 20), call the terrain provider's region test +0x2C(X,Z),
+then aircraft `GetAltitude`. If the region test succeeded, **replace** that
+altitude by the auxiliary provider's +0x18(1,X,Z) result; do not take their
+maximum here. The score is the largest positive `(height − original P.y)/(16×i)`,
+initially zero. Equality, negative slopes and unordered comparisons do not replace
+the current score. Thus this measures a rising slope, not absolute obstacle height
+or aircraft clearance. Evidence: `0x004FD790–0x004FD899`.
+
+`PickRunwayDirection` obtains a list of 12-byte position triples. Fewer than two
+triples, or an odd count, calls owner +0x34(0) and returns without supplying a new
+runway. Otherwise process pairs (A,B) in list order. Normalize B−A in X/Z with Y=0
+for scoring; there is no zero-length guard. Evaluate from A in that direction,
+and from B in its negation. For a true final flag use owner +0x290 as the slope
+allowance; for false use +0x28C. Each weight is binary32
+`max(EvaluateClearance − allowance, 0)`, widened to binary64 in the weight list.
+These literal weights favor **positive excess slope**, a compatibility quirk.
+Do not silently invert the score to obtain a more plausible clearance policy.
+Evidence: `0x00502520–0x0050272C`.
+
+Selection uses the shared random service at `0x00B21AF4`: sum positive weights;
+if the sum is zero select a uniform index across all endpoints. Otherwise draw
+uniformly over zero to the sum, scan in order, choose the first positive weight
+strictly greater than the remaining draw, subtracting each preceding positive
+weight. Exhaustion returns the last index. There is no deterministic first-wins
+tie rule (`0x00913AD3–0x00913B73`). Pair the chosen index with its adjacent index
+(even +1, odd −1); swap these indices when the final flag is false. Copy the
+selected start to the supplied position output, normalize the full 3D difference
+to the other endpoint into the direction output, and store that other endpoint
+at owner +0x2F0/+0x2F4/+0x2F8 (`0x0050273D–0x00502800`).
+
+Fire search (`0x00503B50`) uses an axis-aligned box X/Z = center ±100 and Y =
+±largest finite binary32, not a radius-100 circle. Pass the owner's +0x344
+filter and −1 to the fire service +0x90 query. On query success, count the
+returned list; when nonempty, ask the **first** occupant's +0x20 operation for
+the output position. Return true exactly for positive count. Release the query
+list through service +0xC0 and release the retained service reference. Query
+failure or an empty list returns false; it supplies no replacement target.
+Evidence: `0x00503B9E–0x00503C96`.
+
+Worked cases: a sample at i=2 with height 26 and P.y=10 contributes 0.5.
+With every other contribution ≤0.25 the score is 0.5, even if GetAltitude
+reported 100 but the accepted auxiliary provider reported 26. Two flat runway
+directions with positive allowances both have weight zero and use uniform
+selection. Weights 1 and 3 with a remaining draw exactly 1 select the second,
+not the first. A fire at center+(99,0,99) is inside the query box despite its
+horizontal distance exceeding 100; list ordering, not distance, chooses it.
+
+#### 3.3.3 Approach-box distance and outputs (AF3) *[compat]*
+
+For finite nondegenerate inputs, take the unit lateral vector `D × worldUp`
+and choose its sign toward the city center; a zero center dot product chooses
+the negated vector. Let M be the greater city X/Z dimension and let B be the
+greater of the base-altitude providers (global +0x28 and terrain +0x58).
+The nominal leg length L starts as `(B−runway.y)/owner[+0x290]`.
+If L<500, replace it by 500. Otherwise cap L at M. This ordering can leave
+L=500 on a city whose M is smaller than 500.
+
+Store the supplied runway point at +0x2E0. From that point subtract L×D,
+clip to world, measure the full 3D distance from the runway, and set Y to
+runway.y plus that distance times +0x290; store at +0x2D4. Then add L times
+the signed lateral vector, clip, add that full 3D leg distance to the running
+distance and recompute Y by the same rule; store at +0x2C8. Then add L×D,
+clip, accumulate the next full 3D leg distance and recompute Y; store at
++0x2BC. These are four position triples; the arithmetic does not create a
+500-unit maximum box. Evidence: `0x005000B0–0x0050049A`, especially the
+minimum/cap branches `0x0050023C–0x0050027B`.
+
+Worked case: level runway, D=(1,0,0), +0x290=0.1, B−runway.y=20 and M=1024
+give L=500. With clipping inactive the first leg ends 500 units behind the
+runway and 50 units above it. Use the measured 3D legs, including their Y
+differences, for subsequent heights; do not assume every accumulated leg is L.
 
 ### 3.4 Flight model *[summary]*
 
@@ -226,6 +301,48 @@ phases 0/1, the subsequent velocity is projected onto the updated orientation:
 `v := orient × dot(v, orient)` (`0x00504418–0x00504447`). These later operations can
 change the candidate values; a conformance fixture must expose the candidate stage
 separately if it tests only the integration above.
+
+#### 3.4.1a Non-finite comparisons (AF10) *[compat]*
+
+The following describes the default **masked x87 exception** environment.
+It does not prescribe NaN payload bits, exception flags or execution with
+floating exceptions unmasked. There is no input sanitization. Comparisons
+at `0x00503CEC–0x00503D51` distinguish unordered from less/greater:
+
+| Input to the initial velocity limiter | Result before forces |
+|---|---|
+| Any NaN component (hence unordered length) | Tiny-speed and maximum-speed branches both skipped; original components retained |
+| Finite length, NaN maximum | Maximum comparison unordered: velocity retained, except the earlier tiny-speed branch still applies |
+| Infinite length, finite maximum | Scale by maximum / infinite length; infinite components become NaN, finite components become signed zero |
+| Infinite length, +infinite maximum | Equality: retained |
+| Infinite length, −infinite maximum | Scale factor is NaN, so components become NaN |
+| Finite non-tiny length, +infinite maximum | Retained |
+| Positive finite non-tiny length, −infinite maximum | Scale by −infinity: nonzero components become infinities; zero components become NaN |
+
+The length used for the maximum comparison is stored as binary32 first.
+The squared-length normalization gates require **ordered strictly positive**
+squared length (`0x00503D17–0x00503D22`, `0x00503D71–0x00503D7C`). In the
+force routine the tiny-speed fallback also requires ordered less-than, but
+normalization itself divides unconditionally by the selected direction's
+length (`0x004FE8D0–0x004FE92F`). Thus a NaN velocity does not select the
+orientation fallback; a NaN or zero selected direction propagates through the
+reciprocal. No later assertion of finite force or position is justified.
+
+Animation converts milliseconds to binary32 seconds, stores, then applies
+and stores the selected AI multiplier; the cap tests ordered `h>0.2`.
+Positive infinity becomes 0.2, negative infinity remains negative infinity,
+and NaN remains NaN. Zero times infinity gives NaN and also bypasses the cap.
+Player ticking performs the conversion and cap without the AI multiplier.
+The animation cap compares the stored product, whereas the player cap compares
+the conversion still in x87 precision before using the stored local.
+Evidence: `0x00504981–0x005049DA`, `0x00504B01–0x00504B26`.
+
+Worked cases: velocity `(NaN,2,3)` remains `(NaN,2,3)` at the limiter; it
+must not be normalized or replaced by orientation there. `(infinity,2,0)`
+with maximum 150 becomes `(NaN,+0,+0)` before forces. Infinite positive
+milliseconds and AI multiplier −1 produce negative infinity seconds; a
+zero-millisecond frame and infinite AI multiplier produce NaN seconds.
+Compare classification and unaffected finite component bits, not NaN payloads.
 
 #### 3.4.2 Force magnitudes *[compat, partial AF2]*
 
@@ -678,6 +795,48 @@ return from the update: the subsequent transform/aim work still runs for the
 present pair. Geometry and terrain projection are the remaining AF5 spotlight
 contract; this gate alone is not a complete spotlight update.
 Evidence: `0x00537B8A–0x00537C46`.
+
+#### 4.3.3 Airplane player refresh and state callbacks (AF5/AF6) *[compat]*
+
+Airplane player refresh uses the same whole-record selection as helicopter
+§4.3.1: direct provider +0x64, else script +0x0C fallback, else no changes.
+The following record offsets map to airplane binary32 destinations. Multiply
+speed by binary32 1000, all other rows by binary32 `3C23D70A` (0.01).
+An ordered result equal to either signed zero preserves the current destination;
+nonzero values and NaNs replace it. This is a refresh, not a fresh default load.
+Evidence: `0x004FCCA0–0x004FCEEE`.
+
+| Record offset | Airplane destination |
+|---|---|
+| +0x08 | +0x258 (maximum speed) |
+| +0x60 / +0x78 | +0x300 / +0x304 |
+| +0x64 / +0x68 / +0x6C | +0x308 / +0x30C / +0x310 |
+| +0x7C / +0x80 / +0x84 | +0x314 / +0x318 / +0x31C |
+| +0x88 / +0x90 / +0x70 / +0x8C | +0x320 / +0x324 / +0x328 / +0x32C |
+
+Both owners call aircraft-base entry/exit first and return its result even
+when they perform their own side effects. A non-null entered state with ID
+0x10 triggers the player refresh. Airplane additionally sets that state's
++0x30/+0x34 limits to 0/1 and, when its phase is nonzero, requests AEMS start
+group 8. Non-player entry instead zeroes owner +0x2A8/+0x2AC/+0x2FC/+0x2EC;
+entry to 0x39 copies the current destination (+0x4C triple) to the fire-search
+anchor (+0x338 triple). Every airplane entry clears its drop-active byte.
+Player exit reloads AI airplane parameters and clears those four control
+fields; every exit clears drop-active (`0x004FD640–0x004FD74C`).
+
+Helicopter player entry refreshes parameters, invokes `0x00533FA0`, and sets
+the entered state's limits to −100/+100. Player exit reloads AI parameters
+and copies parameter +0x5C to runtime +0xDC and +0xC8. Exit from goal 0x35
+instead requests dispatch state 2. Null exits do neither. Evidence:
+`0x00535480–0x0053555D`. These callbacks describe scheduling of the owner
+refresh; they do not imply that parameter loading alone changes the goal stack.
+
+Worked case: start airplane maximum speed 150 and +0x300=2. Refresh with
+record +0x08=0.2, +0x60=0 and all other fields zero. Maximum becomes
+approximately 200; +0x300 stays 2. Refresh again with an absent provider:
+both stay as they are. Exit player state: the AI loader restores its maximum
+(150 for no record) and clears the four listed controls, independently of the
+base callback's returned boolean.
 
 ## 5. The air dispatch sources *[compat]*
 
