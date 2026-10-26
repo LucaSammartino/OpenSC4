@@ -1,11 +1,16 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| replace-netocc29: network occupants, engine | Codex / replace-netocc29 / detached HEAD | WIP: main merged; prior pole endpoint commits retained; ABI transport additions inherited | Complete pole model/render and tool crossings; measure acceptance (a)-(c); qbuild all; enqueue kind engine |
+| replace-netocc29: network occupants, engine | Codex / replace-netocc29 / detached HEAD; code f931c21b0, 0846c3771, a6bed1f73; ABI additions | Ready to land completed policies; full netocc replace-list credit NOT ready; cargo 7909, clippy 0, CTest 124/124; no new questions | 1) Finish concrete pole tool/mixed-endpoint interposition and C++ model/render host; 2) measure power-month/placement/demolition; 3) replace pipes |
 
-Handoff opened early as requested; measurements pending this round.
-- (a) House list plus netocc to 2032: pending; no clean claim.
-- (b) netocc_shadow exact and save/load both directions: pending.
-- (c) Pole placement/extension/demolition and gen27 s0/s1 growth controls: pending.
-- Gate: pending this round.
-- Pole factory remains native until concrete tool and rendering boundaries are safe; pipe replacement remains missing.
-- Next: apply NO30/NO32, wire pole model/render host, then run the required scenarios.
+- Completed: Rust NO30/NO32 surface policy, pole model lifetime/transform/zoom/face-and-wire render policy and tests; endpoint ownership/adapters; compatibility target-name correction. Final round adds no new implementation.
+- Gate (one all invocation, final round): PASS, Rust 7909/7909, clippy 0 diagnostics, CMake 46/46 edges, CTest 124/124; build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
+- Game log root G = C:/Users/tlori/FreeCity4/build-runs/game-results/ (all labels below have .log and .verdict there unless explicitly rejected).
+- (a) PASS for currently registered power-line replacement: G/netocc29-r3-house-1325.log reaches 2032-01-01 clean, foreign_exceptions=0, ref_warnings=0, netocc_shadow exact 72/72. One recovered watchdog stall; final verdict clean.
+- (b) Key OFF shadow unchanged/exact 72/72 through 2032, clean/ref_warnings=0: G/netocc29-r3-shadow-1325.log.
+- (b) Full saves ON/OFF clean/ref_warnings=0, SaveCity ok=1, exact 3/3 months each: G/netocc29-r4-save-on3.log and netocc29-r4-save-off3.log. Harness exports before restoring slots; saves remain ignored in build-runs/suite/states/netocc29/.
+- (b) ON-save loaded OFF and OFF-save loaded ON: both clean to June 2026, ref_warnings=0, load mismatches=0 and monthly exact 4/4 each; G/netocc29-r4-load-off-save-on.log and netocc29-r4-load-on-save-off.log. Export/load SHA256 pairs agree in verdicts.
+- (c) s0 ON/OFF both complete 216/216 actions, exact 25/25 months and ref_warnings=0, then corrupt at the same native Shutdown read 0x005D0F94/type 096E763C: G/netocc29-r3-s0-on-1330.log and netocc29-r4-s0-off.log. Matches the task's known original-game quit fault.
+- (c) s1 ON/OFF both corrupt before first action/date advancement at native 0x004E2C06, ref_warnings=0; G/netocc29-r4-s1-on.log and netocc29-r4-s1-off.log. No additional failure introduced by netocc; growth remains unexercised in both controls.
+- Harness setup attempts are separate: r4-save-on/off rejected top-level export_city; r4-save-on2/off2 failed its destination constraint without starting the game; corrected on3/off3 passed. Direct harness help attempt returned BAD ARGS, no game started.
+- LIMIT: netocc registers only cSC4PowerLineOccupant; native poles retained (G/netocc29-r3-house-1325.log lines 20,77,204). cSC4NetworkOccupant, cSC4PowerPoleOccupant, cSC4PipeOccupant and cSC4PipeConnectionOccupant are NOT replaced; do not flip their replacement credit.
+- Missing: concrete native construction/mixed-endpoint hook installation, C++ pole model/render host, replacement pole placement/extension/demolition script and power-month comparison, and pipe registration. No unexplained shadow differences; no new spec questions.
