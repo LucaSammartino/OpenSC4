@@ -394,7 +394,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
-| terrain | 9 | 37 | TR47 | questions/terrain.md |
+| terrain | 8 | 38 | TR47 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
@@ -431,4 +431,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **616** | **1673** | | |
+| **total** | **615** | **1674** | | |
