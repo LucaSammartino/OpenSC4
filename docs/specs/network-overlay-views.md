@@ -63,8 +63,14 @@ The strip uses primitive 5, format 1. Its RGBA values are:
 
 These are literal byte stores, not a floating colour conversion (`0x00543110–0x005431BC`). The pulse
 advances even if no network manager exists and is shared across instances. Its update rule includes
-255 for one draw, then resets to 0 on the next; the initialized-start value remains to be established
-from static initialization, rather than inferred from the constructor.
+255 for one draw, then resets to 0 on the next. The initial byte at **0x00B228C8 is zero**:
+it lies in the loader-zero-filled part of the executable's `.data` section (VA 0x00B07000,
+raw size 0x1A000, virtual size 0xB40D8; this byte is at section offset 0x1B8C8).
+The complete exported instruction scan has four direct accesses: the compare/reset/increment at
+0x00542FC6/FD7/FE0 and the colour load at 0x00543114; no separate scalar static initializer writes it.
+Thus in a fresh process Update number n uses **5n modulo 260**, for n=1,2,… (values 5,…,255,0,…).
+This counts Updates across all instances, including Updates that find no network manager, rather
+than frames or elapsed time. Construction, Init and Shutdown do not restart the sequence.
 
 For the strip only, take the first min(N,25) points. When path-info says it has heights, use stored y;
 otherwise ask the occupant for altitude separately at each x,z. Add 0.5 m in both cases. The arrow
@@ -100,10 +106,10 @@ point 40; E=(3,4,0), Q=(0,0,0) gives x,z wing offsets (−9√2/10,±9√2/10), 
 a no-heights path can have its strip at occupant altitude+0.5 while its arrow remains at stored
 E.y+0.5 and its bar at stored E.y. A key with both low bytes FF draws only the start bar. A cross
 at (10,7,20), with heights, draws (8,7.5,20)→(12,7.5,20), then
-(10,7.5,18)→(10,7.5,22), opaque red. Default/setter/state and degenerate-input residuals are
-tracked in NOV2 until the remaining lifecycle evidence is reconciled.
+(10,7.5,18)→(10,7.5,22), opaque red. Degenerate-input boundaries are stated above; they are
+not successful-input guarantees for invalid vectors or uninitialized scratch alpha.
 
-### 1.2 State/default checklist (NOV2, partial)
+### 1.2 State, setters and lifetime (NOV2)
 
 Constructor `0x00542F50` sets initialized=false, ignoreDepth=false, packed state value/mask=0,
 filter u32=0xFFFFFFFF. It does not reset the pulse. Init is idempotent and returns true, setting its
@@ -113,9 +119,40 @@ flag even without a render service. With that service its packed-state argument 
 is on. Changing a field after Init does not itself repack. Update ignores DrawPrims results and
 acquires no resources. Destructor thunk 0x00542F90 forwards to deleting destructor 0x00542FA0:
 shared cleanup 0x0046B4C0, then free only if deleting-flags bit 0 is set. Overlay-views §3.4 now
-establishes the shared refcount transition and this cleanup dispatch. Concrete public filter/depth
-setters and pulse static-initializer write remain residuals.
-Primary interfaces and coverage limits are in overlay-views §3.2.
+establishes the shared refcount transition and this cleanup dispatch.
+
+The concrete depth setter is the **same folded body 0x007DC1A0** named for SC4MarkedCellView:
+one boolean byte argument, callee removes 4 stack bytes, store at primary-view +0x0D, no return-value
+contract and no repacking. The automata caller demonstrably invokes it on a path-info view
+**after Init** (0x0050DDA3–B0). Consequently that caller changes the stored byte to true while
+retaining the depth-tested packed state made by Init. Repeating Init while initialized is true
+does not change that state. To repack through the native sequence, Shutdown then Init.
+
+The filter is a **32-bit value at +0x18**, compared in full against the zero-extended key byte
+(bits 16–23); only 0xFFFFFFFF bypasses the comparison. There is no separate out-of-line filter
+setter or virtual setter slot in the recovered interface. The actual caller stores the 32-bit
+result of decimal string conversion directly at +0x18 (0x0050DDF7–0x0050DE03), or writes
+0xFFFFFFFF when no filter argument is supplied (0x0050DE19–22). It neither truncates the value to
+a byte nor invalidates any cache. These stores publish the effective inline mutation contract,
+without inventing a native method address or recoverable C++ method name.
+
+Shutdown uses the shared **0x0053C940** body: clear initialized at +0x0C if set; leave filter,
+ignoreDepth, packed state and pulse alone. The actual removal caller unregisters the view through
+manager slot 33, calls this body, calls primary Release slot 2, then nulls its global pointer
+(0x0050DE47–6C). Allocation is 0x1C bytes; construction starts refcount zero and the creator
+acquires a reference before Init/registration (0x0050DD78–0x0050DDC7). A null allocation is not
+handled as a successful empty view: the subsequent AddRef dereferences it. Bounds and transforms
+have no public slots; Update obtains visible bounds from the network service and sets identity
+model transform. Primary/secondary interface slots and shared lifetime are in overlay-views §§3.2–3.4.
+
+**Worked state case (UNEXECUTED):** on a fresh process, construct A and Init with the render
+service present. Its packed state uses depth test ≤. Invoke the folded depth setter(true), then
+Init again: the byte is true but the packed state still uses ≤. Shutdown/Init now packs ignored
+depth. Set filter=256: no byte-valued path type matches; set filter=0xFFFFFFFF: all match. Let A
+Update once with no network manager: pulse becomes 5 without drawing. Construct/Init B and draw
+a flagged three-point path in B's first Update: its strip RGBA is **(255,10,10,200)**, BGRA bytes
+**0A 0A FF C8**. Destroying A does not reset that shared pulse. This case distinguishes a late
+setter repack, byte-truncated filter, per-instance pulse and draw-only pulse advancement.
 
 ## 2. The train-junction view (`SC4TrainJunctionView`) *[compat]*
 
@@ -233,10 +270,10 @@ The automata manager (cheat) and the U-Drive-It player train control.
 ## 5. Open questions
 
 See [questions/network-overlay-views.md](questions/network-overlay-views.md): NOV1 retains the cheat
-and path-key meanings. NOV2 retains pulse static initialization and public filter/depth setters;
+and path-key meanings. NOV2 is answered by §§1.1–1.2, including loader-zero pulse and folded/inline setters;
 NOV3 retains marker rotation/model-state details, cell setters/current-target identities and caller
 Shutdown discipline. The geometry/state corrections in §§1.1–1.2 and 2.1 and shared lifecycle in
-overlay-views §3.4 answer portions of these questions; NOV2 and NOV3 remain open.
+overlay-views §3.4 supply the native contracts; NOV3 remains open pending the additions below.
 
 ## 6. Conformance expectations (UNEXECUTED)
 
@@ -250,8 +287,9 @@ overlay-views §3.4 answer portions of these questions; NOV2 and NOV3 remain ope
 
 These are independently derived primary-source expectations from §§1.1–1.2 and 2.1, not executed
 results. Coordinates are (x,y,z); decimal heights are geometric approximations to native float stores.
-Resource/path providers are assumed successful unless a row says otherwise. No initial pulse, marker
-rotation or current/target identity is assumed.
+Resource/path providers are assumed successful unless a row says otherwise. NO-L1 supplies its own
+pulse precondition; §1.2 also supplies a fresh-process pulse case. Marker rotation and cell identities
+are qualified in §2.1.
 
 | ID / input | Expected observation | Distinguishes |
 |---|---|---|
