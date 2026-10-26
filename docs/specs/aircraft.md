@@ -21,7 +21,7 @@ state families and the two `AI_PursueGoal` dispatchers), §11 (slot names); [dis
 Aircraft are automata that fly: a base class with the altitude and world-clip helpers, the **airplane** (a fixed
 wing flight model with runways: taxi, take-off, cruise, approach and landing; fire planes drop water) and the
 **helicopter** (a rotor model with hover, climb over buildings, a spotlight and weapons in U-Drive-It). Both take
-their handling from an 18-value **drive-parameter list** of their automata exemplar. Two dispatch sources let
+their handling from named Lua group records: 18 airplane fields and 13 helicopter fields. Two dispatch sources let
 airports and police stations with heliports send fire planes and police helicopters.
 
 ## 1. Classes *[compat]*
@@ -79,7 +79,7 @@ does not terminate. The loader does not establish an acyclic-data guarantee.
 | 8 | 0.5236 (30°) | | 17 | 0 | |
 
 With no list at all the defaults above are used, with 5 = 0.06545, 7 = 0.3927, 9 = 0.04363, 11 = 10000, 13 = 0.04.
-`LoadPlayerDriveParameters` loads a second set for U-Drive-It *[summary]*.
+`LoadPlayerDriveParameters` refreshes maximum speed and player gains for U-Drive-It (§4.3.3).
 
 The preceding decimal angle defaults are rounded descriptions, **not exact replacement
 constants**. Use the binary32 encodings below. Direct no-record defaults are stored as
@@ -1006,6 +1006,60 @@ A helicopter changing 3→5 while a 0x36 state exists makes the repulsor
 request before notifying (7,5); repeating 5 makes neither request. A
 helicopter already at phase 0 on LAND requests dispatch 0 before Pop.
 
+### 4.5 Native observation boundary (AF11) *[compat, bounded]*
+
+The class ID `0x8BA98EDA` identifies a helicopter class; it is not evidence
+of an interface exposing rotor getters. The verified aircraft QI operation
+is primary slot 0: Windows `__thiscall`, arguments `(u32 iid, void** out)`,
+boolean result, callee pops 8 bytes. IID `0xC96E75DC` returns the aircraft
+primary pointer and calls its slot 1 AddRef; every other IID delegates to
+automaton QI. Balance each successful QI reference by slot 2 Release.
+Evidence: `0x004FA7A0–0x004FA7C3`. Automaton `0xA9B40F05` and serializable
+`0xE4FDA3D4` are the inherited contracts, not a thirteen-field rotor API.
+
+The native parameter storage can be identified **inside the lifetime of an
+initialized rotor**, using R and P from §4.2.6. The P-relative binary32 field
+offsets, in the thirteen-field order of §4.1, are
+`5C,60,64,68,6C,70,0C,24,14,1C,20,74,78` (hexadecimal).
+This is data layout, not a callable signature or an independent ownership
+reference. Do not retain P across Shutdown; InitInstance owns it (§4.2.5).
+The named Lua values are input records **before** conversion/zero preservation;
+capturing only these converted fields cannot recover which ancestor/table
+or zero-valued source produced them. The home triple is owner +0x1F0/+0x1F4/
++0x1F8 and phase is R+0x04. Neither is a published getter in this evidence.
+
+A complete goal observation must include stack order, each state's type and
+all type-specific fields from automata.md §6.2, not just the current ID.
+Controller references, timeout, final flag, animation/SFX and saved flags
+must retain their stream meaning. In-memory +0x24 behavior-template pointers
+are not persisted; do not compare native pointer addresses with replacement
+identities. Current-ID +0xEC and FindState +0xE4 calls used by AI are not
+complete-stack enumeration APIs.
+
+The aircraft manager is city slot 45, IID `0x098F9BF4`, CLSID `0xC98F9D4A`.
+Its slot 15 (+0x3C) creation contract is the seven-argument `__thiscall`
+contract in automata.md §7.2: group ID, position reference, flags, model-key
+reference, callback pointer, byte priority, optional orientation pointer;
+returns an automaton pointer in EAX, callee pops 28 bytes. The returned pointer
+has **no caller reference**. AddRef before retaining it. Passing a zero model
+instance invokes random exemplar choice; it is not a deterministic fixture.
+
+There is no established complete public live-helicopter enumeration in this
+answer. Manager Write's airport-assignment map (automata.md §5.2) cannot stand
+in for its live population. The documented group-tracking operations at manager
++0x7C/+0x80/+0x84 do not by themselves prove that every live group is tracked,
+or establish an all-groups iterator. Do not guess their container ABI.
+AF11 is narrowed to the lifetime/enumeration/fixture observation in §9.6.
+No safe deterministic group/exemplar **values** or complete getter signatures
+are claimed here.
+
+Worked case: a city has one airport-assigned helicopter and a second live
+helicopter made by another group/source. An archive scan returning only the
+first is incomplete even if its four record versions match. A QI-acquired
+aircraft pointer has one observer-owned reference; reading its parameter block
+does not confer a second reference on that block. A fresh COM object's preset
+is a constructor observation and cannot supply the city's expected home/goals.
+
 ## 5. The air dispatch sources *[compat]*
 
 `cSC4FirePlaneDispatchSource` and `cSC4PoliceHelicopterDispatchSource` track their stations like the ground sources
@@ -1030,10 +1084,13 @@ accepted count; a small wrapped availability mask does not shrink station member
 
 ## 7. Open questions
 
-See [questions/aircraft.md](questions/aircraft.md) (AF2–AF6). AF1, AF7 and AF8
-are resolved in §§3.1, 4.1 and 5; their entries are archived in
-[questions/answered/aircraft.md](questions/answered/aircraft.md). The flight-model,
-control, lifecycle, weapon and message summaries do **not** close those owner contracts.
+AF2–AF6, AF10 and AF11 have static answers or explicit residual native
+observations in §9; their entries are in
+[questions/answered/aircraft.md](questions/answered/aircraft.md). AF10's
+comparison contract is specified in §3.4.1a. Archiving the other entries means
+the question has been narrowed, **not** that the complete owner or native
+shadow is verified. Summary paragraphs and pending observations confer no
+full-flight, full-AI or full-shadow conformance credit.
 
 ## 8. Conformance tests
 
@@ -1178,3 +1235,209 @@ control, lifecycle, weapon and message summaries do **not** close those owner co
     1. Repeat while inactive: no stop requests. Independently clear the enable
     byte or set phase 0: same inactive demand. For every both-present case,
     including those demanding inactive effects, continue to geometry work.
+28. Apply the §3.4.1a non-finite limiter/time cases separately from the full
+    flight tick. Compare finite components and NaN/infinity classification;
+    do not require a particular NaN payload or assert a finite final position.
+29. Clearance: provide twenty samples, original Y=10, only sample 2 at height
+    26, the rest ≤10. Expect score 0.5. Make sample 2 accepted with auxiliary
+    height 26 and GetAltitude 100: still 0.5. Reject it: score 90/32=2.8125.
+30. Selection: weights [1,3], draw exactly 1 choose index 1. All-zero weights
+    use the uniform integer draw. An odd endpoint count invokes owner +0x34(0)
+    without supplying new outputs. Test both values of the final direction flag.
+31. Use §4.4's FIRE no-fire/ammo and LAND dispatch cases, recording ordered
+    Push/Pop/dispatch actions, not just the final stack top.
+32. Use §4.2.6's engine-flag 1/2 cases and home-completion snap/blend cases.
+    Check that home completion skips the four-step rotor frame that visit.
+33. Use §3.2.1's false-base airplane teardown and §4.2.7's duplicate-claim
+    helicopter teardown cases. Their base-call positions differ.
+34. Use §4.3.3's zero/absent airplane player-record refresh. Zero preserves a
+    gain until the AI reload callback; it is not a fresh player default.
+35. Use §4.5's two-helicopter enumeration counterexample. Until §9.6 is
+    observed, report the archive scan's actual subset, not a complete population.
+
+## 9. Residual native observations (AF2–AF6, AF11)
+
+These are the exact remaining evidence requests, rather than permission to
+fill gaps with conventional flight equations or guessed interfaces. No city
+runtime trace was taken in this round. The static pass establishes the rules
+above; it does not establish the remaining cross-service contracts below.
+An RE-side trace may record native state and service traffic; implementers
+receive only the resulting prose, numeric fixtures and input manifest.
+
+For each capture record executable/version, city/resource manifest, object
+class and source group, initial goal history, original milliseconds and the
+converted seconds, selected parameter records, and the x87 control word.
+Capture inputs before each named stage and outputs immediately after it;
+an end-of-frame position alone cannot distinguish the stages. A finite set
+of captures settles those cases, not every continuous control input.
+
+### 9.1 AF2: attitude, motion and environment corrections
+
+The unresolved fixed-wing boundary is lift-frame construction and angular
+update in `CalculateForces` (`0x004FE850`) / attitude helper `0x004FE050`,
+followed by environment corrections in `UpdatePhysics` (`0x00503CB0`) and
+`DetectCollisions` (`0x00501C30`). Observe old orientation and complete basis,
+roll/pitch/yaw/control fields, force vector, limited velocity, candidate
+velocity/position, each terrain/runway/collision query and response, corrected
+motion, and each phase request. Use level, banked and pitched flight; zero
+speed; phase 0/1 ground roll; airborne phases; and contact just below, at and
+above each returned surface. Include both obstacle-hit and no-hit results
+with the same incoming motion. This distinguishes a lift-axis rotation from
+a coefficient change and distinguishes projection from a positional clamp.
+
+For the rotor, capture R, C and the ten transforms before/after the four
+§4.2.6 stages, especially `YawPitchRollSlideReal` (`0x00538860`),
+`MoveXZReal` (`0x00539000`) and `MoveYReal` (`0x005348C0`), then collision
+correction (`0x0053AC50`). Required inputs: one control at a time at zero,
+each sign, each limit and just outside; engine off/spinning/full; phase
+0/1/5/6; climb/descent; terrain, water and building contact independently.
+Record the actual transforms and height-service results: their in-memory
+basis convention cannot be recovered from the four final owner fields alone.
+The ±890/250 overview remains a summary, not a complete angular law.
+
+Worked discrimination: give identical level-flight velocity and controls to
+two runs, changing only bank sign. Compare force immediately after
+CalculateForces, before collision/ground projection. A later ground-aligned
+velocity is insufficient evidence for either lift direction. For rotor
+motion use h=0 and h=0.1 with the same controls; distinguish immediate control
+clamping/phase transitions from integrated displacement.
+
+### 9.2 AF3: continuous steering and remaining goal branches
+
+Runway scoring, approach placement, search geometry, LOITER, chase gates,
+reset/hover/building lift, and the §4.4 goal cases have static rules.
+Still required: control outputs and completion predicates of airplane
+ApproachAltitude (`0x004FD8A0`), Stop (`0x004FDCF0`), Turn (`0x005004A0`),
+FollowRay (`0x00500680`), Taxi (`0x00500980`), FollowVectorAndTurn
+(`0x00500D50`), TakeOff (`0x00502850`), GotoDestination (`0x00502BC0`) and
+Land (`0x00503030`); helicopter MoveXZ (`0x005368B0`), and goal 0x36/0x37/
+0x38 claim/crime/rescue branches (`0x0053BE73–0x0053C43C`).
+
+Observe the complete goal stack before/after, requested target/ray, signed
+heading/cross-track/height errors, speed, control demands and helper return
+values. Sweep both signs and equality at each reached branch threshold;
+record branches actually reached, not a guessed degree/radian threshold.
+For helicopter claims supply empty, matching and duplicate-claim lists and
+record city/crime/rescue provider success and failure, selected target and
+claim insertion/removal before Push/Pop. For airplane landing/takeoff include
+empty/odd runway lists, zero-length pairs, both runway flags, and each
+approach leg transition. Do not turn §3.3.2's owner-removal request into an
+invented successful runway selection.
+
+Worked discrimination: hold a taxi target fixed and use equal positive and
+negative heading errors at equal speed, then repeat at zero speed. Capture
+the actual rudder/throttle commands and completion boolean separately.
+A destination reached after several frames cannot identify that control law.
+
+### 9.3 AF4: lifecycle attachments and phase-trigger causes
+
+Constructor defaults, calibration identity, phase-setter sound actions,
+allocation ownership and both teardown orders are specified above. Remaining
+evidence is the helicopter's other constructor fields; full effect attachment
+creation; all Init/PhysicsInit substep order beyond §4.1.1; and collision/
+physics causes of phase changes. The Init pseudocode exports fail for both
+owners; this answer does not infer their missing instructions from the
+successful Read/Shutdown paths.
+
+Capture constructor → Read (separate loaded/unloaded runs) → Init entry →
+base Init → model/socket and named-effect creation → InitInstance/parameter
+overlays → PhysicsInit → Init return. Record every allocation, retained
+reference, effect name/socket, model key and return boolean. Repeat with
+base Init false, each effect creation returning null, and a repeated Init.
+Observe ordinary ground departure, airborne arrival and collision, logging
+phase **requests** and ordered AEMS calls even when the requested phase equals
+the current phase. This separates request causes from setter side effects.
+
+Worked discrimination: fail only the spotlight's second effect allocation.
+Record whether Init succeeds, whether the first effect remains owned and
+whether Shutdown stops/releases it. The §4.3.2 both-present update gate alone
+cannot settle partial-attachment cleanup or Init's result.
+
+### 9.4 AF5: control translation, cadence and spotlight geometry
+
+Parameter refresh/scheduling and weapon success accounting are specified in
+§§4.3–4.3.3. Remaining boundaries are airplane translator `0x00501080`,
+helicopter translator `0x005399D0`, base command readiness, named-effect
+construction/projectile initialization and spotlight geometry after its
+activation gate (`0x00537C46–0x0053832B`).
+
+Capture each raw command code and analog magnitude, original/converted time,
+old/new controls, readiness byte, repeat timer, use count, active parameter
+record, named-effect request and success. Use idle, single axis ±1, reversal,
+simultaneous axes, hold/release/repress, zero time and a long capped frame.
+For weapons record the attached resource/model, position/orientation,
+velocity, target, ownership handoff and start/stop call sequence; a successful
+string lookup does not prove projectile setup. No fixed cooldown follows from
+the owner success counter alone.
+
+For spotlight capture both complete output transforms and terrain-query
+arguments/results, with target absent/stationary/moving, player vs AI,
+environment 1 vs another value, sloped terrain and changing helicopter yaw/
+height. Include an inactive pair: geometry still runs (§4.3.2). Capture prior
+aim/target fields as well as current inputs to reveal smoothing/history.
+
+Worked discrimination: hold weapon command across frames at times 0, 1, 2
+and around each observed readiness transition; record failures followed by
+success without changing input. Separately move a spotlight target laterally
+between two equal-time frames. Compare the requested transform before terrain
+projection and the final terrain-facing transform; their difference identifies
+projection rather than target smoothing.
+
+### 9.5 AF6: message envelope and external failure callbacks
+
+The exact owner dispatch requests, repeated-state gate, repulsor order and
+entry/exit parameter callbacks are in §§4.4/4.3.3. A complete aircraft-owned
+message-ID/subscription/payload table is not established here. Do not identify
+owner notification arguments `(7,s)` with a particular framework message ID
+or invent an aircraft DoMessage override from this call alone.
+
+Observe the receiver invoked by owner +0x198(7,s), including full envelope,
+sender/target references, delivery timing and nested callbacks, for 3→5,
+5→6, 6→0, repeated 5 and missing listener. Also observe runway failure,
+home-occupant removal, fire query failure, chase target removal and a lost
+crime/rescue claim during pursuit. Capture goal/dispatch transitions on both
+sides of the external callback and reference releases. These observations
+settle whether an external failure removes, retries, lands or merely returns;
+the normal-success dispatch table cannot answer that by itself.
+
+Worked discrimination: on helicopter 3→5 with 0x36 in the stack, log the
+repulsor request, stored dispatch value seen inside the notification receiver,
+and any nested goal changes. Repeating 5 must produce no owner notification;
+any observed message then belongs to another source and needs its own cause.
+
+### 9.6 AF11: complete population and independent fixture history
+
+Required native observation: an RE-side lifetime log beginning before city
+aircraft initialization, recording **every** successful manager registration
+and removal, class identity and stable observer ID. At a paused frame boundary,
+reconcile that live set against manager count and the archive's emitted set;
+list explicitly which helicopters Write omits and why. City load, ordinary
+spawning, dispatch and player takeover must all be included. A late-start log
+or a union of selected tracked groups cannot establish completeness.
+
+For one successfully initialized city helicopter, record its actual script
+group definition, parent chain, named `helicopter` and `playerdrive` inputs,
+explicit exemplar/model key and creation flags/priority. Repeat creation using
+that **recorded** manifest and the §4.5 signature in the same city/resource
+state; obtain identical constructor/Init inputs before accepting it as a
+deterministic scenario. No concrete group ID, exemplar or scenario is supplied
+by this round. Record manager registration, ownership, successful QI refs,
+normal Remove/Shutdown, manager removal and final Release. Until that trace
+establishes cleanup order, a private uninitialized COM object remains only a
+metadata fixture and must not be treated as a spawned helicopter.
+
+Expected home must come from the independently recorded initial placement or
+the **input** serialized home triple, plus the Read/Init ordering. Expected
+goals must come from the input serialized stack and ordered external commands,
+controller actions, elapsed times, service responses and random draws through
+each transition. Capture those inputs when they occur; reading the resulting
+native home or stack and copying it into the expected owner is circular.
+Capture inherited goal records using the documented serialized formats,
+including controller identities and version-dependent fields (§4.5), rather
+than assuming a fixed-size raw object copy.
+
+Worked discrimination: a post-Read helicopter with saved home (10,20,30) and
+an already-active goal must be reconstructed from that input record and its
+subsequent commands. A fresh owner at zero/home phase 0 seeded with the
+native output stack does not test Read, goal progression or independent
+reconstruction, even if every final field agrees.
