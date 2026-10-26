@@ -197,7 +197,7 @@ impl FileBrowser {
             f.release(buffer);
             return Ok(false);
         }
-        if let Some(strip) = f.icon_strip(0xa896_3eea) {
+        let drawing = if let Some(strip) = f.icon_strip(0xa896_3eea) {
             if f.lock_buffer(buffer, 0x8010) {
                 let left = (index as i32).wrapping_mul(18);
                 f.copy_buffer(buffer, strip, [left, 0, left.wrapping_add(18), 17], [0, 0, 18, 17]);
@@ -205,13 +205,16 @@ impl FileBrowser {
             }
             let key = f.convert_rgb(self.window(), [255, 0, 255]);
             f.set_color_key(buffer, key);
-        } else if let Err(error) = self.draw_default_icon(index, Some(buffer), [0, 0, 18, 17], f) {
-            f.release(buffer);
-            return Err(error);
-        }
+            Ok(())
+        } else {
+            self.draw_default_icon(index, Some(buffer), [0, 0, 18, 17], f)
+                .map(|_| ())
+        };
+        // §8.3 always installs/releases after drawing. Unsupported geometry is
+        // an owner diagnostic, not the procedural routine's Boolean result.
         self.set_icon(index, Some(buffer), f);
         f.release(buffer);
-        Ok(true)
+        drawing.map(|()| true)
     }
 
     /// FB-C20 is independent of the unsettled nonnull glyph recipe.
