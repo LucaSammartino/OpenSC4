@@ -1,9 +1,37 @@
 # budget-window: answered questions (archive)
 
+<!-- from: re-budget-window-bw22 (2026-10-24), narrowed remainder of BW17 -->
+- **BW23 - budget-window-bodies.md §5 individual values and saved floats:** specify per-service public queries and exact float/integer operation order in updateIndividualBudget (`0x00785740`), including the two funding floats stored in each +0x44 restore record, visible-control reuse and final cleanup. Reconcile the malformed initializer continuation `0x00786F62` and rebuild=true call at `0x007875C5`. §5 already settles list ordering, record layout/references and rebuild=false preservation.
+
+  **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — companion §§5.3–5.4 specify the five public service-query paths,
+  binary32 saved percentages, separate staff/vehicle conversions with binary64 +0.5, signed32 annual wrap,
+  visible-control/property reuse, stale-control limits and reference cleanup. The apparent `00786F62`
+  method is an interior decode; real setup continues through `007875C5` and refreshes with rebuild=true.
+  Worked cases distinguish two rounded costs from one, all-occupant snapshots from visible rows, and
+  setup enumeration from the second enumeration supplying the actual snapshot.
+
 <!-- from: core-budgetwindow-ownership4 (2026-10-22); narrowed by re-budget-window-bw22 -->
 - **BW17 - sections 1, 4, 4.1, 5.2, 5.6 and 8 whole-owner inventory / omitted bodies:** please publish the full method/slot inventory for `cSC4SubBudgetWindow` and the owned budget-panel paths, and the non-layout algorithms still omitted: ordinance enumeration/filtering, A/B counts and row-map construction in `initOrdinanceBudget`; proposed-deal enumeration, section/count rules and `+0x50` selection edits in `initNeighborBudget`/combo handling; occupant enumeration and the exact creation/ownership of `+0x44` individual restore records; all four per-mode refreshes (including group row reuse on scroll), empty/popup window creation and failure reference rules, and the panel loan-display/balance-sheet bodies. Which public external interface calls and arguments supply their raw inputs? [unimplemented: existing same-class populate/refresh host callbacks remain explicit gaps, not core coverage; no native own-class result may count as an external input. BW14/BW15 ownership and BW16 visibility are implemented from their settled text; the documented BW13 null-content divergence is retained. No whole-owner completion claimed.]
 
   **ANSWERED 2026-10-24 (re-budget-window-bw22):** DIFFERS — partial closure, with remaining paths split into BW22–BW25, not a whole-owner proof. Companion §1 gives the method inventory; §2 now adds period scale (zero→1, any nonzero→12), ordinance refresh, positional edit/map reuse, signed B formatting and vectors. Existing §3 settles six neighbour scans/counts/edits; §5 settles occupant enumeration and +0x44 record acquisition/references, leaving per-service float production BW23; §6 proves the bounded group-A slice, leaving BW24. Panel balance-sheet/formatting/loan bodies are §4.2–§4.3 and §8–§10, with their summary gaps still BW18. BW22 covers neighbour remainder; BW25 covers setup/property/popup/widget ownership. No same-owner populated row/refresh result becomes an external input through this split. Main §8 and companion §7 carry this boundary.
+
+  **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — the duplicate open parent was stale. Companion §12 now maps
+  every requested part to settled rules and its outstanding child question, and lists public raw-input calls
+  with worked balance-sheet and loan cases. BW18's former panel summaries are already settled in §11; no
+  omitted cSC4BudgetUIWinProc body remains under BW17. New §§1.2–1.3 settle non-owning occupant properties,
+  segment ownership, setup-tail generator references, and empty-window construction including the second
+  factory's null-output fault. BW22–BW25 still cover static sub-budget body gaps; no runtime observation can
+  replace those algorithms. This remains a partial parent closure, not whole-cSC4SubBudgetWindow completion
+  or acceptance of same-owner result callbacks as external inputs.
+
+  **ANSWERED 2026-10-26 (re-bw30, resumed):** DIFFERS — BW23 is now settled in companion §§5.3–5.4,
+  including all five service branches, saved floats, arithmetic, reuse, cleanup and the corrected initializer
+  continuation. Section 3.3 also settles BW22's unused metadata and counted enumeration-list releases.
+  BW22 rendering, BW24 and BW25 remain static gaps; the parent remains partial. The final round adds
+  companion §3.4: set_comboBox resource/property and maximum-amount inputs, deal writes, exact option
+  loops, signed/unsigned tests, float formatting, selection and failure references, with worked cases.
+  It also corrects slot 24 from selection to removal of item 0 in §3.2. BW22 now retains only the
+  surrounding neighbour refresh/control reuse, section/row amount formatting and cleanup audit.
 
 <!-- from: re-budget-window-bw22 (2026-10-24); BW21 supplied in lane brief, absent from open file at this base. -->
 - **BW21 — constructor ABI, allocation, nonmodal population and observation:** settle the constructor arguments, matching allocation/free service, the minimum lifecycle computing group rows/totals/strings without a modal window, and the exposed state.
@@ -110,3 +138,13 @@
   ties to the limit, 32-bit; zero room gives `(0, 0)` and Accept off. §11.4 gives the row cells, the payment total
   and the scroll-button tests. The list redraw drops the bond-limit cap *[quirk]*. §11.5 identifies `DoMessage`'s
   dirty byte with slot 8's `+0x19E`.
+
+<!-- from: re-budgetwindow-answers4 (2026-10-21); narrowed by re-bw30 -->
+- ~~**BW11 - section 4.0 Alt+Enter / Alt+F4 delivery (runtime):** statically, modifier bit `0x4` is Alt (`GetKeyState(VK_MENU)` in `FUN_0098B6E0`) and `WM_SYSKEYDOWN` reaches the same type-5 builder as `WM_KEYDOWN`, so the dialog closes on Alt+Enter / Alt+F4. In the running game, with a sub-budget dialog open: does Alt+Enter close it (and nothing else happen), and does Alt+F4 close only the dialog or also start the application quit (`cSC4App::RequestQuit`) or a system close? [open: needs a game run; the translator's hook loop at `0x0098D2B6` and keyboard accelerators were not traced]~~
+  **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — §4.0 now distinguishes delivered type-5 behavior from live
+  input routing. Hooks receive an explicit consumed out-byte; only that byte stops traversal. Unconsumed
+  system key-down calls the builder and returns 0 without default-window processing, even when the builder
+  suppresses input. The dialog close body itself neither switches display mode nor requests quit. A separate
+  WM_CLOSE submits type 10. The remaining runtime observation is specified in §4.0: separate fresh-dialog
+  Alt+Enter/Alt+F4 trials, display/popup state, visible close/quit effects, and ordered hook/type-5/system-close
+  plus RequestQuit entry observations. No in-game verdict is asserted; the runtime part is narrowed, not measured.

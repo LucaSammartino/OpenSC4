@@ -44,14 +44,14 @@ the already identified unlabelled owner helpers. An address is a native body, no
 |---|---|---|
 | constructor; CreateSubBudgetWindow; DestroySubBudgetWindow | `007862B0`; `00779E50`; `0077A1A0` | Existing lifecycle |
 | on_init; on_shutdown; DoWinMsg; on_button_activated | `007876B0`; `0077E440`; `0078BCA0`; `0078B120` | Existing routing; delegated bodies must use rules below |
-| set/get_window_indiv_item | `007795A0`; `00779600` | Existing property contract; setter reference rules still need audit |
-| add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | Widget creation/options; set_comboBox is owner logic, not a row provider |
+| set/get_window_indiv_item | `007795A0`; `00779600` | Property payload and caller-side references §1.2; generic window replacement remains an external operation |
+| add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | set_comboBox options/inputs/writes §3.4; widget factories remain BW25 |
 | add_Bitmap; add_image_button1/2 | `0077A250`; `0077B7B0`; `0077B960` | Presentation/factory helpers; failure/ref rules not yet fully specified |
-| GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation; not a budget data provider; full failure/reference contract BW25 |
-| SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Setup/failure body gaps |
+| GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation and failure/reference rules §1.3 |
+| SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Bounded setup/empty-window ownership §1.3; other widget/popup failures remain BW25 |
 | init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population, scale and refresh; widget failure contracts remain BW25 |
 | init/updateNeighborBudget | `0077E600`; `00781C90` | Section 3; remaining rendering/refresh audit recorded below |
-| init/updateIndividualBudget | `00786690`; `00785740` | Section 5 enumeration, restore acquisition and viewport; service-query arithmetic remains open |
+| init/updateIndividualBudget | `00786690`; `00785740` | Section 5 enumeration, service arithmetic, restore acquisition, viewport and control reuse |
 | UpdateValues | `007898A0` | Section 6 raw providers and A traversal/reuse slice; B and slider rebuilding remain open |
 | RestoreStartSettings; SetOccupantFundingLevel | `0077C5E0`; `0077BC90` | Existing sections 5.1/5.5 |
 | DoIndividualBudgetWindow; end_dialog | `00786530`; `00779850` | Existing nested-dialog and modal/modeless contracts |
@@ -86,6 +86,96 @@ Thus this is an exact exported method/slot inventory with explicitly unclassifie
 that every address in the region is an independent C++ member or that either owner is complete.
 Section 5 now classifies `0077ACA0`, `0077D8C0` and `0077C480` from that support list as restore-record
 copy, grow/append and release/free helpers respectively; the other listed support candidates remain open.
+
+### 1.2 Individual-row property: payload and caller ownership *[compat]* (BW17)
+
+`set_window_indiv_item(parent, childID, occupant)` finds the child with window slot 35/+0x8C. A missing child
+returns immediately, without allocation or any reference change. Otherwise allocate a 20-byte property,
+initialize its type to **0x0F**, and pass it to child slot 114/+0x1C8 with property ID `0x4BFEE088`. Allocation
+failure still calls that slot, with a null property. The setter does not query/release the old property, inspect
+the assignment's return, or release the new property after submission (`0x007795A0`–`0x007795FB`). It is the
+generic window property operation, not this owner, that receives responsibility for replacement/storage.
+
+The constructor `0x00915CB7`–`0x00915CDB` stores the supplied occupant pointer verbatim and sets type 0x0F;
+it makes **no occupant AddRef**. This is the pointer-valued type, not the counted-unknown type 0x10. Variant
+destruction releases a pointed-to unknown only for type 0x10 (`0x00914EBF`–`0x00914ED1`); a 0x0F property
+therefore does not release its occupant when replaced/destroyed. The property's own reference count is
+separate: AddRef increments its 16-bit count, and Release destroys it at count ≤ 1
+(`0x00914E78`–`0x00914EA2`). Do not copy the counted-occupant rule of the +0x44 restore vector into this
+property. In particular, replacing the occupant property must not consume the old occupant's restore reference.
+
+The getter's existing rule is confirmed at `0x00779600`–`0x0077965A`: missing child or failed property lookup
+returns null; a successful lookup tests type 0x0F, reads property slot 51/+0xCC only for that type, releases the
+lookup's property reference even for another type, and returns the occupant without AddRef.
+
+Worked case: a row property initially contains occupant P, and a new call supplies Q. The owner creates a
+type-0x0F property holding Q and submits it under `0x4BFEE088`; its own call trace contains no P/Q AddRef or
+Release. A successful getter returns Q, with one Release of the lookup's property reference and no Q AddRef.
+If property allocation fails, the submission is `(0x4BFEE088, null)`, not a silent retention of the old property
+by skipping the call. Whether a particular generic window rejects that submission is outside this setter;
+its return is ignored. The independent +0x44 snapshot still retains its original occupant until cleared.
+
+### 1.3 Resource segments and bounded setup/empty-window ownership *[compat]* (BW17)
+
+**GetBudgetSegment** takes a resource instance, x, y and parent. Load buffer resource
+`(type=0x856DDBAC, group=0x46A006B0, instance)`, inspect its rectangle through buffer slot 12/+0x30, allocate
+0xFC bytes and construct a bitmap window. Take one temporary bitmap-window reference; set its rectangle to
+`(x, y, x + resourceRight, y + resourceBottom)`, wrapping in 32 bits. The resource's left/top do not get
+subtracted. Set the bitmap interface's buffer, call its slot 11/+0x2C with `(6,1)`, obtain its window through
+slot 3/+0x0C and clear flag 0x800. Add the bitmap as a child of parent, release the temporary bitmap reference,
+destroy the temporary resource-buffer wrapper, and return **resourceBottom**, not a row or a budget value
+(`0x0077A390`–`0x0077A479`). The parent child reference is separate from the released temporary. Neither the
+resource dereference nor the post-allocation bitmap AddRef has a null guard: a missing buffer or failed
+bitmap allocation is a native fault, not a successful zero-height segment.
+
+Worked segment case: resource rectangle `(7,9,300,20)`, x=4, y=50 produces window rectangle
+`(4,50,304,70)` and returns 20. Returning 11 as a computed height would change subsequent setup positions.
+
+**Final setup generator:** after building segments and resizing/centring the supplied dialog and content,
+SetupWindow, SetupWindowBig and SetupWindowIndiv each request class `0x4386D516`, IID `0x5386D516`, into a
+fresh null generator temporary. On success call that generator's slot 25/+0x64 with
+`(width >> 1, height >> 1, width >> 1, height >> 1)`; both shifts are **unsigned** one-bit shifts of owner
++0x84/+0x80. Release a non-null generator out-pointer on both the true and false factory-result paths. This
+tail stores no generator/window in the owner and does not ChildAdd its result
+(`0x0077A678`–`0x0077A6E3`, `0x0077A8E8`–`0x0077A953`, `0x0077AAC8`–`0x0077AB33`). Earlier segment
+insertions and resizing are not rolled back on failure. This tail cannot be used to infer that a generator
+procedure setter has taken a reference: there is no procedure-setter call here.
+
+**SetEmptyWindow(parent, title, body):** its first factory uses the same class/IID. A false result skips the
+entire body and releases a non-null temporary out-pointer. Existing owner +0x14/+0x18 and children are left
+alone. On success, generator slot 3/+0x0C supplies the window for +0x14. Reference replacement compares
+pointers first; if different, AddRef the non-null new window, store it, then Release the non-null old window.
+Configure that generator's flags in order: 1=false, 2=false, 0x10000=false, 0x20=false, 0x40=false,
+0x1000=true, 0x2000=true, 0x4000=true. On the +0x14 window, clear flags 0x10000 and 0x200000, set 0x800,
+raise it (slot 23), clear 0x800, set ID `0x0423278D`, then parent.ChildAdd(+0x14)
+(`0x0077BEE6`–`0x0077C008`).
+
+Next request another generic generator, into a distinct fresh null temporary. On true, replace +0x18 with
+its slot-3 window using the same compare/AddRef/store/Release order. Set the same generator flags as above;
+set window flags 0x100, 0x10000, 0x20000 true, 0x800 false, 4 true; ID `0x0423278F`; +0x14.ChildAdd(+0x18)
+(`0x0077C029`–`0x0077C169`). Crucially, a **false second factory result does not exit**: it skips only that
+replacement/configuration block. The following buffer assignment dereferences the second generator
+unconditionally (`0x0077C18D`–`0x0077C196`). If its out-pointer is null, this is a native fault after the
+first window has already been retained and added; the normal releases below are not reached. If the false
+result supplies a non-null out-pointer, the native continues using that generator and the old +0x18; there
+is no general rollback/success guarantee for that inconsistent provider response.
+
+On the normal two-success path, load empty-window buffer instance `0x144161E4` in the segment resource
+type/group and pass it to the second generator slot 13/+0x34 with selector 2. Size +0x14 and +0x18 to
+300×100, move both to (0,0), size/centre the supplied parent window, create title/body controls
+`0x0ABCE000`/`0x0ABCE001` in +0x18, and background/close buttons rooted at IDs 0x385/0xCC in +0x14.
+The title/body are the supplied strings; this helper does not enumerate any budget inputs. It later finds
+0x385 and 0x485 and resizes them, and sets notification targets on 0x385 and 0xCC to parent. These lookups
+are unchecked; failure to create a required widget does not turn this routine into a clean false return
+(`0x0077C16E`–`0x0077C342`). Normal cleanup destroys the temporary buffer wrapper, releases the second
+generator if non-null, then the first generator if non-null, leaving the independently retained owner windows
+and parent-child references (`0x0077C348`–`0x0077C374`).
+
+Worked failure cases: (1) first factory returns false and non-null G: Release(G) once, no child insertion,
+both stored windows unchanged; (2) first factory succeeds, second returns false/null: +0x14 has been replaced
+and inserted, +0x18 remains unchanged, and the buffer-assignment dereference faults before either normal
+generator release. Do not record the latter as a successful empty dialog or as balanced teardown. The existing
+BW13 safe divergence for a missing **content** window does not establish a safe divergence for this fault.
 
 ## 2. Ordinance population (`initOrdinanceBudget`, `0x0077C660`)
 
@@ -225,8 +315,8 @@ The append acquires a temporary +1 and an element +1, then drops the temporary; 
 copies retained elements with AddRef and releases the old retained elements. Example byte sites:
 `0x0077E7AD`–`0x0077E8CC`, temporary release `0x0077E9EE`–`0x0077E9F8`. Do not use the export's SliderInfo
 template name to infer the semantic contents: here the pair's first word is deal type, not a slider ID.
-FindDeals itself AddRefs each matching pointer before adding it to the output list (`0x006D0797`); the full
-balance of the temporary list's returned references remains an explicit audit item, not an assumed borrowed list.
+FindDeals itself AddRefs each matching pointer before adding it to the output list (`0x006D0797`);
+§3.3 specifies the matching list clear/release, separate from the retained vector.
 
 Only if flags (deal slot 36, +0x90) contain bit 1 (`flags & 2`) does the initializer add slot 22 (+0x58,
 signed 64-bit monthly value) to that type's total, copy slot 10's dword into slot 13, copy slot 16's dword into
@@ -251,8 +341,8 @@ deal rows after the header. Three one-deal A sections give six rows, not three.
 ### 3.2 Combo-row ownership and selection edits
 
 Each displayed combo row is an owner-built 24-byte record in +0x50..+0x54: its first word is the combo
-control ID; +0x10 is a retained deal interface. The +8/+12 words are row/presentation metadata whose exact
-values still need the bounded refresh/options audit. The append helper `0x0077E5A0` copies +0, +8, +12
+control ID; +0x10 is a retained deal interface. The +8/+12 words are copied stack residue (§3.3), not
+defined row/presentation values. The append helper `0x0077E5A0` copies +0, +8, +12
 and +16; it does not initialize +4 or +20 in its spare-capacity path. It
 AddRefs +0x10, then advances by 24. Row construction first takes a temporary deal reference
 (`0x0077F823`–`0x0077F850`) and later releases it. Erase helper `0x0077C3C0` releases the pointer at
@@ -266,9 +356,9 @@ temporary combo interface afterward. A failed QI makes no edit for that row. The
 before QI. After traversal, always call updateNeighborBudget once and return 0
 (`0x0078BD6B`–`0x0078BDFB`, `0x0078BFF2`–`0x0078C064`).
 
-Selection 0: if deal flags bit 1 is clear, do nothing. If set, call deal slot 34 (+0x88), set combo selection
-0 (slot 24/+0x60), replace its displayed item text through slot 27/+0x6C using LTEXT
-`0x6A3FF01C:0xCA5793C0`, then notify through combo slot 28/+0x70 with (0,1) and deal slot 37/+0x94
+Selection 0: if deal flags bit 1 is clear, do nothing. If set, call deal slot 34 (+0x88), remove combo item
+0 (slot 24/+0x60), insert replacement item 0 through slot 27/+0x6C using LTEXT
+`0x6A3FF01C:0xCA5793C0`, then select through combo slot 28/+0x70 with (0,1) and call deal slot 37/+0x94
 with (1,1) (`0x0078BDFD`–`0x0078BE85`).
 
 Nonzero selection S: first, if deal slot 39/+0x9C with mask 0x100 returns true, make no edit. Otherwise read
@@ -276,9 +366,9 @@ flags; when bit 1 is clear call deal slot 35/+0x8C first. Define the raw 32-bit 
 18/+0x48, I=slot 16/+0x40, A=slot 10/+0x28; avoid guessing their semantic names from folded symbols.
 Read M first. If M != 0, compare the **low 32 bits** of I*S to A, unsigned. When that product exceeds A,
 compute k = trunc_signed(A/M) - trunc_signed(A/I) + S (32-bit differences/sum), call slot 11/+0x2C with
-the low 32 bits of M*k, set combo selection 0, display LTEXT `0x6A3FF01C:0x2A5794A0`, then call
+the low 32 bits of M*k, remove combo item 0 and insert LTEXT `0x6A3FF01C:0x2A5794A0` at item 0, then call
 slot 17/+0x44 with a fresh M read. If M == 0 or the product does not exceed A, call slot 11 with low32(I*S),
-set combo selection 0 and display the same LTEXT. The special path reads A separately for each division,
+remove combo item 0 and insert the same LTEXT at item 0. The special path reads A separately for each division,
 I separately for the divisor, then M again for its product; do not collapse public calls if inputs can change.
 The ordinary path rereads I for its product; the special path also rereads M for its first divisor.
 The signed IDIV and unsigned product comparison are intentional (`0x0078BE90`–`0x0078BFDA`).
@@ -290,6 +380,124 @@ absent from the named vtable query's results, so slot names above are behavioral
 names from folded getters. For example slot 10's `0x00A6CAB0` reads +0x34, slot 16's `0x0080BC00` reads
 +0x38, slot 15's `0x006CE250` and slot 13's `0x007B62D0` are distinct setters, and slot 22's `0x006CE110`
 returns +0x50/+0x54 as two words. The initializer must make the public calls, not inspect those object fields.
+
+### 3.3 Bounded neighbour record/list audit (BW22, partial)
+
+The six type enumerations reuse the same counted list at owner +0x130. Before each next enumeration,
+clear it with `00421660`; that helper walks forward, Releases each non-null node's interface at node+8,
+frees the node and reconnects the sentinel to itself (`00421670`–`004216DD`). The last scan is also
+cleared before testing for an empty dialog (`0077F44E`–`0077F455`). The first transition is
+`0077EA19`–`0077EA3A`. Thus each returned-list reference is dropped once; it does not survive as a
+second held-vector reference. The temporary per-result AddRef/Release and the vector's net +1 are
+separate. Worked case: one result in each scan leaves six held-vector references and an empty +0x130
+list after enumeration, not twelve held references.
+
+The live row-record construction stores its control ID and retained deal but never defines +8/+12.
+The extra seventh argument to set_comboBox is a pointer to that record; the callee does **not** read or
+write it. It removes seven arguments on return. Consequently the append after set_comboBox copies the
+old stack bits at +8/+12; they are not an amount, selected index, type, or external provider result.
+Sites: `0077FA85`, call/append `0077FB37`–`0077FB5C`; refresh call/append
+`00782D69`–`00782D8E`; the complete callee `0077DAB0`–`0077E403` has no use of that argument.
+Placeholder rows likewise initialize ID and pointer without a defined +8/+12 payload
+(`0077F823`–`0077F850`). Selection handling uses only ID and +0x10 (§3.2). A conformance test should
+vary these unused words and require identical edits/reference balance, not require one native stack
+residue value. Section 3.4 settles option generation; full neighbour rendering remains BW22.
+
+### 3.4 Neighbour combo options and deal writes (BW22, static option audit)
+
+`set_comboBox` (`0x0077DAB0`) takes, in order, the parent window, combo ID, deal type, deal interface,
+format selector, row state and the unused row-record pointer (§3.3). The format selectors are 0 for
+`0x4773FFE0/E1`, 1 for E2/E3 and 2 for E4/E5, in both initial and refresh calls. These are raw scalar
+arguments; the helper derives its own option amounts and writes to the deal. It does not request a
+prebuilt list from a host. The six initial call sites are `0077FB4C`, `007800A5`, `0078060C`, `00780C9C`,
+`007811FC`, `0078175C`; the refresh calls use the same format selectors.
+
+**Inputs and preparation.** Resource-manager global `0x00B43CA8`, slot 3/+0x0C, receives a three-word
+resource key, IID `0xA52160F5`, an out-pointer and trailing `(0,0)`. First request key
+`{0x6534284A,0x7A4A8458,0x6A469021}`, then `{0x6534284A,0xE7E2C2DB,0xC911E35B}`. The second query's
+true result permits resource slot 7/+0x1C and float property `0x09135482` through helper `005FD4F0`;
+the local default is binary32 1.0. The helper finds the property with holder slot 9, takes its value through
+property slot 5, then calls value slot 37/+0x94 with the float out-pointer (`005FD4F0`–`005FD520`).
+
+Find the combo recursively through parent slot 37/+0x94 with `(ID,0x412CE496,&combo)`. Acquire the
+neighbours simulator through city global `0x00B43CEC`, slot 62. Call deal slot 7 for its city, then simulator
+slot 36/+0x90 `(type,city)` for a floating maximum. Convert toward zero through `009EEF04` and use its
+low 32 bits as signed L. If L <= 0, replace it with deal slot 10/+0x28. Define base step D as signed
+division of L by 10, truncating toward zero (`0077DB9C`–`0077DBF8`).
+
+The first resource's slot 7 supplies a property holder, temporarily AddRef'd. Read the applicable dword
+property with helper `005FD450`, local default 0: E0/E1 use `0xEA46932C`, E2/E3 `0x6A469337`, E4/E5
+`0x8A46933D`. Its provider chain is holder slot 9, property slot 5, value slot 28/+0x70. Release the
+temporary holder before configuring the combo. Let P be that property's signed dword and H the signed
+maximum of D and P. The six-entry jump table is `0077E408`–`0077E41F`; reads/clamp are
+`0077DC02`–`0077DC7F`. No department, ordinance or populated budget-row provider participates.
+
+Call combo slot 3 to get its window and set window flag 2 true (window slot 68/+0x110), remove all combo
+strings (combo slot 26/+0x68), and write deal slot 19/+0x4C with 0. LTEXT below uses group `0x6A3FF01C`.
+Insertion uses combo slot 27/+0x6C `(text,-2)`, which appends; slot 28/+0x70 `(index,notify)` sets the
+selection. Slot 24/+0x60 removes an item; it does not select one. The combo interface table is `0x00AE2BE8`;
+its folded slot-30 getter reads the same selection word as slot 29 (`009CEDE1`–`009CEDFE`).
+
+**Row-state branches**, in native order (`0077DCA8`–`0077DF9E`):
+
+| Row state / condition | Leading item and deal operations | Initial selected index S / subsequent step H |
+|---|---|---|
+| 0 | Append `0xCA5793C0`; deal slot 17/+0x44 `(H)` | S=0; keep H |
+| 2 | Append `0xCA5793C1`; select `(0,0)`; clear window flag 2; release temporaries and return without amount options | No further step or amount writes |
+| Other, deal slot 39/+0x9C `(0x300)` returns true | Append `0x2A5794A0`; read slot 10 twice: first becomes H, second L; write slot 17 `(H)`, then slot 19 `(H)` | S=1 |
+| Other, that query returns false | Append `0x2A5794A0`; read I=deal slot 16/+0x40, then A=slot 10. If `(I==A and I>P)` or I==0, replace H with **D**, writing slot 17 `(D)`; otherwise H=I | If H != 0, read slot 10 again and S=trunc_signed(A/H) |
+
+In the last branch, if the replacement D is zero, append `0xCA5793C1` as an additional item, select
+`(0,0)`, clear window flag 2 and return. Do not remove the already appended `0x2A5794A0` or clamp D back
+to P. Initial E1 rows derive state 1 when flags bit 1 is set and bit 2 clear, otherwise 0; a matching
+`{cityID,E0}` in the owner's active scalar list overrides it to 2 (`0077FA9A`–`0077FB2F`). Other row-state
+construction and full refresh rendering remain outside this bounded audit.
+
+**Amount options.** First compare L with low32(H*S) **unsigned** and replace L with that product only if
+L is smaller. Then compare L with H **signed** and raise L to H if needed (`0077DF9E`–`0077DFBD`). Read
+deal slot 10 again. If it is zero, use the single-step case below. Otherwise read slot 16 again and divide
+L by that fresh I with signed truncating division. Compare the quotient with 15 **unsigned**; a quotient
+above 15, including a negative quotient interpreted unsigned, selects the two-stage case. No zero-divisor
+check surrounds this division (`0077DFC1`–`0077DFDD`).
+
+- Single-step case: append candidates H, 2H, 3H, … while the running signed32 candidate <= L. Additions
+  wrap at 32 bits; append only nonnegative candidates. The first comparison is also signed.
+- Two-stage case: set Q=trunc_signed(L/10), write deal slot 19 `(Q)`, and save Q for the second step.
+  First traverse H, 2H, … while candidate <= a **fresh deal slot-10 read at each comparison**, appending
+  nonnegative candidates. Then traverse Q, 2Q, … while candidate <= L; for each, read slot 10 again and
+  append only if candidate is greater than that result and nonnegative. Do not deduplicate or insert L
+  separately. This uses H through the current amount and Q above it (`0077DFE3`–`0077E28A`).
+
+Each candidate is rendered independently. Format 0 uses the resource string `0xAA579B3A` as a printf
+format with that signed32 amount; format 1 uses `0x6A579C00`. Format 2 converts the signed32 candidate
+to x87 integer, multiplies by the **binary32** property `0x09135482`, converts toward zero through
+`009EEF04`, and formats the low signed32 result with `%d` at `0x00A8281C`. There is no intermediate
+binary32 store of the product and no annual multiplier (`0077E06C`–`0077E0E6`, `0077E1B4`–`0077E234`,
+`0077E2EA`–`0077E36A`). Finally select `(S,0)`, ignoring that call's success; S is not recomputed for the
+two-stage list. Valid-provider tests must distinguish this saved index from a search for the edited amount.
+
+**References and invalid providers.** The normal return releases the queried combo and first resource;
+the temporary holder has already been released. The second resource out-pointer has no explicit Release
+in this helper. The first resource query's boolean is ignored; a null result faults at its later slot-7
+call. A false combo query jumps to `0077E3CF`, which unconditionally calls selection on the output pointer
+with an uninitialized S; a null output faults, rather than safely skipping the row. The ordinary cleanup
+is not reached on those faults. Calls/state are `0077DB8E`–`0077DB96`, `0077DC02`, `0077DC5E`–`0077DC75`,
+`0077DEE4`–`0077DF19`, `0077E3C2`–`0077E403`. Zero/negative steps can also produce division faults or
+nontermination; this rule does not invent a successful empty-option fallback for malformed inputs.
+
+**Worked cases** (stable accessor values, valid resources/controls, E4/E5 format 2 with factor 1.25):
+
+| Fixture | Required options/writes |
+|---|---|
+| State 0; maximum 95.9; P=20; current A=0 | L=95, D=9, H=20; slot19(0), slot17(20); leading `CA5793C0`, then amounts 20,40,60,80 rendered `25,50,75,100`; select `(0,0)` |
+| State 1; slot39(0x300)=false; maximum 100; P=1; I=5; A=40 | H=5, S=8, L=100; slot19(0), then slot19(10); first-stage amounts 5..40 by 5, then 50..100 by 10; 15 items including the leading item; select `(8,0)` |
+| Same fixture, I=10, A=40 | Quotient L/I=10 <=15; slot19 stays 0; amounts 10..100 by 10; S=4 |
+| State 1; slot39=false; maximum 9; P=10; I=A=0 | D=0 despite the earlier H=10; slot19(0), slot17(0); items `2A5794A0`, `CA5793C1`; select `(0,0)` and clear window flag 2; no amount options |
+| State 2 with the first fixture's raw values | Only `CA5793C1`; slot19(0), no slot17 write; select `(0,0)` and clear window flag 2 |
+
+For the two-stage fixture, changing an unused row-record word must change neither the option sequence nor
+these writes. These cases settle `set_comboBox`; BW22 remains open for the surrounding neighbour refresh,
+control reuse, section/row amount formatting and cleanup. No whole-owner completion follows from them.
 
 ## 4. Panel balance-sheet computation
 
@@ -439,7 +647,7 @@ that quota (`0x007858AF`–`0x007858EE`, `0x00785E6D`–`0x00785E85`). Thus a li
 The service-specific amount is a 32-bit integer. If +0x28 equals 1, multiply it by 12 retaining low32
 before sign-extending it into the two-word total. Every entry contributes, including off-screen entries;
 addition uses ADD/ADC (`0x00785E59`–`0x00785E69`, `0x007860E0`–`0x0078612A`). Service-specific raw
-query calls, rounding, and the initial amount itself remain unproved; this is an accumulation boundary,
+query calls, rounding, and the initial amount are specified in §5.3. These are owner computations,
 not permission to source computed rows or totals from the original owner.
 
 ### 5.2 Restore vector references and refresh distinction
@@ -450,7 +658,7 @@ append one 12-byte record: the original list occupant interface pointer, followe
 percentages used by RestoreStartSettings (main spec section 5.1). The pointer is not the result of the
 per-entry QI for `0x26BB767E`. The two working values start as positive-zero bit patterns each iteration;
 the service-kind branch can fill them before they are copied (`0x00785930`–`0x0078595A`,
-`0x00785DD5`–`0x00785E59`). Exact per-service production of those floats remains an audit item.
+`0x00785DD5`–`0x00785E59`). Their exact production is §5.3.
 
 The append takes a temporary AddRef, copies into the vector with another AddRef, then releases the
 temporary: one net retained occupant reference per record. The capacity-growth path has the same retained
@@ -465,6 +673,86 @@ QI is released separately at `0x007860FB`–`0x0078610B`; temporary list entries
 Discriminator: 12 returned occupants and rebuild=true produce 12 restore records at either offset 0 or 10.
 Another refresh with rebuild=false and a changed 11-entry list leaves those 12 saved records untouched.
 It recomputes the current count and total from the 11-entry list.
+
+### 5.3 Individual service values (BW23)
+
+For each original list entry, QI `0x26BB767E` into a temporary occupant interface O. The amount M and
+saved percentages F0/F1 start at integer zero and positive binary32 zero **each iteration**. A null O
+skips service calls. The service text string starts empty once per refresh; a branch which does not
+replace it leaves the preceding entry's text, rather than manufacturing an empty successful query.
+Service pointers below are the public simulator interfaces, not same-owner callbacks.
+
+| Kind | Raw queries in order | Service text; M and saved percentages |
+|---|---|---|
+| Hospital `CA565486` | Residential (`00B43DA4`) slot 27/+0x6C `(O,&Q)`; on true, slot 28/+0x70 `(O,&capacity,&other)` | `%d/%d`: Q dword +0x24, then capacity. F0 = binary32(Q f32 +0x2C × 100.0f); F1 = binary32(Q f32 +0x34 × 100.0f). M is the low32 sum of the separately converted vehicle cost and staff cost below. False first query leaves M/F0/F1 zero. |
+| School `EA5654B6` | Same residential interface, slot 26/+0x68 `(O,&Q)`; on true slot 28 `(O,&capacity,&other)` | Same Q offsets, text and calculation as hospital. |
+| Police `0A567BAA` | Police (`00B43D98`) slot 25/+0x64 `(&efficiencyTemporary,O)` returning a pointer to f32; then slot 7/+0x1C `(O,&baseCost,&funding)` | Format the returned efficiency × 100.0f as `%2.0f%%` (pass an f64 to the formatter). F0 = binary32(funding × 100.0f); F1 stays zero. M = low32(trunc(baseCost_signed32 × funding_f32 + 0.5_f64)). |
+| Fire `EA567BC3` | Fire (`00B43D78`) slot 10/+0x28 `(&efficiencyTemporary,O)`; then slot 8/+0x20 `(O,&baseCost,&funding)` | Same efficiency formatting, funding storage and cost arithmetic as police. The funding query result is ignored in both branches; its output funding starts at +0.0f. |
+| Power `CA58E540` | Power (`00B43DA0`) slot 33/+0x84 `(O,&denominator,&numerator)`; slot 50/+0xC8 `(O,&funding)`; only on true slot 49/+0xC4 `(O,&baseCost64)` | Text is `%d/%d`, numerator then denominator. Both integer outputs start zero. False funding query leaves M/F0/F1 zero; on true save binary32(funding × 100.0f) as F0. Only if the final query succeeds set M = low32(trunc(baseCost_signed64 × funding_f32 + 0.5_f64)). F1 stays zero. |
+
+Hospital/school cost uses Q's documented funding/cost pairs: staff fraction +0x2C and unsigned32 cost
++0x30, vehicle fraction +0x34 and unsigned32 cost +0x38. Compute the **vehicle** product first, add
+binary64 0.5, truncate toward zero with `_ftol2`, keep low32; then do the same for staff and add low32.
+Unsigned costs are converted by signed FILD followed, for a high-bit-set word, by adding exactly
+4294967296.0f. Multiplication/addition remain in x87 precision until each integer conversion; there is
+no intervening binary32 store of a cost product. Only the saved percentages have binary32 stores.
+The constants are 100.0f at `00A80AA0`, 2^32 as f32 at `00A80AA8`, and 0.5 as f64 at `00A92D28`.
+Evidence: hospital `00785989`–`00785A7D`; police `00785A98`–`00785AF9`; power
+`00785AFE`–`00785BB8`; fire/common single cost `00785BDF`–`00785C55`; school
+`00785C5E`–`00785DB2`. These instructions, including operand widths, take precedence over the
+saved pseudocode's missing service branches and mislabelled `_ftol2` calls.
+
+M is multiplied by 12 with low32 wrap only when period +0x28 equals 1, **after** the individual
+rounded costs have been added. The resulting signed32 value contributes to the signed64 total for
+every list entry (§5.1). Percentages saved in +0x44 records are independent of this annual scaling.
+
+### 5.4 Individual control reuse and setup continuation (BW23)
+
+Refresh creates no row controls. Each drawn entry uses the next text triple starting at `0x0ABCDE06`,
+the next primary slider starting at `0x0ABCE400` and its secondary at primary+0x100, and the next
+image pair starting at `0x0ABCE200` (advance three text IDs, one primary ID, two image IDs per draw).
+Name QI `0x87DDA3A9`, slot 19/+0x4C `(&name)`, supplies the name; failed QI or false name query
+uses literal `Error: No name`. Release that interface immediately after the name call.
+If owner +0x138 is nonzero, budget slot 51/+0xCC `(originalListOccupant,+0x138,&temporary)` decides
+secondary-control visibility by its boolean return; its output integer starts zero and is not the test.
+The name text, primary slider and first image are shown; secondary slider and second image follow
+that boolean (`00785E8B`–`00785FB7`).
+
+Replace the non-owning occupant property on the name text and both sliders with the **original list
+pointer**, including the hidden secondary slider (§1.2). QI each primary slider for `0x21325207` and,
+on success, call slot 5/+0x14 with trunc(F0); do the same with F1 for the secondary slider whenever
++0x138 is nonzero, even if that slider is hidden. Failed slider QI skips that assignment. Release each
+temporary slider interface. Set the three captions to name, service text, and SC4MakeMoneyString of
+sign-extended scaled M (`00785FBC`–`007860DF`).
+
+If drawn < min(current count,9), hide the remaining text triples, slider pairs and image pairs through
+that quota, with redraw=false; do not erase their old occupant properties. In particular count=0 gives
+quota=0, so this loop alone does not hide controls created for an earlier nonempty list. Set the total
+caption at the current text-triple start+1, after advancing past each drawn or cleaned triple. Normal
+cleanup releases each per-entry occupant QI, every counted original list entry, then list nodes/sentinel
+and temporary strings (`007860FB`–`0078629E`). Restore-record references survive separately.
+
+The export's apparent function `00786F62` starts **inside** an instruction of `initIndividualBudget`.
+Read from the real boundary `00786F50`: the third zero store is at `00786F60`, allocation is at
+`00786F67`, and the first text helper call is `00786FC2`. There is no extra method, early return or
+service query at the bogus boundary. Direct decoding of the executable from `00786F50` establishes
+this continuation. After building the visible row widgets and arrows, setup calls
+updateIndividualBudget(window,true) at `007875C5`, sets byte +8 to 1, and releases its own enumeration
+list (`007875C0`–`00787613`). Thus setup's first snapshot/amounts come from the refresh's **second**
+enumeration, which may differ from the setup list used to allocate controls.
+
+Worked cases for BW23:
+
+- Hospital Q has staff cost=1, vehicle cost=1, both fractions=0.5f. F0=F1=50.0f; the two conversions
+  each give 1, so M=2 monthly, 24 annually. Rounding their combined product once would incorrectly
+  give 1 monthly. At staff fraction=0.75f, cost=100 and vehicle fraction=0.5f, cost=30, M=90;
+  saved floats are 75.0f/50.0f and annual M=1080.
+- With 12 identical such occupants at offset 10, rebuild=true saves 12 counted records and total=1080
+  monthly, while two rows are drawn. A later rebuild=false keeps that snapshot even if funding changes.
+- Police baseCost=-1 and funding=1.0f gives trunc(-1+0.5)=0, not -1; F0=100.0f, F1=0.0f. Power
+  funding success followed by cost-query failure saves its funding percentage but contributes zero.
+- Setup returning 10 occupants then refresh returning 8 produces eight saved records; the nine controls
+  allocated from setup are not evidence for a ninth restore record.
 
 ## 6. Group refresh (`UpdateValues`, `0x007898A0`), bounded A traversal proof
 
@@ -518,26 +806,29 @@ afterwards). An ordinal-only slice that resets p when it reaches the offset woul
 
 ## 7. Bounded remainder / completion boundary
 
-BW17 remains open, partially resolved by sections 1–6. Next bounded audits: (1) ordinance refresh, scale
-initialization and B money formatting; neighbour combo options/set_comboBox, the +8/+12 metadata words,
-temporary-list reference balance and updateNeighborBudget row reuse;
-(2) individual service-query calls, float/amount derivation, remaining individual control reuse, malformed
-initializer fragment `00786F62` and its true-rebuild call at `007875C5`; full group B refresh/slider rebuilding,
-A item rendering and final stale-row cleanup; (3) popup/empty/setup
-failure references and setup helpers. (The panel's loan, tax, formatting and balance-sheet rendering bodies are
-§4.2–§4.3 and §8–§11, re-budgetwin 2026-10-22 and re-budgetui7 2026-10-23; `cSC4BudgetUIWinProc` is now
-specified whole, and BW17's remaining audits concern `cSC4SubBudgetWindow` only.) The inventory
-BW17's broad request is archived with a partial-closure answer; it does **not** mean whole-owner completion.
-The remaining work is numbered separately in questions/budget-window.md: BW22 covers neighbour combo
-options/set_comboBox, +8/+12 metadata, temporary-list references and updateNeighborBudget; BW23 covers
-individual service-query calls, float/amount derivation (including the +0x44 saved floats), remaining
-control reuse and the malformed `00786F62` initializer continuation/`007875C5` rebuild call; BW24 covers
-group A item rendering, B refresh/slider rebuilding and final stale-row cleanup; BW25 covers
-property replacement, popup/empty/setup and widget failure references and unclassified helpers.
-The panel's loan, tax, formatting and balance-sheet rendering bodies are
-§4.2–§4.3 and §8–§10, re-budgetwin 2026-10-22; their summary parts remain BW18. The inventory
-above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
-owned references cannot be delegated as already computed results of these same owners.
+BW17 is archived with a **partial** answer, not a whole-sub-budget-owner proof. Section 12 is the crosswalk
+from the original request to settled rules and the still-open child questions. The duplicate parent entry in
+the open-question file was stale; removing it does not close those child questions.
+
+Ordinance refresh, scale initialization and B money formatting are settled in §2. The panel's loan, tax,
+formatting and balance-sheet rendering bodies are §4.2–§4.3 and §8–§11; BW18's former summary gaps are
+settled in §11. All remaining body audits below concern **cSC4SubBudgetWindow**, not an omitted method of
+cSC4BudgetUIWinProc:
+
+- BW22: neighbour refresh/control reuse, section/row amount formatting and cleanup; §§3.3–3.4 settle
+  unused +8/+12 stack residue, six counted-list releases and set_comboBox inputs/options/selection/writes.
+- BW23 is settled in §§5.3–5.4: individual service-query calls and float/amount derivation, control reuse, malformed
+  initializer continuation `00786F62` and rebuild=true call `007875C5`.
+- BW24: group A item rendering, B refresh/slider rebuilding and final stale-row cleanup.
+- BW25: remaining widget/popup failures, setup details and unclassified support helpers. Sections 1.2–1.3
+  now settle the property payload/caller behavior, GetBudgetSegment, the three setup tails and the bounded
+  empty-window success/failure references. They do not settle every widget factory or the generic window
+  generator's procedure-reference contract.
+
+No runtime observation is substituted for the missing static algorithms in BW22, BW24 and BW25. Layout alone may stay
+presentation; counts, selection, filtering, arithmetic and owned references cannot be delegated as already
+computed results of these same owners. The panel's specified status supplies no transitive implementation,
+native-run or whole-sub-budget-owner coverage credit.
 
 ## 8. Panel: construction, Init, notifications and the period buttons *[compat]*
 
@@ -752,3 +1043,56 @@ byte `+0x19E` when the panel is visible. That byte is the one `DoMessage` tests 
 runs on the `+0x0C` interface, so its `+0x192` is object `+0x19E` (`0x00768641`, `lea ecx,[esi−0xC]` before
 `UpdateBalanceSheetInfo`). The deleting destructor (slot 3, `0x00764CD0`) destroys the loan vector `+0x1C` and frees
 the object when its flag bit 0 is set.
+
+## 12. BW17 request crosswalk and raw-input boundary (2026-10-26)
+
+The vtables in §1 were rechecked against `0x00AB5494`, `0x00AB4A40`, `0x00AB4A2C` and `0x00AB4A1C`.
+The named-method export for cSC4BudgetUIWinProc agrees with the §1 inventory, including the three formerly
+unlabelled direct helpers. Inherited/folded methods and the +8/+12 thunks are part of that inventory; no
+extra panel instance is created for either secondary interface. The table below is a **specification** audit,
+not an assertion that an engine callback has been replaced or a native execution has passed.
+
+| Part requested by BW17 | Settled rule / worked discriminator | Explicit remaining boundary |
+|---|---|---|
+| Full owner method/slot inventory | §1 tables, main spec §1/§1.1; all four vtables above | Unlabelled sub-budget support helpers are listed, not silently counted as specified independent methods |
+| Ordinance enumeration, counts, A/B maps and refresh | §2, including separate on-state reads, classification independent of amount sign, positional edits and 1/12 period scale | Widget failures outside §1.3 remain BW25 |
+| Six neighbour scans, proposed deals, counts, selection edits and options | §3: provider order, section headers, one retained edit-target reference per +0x50 row, signed division/unsigned product tests; §§3.3–3.4 settle metadata, list releases and combo options | Surrounding neighbour rendering/reuse/cleanup BW22; no host-computed neighbour refresh accepted |
+| Occupants and +0x44 creation/ownership | §5: counted list; rebuild=true saves every current occupant, including off-screen ones; rebuild=false preserves old snapshot; service arithmetic and continuation §§5.3–5.4 | No host-produced restore records or service-computed row results accepted |
+| Four mode refreshes and row reuse | Ordinances §2 complete; neighbour edits §3, individual values/traversal/snapshot §5, group-A header/quota proof §6 | Remaining neighbour/group bodies BW22/BW24; the A proof does not specify B traversal |
+| Empty/popup/setup and failure references | Main spec §§4–6; new §1.2–§1.3 gives pointer property, segment ownership, setup tails and empty-window factory-failure sequence | Remaining widget factories, popup paths and unclassified helpers BW25 |
+| Panel balance sheet and loan display | §4 and §§8–11, including labels, period/tab split, all loan rows/limits and notifications | No remaining BW17/BW18 panel-body gap; sub-budget implementation/coverage is a separate dependency |
+
+**Public raw-input checklist.** These are external provider operations, followed by the owner's algorithms
+in the cited sections. They are not permission to read fields of the provider's concrete implementation.
+
+| Consumer | External inputs, by interface slot/arguments | Owner work that must stay local |
+|---|---|---|
+| Ordinance population/refresh | Ordinance simulator slots 11 count, 12 `(ID buffer,&count)`, 20 `(id)`; ordinance slots 5 amount, 22 income classification; simulator slot 8 `(id)` on-state (§2) | Enumerate/classify/count/map; preserve original/edited bytes; scale and format; refresh existing controls |
+| Neighbour population/edits/options | ProposeDeals once and six FindDeals calls, deal accessors in §3; simulator slot 36 `(type,deal city)`, resource/property queries §3.4; combo selection slot 30 after successful QI `0x412CE496` in the edit handler | Section counts and rows, retained deal targets, edits for every matching control ID, combo amounts/options/deal writes; surrounding refresh rendering remains BW22 |
+| Individual mode | Budget acquired through city slot 52; department/service/occupant queries in §5; per-entry QI `0x26BB767E` | Traverse/count, compute per-service values and captions, build/preserve counted +0x44 records and reuse controls (§§5.3–5.4) |
+| Group refresh | Budget slot 29 `(&groupVector)`, slot 31 `(chosen groupID,&departmentVector)`; department/item accessors and amounts in main §4.1 and §6 | Group fallback selection, two passes, quotas, visibility, scaled sums, control reuse, slider ownership; remaining B/body rules BW24 |
+| Panel balance computation | Budget slots 6, 16, 11, 14, 13, 18 `(tax type)`, 29 `(&groups)`, 45; ordinance queries as above; neighbour slots 32/33 (§4.1) | Sum/order, low-dword ordinance treatment, annual products, group dispatch/overwrite/retention; format/control mapping §§4.2–4.3 |
+| Panel taxes | Budget slot 36 `(tax type)`, slot 18 `(tax type)`; edit text/slider values; writes slot 37 `(tax type,rate)` (§9) | Tenths conversion/rounding, original-rate snapshot, parse fallback, totals and restore |
+| Panel loans | Budget slots 39 increment, 41 borrowed, 42 limit, 43 bond cap, 44 max count, 46 `(&loanVector)`, 47 duration, 48/49 `(amount)`; output slot 40 `(amount)` (§10, §11) | Limits, scrolling, rows, all-record payment total, appended LoanInfo and issuance of only newly appended records |
+
+Formatting consumes raw resource strings, graphics colours and window/control interfaces as described in
+§§4.2–4.3/8–11; none supplies a precomputed balance sheet. `CalculateValues`, `UpdateBalanceSheetInfo`,
+`UpdateLoanDisplay`, the four sub-budget refreshes, SetEmptyWindow and GetBudgetSegment are owner bodies,
+not external inputs. An adapter that returns their computed results leaves those bodies unimplemented.
+
+**Worked panel fixture for the engine lane.** Use stable providers so repeat accessor reads return the same
+values. For balance computation, let tax incomes for types 2,1,0 be 1,2,3; return one on ordinance whose full
+amount is `0x00000001_FFFFFFF9`; and return groups EACB/`0xEA357ECB` with expense 10 followed by
+EA95/`0xEA597195` with expense 20. Required fields after CalculateValues: +0x50=6, +0x58=72,
++0x90=7, +0x98=84, +0x130=20, +0x138=240. The high word of the ordinance amount does not make it income;
+the second group overwrites the first rather than being added. A second successful calculation with neither
+group retains +0x130/+0x138, while a missing-budget calculation clears the reset range (§4.1).
+
+For the loan body, set borrowed B=100, limit L=1000, bond cap C=200, increment=50, no amount added this
+session, and a maximum count above five. Opening sets slider range `(50,200)`. A direct UpdateLoanDisplay
+refresh sets `(50,900)`, preserving the documented loss of the bond cap. In yearly view, provide five loans
+with monthly payments 1,2,3,4,5 and distinct principals/remaining amounts. At scroll position 2, rows 0–2 show
+records 2–4; the fourth row's four cells are cleared, count=5, and the all-record total is 180, not the visible
+total 144. Up and down flag 1 are both true (2 is nonzero, 2 < 4, 5 > 4), even though the down-button handler's
+different `position < count−4` test will not advance from 2 (§10/§11.4). A callback containing only a prebuilt
+three-row display cannot reproduce the hidden-record contribution or the two different scroll tests.
