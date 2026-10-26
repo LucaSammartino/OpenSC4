@@ -50,13 +50,17 @@ inline std::string Command(uint32_t id) {
     if (!catalogued && SettingInt("ui_command_catalog", nullptr, 0) == 1) {
         catalogued = true;
         SC4Vector<uint32_t> ids;
-        if (server->EnumerateCommands(ids)) for (uint32_t command : ids) {
+        // SPEC-GAP: enumeration's return is unspecified; use only the filled IDs.
+        server->EnumerateCommands(ids);
+        for (uint32_t command : ids) {
             cRZBaseString commandName, parameters;
+            // [abi-ret] command-system.md section 5: false for unknown ID, true otherwise.
             if (server->GetCommandInfo(command, commandName, parameters))
                 Log("ui driver catalog id=%08x name=%s args=%s", command, commandName.ToChar(), parameters.ToChar());
         }
     }
     cRZBaseString name, info;
+    // [abi-ret] command-system.md section 5 specifies this boolean lookup result.
     const bool known = server->GetCommandInfo(id, name, info);
     cIGZCommandParameterSet* in = nullptr;
     cIGZCommandParameterSet* out = nullptr;
@@ -106,7 +110,11 @@ inline bool CellPixel(const harness::ScriptAction& a, int& x, int& y) {
                 point[0] >= 0 && point[0] <= 32767 && point[1] >= 0 && point[1] <= 32767) {
                 x = static_cast<int>(point[0]); y = static_cast<int>(point[1]);
                 auto* win = reinterpret_cast<cFC4IGZWin*>(view->AsIGZWin());
-                ok = win && win->WindowToScreenCoordinates(x, y);
+                if (win) {
+                    // widget-toolkit.md section 3.2: in/out coordinates, no return needed.
+                    win->WindowToScreenCoordinates(x, y);
+                    ok = true;
+                }
             }
         }
         FC4_RELEASE(view);
@@ -126,7 +134,8 @@ inline bool ControlPixel(uint32_t id, int& x, int& y) {
     bool ok = false;
     if (child && child->GetW() > 0 && child->GetH() > 0) {
         x = child->GetW() / 2; y = child->GetH() / 2;
-        ok = child->WindowToScreenCoordinates(x, y);
+        child->WindowToScreenCoordinates(x, y); // consume coordinates, not a leftover AL
+        ok = true;
     }
     FC4_RELEASE(sc4);
     return ok;
