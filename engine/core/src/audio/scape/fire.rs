@@ -6,7 +6,7 @@ pub trait Host {
     fn release(&mut self, p: u64);
     fn subscribe(&mut self, server: u64, owner: u64, message: u32, add: bool);
     fn create_scape(&mut self, scape: u64, name: &str, id: u32, flags: u32, radius: f32) -> bool;
-    fn add_sound(&mut self, scape: u64, group: u32, sound: u32, band: [u32; 2]);
+    fn add_sound(&mut self, scape: u64, group: u32, sound: u32, flag: u8, extra: u32, band: [u32; 2]);
     fn query(&mut self, p: u64, iid: u32) -> (bool, Option<u64>);
     fn call(&mut self, p: u64, offset: u32) -> u64;
     fn position(&mut self, p: u64, out: &mut [f32; 3]);
@@ -85,7 +85,7 @@ impl Owner {
                     (0x09DC_19A2, [10, 49]),
                     (0x09DC_1982, [50, 0x7FFF_FFFF]),
                 ] {
-                    h.add_sound(scape, 0x49E4_CE85, sound, band);
+                    h.add_sound(scape, 0x49E4_CE85, sound, 1, 0, band);
                 }
                 self.initialized = true;
                 true
@@ -215,7 +215,8 @@ mod tests {
             assert_eq!((n, id, f, r), ("Fires", 0x49E4_CE85, 0, 100.0));
             self.register
         }
-        fn add_sound(&mut self, _: u64, _: u32, s: u32, b: [u32; 2]) {
+        fn add_sound(&mut self, _: u64, _: u32, s: u32, flag: u8, extra: u32, b: [u32; 2]) {
+            assert_eq!((flag, extra), (1, 0));
             self.bands.push((s, b));
         }
         fn query(&mut self, _: u64, i: u32) -> (bool, Option<u64>) {
