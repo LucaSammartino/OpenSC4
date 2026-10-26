@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| trace-replay30: C ABI host record/replay (engine) | Codex; .claude/worktrees/trace-replay30; reserved branch trace-replay30 (detached HEAD) | wip; code d4c8b38ad, 6a0663dd6, d6f14bead; ABI adds 3 tooling exports, version unchanged; cargo 8081/8081, clippy 0, CTest 135/135; game trace-replay30-pilot-k1 clean, refs 0, shadow mismatch counters 0; questions none | 1. Retest shutdown flush in game. 2. Complete ten-city pilot and overhead control. 3. Coordinator coverage ingestion, remaining callback owners and exclusions inventory. |
+| trace-replay30: C ABI host record/replay (engine) | Codex; .claude/worktrees/trace-replay30; reserved branch trace-replay30 (detached HEAD) | continue (context guard); code d4c8b38ad, 6a0663dd6, d6f14bead; ABI adds 3 tooling exports, version unchanged; cargo 8081/8081, clippy 0, CTest 135/135; game trace-replay30-pilot-k1 clean, refs 0, shadow mismatch counters 0; questions none | 1. Retest shutdown flush in game. 2. Complete ten-city pilot and overhead control. 3. Coordinator coverage ingestion, remaining callback owners and exclusions inventory. |
 
 - Recorder: opt-in trace_record/trace_scenario; budget, power, pollution and nested grid callbacks; typed LE length-prefixed frames, SHA-256 storage and manifest.tsv. Code/format: engine/capi/TRACE.md.
 - Replayer: cargo binary fc4-replay, same shadow entry points/comparisons, strict callback sequence/argument checks, parallel unique traces; no live fallback on a miss.
@@ -16,3 +16,8 @@
 - Acceptance remaining: ten census cities (only one shortened city window so far), recording overhead versus control, post-flush real-game proof, reach-linked coverage ingestion and further owners/exclusion inventory. No strict suite-verified credit claimed.
 - No tools/coverage.py, coverage-map.tsv, specs or regress lists changed; no questions filed. No game request outstanding. The coordinator must perform coverage ingestion/enqueue; clean-room rules prohibit running tools/ scripts here.
 - Next: use the final engine/build-x86/FreeCity4.dll; enqueue a new shared-queue label and fresh trace directory for the Konradshohe window, confirm flushed=2 and three manifest keys, then replay all keys before expanding to ten cities.
+
+## Handoff
+- Goal: strict suite-verified replay credit for budget/power/pollution, then further callback hosts; incomplete. Code through d6f14bead and evidence handoff 0c64503e9 are committed; final all gate passed after the fix and the release binary is restored, source SHA above.
+- Exact next step: submit trace-replay30-pilot-k2 to MAIN/build-runs/game-queue using k1's request with a new label and fresh traces/k2 directory; use the final rebuilt DLL. Wait once with lane-bin/qwait.py, verify clean/ref_warnings=0/flushed=2, then run fc4-replay --manifest <WT>/build-runs/traces/k2/manifest.tsv --no-cache.
+- Successor facts: no outstanding game/build operation; k1 power/pollution partials are unusable; all temporary core mutations were reverted. Guard exceeded 200k while attempting the wip queue file, so no merge-queue file exists. Next: finish ten-city proof, baseline overhead, coverage coordination and remaining-owner inventory; do not claim strict credit yet.
