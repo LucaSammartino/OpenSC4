@@ -12,6 +12,8 @@
 //! explicit and already emitted prefixes are not rolled back. No RefCell or
 //! hidden getter mutation is used.
 
+pub use crate::view_input_controls::ControlHost;
+
 pub const ID: u32 = 0x2B70_9676;
 pub const CURSOR: u32 = 0xC16C_4E1B;
 pub const CAMERA_SPEED_BITS: u32 = 0x3D2C_0831;
@@ -165,6 +167,7 @@ pub enum Operation {
         tool: u64,
         values: [RawValue; 2],
     },
+    /// Observation of the shared ControlHost stack operation, not an emit hook.
     RemoveTopControl(bool),
     PostCommand(u32),
 }
@@ -173,8 +176,11 @@ pub enum Operation {
 /// occupant queried for the specified IID, not a tool-level selection outcome.
 /// `emit` records/transports individual operations infallibly; native adapters
 /// with failure or reentrant delivery need contracts not yet published (DR3).
-pub trait Primitives {
+pub trait Primitives: ControlHost {
     fn emit(&mut self, operation: Operation);
+    /// Whether the inherited base holds a city view (city-tools-input.md §2.7).
+    /// Native acquisition remains Unsupported; this is a borrowed presence read.
+    fn base_view_present(&mut self) -> Raw<bool>;
     fn simulator_paused(&mut self) -> Raw<bool>;
     fn situation_slot32(&mut self) -> Raw<bool>;
     fn flags31(&mut self, a: Automaton) -> Raw<u32>;
@@ -293,18 +299,23 @@ impl PlayerDrive {
         self.dashboard = window;
     }
     pub fn init(&mut self) -> Result {
+        // SPEC-GAP: DR1/DR3/DR8 leave native services, registration IDs and ownership open.
         Err(Unsupported::NativeInit)
     }
     pub fn shutdown(&mut self) -> Result {
+        // SPEC-GAP: DR8 leaves native teardown order and acquired service references open.
         Err(Unsupported::NativeShutdown)
     }
     pub fn show_ui(&mut self, _id: u32) -> Result {
+        // SPEC-GAP: DR1 does not identify ShowUI resources, layout or interface bindings.
         Err(Unsupported::DashboardShowUi)
     }
     pub fn update(&mut self) -> Result {
+        // SPEC-GAP: DR1 does not publish gauge fields, formatting or tracking cadence.
         Err(Unsupported::UpdateGauges)
     }
     pub fn handle_key_effects(&mut self, _key: u32) -> Result {
+        // SPEC-GAP: DR5 leaves template key effects and ordering with result 13 open.
         Err(Unsupported::HandleKeyEffects)
     }
 
@@ -388,12 +399,14 @@ impl PlayerDrive {
         let dashboard = Self::dashboard_selection(kind, host.property(a, DASHBOARD_PROPERTY)?);
         self.dashboard_id = Some(dashboard);
         host.emit(Operation::DashboardIdSelected(dashboard));
+        // SPEC-GAP: DR1 does not publish dashboard loading/layout or gauge bindings.
         host.emit(Operation::Gap(Unsupported::DashboardShowUi));
         let sound = host
             .property(a, SOUND_PROPERTY)?
             .ok_or(Unsupported::MissingSoundProperty)?;
         host.emit(Operation::OccupantSound { id: sound, start: true });
         host.emit(Operation::EngineEvent { event: 0, start: true });
+        // SPEC-GAP: DR4 leaves the three audio-table values unpublished.
         host.emit(Operation::Gap(Unsupported::AudioTable));
         host.emit(Operation::AcquireDriven(a));
         self.current = Some(a);
@@ -402,6 +415,7 @@ impl PlayerDrive {
             words: [0x10, 0, 0xBF80_0000, 0, 0, 0, 0],
         });
         host.emit(Operation::VehicleManagerTrack(Some(a)));
+        // SPEC-GAP: DR4 leaves native settings/AEMS selection open; fields are caller-supplied.
         host.emit(Operation::Gap(Unsupported::SettingsSelection));
         self.camera_speed_bits = camera.speed_bits.unwrap_or(CAMERA_SPEED_BITS);
         host.emit(Operation::ZoomLimits(zoom, max_zoom));
@@ -449,7 +463,7 @@ impl PlayerDrive {
             id: sound,
             start: false,
         });
-        // DR8: literal state10 scope; other states get no extra state setter.
+        // SPEC-GAP: DR8 leaves scope open; use literal state10 scope, no setter for other states.
         if host.state(a)? == 0x10 {
             if host.flags31(a)? & 0x0800_0000 == 0 && host.group(a)? != 0x4003 {
                 host.emit(Operation::State13 { automaton: a, value: 0 });
@@ -463,7 +477,7 @@ impl PlayerDrive {
     }
 
     pub fn add_callback_target(&mut self, target: CallbackTarget) -> Result {
-        // DR3: no invented duplicate/dedup or native target ownership policy.
+        // SPEC-GAP: DR3 leaves duplicate/dedup and native target ownership policy open.
         if self.callbacks.contains(&target) {
             return Err(Unsupported::CallbackListPolicy);
         }
@@ -485,7 +499,7 @@ impl PlayerDrive {
         Ok(Progress::Partial(vec![Unsupported::CallbackDelivery]))
     }
     pub fn end_input(&mut self, host: &mut impl Primitives) -> Result {
-        // DR3: this is a plan with an unresolved value, never a native delivery.
+        // SPEC-GAP: DR3 leaves the second EndInput value open; emit an unresolved plan.
         self.callback_plans(host, [RawValue::Known(1), RawValue::Unpublished]);
         if let Some(a) = self.current {
             if host.slot18(a)? {
@@ -495,7 +509,9 @@ impl PlayerDrive {
         self.stop_tracking(host)?;
         self.clear_hover(host);
         host.emit(Operation::DisasterLayer(true));
-        host.emit(Operation::RemoveTopControl(false));
+        if host.base_view_present()? {
+            host.remove_top_control(false);
+        }
         Ok(Progress::Partial(vec![
             Unsupported::EndCallbackValue,
             Unsupported::CallbackDelivery,
@@ -534,6 +550,7 @@ impl PlayerDrive {
             if self.hover.is_none() {
                 host.emit(Operation::ClearCursorText(CURSOR_TEXT));
             }
+            // SPEC-GAP: DR3/DR6 leave non-null hover text and reference effects open.
             Ok(Progress::Partial(vec![Unsupported::HoverOwnershipAndText]))
         }
     }
@@ -613,6 +630,7 @@ impl PlayerDrive {
             byte = Some(match host.drive_byte229(a)? {
                 0 => 1,
                 1 => 0,
+                // SPEC-GAP: DR5 publishes no command9 toggle rule outside bytes 0/1.
                 _ => return Err(Unsupported::NonBooleanDriveByte),
             });
         }
@@ -664,7 +682,7 @@ impl PlayerDrive {
         self.key_lookup(host, key)
     }
     pub fn on_key_up(&mut self, host: &mut impl Primitives, key: u32, flags: u32) -> Result {
-        // DR5 only publishes autorepeat suppression for key-down tests.
+        // SPEC-GAP: DR5 only publishes autorepeat suppression for key-down tests.
         if flags & 0x4000_0000 != 0 {
             return Err(Unsupported::ReleaseRepeatPolicy);
         }
@@ -679,6 +697,7 @@ impl PlayerDrive {
             return Err(Unsupported::UnknownCommand);
         }
         if command == 8 {
+            // SPEC-GAP: DR5 gives command8 a mouse path but no keyboard table row.
             return Err(Unsupported::KeyboardCommand8);
         }
         // Even command13 may be consumed by HandleKeyEffects (DR5).
@@ -740,6 +759,7 @@ impl PlayerDrive {
                     3 => self.automaton_removed(host, a),
                     0xB => {
                         host.emit(Operation::EngineEvent { event: 0, start: false });
+                        // SPEC-GAP: DR6 leaves alternate-model arguments and timer restart open.
                         self.timer = TimerState::RestartBlocked;
                         Err(Unsupported::AlternateModel)
                     }

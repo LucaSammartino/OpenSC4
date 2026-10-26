@@ -50,6 +50,7 @@ struct Foreign {
     terrain: Option<World>,
     command: u32,
     fail: Option<&'static str>,
+    view_present: bool,
 }
 impl Default for Foreign {
     fn default() -> Self {
@@ -65,6 +66,7 @@ impl Default for Foreign {
             terrain: None,
             command: 0,
             fail: None,
+            view_present: true,
         }
     }
 }
@@ -81,7 +83,35 @@ impl Foreign {
         self.queries.clear();
     }
 }
+impl ControlHost for Foreign {
+    fn lookup_cursor(&mut self, _: u32) -> Option<u64> {
+        panic!("native cursor lifecycle remains unsupported")
+    }
+    fn apply_window_cursor(&mut self, _: u64, _: bool) {
+        panic!("native cursor lifecycle remains unsupported")
+    }
+    fn am_capturing(&self) -> bool {
+        panic!("drive-tool does not change capture")
+    }
+    fn capture(&mut self) -> bool {
+        panic!("drive-tool does not change capture")
+    }
+    fn release_capture(&mut self) -> bool {
+        panic!("drive-tool does not change capture")
+    }
+    fn remove_top_control(&mut self, stack: bool) {
+        assert!(self.view_present);
+        self.operations.push(Operation::RemoveTopControl(stack));
+    }
+    fn post_sound(&mut self, _: u32, _: u32) {
+        panic!("drive-tool uses positioned and AEMS sound interfaces")
+    }
+}
 impl Primitives for Foreign {
+    fn base_view_present(&mut self) -> Raw<bool> {
+        self.queries.push("base_view");
+        Ok(self.view_present)
+    }
     fn emit(&mut self, op: Operation) {
         // Only individual raw setters are applied here, never owner outcomes.
         match op {
@@ -189,7 +219,7 @@ fn driving() -> (PlayerDrive, Foreign) {
 
 #[test]
 fn construction_has_literal_bits_and_empty_state() {
-    let owner = PlayerDrive::new(99);
+    let mut owner = PlayerDrive::new(99);
     assert_eq!((ID, CURSOR), (0x2B70_9676, 0xC16C_4E1B));
     assert_eq!(owner.camera_speed_bits(), 0x3D2C_0831);
     assert_eq!(owner.cell_scales(), (0x3F80_0000, 0x3F80_0000));
@@ -197,6 +227,11 @@ fn construction_has_literal_bits_and_empty_state() {
     assert_eq!((owner.current(), owner.hover(), owner.selected()), (None, None, None));
     assert_eq!(owner.mode(), Mode::Choosing);
     assert_eq!(owner.timer(), TimerState::Constructed);
+    assert!(owner.callbacks.is_empty());
+    assert_eq!(owner.dashboard_id(), None);
+    assert_eq!(owner.init(), Err(Unsupported::NativeInit));
+    assert_eq!(owner.shutdown(), Err(Unsupported::NativeShutdown));
+    assert_eq!(owner.mode(), Mode::Choosing);
 }
 
 #[test]
@@ -314,6 +349,30 @@ fn drivable_form_gate_has_only_disaster_prefix_and_keeps_existing_current() {
 }
 
 #[test]
+fn switching_driven_automata_releases_old_before_acquiring_drivable_form() {
+    let (mut owner, mut f) = driving();
+    assert!(matches!(
+        owner.enter_driving_mode(&mut f, B, CameraFields::default()),
+        Ok(Progress::Partial(_))
+    ));
+    let references: Vec<_> = f
+        .operations
+        .iter()
+        .filter(|op| matches!(op, Operation::AcquireDriven(_) | Operation::ReleaseDriven(_)))
+        .cloned()
+        .collect();
+    assert_eq!(references, [Operation::ReleaseDriven(A), Operation::AcquireDriven(B)]);
+    assert_eq!(owner.current(), Some(B));
+    assert_eq!(owner.toggles(), [true, false]);
+    f.clear();
+    owner.stop_tracking(&mut f).unwrap();
+    assert_eq!(f.operations.last(), Some(&Operation::ReleaseDriven(B)));
+    f.clear();
+    assert_eq!(owner.stop_tracking(&mut f), Ok(Progress::Ignored));
+    assert!(f.operations.is_empty());
+}
+
+#[test]
 fn dashboard_selection_is_id_selection_only_and_preserves_zero_override() {
     assert_eq!(PlayerDrive::dashboard_selection(0x480E_6151, None), 0x6BE8_846C);
     assert_eq!(PlayerDrive::dashboard_selection(7, None), 0x0BE8_824F);
@@ -327,7 +386,12 @@ fn dashboard_selection_is_id_selection_only_and_preserves_zero_override() {
         .operations
         .iter()
         .any(|op| matches!(op, Operation::WindowEnabled { .. })));
+    f.clear();
     assert_eq!(owner.show_ui(5), Err(Unsupported::DashboardShowUi));
+    assert_eq!(owner.dashboard_id(), Some(0x0BE8_824F));
+    assert_eq!(owner.dashboard, None); // An unresolved ShowUI must not invent a window.
+    assert_eq!(owner.update(), Err(Unsupported::UpdateGauges));
+    assert!(f.operations.is_empty());
 }
 
 #[test]
@@ -389,6 +453,34 @@ fn rejected_network_pick_falls_back_to_automaton_only_when_not_driving() {
             Operation::EngineEvent { event: 4, start: true }
         ]
     );
+}
+
+#[test]
+fn choosing_empty_click_preserves_pause_and_does_not_start_driving() {
+    for network in [None, Some(NetworkOccupant(55))] {
+        let mut owner = PlayerDrive::new(99);
+        let mut f = Foreign {
+            paused: true,
+            network,
+            ..Foreign::default()
+        };
+        assert_eq!(
+            owner.on_mouse_down_l(&mut f, P, CameraFields::default()),
+            Ok(Progress::Ignored)
+        );
+        assert_eq!(owner.mode(), Mode::Choosing);
+        assert_eq!(owner.current(), None);
+        assert!(f.paused);
+        assert!(f.operations.is_empty());
+        assert_eq!(
+            f.queries,
+            if network.is_some() {
+                vec!["pick_network", "accept42", "pick_auto"]
+            } else {
+                vec!["pick_network", "pick_auto"]
+            }
+        );
+    }
 }
 
 #[test]
@@ -710,6 +802,24 @@ fn non10_cleanup_uses_literal_scope_without_inventing_a_state_transition() {
         assert!(!f.queries.contains(&"flags31"));
         assert!(!f.queries.contains(&"group"));
     }
+}
+
+#[test]
+fn end_input_without_base_view_cleans_up_without_removing_a_control() {
+    let (mut owner, mut f) = driving();
+    f.view_present = false;
+    owner.end_input(&mut f).unwrap();
+    assert_eq!(owner.current(), None);
+    assert!(f.operations.contains(&Operation::ReleaseDriven(A)));
+    assert_eq!(
+        &f.operations[f.operations.len() - 2..],
+        [Operation::ClearCursorText(0xAB73_510C), Operation::DisasterLayer(true)]
+    );
+    assert!(!f
+        .operations
+        .iter()
+        .any(|op| matches!(op, Operation::RemoveTopControl(_))));
+    assert_eq!(f.queries.last(), Some(&"base_view"));
 }
 
 #[test]
