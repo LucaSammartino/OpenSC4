@@ -28,6 +28,25 @@
 namespace fc4 {
 namespace harness {
 
+// Tooling only: the scheduler's virtual millisecond is one agent delivery.
+// Frame/interval timers see no wall time. The empty-frame guard also bounds
+// paused frames with no idle agents (and frames containing only disabled agents).
+class FixedStepClock {
+public:
+    static constexpr uint32_t kDeliveries = 64;
+    void BeginFrame() { base_ += kDeliveries + 1; used_ = 0; reads_ = 0; }
+    uint32_t Now() {
+        if (++reads_ >= 4096) FinishFrame();
+        return base_ + used_;
+    }
+    void Delivered() { if (used_ < kDeliveries) ++used_; reads_ = 0; }
+    void FinishFrame() { used_ = kDeliveries; }
+private:
+    uint32_t base_ = 0;
+    uint32_t used_ = 0;
+    uint32_t reads_ = 0;
+};
+
 // A civil date (Gregorian, as the core's julian.rs).
 struct Date {
     int32_t year = 0;

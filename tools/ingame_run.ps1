@@ -438,6 +438,15 @@ try {
             $luaRelative = $Matches[1].Trim()
             if ([IO.Path]::IsPathRooted($luaRelative)) { throw 'lua_script must name an existing repo-relative .lua file' }
             $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+            # The shared queue runs main's launcher with a lane's staged DLL.
+            # Scripts and helpers must come from that DLL's checkout as well.
+            if ($Dll) {
+                $luaCheckout = [IO.DirectoryInfo](Split-Path -Parent ([IO.Path]::GetFullPath($Dll)))
+                while ($luaCheckout -and -not (Test-Path -LiteralPath (Join-Path $luaCheckout.FullName '.git'))) {
+                    $luaCheckout = $luaCheckout.Parent
+                }
+                if ($luaCheckout) { $repoRoot = $luaCheckout.FullName }
+            }
             $luaSource = [IO.Path]::GetFullPath((Join-Path $repoRoot $luaRelative))
             if (-not $luaSource.StartsWith($repoRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
                 [IO.Path]::GetExtension($luaSource) -ine '.lua' -or -not (Test-Path -LiteralPath $luaSource -PathType Leaf)) {

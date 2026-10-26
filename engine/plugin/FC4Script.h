@@ -74,5 +74,8 @@ void ScriptOnTick();
 // True while actions wait for the next tick (the autotest's end date waits
 // for them: FC4Autotest.cpp).
 bool ScriptWaiting();
+// Default zero. Explicit bounded watchdog allowance only while SaveCity(full)
+// is executing; does not change simulation steps, speed, seeds or save bytes.
+uint32_t ScriptSaveGraceMs();
 
 }  // namespace fc4
