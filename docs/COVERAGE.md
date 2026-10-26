@@ -76,7 +76,8 @@ catch-all row matches, the candidates for a new row.
 `python tools/coverage.py --suite <tag>` adds three suite columns beside these four, without changing their rules.
 The tag lives in `build-runs/suite/<tag>/`; `summary.tsv`, `per_key.tsv`, the staged request manifest, raw logs and
 per-scenario `.reach.tsv` counters are read and hashed. Missing counters earn no exercised credit. Missing logs,
-nonzero mismatch counts, resyncs, incomplete games and failing harness verdicts cannot earn verification credit.
+nonzero mismatch counts and resyncs cannot earn verification credit. Verification follows the measured shadow key;
+a later game failure does not erase earlier exact comparisons. Replacement additionally requires a clean completed run.
 
 | Suite status | Rule |
 |---|---|

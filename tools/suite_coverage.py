@@ -101,7 +101,7 @@ def read_batch(directory, default_enabled=()):
                 if (counts['exact'] == counts['lines'] and not counts['first_mismatch']
                         and int(meta.get('scenarios_run', 0)) > 0
                         and meta.get('scenarios_run') == meta.get('scenarios_exact')
-                        and meta.get('first_mismatch') == '-' and clean(row) and actual_clean):
+                        and meta.get('first_mismatch') == '-'):
                     exact.add(key)
             # Include summaries too: monthly matching after resync is not proof.
             for line in parsed['shadow_payloads']:

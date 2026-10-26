@@ -99,7 +99,7 @@ class SuiteCreditTests(unittest.TestCase):
             metric.combine(root, 'both', ['shadows', 'replace1', 'replace2'])
             evidence = metric.load(root, 'both')
             self.assertEqual(evidence['replaced'], {'bar'})
-            self.assertNotIn('foo', evidence['exact'])
+            self.assertIn('foo', evidence['exact'])
             self.assertEqual(len(evidence['scenarios']), 3)
             self.assertTrue((metric.folder(root, 'both') / 'shadows/one.reach.tsv').is_file())
 
@@ -113,6 +113,15 @@ class SuiteCreditTests(unittest.TestCase):
             manifest['requests'][0]['request'] += 'disable = default\n'
             path.write_text(json.dumps(manifest), encoding='utf-8')
             self.assertNotIn('default', metric.load(root, 'test', ['default'])['replaced'])
+
+    def test_later_game_failure_does_not_erase_exact_shadow_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = batch(root, profile='replace')
+            (directory / 'one.verdict').write_text('verdict: corrupt\n', encoding='utf-8')
+            evidence = metric.load(root, 'test')
+            self.assertIn('foo', evidence['exact'])
+            self.assertFalse(evidence['replaced'])
 
     def test_tag_traversal_and_incomplete_summary_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
