@@ -286,7 +286,11 @@ fn shadow_zero_progress_intersection_prelude() {
         assert_eq!(out.mismatches, 0, "entered work {entered_work}: {:?}", out.lines);
         assert_eq!(sh.copy().network().state().intersection_dirty, !entered_work);
         let capacity = |s: &TrafficSimulator| s.network().state().car_info(2, 3).unwrap().inv_cap;
-        assert_eq!(capacity(sh.copy()), capacity(&orig), "the prelude must rebuild capacities");
+        assert_eq!(
+            capacity(sh.copy()),
+            capacity(&orig),
+            "the prelude must rebuild capacities"
+        );
         if entered_work {
             assert_ne!(capacity(sh.copy()), 0.25);
         }
