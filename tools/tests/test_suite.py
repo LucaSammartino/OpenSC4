@@ -18,6 +18,14 @@ import suite
 FIXTURES = Path(__file__).parent / 'fixtures'
 
 
+def test_findings_set_can_be_staged_from_cli():
+    with patch.object(suite, 'read_scenarios', return_value=[dict(name='finding')]) as read, \
+            patch.object(suite, 'run_scenarios', return_value=(Path('unused'), {})) as run:
+        assert suite.main(['run', '--set', 'findings', '--dry-run']) == 0
+        assert read.call_args.args[1] == 'findings'
+        assert run.call_args.kwargs['dry_run']
+
+
 def checkout(root):
     (root / 'tools').mkdir()
     shutil.copy2(ROOT / 'tools/regress.ps1', root / 'tools/regress.ps1')

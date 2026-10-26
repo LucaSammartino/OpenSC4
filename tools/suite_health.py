@@ -1,8 +1,11 @@
 """Audit a census without treating a clean verdict or an estimated tier as proof.
 
 python tools/suite_health.py TAG [--census CENSUS_TAG]
+python tools/suite_health.py CURRENT --reconcile ORIGINAL CORRECTED [CORRECTED...]
 Writes health.json, evidence_gaps.tsv and one finding candidate per failure
 signature alongside suite_triage's causes.tsv. Never changes scenario inputs.
+Reconciliation preserves failed attempts and their union reach; only the last
+listed attempt controls each scenario's health. It never supplies measured wall time.
 """
 import argparse
 from collections import Counter

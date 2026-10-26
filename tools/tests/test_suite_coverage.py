@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 import suite
 import suite_coverage as metric
+import suite_health
 
 
 def batch(root, tag='test', profile='shadows', bodies=None, enable='foo'):
@@ -35,6 +36,21 @@ def batch(root, tag='test', profile='shadows', bodies=None, enable='foo'):
 
 
 class SuiteCreditTests(unittest.TestCase):
+    def test_reconciled_historical_success_cannot_be_selected_after_failed_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            body = 'foo shadow 2000-02-01: mismatches=0\nreach summary reached=1 saved=1\n'
+            batch(root, 'original', bodies={'one': body})
+            retry = batch(root, 'retry', bodies={'one': body})
+            (retry / 'one.verdict').write_text('verdict: corrupt\n')
+            (retry / 'one.reach.tsv').write_text(
+                'address\tentries\tfirst_window\tskipped\n00405000\t1\t1\t\n')
+            self.assertTrue(metric.load(root, 'original')['scenarios'][0]['selection_ready'])
+            suite_health.reconcile(root, 'current', ['original', 'retry'])
+            evidence = metric.load(root, 'current')
+            self.assertEqual(evidence['reached'], {0x401000, 0x405000})
+            self.assertFalse(any(r['selection_ready'] for r in evidence['scenarios']))
+
     def test_logged_native_refusal_does_not_erase_observed_exact_comparisons(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
