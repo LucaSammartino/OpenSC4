@@ -376,7 +376,7 @@ private:
         cISC4VisualEffect* effect = nullptr;
         if (!manager || !reinterpret_cast<cFC4ISC4EffectsManager*>(manager)->CreateVisualEffectByName(
                             "powerpolezap", &effect) || !effect) return 0;
-        FC4_ACQUIRED(effect);
+        FC4_ACQUIRED(effect, "CreateVisualEffectByName");
         From(u)->effect_ = reinterpret_cast<cIGZUnknown*>(effect); // borrowed from the core's owned reference
         return Tok(effect);
     }
