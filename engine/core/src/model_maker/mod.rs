@@ -8,10 +8,13 @@
 use std::collections::BTreeMap;
 
 pub mod dynamic_textures;
+pub mod entries;
 mod geometry;
 mod lifecycle;
 pub mod materials;
+pub mod model_loading;
 mod terrain_hiding;
+pub mod transform;
 pub use lifecycle::{LifecycleHost, INIT_MESSAGES};
 pub use terrain_hiding::{TerrainHost, TerrainOccupant};
 pub mod persistence;

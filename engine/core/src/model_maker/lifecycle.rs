@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! §1 Release, §3.1 Init, §3.3 Shutdown and §3.4 destruction.
-//! PostCityInit (§3.2) depends on the unfinished occupant/model-loading sections.
+//! PostCityInit (§3.2) depends on unfinished occupant handlers and AddModels dispatch.
 use super::{Handle, ModelMaker, Port};
 
 pub const INIT_MESSAGES: [u32; 3] = [0x26D3_1EC1, 0x26C6_3343, 0x26C6_3345];
