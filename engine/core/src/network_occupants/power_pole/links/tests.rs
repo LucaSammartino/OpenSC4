@@ -147,6 +147,7 @@ fn duplicate_cell_and_coincident_start_are_inert_even_for_different_pointers() {
 #[test]
 fn enable_probes_even_with_no_match_and_uses_stored_unsigned_cell() {
     let (mut p, mut host) = (pole(), Host::default());
+    p.stale = false;
     p.enable_connection(&reference(8), true, &mut host);
     assert_eq!(host.log, ["cell"]);
     p.fields.connections.push(PoleConnection {
