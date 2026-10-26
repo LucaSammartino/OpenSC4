@@ -60,11 +60,7 @@ pub fn build_globals() -> Globals {
     g
 }
 
-pub fn replay_build(
-    state: OwnerState,
-    p: Properties<'_>,
-    f: &mut impl Foreign,
-) -> Result<(OwnerState, bool)> {
+pub fn replay_build(state: OwnerState, p: Properties<'_>, f: &mut impl Foreign) -> Result<(OwnerState, bool)> {
     let mut owner = state.owner();
     let value = owner.set_parameters(p, &build_globals(), f)?;
     Ok((OwnerState::capture(&owner), value))
@@ -118,13 +114,7 @@ mod tests {
     fn independent_fields_survive_owner_flag_change() {
         let before = state();
         let (after, _) = replay(before, Operation::SetOwnControl(true));
-        assert_eq!(
-            after,
-            OwnerState {
-                own: true,
-                ..before
-            }
-        );
+        assert_eq!(after, OwnerState { own: true, ..before });
         assert_eq!(replay(after, Operation::GetControl), (after, 0x1234));
     }
 

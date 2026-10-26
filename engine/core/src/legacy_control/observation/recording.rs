@@ -147,10 +147,7 @@ impl<F: FnMut(&Call) -> Value> Foreign for RecordingHost<F> {
             18,
             h,
             0,
-            vec![
-                Value::Notifier(kind),
-                Value::Words(values.map(|v| v as u32).to_vec()),
-            ],
+            vec![Value::Notifier(kind), Value::Words(values.map(|v| v as u32).to_vec())],
         );
     }
     fn winmgr_slot3(&mut self) -> Handle {
@@ -186,10 +183,7 @@ mod tests {
             4 => Value::U32(1),
             _ => Value::None,
         });
-        assert_eq!(
-            replay_build(before, Properties(&[]), &mut host),
-            Ok((before, false))
-        );
+        assert_eq!(replay_build(before, Properties(&[]), &mut host), Ok((before, false)));
         assert!(host.calls.is_empty());
         let props = [
             Property {
@@ -221,12 +215,7 @@ mod tests {
                 arguments: vec![Value::U32(WIN_IID)]
             }
         );
-        let slots: Vec<_> = host
-            .calls
-            .iter()
-            .filter(|c| c.op == 7)
-            .map(|c| c.slot)
-            .collect();
+        let slots: Vec<_> = host.calls.iter().filter(|c| c.op == 7).map(|c| c.slot).collect();
         assert!(slots.ends_with(&[0x10, 0x38, 0x5c]));
         assert!(host
             .calls

@@ -2,9 +2,7 @@
 //! Private static-link transport for the recording widget host. Not a DLL ABI.
 use fc4_core::legacy_control::observation::recording::{Call, RecordingHost};
 use fc4_core::legacy_control::observation::{replay_build, OwnerState};
-use fc4_core::legacy_control::{
-    interpret, interpret_common, FragmentCoverage, Properties, Property, Value,
-};
+use fc4_core::legacy_control::{interpret, interpret_common, FragmentCoverage, Properties, Property, Value};
 use fc4_core::variant::{Elem, Variant};
 use std::ffi::c_void;
 
@@ -78,13 +76,9 @@ fn decode(words: &[u32]) -> Option<Value> {
             Value::Text(String::from_utf8(bytes?).ok()?)
         }
         5 if tail.len() == 4 => Value::Rect(std::array::from_fn(|i| tail[i] as i32)),
-        6 if tail.len() == 3 && tail.iter().all(|c| *c <= 255) => {
-            Value::Colour(std::array::from_fn(|i| tail[i] as u8))
-        }
+        6 if tail.len() == 3 && tail.iter().all(|c| *c <= 255) => Value::Colour(std::array::from_fn(|i| tail[i] as u8)),
         7 if tail.len() == 2 => Value::Pair(tail[0], tail[1]),
-        8 if !tail.is_empty() && tail[0] as usize == tail.len() - 1 => {
-            Value::Words(tail[1..].to_vec())
-        }
+        8 if !tail.is_empty() && tail[0] as usize == tail.len() - 1 => Value::Words(tail[1..].to_vec()),
         _ => return None,
     })
 }
@@ -154,12 +148,7 @@ unsafe extern "C" fn fc4_legacyctl_shadow_run(
     };
     let mut supported = b[4] <= 1;
     let mut host = RecordingHost::new(|call: &Call| {
-        let mut request = vec![
-            call.op,
-            call.object as u32,
-            call.slot,
-            call.arguments.len() as u32,
-        ];
+        let mut request = vec![call.op, call.object as u32, call.slot, call.arguments.len() as u32];
         for v in &call.arguments {
             if !encode(&mut request, v) {
                 supported = false;
@@ -269,8 +258,7 @@ unsafe extern "C" fn fc4_legacyctl_shadow_run(
         u32::from(after.own),
         scalar,
     ]);
-    unsafe { std::slice::from_raw_parts_mut(output.add(6), 4) }
-        .copy_from_slice(&area.map(|v| v as u32));
+    unsafe { std::slice::from_raw_parts_mut(output.add(6), 4) }.copy_from_slice(&area.map(|v| v as u32));
     1
 }
 
