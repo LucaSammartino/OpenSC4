@@ -6,6 +6,8 @@
 //! rather than live terrain queries at draw time. The remaining vertex lanes,
 //! edge layers, indices and frame submission are outside this type.
 
+// SPEC-GAP: TR45/TR46 leave the independent view lifecycle and full draw stream unspecified; only height snapshots are implemented here.
+
 use super::{msg, Post, Terrain, VertRect};
 use crate::x87::r24;
 
