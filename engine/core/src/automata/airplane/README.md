@@ -30,9 +30,9 @@ they do not simulate the unresolved controllers or execute native callbacks.
 
 ## Owner closure
 
-All rows concern cSC4Airplane. New tests are in `aircraft_settled.rs`; prior
-parameter/record tests are in `aircraft.rs` and numerical tests in `airplane.rs`,
-all under `engine/conformance/tests`.
+All rows concern cSC4Airplane. “closure” below names `aircraft_closure.rs`;
+“settled” names `aircraft_settled.rs`. Parameter/record tests are in `aircraft.rs`
+and numerical tests in `airplane.rs`, all under `engine/conformance/tests`.
 
 | Spec section | Code item | Test or residual native observation | Closure |
 |---|---|---|---|
@@ -43,16 +43,16 @@ all under `engine/conformance/tests`.
 | aircraft §3.1 parameter import/defaults | `AirplaneDriveParameters`, `import_airplane_record` | aircraft.rs parameter/ancestor tests; airplane.rs vectors 1/2/4/5 | implemented |
 | aircraft §3.2 Init/effects | `init_data`, `airplane_effect_names`, `calibration_inputs` | aircraft.rs: independent lists; closure: `calibration_seeds_are_synthetic_and_use_current_player_gains`; AF4 §9.3 attachment/failure/Init order; AF2 §9.1 calibration convergence | open AF2/AF4 |
 | aircraft §3.2.1 constructor/Shutdown | `Default`, `shutdown` | closure: `vector33_airplane_constructor_and_teardown_precede_false_base` (AF4) | implemented |
-| aircraft §3.3 complete steering | `pursue_goal`, `goal_actions` | airplane.rs: default crop-dust pop; AF3 §9.2 Stop/Turn/Taxi/TakeOff/Goto/Land control outputs and completion | open AF3 |
+| aircraft §3.3 complete steering/dispatch | `pursue_goal`, `goal_actions` | airplane.rs: default crop-dust pop; closure: vector 31; AF3 §9.2 Stop/Turn/Taxi/TakeOff/Goto/Land control outputs/completion; AF6 §9.5 failure callbacks | open AF3/AF6 |
 | aircraft §3.3.1 LOITER/countdown/ammo | `visit_loiter`, `tick_loiter_with_multiplier`, `read` | settled: vector 20 | implemented |
 | aircraft §3.3.2 clearance/selection/fire | `evaluate_clearance`, `pick_runway`, `search_fire` | closure: vectors 29/30 and `fire_search_uses_box_first_occupant_and_balances_query_ownership` (AF3) | implemented |
 | aircraft §3.3.3 approach outputs | `approach_box` | closure: `approach_worked_case_minimum_precedes_city_cap_and_uses_measured_legs` (AF3) | implemented |
-| aircraft §3.4 full flight | `update_physics` Unsupported | AF2 §9.1 lift basis/angular update/surface and collision stage outputs; full player commands remain §2 boundary | open AF2 |
+| aircraft §3.4 full flight | `update_physics` Unsupported | AF2 §9.1 lift basis/angular update/surface and collision stage outputs; AF5 §9.4 full player controls | open AF2/AF5 |
 | aircraft §3.4.1 translational stages | `physics_seconds`, `limit_velocity`, `integrate_candidate`, `project_ground_velocity` | airplane.rs vectors 8–10; closure: `vector28_nonfinite_limiter_force_direction_and_time` (AF10) | implemented |
-| aircraft §3.4.2 supplied-frame force scalars/sum | `force_scalars`, `lift_coefficient`, `ForceScalars::force_with_lift` | airplane.rs vectors 11–13 and supplied-frame sum; closure: vector 28 (AF10); lift construction stays in full flight row | implemented |
-| aircraft §3.5 phase sound requests | `set_airplane_state` | settled: vectors 21/22; request causes stay in full flight/Init rows | implemented |
+| aircraft §3.4.2 force scalars/sum | `force_scalars`, `lift_coefficient`, `ForceScalars::force_with_lift` | airplane.rs vectors 11–13 and supplied-frame sum; closure: vector 28 (AF10 resolved); AF2 §9.1 native lift-frame construction | open AF2 |
+| aircraft §3.5 phase sounds/triggers | `set_airplane_state` | settled: vectors 21/22 cover setter requests; AF2/AF4 §9.1/§9.3 physics/collision request causes | open AF2/AF4 |
 | aircraft §4 helicopter-only contracts | Other owner | helicopter/README.md | other owner |
-| aircraft §4.3 weapon accounting stage | `weapon_requests` | settled: vector 23; AF5 §9.4 translator/readiness cadence/projectile initialization remains §2 boundary | implemented |
+| aircraft §4.3 weapons | `weapon_requests` | settled: vector 23 covers accounting; AF5 §9.4 translator/readiness cadence/projectile initialization | open AF5 |
 | aircraft §4.3.3 player refresh/callback requests | `refresh_player_parameters`, `enter_state`, `exit_state` | closure: `vector34_airplane_refresh_preserves_zero_and_callbacks_reload_ai` (AF5/AF6) | implemented |
 | aircraft §4.4 ordered goal requests | `goal_actions` | closure: `vector31_fire_land_and_default_dispatch_order` (AF3/AF6); independent controller/query results, not a complete AI tick | implemented |
 | aircraft §5 dispatch sources/messages | `initialize_fire_plane_station_units`, `goal_actions`; foreign source owners | aircraft.rs station vectors 3/6; closure: vector 31; AF6 §9.5 observer message envelope/failure callbacks | open AF6 |
@@ -62,7 +62,7 @@ all under `engine/conformance/tests`.
 | automata §6.1/§6.2 shared base/stack | `AutomatonBase` | aircraft.rs final-state/stack-index and nested records | implemented |
 | automata §6.4 codec/home | `read`, `write`, shared placement | aircraft.rs round-trip/version-zero/truncation/failed-write gate | implemented |
 | automata §6.5 goal handlers | `pursue_goal`, `begin_loiter`, `goal_actions` | settled: vector 20; closure: vector 31; AF3 §9.2 controller outputs/completion, AF6 §9.5 external failure callbacks | open AF3/AF6 |
-| automata §6.6 independent phases/LOITER | phase setter/countdown and bounded goal requests | settled: vectors 20/21; closure: vector 31; continuous controllers stay in §3.3 row | implemented |
+| automata §6.6 independent phases/LOITER/full AI | phase setter/countdown and bounded goal requests | settled: vectors 20/21; closure: vector 31; AF3 §9.2 continuous controllers and completion predicates | open AF3 |
 | automata §14 vector 15 | shared aircraft records | aircraft.rs nested codec round-trip | implemented |
 | automata §15 creation | Foreign manager/director | AF4 §9.3 native attachment/Init allocation and failure ordering | open AF4 |
 

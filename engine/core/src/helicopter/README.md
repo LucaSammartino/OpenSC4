@@ -37,7 +37,8 @@ kernels, continuous steering and native service callbacks remain explicit inputs
 
 ## Owner closure
 
-Tests below are in `engine/conformance/tests/aircraft_settled.rs` unless stated.
+“settled” below names `engine/conformance/tests/aircraft_settled.rs`;
+“closure” names `engine/conformance/tests/aircraft_closure.rs`.
 Every row concerns cSC4Helicopter. An open row is an explicit Unsupported boundary,
 not a successful native flight/control tick.
 
@@ -54,14 +55,14 @@ not a successful native flight/control tick.
 | aircraft §4.2 rotor physics overview | Unsupported motion kernels; `RotorPower::update`, `RotorFrameState::next_frame`, `physics_home_stage` | closure: vector 32; AF2 §9.1 attitude/slide/XZ/Y/transform and collision-stage outputs | open AF2 |
 | aircraft §4.2 complete goal switches/claims | `pursue_goal`, `push_mission_loiter`, `goal_actions` | helicopter.rs default/final/chase/timeout; closure: vector 31; AF3 §9.2 MoveXZ controls and 0x36–0x38 claim/crime/rescue service traces | open AF3 |
 | aircraft §4.2.1 reset/hover/time | `RotorControls::{reset,hover}`, `helicopter_physics_seconds` | settled: vectors 17/18; closure: vector 28 shared time classification (AF10) | implemented |
-| aircraft §4.2.2 chase decision gates | `chase_actions`, `pursue_chase_stage` | settled: vector 19; movement remains §4.2 boundary, spotlight geometry remains §4.3.2 | implemented |
-| aircraft §4.2.3 phase requests | `set_helicopter_state` | settled: vectors 21/22; physics causes/attachments remain §4.2/Init boundaries | implemented |
+| aircraft §4.2.2 chase gates/movement/aim | `chase_actions`, `pursue_chase_stage` | settled: vector 19; AF3 §9.2 MoveXZ control outputs; AF5 §9.4 target/yaw/terrain spotlight geometry | open AF3/AF5 |
+| aircraft §4.2.3 phase requests/triggers | `set_helicopter_state` | settled: vectors 21/22 cover setter; AF2/AF4 §9.1/§9.3 physics request causes and attachment creation | open AF2/AF4 |
 | aircraft §4.2.4 building lift | `building_clearance_height`, `ai_control_lift_over_buildings` | settled: vector 24 | implemented |
-| aircraft §4.2.5 allocation/post-base Shutdown | `RuntimeOwnership`, `init_instance_with`, `shutdown_after_base` | settled: vector 25; pre-base claim cleanup covered in §4.2.7, not scale adjustment (AF4) | implemented |
+| aircraft §4.2.5 allocation/Shutdown/full Init | `RuntimeOwnership`, `init_instance_with`, `shutdown_after_base`, `shutdown_with_claims` | settled: vector 25; closure: vector 33 resolves pre-base cleanup (AF4); AF4 §9.3 full native Init/attachment/failure order | open AF4 |
 | aircraft §4.2.6 power/frame order/home completion | `RotorPower::update`, `RotorFrameState::next_frame`, `physics_home_stage` | closure: three vector 32 power/order/home tests (AF2/AF4), normal kernels explicitly supplied | implemented |
 | aircraft §4.2.7 pre-base claim release | `shutdown_with_claims` | closure: `vector33_duplicate_claim_removal_precedes_base_and_cleanup` (AF4), duplicate/all-match/epsilon/sentinel cases | implemented |
 | aircraft Init/attachment creation | `init_instance_with`, `physics_init`; full Init unavailable | AF4 §9.3 constructor remainder, effect attachment/failure/repeated-Init order and phase-request causes | open AF4 |
-| aircraft §4.3 weapon accounting stage | `weapon_requests` | settled: vector 23; full translation/cadence/projectile work stays in §2 boundary | implemented |
+| aircraft §4.3 weapons | `weapon_requests` | settled: vector 23 covers accounting; AF5 §9.4 full translation/cadence/projectile initialization | open AF5 |
 | aircraft §4.3.1 takeover | `refresh_player_parameters`, `on_player_take_over` | settled: vector 26 | implemented |
 | aircraft §4.3.2 spotlight activation gate | `spotlight_activation_stage` | settled: vector 27; AF5 §9.4 target/yaw/terrain and inactive-pair output transforms still required | open AF5 |
 | aircraft §4.3.3 state callbacks | `enter_state`, `exit_state` | closure: `helicopter_callbacks_keep_base_result_limits_mass_and_exit_dispatch` (AF5/AF6); refresh helper returned as a request | implemented |
