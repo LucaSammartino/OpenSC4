@@ -60,6 +60,7 @@ pub struct Tuning {
 impl Default for Tuning {
     fn default() -> Self {
         Self {
+            // SPEC-GAP: the fallback query flag is omitted; use the shipped true value.
             query_occupants: true,
             worker_limit: Curve::Constant(16384.0),
             sleep: Curve::Constant(65536.0),

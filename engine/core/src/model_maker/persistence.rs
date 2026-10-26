@@ -195,16 +195,18 @@ mod tests {
 
     #[test]
     fn m4_record_order_iids_round_trip_and_errors() {
-        let mut maker = ModelMaker::default();
-        maker.saved = SavedState {
-            zoom: 3,
-            rotation: 2,
-            cells: [64, 32],
-            city: Rect::new(0, 0, 63, 31),
-            word: 0x1234,
-            camera: [1.25, -3.0, 7.0, 8.0],
-            previous_view: [4, 1],
-            target_view: [3, 2],
+        let mut maker = ModelMaker {
+            saved: SavedState {
+                zoom: 3,
+                rotation: 2,
+                cells: [64, 32],
+                city: Rect::new(0, 0, 63, 31),
+                word: 0x1234,
+                camera: [1.25, -3.0, 7.0, 8.0],
+                previous_view: [4, 1],
+                target_view: [3, 2],
+            },
+            ..Default::default()
         };
         for (index, &(port, _)) in REFERENCES.iter().enumerate() {
             maker.ports.insert(port, 100 + index as u64);

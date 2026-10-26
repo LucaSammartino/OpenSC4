@@ -147,11 +147,17 @@ impl ModelMaker {
         ] {
             self.release_port(port, host);
         }
+        for entry in self.deferred.drain(..) {
+            host.release(entry.occupant);
+        }
         self.initialized = false;
         true
     }
 
     pub fn destroy(&mut self, host: &mut impl LifecycleHost) {
+        for entry in self.deferred.drain(..) {
+            host.release(entry.occupant);
+        }
         for texture in self.textures.iter_mut().rev() {
             if let Some(handle) = texture.take() {
                 host.release(handle);
@@ -234,11 +240,18 @@ mod tests {
     }
     #[test]
     fn destructor_releases_only_remaining_textures_in_reverse_order() {
-        let mut m = ModelMaker::default();
+        let mut m = ModelMaker {
+            textures: [Some(1), None, Some(3), Some(4), Some(5)],
+            ..Default::default()
+        };
         let mut h = Host::default();
-        m.textures = [Some(1), None, Some(3), Some(4), Some(5)];
+        m.deferred.push(super::super::DeferredEntry {
+            occupant: 9,
+            operation: 3,
+            arguments: [0; 2],
+        });
         m.destroy(&mut h);
-        assert_eq!(h.released, [5, 4, 3, 1]);
+        assert_eq!(h.released, [9, 5, 4, 3, 1]);
         assert_eq!(m.textures, [None; 5]);
     }
 }

@@ -24,6 +24,13 @@ pub const ALL_ZOOMS: u32 = 0x1F;
 pub const ALL_ROTATIONS: u32 = 0x0F;
 pub type Handle = u64;
 
+#[derive(Debug)]
+struct DeferredEntry {
+    occupant: Handle,
+    operation: u8,
+    arguments: [u8; 2],
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Interface {
     Primary,
@@ -112,6 +119,8 @@ pub struct ModelMaker {
     pub textures: [Option<Handle>; 5],
     pub detail: i32,
     pub renderer_aux: Option<Handle>,
+    pub defer_count: i32,
+    deferred: Vec<DeferredEntry>,
     references: u32,
     disposed: bool,
     ports: BTreeMap<Port, Handle>,
@@ -142,6 +151,8 @@ impl Default for ModelMaker {
             textures: [None; 5],
             detail: 0,
             renderer_aux: None,
+            defer_count: 0,
+            deferred: Vec::new(),
             references: 0,
             disposed: false,
             ports: BTreeMap::new(),
@@ -179,6 +190,10 @@ impl ModelMaker {
 
     pub fn disposed(&self) -> bool {
         self.disposed
+    }
+
+    pub fn deferred_entries(&self) -> impl Iterator<Item = (Handle, u8, [u8; 2])> + '_ {
+        self.deferred.iter().map(|e| (e.occupant, e.operation, e.arguments))
     }
 }
 

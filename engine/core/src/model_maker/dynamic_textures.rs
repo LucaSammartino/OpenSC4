@@ -114,16 +114,14 @@ impl Kernel {
                         let value = u16::from_le_bytes([src[0], src[1]]);
                         let tinted = if self == Self::Argb4444 {
                             let mut tinted = 0;
-                            for k in 0..4 {
-                                tinted |=
-                                    ((((value >> (4 * k)) & 15) * u16::from(colours[k] >> 4) + 8) >> 4) << (4 * k);
+                            for (k, colour) in colours.iter().enumerate() {
+                                tinted |= ((((value >> (4 * k)) & 15) * u16::from(colour >> 4) + 8) >> 4) << (4 * k);
                             }
                             tinted
                         } else {
                             let mut tinted = if colours[3] & 128 != 0 { value & 0x8000 } else { 0 };
-                            for k in 0..3 {
-                                tinted |=
-                                    ((((value >> (5 * k)) & 31) * u16::from(colours[k] >> 3) + 16) >> 5) << (5 * k);
+                            for (k, colour) in colours.iter().take(3).enumerate() {
+                                tinted |= ((((value >> (5 * k)) & 31) * u16::from(colour >> 3) + 16) >> 5) << (5 * k);
                             }
                             tinted
                         };
@@ -363,6 +361,11 @@ mod tests {
             .tint(&mut equal, &full_source[8..], layout(4, 4), 0)
             .unwrap();
         assert_eq!(equal, [0; 8]);
+        let source = [0x1F, 0, 0, 0xF8, 0xE4, 0xE4, 0xE4, 0xE4];
+        Kernel::Dxt1
+            .tint(&mut equal, &source, layout(4, 4), 0xFF00_00FF)
+            .unwrap();
+        assert_eq!(equal, [0, 0, 30, 0, 0xE1, 0xE1, 0xE1, 0xE1]);
     }
 
     struct Textures {
@@ -421,8 +424,10 @@ mod tests {
     }
     #[test]
     fn m22_light_threshold_rebuild_order_and_existing_binding_identity() {
-        let mut maker = ModelMaker::default();
-        maker.light_colour = [0.5; 3];
+        let mut maker = ModelMaker {
+            light_colour: [0.5; 3],
+            ..Default::default()
+        };
         maker.saved.target_view[0] = 3;
         maker.ports.insert(Port::OccupantManager, 99);
         let mut host = Textures {
