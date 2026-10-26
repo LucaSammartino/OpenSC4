@@ -1,5 +1,28 @@
 # audio: answered questions
 
+<!-- from: core-audio-close13 (2026-10-24) -->
+- **AU50 — §8.3.1 remaining SoundManager algorithms:** the AU46/AU49 answer says
+  UpdateAll applies distance/simulation-pause policies, linked UpdatePosition performs a
+  mode-specific volume/pan update, and focus gain calls Resume, but gives none of those
+  bodies. §10.8 names voice-count gates without specifying comparisons, rejection/linking
+  or existing-instance selection. Please specify these algorithms, linked averaging and
+  promotion state/reference transfer, Resume's foreign slots/transition rules, the six
+  constructor position-sentinel bits, and start/position payload reference/return rules.
+  [Implement only specified stages; record explicit Unsupported for voice policy, linked
+  position, distance/simulation pause and Resume. Require sentinel as an explicit input;
+  do not claim complete SoundManager execution or invent foreign Resume slots.]
+  (re-tsound8, 2026-10-25, partial: the instance side, linked averaging and volume/pan by model, distance and
+  simulation pause, Resume and its foreign slots, is audio-owner-closure.md §7; the voice-count gates, UpdateAll
+  and the sentinel bits on the manager side stay open.)
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio.md §8.3.2 completes the manager
+  algorithms and incorporates audio-owner-closure.md §7's sound-side bodies. Last matching
+  instance supplies the 50-tick test, repeated one-shots alone meet the unsigned count gates,
+  loops link to the first master, gain uses the pre-insertion count, refresh order is specified,
+  promotion transfers interfaces/list rather than instance state, all six sentinel words are
+  positive zero, and non-null start/position payloads return true independently of worker success.
+  Worked cases cover admission boundaries, gain, promotion, payload references and Resume.
+
 **ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU41: audio.md §19.2 specifies
 SEM/model defaults, binding, registration, retained-state failure and teardown, and all six
 model slot 5/6 contracts with twelve vectors. Primary slot 4 calls the supplied object's

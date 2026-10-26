@@ -37,17 +37,3 @@
   without those contracts. [Keep local fixture separate; implement known get-sound/QI/property/
   play operations as explicit stages, never assume missing word+14 or successful native dispatch.]
 
-<!-- from: core-audio-close13 (2026-10-24) -->
-- **AU50 — §8.3.1 remaining SoundManager algorithms:** the AU46/AU49 answer says
-  UpdateAll applies distance/simulation-pause policies, linked UpdatePosition performs a
-  mode-specific volume/pan update, and focus gain calls Resume, but gives none of those
-  bodies. §10.8 names voice-count gates without specifying comparisons, rejection/linking
-  or existing-instance selection. Please specify these algorithms, linked averaging and
-  promotion state/reference transfer, Resume's foreign slots/transition rules, the six
-  constructor position-sentinel bits, and start/position payload reference/return rules.
-  [Implement only specified stages; record explicit Unsupported for voice policy, linked
-  position, distance/simulation pause and Resume. Require sentinel as an explicit input;
-  do not claim complete SoundManager execution or invent foreign Resume slots.]
-  (re-tsound8, 2026-10-25, partial: the instance side, linked averaging and volume/pan by model, distance and
-  simulation pause, Resume and its foreign slots, is audio-owner-closure.md §7; the voice-count gates, UpdateAll
-  and the sentinel bits on the manager side stay open.)
