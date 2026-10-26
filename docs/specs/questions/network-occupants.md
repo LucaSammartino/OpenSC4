@@ -98,3 +98,12 @@ implementer of the class tables and records.
   the inherited envelope for the bridge and tunnel as well. This run is corrupt during load (not acceptance);
   its completed load sample has 755 netocc mismatches and an exact initial netmgr record.
 
+- **NO47 — empty-city shadow sample (census accounting, for the coordinator):** the supplied census's
+  `lua-lots-empty.shadows.txt` load line has `records=0 bytes=0` and every class count zero. The existing
+  shadow deliberately adds one mismatch when no network occupant record exists, to avoid giving owner
+  credit to an empty sample; its later two samples are exact. This is distinct from NO46's parse failure.
+  For the requested "exact in every scenario" metric, how should this proven empty original capture be
+  represented while preserving the rule that absent owners receive no verification credit? No codec
+  output differs in this sample. The lane retains the existing failing sample rather than dropping it,
+  changing its count to zero, or claiming that an unexercised class was verified.
+

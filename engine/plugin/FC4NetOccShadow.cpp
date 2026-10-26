@@ -66,7 +66,7 @@ void Compare(const char* event, int32_t julian) {
             }
         }
     }
-    // An empty sample must never be credited as an exact shadow.
+    // SPEC-GAP: NO47 leaves empty-city census accounting open; do not credit an empty sample.
     if (records == 0) ++mismatches;
     fc4_date date{};
     char dateText[16] = "?";
