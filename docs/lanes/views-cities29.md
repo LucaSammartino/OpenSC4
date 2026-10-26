@@ -1,15 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| views-cities29: view-city shadows (engine) | Codex; .claude/worktrees/views-cities29; detached HEAD, reserved branch views-cities29 | WIP: code d14c99b30, question 755e5aa37; ABI unchanged, no seam reservations; Rust 7901 passed, clippy 0 diagnostics, CTest 125/125; views four-key control 46/46 exact, house 46/46, census 493/493; VC29-PC open | 1. Resolve VC29-PC. 2. Reproduce and fix numeric differences under the broad view-run timing. 3. Revalidate and enqueue kind engine. |
+| views-cities29: view-city shadows (kind engine) | Codex; .claude/worktrees/views-cities29; detached HEAD, reserved branch views-cities29 | ready; code 909905fbb plus earlier zonedev d14c99b30; ABI unchanged, no seam reservations; Rust 8016 passed, clippy 0 diagnostics, CTest 130/130; views 22/22 target samples, house 45/45, census 484/484 exact; VC29-PC answered | 1. Publish the detached tip to the reserved branch. 2. Land the kind engine queue entry. |
 
-- Changed: consume lot slot 14's inclusive rectangle regardless of unspecified AL; regression covers overlap exclusion and adjacency through the production host fallback (23 insertions, 1 deletion).
-- Zone acceptance: views-cities29-5 month 2197-04-01 lists calls=32, mismatches=0, lots=377/377 (baseline 377/420): C:/Users/tlori/FreeCity4/build-runs/game-results/views-cities29-5.log.
-- Four-key view control: clean/ref_warnings=0; residential 25/25, zonedev 15/15, lotdev 3/3, regionalcity 3/3 exact; view script scenario-complete and both lighting actions delivered: same .log, .lua.log and .verdict.
-- Numeric acceptance remains unproved: faster four-shadow control changes timing. Original broad log enters CW=0x027F before the reported balance/slope/EQ differences; cores implement the specified 24-bit arithmetic. No precision policy or tolerance changed.
-- VC29-PC: docs/specs/questions/foundations.md asks whether Lua re-entry must establish simulation PC=24 or pass PC=53 into these cores; blocks residential, lotdev and regionalcity numeric items.
-- House acceptance: clean/end=1/ref0, actions 5/5, all four keys exact, 46/46 shadow lines: C:/Users/tlori/FreeCity4/build-runs/suite/views-cities29-house-6/{summary.tsv,per_key.tsv,reach29-house.log}.
-- Census acceptance: all four keys 6/6 scenarios exact, 493/493 shadow lines, six clean/end=1/ref0: C:/Users/tlori/FreeCity4/build-runs/suite/views-cities29-census-7/{summary.tsv,per_key.tsv,*.log}.
-- Census cases: berlin-spandau, berlin-tegel, london-kensington, london-fulham, timbuktu-big-city, timbuktu-rush-hour. Suite exits 1 for six action refusals: funds 1, blocked 2, network placement 3; details in that directory's scenario JSON files. Shadow results remain exact.
-- Tests: focused plugin_ini_enable_zonedev_test 1/1; qbuild all once PASS (Rust 7901, clippy 0 diagnostics, CTest 125/125). Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
-- Distinct failed attempts: requested --set all/--keys command failed measured selection; suite views-cities29-2 exited during demolition shadow (17/18 actions, end=0); views-cities29-3/-4 harness path errors, no game result. These do not supply acceptance credit.
-- Enqueue acceptance: NOT met; WIP merge-queue entry only. No merge-train enqueue until VC29-PC and broad numeric validation are resolved.
+- Merged main first (1b760d977); no branch/ref updates. Implementation milestone: 909905fbb.
+- Regional balance now uses invocation PC for produced+imported, demanded+exported, then subtraction; the intermediate remains double.
+- Lot distance/cascade/rise/division retain invocation precision until the float sink; residential newcomer blends and global queries preserve the specified float stores.
+- CAPI reads live PC without changing it; simulation-entry diagnostics retain Lua/modal precision. No tolerance or public ABI changed; PC24/PC53 are modeled.
+- VC29-PC consumed from foundations 18.4 and the three updated subsystem specs (re-vc30). No new question; the inherited question copy remains in docs/specs/questions/foundations.md.
+- Gate: qbuild all once PASS, Rust 8016/0, clippy 0 diagnostics, CTest 130/130. Logs: build-runs/{qbuild-test.log,qbuild-clippy.log,fc4verify-build.log,fc4verify-ctest.log}.
+- Focused: core precision tests 3/3; conformance integration/vector 2/2; owned leaf fmt 15 files and three module checks passed.
+- Final DLL SHA256: 101376d0989dc3ab9f148531db9ace3448819fd7bf3845640a468b40b01dd172. All acceptance runs below stage this DLL.
+- Broad views: views-cities29-14 clean/end=1/ref0, actions 18/18; four keys 4/4 exact, dated target samples residential 8/8, zonedev 10/10, lotdev 2/2, regionalcity 2/2.
+- Views evidence: C:/Users/tlori/FreeCity4/build-runs/suite/views-cities29-14/{summary.tsv,per_key.tsv,reach29-views.log,reach29-views.verdict}.
+- Broad profile retains defaults except demolition_shadow=0 and demolition_price_shadow=0: their unrelated filter fixture exits with an ESP calling-convention failure. Other-key profile results are 287/340; target keys are exact.
+- Precision observation: 19 residential deliveries native/return/replay CW=0x027F; monthly lot/regional probes CW=0x007F. PC53 balance/slope/newcomer/global boundaries pass exact conformance cases; no Lua-stack attribution claim.
+- House: views-cities29-checks-16/reach29-house clean/end=1/ref0, actions 5/5, all four keys exact, 45/45 shadow lines.
+- Census: same batch, six clean/end=1/ref0; all four keys 6/6 exact, 484/484 shadow lines. Logs: C:/Users/tlori/FreeCity4/build-runs/suite/views-cities29-checks-16/{summary.tsv,per_key.tsv,*.log,*.verdict}.
+- Census cases: berlin-spandau, berlin-tegel, london-kensington, london-fulham, timbuktu-making-money, timbuktu-rush-hour; simulator factory enabled via disable=budget,ordinance.
+- Batch exits 1 only for three placement refusals (Tegel 1, Fulham 2); shadows remain exact. House exit/actions pass. Individual action evidence is in that batch's scenario JSON/logs.
+- Excluded attempts: --keys selection error (-8 dry run); -10/-11 demolition fixture exits; -12/-13 provisional old DLL; -15 simulator disabled and two occupied-slot harness errors. None supply acceptance credit.
