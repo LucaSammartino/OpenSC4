@@ -152,6 +152,7 @@ Resource* Collection::Owner() { return reinterpret_cast<Resource*>(reinterpret_c
 bool __fastcall Collection::Query(Collection* self, void*, uint32_t iid, void** out) { return self->Owner()->QueryInterface(iid, out); }
 uint32_t __fastcall Collection::Retain(Collection* self, void*) { return self->Owner()->AddRef(); }
 uint32_t __fastcall Collection::Drop(Collection* self, void*) { return self->Owner()->Release(); }
+// [abi-ret] effects.md 18.9.3: P slot 12 returns the old R pointer in EAX.
 void* __fastcall Collection::Destroy(Collection* self, void*, uint32_t flags) { return self->Owner()->persist_.Destroy(flags); }
 Resource* Persist::Owner() { return reinterpret_cast<Resource*>(reinterpret_cast<char*>(this) - 0x11C); }
 bool Persist::QueryInterface(uint32_t iid, void** out) { return Owner()->QueryInterface(iid, out); }
