@@ -482,6 +482,15 @@ uint32_t g_months = 0, g_cleanMonths = 0;
 uint64_t g_methodCalls = 0, g_methodMismatches = 0;
 WriteCapture g_capture;
 
+void MethodLine(const char* date) {
+    g_methodMismatches += g_month.d.mismatches;
+    // DoMessage still lacks complete dated/model and creation effect traces.
+    // A saved-state match alone must not earn whole-method coverage credit.
+    Log("propdev method 0x006F4E90 cSC4PropDeveloper::DoMessage (month) %s: "
+        "calls=%llu complete=0 mismatches=%llu; resyncs=0", date,
+        static_cast<unsigned long long>(g_methodCalls), static_cast<unsigned long long>(g_methodMismatches));
+}
+
 void Follow(const char* how) {
     // "first" or "resynced" wins over "yes" for the month line.
     if (g_month.followed == nullptr || std::strcmp(g_month.followed, "yes") == 0) g_month.followed = how;
@@ -784,8 +793,11 @@ bool __fastcall NativeNightMessage(void* self, void* edx, cIGZMessage2* msg) {
         if (message.data3 == 0xA823821E && message.object) {
             auto* prop = static_cast<cISC4PropOccupant*>(FromToken(message.object));
             std::vector<uint32_t> trigger;
-            props::GetU32s(prop->AsOccupant()->AsPropertyHolder(), 0x6A3FCC37, trigger);
-            input->Capture(g_run.ctx.get(), message.object, trigger.empty() ? 0 : trigger.front());
+            auto* occupant = prop->AsOccupant();
+            if (occupant) {
+                props::GetU32s(occupant->AsPropertyHolder(), 0x6A3FCC37, trigger);
+                input->Capture(g_run.ctx.get(), message.object, trigger.empty() ? 0 : trigger.front());
+            } else input->valid = false;
         }
         ++g_month.messages;
         if (g_nativeOperation) {
@@ -1129,6 +1141,8 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
     propcity::DateText(julian, date);
     if (!mo.compared) {
         Log("propdev shadow %s: INCOMPLETE (%s); mismatches=1", date, mo.incomplete ? mo.incomplete : "?");
+        ++g_methodMismatches;
+        MethodLine(date);
         g_month = MonthStats{};
         return;
     }
@@ -1163,12 +1177,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
-    g_methodMismatches += g_month.d.mismatches;
-    // DoMessage still lacks complete dated/model and creation effect traces.
-    // A saved-state match alone must not earn whole-method coverage credit.
-    Log("propdev method 0x006F4E90 cSC4PropDeveloper::DoMessage (month) %s: "
-        "calls=%llu complete=0 mismatches=%llu; resyncs=0", date,
-        static_cast<unsigned long long>(g_methodCalls), static_cast<unsigned long long>(g_methodMismatches));
+    MethodLine(date);
     g_month = MonthStats{};
     g_messageRemovals = 0;
 }
