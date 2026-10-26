@@ -1,8 +1,8 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| close-af29 aircraft closure; kind engine | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/close-af29; detached HEAD, reserved branch close-af29; code commits de4360192, bc0cc93d9; ABI/seam reservations none | blocked on shared native builder; cargo 7909/7909, clippy 0 diagnostics, fmt 5/5; CTest pending; game/shadow unmeasured; questions none; whole-owner credit remains partial | 1. Service native build requests. 2. Collect existing operations. 3. Run shared game queue. 4. Enqueue kind engine after validation. |
+| close-af29 aircraft closure; kind engine | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/close-af29; detached HEAD, reserved branch close-af29; code de4360192/bc0cc93d9, audit 8e7014f37, main merge 828c56b96; ABI/seam reservations none | ready; cargo 7977/7977, clippy 0 diagnostics, fmt 5/5, CTest 130/130; close-af29-r3-aircraft-1/-2 clean, ref_warnings=0; automata 5/5 and helicopter metadata 5/5 exact per run; questions none; whole-owner credit remains partial | 1. Land engine entry at its recorded full HEAD. 2. Obtain aircraft §9 runtime observations before closing remaining rows. |
 
-2026-10-26 12:55:17: quick request pending since 12:18:30; full native request pending since 12:36:45.
+2026-10-26 resumed after reboot; merged main ef84805f1 without conflicts. This round's evidence supersedes the pre-reboot pending operations.
 AC closure: airplane 16 implemented / 12 open (+1 foreign); helicopter 19 implemented / 14 open (+1 foreign), measured in the two owner README tables.
 Airplane applied: §3.2.1 AF4 constructor/teardown; §3.3.2–3 AF3 clearance/selection/fire/approach; §3.4.1–2 AF10; §4.3.3 AF5/AF6; §4.4 AF3/AF6 ordered requests.
 Helicopter applied: §4.2.6 AF2/AF4 power/frame order/home completion; §4.2.7 AF4 claims; §4.3.3 AF5/AF6 callback requests; §4.4 AF3/AF6 startup/dispatch; §4.2.1 shared AF10 time.
@@ -15,10 +15,10 @@ AF4 remains: §9.3 constructor remainder, native attachment/Init/failure/repeat 
 AF5 remains: §9.4 raw control translation, readiness/cadence/projectiles and spotlight output transforms/terrain geometry.
 AF6 remains: §9.5 observer/message envelope, external failures/callbacks; ordered goal/repulsor/notification requests are implemented independently.
 AF11 remains: §9.6 complete registration/removal enumeration and independent resource/placement/goal input history; archive subset/private metadata fixture is insufficient (vector 35).
-AC Rust: qbuild all test exit=0, 7909 passed/0 failed/0 ignored; build-runs/qbuild-test.log (includes aircraft_closure cases).
-AC focused: aircraft_closure 16/16 passed; new worked-case tests live in engine/conformance/tests/aircraft_closure.rs; captured stdout in build-runs/close-af29-checks.log.
-AC clippy: exit=0, diagnostics=0; build-runs/qbuild-clippy.log. AC fmt: 5 files, diff_lines=0; build-runs/close-af29-checks.log. git diff --check passed.
-AC native: qbuild all invoked once; build/CTest not started. Pending build-runs/build-queue/qbuild-20261026-121830-quick.req and qbuild-20261026-123645-build-ctest.req; sessions 84418 and 21748 respectively.
-AC game: no request submitted, no verified DLL/game/ref_warnings/shadow result. After build use MAIN/build-runs/game-queue, parallel=1 above [ini], turbo/end_date and automata/helicopter shadows; metadata is not flight validation.
-AC enqueue: WIP merge-queue entry only; merge-train enqueue deferred until native/game validation. No ready credit claimed; ABI unchanged; no new question filed or coverage/regress edits.
-Next: service the shared native builder, collect those SAME operations (do not rerun all absent a fix), run one shared-queue game check, then update evidence and enqueue --kind engine with actual full HEAD.
+AC Rust: qbuild all once this round, exit=0, 7977 passed/0 failed/0 ignored; build-runs/qbuild-test.log includes aircraft_closure 16/16 worked-case tests.
+AC quick: PASS 7132 tests, dependent crates compiled, 328/328 native edges; build-runs/build-results/qbuild-20261026-180421-quick.verdict.
+AC clippy: exit=0, diagnostics=0; build-runs/qbuild-clippy.log. AC fmt: 5 files, diff_lines=0; git diff --check passed; build-runs/close-af29-r3-checks.log records corrected fmt invocation.
+AC native: qbuild all PASS, build 29/29 edges, CTest 130/130; build-runs/fc4verify-build.log and build-runs/fc4verify-ctest.log (103.53 s).
+AC game: MAIN/build-runs/game-results/close-af29-r3-aircraft-{1,2}.{verdict,log}: both clean, ref_warnings=0, script 2/2; run 2 verifies final DLL SHA256 fa95dd5a at 38.17 days/s through 2026-05-02.
+AC shadows: both runs automata 5/5 exact, 30 components (50564/50999 bytes), mismatches=0; helicopter metadata 5/5 exact, reachable=0/private fixture=1, five fields/sample; no flight/parameter/home/goal/lifecycle/enumeration credit.
+AC landing: ready kind engine with actual full HEAD; ABI unchanged, no new questions or coverage/regress edits. Coordinator credit is implemented only for the 16 airplane/19 helicopter bounded rows; §9 rows remain open for the observations above.
