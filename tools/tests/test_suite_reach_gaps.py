@@ -9,7 +9,7 @@ import suite_coverage
 
 
 def evidence(reached=(), exact=('foo',), bad=()):
-    return dict(reached=set(reached), exact=set(exact),
+    return dict(reached=set(reached), exact=set(exact), replaced=set(),
                 scenarios=[dict(ran=set(exact) | set(bad), exact=set(exact))])
 
 

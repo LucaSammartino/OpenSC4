@@ -1,5 +1,28 @@
 # Reach tracer exclusions and diagnostics
 
+## Opt-in city lifecycle census
+
+`reach_lifecycle = 1` (default **0**, requires `reach = 1`) arms entries at the
+end of `PostAppInit`, after plugin setup, instead of after `PostCityInit`.
+It captures real city deserialization, initialization and native teardown.
+The observer's load/shutdown comparison passes suspend tracing, as monthly
+constructed probes already do. Entries changed by a late hook remain excluded.
+The first window's `2000-01-01` is explicitly a **load sentinel**, not a saved
+city date; `PostCityInit` opens the actual date window. It is unsuitable for
+calendar-based scenario shortening. Post-city-shutdown writes a checkpoint
+without stopping; `PreAppShutdown` stops before plugin hooks are restored.
+No settings or city state change merely by enabling this tracing option.
+
+`python tools/suite.py run --set reach29 --profile shadows --reach --slots 4
+--extra "reach_lifecycle = 1" --extra "reach_cap = 1" --tag TAG` runs the four
+load/save, empty-development and Lua-view scenarios in isolated queue slots.
+`python tools/suite_reach_gaps.py --baseline build-runs/suite/BEFORE
+--after build-runs/suite/NEW --out build-runs/reach-delta` ranks exact-shadow
+gaps and reports per-owner executed/verified gains and first mismatch lines.
+Both measurements use the same current byte attribution and the conservative
+suite-wide exact-key rule. Capturing a lifecycle does not broaden a shadow's
+documented comparison scope.
+
 The 1.1.641 function roster contains false entries inside instruction operands.
 An entry breakpoint at such an address changes the surrounding instruction;
 the CPU need not execute an INT3. Function names and a plausible first byte do

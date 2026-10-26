@@ -646,6 +646,25 @@ void ReachNewMonth(int32_t julian) {
     g_reachDates.push_back(julian);
 }
 
+bool ReachLifecycleEnabled() {
+    return SettingInt("reach_lifecycle", nullptr, 0) == 1;
+}
+
+void ReachLifecycleStart() {
+    if (!ReachLifecycleEnabled()) return;
+    // No city/simulator exists yet. Give the load window an explicit sentinel;
+    // PostCityInit opens the first window bearing the actual saved city date.
+    ReachStart(harness::JulianFromCivil(2000, 1, 1));
+    if (g_reachStarted)
+        Log("reach lifecycle phase=load window=1 date=2000-01-01 sentinel=1");
+}
+
+void ReachCheckpoint() {
+    if (!g_reachStarted || g_reachStopped) return;
+    Log("reach checkpoint phase=post-city-shutdown saved=%u output=%s",
+        g_reach->Write(g_reachOutput) ? 1u : 0u, g_reachOutput.c_str());
+}
+
 void ReachStop() {
     if (!g_reachStarted || g_reachStopped) return;
     g_reachStopped = true;

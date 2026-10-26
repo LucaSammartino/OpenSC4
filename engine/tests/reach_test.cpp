@@ -273,6 +273,12 @@ int main(int argc, char** argv) {
         CHECK(s.wxBreakpoints == 7 && s.wxSteps == 7 && s.traps == 14 && s.abortedSteps == 0);
         CHECK(translatedBreakpoints == 7 && translatedSteps == 7);
         CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0xcc);
+        // A city-shutdown checkpoint must leave tracing live for subsequent
+        // teardown/another city. Writing evidence must not behave like Stop.
+        CHECK(tracer.Write("reach-lifecycle-checkpoint.tsv"));
+        CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0xcc);
+        CHECK(b(5) == 15);
+        CHECK(RowAt(tracer, fn[1]).entries == 1);
         tracer.Stop();
         CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0x90);
         CHECK(RemoveVectoredExceptionHandler(translator) != 0);

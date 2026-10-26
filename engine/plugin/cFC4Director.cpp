@@ -366,6 +366,7 @@ public:
         fc4::NetRulesShadowStart(); // before original network tools initialize
         fc4::SCResShadowStart(); // also covers late director attachment; start is idempotent
         fc4::FpuLog("hook PostAppInit (exit)");
+        fc4::ReachLifecycleStart();  // reach_lifecycle = 1 only; real city load, after setup probes
         return true;
     }
 
