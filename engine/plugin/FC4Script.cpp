@@ -35,6 +35,7 @@
 #include "cFC4ZoneManager.h"
 #include "cFC4PropDeveloper.h"
 #include "cFC4MySim.h"
+#include "FC4GDriverShadow.h"
 
 #include "SC4Rect.h"
 #include "SC4String.h"
@@ -727,6 +728,9 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         }
         case ScriptOp::LightingHour:
             result = PropDevScriptLightingHour(a.speed);
+            break;
+        case ScriptOp::GDriverProbe:
+            result = GDriverShadowProbe();
             break;
     }
     std::string late;

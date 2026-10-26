@@ -2,6 +2,8 @@
 // Observing records must not take over any occupant class factory.
 #include "cISC4Occupant.h"
 #include "../plugin/FC4PoleCellVector.h"
+#include "../plugin/cFC4PowerPoleOccupant.h"
+#include "cIGZPersistResource.h"
 
 void NetOccCellVectorTest() {
     using namespace fc4::netpole;
@@ -239,6 +241,71 @@ public:
     virtual bool ChangeZoomLevel(void*) = 0;
 };
 
+class NetOccPoleExemplar final : public cIGZPersistResource {
+public:
+    bool QueryInterface(uint32_t iid, void** out) override {
+        if (!out || (iid != GZIID_cIGZPersistResource && iid != GZIID_cIGZUnknown)) return false;
+        *out = static_cast<cIGZPersistResource*>(this); AddRef(); return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    void GetKey(cGZPersistResourceKey&) const override {}
+    bool SetKey(const cGZPersistResourceKey&) override { return false; }
+    uint32_t GetType() const override { return 0x6534284A; }
+    uint32_t GetGroup() const override { return 0xE7E2C2DB; }
+    uint32_t GetInstance() const override { return 0x00000100; }
+    bool SetType(uint32_t) override { return false; }
+    bool SetGroup(uint32_t) override { return false; }
+    bool SetInstance(uint32_t) override { return false; }
+    uint32_t GetRefCount() const override { return refs; }
+    uint32_t refs = 1;
+};
+
+void NetOccPoleLinksTest(FC4TestSeamFn seam, NetOccPoleTestInterface* first, NetOccPoleTestInterface* second) {
+    NetOccPoleExemplar exemplar;
+    CHECK(first->Init(&exemplar, 1));
+    CHECK(second->Init(&exemplar, 1));
+    CHECK(exemplar.refs == 1);
+    cS3DVector3 a(0, 0, 0), b(64, 0, 0);
+    CHECK(first->AsOccupant()->SetPosition(&a));
+    CHECK(second->AsOccupant()->SetPosition(&b));
+    // Foreign endpoint identity is probed only through the primary interface;
+    // the same native header survives both calls without reference transfer.
+    NetOccTestPole line;
+    fc4::netpole::Wire items[] = {{0, 0, &line, 0, {}}, {1, 0, &line, 1, {}}};
+    fc4::netpole::WireVector wires{items, items + 2, items + 2};
+    const auto original = wires;
+    FC4NetOccPoleLinkTest t{1, first, second, &wires, 0};
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    CHECK(first->GetConnectionCount() == 1 && first->GetConnectedPole(0) == second);
+    CHECK(line.refs == 3);
+    t.first = second; t.second = first;
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    CHECK(second->GetConnectionCount() == 1 && line.refs == 3);
+    CHECK(wires.begin == original.begin && wires.end == original.end && wires.capacity == original.capacity);
+    // Repeating either direction must not retain duplicate endpoints or lines.
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    CHECK(second->GetConnectionCount() == 1 && line.refs == 3);
+    float points[12]{};
+    t = {3, first, nullptr, points, 4}; // low orientation bits select bank 0.
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    CHECK(points[0] == 0 && points[1] == 31.7f && points[2] == 4.8f);
+    t = {0, first, second, nullptr, 0};
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    t.value = 1;
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    t.operation = 2;
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 1);
+    // Foreign self is never treated as a concrete FC4 base.
+    t = {1, &line, first, nullptr, 0};
+    CHECK(seam(kFC4SeamNetOccPoleLink, &t, nullptr) == 0);
+    CHECK(first->BreakAllConnections(true));
+    CHECK(first->GetConnectionCount() == 1 && first->GetConnectedPole(0) == nullptr);
+    CHECK(second->GetConnectionCount() == 0 && line.refs == 1);
+    CHECK(first->AsOccupant()->Shutdown());
+    CHECK(second->AsOccupant()->Shutdown());
+}
+
 int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
     NetOccCellVectorTest();
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
@@ -337,6 +404,7 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
                 CHECK(!other->IsPreview() && !other->IsDistressed());
                 CHECK(other->GetConnectionCount() == 0);
                 CHECK(other->AsOccupant() != occ);
+                if (seam) NetOccPoleLinksTest(seam, pole, other);
                 other->Release();
             }
             void* live = nullptr;

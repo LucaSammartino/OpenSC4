@@ -147,7 +147,8 @@ FLT_MAX for an empty walk (not reachable: the instance itself is always visited)
   (flag 0); holder slot 5 `Play(instance ID, volume +0x18, 512, 0)`; `UpdatePosition`; `SetVolume(+0x18)`; the query
   reference is released. Returns the count.
 
-The voice-count gates and the manager-side UpdateAll of AU50 belong to `cSC4AudioSoundManager` and stay open there.
+The voice-count gates, manager-side UpdateAll, six sentinel words, promotion reference/state
+transfer and start/position payload rules of AU50 are completed in [audio.md](audio.md) §8.3.2.
 
 ## 8. `cSourceFileDebugInfo` (HIT debug info) *[compat]*
 

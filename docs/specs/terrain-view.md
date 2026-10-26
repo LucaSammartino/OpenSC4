@@ -106,8 +106,10 @@ grid on, the grid (§8.1), restoring the fixed state.
 
 ### 4.2 Triangles (`SetTriangleIndicesForCell`, `0x00752AF0`)
 
-Each cell (x, z) has two triangles over its vertices v = (x, z), v + 1, v + W and v + W + 1 (W = vertsX), chosen by
-the flags of vertex (x, z) (terrain.md §7):
+Each cell (x, z) has two triangles over its four vertices. In the index buffer below, v = x,
+relative to the bound pair of vertex rows, and W = vertsX; z selects the index-buffer row,
+not an addition to the stored indices. The flags of terrain vertex (x, z) choose the triangles
+(terrain.md §7; exact words and hide/winding cases in §15.5.13.4):
 
 | Flags | First triangle | Second triangle |
 |---|---|---|
@@ -136,8 +138,80 @@ Blending is turned off at the end.
 
 `DrawTerrainQuad(drawContext, x, z)` (slot 14, `0x00752870`) redraws one visible cell from the land arrays (its
 row's index list, flipped or not); `DrawTexturedTerrainQuad(drawContext, x, z, uv[8], alpha, force)` (slot 15,
-`0x00752940`) draws the cell's four vertices with the given texture coordinates and one alpha byte, even when the
-cell is not visible if `force` is set. Used for overlays drawn on single cells *[inferred]*.
+`0x00752940`) draws the cell's four vertices with the given texture coordinates and **f32 alpha**, converted
+to a vertex alpha byte, even when the cell is not visible if `force` is set. A concrete caller is the sloping
+cell-texture path in [lot-models.md §4](lot-models.md#4-cell-textures-csc4celltexturemodel-compat).
+
+#### 4.4.1 Native receiver, terrain lifetime and generated-action fault (NM20) *[compat]*
+
+`0x007529C0` is inside this slot-15 draw, not a placement callback or an automata interface. It reads
+the terrain's vertex-array pointer at terrain `+0x6C`. The terrain pointer itself was just fetched
+from **receiver +0x14**, which is **view base +0x20**, because this receiver is the drawing interface
+at **view base +0x0C** (`0x007529AD–0x007529C8`). A null+`0x6C` fault here means that fetched terrain
+pointer is null; it does not mean a null occupant, lot, configuration, path-info object or vertex-array
+entry. If the vertex-array pointer were null instead, the subsequent indexed flag read would fail.
+
+The required view is `cISTETerrainView3D`, IID **`0x6771477D`**, native vtable `0x00AB4410`.
+`terrain.GetView` (slot 66, `0x00741810`) returns its stored view base +0x0C, or null when it has no
+view. The base's different vtable `0x00AB4480` is not this interface. There is no QI or receiver
+adjustment inside the quad draw, and no null-terrain fallback. After the visibility/force gate it
+unconditionally uses that terrain. `force` bypasses culling; it does not initialize a missing view
+or make an absent terrain valid. An offscreen early return can mask an invalid lifetime temporarily.
+
+The terrain subsystem supplies and owns this view. Its `DoPostCityInit` creates or reuses the view,
+calls base-view `Init(terrain)`, then sets terrain's view-ready flag (terrain.md §15.5.1). `Init`
+stores the passed **primary terrain pointer** at view base +0x20 and AddRefs it
+(`0x0075C483–0x0075C491`). The native view needs the concrete terrain vertex array, stride **0x24**,
+in addition to the terrain's callable slots. For cell index i = z·vertex-row-width + x, this draw
+tests the upper flag byte at vertex i +0x23 for mask `0x30`, i.e. vertex flags `0x3000`, to select
+the diagonal (`0x007529BA–0x007529D8`). It uses the view's separate static land-vertex buffer for
+the four rendered vertices. An interface-only terrain shim with no such array is insufficient.
+
+The terrain pointer is legitimately null in a constructed or deserialized-but-not-Init'ed view,
+and after view `Shutdown` releases it and clears base +0x20 (`0x007562FC–0x00756308`). These are
+not valid states for an admitted quad draw. `GetView` only tests the stored view pointer, not its
+initialization state, so a non-null `GetView` result alone is not evidence of readiness. Terrain
+and view lifetime must cover every admitted cell-texture draw; the native draw does not retain
+either object for its caller. Shutdown unregisters the view before releasing its collaborators
+(§9.3); external cell models must also stop using any stale cached view.
+
+**Immediate consumer.** On its sloping path, `cSC4CellTextureModel::Draw` `0x005E0200` takes the
+view from **SC4DrawContext +0x4C**, calls slot 15 at `0x005E0484`, and resumes at `0x005E0487`.
+It passes the draw context, its unsigned-byte cell x/z, eight UV f32, alpha derived from the stored
+byte by multiplication with binary32(1/255), and force = (draw-context +0x20 == 8)
+(`0x005E0447–0x005E0484`). This call uses a borrowed view: no QI, AddRef, Release or null check
+occurs around it. A flat lot instead submits its own four-vertex strip and need not hit this slot.
+That distinction explains why reaching a network action or drawing other lots does not exercise
+this boundary on every run.
+
+**Worked lifetime case.** Initialize a native-compatible view V with terrain T and publish V+0x0C
+to a draw context. A sloping cell model at (44,z), alpha byte 255, normal context mode, reaches
+slot 15 with that receiver and alpha 1.0; if admitted by culling, it reads T's indexed flags and
+draws four vertices with six indices. Keep V and T alive through the call. Repeat in context mode
+8 with the cell outside the visible spans: force still reaches the same T read. Clearing V's
+terrain pointer is not a supported way to return “nothing drawn”; the original faults once that
+read is reached. A replacement's fixture can check the receiver, retained reference and admission
+order without intentionally executing an invalid native call.
+
+**NM20-A — what the generated sequence still needs.** The supplied `aa29-at25-s2-noauto-b.log`
+records EAX=0, receiver ECX=`0x156C1020`, EDX=`0x00AB4410` and a read of `0x6C`. Its saved stack
+contains `0x005E0487` at the draw's return-address position (current ESP+0x90), consistent with
+the concrete cell-texture caller above. This establishes the failing boundary, not the earlier
+write that made its terrain null. The 84/216 runs, including the repeats with automata off, remain
+failed; s1's 216/216 result does not establish s2's lifetime or its native placement result.
+
+For the same loaded city, settings and `gen27-konradshohe-s2-grow.script`, retain one original
+control through line 88 (`network 40 51 40 19 5`) and the next rendered frame. Record the native
+placement return and tool Shutdown separately from view Shutdown. At slot-15 entry retain its
+return address, receiver/vtable, owning view base, base +0x18 initialized flag, base +0x20 terrain,
+terrain's stored view/ready flag, and draw-context +0x4C. Track the assignments to that cache and
+the first write clearing this particular view's terrain pointer, with caller and Init/Shutdown
+history. This distinguishes an uninitialized loaded view, a stopped view still in a context, a
+wrong interface receiver and an unrelated overwrite. The original control's admitted draws must
+use the initialized retained terrain contract above; whether native placement returns 0 on this
+specific action, and which replacement path violates that contract, require this observation.
+Do not assign ownership to automata, infer a tool-to-view shutdown call from adjacent log lines,
+or invent a zero terrain/skip-draw fallback from the fault address.
 
 ## 5. Texture coordinates and textures *[compat]*
 

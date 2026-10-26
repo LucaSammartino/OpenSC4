@@ -195,8 +195,9 @@ extern "C" {
  * 101 = merge-train batch train210 (glue-querytool-shadow13): merged (no C ABI history entry of its own)
  * 102 = merge-train batch train212 (re-map-view-qv18, glue-renderprops-shadow13, glue-app-shadow13): merged (no C ABI history entry of its own)
  * 103 = merge-train batch train233 (glue-netrules-replace23, glue-lotconfobj-replace22): merged (no C ABI history entry of its own)
- * 104 = merge-train batch train237 (re-netocc-no33, glue-regionalcity-replace23, glue-floraocc-replace22, glue-formats-shadow24): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 104u
+ * 104 = merge-train batch train237 (re-netocc-no33, glue-regionalcity-replace23, glue-floraocc-replace22, glue-formats-shadow24): merged (no C ABI history entry of its own)
+ * 105 = merge-train batch train278 (re-at30, re-nm30, re-wt29, re-ovv29, re-ov30, re-gr30, re-ef30, replace-netocc29, close-fb29, landvalue-flake29, close-propdev29, close-legacyctl29, traffic-cities29, netocc-cities29, occupants-cities29, plans-cities29, automata-actions29, close-lotwall29, growth-cities29, close-pt29, suite-health28): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 105u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -7489,6 +7490,9 @@ typedef struct fc4_prop_host {
     uint32_t (*visual_time_mode)(void* user);
     bool (*lighting_is_night)(void* user);
     void (*terrain_heights)(void* user, float x, float z, float* altitude, float* water);
+    /* Optional PV18 extension. A legacy-sized table uses set_date_range above. */
+    void (*set_date_calendar_range)(void* user, uint64_t prop, uint32_t interval,
+                                    uint32_t duration, uint8_t month, uint8_t day);
 } fc4_prop_host;
 
 typedef struct fc4_prop_message {
@@ -10329,6 +10333,9 @@ void fc4_automata_automaton_set_position(const fc4_automata_object* o, const flo
 void fc4_automata_automaton_remove(const fc4_automata_object* o);
 void fc4_automata_automaton_return_to_source(const fc4_automata_object* o);
 bool fc4_automata_automaton_get_state(const fc4_automata_object* o, fc4_automata_automaton_state* out);
+/* Native construction setup, automata.md 7.2/7.5 (slots 14 and 30). */
+void fc4_automata_automaton_set_orientation(const fc4_automata_object* o, const float* orientation);
+void fc4_automata_automaton_set_flag(const fc4_automata_object* o, uint32_t mask, bool on);
 
 /* Component 40, the script system (§2): the templates and occupant groups
  * the scripts define (not saved). The record is u16 1; Read fails on anything else. */
@@ -12631,7 +12638,7 @@ static_assert(sizeof(fc4_prop_ref) == 16, "fc4_prop_ref layout");
 static_assert(sizeof(fc4_prop_message) == 32, "fc4_prop_message layout");
 static_assert(sizeof(fc4_prop_state) == 104, "fc4_prop_state layout");
 static_assert(sizeof(fc4_prop_block) == 52, "fc4_prop_block layout");
-static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_prop_host layout");
+static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 276 : 552), "fc4_prop_host layout");
 static_assert(sizeof(fc4_occ_bbox) == 24, "fc4_occ_bbox layout");
 static_assert(sizeof(fc4_occ_cell_box) == 4, "fc4_occ_cell_box layout");
 static_assert(sizeof(fc4_occ_filter) == 16, "fc4_occ_filter layout");
@@ -12689,7 +12696,7 @@ _Static_assert(sizeof(fc4_prop_ref) == 16, "fc4_prop_ref layout");
 _Static_assert(sizeof(fc4_prop_message) == 32, "fc4_prop_message layout");
 _Static_assert(sizeof(fc4_prop_state) == 104, "fc4_prop_state layout");
 _Static_assert(sizeof(fc4_prop_block) == 52, "fc4_prop_block layout");
-_Static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_prop_host layout");
+_Static_assert(sizeof(fc4_prop_host) == (sizeof(void*) == 4 ? 276 : 552), "fc4_prop_host layout");
 _Static_assert(sizeof(fc4_demolition_state) == 44, "fc4_demolition_state layout");
 _Static_assert(sizeof(fc4_demolition_host) == (sizeof(void*) == 4 ? 344 : 688), "fc4_demolition_host layout");
 _Static_assert(sizeof(fc4_dispatch_info) == 56, "fc4_dispatch_info layout");
@@ -13172,6 +13179,43 @@ bool fc4_netlot_get_lot_with_configuration(const fc4_netlot* l, int32_t x, int32
                                          fc4_netlot_lot* out, uint64_t* configuration);
 bool fc4_netlot_iterate_lots_with_configuration(const fc4_netlot* l,
                                               fc4_netlot_configuration_visitor cb, void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
+/* PV18 prop-developer observer transport: operates only on independent copies.
+ * slots 11/15/16/17/21, four argument words, current date, 624 MT words/index.
+ * False leaves every output unchanged. Null range is distinct from a zero range.
+ * This checks semantic effects/RNG, not model calls or queued-message lifetime. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_prop_effect_state {
+    uint32_t present, interval, duration, start_day, end_day, timer, chance, state;
+} fc4_prop_effect_state;
+typedef struct fc4_prop_effect_result {
+    uint32_t state_called, state_changed, requested_state;
+    uint32_t timer_called, timer_mask, timer_on, random_drawn, random_value;
+} fc4_prop_effect_result;
+bool fc4_prop_developer_shadow_effect(fc4_prop_effect_state* state, uint32_t slot,
+                                     const uint32_t* args, uint32_t date,
+                                     uint32_t* words, uint32_t* index,
+                                     fc4_prop_effect_result* result);
+#ifdef __cplusplus
+}
+static_assert(sizeof(fc4_prop_effect_state) == 32, "fc4_prop_effect_state layout");
+static_assert(sizeof(fc4_prop_effect_result) == 32, "fc4_prop_effect_result layout");
+#endif
+
+/* Concrete automaton record codecs, independent of replacement factories.
+ * Return 0: unspecified class, 1: failed IO, 2: read/write succeeded.
+ * Success still requires the caller to check exhaustion and output bytes.
+ * Every acquired input reference is released on success or failure. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_automata_derived_record_roundtrip(uint32_t class_id,
+    const fc4_istream* input, const fc4_ostream* output, const fc4_automata_ref_host* refs);
 #ifdef __cplusplus
 }
 #endif

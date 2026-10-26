@@ -298,6 +298,18 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return NetworkLotOwnershipTest(static_cast<cIGZUnknown*>(a), static_cast<cIGZUnknown*>(b));
         case kFC4SeamNetworkCrewOwnership:
             return NetworkCrewOwnershipTest();
+        case kFC4SeamNetOccPoleLink: {
+            if (!a || b) return 0;
+            const auto& t = *static_cast<FC4NetOccPoleLinkTest*>(a);
+            switch (t.operation) {
+            case 0: return FC4NetOccEnablePoleConnection(t.first, t.second, t.value != 0);
+            case 1: return FC4NetOccAddPoleConnection(t.first, t.second, t.buffer);
+            case 2: return FC4NetOccRebuildPoleWires(t.first, t.second);
+            case 3: return FC4NetOccPoleAttachmentPoints(t.first, t.value, static_cast<float*>(t.buffer));
+            case 4: return FC4NetOccRemovePoleConnection(t.first, t.second, t.value != 0);
+            default: return 0;
+            }
+        }
         default:
             return 0;
     }
