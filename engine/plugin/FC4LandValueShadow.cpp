@@ -124,7 +124,7 @@ bool IsLandVertex(void*, uint32_t x, uint32_t z) {
 float Altitude(void*, float x, float z) {
     cISTETerrain* t = Terrain();
     const float a = t ? t->GetAltitude(x, z) : 0.0f;  // compiled slot 13 (foundations §16)
-    if (g_traceInputs && ((x == 16.0f && z == 1584.0f) || (x == 912.0f && z == 976.0f))) {
+    if (g_traceInputs && ((x == 16.0f && (z == 16.0f || z == 1584.0f)) || (x == 912.0f && z == 976.0f))) {
         Log("landvalue input julian=%ld event=%s altitude_read=%u world=(%.0f,%.0f) altitude=%.9g "
             "input_capture=pass-end-sample native_step_capture=0",
             PublishedJulian(), g_inputDay ? "day-replay" : "pass-end-replay", ++g_inputAltitudeReads, x, z, a);
@@ -156,7 +156,7 @@ float AreaSlope(void*, int32_t x1, int32_t z1, int32_t x2, int32_t z2) {
     if (ld == nullptr) return 0.0f;
     const SC4Rect<int32_t> r(x1, z1, x2, z2);
     const float slope = ld->GetAreaSlope(r, true);
-    if (g_traceInputs && x1 == 56 && z1 == 56) {
+    if (g_traceInputs && ((x1 == 56 && z1 == 56) || (x1 == 0 && z1 == 0))) {
         Log("landvalue input julian=%ld event=%s slope_rect=(%d,%d..%d,%d) water=1 slope=%.9g "
             "input_capture=pass-end-sample native_step_capture=0",
             PublishedJulian(), g_inputDay ? "day-replay" : "pass-end-replay", x1, z1, x2, z2, slope);
@@ -418,9 +418,11 @@ intptr_t OnEvent(cISC4City* city, int32_t julian, bool day) {
         cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr;  // borrowed
         if (terrain && ld) {
             Log("landvalue terrain sample julian=%ld event=day-observer "
-                "altitude(1,99)=%.9g altitude(57,61)=%.9g slope(56,56..63,63,water=1)=%.9g "
+                "altitude(1,1)=%.9g altitude(1,99)=%.9g altitude(57,61)=%.9g "
+                "slope(56,56..63,63,water=1)=%.9g "
                 "native_step_capture=0",
-                PublishedJulian(), terrain->GetAltitude(16.0f, 1584.0f), terrain->GetAltitude(912.0f, 976.0f),
+                PublishedJulian(), terrain->GetAltitude(16.0f, 16.0f), terrain->GetAltitude(16.0f, 1584.0f),
+                terrain->GetAltitude(912.0f, 976.0f),
                 ld->GetAreaSlope(SC4Rect<int32_t>(56, 56, 63, 63), true));
         }
     }
