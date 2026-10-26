@@ -24,6 +24,7 @@
 
 #include "FC4Autotest.h"
 #include "FC4Config.h"
+#include "FC4AppShadow.h"
 #include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Dialogs.h"
@@ -302,6 +303,7 @@ public:
 
     bool PreAppInit() override {
         FC4_LOGV("hook PreAppInit");
+        fc4::AppShadowStart(); // AP19: before any region/city mode transition
         fc4::SCResShadowStart(); // default-off capture before application resource loading
         // The first hook after the game's PreFrameWorkInit has run.
         fc4::FpuSetReference("hook PreAppInit");

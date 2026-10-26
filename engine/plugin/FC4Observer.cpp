@@ -628,7 +628,6 @@ public:
     bool DoMessage(cIGZMessage2* msg) override {
         if (msg == nullptr) return true;
         FC4_X87_SCOPE("observer DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
-        AppShadowMessage(msg->GetType());
         switch (msg->GetType()) {
             case kMsgPostCityInit: {
                 // Lifecycle tracing is already live during load. Observer

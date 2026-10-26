@@ -18,5 +18,8 @@ bool DbpfShadowWait();
 // Invalidate readers before native save/re-registration; harness saves wait
 // for Pending() to clear at ordinary framework ticks before invoking SaveCity.
 void DbpfShadowBeforeSave();
+// Observed public slot-15 entry and actual caller continuation (EX58).
+void DbpfShadowSaveEnter(void* app, void* caller);
+void DbpfShadowSaveReturned(void* app, bool result);
 void DbpfShadowShutdown();
 }

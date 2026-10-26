@@ -77,6 +77,10 @@ struct HeldSample {
     unsigned roots = 0, children = 0, nonpacked = 0, closed = 0;
     unsigned cityDiscovered = 0, citySelected = 0, cityCompared = 0;
     uint64_t generation = 0;
+    cISC4City* cityIdentity = nullptr; // identity only, never dereferenced or released
+    bool interrupted = false;
+    unsigned restarts = 0;
+    std::map<std::string, unsigned> exactFiles;
 };
 // Main-thread only. Retain only references explicitly acquired by QI, never
 // borrowed manager/index pointers. Both readers run together for each file.
@@ -90,6 +94,8 @@ uint64_t shadowMonth = 0, completedFiles = 0, completedRecords = 0;
 uint64_t coverageCycle = 0;
 uint64_t saveGeneration = 0;
 bool cityAfterSave = false;
+unsigned saveDepth = 0;
+bool saveReturned = false;
 cFC4ISC4Simulator* drainSimulator = nullptr;
 std::map<std::string, unsigned> covered, rotationCovered;
 
@@ -600,6 +606,8 @@ void DbpfShadowObserve(int32_t julian) {
     cRZBaseString cityPath;
     if (auto* city = ObserverCity()) city->GetCitySaveFilePath(cityPath);
     sample.cityPath = cityPath.ToChar();
+    sample.cityIdentity = ObserverCity();
+    sample.interrupted = saveDepth != 0;
     sample.full = !shadowLoaded;
     shadowLoaded = true;
     sample.month = sample.full ? 0 : shadowMonth++;
@@ -638,9 +646,63 @@ void DbpfShadowObserve(int32_t julian) {
     }
     for (const auto& file : sample.files) sample.citySelected += file.city;
     cityAfterSave = false;
+    if (sample.interrupted) DbpfShadowWait();
 }
 
 namespace {
+void ReplayHeld(HeldSample& sample) {
+    // EX58: reacquire the entire promised set, including already completed DATs.
+    // Only a registered backing reader proves registered-file coverage here.
+    HeldSample fresh;
+    fresh.full = sample.full;
+    cRZBaseString cityPath;
+    if (auto* city = ObserverCity()) city->GetCitySaveFilePath(cityPath);
+    fresh.cityPath = cityPath.ToChar();
+    std::set<cIGZPersistDBSegment*> visited;
+    cIGZPersistResourceManagerPtr manager;
+    if (manager) {
+        for (uint32_t i = 0; i < manager->GetSegmentCount(); ++i)
+            VisitHeld(manager->GetSegmentByIndex(i), visited, fresh);
+    } else ++fresh.counts.refusal;
+    const auto old = sample.counts;
+    Log("dbpf interrupted attempt: julian=%d generation=%llu completed=%u/%u records=%u refusals=%u differences=%u bounds_differences=%u; not-exact; replay=whole-promised-set",
+        sample.julian, static_cast<unsigned long long>(sample.generation), static_cast<unsigned>(sample.next),
+        static_cast<unsigned>(sample.files.size()), old.records, old.refusal, old.differ, old.bounds - old.boundsExact);
+    sample.read.reset();
+    sample.counts = fresh.counts;
+    if (!fresh.cityDiscovered) {
+        ++sample.counts.refusal;
+        Log("dbpf replay refusal: backing not registered path=%s", fresh.cityPath.c_str());
+    }
+    for (auto& promised : sample.files) {
+        ReleaseHeld(promised);
+        auto found = std::find_if(fresh.files.begin(), fresh.files.end(), [&](const HeldFile& file) {
+            return file.packed && (promised.city ? file.city : NormalPath(file.path) == NormalPath(promised.path));
+        });
+        if (found == fresh.files.end()) {
+            Log("dbpf replay refusal: promised file missing path=%s city=%u", promised.path.c_str(), promised.city ? 1u : 0u);
+            // Keep the missing promised member. Tick counts its refusal.
+        } else {
+            if (promised.city && NormalPath(promised.path) != NormalPath(found->path))
+                Log("dbpf replay city mapping: old=%s replacement=%s", promised.path.c_str(), found->path.c_str());
+            promised = *found;
+            found->packed = nullptr; // transfer precisely the acquired QI
+        }
+    }
+    for (auto& file : fresh.files) ReleaseHeld(file);
+    sample.cityPath = fresh.cityPath;
+    sample.cityDiscovered = fresh.cityDiscovered;
+    sample.cityCompared = 0;
+    sample.next = 0;
+    sample.exactFiles.clear();
+    sample.generation = saveGeneration;
+    sample.interrupted = false;
+    ++sample.restarts;
+    Log("dbpf replay acquired: julian=%d city=%p generation=%llu promised=%u registered_backing=%u restart=%u",
+        sample.julian, sample.cityIdentity, static_cast<unsigned long long>(sample.generation),
+        static_cast<unsigned>(sample.files.size()), sample.cityDiscovered, sample.restarts);
+}
+
 void HeldSummary(const HeldSample& sample) {
     auto c = sample.counts;
     if (!c.files || !c.records) ++c.refusal;
@@ -651,7 +713,7 @@ void HeldSummary(const HeldSample& sample) {
         "subset=%s first=%u selected=%u available=%u completed=%u/%u "
         "cumulative_files=%llu cumulative_records=%llu covered_files=%u/%u covered_records=%u "
         "rotation_cycle=%llu rotation_files=%u/%u rotation_records=%u/%u ticks=%u max_slice_ms=%u "
-        "packed_roots=%u packed_children=%u nonpacked=%u closed=%u city_discovered=%u city_selected=%u city_compared=%u save_generation=%llu mismatches=%u",
+        "packed_roots=%u packed_children=%u nonpacked=%u closed=%u city_discovered=%u city_selected=%u city_compared=%u save_generation=%llu restarts=%u mismatches=%u",
         date.year, date.month, date.day_of_month, c.files, c.opened, c.indexes, c.records, c.raw, c.payload,
         c.compressed, c.empty, c.refusal, sample.full ? "full" : "rotate",
         static_cast<unsigned>(sample.first), static_cast<unsigned>(sample.files.size()),
@@ -663,7 +725,7 @@ void HeldSummary(const HeldSample& sample) {
         static_cast<unsigned>(sample.available), CoverageRecords(rotationCovered), CoverageRecords(covered),
         sample.ticks, sample.maxSliceMs, sample.roots, sample.children, sample.nonpacked, sample.closed,
         sample.cityDiscovered, sample.citySelected, sample.cityCompared,
-        static_cast<unsigned long long>(sample.generation), c.differ + c.refusal);
+        static_cast<unsigned long long>(sample.generation), sample.restarts, c.differ + c.refusal);
     if (SettingInt("dbpf_bounds_shadow", nullptr, 0) != 0)
         Log("dbpf_bounds shadow %04d-%02d-%02d: %u/%u clean, records=%u compressed=%u empty=%u "
             "mismatches=%u", date.year, date.month, date.day_of_month, c.boundsExact, c.bounds,
@@ -673,8 +735,22 @@ void HeldSummary(const HeldSample& sample) {
 
 void DbpfShadowTick() {
     if (pending == nullptr || pending->empty()) { ReleaseDrainPause(); return; }
+    // A nested tick/PostSave cannot establish that native saving has returned.
+    if (saveDepth) return;
     ReachProbeScope reachProbes;  // queued load/month fixtures are not natural entries
     auto& sample = pending->front();
+    if (sample.interrupted && saveReturned) {
+        auto* city = ObserverCity();
+        auto* sim = city ? reinterpret_cast<cFC4ISC4Simulator*>(city->GetSimulator()) : nullptr;
+        if (DbpfReplayAtSameCityDate(saveReturned, saveDepth, sample.cityIdentity, sample.julian,
+                city, sim ? sim->GetSimDateNumber() : 0))
+            ReplayHeld(sample);
+        else {
+            Log("dbpf replay refusal: city/date changed promised_city=%p promised_julian=%d current_city=%p current_julian=%d",
+                sample.cityIdentity, sample.julian, city, sim ? sim->GetSimDateNumber() : 0);
+            sample.interrupted = false; // stale generation remains a refusal below
+        }
+    }
     if (!sample.full && coverageCycle != sample.month / 12 + 1) {
         coverageCycle = sample.month / 12 + 1;
         rotationCovered.clear();
@@ -690,7 +766,7 @@ void DbpfShadowTick() {
             sample.read = std::make_unique<HeldRead>();
             sample.read->before = sample.counts;
         }
-        if (!com || sample.generation != saveGeneration || !Stable(file)) {
+        if (!com || sample.generation != saveGeneration || !file.packed || !Stable(file)) {
             ++sample.counts.refusal;
             Log("dbpf refusal: changed/closed/save-transition path=%s; rediscover at next sample", file.path.c_str());
         }
@@ -708,10 +784,7 @@ void DbpfShadowTick() {
             // rotation always compares its complete index, raw and payload data.
             if (before.refusal == sample.counts.refusal && before.differ == sample.counts.differ) {
                 const unsigned records = sample.counts.records - before.records;
-                covered[file.path] = records;
-                if (!sample.full) rotationCovered[file.path] = records;
-                ++completedFiles;
-                completedRecords += records;
+                sample.exactFiles[file.path] = records;
                 sample.cityCompared += file.city;
                 if (file.city) Log("dbpf city compared: path=%s records=%u save_generation=%llu", file.path.c_str(),
                     records, static_cast<unsigned long long>(sample.generation));
@@ -728,6 +801,15 @@ void DbpfShadowTick() {
     }
     sample.maxSliceMs = (std::max)(sample.maxSliceMs, static_cast<unsigned>(GetTickCount() - started));
     if (sample.next == sample.files.size()) {
+        // Credit only the completed acquisition, never partial pre-save work.
+        if (!sample.counts.refusal && !sample.counts.differ) {
+            for (const auto& file : sample.exactFiles) {
+                covered[file.first] = file.second;
+                if (!sample.full) rotationCovered[file.first] = file.second;
+                ++completedFiles;
+                completedRecords += file.second;
+            }
+        }
         HeldSummary(sample);
         pending->pop_front();
     }
@@ -755,18 +837,43 @@ bool DbpfShadowWait() {
 void DbpfShadowBeforeSave() {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
         SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
+    // Our entry trace already invalidated before the native call. An ordinary
+    // late PreSave must not pretend it provides an independent return boundary.
+    if (saveDepth) return;
     ++saveGeneration;
+    saveReturned = false;
     cityAfterSave = true;
     // Harness saves wait for sliced comparisons before calling SaveCity.
-    // SPEC-GAP: EX58 asks for a native-save completion boundary; PostSave is still a writing phase (8.3.1).
     // Unexpected native saves still invalidate pending readers (section 8.3):
     // never retain old segments or silently count incomplete work as exact.
     if (pending != nullptr)
-        for (auto& sample : *pending)
+        for (auto& sample : *pending) {
+            sample.interrupted = true;
             for (auto& file : sample.files)
                 ReleaseHeld(file);
-    Log("dbpf save transition: generation=%llu rediscovery=next-month transient=unobserved",
+        }
+    DbpfShadowWait(); // keep the promised date until the whole-set replay drains
+    Log("dbpf save transition: generation=%llu replay=requires-native-return-and-registration transient=unobserved",
         static_cast<unsigned long long>(saveGeneration));
+}
+
+void DbpfShadowSaveEnter(void* app, void* caller) {
+    // Invalidate before incrementing depth; notifications during this invocation
+    // are redundant, but an overlapping invocation still invalidates its work.
+    const unsigned previous = saveDepth;
+    saveDepth = 0;
+    DbpfShadowBeforeSave();
+    saveDepth = previous + 1;
+    Log("dbpf native save entry: thread=%lu app=%p depth=%u caller=%p generation=%llu",
+        GetCurrentThreadId(), app, saveDepth, caller, static_cast<unsigned long long>(saveGeneration));
+}
+
+void DbpfShadowSaveReturned(void* app, bool result) {
+    if (!saveDepth) return;
+    Log("dbpf native save returned: thread=%lu app=%p depth=%u result=%u continuation=forwarder generation=%llu",
+        GetCurrentThreadId(), app, saveDepth, result ? 1u : 0u, static_cast<unsigned long long>(saveGeneration));
+    --saveDepth;
+    saveReturned = saveDepth == 0;
 }
 
 void DbpfShadowShutdown() {
