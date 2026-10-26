@@ -30,3 +30,8 @@
   this will separate message-input drift from map-publication timing.
   Blocks aura in lua-lots-empty, lua-lots-grown and lua-lots-grown-qualified;
   reach29-views is the same class of case and still needs a corrected rerun.
+
+  Follow-up (`growth-cities29-5`): lua-lots-empty and reach29-views now each
+  compare 2/2 aura cycles exactly. Both grown Lua variants remain 2/3 exact;
+  only their first cycles differ. The remaining block is those two grown
+  scenarios; the empty Lua and reach29-views cases no longer reproduce.

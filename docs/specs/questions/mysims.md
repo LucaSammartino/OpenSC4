@@ -17,3 +17,9 @@ No open questions.
   these new-city records are captured? Freezing the establishment flag at
   capture did not remove the difference and was reverted. Blocks mysims in
   Sydenham, Woolwich, Terraforming and the three empty-city scenarios.
+
+  Follow-up: `growth-cities29-5/reach29-growth.log:3067` and
+  `growth-cities29-5/lua-lots-empty.log:3270` reproduce the six-sim mismatch
+  at the first February month. The house and both mature reach scenarios
+  remain exact. These newly measured new-city cases need the same scheduler
+  input/load-boundary clarification; no monthly comparison was suppressed.
