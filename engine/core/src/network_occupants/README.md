@@ -38,15 +38,16 @@ pass-order boundary reviewable; it does not close the prebuilt occupant owner.
 The model-only subset above remains the only whole owner closed. The detailed
 tables below map the settled pole, pylon and connection contracts to core code
 and tests, with explicit Unsupported boundaries only for the remaining spec
-questions. NO34, NO35 and NO37 are implemented; NO33, NO36, NO43 and UG5 remain
-partly open. Resolved record layouts are no longer treated as contradictory.
+questions. NO12–NO14, NO30, NO32–NO35, NO37 and NO43 are answered in the spec;
+the rows below distinguish applied answers from remaining implementation work.
+UG5/NO40 retain the runtime observation in network §3.6.6 (NO40-C).
 
 | Owner | Spec sections | Code / test / remaining work |
 |---|---|---|
 | cSC4NetworkOccupant | network §§1, 2.1–2.3 | `identity`, `NetworkPiece`, `NetworkBaseRecord`, `Xform`; `tests::{road_piece_identity,class_ids_and_types}`, `tests_record::network_record_v8_layout_and_round_trip`; base layout represented semantically |
-| cSC4NetworkOccupant | network §2.4 | `NetworkPiece` orientation/cell/cost (`tests::{orientation_flip_rotation,occupied_cell_rounding}`); position, quad/UV/triangle and bbox operations remain; open: NO14 (slot discrepancy), NO32 (UV data) |
+| cSC4NetworkOccupant | network §2.4 | NO14 applied by `NetworkPiece::{get_rotation,get_flip,get_orientation,set_variation,set_under_texture}`, `tests::orientation_flip_rotation`; NO32 numeric UV/zoom/triangle inputs: `surface`, `surface::tests::numeric_tables_zoom_and_independent_halves`; full geometry/draw integration remains |
 | cSC4NetworkOccupant | network §2.5 | `NetworkPiece::{init,shutdown}`, `tests::init_lifecycle`; StaticInit cache/message/render-state operations remain |
-| cSC4NetworkOccupant | network §2.6 | `NetworkPiece::{add_path_connection,path_connection}`, `tests::path_connections`; path-cache build/release/reset remain; open: NO12 (matrix interpretation) |
+| cSC4NetworkOccupant | network §2.6 | NO12 applied by `NetworkPiece::{add_path_connection,path_connection}` (eight type rows of four entry bytes), `tests::path_connections`; traffic-owned path-cache build/release/reset remain foreign |
 | cSC4NetworkOccupant | network §2.7 | flags and managed status in `NetworkPiece`, `tests::{usable_message,managed_globally}`; SetLit/UpdateLighting/Draw remain; open: NO32 (rendering contract) |
 | cSC4NetworkOccupant | network §§7.1, 11, 13 tests 1–12,25 | identity/flag/record/cell tests exist; draw and complete city placement integration absent; no owner closure |
 | cSC4NetworkOccupantWithPreBuiltModel | network §§1, 2.8 | `identity`, `NetworkPiece` partial init/shutdown (`tests::prebuilt_and_tunnel_init`); complete constructor, model setup, path info and record remain |
@@ -56,8 +57,8 @@ partly open. Resolved record layouts are no longer treated as contradictory.
 | cSC4UndergroundOccupant | network §3.2 | `UndergroundPiece` position/sort/model-choice/imaginary-connection helpers; no complete geometry lifecycle |
 | cSC4UndergroundOccupant | network §§3.3–3.5,11,13 test 13; underground §§1,2,3,5–9 | `UndergroundRecord`, `UndergroundTail`, `tests_record` cover records; pipe/subway override helpers do not close their abstract base |
 | cSC4UndergroundConnectionOccupant | network §3.6; underground §§1,4–9 | `ConnectionRecord`, `UndergroundConnection`, `ConnectionStatics`; records, creation searches/surface, lifetime and interface rules tested; geometry/bounds/Draw/messages open: UG5/NO40; detailed table below |
-| cSC4PowerLineOccupant | network §§1,5.1 | `PowerLine`, `tests::{pole_line_pylon_qi,power_line_slots}`; base shutdown forwarding and resolved live layout remain; open: NO13 |
-| cSC4PowerLineOccupant | network §§5.2,11,13 tests 2,18 | raw `PowerLineRecord`, `tests::power_line_record_round_trip`; live/record mapping unresolved (NO13); creation belongs to power-line tool |
+| cSC4PowerLineOccupant | network §§1,5.1 | implemented: NO13 applied by `PowerLine::{set_connected_poles_acquired,get_connected_poles_acquired,shutdown_acquired}`; `power_line::lifecycle_tests::line_layout_and_shutdown_forwarding_conformance_74`, `tests::{pole_line_pylon_qi,power_line_slots}`; native view adjustment remains adapter responsibility |
+| cSC4PowerLineOccupant | network §§5.2,11,13 tests 2,18 | implemented: `PowerLine::{from_record,record}`, `PowerLineRecord`; `tests::{power_line_record_round_trip,power_line_live_record_keeps_saved_cells_and_float_bits}`; creation belongs to power-line tool |
 | cSC4PowerPoleOccupant | network §§1,4.1–4.2 | constructor/getters/highlight/enumeration and identity tested; full model/pool/bounds open: NO33; detailed table below |
 | cSC4PowerPoleOccupant | network §4.3 | `PowerLineControl`, `PoleStatics::init_once`, `PowerPole::init_published_state`; open: NO33 |
 | cSC4PowerPoleOccupant | network §§4.4,11,13 tests 2,4,16,17 | nested record/shared tables/IIDs/cleanup and signed property quote tested; native pool open: NO33 |
@@ -104,14 +105,15 @@ helpers and do not stand in for complete initialization.
 
 ### cSC4PowerPoleOccupant::tConnection
 
-`PoleConnection` is the connection-record owner within `power_pole.rs`; native
-pool layout and complete wire construction/cell walking remain NO33/NO43.
+`PoleConnection` is the connection-record owner within `power_pole.rs`.
+Status: implemented (NO33/NO43). Native container allocation is adapter work;
+the portable owner supplies counted refs, copied curves, cell walking and refresh.
 
 | Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|
 | network §§4.1,4.4 record/layout/reference ownership | `PoleConnection`, nested `vertices` codec, `PowerPole::{write,read_into}` | `pole_nested_record_iids_shared_overwrite_and_failure_cleanup_conformance_16`, `pole_legacy_v4_future_versions_and_raw_bool_read`; distinct pole/line IIDs and nested empty vectors |
 | network §4.6 insertion/removal/retained records | `insert_lines`, `remove_connection_record`, `remove_connection`, `break_all_connections` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
-| network §4.6 line-cell lookup/delegation | `line_cells`, `line_cells_to` | connection test above; exact walk and complete wire construction open: NO33, NO43 |
+| network §4.6 line-cell lookup/delegation/curve refresh | `line_cells`, `line_cells_to`, `links::{add_connection,rebuild_wires,enable_connection}` | `pole_cell_walk_conformance_65`; `links::tests::{owning_connection_copies_duplicate_lines_once_each_and_uses_computed_start,refresh_appends_water_curves_preserves_lines_and_stored_destination,enable_probes_even_with_no_match_and_uses_stored_unsigned_cell}`; NO33/NO43 applied |
 | network §7.2, §11 quirks 6,21, §13 tests 16,39 | counted refs, retained records, nested vectors | record and connection tests above; no additional settled algorithm |
 
 ### cSC4PylonOccupant
@@ -126,7 +128,7 @@ returns `PylonUnsupported` until NO36 supplies its algorithm.
 
 | Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|
-| network §§1.1–1.3 identity/type/QI | `NetOccClass::Pylon`, `PylonRecord::new` | `tests::{class_ids_and_types,pole_line_pylon_qi}`; existing QI discrepancy open: NO10 |
+| network §§1.1–1.3 identity/type/QI | `NetOccClass::Pylon`, `PylonRecord::new` | `tests::{class_ids_and_types,pole_line_pylon_qi}`; NO10 settled: type `0xA9B6D7DE` |
 | network §1.4 | network-piece flag queries are another owner | no pylon-specific flag query |
 | network §6.1 fields/defaults | `Pylon::{fresh,new}`, `PylonRecord::new`, cached boxes, texture/ref state | `pylon_constructor_conformance_45`, `pylon_lifecycle_packing_and_all_placement_edges`, record tests; dispatch type retains caller-supplied incoming word |
 | network §6.2 Init/guard/packing/shutdown | `Pylon::{init,shutdown}`, `PYLON_RENDER_STATES`, `PylonGlobals` | `pylon_lifecycle_packing_and_all_placement_edges`; renderer probe result intentionally discarded |

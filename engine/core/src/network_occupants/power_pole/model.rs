@@ -63,6 +63,22 @@ pub struct PoleDrawContext {
     pub highlight: bool,
 }
 
+pub trait PolePickHost {
+    fn delegate_bounds(&mut self, model: &RefValue, out: &mut [[f32; 3]; 2]);
+    /// Foreign ray/box and line-length primitives; retain the distance wide.
+    fn ray_box_distance(&mut self, bounds: [[f32; 3]; 2]) -> Option<f64>;
+}
+
+/// Base/property/service primitives and reciprocal calls on the other endpoint.
+/// This pole's initialization, refresh and resource decisions stay in the core.
+pub trait PoleLifecycleHost: PoleModelHost + super::links::PoleLinkHost + PoleHost + PoleStaticHost {
+    fn base_init(&mut self, base: &mut OccupantBase);
+    fn view_zoom_rotation(&mut self) -> [u32; 2];
+    fn assign_exemplar(&mut self, base: &mut OccupantBase, exemplar: &RefValue);
+    fn exemplar_model_instance(&mut self, base: &OccupantBase) -> u32;
+    fn refresh_other_wires(&mut self, other: &RefValue, this: &RefValue);
+}
+
 /// Only foreign rendering/lighting calls. The owning pole chooses ordering,
 /// primitive/format, texture IDs, normals and per-face lighting queries.
 pub trait PoleRenderHost: PoleModelHost {
@@ -82,6 +98,188 @@ pub trait PoleRenderHost: PoleModelHost {
 }
 
 impl PowerPole {
+    /// §4.7: model positioning precedes rebuilt faces and effect positioning.
+    pub fn set_position_with_model(
+        &mut self, position: [f32; 3], terrain_width: f32, corners: Option<[f32; 4]>,
+        host: &mut (impl PoleModelHost + PoleHost),
+    ) -> Result<(), PoleUnsupported> {
+        self.fields.position = position;
+        self.fields.cell = Self::position_cell(position, terrain_width);
+        self.fields.model_y = match corners {
+            Some(corners) => {
+                let mut lowest = corners[0];
+                for height in &corners[1..] { if *height < lowest { lowest = *height; } }
+                lowest
+            }
+            None => position[1],
+        };
+        self.set_model_position(host);
+        let diagonal = host.diagonal_model(&self.base);
+        self.rebuild_geometry(diagonal, self.model_ids[0] as usize)?;
+        if !self.effect.is_null() {
+            host.place_effect(&self.effect, position, super::super::xform::IDENTITY_MATRIX, 1.);
+        }
+        Ok(())
+    }
+
+    pub fn init(
+        &mut self,
+        this: &RefValue,
+        exemplar: RefValue,
+        kind: u32,
+        statics: &mut PoleStatics,
+        tables: &AttachmentTables,
+        host: &mut impl PoleLifecycleHost,
+    ) -> Result<bool, PoleUnsupported> {
+        statics.initialize(host);
+        if self.base.status & 1 != 0 {
+            return Ok(true);
+        }
+        host.base_init(&mut self.base);
+        statics.cell_size = PoleHost::cell_size(host);
+        if !self.subscribed {
+            host.subscription(0x99EF_1142, true);
+            self.subscribed = true;
+        }
+        clear_ref(&mut self.model, host);
+        let [zoom, rotation] = host.view_zoom_rotation();
+        self.model_ids = [rotation, zoom];
+        self.wire_exemplar_index = kind;
+        self.set_default_exemplar(this, exemplar, statics, tables, host)?;
+        self.load_model(this, host);
+        self.init_connection_points(host.exemplar_model_instance(&self.base));
+        for list in &mut self.geometry {
+            list.clear();
+        }
+        self.bytes_54_55 = [0; 2];
+        self.scale_64 = 1.;
+        if self.is_distressed() {
+            self.set_distressed(true, host);
+        }
+        Ok(true)
+    }
+
+    pub fn set_default_exemplar(
+        &mut self,
+        this: &RefValue,
+        exemplar: RefValue,
+        statics: &PoleStatics,
+        tables: &AttachmentTables,
+        host: &mut impl PoleLifecycleHost,
+    ) -> Result<(), PoleUnsupported> {
+        if same_ref(&self.exemplar, &exemplar) {
+            return Ok(());
+        }
+        if !exemplar.is_null() {
+            host.add_ref(&exemplar);
+        }
+        clear_ref(&mut self.exemplar, host);
+        self.exemplar = exemplar;
+        host.assign_exemplar(&mut self.base, &self.exemplar);
+        self.load_model(this, host);
+        self.init_connection_points(host.exemplar_model_instance(&self.base));
+        let c = &statics.control;
+        let parameters = crate::network_tools::power_line::CurveParams {
+            maximum_displacement: c.v_e9a18d3f,
+            displacement_percent: c.v_49a1e8c4,
+            maximum_sag: c.v_89a18fc4,
+            sag_percent: c.v_e9a1e8d4,
+            sample_distance: c.v_49a195c0,
+            minimum_count: c.v_89a1e8fb,
+        };
+        let others: Vec<_> = self.fields.connections.iter().map(|r| r.pole.clone()).collect();
+        for other in others {
+            self.rebuild_wires(&other, tables, parameters, host)?;
+            host.refresh_other_wires(&other, this);
+        }
+        Ok(())
+    }
+
+    /// Destruction's releases only: no reciprocal teardown or effect stop.
+    pub fn destroy_resources(&mut self, host: &mut impl References) {
+        clear_ref(&mut self.model, host);
+        clear_ref(&mut self.effect, host);
+        clear_ref(&mut self.exemplar, host);
+        for record in &mut self.fields.connections {
+            clear_ref(&mut record.pole, host);
+            for line in &mut record.wire_points {
+                clear_ref(line, host);
+            }
+        }
+        self.fields.connections.clear();
+        for list in &mut self.geometry {
+            list.clear();
+        }
+    }
+
+    pub fn occupant_bounds(&mut self, size: [f32; 2]) -> [[f32; 3]; 2] {
+        if self.stale {
+            let start: [u32; 2] = std::array::from_fn(|axis| {
+                crate::x87::ftol32(f64::from(self.fields.position[axis * 2]) / f64::from(size[axis])) as u32
+            });
+            self.bounds_cells = [start[0], start[1], start[0], start[1]];
+            for record in self.fields.connections.iter().filter(|r| !r.vertices[0].is_empty()) {
+                for (axis, cell) in record.words.into_iter().enumerate() {
+                    if cell < self.bounds_cells[axis] {
+                        self.bounds_cells[axis] = cell;
+                    } else if cell > self.bounds_cells[axis + 2] {
+                        self.bounds_cells[axis + 2] = cell;
+                    }
+                }
+            }
+            self.stale = false;
+        }
+        let [x0, z0, x1, z1] = self.bounds_cells;
+        [
+            [
+                (f64::from(x0 as i32) * f64::from(size[0])) as f32,
+                self.fields.model_y,
+                (f64::from(z0 as i32) * f64::from(size[1])) as f32,
+            ],
+            [
+                (f64::from(x1.wrapping_add(1) as i32) * f64::from(size[0])) as f32,
+                (f64::from(self.fields.position[1]) + 60.) as f32,
+                (f64::from(z1.wrapping_add(1) as i32) * f64::from(size[1])) as f32,
+            ],
+        ]
+    }
+
+    pub fn local_bounds(&self, out: &mut [[f32; 3]; 2], host: &mut impl PolePickHost) {
+        if !self.model.is_null() {
+            host.delegate_bounds(&self.model, out);
+        }
+    }
+
+    pub fn pick(&self, best: &mut f32, host: &mut impl PolePickHost) -> bool {
+        if self.model.is_null() {
+            return false;
+        }
+        let mut bounds = [[1.; 3], [0.; 3]];
+        host.delegate_bounds(&self.model, &mut bounds);
+        for endpoint in &mut bounds {
+            for (value, position) in endpoint.iter_mut().zip(self.fields.position) {
+                *value = (f64::from(*value) + f64::from(position)) as f32;
+            }
+        }
+        for vertex in self.geometry[1..].iter().flatten() {
+            for axis in 0..3 {
+                if vertex.pos[axis] < bounds[0][axis] {
+                    bounds[0][axis] = vertex.pos[axis];
+                }
+                if vertex.pos[axis] > bounds[1][axis] {
+                    bounds[1][axis] = vertex.pos[axis];
+                }
+            }
+        }
+        if let Some(distance) = host.ray_box_distance(bounds) {
+            if distance < f64::from(*best) {
+                *best = distance as f32;
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn get_transform(&self, destination: &mut Xform) {
         let counter = destination.counter.wrapping_add(1);
         *destination = self.fields.transform;

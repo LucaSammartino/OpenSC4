@@ -11,6 +11,82 @@ fn token(value: &RefValue) -> u64 {
     }
 }
 
+#[test]
+fn occupant_bounds_conformance_54_55() {
+    let mut p = PowerPole::fresh();
+    p.fields.position = [24., 50., 40.];
+    p.fields.model_y = 7.;
+    assert_eq!(p.occupant_bounds([16.; 2]), [[16., 7., 32.], [32., 110., 48.]]);
+    assert!(!p.stale);
+    p.fields.connections.push(PoleConnection {
+        words: [9, 9],
+        ..Default::default()
+    });
+    p.stale = true;
+    assert_eq!(p.occupant_bounds([16.; 2]), [[16., 7., 32.], [32., 110., 48.]]);
+    p.fields.connections[0].words = [3, 1];
+    p.fields.connections[0].vertices[0].push(vec![]);
+    p.stale = true;
+    assert_eq!(p.occupant_bounds([16.; 2]), [[16., 7., 16.], [64., 110., 48.]]);
+    p.fields.connections[0].words = [99, 99];
+    p.fields.position[1] = 60.;
+    assert_eq!(p.occupant_bounds([16.; 2]), [[16., 7., 16.], [64., 120., 48.]]);
+    p.fields.connections.clear();
+    p.fields.position = [8., 50., 64.];
+    p.stale = true;
+    assert_eq!(p.occupant_bounds([8., 32.]), [[8., 7., 64.], [16., 110., 96.]]);
+    p.fields.position = [24., 50., 40.];
+    p.stale = true;
+    p.fields.connections.push(PoleConnection {
+        words: [u32::MAX, 2],
+        vertices: [vec![vec![]], vec![]],
+        ..Default::default()
+    });
+    let bounds = p.occupant_bounds([16.; 2]);
+    assert_eq!((bounds[0][0], bounds[1][0]), (16., 0.));
+}
+
+#[test]
+fn pole_pick_conformance_68() {
+    struct Pick {
+        seen: Vec<[[f32; 3]; 2]>,
+    }
+    impl PolePickHost for Pick {
+        fn delegate_bounds(&mut self, _: &RefValue, out: &mut [[f32; 3]; 2]) {
+            *out = [[0.; 3], [2.; 3]];
+        }
+        fn ray_box_distance(&mut self, bounds: [[f32; 3]; 2]) -> Option<f64> {
+            self.seen.push(bounds);
+            Some(4.)
+        }
+    }
+    let mut p = PowerPole::fresh();
+    p.fields.position = [10., 20., 30.];
+    let mut host = Pick { seen: vec![] };
+    let mut best = 5.;
+    assert!(!p.pick(&mut best, &mut host));
+    p.model = reference(1);
+    p.geometry[0] = vec![Vertex {
+        pos: [-999.; 3],
+        ..Vertex::default()
+    }];
+    p.geometry[1] = vec![Vertex {
+        pos: [15., 4., 31.],
+        ..Vertex::default()
+    }];
+    p.fields.transform.translation = [999.; 3];
+    assert!(p.pick(&mut best, &mut host));
+    assert_eq!(host.seen[0], [[10., 4., 30.], [15., 22., 32.]]);
+    assert_eq!(best, 4.);
+    assert!(!p.pick(&mut best, &mut host));
+    best = f32::NAN;
+    assert!(!p.pick(&mut best, &mut host));
+    let mut out = [[91.; 3]; 2];
+    p.model = RefValue::Null;
+    p.local_bounds(&mut out, &mut host);
+    assert_eq!(out, [[91.; 3]; 2]);
+}
+
 struct Host {
     log: Vec<String>,
     exemplar: bool,
@@ -48,6 +124,161 @@ impl References for Host {
     fn release(&mut self, value: &RefValue) {
         self.log.push(format!("release:{}", token(value)));
     }
+}
+
+impl super::super::links::PoleLinkHost for Host {
+    fn pole_cell(&mut self, _: &RefValue) -> (i32, i32) {
+        (1, 0)
+    }
+    fn attachment_points(&mut self, _: &RefValue, _: u32) -> Result<[[f32; 3]; 4], PoleUnsupported> {
+        Ok([[16., 0., 0.]; 4])
+    }
+    fn cell_size(&mut self) -> [f32; 2] {
+        [16.; 2]
+    }
+    fn is_water(&mut self, _: (i32, i32)) -> bool {
+        false
+    }
+    fn post_message(&mut self, _: u32, _: u32) {
+        self.log.push("wire-message".into());
+    }
+}
+impl PoleHost for Host {
+    fn cell_size(&mut self) -> [f32; 2] {
+        [8., 32.]
+    }
+    fn insert_line(&mut self, _: &RefValue, _: u32) {}
+    fn remove_line(&mut self, _: &RefValue, _: bool, _: u32) {}
+    fn reciprocal_remove(&mut self, _: &RefValue, _: &RefValue, _: bool) {
+        self.log.push("reciprocal-remove".into());
+    }
+    fn post_message(&mut self, _: u32, _: u32) {}
+    fn lines_to(&mut self, _: &RefValue, _: &RefValue, _: &mut Vec<(i32, i32)>) -> bool {
+        false
+    }
+    fn create_effect(&mut self, _: &str) -> RefValue {
+        RefValue::Null
+    }
+    fn place_effect(&mut self, _: &RefValue, _: [f32; 3], _: [f32; 9], _: f32) {}
+    fn start_effect(&mut self, _: &RefValue) {}
+    fn effect_running(&mut self, _: &RefValue) -> bool {
+        false
+    }
+    fn stop_effect(&mut self, _: &RefValue, _: bool) {
+        self.log.push("stop-effect".into());
+    }
+    fn subscription(&mut self, _: u32, subscribe: bool) {
+        self.log.push(format!("subscribe:{subscribe}"));
+    }
+    fn occupant_shutdown(&mut self, _: &mut OccupantBase) {
+        self.log.push("base-shutdown".into());
+    }
+}
+impl PoleStaticHost for Host {
+    fn acquire_resource_manager(&mut self) -> RefValue {
+        RefValue::Null
+    }
+    fn acquire_texture_manager(&mut self, _: u32, _: u32) -> RefValue {
+        RefValue::Null
+    }
+    fn register_shutdown(&mut self) {
+        self.log.push("static".into());
+    }
+    fn control_exemplar(&mut self, _: ResKey) -> bool {
+        false
+    }
+    fn float_property(&self, _: u32) -> Option<f32> {
+        None
+    }
+    fn uint_property(&self, _: u32) -> Option<u32> {
+        None
+    }
+    fn width_property(&self, _: u32) -> Option<[f32; 5]> {
+        None
+    }
+    fn sint64_property(&self, _: u32) -> Option<i64> {
+        None
+    }
+    fn pack(&mut self, _: crate::network_occupants::pylon::RenderStateArgs) -> u64 {
+        0
+    }
+}
+impl PoleLifecycleHost for Host {
+    fn base_init(&mut self, base: &mut OccupantBase) {
+        base.status |= 1;
+        self.log.push("base-init".into());
+    }
+    fn view_zoom_rotation(&mut self) -> [u32; 2] {
+        [3, 2]
+    }
+    fn assign_exemplar(&mut self, _: &mut OccupantBase, _: &RefValue) {
+        self.log.push("exemplar".into());
+    }
+    fn exemplar_model_instance(&mut self, _: &OccupantBase) -> u32 {
+        0x100
+    }
+    fn refresh_other_wires(&mut self, _: &RefValue, _: &RefValue) {
+        self.log.push("other-refresh".into());
+    }
+}
+
+#[test]
+fn pole_init_guard_exemplar_refresh_and_destruction_conformance_71_73() {
+    let mut p = PowerPole::fresh();
+    let mut h = Host {
+        resource: false,
+        ..Default::default()
+    };
+    let mut statics = PoleStatics::new(0, 0);
+    let tables = AttachmentTables::default();
+    p.geometry[0].push(Vertex::default());
+    assert_eq!(
+        p.init(&reference(99), reference(10), 8, &mut statics, &tables, &mut h),
+        Ok(true)
+    );
+    assert_eq!(statics.cell_size, [8., 32.]);
+    assert_eq!(p.model_ids, [2, 3]);
+    assert_eq!(p.wire_exemplar_index, 8);
+    assert!(p.geometry.iter().all(Vec::is_empty));
+    assert_eq!((p.bytes_54_55, p.scale_64), ([0; 2], 1.));
+    assert!(p.subscribed);
+    h.log.clear();
+    p.init(&reference(99), reference(11), 1, &mut statics, &tables, &mut h)
+        .unwrap();
+    assert!(h.log.is_empty());
+    p.set_default_exemplar(&reference(99), reference(10), &statics, &tables, &mut h)
+        .unwrap();
+    assert!(h.log.is_empty());
+    p.fields.connections.push(PoleConnection {
+        pole: reference(3),
+        ..Default::default()
+    });
+    p.set_default_exemplar(&reference(99), reference(11), &statics, &tables, &mut h)
+        .unwrap();
+    assert_eq!(&h.log[..2], ["add:11", "release:10"]);
+    assert_eq!(h.log.last().unwrap(), "other-refresh");
+    p.model = reference(80);
+    p.effect = reference(81);
+    h.log.clear();
+    p.destroy_resources(&mut h);
+    assert_eq!(h.log, ["release:80", "release:81", "release:11", "release:3"]);
+}
+
+#[test]
+fn pole_position_updates_delegate_but_keeps_own_transform_and_clean_bounds() {
+    let mut p = PowerPole::fresh();
+    p.model = reference(80);
+    p.fields.transform.translation = [91.; 3];
+    p.stale = false;
+    p.bounds_cells = [1, 2, 3, 4];
+    let mut host = Host::default();
+    p.set_position_with_model([10., 20., 30.], 16., Some([7., 8., 9., 10.]), &mut host).unwrap();
+    assert_eq!(host.transform.translation, [11., 22., 33.]);
+    assert_eq!(p.fields.transform.translation, [91.; 3]);
+    assert_eq!(p.fields.model_y, 7.);
+    assert_eq!(p.bounds_cells, [1, 2, 3, 4]);
+    assert!(!p.stale);
+    assert_eq!(p.geometry.map(|v| v.len()), [4; 3]);
 }
 impl PoleModelHost for Host {
     fn has_exemplar(&mut self, _: &OccupantBase) -> bool {

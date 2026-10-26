@@ -16,9 +16,13 @@ struct Rec {
     changed: u32,
     set_model: u32,
     release_model: u32,
+    retrofit_property: bool,
 }
 
 impl PieceHost for Rec {
+    fn check_for_retrofit(&mut self) -> bool {
+        self.retrofit_property
+    }
     fn post_usable_change(&mut self, usable: bool) {
         self.usable.push(usable);
     }
@@ -181,7 +185,7 @@ fn occupied_cell_rounding() {
     assert_eq!(world_to_cell(7.0), 0);
 }
 
-// Conformance 6 (slot 25 is `GetRotation`; see NO14).
+// Conformance 6 / NO14: slots 24/25/26 are rotation/flip/the complete byte.
 #[test]
 fn orientation_flip_rotation() {
     let mut h = Rec::default();
@@ -190,9 +194,11 @@ fn orientation_flip_rotation() {
     assert_eq!(p.get_rotation(), 2);
     p.orientation = 0x05 | 0x80;
     assert_eq!(p.get_flip(), 1);
-    assert_eq!(p.get_orientation(), 5);
+    assert_eq!(p.get_rotation(), 5);
+    assert_eq!(p.get_orientation(), 0x85);
     p.set_variation(7, &mut h);
-    assert_eq!(p.variation, 7);
+    assert_eq!(p.rotation, 7);
+    p.set_variation(7, &mut h);
     assert_eq!(h.changed, 2);
 }
 
@@ -257,7 +263,8 @@ fn path_connections() {
     assert_eq!(h.path_builds, 1);
     p.add_path_connection(1, 0, 2, &mut h);
     assert!(p.has_all_network_flags(FLAG_PATHS_BUILT));
-    assert_eq!(p.connections[0][2], 0b11);
+    assert_eq!(p.connections[1], [4, 0, 0, 0]);
+    assert_eq!(p.connections[0], [4, 0, 0, 0]);
     assert_eq!(p.path_connection(1, 0, 2, &mut h), 1);
     assert_eq!(p.path_connection(0, 0, 2, &mut h), 1);
     assert_eq!(p.path_connection(2, 0, 2, &mut h), 0);
@@ -265,25 +272,30 @@ fn path_connections() {
     assert_eq!(h.path_builds, 1);
     p.add_path_connection(1, 3, 1, &mut h);
     assert_eq!(p.path_connection(1, PATH_WILDCARD, PATH_WILDCARD, &mut h), 2);
-    assert_eq!(p.path_connection(PATH_WILDCARD, 0, 2, &mut h), 2);
+    assert_eq!(p.path_connection(1, PATH_WILDCARD, 1, &mut h), 1);
+    assert_eq!(p.path_connection(1, PATH_WILDCARD, 2, &mut h), 1);
+    assert_eq!(p.path_connection(PATH_WILDCARD, 0, 2, &mut h), 0);
     assert_eq!(p.path_connection(1, 0, PATH_WILDCARD, &mut h), 1);
 }
 
 // Conformance 10.
 #[test]
 fn init_lifecycle() {
-    let mut h = Rec::default();
+    let mut h = Rec {
+        retrofit_property: true,
+        ..Rec::default()
+    };
     let mut p = NetworkPiece::new(NetOccClass::Network);
     p.in_city = true;
     p.init(&mut h);
     assert_eq!(p.lifecycle, 0x1A);
-    assert!(p.has_all_network_flags(FLAG_PATHS_BUILT));
+    assert!(!p.has_all_network_flags(FLAG_PATHS_BUILT));
     assert_eq!((h.retrofit, h.occ_init), (1, 1));
     p.network_flags |= FLAG_USABLE | FLAG_REINIT_CLEAR;
     p.init(&mut h);
-    assert!(!p.has_any_network_flag(FLAG_USABLE | FLAG_REINIT_CLEAR));
+    assert!(p.has_all_network_flags(FLAG_USABLE | FLAG_REINIT_CLEAR));
     assert_eq!(h.occ_init, 1);
-    assert_eq!(h.usable, vec![false]);
+    assert_eq!(h.usable, vec![true]);
     p.shutdown(&mut h);
     assert_eq!((h.occ_shutdown, h.release_model), (1, 0));
 }
