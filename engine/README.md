@@ -2613,3 +2613,14 @@ is off without that selection. Per-row compare/record/replace modes, bounded
 value-only corpus/case exports and nearby-input replay are documented as a
 stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
 Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).
+
+### Formats replacement
+
+`enable = formats` is off by default. It selects the existing FC4 exemplar and
+cohort resource factories (data-formats section 8.1), including their FC4
+property holders and property values backed by `fc4-formats`. The `exemplars`
+key keeps its existing behavior; selecting both installs the factories once.
+Packed-file segments remain original and are the next replacement step.
+`formats_shadow = 1` checks the replacement against the formats crate and labels
+the comparison as a replacement consistency check. The install-time exemplar
+contract fixture also compares the retained original factories with ours.

@@ -641,6 +641,9 @@ const Subsystem kSubsystems[] = {
     // Manager-created lot/configuration views; use with netlot for live replacement.
     {"netlotobj", nullptr, kNetworkLotObjectClasses,
         sizeof(kNetworkLotObjectClasses) / sizeof(kNetworkLotObjectClasses[0]), false},
+    // data-formats section 8.1: use the FC4 exemplar/cohort factories and their
+    // property holders. Packed-file segments remain a separate replacement.
+    {"formats", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -846,7 +849,11 @@ void Resolve() {
     // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
     FormatsShadowStartup();
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
-    ExemplarFactorySetEnabled(enabledKey("exemplars"));
+    ExemplarFactorySetEnabled(enabledKey("exemplars") || enabledKey("formats"));
+    if (enabledKey("formats")) {
+        Log("formats: FC4 exemplar/cohort resource factories selected (data-formats 8.1); "
+            "FC4 property holders and resource properties; packed-file segments remain original");
+    }
     Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
     if (enabledKey("overlays")) {
         Log("overlays: FC4 owner factory registered; native manager interception=0 (SPEC-GAP)");
