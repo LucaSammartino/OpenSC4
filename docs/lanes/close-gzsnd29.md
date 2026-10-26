@@ -1,24 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| close-gzsnd29 sound-system closure; kind engine | Codex / close-gzsnd29 / detached HEAD (reserved branch close-gzsnd29) | blocked: coordinator STOP; code 2bb10e0bc; ABI false; focused sound tests 54/54; full gate/game/shadow not run; no questions | 1. Finish review and closure rows. 2. Run gate/game. 3. Enqueue after supervisor publishes branch. |
+| close-gzsnd29 sound-system closure; kind engine | Codex / close-gzsnd29 / detached HEAD (reserved branch close-gzsnd29) | ready; code 2bb10e0bc + 98f53d8f0; ABI false; sound 58/58; cargo 7976/7976; clippy 0 diagnostics; ctest 129/129; close-gzsnd29-r2-smoke-20261026-1 clean, ref_warnings=0; audio shadow n/a; questions none | 1. Supervisor publishes detached tip; coordinator flips five implemented owners. 2. Observe SS11 runtime bytes and IO failures; playlist remains partial. |
 
 ## Handoff
-- STOP received 2026-10-26: run 7 ends 16:00; resume after reboot. No merge-queue file written.
-- Resume attempt: git status clean; coordinator STOP remains enforced and denied further reads/checks. Clear STOP before resuming.
-- Implemented SS8 timing/classifier, SS12 handler/target replay, extensions, listener forwarding, cache ownership and system lifecycle in framework.rs.
-- Implemented SS9 defaults, registry/creator lookup, renderer gate, autoplay and shutdown/source survival in framework.rs.
-- Implemented SS10 inherited director state/factories, explicit unchecked-null boundaries, DisableUpdates and PostAppInit CreateInstanceSet in directors.rs.
-- Implemented SS11 playlist IO/append state, titles/durations, plain/extended/PLS parsing, raw line cursor and literal paths in playlist.rs.
-- New closure_tests.rs covers worked cases; updated previous tests to follow answered spec rules.
-- Corrected-source focused command: cargo test --manifest-path engine/Cargo.toml -p fc4-core audio::sound_system; PASS 54/54 (terminal output, no persisted full log).
-- Earlier source failed 2/41 tests from obsolete expectations; corrected source passes. An intervening fixture compile error was corrected.
-- Quiet wrapper could not start Git Bash (CreateFileMapping error 5); log build-runs/q/20261026-150623-40744.log. Direct PowerShell Cargo worked.
-- Formatting: direct rustfmt on six owned Rust files with skip_children=true; qbuild fmt still required.
-- Gate: qbuild quick/all and clippy not run. Game: not submitted; no shadow key or plugin/C ABI wiring added.
-- Closure README remains unchanged: cGZSndSys SS8/SS12, cGZSndMgr SS9, and all three directors SS10 need reviewed code/test citations before credit flips.
-- cGZPlayList SS11/SS12 static contracts implemented; keep SS11 open for locale bytes/BOM/invalid multibyte output and zero-byte/allocation failure observations (§9.1).
-- Next: review plain Open's saved-input restoration (conversion of first plain line should occur twice); current parser reuses the first converted line.
-- Next: check target shutdown queue release order against separate removals/ordinary/slow queues; current storage is one categorized operation vector.
-- Next: strengthen director child-order/successful-factory and autoplay playing-front/resource-forwarding tests before closure claims.
-- Next: update only targeted README closure rows, run qbuild fmt and quick while fixing, then all once; use main shared game queue and qwait for required smoke.
-- No specs edited, no questions filed, no tools scripts run, no ABI exports changed. Guard after code commit: context 92435/200000.
+- Main merged first: 07c7184d8; implementation milestone: 98f53d8f0. No ABI exports, plugin hooks or specs changed.
+- Closure table: engine/core/src/audio/sound_system/README.md has five implemented rows, each citing code and spec-worked tests; playlist remains partial.
+- cGZSndSys: SS8/SS12 applied; classifier, 250/251 ms boundary, category replay, handler replay, listener/extension/cache/lifecycle tests in closure_tests.rs.
+- cGZSndMgr: SS9 applied; defaults, renderer/QI gate, creator order, resource forwarding, autoplay front blocking, shutdown/source-survival tests in closure_tests.rs.
+- GZSndSysMacCOMDirector: SS10 applied; inherited dispatch, child order, factory success/failure and backend construction layouts tested in closure_tests.rs.
+- cGZSoundCOMDirector: SS10 applied; inherited/factory tests plus DisableUpdates and PostAppInit CreateInstanceSet/null boundaries in closure_tests.rs.
+- cFreshnessCOMDirector: SS10 applied; shared dispatch/factory worked tests plus SS-V20 singleton/alternate-entry coverage in tests.rs.
+- cGZPlayList: SS12 closed and SS11 static rules applied; Open reconverts its restored first plain line; IO/append, PLS, titles, durations, raw cursor and literal paths tested.
+- Open: SS11 requires original title/path bytes and Open outcomes for 0x80/0xE9/invalid multibyte/BOM variants under recorded locale, and zero-byte Read/allocation-failure outcomes (§9.1).
+- SPEC-GAP: queued-list shutdown offsets are unlabeled in §7.1.3; pending references clear in §7.1.1 replay order. Constructor listener coordinates remain absent until set.
+- qbuild fmt: PASS, six owned Rust files, zero diff lines (terminal result); initial relative-path invocation failed before reading files, corrected with absolute paths.
+- qbuild quick: PASS, 5361 core tests including 58/58 sound tests; dependent crates compiled; logs build-runs/fc4verify-quick-test.log and fc4verify-quick-deps.log.
+- qbuild all (one invocation): PASS, cargo 7976/7976 and clippy -D warnings zero diagnostics; logs build-runs/qbuild-test.log and qbuild-clippy.log.
+- Native gate: CMake 29/29 edges; CTest 129/129; logs build-runs/fc4verify-build.log and fc4verify-ctest.log.
+- Game: close-gzsnd29-r2-smoke-20261026-1, shared main queue, slot 2, turbo/end_date; clean at 2026-02-07, all exception/stall/RTC/overrun/ref counters zero.
+- Game evidence: C:/Users/tlori/FreeCity4/build-runs/game-results/close-gzsnd29-r2-smoke-20261026-1.verdict and .log (verdict line 3843; full shutdown reached).
+- Game used the quick-built DLL from the same sources; no audio shadow key or runtime wiring exists, so audio shadow is n/a and the smoke verifies integration only, not SS11's reserved observations.
+- The first qwait reached its nine-minute wait timeout; the same request later completed clean. No duplicate request or failed game verdict.
+- No new questions, coverage edits or game files committed. Coordinator owns coverage flips and publication of the detached tip.
