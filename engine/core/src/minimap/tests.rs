@@ -13,11 +13,13 @@ pub(super) struct RecordingHost {
     pub occupant_cell: [i32; 2],
     pub surfaces: std::collections::BTreeMap<Handle, SurfacePixels>,
     pub fail_lock: Option<Handle>,
+    pub rotation: u32,
+    pub targets: Vec<[f32; 3]>,
 }
 
 impl base::Host for RecordingHost {}
 impl Host for RecordingHost {
-    fn rotation(&mut self) -> u32 { 0 }
+    fn rotation(&mut self) -> u32 { self.rotation }
     fn tuning_ramp(&mut self, _: [u32; 3], _: u32) -> Result<Option<Vec<(u32, u32)>>> { Ok(None) }
     fn city_cells(&mut self) -> [usize; 2] { self.cells }
     fn animation_target(&mut self, _: Window, register: bool) { self.events.push(format!("tick:{register}")); }
@@ -69,6 +71,11 @@ impl Paint for RecordingHost {
     fn marker_position(&mut self, _: Handle) -> [f32; 3] { [25.0, 0.0, 50.0] }
     fn paint_buffer_color(&mut self, _: Window, c: u32) { self.events.push(format!("marker:{c:08x}")); }
     fn paint_buffer_points(&mut self, _: Window, mode: u32, _: [[f32; 2]; 2], count: u32) { assert_eq!((mode, count), (3, 2)); }
+}
+
+impl Input for RecordingHost {
+    fn terrain_height_at(&mut self, _: f32, _: f32) -> Result<f32> { Ok(12.0) }
+    fn set_view_target(&mut self, target: [f32; 3]) { self.targets.push(target); }
 }
 impl widget_controls::Foreign for RecordingHost {
     fn add_ref(&mut self, h: Handle) { self.events.push(format!("add:{h}")); }
