@@ -34,22 +34,6 @@ conversion failure, duplicate keys and aggregate success on partial failure.
 Start at EnumDefaultEntries 0x0093756A and the helper inventory in the spec.
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS7 — Cell start, spatial policy and external controller:** [unsettled]
-
-For §6.2, settle Start/StartCellExternal, AutoPan, special loop/countdown state,
-filename GUID recognition, external-controller notification and all failure
-paths. Start at 0x00946C2C, 0x0094680F, 0x00945AAF, 0x009459BF.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS8 — Sound-system timing, listener and lifecycle:** [unsettled]
-
-For §7.1, settle RegisterTarget period classification/slow timer boundary,
-extension map operations and tail/folded slots, listener numeric conversions,
-renderer duplicate rules, cache ownership, initialization dependencies and
-shutdown queue/reference order. Start at 0x00967DD4, 0x00967885,
-0x00967FE4, 0x009683EF. Preserve the confirmed consuming event chain.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS9 — Manager creation/cache and complete failure paths:** [unsettled]
 
 For §7.2, recover instruction-confirmed construction defaults, GetSound and

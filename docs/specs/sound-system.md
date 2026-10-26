@@ -621,7 +621,104 @@ SetVol caches the requested local volume and forwards the recalculated
 scaled volume to an existing sound; without a sound it succeeds without
 forwarding (`0x00945A89`). Other named helpers are AutoPan `0x00945AAF`,
 FilenameHasGuid `0x00945F38`, StartCellExternal `0x0094680F`, Start
-`0x00946C2C`, UpdateScaledVol `0x00945820`; their remaining policies are SS7.
+`0x00946C2C`, UpdateScaledVol `0x00945820`; their policies follow.
+
+#### 6.2.1 Start and spatial policy (SS7)
+
+*[compat]* Start requires the sound-system service even with an external
+controller. It returns false if the service is absent, the player is dead
+or busy; otherwise it clears stop mark `+0x2D` and takes the external path
+when controller `+0x54` is nonnull (`0x00946C2C`). A valid bound cell is a
+precondition: there is no null-cell or sound-manager recovery.
+
+FilenameHasGuid (`0x00945F38`) means **any run of eight consecutive ASCII
+hex digits anywhere in the name**. It does not validate a suffix or GUID
+syntax. On a match, Start splits at the first literal dot and converts the
+last eight characters of the preceding token as hex, stores the result in
+cell `+8`, and requests that sound ID (manager slot 18, IID `0x206077D2`).
+Otherwise it uses cRZPath::GetFileName and manager slot 17. A failed manager
+call or successful call yielding a null sound returns false. Because the
+comma-independent SplitToken helper returns empty when the delimiter is
+absent, an eight-digit name **without a dot** does not reliably yield those
+digits as the ID; no special suffix parser repairs it.
+
+With a sound, Start optionally queries `0xFD584467` and sets register
+`0x1C` to 1. It queries 3D IID `0x306077D2`, then immediately dereferences
+that view without testing QI success. It sets head-relative, min/max
+distance and the stored position when position-set `+0x3C` is true. Distances
+are unsigned u32 converted to f32; coordinates are signed integers converted
+to f32 (`0x00946E20–0x00946E79`). AutoPan is a separate slot-14 operation;
+Start does not call it.
+
+Cell fade-in selector `+0x34` zero starts at the cached scaled volume with
+the loop flag and final argument 1. Nonzero starts at zero and requests a
+fade from zero to that cached volume using cell `+0x38`, final argument 1.
+These playback results are ignored. State becomes 2; a successful query of
+update IID `0x5B34F0AF` registers it at period 250. The random-volume factor
+is then reset to 1024, or reduced by `abs(signed private draw) remainder
+256` when random volume is enabled; scaled volume is recomputed and sent.
+Looping loads counter `+0x28` from cell `+0x48`. Successful setup returns
+true regardless of Play/fade/registration results. Temporary queried views
+are released; the sound reference remains owned at `+0x1C`.
+
+Pitch spread uses signed remainder: for nonzero ordered low/high endpoints,
+`k = signed(private draw) remainder (high−low+1) + low`, with remainder
+truncated toward zero (`0x00946F67–0x00946F69`). The source frequency is
+multiplied by double table P[k] for k≥0 and divided by P[−k] for k<0, then
+converted to an integer before setting frequency (`0x00946F7B–0x00946FA4`).
+P is the semitone table at `0x00B16EB0`; only indices 0–12 are its intended
+range. Signed negative draws can put k below low; there is no bounds clamp.
+
+AutoPan does nothing without a cell. It computes x/z from signed
+`(pan−512)×(1/512)` in double precision, then multiplies by double 100 and
+rounds to f32 for the 3D position call (`0x00945AD5–0x00945C1F`, double
+constant `0x00AD4900`). Without random pan there is no coordinate clamp.
+With both axes centered and random pan, one private draw's low two bits
+choose `(0,1)`, `(0,−1)`, `(−1,0)`, `(1,0)`. With only one centered axis,
+that axis becomes −1 or +1 from a draw's low bit. Debug byte `0x00B6349D`
+forces random pan on in the cell; `0x00B6349C` enables forced quadrant
+`0x00B634A0`. The 3D sound/QI is assumed valid here too.
+
+#### 6.2.2 External controller and beat transitions (SS7)
+
+*[compat]* StartCellExternal (`0x0094680F`) sets state 2 and computes factor,
+scaled volume, loop counter and pitch **before** asking the controller to
+start. The name-derived ID is used only if nonzero; otherwise it uses
+`CRC24(cRZPath::FileName(name), seed 0) OR 0xFF000000`. Controller slot 3
+receives, in order: original filename text, sound ID, cell pointer,
+head-relative Boolean, loop Boolean and signed fade-in selector converted
+to f32 (`0x0094698F–0x009469BE`). False returns false **without reverting
+state 2**, volume factor or counter. Success then calls controller slots
+5 position (always), 8 distances, 6 volume, 7 pitch, in that order. Volume
+is signed scaled volume × f32 `1/1024` (`0x00A931FC`); position/distance
+conversions match the internal path. Pitch is P[abs(k)] for **both signs**,
+converted from double to f32, so a negative step raises external pitch.
+Post-start setter results are ignored. No internal sound is created.
+
+Update's special loop branch decrements the counter first. Without a stop
+mark, exactly zero reloads the configured length. With the mark, a
+**nonzero** remaining counter calls Kill (slot 8); zero leaves it playing
+until a later update (`0x00945A4C–0x00945A6D`). This is not a conventional
+“stop when zero” countdown and does not notify the external controller.
+
+For nonlooping state 2 and state 3, an external controller's slot 9 is
+queried with the cell. If it returns false, slot 4 is called with the cell
+and signed cell `+0x38` converted to f32, then state becomes zero
+(`0x009459D0–0x00945A32`). If it returns true, normal internal-sound checks
+continue: a null internal sound leaves the state unchanged; a finished
+sound invokes Stop, and a finished fade invokes Kill. StopCellExternal
+notifies slot 4 only from state 2; nonzero fade-out changes it to state 3,
+while zero fade-out leaves state 2 pending a later controller notification.
+Already-stopping state stays 3; other states become zero (`0x00945C20`).
+
+**Worked cases (SS7).** `amb_1234ABCD.wav` is recognized and requests ID
+`0x1234ABCD`; `1234-ABCD.wav` is not. External Start returning false leaves
+IsBusy true, so another Start fails until the state is cleared. A marked
+loop with counter 1 remains in state 2 after the next decrement to zero;
+the following decrement to −1 calls Kill. Pan values (768,512), without
+random pan, produce position (50,0,0); centered random pan with low draw
+bits 2 produces (−100,0,0). An external controller reporting false from
+slot 9 receives one slot-4 notification before the player becomes idle.
 
 ## 7. `cGZSndSys` and `cGZSndMgr`
 
@@ -643,7 +740,7 @@ Primary table `0x00AD7180`:
 | 5–8 | DoEvent overloads: payload forms, existing event last |
 | 9–12 | PostEvent overloads: payload forms, existing event last |
 | 13–17 | two EventCreate overloads, RegisterEventHandler, UnregisterEventHandler, Update |
-| 18–27 | folded entry, SetDataDirectory, directory/extension mapping operations (SS8) |
+| 18–27 | running-latch getter, SetDataDirectory, DataDirectory, GetEnabledFlag, SetEnabledFlag, SetExtensionDefaultDataSourceClassId, GetExtensionDefaultDataSourceClassId, mapping count, mapping class-ID lookup, mapping extension lookup |
 | 28–34 | GetMasterVolume, SetMasterVolume, RegisterTarget, UnregisterTarget, EnumerateTargets, EnableUpdates, DisableUpdates |
 | 35–41 | RegisterRenderer, UnregisterRenderer, IsRegisteredRenderer, NumRenderers, FindPlayingGZSnd, IsSndPlaying, GetCriticalSection |
 | 42–48 | two GetSndPropertyCache forms, two GetSndInstanceCache forms, AddToMainlineReleaseList, Panic, SetTestMode |
@@ -678,9 +775,141 @@ changes while enumerating, and drains them when the outermost enumeration
 finishes (`0x00967885`). Registration/removal retain references through
 their queues; UnregisterTarget removes the matching target from both active
 lists, or defers removal during enumeration (`0x00967DD4`, `0x00967E4F`).
-The exact period classifier and timer boundary remain SS8. SetMasterVolume
+The exact period classifier and timer boundary are below. SetMasterVolume
 notifies registered audio renderers using the stored master volume
 (`0x009675DF`); no visual drawing operation is involved.
+
+#### 7.1.1 Timing and table completion (SS8)
+
+*[compat]* RegisterTarget(target, period) classifies **period exactly 20**
+as ordinary; every other word, including 0, 19, 21 and 250, means slow
+(`0x00967DFF–0x00967E2C`). These are two categories, not per-target clocks.
+Outside enumeration, registration first unregisters the same pointer and
+then appends one retained entry. During enumeration it appends a retained
+pending entry to the corresponding category without altering active lists.
+Unregister removes the pointer from both categories, or queues removal.
+
+UpdateTargets visits ordinary targets every enabled call. It visits slow
+targets only when unsigned elapsed milliseconds are **greater than 250**,
+and restarts that timer before visiting them (`0x009678E0–0x009678E9`).
+A false callback stops its current list; it does not suppress the separate
+slow-list check. At outermost enumeration exit it drains pending removals,
+ordinary additions, then slow additions. Replayed additions use periods
+20 and 250 respectively and unregister before appending. Thus additions
+win over removals queued during the same enumeration, and a target queued
+in both addition categories ends in the slow list. EnableUpdates controls
+this enumeration gate; EnabledFlag is the separate initialization gate.
+
+Primary slots 40–52, completing the earlier inventory:
+
+| Slots | Operations, in order |
+|---|---|
+| 40–45 | IsSndPlaying, GetCriticalSection, borrowed property-cache getter, property-cache out getter, borrowed instance-cache getter, instance-cache out getter |
+| 46–52 | AddToMainlineReleaseList, Panic, SetTestMode, GetTestMode, GetSoundSystemThreadId, destructor, running-latch setter |
+
+Slot 18 (`0x0096831B`, folded under a cell-player name) reads the byte at
+full-object `+0x3D`; slot 52 (`0x0096831F`) stores its Boolean argument there.
+It is the callback-running latch, not SetEnabledFlag. Slots 21/22 manage
+EnabledFlag. Slots 42/44 (`0x009683D9`, `0x009683E0`) return borrowed cache
+pointers. Slots 43/45 (`0x00966F31`, `0x00966F63`) write the pointer, AddRef
+when nonnull, and return whether nonnull; null writes null and returns false.
+The system owns its own cache references independently of those callers.
+
+#### 7.1.2 Extensions, listener and renderers (SS8)
+
+*[compat]* Extension insertion (`0x009689E9`) copies the text, lowercases,
+trims, removes **one** leading dot, and rejects an empty result. Otherwise
+it inserts/replaces that key's class ID, including zero. Lookup
+(`0x009686B6`) applies the same normalization and returns false without
+changing the output on a miss. It does not insert a miss or parse a full
+filename into an extension. Count is the ordered map's entry count.
+Class-ID-by-index (`0x00967ACB`) walks sorted keys from the first; out of
+range returns false and leaves the output unchanged.
+
+The extension-text-by-index entry (`0x0096818B`) has a different observed
+contract: it first **finds the current output string as an exact map key**,
+then advances index times from that entry, and assigns the found key to
+the output string. No normalization is performed. A missing seed key or
+walking past the end returns false unchanged
+(`0x00968194–0x009681EA`). Do not replace this with ordinary index-from-first
+enumeration without a deliberate compatibility choice.
+
+The basic listener view is full object `+0x0C` (table `0x00AD7110`);
+the extended view is `+0x10` (`0x0096830F`). Basic slots 5–10 are
+CommitDeferredSettings, GetPosition, SetPosition, GetOrientation,
+SetOrientation, AsIGZSnd3DListenerEx. Position is three f32 values and
+orientation six f32 values: getters use f32 loads/stores
+(`0x009667CA–0x00966837`); setters store/forward the argument words without
+integer scaling, normalization or double conversion (`0x00967056`,
+`0x00967109`). Relative to the basic view, position is `+0xD8/+0xDC/+0xE0`
+and orientation `+0xE4` through `+0xF8`. Renderer notifications query
+IID `0x406077D2`, invoke listener slots 7 or 9, and release the temporary
+view. A failed query skips that renderer; setter return values are ignored.
+Extended velocity uses three f32 words (`0x0096683A`, `0x009671EC`) and
+IID `0x5B30E7B3`; the combined update forwards velocity, orientation, then
+position (`0x0096729F`).
+
+RegisterRenderer (`0x00967CEE`) checks exact interface-pointer identity,
+appends/retains only when absent, and returns true even on duplicates.
+IsRegisteredRenderer uses the same pointer test; it does not QI for a COM
+identity. UnregisterRenderer removes the matching retained entry under the
+renderer lock. Cache/renderer success alone does not establish playback.
+
+#### 7.1.3 Initialization and shutdown (SS8)
+
+*[compat]* Init is entered on service view `S = full object +4`.
+It locks the service, optionally refreshes the data directory from the
+filesystem, then unconditionally registers message handler `0xDB53383B`
+through RZ::MS2. That message service is assumed present. When EnabledFlag
+is true and the running latch false, it creates a message queue, requests
+property cache class/IID `0x9D4C6B95/0x5D4C6B90`, then instance cache
+`0xBDF613B4/0x3DF613A1`, creates/starts the elapsed timer and slow timer,
+and creates the callback timer. The callback period/configuration are 20 ms;
+it installs UpdateTimerCallback, starts the callback timer, requests thread
+priority 4, then stores the timer-start result in the running latch
+(`0x00967FE4–0x0096818A`). Cache factory results are not tested. Init returns
+true even when disabled or timer start fails; allocations and required
+services have no general checked recovery. Repeating Init still registers
+the message handler before checking the running latch.
+
+Shutdown (`0x009683EF`) sets the shutdown byte `S+0x11C` first, stops the
+callback and elapsed timers under the service lock, releases/reacquires
+that lock, unregisters message `0xDB53383B`, and stops/deletes the callback
+timer. It clears the three event-handler operation lists at
+`S+0x9C/+0xA0/+0xA4` before target cleanup. Under the target lock it visits
+ordinary `S+0x68` then slow `S+0x6C` targets; each successful QI for
+`0x206077D2` gets sound slot 9 (Stop). A temporary sound reference is
+released before the next query, with the last released after the traversal.
+
+It clears active and queued target lists in order
+`S+0x68, +0x6C, +0x70, +0x74, +0x78`, clears the running latch through
+primary slot 52, and clears those lists again. It then clears renderers
+`S+0x8C`, the three event-handler lists again, the extension map `S+0xB8`,
+and the mainline-release list `S+0xC4`. Last it releases/nulls the property
+cache `S+0xD4`, instance cache `S+0xD8`, and message queue `S+0x2C`, in that
+order (`0x00968617–0x009686AC`). Retained list entries release their owned
+references when cleared. No renderer Shutdown call or rollback transaction
+is implied by those reference releases; this method returns true.
+
+The consuming event chain in §7.1 above is unchanged. These lifecycle rules
+do not change DoEvent's event ownership or turn PostEvent into synchronous
+playback. Runtime scheduling precision and device/cache factory outcomes
+remain external observations: to determine an actual backend failure case,
+record both factory results and callback-timer Start's result, then the
+running latch/cache outputs and whether `0xDB53383B` is still registered.
+That observation distinguishes a disabled/failed start from successful Init's
+unconditional true return.
+
+**Worked cases (SS8).** Targets registered at 20, 19 and 250 put only the
+first in the ordinary list. At slow elapsed 250 ms only ordinary runs; at
+251 ms slow also runs and its timer restarts. Queued remove plus ordinary
+add plus slow add of the same pointer leaves one slow registration. Setting
+`" .WAV "` to 7 then `"wav"` to 9 leaves count 1 and lookup `".WaV"` gives 9.
+Extension-text index 0 with an empty output string fails; seeding it with
+`"wav"` succeeds. Registering the same renderer twice retains one entry.
+SetPosition(1.5,−2.25,0) round-trips as those f32 values. With EnabledFlag
+false, Init returns true and registers the message handler but creates no
+new cache/timer set. Shutdown releases caches before its message queue.
 
 ### 7.2 Framework manager
 
