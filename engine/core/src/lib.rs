@@ -194,3 +194,4 @@ pub mod region_view;
 pub mod region_screen;
 pub mod model_maker;
 pub mod model_background_loader;
+pub mod graphs_window;
