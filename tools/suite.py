@@ -484,7 +484,7 @@ def add_lua_evidence(result, text):
     return result
 
 
-def write_results(directory, manifest, results):
+def write_results(directory, manifest, results, *, reach_cache=None):
     rows = []
     findings = []
     per_key = {key: dict(key=key, scenarios_run=0, scenarios_exact=0, first_mismatch='-')
@@ -510,7 +510,14 @@ def write_results(directory, manifest, results):
     write_tsv(directory / 'findings.tsv', ['key', 'scenario', 'log', 'first_mismatch'], findings)
     import suite_select
     from collections import Counter
-    reached = {name: suite_select.reach(directory / (name + '.reach.tsv'))[0] for name in results}
+    # Completed request traces are immutable. Keep the cache local to this
+    # harvest operation; never cache a live/incomplete trace across resumes.
+    if reach_cache is None:
+        reach_cache = {}
+    for name in results:
+        if name not in reach_cache:
+            reach_cache[name] = suite_select.reach(directory / (name + '.reach.tsv'))[0]
+    reached = {name: reach_cache[name] for name in results}
     scenarios = {r['scenario']['name']: r['scenario'] for r in manifest['requests']}
     counts = Counter(address for addresses in reached.values() for address in addresses)
     metrics, windows = [], []
@@ -540,7 +547,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                                         ('build-runs/game-results', '.running'),
                                         ('build-runs/game-results', '.verdict')))}
     waiting = [name for name in pending if name not in active] if submit else []
-    results = {}
+    results, reach_cache = {}, {}
     try:
         while pending:
             stopping = stop_file is not None and stop_file.exists()
@@ -553,6 +560,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                 temporary.write_text(request['request'], encoding='utf-8')
                 temporary.replace(path)
                 active.add(name)
+            changed = False
             for name, request in list(pending.items()):
                 if name not in active:
                     continue
@@ -592,7 +600,9 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                 print(f'{name}: {parsed["verdict"]}; end={parsed["end_reached"]}; '
                       f'actions={parsed["actions_ok"]} ok/{parsed["actions_failed"]} failed; '
                       f'shadow={parsed["shadow_exact_lines"]}/{parsed["shadow_lines"]}', flush=True)
-                write_results(directory, manifest, results)
+                changed = True
+            if changed:
+                write_results(directory, manifest, results, reach_cache=reach_cache)
             if stopping and not active:
                 for name, request in pending.items():
                     results[name] = parse_log('', request['scenario']['end'], 'verdict: not-submitted')
@@ -607,7 +617,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
             if pending:
                 time.sleep(min(2, max(0, deadline - time.monotonic())))
     finally:
-        write_results(directory, manifest, results)
+        write_results(directory, manifest, results, reach_cache=reach_cache)
     return results
 
 

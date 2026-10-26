@@ -26,6 +26,26 @@ def test_findings_set_can_be_staged_from_cli():
         assert run.call_args.kwargs['dry_run']
 
 
+def test_result_exports_read_each_completed_trace_once_per_harvest(tmp_path):
+    import suite_select
+    directory = tmp_path / 'results'
+    directory.mkdir()
+    scenarios = [dict(name=n, end='2000-04-01', region='Test', city=n, notes='')
+                 for n in ('one', 'two')]
+    manifest = dict(profile='shadows', dll_sha256='fixture', shadow_keys=[],
+                    requests=[dict(scenario=row) for row in scenarios])
+    cache, results = {}, {}
+    with patch.object(suite_select, 'reach', return_value=({'00401000'}, {})) as read:
+        for row in scenarios:
+            results[row['name']] = suite.parse_log('', row['end'])
+            suite.write_results(directory, manifest, results, reach_cache=cache)
+        suite.write_results(directory, manifest, results, reach_cache=cache)
+        assert read.call_count == 2
+        # A new operation must read again, including a newly replaced trace.
+        suite.write_results(directory, manifest, results)
+        assert read.call_count == 4
+
+
 def checkout(root):
     (root / 'tools').mkdir()
     shutil.copy2(ROOT / 'tools/regress.ps1', root / 'tools/regress.ps1')
@@ -350,8 +370,10 @@ class SuiteQueueTests(unittest.TestCase):
                         'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.00)\n', encoding='utf-8')
                     Path(str(result) + '.verdict').write_text('verdict: clean\n', encoding='utf-8')
 
-            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()), \
+                    patch.object(suite, 'write_results', wraps=suite.write_results) as export:
                 directory, results = suite.run_scenarios(root, [row, second], profile='replace', dll=str(root), tag='v1.0')
+            self.assertEqual(export.call_count, 2)  # one changed harvest, one final flush
             self.assertEqual(len(calls), 2)
             self.assertTrue(suite.successful(results))
             manifest = json.loads((directory / 'manifest.json').read_text())
