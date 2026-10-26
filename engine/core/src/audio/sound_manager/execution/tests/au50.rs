@@ -22,6 +22,7 @@ fn au50_last_match_time_boundary_count_gate_and_preinsertion_gain() {
         assert_eq!(s.gain, 950.0 / 1024.0);
         assert_eq!(s.raw.map(f32::to_bits), [0; 3]);
         assert_eq!(s.average.map(f32::to_bits), [0; 3]);
+        assert_eq!(s.flags, 0);
     }
     m.elapsed = 1050;
     assert!(!m.start(7, 4, 0, &mut ids, &mut h));
@@ -127,6 +128,7 @@ fn au50_distance_simulation_pause_resume_and_refresh_order() {
     h.writes.clear();
     m.update_all(&mut h);
     assert_eq!(m.instances[&1].pause_count, 0);
+    assert_eq!(m.instances[&1].flags & 1, 0);
     assert_eq!(h.writes[0].1, 0x15);
     assert!(h.calls.contains(&(10, 0x14, vec![1, 0, 512, 0])));
     assert_eq!((m.elapsed, m.updates), (0, 0));

@@ -101,9 +101,8 @@ impl Manager {
             }
             h.set_property(s.buffer, 0x10, 3, 0);
             h.call(s.holder, 0x14, &[u64::from(s.id), u64::from(s.volume), 512, 0]);
-            let volume = s.volume;
             self.update_position(id, h);
-            self.volume(id, volume, h);
+            self.refresh_volume(id, h);
             if let Some(v) = view {
                 h.release(v);
             }

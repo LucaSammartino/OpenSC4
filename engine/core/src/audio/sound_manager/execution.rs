@@ -309,8 +309,7 @@ impl Manager {
             for i in self.list.clone() {
                 if self.instances[&i].sound == sound {
                     self.instances.get_mut(&i).expect("instance").gain = gain;
-                    let volume = self.instances[&i].volume;
-                    self.volume(i, volume, host);
+                    self.refresh_volume(i, host);
                 }
             }
         }
@@ -435,12 +434,16 @@ impl Manager {
             return false;
         };
         s.volume = volume;
+        self.refresh_volume(id, host);
+        self.instances.get_mut(&id).expect("instance").flags |= 1;
+        true
+    }
+    fn refresh_volume(&mut self, id: u32, host: &mut impl Host) {
+        let s = &self.instances[&id];
         Self::write_volume(s, host);
         if !s.children.is_empty() || s.master.is_some() {
             self.update_position(id, host);
         }
-        self.instances.get_mut(&id).expect("instance").flags |= 1;
-        true
     }
     pub fn position(&mut self, id: u32, position: [f32; 3], host: &mut impl Host) -> bool {
         let Some(s) = self.instances.get_mut(&id) else {
