@@ -279,6 +279,10 @@ void FpuReassert24Bit(const char* where) {
     FpuCheck(where);
 }
 
+void FpuSimulationEntry(const char* where) {
+    if (OnMain() && !Is24Bit(X87ControlWord())) FpuReassert24Bit(where);
+}
+
 void FpuTick() {
     if (g_mainTid == 0) g_mainTid = GetCurrentThreadId();  // ticks run on the main thread
     if (!OnMain()) return;
