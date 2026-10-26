@@ -190,3 +190,4 @@ pub mod regional_city;
 pub mod region;
 pub mod pedestrians;
 pub mod mysim_window;
+pub mod mysim_input_control;
