@@ -273,12 +273,14 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         self.commodities.entry(c).or_default()
     }
     pub fn get_commodity_balance(&mut self, c: i32) -> f64 {
+        self.get_commodity_balance_with_precision(c, crate::x87::Precision::Bits24)
+    }
+
+    pub fn get_commodity_balance_with_precision(&mut self, c: i32, pc: crate::x87::Precision) -> f64 {
         let c = self.commodity(c);
-        // RY8: literal foundations §18.3 simulation precision, despite the
-        // regional-city §5 double-precision wording. Loads stay unrounded;
-        // each arithmetic result rounds separately to the x87 24-bit precision.
-        use crate::x87::r24;
-        r24(r24(c.produced + c.imported) - r24(c.demanded + c.exported))
+        // Foundations §18.4: live PC, with the first sum stored as double.
+        // Loads stay unrounded; getter/order remains produced/imported/demanded/exported.
+        pc.round(pc.round(c.produced + c.imported) - pc.round(c.demanded + c.exported))
     }
 
     pub fn set_position(&mut self, x: i32, z: i32, rearrange: bool) {

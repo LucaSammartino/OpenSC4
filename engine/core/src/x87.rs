@@ -4,8 +4,9 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! The game's x87 arithmetic (`docs/specs/foundations.md` §18): every
-//! floating-point operation is rounded once to a 24-bit significand, and the
+//! The game's x87 arithmetic (`docs/specs/foundations.md` §18): ordinary
+//! PC24 operations round once to a 24-bit significand; native Lua re-entry
+//! carries live precision (§18.4). The
 //! C runtime's truncating conversion `_ftol` works through a 64-bit integer.
 //!
 //! Compute one operation in `f64` (its operands are `f32` values, `double`
@@ -17,6 +18,25 @@
 #[inline]
 pub fn r24(x: f64) -> f64 {
     f64::from(x as f32)
+}
+
+/// Invocation context for the PC24 and PC53 simulation paths (foundations
+/// §18.4). This changes arithmetic, never the width of an explicit store.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Precision {
+    #[default]
+    Bits24,
+    Bits53,
+}
+
+impl Precision {
+    #[inline]
+    pub fn round(self, x: f64) -> f64 {
+        match self {
+            Self::Bits24 => r24(x),
+            Self::Bits53 => x,
+        }
+    }
 }
 
 const TWO_POW_63: f64 = 9_223_372_036_854_775_808.0;

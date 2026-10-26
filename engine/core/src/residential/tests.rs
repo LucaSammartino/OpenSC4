@@ -76,6 +76,7 @@ enum Ev {
 }
 
 struct Host {
+    precision: Cell<crate::x87::Precision>,
     city: CityDims,
     events: RefCell<Vec<Ev>>,
     tuning: RefCell<Option<Rc<PropertyHolder>>>,
@@ -126,6 +127,7 @@ struct Host {
 impl Host {
     fn new(city: CityDims, dev_size: i32) -> Rc<Host> {
         Rc::new(Host {
+            precision: Cell::new(crate::x87::Precision::Bits24),
             city,
             events: RefCell::new(Vec::new()),
             tuning: RefCell::new(Some(Rc::new(shipped_tuning()))),
@@ -262,6 +264,10 @@ fn instance_of<T: GridElem>(g: &Rc<dyn TractGrid<T>>) -> u32 {
 }
 
 impl ResidentialHost for Host {
+    fn invocation_precision(&self) -> crate::x87::Precision {
+        self.precision.get()
+    }
+
     fn acquire_services(&self) {
         self.ev(Ev::Services);
     }
@@ -539,6 +545,47 @@ fn flat_le(t: &mut PropertyHolder, le: f32) {
 fn no_decay(t: &mut PropertyHolder) {
     t.add(id::EQ_DECAY, f(0.0));
     t.add(id::HQ_DECAY, f(0.0));
+}
+
+#[test]
+fn vc29_newcomers_and_global_query_preserve_float_stores() {
+    use crate::x87::Precision::{Bits24, Bits53};
+    for (pc, bits, global) in [
+        (Bits24, 0x3DCC_CCCE, 0.100_000_008_940_696_72),
+        (Bits53, 0x3DCC_CCCD, 0.099_999_998_297_010_15),
+    ] {
+        let fx = Fx::with(
+            4,
+            Some(tuned(|t| {
+                no_decay(t);
+                flat_le(t, 100.0);
+            })),
+        );
+        fx.h.precision.set(pc);
+        fx.s.with_state(|s| {
+            s.population_tuning.new_eq[0] = 0.1;
+            s.population_tuning.new_hq[0] = 0.1;
+        });
+        fx.set_tract(
+            0,
+            0,
+            Tract {
+                old: [3, 0, 0],
+                new: [7, 0, 0],
+                eq: [0.1, 0.0, 0.0],
+                hq: [0.1, 0.0, 0.0],
+                age: 30,
+            },
+        );
+        fx.s.do_population_change(0, 0);
+        assert_eq!(fx.eq(0, 0)[0].to_bits(), bits);
+        assert_eq!(fx.hq(0, 0)[0].to_bits(), bits);
+        fx.s.with_state(|s| s.population = 7);
+        assert_eq!(fx.s.global_quotient_register(true), global);
+        assert_eq!(fx.s.global_quotient_register(false), global);
+        assert_eq!(fx.s.get_global_eq().to_bits(), bits);
+        assert_eq!(fx.s.get_global_hq().to_bits(), bits);
+    }
 }
 
 // ---- the fixture ----

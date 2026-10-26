@@ -80,7 +80,10 @@ fn compare(c: &mut RegionalCity, mut probe: impl FnMut(u32, u32, f64, &[u8]) -> 
             (52, c.get_exported(t)),
             (53, c.get_imported(t)),
             (54, c.get_cost_per_unit(t)),
-            (55, c.get_commodity_balance(t)),
+            (
+                55,
+                c.get_commodity_balance_with_precision(t, crate::invocation::precision()),
+            ),
         ] {
             check(id, t as u32, value, &[]);
         }

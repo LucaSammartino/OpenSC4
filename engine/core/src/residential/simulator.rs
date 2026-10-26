@@ -1016,8 +1016,8 @@ impl ResidentialSim {
 
     /// `DoPopulationChange(T, x, z)` for one tract (§5.5, REH §4.7), with the
     /// population tuning currently loaded. Internal in the original; public
-    /// for tests and vectors. All float steps are `f32` operations in the
-    /// order the spec gives (foundations §18).
+    /// for tests and vectors. Newcomer arithmetic uses invocation precision,
+    /// with float grid stores in the order the spec gives (foundations §18.4).
     pub fn do_population_change(&self, x: i32, z: i32) {
         let h = &*self.host;
         // Clone the grids and the scalars this tract needs, so no state
@@ -1116,11 +1116,21 @@ impl ResidentialSim {
                 // delta := int16(new − old) (REH §4.7 step 4).
                 let nc = new_w.wrapping_sub(old_w) as i16;
                 let blend = |g: &Option<Rc<dyn TractGrid<f32>>>, bonus: f32| {
-                    let q_old = get_f(g);
+                    let pc = h.invocation_precision();
+                    let q_old = f64::from(get_f(g));
                     let m = if q_old > 0.0 { 2 } else { 1 };
-                    let avg = div_i(q_old + bonus, m);
-                    let num = mul_i(i64::from(nc), avg) + mul_i(i64::from(old_w), q_old);
-                    set_f(g, min_cap(MAX_QUOTIENT as f32, div_i(num, i64::from(new_w))));
+                    let avg = pc.round(pc.round(q_old + f64::from(bonus)) / f64::from(m));
+                    let num = pc.round(pc.round(f64::from(nc) * avg) + pc.round(f64::from(old_w) * q_old));
+                    let q = pc.round(num / f64::from(new_w));
+                    // Compare the register result, then store float32 (REH §4.7).
+                    set_f(
+                        g,
+                        if f64::from(MAX_QUOTIENT) < q {
+                            MAX_QUOTIENT as f32
+                        } else {
+                            q as f32
+                        },
+                    );
                 };
                 blend(&eq[w], t.new_eq[w]);
                 blend(&hq[w], t.new_hq[w]);
@@ -1387,6 +1397,12 @@ impl ResidentialSim {
     }
 
     fn global_quotient(&self, is_eq: bool) -> f32 {
+        self.global_quotient_register(is_eq) as f32
+    }
+
+    /// REH §4.8: final quotient in the register, before a caller's float store.
+    pub fn global_quotient_register(&self, is_eq: bool) -> f64 {
+        let pc = self.host.invocation_precision();
         let population = self.s.borrow().population;
         if population == 0 {
             return 0.0;
@@ -1397,15 +1413,15 @@ impl ResidentialSim {
         for x in 0..cx.clamp(0, MAX_TRACTS) {
             for z in 0..cz.clamp(0, MAX_TRACTS) {
                 // a := Q0·p0; b := Q1·p1 + a; c := Q2·p2 + b; sum := c + sum.
-                let p = |w: usize| i64::from(pop[w].as_ref().map_or(0, |g| g.get(x, z)));
-                let v = |w: usize| q[w].as_ref().map_or(0.0, |g| g.get(x, z));
-                let a = mul_i(p(0), v(0));
-                let b = mul_i(p(1), v(1)) + a;
-                let c = mul_i(p(2), v(2)) + b;
-                sum += c;
+                let p = |w: usize| f64::from(pop[w].as_ref().map_or(0, |g| g.get(x, z)));
+                let v = |w: usize| f64::from(q[w].as_ref().map_or(0.0, |g| g.get(x, z)));
+                let a = pc.round(p(0) * v(0)) as f32;
+                let b = pc.round(pc.round(p(1) * v(1)) + f64::from(a)) as f32;
+                let c = pc.round(pc.round(p(2) * v(2)) + f64::from(b));
+                sum = pc.round(c + f64::from(sum)) as f32;
             }
         }
-        div_i(sum, i64::from(population))
+        pc.round(f64::from(sum) / f64::from(population))
     }
 
     /// Slots 21 / 22 `GetAverageEQGrid` / `GetAverageHQGrid` (§6.2): a **new**

@@ -1212,3 +1212,5 @@ mod cfgrules_owner;
 mod draw_stream;
 // Private static-link GZ framework owners; no public DLL ABI changes.
 mod gzfw_owner;
+// Native simulation invocation context; private, no C ABI exports.
+mod invocation;

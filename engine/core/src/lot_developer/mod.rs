@@ -154,7 +154,7 @@ pub use foundation::{
 };
 pub use levelling::NO_SLOPE_TEST_FROM;
 
-pub use geometry::{area_slope_of, development_cost, rubble_count, RubbleShape};
+pub use geometry::{area_slope_of, area_slope_with_precision, development_cost, rubble_count, RubbleShape};
 pub use simulator::{
     is_empty_lot_suitable_for_zot, Draw, DrawKind, LotDeveloper, LotDeveloperStatics, SharedStatics,
     DEFAULT_DAILY_WORK_BUDGET, MAX_CLEAR_BUILDINGS, MAX_SAVED_BUILDINGS, NIGHT_THRESHOLD_MS, RECORD_VERSION,
@@ -428,6 +428,11 @@ pub struct BurntBuilding {
 /// game (§14). Objects are host tokens. The contracts are those the specs
 /// state; the owning spec is named per group.
 pub trait LotDeveloperHost {
+    /// Live arithmetic context, not saved state (foundations §18.4).
+    fn invocation_precision(&self) -> crate::x87::Precision {
+        crate::x87::Precision::Bits24
+    }
+
     // ---- lifecycle (§1.3, §1.4) ----
     /// `Init` step 3: take the services still missing (city, lot manager,
     /// occupant manager, prop manager, BDS, power, plumbing, flora, terrain,

@@ -15,6 +15,7 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4HostGrid.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -447,9 +448,15 @@ bool ResidentialShadowDeliver(cIGZMessageTarget2* target, const char* agentName,
         g_d.begin = fc4_residential_shadow_begin(g_shadow, g_d.julian, nullptr);  // "no capture"
     }
     ClearContext();
+    const uint16_t nativeCw = X87ControlWord();
     *finished = target->DoMessage(msg);  // the original residential simulator, unchanged
+    const uint16_t returnCw = X87ControlWord();
     FillContext(city);
     const bool afterClean = SehGuard("residential shadow (after the original's day)", &AfterStep, nullptr);
+    if ((nativeCw & 0x0300u) != 0 || nativeCw != returnCw) {
+        Log("views precision residential: day=%d native=0x%04X return=0x%04X replay=0x%04X",
+            g_d.julian, nativeCw, returnCw, X87ControlWord());
+    }
     if (!afterClean && !g_d.finished) {
         g_d.result = fc4_residential_shadow_finish(g_shadow, nullptr, nullptr, &Sink, nullptr);
     }
