@@ -33,6 +33,7 @@
 #include "cFC4PortDeveloper.h"  // the glue-portdev4 lane: the port action
 #include "cFC4ZoneManager.h"
 #include "cFC4PropDeveloper.h"
+#include "cFC4MySim.h"
 
 #include "SC4Rect.h"
 #include "cISC4City.h"
@@ -666,6 +667,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             digest = true;
             break;
         case ScriptOp::Mark: result = "marked"; break;
+        case ScriptOp::MySim: result = MySimScriptAction(a.on); break;
         case ScriptOp::Save:
             NetMgrShadowBeforeSave(city, julian);  // netmgr_shadow = 1 only: the records the save writes
             result = RunSave(a, city);

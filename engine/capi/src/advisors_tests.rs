@@ -657,6 +657,7 @@ fn mysim_record_round_trip() {
         );
         assert!(fc4_mysim_set_residence(f.p, 1, HOME));
         let o = fc4_advisors_advisor_object(f.p, 1);
+        assert!(fc4_mysim_set_dispatch(f.p, 1, 0xD15));
         let mut out = Out::default();
         assert!(fc4_adv_obj_write(o, &ostream(&mut out)));
         // Version 17, state 1, slot 2, then the residence (host token).
@@ -667,6 +668,21 @@ fn mysim_record_round_trip() {
         assert_eq!(fc4_adv_obj_kind(n), FC4_ADV_OBJ_ADVISOR);
         let mut inp = In::new(&out.bytes);
         assert!(fc4_adv_obj_read(n, &istream(&mut inp)));
+        let mut loaded = fc4_mysim_state::default();
+        assert!(fc4_adv_mysim_get_state(n, &mut loaded));
+        assert_eq!((loaded.slot, loaded.residence, loaded.generation), (2, HOME, 1));
+        assert_eq!(loaded.dispatch, 0xD15);
+        let mut loaded_name = [0i8; 8];
+        assert_eq!(
+            fc4_adv_advisor_text(n, 1, loaded_name.as_mut_ptr(), loaded_name.len()),
+            3
+        );
+        assert_eq!(&loaded_name[..4], &[65, 110, 110, 0], "the personal name survives Read");
+        assert_eq!(
+            f.game.refs(0xD15),
+            2,
+            "live and restored MySims own their dispatch references"
+        );
         assert_eq!(f.game.refs(HOME), 2, "the read residence is held");
         let mut again = Out::default();
         assert!(fc4_adv_obj_write(n, &ostream(&mut again)));
@@ -827,6 +843,48 @@ fn header_source_codes() {
         seen += 1;
     }
     assert_eq!(seen, SrcKind::ALL.len());
+}
+
+#[test]
+fn mysim_factory_before_system_init() {
+    let game = Game::new();
+    let (host, mysim) = (advisor_host(&game), mysim_host(&game));
+    let p = unsafe { fc4_advisors_create(&host, &mysim, 123) };
+    let _fixture = Fixture { game, p };
+    unsafe {
+        // Class-store/native-agent requests must not depend on city Init
+        // or lookup by ID: these five objects all still have ID zero.
+        for slot in 0..5 {
+            let obj = fc4_advisors_create_object(p, clsid::MYSIM);
+            assert!(!obj.is_null());
+            let mut s = fc4_mysim_state::default();
+            assert!(fc4_adv_mysim_get_state(obj, &mut s));
+            assert_eq!(s.state, 0);
+            assert!(fc4_adv_mysim_move_in(
+                obj,
+                slot,
+                b"Early".as_ptr(),
+                5,
+                true,
+                7,
+                b"Bio".as_ptr(),
+                3,
+                99,
+                b"portrait.png".as_ptr(),
+                12,
+            ));
+            assert!(fc4_adv_mysim_get_state(obj, &mut s));
+            assert_eq!((s.slot, s.sign, s.is_male, s.generation), (slot, 7, 1, 1));
+            assert_eq!(s.bitmap_id, 99);
+            let mut text = [0i8; 16];
+            assert_eq!(fc4_adv_mysim_text(obj, 0, text.as_mut_ptr(), text.len()), 3);
+            assert_eq!(&text[..4], &[66, 105, 111, 0]);
+            fc4_adv_obj_destroy(obj);
+        }
+        let non_sim = fc4_advisors_create_object(p, clsid::SUBJECT);
+        assert!(!fc4_adv_mysim_get_state(non_sim, &mut fc4_mysim_state::default()));
+        fc4_adv_obj_destroy(non_sim);
+    }
 }
 
 thread_local! {
