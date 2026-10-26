@@ -538,10 +538,15 @@ fn drawing_setters_fonts_resources_and_scans() {
         let mut f = Fake::default();
         f.queries.insert((10, kind.iid()), 11);
         f.raw.insert((11, 0x140), n(0));
-        assert_eq!(
-            interpret(kind, 10, Properties(&[s(key, "main9")]), true, &mut f),
-            Err(Unsupported::Open("LC13 named-font helper"))
-        );
+        interpret(kind, 10, Properties(&[s(key, "main9")]), true, &mut f).unwrap();
+        assert!(f.events.contains(&win(
+            10,
+            Write::Param(0xfaa3be85, Value::Text("main9".into()))
+        )));
+        assert!(!f
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::FontId(_) | Event::Font(_))));
         assert_eq!(f.events.last(), Some(&Event::Release(11)));
     }
     assert_eq!(super::super::parse::scan("4294967295", "%u"), Ok(vec![u32::MAX]));
