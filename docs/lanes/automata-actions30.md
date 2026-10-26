@@ -1,24 +1,21 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| automata-actions30: TV4 and network action boundaries (engine) | Codex / automata-actions30 / detached HEAD; reserved branch automata-actions30; code f7b408f9b, c893a0eb3, 8c6c55931; ABI false; seam 0x4E540001 | wip; Rust 8011/clippy 0/CTest 130/130; s2 216/216 then corrupt shutdown; s1 stalled 27/216; shadow exact 73/73; AP20 filed | 1. Complete construction SetLot/dust ownership before publication. 2. Resolve AP20 native wait. 3. Rerun clean s1/s2 216/216 and shadow, then enqueue kind engine. |
+| automata-actions30: construction publication and terrain action boundaries (engine) | Codex / automata-actions30 / detached HEAD; reserved branch automata-actions30; code 49bab4287, f7b408f9b, c893a0eb3, 8c6c55931; ABI false; seam 0x4E540001 | ready; Rust 8075/clippy 0/CTest 135/135; s1/s2 clean 216/216; shadow exact 73/73; AP20 not reproduced | 1. Supervisor publishes actual HEAD to reserved branch. 2. Land ready engine entry. |
 
-Merge criterion PASS: automata-actions29 already contained; merged main as 35809d64e, preserving both additive compat tables. Detached HEAD retained.
-TV4 resolved from terrain.md section 15.5.12.2: version-checked, idempotent terrain StaticInit populates texture inputs before the retained native view's first Init (f7b408f9b).
-Height-message fix: keep packed data1/data2 intact; SetVoid1 had overwritten X bounds with the sender pointer. Retain the sender only in separate IGZUnknown (c893a0eb3).
-Network demolition fix: convert network tokens through borrowed AsOccupant for messages, manager callbacks and Shutdown; retain the synchronous message's sender (8c6c55931).
-Focused tests PASS: plugin_ini_terrain_shadow_test and automata_construction_test; fixture covers static-init ordering/failure, fresh post payloads, distinct occupant receivers and message lifetime.
-Final gate PASS: `build-runs/qbuild-test.log` 8011 passed/0 failed/0 ignored; `build-runs/qbuild-clippy.log` exit 0/0 diagnostics.
-Final native gate PASS: `build-runs/fc4verify-build.log` 31/31 edges; `build-runs/fc4verify-ctest.log` 130/130. All reruns followed code fixes; no Rust files changed.
-Game logs/verdicts below are in main's `build-runs/game-results/`; requests are in main's `build-runs/game-queue/done/`; unchanged house replace list.
-Final artifact for all e runs: SHA256 `2a82f565fd84d2bb1b4bb4db0ef047806bc69ff5e05dccd08566a90221e8b152`; no subsequent build or code edit.
-s2 actions PASS: `aa30-tv4-house-s2-e.log` has 216 completed actions; final mark at line 15473; old 84/216 boundary passed; end date reached 2028-01-30.
-s2 verdict FAIL: matching `.verdict` corrupt, foreign_exceptions=1, rtc=0, ref_warnings=0; log 17522 faults at native 0x005D0F94 during occupant-manager drain.
-s2 remaining ownership: construction occupant 03160B78, type 096E763C, has null dust effect; network-manager.md "What 0x005D0F94 actually requires" mandates completed SetLot/building/dust setup before publication and native Shutdown.
-s1 criterion FAIL: `aa30-tv4-house-s1-e.log` / `.verdict`, stalled 27/216 on 2026-02-22; foreign_exceptions=0, rtc=0, ref_warnings=0; watchdog outside FreeCity4 at win32u.dll+0x11EC, zero main-thread CPU progress.
-AP20 filed in `docs/specs/questions/application.md`: identify the s1 native wait/wakeup boundary, saved returns 00923A61/0090CF71 and required control capture; coordinator regenerates the question index.
-Shadow criterion PASS: `aa30-tv4-shadow-e.log` / `.verdict`, clean through 2032-01-01, ref0; line 11215 reports 73/73 exact, 438 components, 730749 bytes, 0 mismatches.
-Earlier-source failures kept distinct: s2-c 27/216, corrupt native height copy 00756A50 (cc9e4c2d); s2-d 27/216, exited with four occupant-receiver RTC reports (9d89588a); both corrected before e runs.
-NM20-A stays an uncollected runtime observation: original control, native placement result and first pointer/cache write; passing action count does not supply that capture.
-Renderer limits carried forward: mirrored normals are core face normals; texture-layer population is incomplete. No terrain or draw bypass was introduced.
-Not enqueued for landing: final game verdicts fail acceptance; local merge entry is wip despite the passing gate.
-Next: complete valid construction setup/dust ownership, resolve AP20, then rerun clean s1/s2 216/216 and final-DLL shadow before engine enqueue.
+Merge criterion PASS: automata-actions29 already contained; main merged as 5634aba3b, preserving effects targets and terrain StaticInit in matching compatibility tables. Detached HEAD retained.
+Construction fix (49bab4287): require lot slot 48's building before creating/initializing the native scene; complete SetLot before InsertOccupant. Missing-building recovery is marked SPEC-GAP; the native dust reference remains owned until Shutdown.
+Carried fixes: texture prerequisites (f7b408f9b), intact packed terrain-message payloads (c893a0eb3), borrowed network AsOccupant receivers and synchronous sender lifetime (8c6c55931).
+Focused tests PASS 3/3: plugin_ini_terrain_shadow_test, construction_identity_test (including rejected creation and dust lifetime), automata_construction_test.
+Final gate PASS, run once this round: `build-runs/qbuild-test.log` 8075 passed/0 failed/0 ignored; `build-runs/qbuild-clippy.log` exit 0/0 diagnostics.
+Native gate PASS: `build-runs/fc4verify-build.log` 31/31 edges; `build-runs/fc4verify-ctest.log` 135/135, 0 failed. No owned Rust files changed.
+All final logs/verdicts below are in main's `build-runs/game-results/`; shared requests are in main's `build-runs/game-queue/done/`; house replace list unchanged.
+Same final DLL for all f runs: SHA256 `4ad705342b7b996759305479c49f7700b013f27f44cc4b33cb16825232935232`; no subsequent build or code edit.
+s2 PASS: `aa30-final-house-s2-f.log:15484` reports 216/216 actions; line 67842 and matching `.verdict` clean at 2028-01-28; foreign exceptions/watchdog/RTC/overruns/ref warnings all 0.
+s2 construction evidence: same log line 8758 skips an unavailable-building scene before publication; line 12875 publishes a configured scene; native shutdown completes cleanly.
+s1 PASS: `aa30-final-house-s1-f.log:15556` reports 216/216 actions; line 66260 and matching `.verdict` clean at 2028-01-28; foreign exceptions/watchdog/RTC/overruns/ref warnings all 0.
+Shadow PASS: `aa30-final-shadow-f.log:11416` reports 73/73 exact, 438 components, 729139 bytes, 0 mismatches; line 11642 / `.verdict` clean at 2032-01-04, ref warnings 0.
+AP20 remains the existing runtime question in `docs/specs/questions/application.md`; the old s1 native wait did not reproduce in final acceptance. Checked re-ap30's AP19 delivery/save contract; no application-loop or wait/wakeup fix is claimed.
+NM20-A remains an uncollected runtime observation (original control, placement result, first pointer/cache write); passing actions do not supply that capture. No new questions filed.
+Earlier-source e results remain distinct: s2 reached 216/216 then corrupt dust shutdown; s1 stalled 27/216. They are superseded for acceptance by the final f artifact above.
+Renderer limits remain: mirrored normals are core face normals; texture-layer population is incomplete. No terrain/draw bypass or C ABI export change.
+Ready for kind-engine landing; ignored merge-queue entry records the full final HEAD. Coordinator retains coverage-credit ownership.
