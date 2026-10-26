@@ -21,3 +21,6 @@ VU12 follow-up: run viewutil12-r1-turbo-20261024a is clean/ref_warnings=0 throug
 
 <!-- from: glue-viewutil-apply12 (2026-10-24), normal-speed confirmation -->
 Run viewutil12-r1-normal-20261024b reached 2032-01-01 clean with ref_warnings=0 and the identical family counts: object-angle (VU19), camera-angles and city-width (VU12) each 0/73 exact; the other 33 exercised bodies each 73/73 exact. These differences are not turbo-specific.
+
+<!-- from: close-viewutil29 (2026-10-26), focused VU12 follow-up -->
+VU12: foundations §18 PC=24 explains the camera yaw mismatch: round rotation×quarter-turn before adding the offset, yielding 0x408a3ae6 for (3,3). It does not by itself explain city width: a local x87 FSIN/FCOS/FADD/FMUL probe at CW 0x007f/0x027f/0x037f gives 0x42a73d75 for width=64, offset bits=0x3ec90fdb, while regress-train270 gives 0x42a73d74. Separately rounding both trig results to float32 before adding produces the observed 0x42a73d74, but §2.2 does not establish those stores for 007F8300. Please specify that helper's operation/store graph; the lane retains the failing comparison without compensating it. VU17 and VU18 still block isolated mesh/select-group and draw-state fixture comparisons; please publish those layouts for the requested 50-body shadow.

@@ -71,10 +71,9 @@ pub fn get_camera_view_angles_for_rotation(rotation: i32, zoom: u32) -> Option<V
     let pitch = f32::from_bits(*[0x3f06_0a92, 0x3f1c_61aa, 0x3f32_b8c2, 0x3f49_0fdb, 0x3f49_0fdb].get(zoom as usize)?);
     let offset = f64::from(f32::from_bits(0xbec9_0fdb));
     Some(ViewAngles {
-        // At 64-bit x87 precision this product/add is exact before the store:
-        // quarter-turn = 0xC90FDB * 2^-23, offset = -quarter-turn/4.
-        // Integer accumulation avoids an unproved f64 double-rounding shortcut.
-        yaw: ((i64::from(rotation) * 4 - 1) * 0x00c9_0fdb) as f32 * (1.0 / 33_554_432.0),
+        // Foundations §18: the game's PC=24 rounds the multiply before the
+        // offset addition. FILD itself does not round the integer input.
+        yaw: (crate::x87::r24(f64::from(rotation) * f64::from(f32::from_bits(0x3fc9_0fdb))) + offset) as f32,
         pitch,
         // Native FSIN/FCOS/FPTAN/FPATAN have no portable libm bit guarantee.
         ground_pitch: (f64::from(pitch).tan() / offset.cos()).atan() as f32,
@@ -90,6 +89,8 @@ pub fn get_object_y_rotation_angle(rotation: i32) -> f32 {
 pub fn get_city_width_from_ortho_view(width: f32, zoom: u32) -> Option<f32> {
     get_camera_view_angles_for_rotation(0, zoom)?;
     let a = f64::from(f32::from_bits(0x3ec9_0fdb));
+    // SPEC-GAP: VU12 does not publish the trig intermediate stores; retain the
+    // portable evaluation and expose its native mismatch in the shadow.
     Some((f64::from(width) * (a.cos() + a.sin())) as f32)
 }
 

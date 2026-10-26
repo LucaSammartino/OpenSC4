@@ -68,7 +68,70 @@ bool SupportedImage() {
 using Packet = std::array<uint32_t, 32>;
 uint32_t Bits(float f) { uint32_t u; std::memcpy(&u, &f, 4); return u; }
 float Float(uint32_t u) { float f; std::memcpy(&f, &u, 4); return f; }
-struct Family { uint32_t va; const char* name; uint32_t exact = 0, total = 0; };
+struct Family {
+    uint32_t va; const char* name; uint32_t exact = 0, total = 0;
+    uint32_t calls = 0, complete = 0, mismatches = 0;
+};
+const char* Method(uint32_t va) {
+    switch (va) {
+    case 0x005d6900: return "PointArrayAABB";
+    case 0x005d6f10: return "Cross";
+    case 0x007f6550: return "MinOfFourFloats";
+    case 0x007f65b0: return "MaxOfFourFloats";
+    case 0x007f6620: return "ClipPositionToCity2D";
+    case 0x007f6690: return "ViewportUnitsToWorldUnits";
+    case 0x007f66a0: return "GetZoomAndRotation";
+    case 0x007f66c0: return "ProjectPointFromViewCoordinatesToViewportCoordinates";
+    case 0x007f6710: return "ProjectPointToFixedViewCoordinates";
+    case 0x007f6770: return "IsBoundingBoxInViewFrustum";
+    case 0x007f6910: return "IsBoundingBoxInDrawFrustum";
+    case 0x007f6ab0: return "GetRayIntersectionWithGroundPlane";
+    case 0x007f6af0: return "TrianglePick";
+    case 0x007f6b50: return "RayIntersectsGroundPlane";
+    case 0x007f6ba0: return "GetCityCornerPosition";
+    case 0x007f6cb0: return "GetObjectYRotationAngle";
+    case 0x007f6cc0: return "RotateVectorByViewRotation";
+    case 0x007f6d10: return "GetVectorForEdge";
+    case 0x007f6d70: return "RoundDownToNearestBlockBoundary";
+    case 0x007f6db0: return "RoundUpToNearestBlockBoundary";
+    case 0x007f6df0: return "SC4ViewUtilities";
+    case 0x007f7710: return "ClipWorldPositionToCityPosition";
+    case 0x007f7750: return "GetVisibleEdges";
+    case 0x007f7780: return "GetCameraViewAnglesForRotation";
+    case 0x007f77d0: return "ProjectPointToViewCoordinates";
+    case 0x007f7850: return "ProjectPointToViewportCoordinates";
+    case 0x007f78a0: return "ProjectPointToViewportZ";
+    case 0x007f78e0: return "ProjectPointToViewportCoordinates2D";
+    case 0x007f7920: return "UnProjectPointFromViewCoordinatesToWorldCoordinates";
+    case 0x007f79b0: return "UnProjectPointFromViewportCoordinatesToWorldCoordinates";
+    case 0x007f7a40: return "ProjectBoundingBoxToViewportRectangle";
+    case 0x007f7e50: return "IsPointInViewFrustum";
+    case 0x007f7f60: return "GetFrustumAABBCityClipped";
+    case 0x007f8300: return "GetCityWidthFromOrthoView";
+    case 0x007f8390: return "ProjectPointFromViewportCoordinatesToFixedViewCoordinates";
+    case 0x007f83f0: return "UpdateCameraPosition";
+    case 0x007f9080: return "ViewportPositionToRay";
+    case 0x007f9160: return "GetViewportPointIntersectionWithGroundPlane";
+    case 0x007f91c0: return "MeshPick";
+    case 0x007f9a40: return "ModelPick";
+    case 0x007f9b40: return "GetGroundPlaneVisibleAreaRectangle";
+    case 0x007f9ea0: return "GetViewportRectGroundCorners";
+    case 0x007f9f50: return "BuildDrawFrustumDataFromViewportRect";
+    case 0x0080ae80: return "PrimitiveTriangleCount";
+    case 0x0080aef0: return "PrimitiveVertexIndices";
+    case 0x0080b000: return "IteratorDeletingDestructor";
+    case 0x0080b020: return "IteratorVertexCopy";
+    case 0x0080b090: return "IteratorIndexDecode";
+    case 0x0080b320: return "IteratorSelectGroup";
+    case 0x0080b3b0: return "IteratorNext";
+    default: return "Unknown";
+    }
+}
+void MethodEvidence(Family& family, const fc4_date& date, uint32_t calls, uint32_t complete, uint32_t mismatches) {
+    family.calls += calls; family.complete += complete; family.mismatches += mismatches;
+    fc4::Log("viewutil method 0x%08X SC4ViewUtilities::%s (month) %04d-%02d-%02d: calls=%u complete=%u mismatches=%u; resyncs=0",
+        family.va,Method(family.va),date.year,date.month,date.day_of_month,family.calls,family.complete,family.mismatches);
+}
 Family rotationFamily{0x007f6cc0,"rotation"};
 Family localFamilies[] = {
     {0x005d6900,"bounds"}, {0x005d6f10,"cross"},
@@ -148,6 +211,7 @@ uint32_t CompareCached(const fc4_date& date, bool available, const Owner& snapsh
         fc4::Log("viewutil-%s shadow %04d-%02d-%02d: body=%08x scope=cached-inputs capture=f32 samples=%u fields=%u resyncs=0 mismatches=%u",
             family.name,date.year,date.month,date.day_of_month,family.va,available?32u:0u,fields,mismatches);
         ++family.total; family.exact += mismatches == 0;
+        MethodEvidence(family,date,available?32u:0u,available?32u:0u,mismatches);
         totalFields += fields;
         totalMismatches += mismatches;
     }
@@ -274,6 +338,7 @@ uint32_t CompareLocal(const fc4_date& date, bool binding, bool liveAvailable,
         fc4::Log("viewutil-%s shadow %04d-%02d-%02d: body=%08x capture=f32 samples=%u fields=%u resyncs=0 mismatches=%u",
             family.name,date.year,date.month,date.day_of_month,family.va,binding?sampleCount:0u,fields,mismatches);
         ++family.total; family.exact += mismatches == 0;
+        MethodEvidence(family,date,binding?sampleCount:0u,binding?sampleCount:0u,mismatches);
         totalFields += fields;
         totalMismatches += mismatches;
         // Keep VU12 observations visible in their family lines and the
@@ -381,6 +446,7 @@ void Compare(int32_t julian, bool load) {
     fc4::Log("viewutil-rotation shadow %04d-%02d-%02d: body=007f6cc0 samples=%u fields=%u resyncs=0 mismatches=%u",
         date.year,date.month,date.day_of_month,samples,fields,mismatches);
     ++rotationFamily.total; rotationFamily.exact += mismatches == 0;
+    MethodEvidence(rotationFamily,date,samples,samples,mismatches);
     uint32_t subsetFields = fields, subsetMismatches = mismatches;
     mismatches += CompareLocal(date, base != 0, available, live, fields, subsetFields, subsetMismatches);
     const uint32_t beforeCached = fields;
@@ -404,8 +470,11 @@ void ViewUtilShadowCityLoaded(cISC4City* city, int32_t julian) {
     active = city && SettingInt("viewutil_shadow", nullptr, 0) != 0;
     lines = clean = subsetClean = 0;
     rotationFamily.exact = rotationFamily.total = 0;
+    rotationFamily.calls = rotationFamily.complete = rotationFamily.mismatches = 0;
     for (auto& family : localFamilies) family.exact = family.total = 0;
     for (auto& family : cachedFamilies) family.exact = family.total = 0;
+    for (auto& family : localFamilies) family.calls = family.complete = family.mismatches = 0;
+    for (auto& family : cachedFamilies) family.calls = family.complete = family.mismatches = 0;
     lastMonth = -1;
     if (!active) return;
     Log("viewutil: ON; VU15/VU16 local and cached arithmetic (36/50 bodies); scalar capture=f32; isolated storage; default-off");
