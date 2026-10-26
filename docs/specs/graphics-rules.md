@@ -57,7 +57,7 @@ adjust `this` by four bytes (`0x007D0DA0`, `0x007D0DB0`).
 | 2 | `fullscreen` | current driver information record, byte `+0x20`, nonzero |
 | 3 | `MMX` | CPU feature bit 23 |
 | 4 | `FPU` | CPU feature bit 0 |
-| 5 | `backingStore` | a backing store exists (global `0x00B4E1E4` non-null, `0x007C2790`) |
+| 5 | `backingStore` | a backing store exists; interface acquisition is specified in §2.4 (native test `0x007C2790`) |
 | 6 | `forcedFSAA` | boolean result of the rendering probe `0x008D2320(currentDriver)` |
 
 **Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory` (MiB),
@@ -135,6 +135,136 @@ hardware path reads properties bool index 0 without checking the retained proper
 properties and failed mandatory provider acquisition therefore have no native recoverable-error
 contract. They must not be described as a successful zero-filled gather or as a trigger for fallback.
 The optional sound-service absence still has the explicit `Unknown` behavior in §2.
+
+### 2.3 Native forced-FSAA acquisition (GR9)
+
+All slots below are **zero-based**, relative to the returned interface, with x86 byte offsets in
+parentheses. These are renderer calls the provider performs itself. The provider must not invoke
+`0x008D2320`, the native rule manager, or its logger to obtain the result.
+
+Use the current driver from §2.1. Fetch its mode record through slot 64 (`+0x100`); if byte `+0x30` is
+zero, return false immediately, with no rendering or readback. Otherwise consume the driver's pending
+error through slot 50 (`+0xC8`, `GetError`), ignoring the result. In DX7 this getter clears the error
+(`0x00882000–0x00882010`). Acquire graphics service `0xC416025C` from framework slot 5 (`+0x14`,
+service ID, IID, output-interface pointer), for IIDs `0x0073283C` (`cIGZGraphicSystem`) and `0xC47B747C`
+(the 3D graphics-system interface). The first is retained for the probe's lifetime; the second supplies
+slot 12 (`+0x30`, `SetUIRenderingMode`). The two IIDs can also be queried from the existing GS interface
+(`0x0098DEF0–0x0098DF2E`). Do not treat the small IID `0x0073283C` as a function address.
+
+Call `SetUIRenderingMode` once before drawing. The target is the **current driver's color/render
+buffer**, with the existing video mode and viewport. There is no offscreen-target creation, 64×64
+viewport change, or target switch in the probe. The 64×64 size below is the region copied for readback.
+The GS method establishes the normal UI matrices/states (`0x0098EA30`); invoking that exposed method
+also preserves its native viewport-dependent behavior. Set the driver's clear color to four binary32
+zeros using slot 12 (`+0x30`, `ClearColor`, R, G, B, A). Evidence for setup and the otherwise unused
+base-GS reference: `0x008D2359–0x008D23E0`.
+
+Build 64 white quads, row-major with row and column each 0 through 7, in one **4096-byte**, initially
+zeroed vertex array. Each vertex occupies 16 bytes: binary32 x, y, z at offsets 0, 4, 8 and four color
+bytes at offset 12. z remains positive zero; all four color bytes are `0xFF`. There are no RHW,
+normal, or texture-coordinate fields. For column c and row r, compute x = (c × 8.125 + 4) − 0.0625 and
+y = (r × 8.125 + 4) − 0.0625, then emit vertices in this order:
+
+| Vertex | x | y | z | Color bytes |
+|---|---|---|---|---|
+| 0 | x | y | 0 | FF FF FF FF |
+| 1 | x | y + 0.125 | 0 | FF FF FF FF |
+| 2 | x + 0.125 | y + 0.125 | 0 | FF FF FF FF |
+| 3 | x + 0.125 | y | 0 | FF FF FF FF |
+
+The instructions multiply, add, then subtract in that order, with binary32 constants `8.125`, `4`,
+`0.0625`, `0.125`; coordinates are stored as binary32 (`0x008D2400–0x008D249E`; constants at
+`0x00ACC150`, `0x00A8E17C`, `0x00A8E174`, `0x00A867A8`). All coordinates in this bounded grid are
+exactly representable, so these operations introduce no rounding ambiguity here.
+
+Perform **twenty** iterations, numbered 0 through 19. Each iteration rebuilds the same vertex contents
+and makes these driver calls in order (`0x008D24A4–0x008D256A`):
+
+| Order | Driver slot (offset) | Arguments, in interface order |
+|---|---|---|
+| 1 | 11 (`+0x2C`), `Clear` | mask `0x4000` (color buffer) |
+| 2–6 | 45 (`+0xB4`), `Disable` | separate calls for capability IDs **4, 3, 0, 1, 5**, in that order |
+| 7 | 5 (`+0x14`), `InterleavedArrays` | standard vertex-format ID **1**, stride **16**, vertex-array pointer |
+| 8 | 3 (`+0x0C`), `DrawArrays` | primitive ID **6** (quads), first vertex **0**, vertex count **256** |
+| 9, iteration 19 only | readback operation below | copy (0, 0, 64, 64) before this iteration's Flush |
+| 10 | 43 (`+0xAC`), `Flush` | no arguments |
+
+On iteration 19 query the **driver** for IID `0xE69BFE2A`. On that returned interface call slot 3
+(`+0x0C`, `CopyColorBuffer`) with **x=0, y=0, width=64, height=64, destination=null**. The fifth argument
+is an optional destination buffer, **not a pixel-format enum**. Retain its returned `cIGZBuffer` and
+release the queried readback interface immediately. The DX7 implementation is `0x00883950`, reached
+through the four-entry table at `0x00AC47DC`; the main driver's QI is the adjusting thunk at
+`0x00886440` (`0x00882A8E–0x00882AA5`). Call sites: `0x008D2518–0x008D2551`.
+
+With a null destination the DX7 method allocates through GS slot 3 (`+0x0C`, output buffer pointer) and
+initializes the result to the requested dimensions with **pixel-format ID 9, 32 bits per pixel**
+(`0x00883AE9–0x00883B58`; pixel-format construction `0x0044A490–0x0044A4A5`). It copies/converts the
+driver's color surface into that buffer. The provider need not lock a DirectDraw surface, interpret its
+pitch, or assume a 16-bit screen is a 16-bit readback. Read via the returned buffer's slot 21
+(`+0x54`, `GetPixel(x,y)`): the manager consumes its packed 32-bit color, summing the bytes at bits
+16–23, 8–15, and 0–7, and ignoring the high byte. Unsupported/failed color-buffer acquisition can
+return null; the probe's result then remains false. The original does not check for failure of the
+mandatory readback-interface QI; a provider that cannot acquire that interface must report unavailable,
+not fabricate a measured false result.
+
+After all twenty iterations, clear once more with mask `0x4000`, Flush once more, and call the 3D GS
+interface's `SetUIRenderingMode` once more. Only then inspect the saved readback. Sample y=4,12,…,60,
+and, within each row, x=4,12,…,60. Return true iff **more than one** of the 64 RGB sums is nonzero.
+There is no intensity threshold beyond nonzero. Release the readback buffer, then the two acquired GS
+references (`0x008D256C–0x008D25E8`, `0x008D2705–0x008D2782`).
+
+**State after the probe.** Native cleanup establishes **UI defaults**, not the caller's saved state.
+There is no push/pop, target restoration, previous-state capture, or image restoration. Clear color
+remains zero and the current color buffer has been cleared. The last bound vertex-array pointer is not
+explicitly unbound. The final UI setup, rather than a reversal of the five Disable calls, establishes
+the final render state. A provider must run this synchronously at the same graphics/UI boundary; using
+a different target or merely consulting an antialiasing preference is a different measurement.
+
+**Worked probe case.** Quad (0,0) spans 3.9375 through 4.0625 in both axes; quad (7,7) spans 60.8125
+through 60.9375. An interface fixture must observe 20 DrawArrays calls with format 1/stride 16, 21
+color clears and 21 Flush calls, one copy before the twentieth Flush, and two UI-setup calls. A saved
+readback containing `0xFF000000` at every sample except `0x00000001` at (4,4) yields one lit sample and
+**false**. Changing (12,4) to `0x00010000` yields two and **true**. Changing only alpha at (12,4) to
+`0xFF000000` leaves false. This is a discriminator for counting, not a claim about which pixels a
+particular GPU's forced-FSAA mode will illuminate. A software mode record returns false without any
+of these calls; a hardware run with a null returned buffer performs setup/draw/cleanup and returns false.
+
+### 2.4 Backing-store presence through renderer interfaces (GR9)
+
+Presence and enabledness are different. The native presence helper `0x007C2790` has **no vtable slot**;
+the exposed `cISC43DRender` getter, slot 56 (`+0xE0`, `GetBackingStoreEnabled`, `0x007C2750`), reads
+enabledness only. A disabled existing store must still set graphics-rule bit 5.
+
+An independent provider can measure presence using the paired public setter: save the getter's byte,
+call slot 57 (`+0xE4`, `SetBackingStoreEnabled`) with byte **1**, read slot 56, then restore the saved
+byte with slot 57. The intermediate getter is the presence result. The setter forces its argument to
+zero when no store exists, otherwise stores the supplied byte, and has no other side effects
+(`0x007C2760–0x007C2780`). Perform these calls synchronously without rendering, event dispatch, or a
+driver change between them. This is a reversible acquisition operation, not permission to leave
+backing-store use enabled.
+
+Obtain the actual view's renderer through `cISC4App::GetMainWindow()`, child-window ID `0x6104489A`,
+then `GetChildAs(0x9A47B417, 0xFA47B3F9, output view)`, then view slot 4 (`+0x10`, `GetRenderer`,
+`0x0043FD00`). This last pointer is borrowed; query IID **`0x681BD529`** to retain a
+`cISC43DRender` reference. See [view3d-window.md](view3d-window.md) for the view's interface boundary.
+The renderer QI returns its main interface for this IID (`0x007C1894–0x007C18DE`).
+
+There is also a route before a view exists: GZCOM slot 3 (`+0x0C`; class ID, IID, output pointer)
+with renderer class ID **`0xE9C622D8`**, IID **`0x681BD529`**, and output-interface pointer, as used at
+`0x007F4322–0x007F4336`. Use the resulting renderer **without Init**, solely for the getter/setter
+measurement, then Release it. Both methods access the shared renderer state and do not depend on that
+instance being initialized. Construction does not initialize or destroy the shared backing store;
+the factory only constructs the object (`0x007CB070–0x007CB08A`, `0x007C9B10–0x007C9F87`). Its
+destructor's Shutdown is inert while the instance remains uninitialized (`0x007CA038`,
+`0x007C7075–0x007C707C`). Consequently a missing view need not be guessed to mean absent backing
+store, and creating this uninitialized interface object does not allocate a backing store. Failure to
+obtain either renderer interface is unavailable acquisition, not a false presence measurement.
+
+**Worked backing-store cases.** With an existing store disabled, the getter sequence is 0, then 1 after
+the request, then 0 after restoration: set bit 5. Without a store it is 0, 0, 0: clear bit 5. With an
+existing enabled store it is 1, 1, 1: set bit 5 and preserve enabledness. A freshly constructed,
+uninitialized renderer facade observes these same shared-state cases. None of these tests reads a
+private global, calls the private presence helper, or changes the stored presence itself.
 
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
