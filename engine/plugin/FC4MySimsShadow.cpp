@@ -197,7 +197,6 @@ struct ShadowState {
     uint32_t created = 0, hadMysims = 0, months = 0, cleanMonths = 0, lastMismatches = 0, lastSims = 0, compared = 0;
     bool injected = false, postCityInitDelivered = false, cityEstablishedDelivered = false;
     bool postCityInitPending = false;  // deferred to the next forwarded message (MySimsShadowCityLoaded)
-    bool postCityInitEstablished = false, deliveringPostCityInit = false;
 } g_state;
 
 void TraceAdvisorPart(const char* stage);
@@ -209,9 +208,7 @@ void DeliverPendingPostCityInit() {
     g_state.postCityInitPending = false;
     fc4_adv_message m{};
     m.msg_type = kMsgPostCityInit;
-    g_state.deliveringPostCityInit = true;
     fc4_advisors_do_message(g_core, &m);
-    g_state.deliveringPostCityInit = false;
     g_state.postCityInitDelivered = true;
     TraceAdvisorPart("after PostCityInit");
 }
@@ -422,9 +419,7 @@ void HRegisterCheat(void*, uint32_t, const char*) {}
 void HUnregisterCheat(void*, uint32_t) {}
 void HAdvisorWindow(void*, bool) {}
 bool HHasCity(void*) { return AppCity() != nullptr; }
-bool HCityEstablished(void*) {
-    return g_state.deliveringPostCityInit ? g_state.postCityInitEstablished : CityEstablished(AppCity());
-}
+bool HCityEstablished(void*) { return CityEstablished(AppCity()); }
 bool HDifficulty(void*, int32_t* out) {
     cISC4City* city = AppCity();
     if (city == nullptr || out == nullptr) return false;
@@ -1367,9 +1362,7 @@ void MySimsShadowCityLoaded(cISC4City* city) {
     // established (budget.md resets the funds on it), never on a load; a real one
     // reaches the core through the forwarder.
     g_state.postCityInitPending = !g_state.postCityInitDelivered;
-    // advisors §5.2 reads this at PostCityInit, before a new city's
-    // CityEstablished. Deferring delivery must not defer this input read.
-    g_state.postCityInitEstablished = CityEstablished(city);
+    // SPEC-GAP: the original system's unsaved lastDay is not captured (MS-GC29-1).
     char loadDate[16];
     const int mismatches = RunCompare(julian, 0, loadDate);
     Log("mysims shadow %s load: sims=%u injected=%u compared=load mismatches=%d; "
