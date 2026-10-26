@@ -80,6 +80,8 @@ const ExecutableVersion kVersions[] = {
             0x005FBA20,  // LoadPackageScripts (advisors.md §4.2; AD10)
             0x005EBDF0,  // the placeable pool's allocate (prop-occupant.md §6.1)
             0x005EC370,  // the cSC43DPlaceableObject constructor (prop-occupant.md §6.1)
+            0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
+            0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -527,7 +529,8 @@ uintptr_t DirectCall(Direct which) {
                                          "lua camera_zoom", "lua random_chance",
                                          "lua _dofile_from_resource", "lua print",
                                          "UpdateResourcesFromDirectory", "LoadPackageScripts",
-                                         "placeable pool allocate", "placeable constructor"};
+                                         "placeable pool allocate", "placeable constructor",
+                                         "texture binding AddRef", "texture binding Release"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
