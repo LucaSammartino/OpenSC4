@@ -56,6 +56,16 @@ def test_stale_parsed_json_cannot_supply_missing_raw_evidence(tmp_path):
     assert health['strict'] == 0
 
 
+@pytest.mark.parametrize('verdict', ['not-submitted', 'queue-timeout'])
+def test_synthetic_wait_results_are_not_returned_games(tmp_path, verdict):
+    directory = recorded_batch(tmp_path)
+    (directory / 'absent.verdict').write_text('verdict: ' + verdict + '\n')
+    health, _ = suite_health.audit(tmp_path, 'recorded')
+    assert health['returned'] == 3
+    assert health['requested'] == 4
+    assert health['complete'] == 2
+
+
 def correction_batch(root, baseline, name='repair'):
     directory = root / 'build-runs/suite' / name
     directory.mkdir()

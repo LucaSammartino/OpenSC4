@@ -118,7 +118,7 @@ def audit(root, tag):
         counts['clean'] += clean
         counts['complete'] += not missing
         counts['strict'] += not missing and not parsed.get('actions_failed', 0)
-        counts['returned'] += diagnostic['verdict'] != 'missing'
+        counts['returned'] += diagnostic['verdict'] not in ('missing', 'not-submitted', 'queue-timeout')
         counts['traces'] += bool(addresses)
         for key in ('shadow_lines', 'shadow_exact_lines', 'actions_ok', 'actions_failed'):
             shadows[key] += parsed.get(key, 0)

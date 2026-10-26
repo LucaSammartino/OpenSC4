@@ -128,7 +128,7 @@ def main(argv=None):
         rows, output = triage(suite.ROOT / 'build-runs/suite' / args.tag)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
-    returned = sum(row['verdict'] != 'missing' for row in rows)
+    returned = sum(row['verdict'] not in ('missing', 'not-submitted', 'queue-timeout') for row in rows)
     print(f'triage: {returned}/{len(rows)} returned results; {output}; causes.tsv')
     for cause, count in sorted(collections.Counter(row['cause'] for row in rows).items()):
         print(f'{cause}: {count}')
