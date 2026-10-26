@@ -295,7 +295,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
-| gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
+| gz-framework-core | 8 | 4 | GZF13 | questions/gz-framework-core.md |
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
@@ -365,8 +365,8 @@ generated index: the questions live one file per spec, so read only the file for
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
-| regional-city | 8 | 1 | RY10 | questions/regional-city.md |
-| regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
+| regional-city | 6 | 3 | RY10 | questions/regional-city.md |
+| regional-city-records | 2 | 7 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 2 | 2 | RND5 | questions/render3d.md |
 | renderer-driver | 6 | 11 | RD13 | questions/renderer-driver.md |
@@ -380,7 +380,7 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-draw | 1 | 0 | RZD2 | questions/rz-draw.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
+| rz-strings | 4 | 8 | RZS12 | questions/rz-strings.md |
 | sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
@@ -431,4 +431,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **627** | **1659** | | |
+| **total** | **615** | **1672** | | |
