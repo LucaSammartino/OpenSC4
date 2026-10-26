@@ -10,12 +10,12 @@ The table records whole-section closure, including explicit open boundaries.
 | 2 Serialized state | `read`, `write`, `Unsupported::Rnd1StreamSlot8` | `serialization_is_explicitly_unsupported_rnd1` | Unsupported: RND1 open; case 9 deferred |
 | 3 Camera, viewport, accessors | `view`, `ViewServices`, `BackingSwitch` | `viewport_and_forwarding_cases_3_4`, `toggles_and_global_backing_cases_5_6`, `borrow_restores_each_camera_mode_and_default_state` | Complete |
 | 4 Full redraw | `force_full_redraw`, `do_full_view_update` | `full_redraw_coalesces_case_7_but_always_writes_reason` | UpdateViewportRect deferred with §13 |
-| 5 Model queue, quad grid, passes | — | Cases 8, 12–15 | Pending |
-| 6 Dirty rectangles, cleanup, shake stop | — | Cases 10–11, D1–D6 | Pending |
+| 5 Model queue, quad grid, passes | `QuadGrid`, `GridElement`, `BackingLimits` | `grid_case_13_ties_to_even_and_scale`, `backing_building_case_15_and_category_gates`, `grid_tests` | §5.1 complete; model queue and passes pending |
+| 6 Dirty rectangles, cleanup, shake stop | `DirtyQueue`, `add_dirty_rectangle`, `clear_dirty_rectangle_queue` | `dirty_tests`: D1–D6 and case 11 | §6.1 complete; processing, cleanup and shake stop pending |
 | 7 Cross-references | — | Sections 11, 13–15 | Pending |
-| 8 Conformance cases | `tests` | Cases 1, 9 boundary | Partial |
+| 8 Conformance cases | `tests`, `grid_tests`, `dirty_tests` | Cases 1–7, 11, 13, 15; D1–D6; case 9 boundary | Partial: cases 8–10, 12, 14, 16 deferred |
 | 9 Lifecycle | — | Init/Shutdown guard and property tuples | Pending |
-| 10 Screen shake | `Unsupported::Rnd4ShakeOverload` | RND4 overload boundary | Pending; RND4 open |
+| 10 Screen shake | `start_screen_shake_overload`, `Unsupported::Rnd4ShakeOverload` | `rnd4_overload_fails_without_starting_a_shake` | Unsupported overload: RND4 open; other shake methods pending |
 | 11 View objects, visibility, picking | — | Section 11 worked cases | Pending |
 | 12 Backing store | — | Section 12 worked cases | Pending |
 | 13 Updates, clearing, driver | — | Case 16 and section 13 cases | Pending |

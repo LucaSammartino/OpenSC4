@@ -59,6 +59,8 @@ pub struct State {
     pub visible_valid: bool,
     pub borrowed: bool,
     pub shake_offsets: [i32; 2],
+    pub draw_counter: i32,
+    pub view_change_counter: i32,
 }
 
 impl Default for State {
@@ -97,6 +99,8 @@ impl Default for State {
             visible_valid: false,
             borrowed: false,
             shake_offsets: [0; 2],
+            draw_counter: 0,
+            view_change_counter: 0,
         }
     }
 }

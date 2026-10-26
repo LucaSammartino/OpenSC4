@@ -8,6 +8,10 @@ mod state;
 pub use state::*;
 mod view;
 pub use view::*;
+mod grid;
+pub use grid::*;
+mod dirty;
+pub use dirty::*;
 
 pub const CLASS_ID: u32 = 0xE9C6_22D8;
 
@@ -66,6 +70,7 @@ pub struct Render3d {
     lighting_manager: Option<Handle>,
     picture: Option<Handle>,
     ui_matrix: [f32; 16],
+    dirty: DirtyQueue,
     state: State,
 }
 
@@ -83,6 +88,7 @@ impl Render3d {
             lighting_manager: None,
             picture: None,
             ui_matrix: [0.0; 16],
+            dirty: DirtyQueue::default(),
             state: State::default(),
         }
     }
@@ -119,23 +125,13 @@ impl Render3d {
             return self.references;
         }
         self.shutdown(host);
-        for object in [
-            &mut self.camera,
-            &mut self.control,
-            &mut self.camera_2d,
-            &mut self.lighting_manager,
-            &mut self.picture,
-        ] {
-            if let Some(handle) = object.take() {
-                host.release(handle);
-            }
+        if let Some(utilities) = self.utilities.take() {
+            host.destroy_helper(utilities);
         }
         if let Some(context) = self.context.take() {
             host.destroy_helper(context);
         }
-        if let Some(utilities) = self.utilities.take() {
-            host.destroy_helper(utilities);
-        }
+        self.clear_dirty_rectangle_queue(host);
         self.references = 0;
         self.destroyed = true;
         0
@@ -143,6 +139,9 @@ impl Render3d {
 
     /// The uninitialized guard of §9.3; initialized teardown is added with Init.
     pub fn shutdown(&mut self, _host: &mut impl References) -> bool {
+        if !self.initialized {
+            return true;
+        }
         self.initialized = false;
         true
     }
@@ -176,10 +175,15 @@ impl Render3d {
         Err(Unsupported::Rnd1StreamSlot8)
     }
 
-    fn clear_dirty_rectangle_queue(&mut self, _host: &mut impl References) {
-        // The constructed owner has no nodes; §6 adds queue storage and release.
+    /// RND4 leaves the overload's fade-out length unresolved (§10.1).
+    pub fn start_screen_shake_overload(&mut self, _amplitude: f32, _duration: f32) -> Result<u32, Unsupported> {
+        Err(Unsupported::Rnd4ShakeOverload)
     }
 }
 
+#[cfg(test)]
+mod dirty_tests;
+#[cfg(test)]
+mod grid_tests;
 #[cfg(test)]
 mod tests;

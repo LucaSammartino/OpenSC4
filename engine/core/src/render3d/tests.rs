@@ -2,11 +2,11 @@
 use super::*;
 
 #[derive(Debug, Default)]
-struct Host {
-    events: Vec<String>,
+pub(super) struct Host {
+    pub(super) events: Vec<String>,
     contexts: Vec<ContextCall>,
     controls: Vec<ControlCall>,
-    frustums: Vec<(Rect, bool, bool)>,
+    pub(super) frustums: Vec<(Rect, bool, bool)>,
     backing_buffer: bool,
     backing_on: bool,
 }
@@ -109,7 +109,7 @@ fn last_release_case_2_including_initial_zero() {
         }
         assert_eq!(r.release(&mut h), 0);
         assert!(r.destroyed());
-        assert_eq!(h.events, ["destroy 2", "destroy 1"]);
+        assert_eq!(h.events, ["destroy 1", "destroy 2"]);
         assert_eq!(r.draw_context(), None);
         assert_eq!(r.view_utilities(), None);
     }
@@ -164,10 +164,10 @@ fn toggles_and_global_backing_cases_5_6() {
     assert!(r.set_lighting_enabled(&mut h, true));
     assert!(h.frustums.is_empty());
     assert!(r.set_lighting_enabled(&mut h, false));
-    assert_eq!(h.frustums[0].1, true); // Redraw precedes the lighting store.
+    assert!(h.frustums[0].1); // Redraw precedes the lighting store.
     r.state.full_redraw = false;
     assert!(r.set_view_fog_enabled(&mut h, true));
-    assert_eq!(h.frustums[1].2, true); // Fog store precedes the redraw.
+    assert!(h.frustums[1].2); // Fog store precedes the redraw.
     r.set_backing_store_enabled(&mut h, true);
     assert!(!r.backing_store_enabled(&h));
     h.backing_buffer = true;
@@ -214,4 +214,40 @@ fn full_redraw_coalesces_case_7_but_always_writes_reason() {
     r.do_full_view_update(&mut h, 4);
     assert_eq!(r.state.draw_reason, 4);
     assert_eq!(h.frustums.len(), 1);
+}
+
+#[test]
+fn rnd4_overload_fails_without_starting_a_shake() {
+    let mut r = Render3d::new(&mut Host::default());
+    assert_eq!(
+        r.start_screen_shake_overload(10.0, 2.0),
+        Err(Unsupported::Rnd4ShakeOverload)
+    );
+    assert_eq!(r.shake_offsets(), [0.0; 2]);
+    assert_eq!(r.state(), &State::default());
+}
+
+#[test]
+fn background_clear_color_and_borrowed_getters() {
+    let mut h = Host::default();
+    let mut r = Render3d::new(&mut h);
+    let mut tiled = false;
+    assert_eq!(r.background_picture(Some(&mut tiled)), None);
+    assert!(tiled);
+    r.enable_background_picture(false);
+    r.enable_transparent_background(true);
+    r.set_subpixel_image_bias(0.25, -0.75);
+    r.set_map_scale_factor(2);
+    r.state.clear_color_pushed = true;
+    r.set_viewport_clear_color([0.1, 0.2, 0.3, 0.4]);
+    assert_eq!(r.state.clear_color, [0.1, 0.2, 0.3, 0.4]);
+    assert!(!r.state.clear_color_pushed);
+    assert!(!r.state.background_enabled);
+    assert!(r.state.transparent);
+    assert_eq!(r.state.subpixel_bias, [0.25, -0.75]);
+    assert_eq!(r.state.map_scale, 2);
+    assert_eq!(r.camera(), None);
+    assert_eq!(r.camera_control(), None);
+    assert_eq!(r.lighting_manager(), None);
+    assert!(h.events.is_empty());
 }
