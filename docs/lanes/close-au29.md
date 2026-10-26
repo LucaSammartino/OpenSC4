@@ -21,4 +21,4 @@ ABI exports unchanged. No specs, coverage records, game files or run-history rec
 
 ## Handoff
 
-STOP: All four closures validated and enqueued kind engine at 5191411b82690ca133f81911d4fe1cc4fda634cd before the coordinator pause. No code changes or new queue writes on this resume; only this handoff. Next: coordinator resume after reboot and reconcile the existing queue tip with this handoff commit.
+STOP: All four closures validated and enqueued kind engine at 5191411b82690ca133f81911d4fe1cc4fda634cd before the coordinator pause. Reconnect confirmed clean git status at 1cbea4217 and the same active coordinator STOP. No code changes or new queue writes; only this handoff. Next: coordinator resume after reboot and reconcile the existing queue tip with this handoff commit.
