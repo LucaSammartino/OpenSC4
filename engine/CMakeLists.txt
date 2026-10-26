@@ -1112,7 +1112,7 @@ endif()
 # PV14 genuine selector capture preserves the original ABI and return value.
 if(TARGET FreeCity4)
     add_executable(fc4_propdev_transcript_test tests/propdev_transcript_test.cpp)
-    target_include_directories(fc4_propdev_transcript_test PRIVATE plugin)
+    target_include_directories(fc4_propdev_transcript_test PRIVATE plugin capi/include)
     target_compile_definitions(fc4_propdev_transcript_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_options(fc4_propdev_transcript_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME propdev_transcript_test COMMAND fc4_propdev_transcript_test)
