@@ -31,6 +31,7 @@
 #include "cFC4ZoneDeveloper.h"
 
 #include "FC4Config.h"
+#include "FC4ConstructionSetup.h"
 #include "FC4CoreProps.h"
 #include "FC4DevelopmentInterfaces.h"
 #include "FC4Diag.h"
@@ -1672,17 +1673,26 @@ void StartConstructionOccupant(void* u, uint64_t lot) {
     if (!Writes(u) || lot == 0 || !Gate(u, fc4::Sw::LotdevBuildings, "lotdev construction occupant (none)")) return;
     cISC4OccupantManager* om = Occupants(u);
     cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    void* p = nullptr;
-    if (om == nullptr || com == nullptr ||
-        !com->GetClassObject(kCLSID_cSC4ConstructionOccupant, kIID_cSC4ConstructionOccupant, &p) || p == nullptr) {
-        NoteOnce(g_noteConstruction, "lotdev: WARNING could not create a construction occupant through GZCOM (class "
-                                     "0xA97F909E); animated construction shows no scene");
+    if (om == nullptr || com == nullptr) return;
+    auto* co = fc4::CreateConfiguredConstruction(LotOf(lot), [com]() -> cFC4ConstructionOccupantView* {
+        void* p = nullptr;
+        if (!com->GetClassObject(kCLSID_cSC4ConstructionOccupant, kIID_cSC4ConstructionOccupant, &p) || !p) {
+            NoteOnce(g_noteConstruction, "lotdev: WARNING could not create a construction occupant through GZCOM (class "
+                                         "0xA97F909E); animated construction shows no scene");
+            return nullptr;
+        }
+        auto* created = static_cast<cFC4ConstructionOccupantView*>(p);
+        FC4_ACQUIRED(static_cast<cIGZUnknown*>(created), "GetClassObject");
+        return created;
+    });
+    if (!co) {
+        fc4::Log("lotdev: construction scene not published for lot %p (building/factory unavailable)", SdkLotOf(lot));
         return;
     }
-    auto* co = static_cast<cFC4ConstructionOccupantView*>(p);
-    FC4_ACQUIRED(static_cast<cIGZUnknown*>(co), "GetClassObject");
-    co->SetLot(SdkLotOf(lot));  // slot 4
-    if (cISC4Occupant* o = co->AsOccupant()) om->InsertOccupant(o, 0);  // slot 20
+    if (cISC4Occupant* o = co->AsOccupant()) {
+        fc4::Log("lotdev: configured construction occupant %p for lot %p", o, SdkLotOf(lot));
+        om->InsertOccupant(o, 0);  // slot 20, only after SetLot completes
+    }
     FC4_X87_CHECK("lotdev construction occupant");
     ++Ctx(u)->constructionOccupants;
     FC4_RELEASE(static_cast<cIGZUnknown*>(co));

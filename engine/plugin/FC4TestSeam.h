@@ -322,6 +322,7 @@ enum : uint32_t {
     kFC4SeamNetworkLotOwnership = 77,  // a,b = unknown prefixes of fake network occupants
     kFC4SeamNetworkCrewOwnership = 78,  // specified slot-5 shutdown and reentrant unregister
     kFC4SeamNetOccPoleLink = 0x4E4F0002, // a = FC4NetOccPoleLinkTest*, b = null
+    kFC4SeamNetworkToolOccupantViews = 0x4E540001, // a = network view, b = synchronous message server
 };
 
 class cIGZUnknown;
