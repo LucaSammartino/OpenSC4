@@ -5,6 +5,15 @@
 
   **ANSWERED 2026-10-24 (re-budget-window-bw22):** DIFFERS — partial closure, with remaining paths split into BW22–BW25, not a whole-owner proof. Companion §1 gives the method inventory; §2 now adds period scale (zero→1, any nonzero→12), ordinance refresh, positional edit/map reuse, signed B formatting and vectors. Existing §3 settles six neighbour scans/counts/edits; §5 settles occupant enumeration and +0x44 record acquisition/references, leaving per-service float production BW23; §6 proves the bounded group-A slice, leaving BW24. Panel balance-sheet/formatting/loan bodies are §4.2–§4.3 and §8–§10, with their summary gaps still BW18. BW22 covers neighbour remainder; BW25 covers setup/property/popup/widget ownership. No same-owner populated row/refresh result becomes an external input through this split. Main §8 and companion §7 carry this boundary.
 
+  **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — the duplicate open parent was stale. Companion §12 now maps
+  every requested part to settled rules and its outstanding child question, and lists public raw-input calls
+  with worked balance-sheet and loan cases. BW18's former panel summaries are already settled in §11; no
+  omitted cSC4BudgetUIWinProc body remains under BW17. New §§1.2–1.3 settle non-owning occupant properties,
+  segment ownership, setup-tail generator references, and empty-window construction including the second
+  factory's null-output fault. BW22–BW25 still cover static sub-budget body gaps; no runtime observation can
+  replace those algorithms. This remains a partial parent closure, not whole-cSC4SubBudgetWindow completion
+  or acceptance of same-owner result callbacks as external inputs.
+
 <!-- from: re-budget-window-bw22 (2026-10-24); BW21 supplied in lane brief, absent from open file at this base. -->
 - **BW21 — constructor ABI, allocation, nonmodal population and observation:** settle the constructor arguments, matching allocation/free service, the minimum lifecycle computing group rows/totals/strings without a modal window, and the exposed state.
 
@@ -112,9 +121,7 @@
   dirty byte with slot 8's `+0x19E`.
 
 <!-- from: re-budgetwindow-answers4 (2026-10-21); narrowed by re-bw30 -->
-- ~~**BW11 - section 4.0 Alt+Enter / Alt+F4 delivery (runtime):** with a sub-budget open, does Alt+Enter
-  close it without another action, and does Alt+F4 close only the dialog or also request application/system
-  close? The translator hooks and accelerators had not been traced.~~
+- ~~**BW11 - section 4.0 Alt+Enter / Alt+F4 delivery (runtime):** statically, modifier bit `0x4` is Alt (`GetKeyState(VK_MENU)` in `FUN_0098B6E0`) and `WM_SYSKEYDOWN` reaches the same type-5 builder as `WM_KEYDOWN`, so the dialog closes on Alt+Enter / Alt+F4. In the running game, with a sub-budget dialog open: does Alt+Enter close it (and nothing else happen), and does Alt+F4 close only the dialog or also start the application quit (`cSC4App::RequestQuit`) or a system close? [open: needs a game run; the translator's hook loop at `0x0098D2B6` and keyboard accelerators were not traced]~~
   **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — §4.0 now distinguishes delivered type-5 behavior from live
   input routing. Hooks receive an explicit consumed out-byte; only that byte stops traversal. Unconsumed
   system key-down calls the builder and returns 0 without default-window processing, even when the builder

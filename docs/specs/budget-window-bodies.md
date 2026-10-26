@@ -44,11 +44,11 @@ the already identified unlabelled owner helpers. An address is a native body, no
 |---|---|---|
 | constructor; CreateSubBudgetWindow; DestroySubBudgetWindow | `007862B0`; `00779E50`; `0077A1A0` | Existing lifecycle |
 | on_init; on_shutdown; DoWinMsg; on_button_activated | `007876B0`; `0077E440`; `0078BCA0`; `0078B120` | Existing routing; delegated bodies must use rules below |
-| set/get_window_indiv_item | `007795A0`; `00779600` | Existing property contract; setter reference rules still need audit |
+| set/get_window_indiv_item | `007795A0`; `00779600` | Property payload and caller-side references §1.2; generic window replacement remains an external operation |
 | add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | Widget creation/options; set_comboBox is owner logic, not a row provider |
 | add_Bitmap; add_image_button1/2 | `0077A250`; `0077B7B0`; `0077B960` | Presentation/factory helpers; failure/ref rules not yet fully specified |
-| GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation; not a budget data provider; full failure/reference contract BW25 |
-| SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Setup/failure body gaps |
+| GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation and failure/reference rules §1.3 |
+| SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Bounded setup/empty-window ownership §1.3; other widget/popup failures remain BW25 |
 | init/updateOrdinanceBudget | `0077C660`; `0077ADA0` | Section 2 population, scale and refresh; widget failure contracts remain BW25 |
 | init/updateNeighborBudget | `0077E600`; `00781C90` | Section 3; remaining rendering/refresh audit recorded below |
 | init/updateIndividualBudget | `00786690`; `00785740` | Section 5 enumeration, restore acquisition and viewport; service-query arithmetic remains open |
@@ -86,6 +86,96 @@ Thus this is an exact exported method/slot inventory with explicitly unclassifie
 that every address in the region is an independent C++ member or that either owner is complete.
 Section 5 now classifies `0077ACA0`, `0077D8C0` and `0077C480` from that support list as restore-record
 copy, grow/append and release/free helpers respectively; the other listed support candidates remain open.
+
+### 1.2 Individual-row property: payload and caller ownership *[compat]* (BW17)
+
+`set_window_indiv_item(parent, childID, occupant)` finds the child with window slot 35/+0x8C. A missing child
+returns immediately, without allocation or any reference change. Otherwise allocate a 20-byte property,
+initialize its type to **0x0F**, and pass it to child slot 114/+0x1C8 with property ID `0x4BFEE088`. Allocation
+failure still calls that slot, with a null property. The setter does not query/release the old property, inspect
+the assignment's return, or release the new property after submission (`0x007795A0`–`0x007795FB`). It is the
+generic window property operation, not this owner, that receives responsibility for replacement/storage.
+
+The constructor `0x00915CB7`–`0x00915CDB` stores the supplied occupant pointer verbatim and sets type 0x0F;
+it makes **no occupant AddRef**. This is the pointer-valued type, not the counted-unknown type 0x10. Variant
+destruction releases a pointed-to unknown only for type 0x10 (`0x00914EBF`–`0x00914ED1`); a 0x0F property
+therefore does not release its occupant when replaced/destroyed. The property's own reference count is
+separate: AddRef increments its 16-bit count, and Release destroys it at count ≤ 1
+(`0x00914E78`–`0x00914EA2`). Do not copy the counted-occupant rule of the +0x44 restore vector into this
+property. In particular, replacing the occupant property must not consume the old occupant's restore reference.
+
+The getter's existing rule is confirmed at `0x00779600`–`0x0077965A`: missing child or failed property lookup
+returns null; a successful lookup tests type 0x0F, reads property slot 51/+0xCC only for that type, releases the
+lookup's property reference even for another type, and returns the occupant without AddRef.
+
+Worked case: a row property initially contains occupant P, and a new call supplies Q. The owner creates a
+type-0x0F property holding Q and submits it under `0x4BFEE088`; its own call trace contains no P/Q AddRef or
+Release. A successful getter returns Q, with one Release of the lookup's property reference and no Q AddRef.
+If property allocation fails, the submission is `(0x4BFEE088, null)`, not a silent retention of the old property
+by skipping the call. Whether a particular generic window rejects that submission is outside this setter;
+its return is ignored. The independent +0x44 snapshot still retains its original occupant until cleared.
+
+### 1.3 Resource segments and bounded setup/empty-window ownership *[compat]* (BW17)
+
+**GetBudgetSegment** takes a resource instance, x, y and parent. Load buffer resource
+`(type=0x856DDBAC, group=0x46A006B0, instance)`, inspect its rectangle through buffer slot 12/+0x30, allocate
+0xFC bytes and construct a bitmap window. Take one temporary bitmap-window reference; set its rectangle to
+`(x, y, x + resourceRight, y + resourceBottom)`, wrapping in 32 bits. The resource's left/top do not get
+subtracted. Set the bitmap interface's buffer, call its slot 11/+0x2C with `(6,1)`, obtain its window through
+slot 3/+0x0C and clear flag 0x800. Add the bitmap as a child of parent, release the temporary bitmap reference,
+destroy the temporary resource-buffer wrapper, and return **resourceBottom**, not a row or a budget value
+(`0x0077A390`–`0x0077A479`). The parent child reference is separate from the released temporary. Neither the
+resource dereference nor the post-allocation bitmap AddRef has a null guard: a missing buffer or failed
+bitmap allocation is a native fault, not a successful zero-height segment.
+
+Worked segment case: resource rectangle `(7,9,300,20)`, x=4, y=50 produces window rectangle
+`(4,50,304,70)` and returns 20. Returning 11 as a computed height would change subsequent setup positions.
+
+**Final setup generator:** after building segments and resizing/centring the supplied dialog and content,
+SetupWindow, SetupWindowBig and SetupWindowIndiv each request class `0x4386D516`, IID `0x5386D516`, into a
+fresh null generator temporary. On success call that generator's slot 25/+0x64 with
+`(width >> 1, height >> 1, width >> 1, height >> 1)`; both shifts are **unsigned** one-bit shifts of owner
++0x84/+0x80. Release a non-null generator out-pointer on both the true and false factory-result paths. This
+tail stores no generator/window in the owner and does not ChildAdd its result
+(`0x0077A678`–`0x0077A6E3`, `0x0077A8E8`–`0x0077A953`, `0x0077AAC8`–`0x0077AB33`). Earlier segment
+insertions and resizing are not rolled back on failure. This tail cannot be used to infer that a generator
+procedure setter has taken a reference: there is no procedure-setter call here.
+
+**SetEmptyWindow(parent, title, body):** its first factory uses the same class/IID. A false result skips the
+entire body and releases a non-null temporary out-pointer. Existing owner +0x14/+0x18 and children are left
+alone. On success, generator slot 3/+0x0C supplies the window for +0x14. Reference replacement compares
+pointers first; if different, AddRef the non-null new window, store it, then Release the non-null old window.
+Configure that generator's flags in order: 1=false, 2=false, 0x10000=false, 0x20=false, 0x40=false,
+0x1000=true, 0x2000=true, 0x4000=true. On the +0x14 window, clear flags 0x10000 and 0x200000, set 0x800,
+raise it (slot 23), clear 0x800, set ID `0x0423278D`, then parent.ChildAdd(+0x14)
+(`0x0077BEE6`–`0x0077C008`).
+
+Next request another generic generator, into a distinct fresh null temporary. On true, replace +0x18 with
+its slot-3 window using the same compare/AddRef/store/Release order. Set the same generator flags as above;
+set window flags 0x100, 0x10000, 0x20000 true, 0x800 false, 4 true; ID `0x0423278F`; +0x14.ChildAdd(+0x18)
+(`0x0077C029`–`0x0077C169`). Crucially, a **false second factory result does not exit**: it skips only that
+replacement/configuration block. The following buffer assignment dereferences the second generator
+unconditionally (`0x0077C18D`–`0x0077C196`). If its out-pointer is null, this is a native fault after the
+first window has already been retained and added; the normal releases below are not reached. If the false
+result supplies a non-null out-pointer, the native continues using that generator and the old +0x18; there
+is no general rollback/success guarantee for that inconsistent provider response.
+
+On the normal two-success path, load empty-window buffer instance `0x144161E4` in the segment resource
+type/group and pass it to the second generator slot 13/+0x34 with selector 2. Size +0x14 and +0x18 to
+300×100, move both to (0,0), size/centre the supplied parent window, create title/body controls
+`0x0ABCE000`/`0x0ABCE001` in +0x18, and background/close buttons rooted at IDs 0x385/0xCC in +0x14.
+The title/body are the supplied strings; this helper does not enumerate any budget inputs. It later finds
+0x385 and 0x485 and resizes them, and sets notification targets on 0x385 and 0xCC to parent. These lookups
+are unchecked; failure to create a required widget does not turn this routine into a clean false return
+(`0x0077C16E`–`0x0077C342`). Normal cleanup destroys the temporary buffer wrapper, releases the second
+generator if non-null, then the first generator if non-null, leaving the independently retained owner windows
+and parent-child references (`0x0077C348`–`0x0077C374`).
+
+Worked failure cases: (1) first factory returns false and non-null G: Release(G) once, no child insertion,
+both stored windows unchanged; (2) first factory succeeds, second returns false/null: +0x14 has been replaced
+and inserted, +0x18 remains unchanged, and the buffer-assignment dereference faults before either normal
+generator release. Do not record the latter as a successful empty dialog or as balanced teardown. The existing
+BW13 safe divergence for a missing **content** window does not establish a safe divergence for this fault.
 
 ## 2. Ordinance population (`initOrdinanceBudget`, `0x0077C660`)
 
@@ -518,26 +608,28 @@ afterwards). An ordinal-only slice that resets p when it reaches the offset woul
 
 ## 7. Bounded remainder / completion boundary
 
-BW17 remains open, partially resolved by sections 1–6. Next bounded audits: (1) ordinance refresh, scale
-initialization and B money formatting; neighbour combo options/set_comboBox, the +8/+12 metadata words,
-temporary-list reference balance and updateNeighborBudget row reuse;
-(2) individual service-query calls, float/amount derivation, remaining individual control reuse, malformed
-initializer fragment `00786F62` and its true-rebuild call at `007875C5`; full group B refresh/slider rebuilding,
-A item rendering and final stale-row cleanup; (3) popup/empty/setup
-failure references and setup helpers. (The panel's loan, tax, formatting and balance-sheet rendering bodies are
-§4.2–§4.3 and §8–§11, re-budgetwin 2026-10-22 and re-budgetui7 2026-10-23; `cSC4BudgetUIWinProc` is now
-specified whole, and BW17's remaining audits concern `cSC4SubBudgetWindow` only.) The inventory
-BW17's broad request is archived with a partial-closure answer; it does **not** mean whole-owner completion.
-The remaining work is numbered separately in questions/budget-window.md: BW22 covers neighbour combo
-options/set_comboBox, +8/+12 metadata, temporary-list references and updateNeighborBudget; BW23 covers
-individual service-query calls, float/amount derivation (including the +0x44 saved floats), remaining
-control reuse and the malformed `00786F62` initializer continuation/`007875C5` rebuild call; BW24 covers
-group A item rendering, B refresh/slider rebuilding and final stale-row cleanup; BW25 covers
-property replacement, popup/empty/setup and widget failure references and unclassified helpers.
-The panel's loan, tax, formatting and balance-sheet rendering bodies are
-§4.2–§4.3 and §8–§10, re-budgetwin 2026-10-22; their summary parts remain BW18. The inventory
-above is the checklist; layout alone may stay presentation, but counts, selection, filtering, arithmetic and
-owned references cannot be delegated as already computed results of these same owners.
+BW17 is archived with a **partial** answer, not a whole-sub-budget-owner proof. Section 12 is the crosswalk
+from the original request to settled rules and the still-open child questions. The duplicate parent entry in
+the open-question file was stale; removing it does not close those child questions.
+
+Ordinance refresh, scale initialization and B money formatting are settled in §2. The panel's loan, tax,
+formatting and balance-sheet rendering bodies are §4.2–§4.3 and §8–§11; BW18's former summary gaps are
+settled in §11. All remaining body audits below concern **cSC4SubBudgetWindow**, not an omitted method of
+cSC4BudgetUIWinProc:
+
+- BW22: neighbour options/set_comboBox, +8/+12 metadata, temporary-list reference balance and row reuse.
+- BW23: individual service-query calls and float/amount derivation, remaining control reuse, malformed
+  initializer continuation `00786F62` and rebuild=true call `007875C5`.
+- BW24: group A item rendering, B refresh/slider rebuilding and final stale-row cleanup.
+- BW25: remaining widget/popup failures, setup details and unclassified support helpers. Sections 1.2–1.3
+  now settle the property payload/caller behavior, GetBudgetSegment, the three setup tails and the bounded
+  empty-window success/failure references. They do not settle every widget factory or the generic window
+  generator's procedure-reference contract.
+
+No runtime observation is substituted for the missing static algorithms in BW22–BW25. Layout alone may stay
+presentation; counts, selection, filtering, arithmetic and owned references cannot be delegated as already
+computed results of these same owners. The panel's specified status supplies no transitive implementation,
+native-run or whole-sub-budget-owner coverage credit.
 
 ## 8. Panel: construction, Init, notifications and the period buttons *[compat]*
 
@@ -752,3 +844,56 @@ byte `+0x19E` when the panel is visible. That byte is the one `DoMessage` tests 
 runs on the `+0x0C` interface, so its `+0x192` is object `+0x19E` (`0x00768641`, `lea ecx,[esi−0xC]` before
 `UpdateBalanceSheetInfo`). The deleting destructor (slot 3, `0x00764CD0`) destroys the loan vector `+0x1C` and frees
 the object when its flag bit 0 is set.
+
+## 12. BW17 request crosswalk and raw-input boundary (2026-10-26)
+
+The vtables in §1 were rechecked against `0x00AB5494`, `0x00AB4A40`, `0x00AB4A2C` and `0x00AB4A1C`.
+The named-method export for cSC4BudgetUIWinProc agrees with the §1 inventory, including the three formerly
+unlabelled direct helpers. Inherited/folded methods and the +8/+12 thunks are part of that inventory; no
+extra panel instance is created for either secondary interface. The table below is a **specification** audit,
+not an assertion that an engine callback has been replaced or a native execution has passed.
+
+| Part requested by BW17 | Settled rule / worked discriminator | Explicit remaining boundary |
+|---|---|---|
+| Full owner method/slot inventory | §1 tables, main spec §1/§1.1; all four vtables above | Unlabelled sub-budget support helpers are listed, not silently counted as specified independent methods |
+| Ordinance enumeration, counts, A/B maps and refresh | §2, including separate on-state reads, classification independent of amount sign, positional edits and 1/12 period scale | Widget failures outside §1.3 remain BW25 |
+| Six neighbour scans, proposed deals, counts and selection edits | §3: provider order, section headers, one retained edit-target reference per +0x50 row, signed division/unsigned product tests | Options/rendering/metadata/list references BW22; no host-computed neighbour refresh accepted |
+| Occupants and +0x44 creation/ownership | §5: sorted counted list; rebuild=true saves every current occupant, including off-screen ones; rebuild=false preserves old snapshot | Exact service-produced floats/amounts and continuation BW23; no host-produced restore records accepted |
+| Four mode refreshes and row reuse | Ordinances §2 complete; neighbour edits §3, individual traversal/snapshot §5, group-A header/quota proof §6 | Remaining neighbour/individual/group bodies BW22–BW24; the A proof does not specify B traversal |
+| Empty/popup/setup and failure references | Main spec §§4–6; new §1.2–§1.3 gives pointer property, segment ownership, setup tails and empty-window factory-failure sequence | Remaining widget factories, popup paths and unclassified helpers BW25 |
+| Panel balance sheet and loan display | §4 and §§8–11, including labels, period/tab split, all loan rows/limits and notifications | No remaining BW17/BW18 panel-body gap; sub-budget implementation/coverage is a separate dependency |
+
+**Public raw-input checklist.** These are external provider operations, followed by the owner's algorithms
+in the cited sections. They are not permission to read fields of the provider's concrete implementation.
+
+| Consumer | External inputs, by interface slot/arguments | Owner work that must stay local |
+|---|---|---|
+| Ordinance population/refresh | Ordinance simulator slots 11 count, 12 `(ID buffer,&count)`, 20 `(id)`; ordinance slots 5 amount, 22 income classification; simulator slot 8 `(id)` on-state (§2) | Enumerate/classify/count/map; preserve original/edited bytes; scale and format; refresh existing controls |
+| Neighbour population/edits | The six proposed-deal/list queries and deal accessors in §3; combo selection slot 30 only after successful QI `0x412CE496` | Section counts and rows, retained deal targets, edits for every matching control ID; remaining option/render rules are BW22 |
+| Individual mode | Budget acquired through city slot 52; the group/department/item and service/occupant queries in §5; per-entry QI `0x26BB767E` | Sort/traverse, viewport/count, build/preserve counted +0x44 records; raw per-service values still require BW23 |
+| Group refresh | Budget slot 29 `(&groupVector)`, slot 31 `(chosen groupID,&departmentVector)`; department/item accessors and amounts in main §4.1 and §6 | Group fallback selection, two passes, quotas, visibility, scaled sums, control reuse, slider ownership; remaining B/body rules BW24 |
+| Panel balance computation | Budget slots 6, 16, 11, 14, 13, 18 `(tax type)`, 29 `(&groups)`, 45; ordinance queries as above; neighbour slots 32/33 (§4.1) | Sum/order, low-dword ordinance treatment, annual products, group dispatch/overwrite/retention; format/control mapping §§4.2–4.3 |
+| Panel taxes | Budget slot 36 `(tax type)`, slot 18 `(tax type)`; edit text/slider values; writes slot 37 `(tax type,rate)` (§9) | Tenths conversion/rounding, original-rate snapshot, parse fallback, totals and restore |
+| Panel loans | Budget slots 39 increment, 41 borrowed, 42 limit, 43 bond cap, 44 max count, 46 `(&loanVector)`, 47 duration, 48/49 `(amount)`; output slot 40 `(amount)` (§10, §11) | Limits, scrolling, rows, all-record payment total, appended LoanInfo and issuance of only newly appended records |
+
+Formatting consumes raw resource strings, graphics colours and window/control interfaces as described in
+§§4.2–4.3/8–11; none supplies a precomputed balance sheet. `CalculateValues`, `UpdateBalanceSheetInfo`,
+`UpdateLoanDisplay`, the four sub-budget refreshes, SetEmptyWindow and GetBudgetSegment are owner bodies,
+not external inputs. An adapter that returns their computed results leaves those bodies unimplemented.
+
+**Worked panel fixture for the engine lane.** Use stable providers so repeat accessor reads return the same
+values. For balance computation, let tax incomes for types 2,1,0 be 1,2,3; return one on ordinance whose full
+amount is `0x00000001_FFFFFFF9`; and return groups EACB/`0xEA357ECB` with expense 10 followed by
+EA95/`0xEA597195` with expense 20. Required fields after CalculateValues: +0x50=6, +0x58=72,
++0x90=7, +0x98=84, +0x130=20, +0x138=240. The high word of the ordinance amount does not make it income;
+the second group overwrites the first rather than being added. A second successful calculation with neither
+group retains +0x130/+0x138, while a missing-budget calculation clears the reset range (§4.1).
+
+For the loan body, set borrowed B=100, limit L=1000, bond cap C=200, increment=50, no amount added this
+session, and a maximum count above five. Opening sets slider range `(50,200)`. A direct UpdateLoanDisplay
+refresh sets `(50,900)`, preserving the documented loss of the bond cap. In yearly view, provide five loans
+with monthly payments 1,2,3,4,5 and distinct principals/remaining amounts. At scroll position 2, rows 0–2 show
+records 2–4; the fourth row's four cells are cleared, count=5, and the all-record total is 180, not the visible
+total 144. Up and down flag 1 are both true (2 is nonzero, 2 < 4, 5 > 4), even though the down-button handler's
+different `position < count−4` test will not advance from 2 (§10/§11.4). A callback containing only a prebuilt
+three-row display cannot reproduce the hidden-record contribution or the two different scroll tests.

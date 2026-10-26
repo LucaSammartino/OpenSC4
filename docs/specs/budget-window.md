@@ -685,17 +685,20 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
 `questions/answered/budget-window.md`). **BW11** is narrowed to the explicit live-input observation in §4.0;
 the hook consumed-byte and no-default-processing rules are settled statically, with no game verdict.
-**BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
-only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. BW17 is archived as a partial closure, with its remaining paths split into **BW22–BW25** (companion §7); BW21's constructor and nonmodal observation boundary is §1.1. BW17's panel part is narrowed (re-budgetwin, 2026-10-22):
-the balance-sheet drawing, the formatting helpers and the taxes and loan windows are budget-window-bodies.md
-§4.2–§4.3 and §8–§10. The panel's construction labels, `Init`, the loan limits and the loan rows are §11 there (BW18
-answered, re-budgetui7 2026-10-23). Not covered: pixel layout of the four populate routines, the fill point of
-the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
-procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
-§4.2–§4.3 and §8–§10; the panel's construction labels, `Init` and the loan limits stay at summary level (BW18).
-Companion §5 specifies the individual restore records' fill/rebuild and ownership; their service-specific
-float values remain BW23. Setup/widget ownership, including the generator's procedure reference contract,
-remains BW25. No whole-owner completion or native shadow verdict is implied.
+**BW16** (row visibility, §4.1) and **BW15** (+0x2C ownership) are byte-settled. **BW21**'s constructor and
+nonmodal observation boundary is §1.1.
+
+**BW17** is archived as a partial parent closure; its duplicate open entry was stale. The companion
+[budget-window-bodies.md](budget-window-bodies.md) §1 gives the method/slot inventory, §12 the requested-part
+crosswalk, raw-provider checklist and panel worked cases. Its §§4/8–11 specify the panel's calculation,
+rendering, formatting, taxes, loan windows, labels, Init and notifications, including BW18's former summary
+gaps. The remaining **sub-budget** body questions are BW22–BW25 (companion §7), not omitted panel methods:
+neighbour options/rendering, individual service arithmetic/continuation, group B and item rendering/cleanup,
+and remaining widget/popup/setup ownership. Companion §§1.2–1.3 now settle pointer-property and bounded
+empty/setup/segment ownership; §5 settles +0x44 acquisition/rebuild references but not its service-produced
+float values. The generator procedure setter's reference contract remains BW25. Counts, rows, restore
+records and refresh results computed by either owner are never external raw inputs. No whole-sub-budget-owner,
+implementation or native-shadow completion is implied by the panel's specification status.
 
 ## 9. Conformance tests
 
