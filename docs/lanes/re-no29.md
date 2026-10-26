@@ -23,5 +23,5 @@ Temporary PE reader and commit message file are in build-runs/.
 NO40/UG5 publish custom kernels, ratio indexing, walls/UVs, bounds, connection descriptors and Draw.
 Remaining: selector arguments, base transform composition, exact connection matrices/ceiling/input bytes.
 Runtime captures NO40-A/B (§3.2.3) and C (§3.6.6) name sites, lengths, variants and settled expectations.
-No full geometry-owner closure is claimed. No ABI rows proposed; no engine/game files were read or edited.
+No full geometry-owner closure is claimed. No ABI rows proposed; engine untouched; game files read only.
 Next: run those captures and reconcile with the independent algorithms before geometry-owner credit.
