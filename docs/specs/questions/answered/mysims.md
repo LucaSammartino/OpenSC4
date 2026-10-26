@@ -1,5 +1,34 @@
 # mysims: answered questions (archive)
 
+<!-- from: growth-cities29; answered by re-gc30 -->
+- **MS-GC29-1 — shadow scheduler state at capture (advisors §3.1, §5.2).**
+  `growth-cities29-2/london-sydenham.log:2858` captures MySim IDs 1–5 with
+  month counter 1 and current day 2451545, but ID 30 with 0/0. At :3155 the
+  deferred PostCityInit increments every shadow counter; at :5429 all six
+  differ by one month (ID 1 original 3, shadow 4). The system's `lastDay`
+  is unsaved and the shadow only imports individual advisor records. What
+  documented offset/interface and dispatch boundary expose the original's
+  `lastDay` for a same-input shadow? Is PostCityInit already processed when
+  these new-city records are captured? Freezing the establishment flag at
+  capture did not remove the difference and was reverted. Blocks mysims in
+  Sydenham, Woolwich, Terraforming and the three empty-city scenarios.
+
+  Follow-up: `growth-cities29-5/reach29-growth.log:3067` and
+  `growth-cities29-5/lua-lots-empty.log:3270` reproduce the six-sim mismatch
+  at the first February month. The house and both mature reach scenarios
+  remain exact. These newly measured new-city cases need the same scheduler
+  input/load-boundary clarification; no monthly comparison was suppressed.
+
+  **ANSWERED 2026-10-26 (re-gc30):** DIFFERS — mysims.md §3.1.1 and advisors.md §3.1:
+  the system's signed `lastDay` is primary `cISC4AdvisorSystem` +0x48, or message-target-2
+  pointer +0x44. Capture at the original recipient entry, with live date/establishment and
+  records; exit captures already include that delivery. PostCityInit/CityEstablished request
+  a monthly call only at lastDay < 1, independently of the save flag; neither advances lastDay.
+  A newly registered advisor receives no catch-up tick. Worked positive-lastDay and two-startup-message
+  cases are specified. The records alone do not prove which startup message already ran:
+  recipient entry/exit trace of CityEstablished, PostCityInit and ticker from before attachment,
+  including lastDay and counters, is the stated remaining runtime observation for the cited cities.
+
 <!-- from: glue-mysimdispatch-shadow9 (2026-10-24); imported from its reserved worktree because this base predates its question -->
 - **MS20 — dispatch native observation/replay ABI (§4.6.1–4.6.2, §7.2.1):** publish the ordered slots, precise argument/return types and ownership for IID `0xEB8B6F9A` (Init/Shutdown, queue operations, state/flag setters, four location getters, clock/wait getter, GoTo/Enter/Exit and geometry/stop helpers), plus a public way to discover an inactive MySim's dispatch. Also identify how a read-only observer can receive every dispatch request input, and constructor-only defaults beyond state/previous=-1, flags/minutes=0 and travel=255. Do not guess slots, mutate live owners, infer requests from native outputs or label a native-record roundtrip independent verification.
   **ANSWERED 2026-10-24 (re-mysims-ms20):** DIFFERS — §7.2.3 publishes the entire nine-slot primary table: destructor/RemoveRef/GetRefCount occupy slots 3–5; only Can/Enter/ExitUDriveIt follow. The requested queue/clock/location helpers and Init/Shutdown are direct methods, not slots. There is no complete public read-only input observer or universal inactive-dispatch discovery API. Independent replay needs captured request/service/callback inputs; constructor records alone cannot verify live trips. Explicit constructor defaults exclude unwritten tuning +20 and leg indices. Three normative vectors in §12.29.
