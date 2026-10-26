@@ -163,8 +163,8 @@ Its HIT interface is the secondary table `0x00AD2968`, object `+0x1C`:
 
 Additional file operations are ParseHitFile `0x00938D8E`, ParseHitFileFromIGZPersistRecordAsIGZFile
 `0x009379EF`, and FilepathHasEmbeddedKey `0x00938EC6`; the Unpause-named
-routine is `0x00938419`. The folded slot 7 must not be identified as Unpause
-without checking its calling contract (SS2). Primary/service tables inherit
+routine is `0x00938419`; it is not the implementation of HIT slot 7 (see below).
+Primary/service tables inherit
 the framework system-service identity contract; they are not playback interfaces.
 
 *[compat]* Channels are retained by the manager after allocation. AllocChannel
@@ -179,10 +179,127 @@ of reproducing a process crash *[choice]*.
 HIT file parsing reads a file-sized buffer, registers track data and extracts
 entry-point pairs. It searches for track/entry markers (`0x00938D8E`);
 it does not establish a validated, bounds-safe interchange format. The exact
-file grammar, duplicate registration behavior, semaphore/ducking arbitration,
-pause behavior and source callback payloads remain SS2. Do not infer them from
-the names in the inventory. These are direct calls/callbacks, not demonstrated
-SC4 message-server subscriptions.
+file grammar, duplicate registration behavior, semantic/ducking arbitration,
+pause behavior and source callback boundary are specified below. These are
+direct calls/callbacks, not demonstrated SC4 message-server subscriptions.
+
+#### HIT file and registration rules (SS2)
+
+*[compat]* ParseHitFile (`0x00938D8E`) obtains the file's name and byte size,
+reads four bytes into a temporary, seeks back through file slot 9 (`+0x24`),
+then reads the **whole file** into a buffer. Neither read result is tested.
+It scans for little-endian word `0x58415254` (bytes `TRAX`) in four-byte
+steps from file offset zero, but the found pointer is **unused**: the track
+data block retains the original buffer and complete byte size, not a slice
+after TRAX (`0x00938DDF–0x00938E29`, SetDataBlock `0x00938CD7`). There is
+no checked magic/version/length field and no requirement here that TRAX be
+found. The scan itself can read at/past the buffer end on malformed input.
+
+The block is named, registered and locally released **before** entry parsing.
+Then scan from offset zero in **one-byte steps** for `0x50544E45` (bytes
+`ENTP`). Following those four bytes are repeated eight-byte records:
+
+| Relative byte offset from ENTP | Width | Meaning |
+|---|---|---|
+| 0 | 4 | `ENTP` marker |
+| 4 + 8n | 4 | unsigned entry ID; if word equals `0x544E4545` (bytes `EENT`), terminate without reading an offset |
+| 8 + 8n | 4 | unsigned byte offset **from the beginning of the retained whole-file buffer** |
+
+The loop tests only the start of each record against file end; it does not
+check that eight bytes remain, validate target offsets, require EENT, or
+escape an entry ID equal to EENT (`0x00938E48–0x00938E80`). AddEntryPoint
+uses map assignment, so a later duplicate ID **within a block** replaces its
+offset (`0x00938D49–0x00938D5A`). Missing ENTP simply leaves an empty entry
+map; the parser normally returns true even so. Allocation failures are not
+gracefully checked. A bounds-safe parser may reject malformed/truncated input
+instead of reproducing reads beyond allocation *[choice]*.
+
+RegisterTrackDataBlock rejects null or failed IID `0x9B82EAE7`. Otherwise it
+removes a previous registration of that **same object pointer**, then retains
+and inserts it at the **front** of the block list (`0x009384EB–0x0093851C`,
+insert-before-begin helper `0x009690F4`). Distinct objects sharing filenames
+or entry IDs are not deduplicated. GetTrackDataBlockAndOffset searches from
+front to back and returns the first block whose slot 5 supplies that ID;
+it writes the block and offset only on success and does not AddRef that result
+(`0x00937C18–0x00937C47`). TrackDataEntryPoint returns block-buffer + offset,
+or null if none; it performs no range validation (`0x009379CB–0x009379DD`).
+Re-registering an older object thus moves it ahead of newer competing blocks.
+
+RegisterSem obtains the semantic object's ID from slot 3, replaces the retained
+object in the map at that ID and returns whether the ID is nonzero. ID zero
+is still **inserted/replaced before returning false** (`0x00938BF1`). These
+are semantic objects (default 2D/3D), not semaphore locks with wait queues.
+GetSem by ID returns the mapped object or null; index enumeration follows the
+map. Registration replacement releases the previous retained object.
+
+#### Group, ducking and pause boundaries
+
+ControlGroup(group-ID) returns a cached control object, or allocates one with
+that ID, queries IID `0xFB1C0050`, and inserts it in the group map
+(`0x00938AF0`). AddToControlGroup calls this service's group lookup then
+group slot 3 with the supplied sound (`0x00937972`). SetSequenceGroupSnd
+assigns a retained sound in a separate group-ID map, replacing the previous
+one (`0x00938A26`); GetSequenceGroupSnd returns null when absent. These
+manager methods impose **no extra group priority contest or automatic stop**.
+Any policy implemented by the returned control object is a separate interface.
+
+*[compat]* DuckMapSetSndobPri is gated by the manager's initialized flag
+(byte `+4` relative to the HIT view). When enabled, nonzero signed priority
+sets/replaces the sound-key's entry; zero removes it. An absent zero removal
+and an unchanged nonzero value do nothing further. A real change recomputes
+DuckMapMaxPri, writes manager register `0x1B`, then invokes UpdateView
+(`0x00938A41`). DuckMapSndobPri returns zero for an absent key. DuckMapMaxPri
+starts at zero and takes the **signed** maximum; an all-negative map therefore
+has maximum zero (`0x00937DB3–0x00937DBA`). DuckMapRemoveAll clears the map
+and writes register `0x1B` = 0 (`0x00938492`). No random tie-breaker or
+winner removal is performed in these methods.
+
+HIT table slot 6, Pause `0x00937875`, calls slot 42 (DuckMapRemoveAll) and
+returns true; it does not pause allocated channels or set the paused flag.
+Slot 7 is the three-byte folded entry `0x00949ADE`: **no arguments**, return
+true, no unpause action. Slot 8 reads byte `+5` of the HIT view
+(`0x0093998F`); neither of these two slots writes it. In contrast the exported
+name Unpause at `0x00938419` consumes one 32-bit payload, passes it to slot
+17 (AllocChannel) and appends the result at view `+0x30`; its `RET 4` confirms
+it cannot describe slot 7. Do not implement recursive channel pause based on
+that name.
+
+#### Random and source-handler boundary
+
+Random's first argument is the upper endpoint U and second is lower L.
+Subtract as wrapping 32-bit `B = U − L`; when B is zero return L **without
+advancing the generator**. Otherwise, with unsigned 32-bit state s, form the
+64-bit unsigned product-plus-add `P = s × 0x41C64E6D + 0x3039`, save its
+low 32 bits as the next state, take `R = (P >> 16) mod 2^32`, then return
+`L + high32(R × B)` modulo `2^32`. This is the actual scaling law, with no
+rejection step and no guarantee of an exactly unbiased bounded distribution
+(`0x00939993`, `0x00913696–0x009136C9`). For nonwrapping U > L its result
+lies in `[L,U)`. Starting from constructor seed `0xFFFFFFFF`, one draw gives
+next state `0xBE39E1CC`, R `0x4E6CBE39`; Random(20,10) returns 13.
+
+RegisterSourceDataRequestHandler retains/replaces the handler at view `+0x40`
+and returns true (`0x00937961`). GetSourceDataField loads that pointer and
+**tail-calls its slot 3**, preserving the caller's entire argument stack and
+return bits (`0x00937959–0x0093795E`); it does not translate an event, copy a
+payload or test for null. Slot 34 is a folded getter of that retained pointer,
+not a second handler registration. The manager therefore specifies an opaque
+pass-through call boundary, not a source-data schema.
+
+Worked cases: block A maps ID 7 to file offset 32. Later block B maps 7 to 64
+and contains duplicate ENTP records `(7,48),(7,64)`: lookup returns B,64 and
+the entry pointer is B's file-buffer + 64. Re-register A: lookup returns A,32.
+Register a semantic object with ID zero: it is retrievable at zero even though
+registration returned false. Duck entries 5 and -2 give max 5; removing the
+5 with priority zero gives max 0, writes register 27 = 0 and updates the view.
+
+Runtime boundary for SS2: the external source-handler's **semantic payload
+types** are not defined by this tail-call, and a group object's own priority
+policy is not established by the manager's cache. To determine those contracts,
+install a recording slot-3 source handler and a recording control-group object,
+exercise a HIT source-field read and two competing group sounds, and record
+argument words, pointed-to output writes, return bits, ordering and refcounts.
+No claim about a synthesized callback payload or group winner is required by
+the statically settled manager rules above.
 
 ### 4.2 Channel construction and source IO
 

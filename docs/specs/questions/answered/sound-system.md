@@ -1,6 +1,22 @@
 # sound-system: answered questions
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
+- **SS2 — HIT manager resource arbitration and file grammar:**
+
+For sound-system.md §4.1, settle HIT marker layout and entry offsets, duplicate
+track/semantic registrations, group/duck priorities, pause/unpause slots and
+source-handler payloads. Start with 0x00938D8E, 0x00937C00, 0x00938BF1,
+0x00938AF0 and the table at 0x00AD2968. Constructor priority and seed are
+export facts, but exact random range/distribution is not yet instruction-verified.
+
+**ANSWERED 2026-10-26 (re-ss29a):** DIFFERS — §4.1 specifies whole-file ENTP
+offsets, unused TRAX search, duplicate replacement/newest-block lookup, semantic
+ID-zero insertion, duck signed maximum, actual pause slots and exact random law.
+Source calls are an unchanged tail-forward to retained handler slot 3. Semantic
+source payload and control-object priority policy are narrowed to explicit
+recording-handler/runtime observations; manager behavior has worked cases.
+
+<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS3 — Channel tables and property transformations:**
 
 For §4.2, enumerate unnamed tables installed by 0x0093FE12 (primary 0x00AD3FC0)

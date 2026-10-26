@@ -10,15 +10,6 @@ Starting points: 0x0093C229, 0x0093DF4C, 0x0093BD06 and 0x0093E146.
 The export has overlapping/incorrect structures; instruction verification is required.
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS2 — HIT manager resource arbitration and file grammar:** [unsettled]
-
-For sound-system.md §4.1, settle HIT marker layout and entry offsets, duplicate
-track/semantic registrations, group/duck priorities, pause/unpause slots and
-source-handler payloads. Start with 0x00938D8E, 0x00937C00, 0x00938BF1,
-0x00938AF0 and the table at 0x00AD2968. Constructor priority and seed are
-export facts, but exact random range/distribution is not yet instruction-verified.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS5 — Track resource byte/text formats and private copies:** [unsettled]
 
 For §5.2, settle TKDT legacy field order, escaping/version handling, serializer
