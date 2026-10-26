@@ -160,7 +160,7 @@ def city_limits(row, script=None):
     seconds = max(750, min(7200, 120 + ((days + 29) // 30) * 45 * scale))
     grace = 30000 * scale
     return dict(seconds=str(seconds), timeout=str(seconds + 150 * scale + grace // 1000)), {
-        'script_save_grace_ms': str(grace), 'autotest_stall_grace_ms': str(grace)}
+        'autotest_stall_grace_ms': str(grace)}
 
 
 def make_batch(root, scenarios, profile, dll, tag, extra=()):
@@ -237,7 +237,7 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             # the plugin applies this bounded opt-in only inside full saves.
             dated = (root / ini['script']).read_text(encoding='utf-8-sig')
             if re.search(r'(?m)^\s*\d{4}-\d\d-\d\d\s+save(?:\s|$)', dated):
-                ini['script_save_grace_ms'] = '60000'
+                ini['script_save_grace_ms'] = str(max(60000, int(allowances['autotest_stall_grace_ms'])))
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':

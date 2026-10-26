@@ -68,7 +68,9 @@ class SuiteParsingTests(unittest.TestCase):
             limits, ini = suite.city_limits(row, root / 'actions.script')
             self.assertGreater(int(limits['seconds']), 4000)
             self.assertGreater(int(limits['timeout']), int(limits['seconds']) + 600)
-            self.assertEqual(ini['script_save_grace_ms'], '120000')
+            self.assertEqual(ini['autotest_stall_grace_ms'], '120000')
+            _, sized = suite.make_batch(root, [row], 'plain', str(root), 'large-save')
+            self.assertIn('script_save_grace_ms = 120000\n', sized['requests'][0]['request'])
             _, manifest = suite.make_batch(root, [row], 'plain', str(root), 'sized',
                                           ['seconds = 123', 'script_save_grace_ms = 0'])
             request = manifest['requests'][0]['request']
