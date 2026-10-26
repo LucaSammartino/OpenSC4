@@ -224,23 +224,29 @@ void RequestQuitNow(long julian) {
         cFC4IGZMessageServer* server = nullptr;
         cIGZMessageTarget* target = nullptr;
         bool posted = false;
+        const char* failure = "application has no legacy message target";
         if (app && app->QueryInterface(GZIID_cIGZMessageTarget, reinterpret_cast<void**>(&target)) && target) {
             FC4_ACQUIRED(target, "QueryInterface");
+            failure = "legacy message service unavailable";
             if (fw->GetSystemService(kFC4_SRVID_cIGZMessageServer, kFC4_IID_cIGZMessageServer,
                                      reinterpret_cast<void**>(&server)) && server) {
                 FC4_ACQUIRED(server, "GetSystemService");
+                Log("autotest: native quit post method=%p target=%p", (*reinterpret_cast<void***>(server))[7], target);
                 // Native cSC4App::DoMessage at 00451C30 handles C7AA61C6 by
                 // calling RequestQuit(false, false). Post, never synchronously
                 // send: delivery must be outside the observer's current tick.
                 const cGZMessage command(0xC7AA61C6u);
                 posted = server->GeneralMessagePostToTarget(command, target);
+                failure = "legacy message service rejected the command";
                 FC4_RELEASE(server);
             }
             FC4_RELEASE(target);
         }
         Log("autotest: native quit command 0xC7AA61C6 queued -> %d (autotest_quit_post)", posted ? 1 : 0);
         if (posted) return;
-        AutotestFinish("native quit command could not be queued", "observer (autotest_quit_post)");
+        Log("autotest: native quit command could not be queued: %s", failure);
+        WriteVerdict(Verdict::Stalled, 1000, "native quit command could not be queued");
+        Terminate(1000, "observer (autotest_quit_post)");
         return;
     }
     cISC4App* sc4 = nullptr;
