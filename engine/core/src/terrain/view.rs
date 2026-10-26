@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 FreeCity4 contributors
 
-//! Height lanes of the terrain view's software vertex buffers (terrain.md
-//! §15.5.8, §15.5.9 and §15.5.12.1). These are snapshots, updated by messages,
-//! rather than live terrain queries at draw time. The remaining vertex lanes,
-//! edge layers, indices and frame submission are outside this type.
+//! Terrain-view height snapshots, cell indices and plain row submissions
+//! (terrain.md §15.5.8, §15.5.12.1, §15.5.13.4 and §15.5.15). These implement
+//! specified parts of the view, not a complete renderer or native host bridge.
 
-// SPEC-GAP: terrain.md §15.5's direct native view calls and unspecified full draw stream block registration (TR45/TR46); this type implements heights only.
+// SPEC-GAP: complete cache bytes and auxiliary passes still require the §15.5.15.4 observations (TR47); no independent view is registered.
+
+mod indices;
+mod rows;
+
+pub use indices::{cell_triangle_indices, TerrainViewIndices};
+pub use rows::{PlainViewRow, ViewRowCall, ViewVertexBuffer};
 
 use super::{msg, Post, Terrain, VertRect};
 use crate::x87::r24;
