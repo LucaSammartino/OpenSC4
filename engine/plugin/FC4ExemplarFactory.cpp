@@ -1905,7 +1905,7 @@ void LazyContractTest() {
         if (first != nullptr) fc4::AsGame(first->GetPropertyValue())->SetValUint32(117);
         h.AddPropertyU32(0x20, 19, false);
         uint32_t value = 0;
-        passed += h.GetPropertyU32(0x20, value) && value == 19;
+        passed += h.GetPropertyU32(0x20, value) && value == 19;  // [abi-ret] concrete ExHolder returns bool, no native call
         passed += h.RemoveProperty(0x30, false) && !h.HasProperty(0x30);
         h.AddPropertyU32(0x40, 23, false);
         passed += !h.HasProperty(0x40);
@@ -1913,8 +1913,8 @@ void LazyContractTest() {
         h.EnumProperties([](cISCProperty*, void* p) { ++*static_cast<size_t*>(p); }, &count);
         passed += count == 4 && e->pendingRecord_ == nullptr;
         e->Rebuild();
-        passed += h.GetPropertyU32(0x40, value) && value == 23;
-        passed += h.GetProperty(0x10) == first && h.GetPropertyU32(0x10, value) && value == 117;
+        passed += h.GetPropertyU32(0x40, value) && value == 23;  // [abi-ret] concrete ExHolder returns bool, no native call
+        passed += h.GetProperty(0x10) == first && h.GetPropertyU32(0x10, value) && value == 117;  // [abi-ret] concrete ExHolder returns bool, no native call
     }
     Log("formats lazy contract: %u/7 %s", passed, passed == 7 ? "MATCH" : "DIFF");
     FC4_RELEASE_CREATED(outer);
