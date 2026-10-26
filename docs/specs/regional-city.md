@@ -79,6 +79,23 @@ in-place `Read` retains absent commodity keys (including 1–3), overwrites dupl
 appends duplicate POI lists. Failure can leave a partly modified receiver. See foundations.md §11.2 for the
 unsigned count guards, nonzero deal loops, wrapper publication rule and worked cases.
 
+**Opaque strings (RY2).** Treat `+0xE4`, `+0x10C`, `+0x134` as independent stored strings, called
+`s1`, `s2`, `s3` in foundations.md §11.2. Their wire positions are respectively after city name, after
+mayor name, and after description (utility advisor name precedes description on the wire). They use the
+same string encoding as the named strings. Construction makes them empty; Read fills them and Write
+preserves them. There is no public getter/setter for these three strings in slots 0–73, and neither cache
+overload assigns a meaning to them. Do not alias them to the adjacent names, discard nonempty values or
+populate them from locale guesses. Read's string calls are `0x004AC73B`–`0x004AC795` (serializable-view
+offsets are eight bytes below the object offsets in the table).
+
+Worked preservation case: in an established version-13 record, set `s1="alpha"`, `s2="beta"`, `s3="gamma"`
+with distinct city/mayor/description strings. Read then Write must preserve those three distinct strings
+in the same wire positions; changing city or mayor name through its public setter must not change them.
+The semantic labels remain unproven: a runtime observation that would settle them is a nonempty value
+created by the original with the **writer call stack** captured. Watch the three string objects while
+founding, naming, renaming, importing and localizing a city; distinguish Read restoring supplied test
+values from an original producer. Empty shipped samples alone cannot supply a semantic name.
+
 ## 3. Slots *[compat]*
 
 The compiled order is the SDK's, except where neighbors.md's slot notes say otherwise (overloads grouped).
@@ -295,6 +312,28 @@ If allocation of the 16-byte caller filter fails, the original still makes the s
 - **`SetupCity(city)`**: the city's mayor name (city slot 17), city name (slot 13) and difficulty (slot 25) from this
   record; its save-file path (slot 11) from `SC4CreateSavePathForCity(city name, 0, &path)`; its size (slot 88) :=
   `(sizeX · 1024, sizeZ · 1024)` metres.
+
+**Caller boundary and path lifetime (RR8).** Slots 23 (`+0x5C`, `0x004A78A0`) and 25 (`+0x64`,
+`0x004AA4F0`) have no direct callers in the executable export. Virtual calls cannot be excluded from
+that count; no positively resolved native preference caller is established by this analysis of the
+region screen, region and application paths. The public interface itself permits clients to call them.
+Do not make the core depend on a native dialog calling them in a particular order.
+
+Slot 25's new path is stored immediately and is observable by `GetFilePath` (slot 31); it is not a file
+rename, file creation or package write. It uses the old drive/directory, the new city name and literal
+`.sc4`, without `City - `. This value remains until another path assignment, including the live-city
+cache copy in §7.2; `SetupCity` obtains its live path separately through `SC4CreateSavePathForCity`.
+Thus it is not justified to assume that the next save is the first possible user of the temporary path.
+
+Worked case: starting with `C:/Regions/R/City - Old.sc4`, preferences `New`, `Mayor`, difficulty 1 give
+names `New`/`Mayor`, difficulty 1 and path `C:/Regions/R/New.sc4` (native separator spelling follows the
+path helper). Reading preferences back through slot 23 reproduces those names/difficulty. The operation
+alone neither renames `City - Old.sc4` nor creates `New.sc4`.
+To settle actual stock callers and intervening disk use, break on both method addresses and on slot-31
+path reads and slot-32 writes for the same object while opening, accepting and cancelling founding/rename
+dialogs and importing a city. From each slot-25 return until the next path assignment, log filesystem
+opens and correlate their paths with the stored value, including return-to-region before saving.
+This observation is required before claiming the prefix-free path is unused.
 
 ### 7.2 From a live city (`UpdateCityCache(city)`)
 

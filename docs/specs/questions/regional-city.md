@@ -6,9 +6,6 @@
   power-line pieces each connection type builds or removes at the edge cell, what it demolishes and dezones, how the
   parity of types 3, 8 and 12 and the drive-side setting pick a direction, and which edge network flags it changes.
   The spec gives only the outline. [as read]
-<!-- from: re-regionalcity (2026-10-20) -->
-- **RY2 - §2:** what the record's three unknown strings (`+0xE4`, `+0x10C`, `+0x134`) hold; no getter reads them and
-  the samples leave them empty. [as read]
 <!-- from: re-regional-city-records (2026-10-21) -->
 - **RY3 - §6.2 (RY1):** RY1 is answered in [regional-city-records.md](../regional-city-records.md) §4 (duplicates, sort,
   pairing and direction bits, type-to-network table, the add and remove sequences, the rollback of a connection that

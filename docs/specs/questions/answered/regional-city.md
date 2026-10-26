@@ -34,3 +34,13 @@
   keys, overwrites duplicate scalar-map values, concatenates duplicate POI lists and mutates before failure.
   Commodity guards are unsigned; negative deal counts enter a nonzero decrement loop. Only the package
   wrapper's publication of a new object is atomic. Four worked cases distinguish these behaviours.
+
+<!-- from: re-regionalcity (2026-10-20) -->
+- ~~**RY2 - §2:** what the record's three unknown strings (`+0xE4`, `+0x10C`, `+0x134`) hold; no getter reads them and
+  the samples leave them empty. [as read]~~
+
+  **ANSWERED 2026-10-26 (re-rr29):** MATCHES — [regional-city.md](../../regional-city.md) §2 specifies three
+  independent opaque strings, their wire positions, empty construction, persistence and absence of public
+  accessors/cache producers. A distinct alpha/beta/gamma preservation case prevents aliasing or dropping them.
+  Semantic names require observing an original nonempty producer with field-write stack capture during the
+  stated city/locale operations; deserialization and supplied fixture values do not establish a meaning.
