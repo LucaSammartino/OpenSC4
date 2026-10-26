@@ -66,3 +66,10 @@ struct FC4OverlayHost {
     uint32_t (*terrainRect)(uintptr_t, int32_t, const void*, const float*, int32_t*);
     void (*direction)(uintptr_t, float*);
 };
+
+// Test overrides are private to the FC4 factory. Production uses the counted
+// binding entry points from texture-bindings §2 behind the compat version gate.
+struct FC4OverlayBindingCalls {
+    uint32_t (*addRef)(void*);
+    uint32_t (*release)(void*);
+};

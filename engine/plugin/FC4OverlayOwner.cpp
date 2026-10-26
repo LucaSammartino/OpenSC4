@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4OverlayOwner.h"
+#include "FC4OverlayBindings.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Subsystems.h"
 #include "GZServPtrs.h"
 #include "cIGZCOM.h"
 #include "cIGZString.h"
+#include "cIGZFrameWork.h"
 #include <atomic>
 
 // Static-library transport only; no additions to fc4.h or DLL exports.
@@ -100,6 +102,11 @@ public:
     }
     bool InitServices(const FC4OverlayHost* services, bool dynamic, bool water) override {
         return fc4_overlay_native_init(core_, services, dynamic, water) != 0;
+    }
+    bool InitBindingFactory(cIGZUnknown* factory, uint32_t nx, uint32_t nz, float width,
+                             bool dynamic, bool water, int32_t quality, int32_t debug,
+                             const FC4OverlayBindingCalls* test) override {
+        return fc4::overlay_bindings::Init(this, factory, nx, nz, width, dynamic, water, quality, debug, test);
     }
     uint32_t AddSource(const void* source, const float* xz, float width, float turns) override {
         return fc4_overlay_native_add(core_, 0, reinterpret_cast<uintptr_t>(source), xz, width, turns, 0);
@@ -248,8 +255,43 @@ void OverlayOwnerGameCheck() {
     check(owner->Color(id, rgb) && rgb[0] == 1 && rgb[1] == 1 && rgb[2] == 1);
     check(owner->DrawStateIndex(id) == 0);
     owner->Shutdown();
+    // Controlled private-manager fixture using the live factory. This does not
+    // replace or draw the terrain view's managers, and its dimensions are inputs.
+    auto* framework = RZGetFrameWork();
+    cIGZUnknown* factory = nullptr;
+    check(framework && framework->GetSystemService(0x1AC0E11A, 0xFAC0E219,
+                                                  reinterpret_cast<void**>(&factory)) && factory);
+    if (factory) {
+        FC4_ACQUIRED(factory, "GetSystemService");
+        check(owner->InitBindingFactory(factory, 64, 64, 16, true, false, 2, 0));
+        native = nullptr;
+        check(owner->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&native)) && native);
+        if (native) {
+            FC4_ACQUIRED(native, "QueryInterface");
+            const float xz[2] = {128, 128};
+            const uint32_t key[3] = {0x7AB50E44, 0x1ABE787D, 0xAA592B77};
+            check(native->AddInstance(0xAA592B77, xz, 32, 0) != UINT32_MAX);
+            check(native->AddKey(key, xz, 32, 0) != UINT32_MAX);
+            auto** table = *reinterpret_cast<void***>(factory);
+            using Lookup = bool (__thiscall*)(void*, uint32_t, void**);
+            void* binding = nullptr;
+            reinterpret_cast<Lookup>(table[5])(factory, 0xAA592B77, &binding);
+            check(binding != nullptr);
+            if (binding) {
+                check(native->AddBinding(binding, xz, 32, 0) != UINT32_MAX);
+                // Bare counted binding, not COM: this factory-created reference
+                // is balanced through its documented nonvirtual Release.
+                fc4::overlay_bindings::NativeRelease(binding);
+            }
+            FC4_RELEASE(native);
+        }
+        owner->Shutdown();
+        check(owner->Init(64, 64, 16, true, false)); // release retained shadow binding
+        owner->Shutdown();
+        FC4_RELEASE_CREATED(factory);
+    }
     FC4_RELEASE_CREATED(owner);
-    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner-and-native-interface native_interception=0",
+    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner-native-interface-live-bindings native_interception=0",
         checks - differences, checks, differences);
 }
 }

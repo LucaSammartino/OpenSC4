@@ -60,6 +60,76 @@ struct Resources {
     }
 };
 
+class BindingFactory;
+struct CountedBinding {
+    void* handles = nullptr;
+    uint32_t frames = 1;
+    BindingFactory* factory = nullptr;
+    uint32_t refs = 1;
+};
+class BindingFactory : public cIGZUnknown {
+public:
+    uint32_t refs = 1, lastID = 0, lastKey[3] = {}, acquisitions = 0, releases = 0;
+    CountedBinding binding{nullptr, 1, this, 1};
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    virtual void SetDriver(void*) {} // slot3
+    virtual bool GetInfoBinding(void*, void**) { return false; } // slot4
+    virtual bool GetID(uint32_t id, void** out) {
+        lastID = id; Acquire(&binding); *out = &binding; return true;
+    }
+    virtual bool GetKey(const uint32_t* key, void** out) {
+        std::copy_n(key, 3, lastKey); Acquire(&binding); *out = &binding; return true;
+    }
+    virtual void SetData(void*, void*) {} // slot7
+    virtual void GetInfo(void* b, uint32_t* info) { // slot8, void result
+        CHECK(b == &binding);
+        info[0] = 123; info[1] = 456; info[2] = 1; info[3] = 64; info[4] = 32;
+    }
+    virtual void SetLOD(uint32_t) {} // slot9
+    virtual void SetBits(uint32_t) {} // slot10
+    virtual uint32_t Group() { return 0xAB123456; } // slot11
+    static uint32_t Acquire(void* p) {
+        auto& b = *static_cast<CountedBinding*>(p);
+        ++b.factory->acquisitions;
+        return ++b.refs;
+    }
+    static uint32_t Drop(void* p) {
+        auto& b = *static_cast<CountedBinding*>(p);
+        ++b.factory->releases;
+        return --b.refs;
+    }
+};
+
+void CheckBindingAdapter(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
+    BindingFactory factory;
+    FC4OverlayBindingCalls calls{BindingFactory::Acquire, BindingFactory::Drop};
+    CHECK(owner->InitBindingFactory(&factory, 64, 64, 16, true, false, 2, 0, &calls));
+    CHECK(factory.refs == 2 && factory.binding.refs == 2 && factory.acquisitions == 1);
+    CHECK(factory.lastID == 0xAA592B77);
+    const float xz[2] = {128, 128};
+    const uint32_t key[3] = {0x7AB50E44, 123, 456};
+    const auto id = native->AddInstance(13, xz, 32, 0);
+    CHECK(id != UINT32_MAX && factory.lastID == 13);
+    CHECK(native->AddKey(key, xz, 32, 0) != UINT32_MAX);
+    CHECK(std::equal(key, key + 3, factory.lastKey));
+    CHECK(native->AddBinding(&factory.binding, xz, 32, 0) != UINT32_MAX);
+    CHECK(native->AddGroupShadow(789, xz, 16, 0, 0) != UINT32_MAX);
+    CHECK(factory.lastKey[0] == 0x7AB50E44 && factory.lastKey[1] == 789 && factory.lastKey[2] == 0xAB123456);
+    CHECK(factory.binding.refs == 6 && factory.acquisitions == 5); // no double AddRef on lookup
+    native->Erase(id);
+    CHECK(factory.binding.refs == 6);
+    // OV16 stops the source path without calling an unproved vtable slot.
+    CHECK(native->AddSource(reinterpret_cast<void*>(1), xz, 32, 0) == UINT32_MAX);
+    CHECK(factory.acquisitions == 5);
+    owner->Shutdown();
+    CHECK(factory.refs == 1 && factory.binding.refs == 2 && factory.releases == 4);
+    CHECK(owner->Init(64, 64, 16, true, false));
+    CHECK(factory.binding.refs == 1 && factory.releases == 5);
+    owner->Shutdown();
+}
+
 void CheckNative(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
     Resources resources;
     auto host = resources.Host();
@@ -288,7 +358,10 @@ int main(int argc, char** argv) {
         CHECK(!owner->SetShown(UINT32_MAX - 1, true));
         CHECK(!owner->EnableSelfLighting(UINT32_MAX - 1, 1));
         owner->Shutdown();
-        if (native) CheckNative(owner, native); // owner still holds the object.
+        if (native) {
+            CheckNative(owner, native); // owner still holds the object.
+            CheckBindingAdapter(owner, native);
+        }
         CHECK(owner->Release() == 0);
     }
     FreeLibrary(module);
