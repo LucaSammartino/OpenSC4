@@ -35,7 +35,8 @@ the bus (station stops) and the getaway van. Their records are automata.md §6.4
 | `cSC4TrailerVehicle` | vehicle | `0x4A5B69ED` | §4 |
 | `cSC4TrainCar` | vehicle | version 2 + Vehicle record | §5, §12.1 |
 | `cSC4Train` | train car | version 2 + TrainCar record, car refs (`0x4A416254`), independent network ref (`0xA821EF94`) | §5, §12.1 |
-| `cSC4Tank` | vehicle | vehicle record + two dwords | §6 |
+| `cSC4MassTransitTrain` | train | version 1 + complete Train record; no additional tail | automata.md §6.4.4 |
+| `cSC4Tank` | vehicle | version 2 + complete Vehicle record + two signed byte model indices | §6; automata.md §6.4.3 |
 | `cSC4EmergencyVehicle` | vehicle | emergency record | §7 |
 | `cSC4FireTruck`, `cSC4PatrolCar` | emergency vehicle | + a ref (`0xA9B40F05`) | §7.2, §7.3 |
 | `cSC4RiotPolice` | pedestrian | pedestrian record + a ref | §7.3 |
@@ -116,11 +117,17 @@ The exact TrainCar and Train record contracts, including load failure and recons
 
 `Init` (`0x0054C880`) loads the turret/barrel models and shot effect (`tankshot`, `fx_00_tankshot`);
 initial barrel elevation is 0.2 radians. §12.13 gives aiming, power, cooldown and the projectile-effect
-interface boundary. `DoPlayerDriveTick` plays the AEMS events. Its record adds two dwords.
+interface boundary. `DoPlayerDriveTick` plays the AEMS events. Its record is `u16 2`, complete Vehicle,
+then two signed one-byte auxiliary model indices, first part 1 then part 2; it does not add two dwords.
+[automata.md](automata.md) §6.4.3 gives the historical versions, saved-index meanings and read-result quirk.
 
 ## 7. Emergency vehicles *[compat]*
 
 ### 7.1 The base
+
+The complete inherited record and Read/Write behavior, including the dispatch fields and the concrete
+Ambulance wrapper, are in [automata.md](automata.md) §6.4.2. Ambulance has its own class ID and `u16 1`
+wrapper before the complete Emergency record; it has no additional tail.
 
 - **Dispatch states** are dispatch.md §4.3. `SetDispatchState` (`0x0052FF60`) also: state 1 sends the AEMS event
   `0x6A451908` (siren off) and the **path-blocked message**; state 3 enters state 100, sets flags `0x80`, `0x10000`,
@@ -141,6 +148,10 @@ interface boundary. `DoPlayerDriveTick` plays the AEMS events. Its record adds t
   " [no resources]", " [handling event]", " [returning home]" and " repath attempts: %d".
 
 ### 7.2 The fire truck
+
+Its record is `u16 2`, complete Emergency record, then one crew `ref` requesting IID `0xA9B40F05`.
+[automata.md](automata.md) §6.4.2 specifies exact version checks, inherited failure behavior, crew
+reference assignment and worked cases; this is established from FireTruck's own Read/Write.
 
 - `GetFireCount` (`0x00533410`): the number of fires in the city (the fire disaster `0x621CDA33`, interface
   `0x49B43F57`) and the number of burning occupants in a box around the truck. `GetToxicSpillCount`: the same for
@@ -1406,6 +1417,10 @@ Evidence: `0x00559C3E–0x00559E6E`, endpoint comparison
 | Connected next path endpoint separation 2 / greater than 2 | Direct connected-path acceptance / candidate-or-fallback selection. |
 
 ### 12.13 Tank player drive, firing and interface boundary (VH1)
+
+The record wrapper and two saved model-index **bytes** are specified in
+[automata.md](automata.md) §6.4.3 (AT31); the primary-view aiming fields below are separate from the
+serialization-view fields at similar numeric offsets.
 
 Tank Init calls inherited Vehicle Init before its owner model setup. Initial
 turret yaw is zero, barrel elevation `f32(0.2)`, shot power 65 and owner activity

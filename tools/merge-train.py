@@ -1238,16 +1238,16 @@ def run_regress(wt, tag, dll, replace=None, shadows=None, shadow_split=1):
     log(f"regress {tag}: submitting to the game queue (about 10-20 min)")
     command = [
         "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(REPO / "tools" / "regress.ps1"),
-        # The shadows run takes 16-31 min when the queue is busy; 2700 s (request timeout 2850 s) keeps a loaded
+        # The shadows run takes 16-45 min when the queue is busy (train276: 44.5 min with 26 more shadows under load); 3600 s keeps a loaded
         # queue from failing a batch on the timeout alone (1800 s did at 31 min in train255).
-        "-Tag", tag, "-Dll", str(dll), "-Queue", "-Turbo", "-TurboTimeout", "2700", "-QueueWait", "5400",
+        "-Tag", tag, "-Dll", str(dll), "-Queue", "-Turbo", "-TurboTimeout", "3600", "-QueueWait", "7200",
         "-ShadowSplit", str(shadow_split),
     ]
     if replace is not None:
         command += ["-Replace", replace]
     if shadows is not None:
         command += ["-AddShadows", shadows]
-    p = sh(command, check=False, timeout=7200)
+    p = sh(command, check=False, timeout=9000)
     out = (p.stdout or "") + (p.stderr or "")
     (LOG_DIR / f"regress-{tag}.out").write_text(out, encoding="utf-8")
     m = re.search(r"REGRESS\s+\S+:\s*(PASS|FAIL)", out)

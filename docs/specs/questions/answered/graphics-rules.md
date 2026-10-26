@@ -42,3 +42,17 @@
   condition; any-mode NaN supplies no numeric match. The contradictory V1 wording is corrected.
   Native x87 masks/parity branches at `0x007CE940–0x007CE943`, `0x007CE97A–0x007CE97D`,
   `0x007CEAC2–0x007CEAC5`, `0x007CEAFC–0x007CEAFF` decide unordered explicitly; see §4.2.
+
+<!-- from: replace-cfgrules28 (2026-10-26) -->
+- **GR10 — native rule-file path acquisition/search:** Section 3 names a data directory and a user-data directory, but does not specify the native acquisition calls or complete path construction. Which service/interface IID and slots (and arguments) obtain the bases used by ParseConfigFile, and what suffixes/search behavior produce the required Graphics Rules.sgr and optional Graphics Options.sgr paths? Include the automatic config-log directory as a separate case. Application §9 slot 51 supplies `.../Apps/` and slot 56 supplies `.../Plugins/` in the measured installation; literal concatenation fails to open both files and installs fallback (Init status 1). The original/replacement query runs have 20 different final render properties out of 77, so this is not sufficient parity evidence. Evidence: main `build-runs/game-results/cfgrules28-r2-queries-on1.log` lines 131–133; off/on logs with the same label stems. Please distinguish direct file opens from any game filesystem/resource-parser search rules; the implementation will not search guessed folders or hard-code an installation layout. Provider acquisition §2.3–§2.6 is implemented; this path item is stopped pending the contract.
+
+  **ANSWERED 2026-10-26 (re-gr30):** DIFFERS — §§3.1 and 6.2 specify `cISC4App` IID
+  `0x26CE01C0`: required rules use slot 53 (`+0xD4`, output string, language −1), optional
+  options use slot 58 (`+0xE8`, output string), automatic logs use slot 51 (`+0xCC`, output
+  string). Append the respective filename directly; logs append stored computerName and
+  `-config-log.txt`. `nSCRes::cFileParser` (class `0x5CF9459A`, IID `0x1CF94583`) registers
+  rules with flags 1, then options with flags 0, and opens only those full paths in that order.
+  No alternate-base search occurs: duplicate rules select the slot-53 copy, duplicate options
+  the slot-58 copy; a copy only in the other base is ignored. Missing rules fail aggregate
+  parsing and cause fallback even when options exist; missing options alone are ignored.
+  Availability cases and worked paths are in §3.1; no new game/parity result is claimed.

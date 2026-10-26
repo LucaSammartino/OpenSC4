@@ -900,6 +900,7 @@ void GrowthBefore(void* p) {
 }
 
 void GrowthAfter(void* p) {
+    // SPEC-GAP: Original state-18 tract input capture across unequal adaptive slices needs GD-GC29-1.
     GrowthDelivery& gd = *static_cast<GrowthDelivery*>(p);
     Dev& d = *gd.d;
     if (d.following && d.gs && d.gs->core != nullptr) {

@@ -232,7 +232,8 @@ enum class ScriptOp {
     LightingHour, // lightinghour 0..23: genuine lighting manager SetTimeOfDay
     MySim,        // mysim movein|query: replacement-interface persistence exercise
     Funds,        // funds 0..999999999: set treasury through the budget interface
-    Establish     // establish <name>: name and found an unfounded city
+    Establish,    // establish <name>: name and found an unfounded city
+    GDriverProbe  // gdriverprobe: bounded, explicitly requested DX7 shadow probes
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -273,6 +274,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::PortProps: return "portprops";
         case ScriptOp::ClockMode: return "clockmode";
         case ScriptOp::LightingHour: return "lightinghour";
+        case ScriptOp::GDriverProbe: return "gdriverprobe";
         case ScriptOp::MySim: return "mysim";
         case ScriptOp::Funds: return "funds";
         case ScriptOp::Establish: return "establish";
@@ -486,6 +488,9 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             *error = "lightinghour '" + tok[2] + "' is not 0..23";
             return false;
         }
+    } else if (name == "gdriverprobe") {
+        a.op = ScriptOp::GDriverProbe;
+        if (!wantArgs(0, "none")) return false;
     } else if (name == "pause" || name == "resume" || name == "digest") {
         a.op = name == "pause" ? ScriptOp::Pause : name == "resume" ? ScriptOp::Resume : ScriptOp::Digest;
         if (!wantArgs(0, "none")) return false;

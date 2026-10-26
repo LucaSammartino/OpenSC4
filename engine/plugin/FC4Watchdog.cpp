@@ -14,6 +14,7 @@
 #include "FC4Watchdog.h"
 
 #include "FC4Autotest.h"
+#include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4DiagLogic.h"
 #include "FC4Fpu.h"
@@ -357,6 +358,12 @@ DWORD WINAPI ThreadProc(void*) {
     const DWORD noTickMs = EnvMs("FC4_WATCHDOG_NOTICK_MS", 15000);
     const DWORD heartbeatMs = EnvMs("FC4_HEARTBEAT_MS", 10000);
     const DWORD sampleMs = EnvMs("FC4_WATCHDOG_SAMPLE_MS", 5000);
+    // Suite-only allowance for large cities under instrumentation. Zero keeps
+    // the ordinary thresholds; it never disables the watchdog or deadline.
+    long allowance = AutotestEnabled() ? SettingInt("autotest_stall_grace_ms", "FC4_AUTOTEST_STALL_GRACE_MS", 0) : 0;
+    if (allowance < 0) allowance = 0;
+    if (allowance > 120000) allowance = 120000;
+    const DWORD autotestGrace = static_cast<DWORD>(allowance);
     DWORD lastHeartbeat = GetTickCount();
     DWORD lastRefresh = lastHeartbeat;
     DWORD episodeKey = 0;
@@ -368,6 +375,7 @@ DWORD WINAPI ThreadProc(void*) {
             static_cast<unsigned long>(stallMs), static_cast<unsigned long>(noTickMs),
             static_cast<unsigned long>(heartbeatMs), static_cast<unsigned long>(g_mainTid),
             static_cast<unsigned long>(g_watchdogTid));
+    if (autotestGrace) LogWait(1000, "watchdog: autotest stall grace %lu ms", static_cast<unsigned long>(autotestGrace));
     while (WaitForSingleObject(g_stop, 1000) == WAIT_TIMEOUT) {
         const DWORD now = GetTickCount();
         if (now - lastRefresh >= 10000) {
@@ -390,6 +398,8 @@ DWORD WINAPI ThreadProc(void*) {
         // Under autotest, a stall outside FreeCity4 is sampled after stallMs
         // too, so the evidence is in the log before the 10 s verdict.
         in.noTickMs = AutotestEnabled() && noTickMs > stallMs ? stallMs : noTickMs;
+        if (autotestGrace > in.stallMs) in.stallMs = autotestGrace;
+        if (autotestGrace > in.noTickMs) in.noTickMs = autotestGrace;
         // Full saves may take longer than autotest's normal ten-second stall
         // limit. This explicit, bounded script-only allowance defaults to zero.
         if (saveGrace > in.stallMs) in.stallMs = saveGrace;
@@ -410,7 +420,8 @@ DWORD WINAPI ThreadProc(void*) {
                 ++samples;
                 nextSample = now + sampleMs;
             }
-            if (st.stalledMs > kAutotestStallMs) AutotestOnStall(StallKindName(st.kind), st.stalledMs);
+            if (st.stalledMs > kAutotestStallMs && st.stalledMs > autotestGrace)
+                AutotestOnStall(StallKindName(st.kind), st.stalledMs);
         } else if (inEpisode) {
             LogWait(1000, "WATCHDOG: stall over after %lu ms (%u sample(s))",
                     static_cast<unsigned long>(ElapsedMs(now, episodeStart)), samples);
