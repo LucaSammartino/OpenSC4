@@ -79,7 +79,7 @@ public:
         return n;
     }
     bool Draw(void*) override {
-        // SPEC-GAP: native context/device and rectangle consumers have no installed adapter yet.
+        // SPEC-GAP: OV17, native rectangle consumers lack argument-order/view-subobject call contracts.
         return false;
     }
     bool DoMessage(cIGZMessage2* message) override {

@@ -15,6 +15,20 @@ struct Binding {
     uint32_t references;
 };
 static_assert(sizeof(Binding) == 16 && offsetof(Binding, factory) == 8, "x86 binding layout");
+
+// overlay-manager §§2.7/2.7.1: bindings take precedence and use frame zero;
+// sources are called on every submission, since obtaining a handle can render
+// or reorder their cache. Neither kind of driver handle is a COM reference.
+using SetTexture = void (__thiscall*)(void*, uint32_t handle, uint32_t stage);
+inline void SubmitTexture(void* drawContext, SetTexture setTexture, uint32_t stage,
+                          uintptr_t binding, uintptr_t source) {
+    if (binding) {
+        setTexture(drawContext, reinterpret_cast<const Binding*>(binding)->handles[0], stage);
+    } else if (source) {
+        setTexture(drawContext, reinterpret_cast<FC4IOverlaySource*>(source)->Texture(), stage);
+    }
+}
+
 struct Info {
     uint32_t group, instance, levels, width, height;
     uint8_t rgba[4], bits;
@@ -54,7 +68,9 @@ private:
         return index == 0 ? c.quality_ : index == 1 ? c.debug_ : 1;
     }
     static void ReleaseResource(uintptr_t release, uintptr_t object, uint32_t kind) {
-        if (kind == 0 && object) reinterpret_cast<uint32_t (*)(void*)>(release)(reinterpret_cast<void*>(object));
+        if (!object) return;
+        if (kind == 0) reinterpret_cast<uint32_t (*)(void*)>(release)(reinterpret_cast<void*>(object));
+        else if (kind == 1) FC4_RELEASE(reinterpret_cast<FC4IOverlaySource*>(object));
     }
     void Describe(void* binding, FC4OverlayResource* out) {
         // Slot8 has no success result; unknown bindings leave output untouched.
@@ -67,7 +83,14 @@ private:
     }
     static uint32_t Import(uintptr_t p, uintptr_t object, uint32_t kind, FC4OverlayResource* out) {
         if (!object || !out) return 0;
-        // SPEC-GAP: OV16, source slots3/4 lack complete argument/return and info-buffer ABI; do not call them.
+        if (kind == 1) {
+            auto* source = reinterpret_cast<FC4IOverlaySource*>(object);
+            uint32_t size[2];
+            source->Dimensions(size);
+            FC4_ADDREF(source);
+            *out = {object, 0, size[0], size[1]};
+            return 1;
+        }
         if (kind != 0) return 0;
         auto& c = Get(p);
         auto* binding = reinterpret_cast<void*>(object);
