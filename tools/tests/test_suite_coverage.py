@@ -76,6 +76,17 @@ class SuiteCreditTests(unittest.TestCase):
             directory = batch(root)
             (directory / 'one.log').unlink()
             self.assertFalse(metric.load(root, 'test')['exact'])
+
+    def test_missing_log_voids_only_unaccounted_comparisons_not_unsubmitted_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            directory = batch(root, bodies={'one': 'foo shadow 2000-02-01: mismatches=0\n',
+                                           'two': 'foo shadow 2000-02-01: mismatches=0\n'})
+            (directory / 'two.log').unlink()
+            self.assertNotIn('foo', metric.load(root, 'test')['exact'])
+            suite.write_tsv(directory / 'per_key.tsv', suite.KEY_COLUMNS,
+                            [dict(key='foo', scenarios_run=1, scenarios_exact=1, first_mismatch='-')])
+            self.assertIn('foo', metric.load(root, 'test')['exact'])
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             batch(root, bodies={'one': 'foo shadow: ON\n'})

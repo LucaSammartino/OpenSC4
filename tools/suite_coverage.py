@@ -5,7 +5,7 @@ python tools/suite_coverage.py TAG --combine SHADOW_TAG REPLACE_TAG
 All evidence stays in build-runs/suite; no game or Documents files are modified.
 """
 import argparse
-from collections import defaultdict
+from collections import Counter, defaultdict
 import csv
 from datetime import date, timedelta
 import importlib.util
@@ -111,11 +111,6 @@ def read_batch(directory, default_enabled=()):
                     key = match[1].replace(' ', '_')
                     ran.add(key)
                     exact.discard(key)
-        else:
-            # Missing log from a requested shadow can never prove exactness.
-            aliases = {'clock24': 'clock', 'automata_owners': 'automataowners'}
-            ran.update(aliases.get(k, k) for k in manifest.get('shadow_keys', []))
-            ran.update(aggregate)
         enabled = set()
         if row['profile'] == 'replace':
             ini = request['request'].split('[ini]', 1)[-1]
@@ -133,6 +128,16 @@ def read_batch(directory, default_enabled=()):
                               trace=trace, log=log, source=directory.name))
     if seen != set(requests):
         raise ValueError(f'{directory}: summary does not contain every requested scenario')
+    # A rejected/unsubmitted request ran no key. Missing raw logs void a key
+    # only when the recorded comparison count cannot be accounted for.
+    observed = Counter(key for item in scenarios for key in item['ran'])
+    for key, meta in aggregate.items():
+        expected = int(meta['scenarios_run'])
+        if expected != observed[key]:
+            for item in scenarios:
+                item['exact'].discard(key)
+            if expected > observed[key] and scenarios:
+                scenarios[0]['ran'].add(key)  # unproved recorded comparisons, also across bundled batches
     return scenarios, files
 
 
