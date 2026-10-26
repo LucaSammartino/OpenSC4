@@ -463,7 +463,7 @@ impl PlayerDrive {
             id: sound,
             start: false,
         });
-        // DR8: literal state10 scope; other states get no extra state setter.
+        // SPEC-GAP: DR8 leaves scope open; use literal state10 scope, no setter for other states.
         if host.state(a)? == 0x10 {
             if host.flags31(a)? & 0x0800_0000 == 0 && host.group(a)? != 0x4003 {
                 host.emit(Operation::State13 { automaton: a, value: 0 });
@@ -477,7 +477,7 @@ impl PlayerDrive {
     }
 
     pub fn add_callback_target(&mut self, target: CallbackTarget) -> Result {
-        // DR3: no invented duplicate/dedup or native target ownership policy.
+        // SPEC-GAP: DR3 leaves duplicate/dedup and native target ownership policy open.
         if self.callbacks.contains(&target) {
             return Err(Unsupported::CallbackListPolicy);
         }
@@ -499,7 +499,7 @@ impl PlayerDrive {
         Ok(Progress::Partial(vec![Unsupported::CallbackDelivery]))
     }
     pub fn end_input(&mut self, host: &mut impl Primitives) -> Result {
-        // DR3: this is a plan with an unresolved value, never a native delivery.
+        // SPEC-GAP: DR3 leaves the second EndInput value open; emit an unresolved plan.
         self.callback_plans(host, [RawValue::Known(1), RawValue::Unpublished]);
         if let Some(a) = self.current {
             if host.slot18(a)? {
@@ -759,6 +759,7 @@ impl PlayerDrive {
                     3 => self.automaton_removed(host, a),
                     0xB => {
                         host.emit(Operation::EngineEvent { event: 0, start: false });
+                        // SPEC-GAP: DR6 leaves alternate-model arguments and timer restart open.
                         self.timer = TimerState::RestartBlocked;
                         Err(Unsupported::AlternateModel)
                     }

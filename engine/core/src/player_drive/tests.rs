@@ -386,6 +386,7 @@ fn dashboard_selection_is_id_selection_only_and_preserves_zero_override() {
         .operations
         .iter()
         .any(|op| matches!(op, Operation::WindowEnabled { .. })));
+    f.clear();
     assert_eq!(owner.show_ui(5), Err(Unsupported::DashboardShowUi));
     assert_eq!(owner.dashboard_id(), Some(0x0BE8_824F));
     assert_eq!(owner.dashboard, None); // An unresolved ShowUI must not invent a window.
@@ -814,7 +815,10 @@ fn end_input_without_base_view_cleans_up_without_removing_a_control() {
         &f.operations[f.operations.len() - 2..],
         [Operation::ClearCursorText(0xAB73_510C), Operation::DisasterLayer(true)]
     );
-    assert!(!f.operations.iter().any(|op| matches!(op, Operation::RemoveTopControl(_))));
+    assert!(!f
+        .operations
+        .iter()
+        .any(|op| matches!(op, Operation::RemoveTopControl(_))));
     assert_eq!(f.queries.last(), Some(&"base_view"));
 }
 
