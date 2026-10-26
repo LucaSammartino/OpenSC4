@@ -59,7 +59,7 @@ older four-operation fixture list: the complete native route table has five entr
 | AmbienceLayer, audio-ambience §10.9–18 and §8.1.1 conformance | Tests 9–18 individually named above; native owner setup and extra slots in `owner` | `ambience_layer::tests`, including both `aa14_*` cases |
 | SoundManager, audio §§8.1–8.5,10.6,10.8 settled instance/tuning model | `sound_manager` local fixture, ID table/list/tuning; `owner::query_interface/subscriptions/event_route/resolve_sample`, `ResolvedSample::play_constructed/release` foreign continuations | Existing instance/tuning tests; `sample_resolution_playback_and_owned_reference_cleanup`; `acquiring_qi_subscription_exception_and_event_aliases` |
 | SoundManager §§8.1–8.3.1 lifetime/payload/focus/tick, §10.6 resolution/play/completion/stop and raw position writes | `sound_manager::execution::Manager`, distinct from legacy fixture; signed property radii, manager play volume, temporary references, two-stage ramp, callback countdown | `au46_partial_init_null_and_unknown_payloads_and_enumeration`; `au46_signed_volume_two_stage_ramp_and_fifty_focus_callbacks`; `au49_play_failure_property_radii_completion_soft_stop_and_position` |
-| SoundManager §8.3.1 / §10.8 unspecified voice gates, linked position/pan, distance/simulation pause and Resume | open: AU50; `execution::Unsupported` records each missing algorithm; sentinel is required input rather than guessed bits | `au46_signed_volume_two_stage_ramp_and_fifty_focus_callbacks` checks explicit Unsupported; no complete manager claim |
+| SoundManager §8.3.2 / owner-closure §7 (AU50) | `execution::Manager::{admission,start,update_all,update_position,pause_for_distance,resume}`, linked averaging, first-child promotion, zero position words, borrowed payload retention and ordered reads | `au50_last_match_time_boundary_count_gate_and_preinsertion_gain`; `au50_loop_link_promotion_preserves_child_state_without_play`; `au50_payload_ownership_order_and_distinct_worker_results`; `au50_distance_simulation_pause_resume_and_refresh_order` |
 | COMDirector, audio §§1.1,1.2,11 | `director::on_start`, `register_classes`, identity/class tables | `executable_startup_interleaves_add_start_and_registers_92_classes`; existing identity/order tests |
 | COMDirector, audio §§1.1/1.3/11.3 lifetime and registration order | `director::owner::DirectorOwner`, required outputs, nontransactional result accumulation, optional hooks, distinct shutdown/destructor orders | `au47_configuration_failure_and_nontransactional_initializers`; existing 92-class prefix test |
 | AEMSSoundBank, audio §10.7 raw file/resource IO | `aems::AemsSoundBank::read_file/read_resource`, twice-size/raw read, cached TGI | `bank_raw_slurp_calls_size_twice_and_never_checks_magic`; `resource_cache_and_success_only_bank_linkage` |
@@ -76,15 +76,12 @@ older four-operation fixture list: the complete native route table has five entr
 | Listener, contracts §18.3 output/zoom, §21.4 AU9-03–05 | `calculate_zoom`, `publish_geometry`, `tuning_recalculated`; measured-geometry continuation only | `au9_03_04_threshold_order_and_live_pointer_payload`; `au9_05_zoom_defaults_and_no_intermediate_store` |
 | Listener, contracts §18.1–18.3 unsettled stages | open: AU40 camera geometry, tuning array decoding/fallback, cheat, service/allocation/delivery/final lifetime | Dispatcher reports AU40; no claim of full update closure |
 | ScapeManager, contracts §20.1 constructor/QI/service values | `scape::ScapeManager`, factory service view, defaults/QI, priority/enabled fields | `au9_07_08_factory_qi_duplicate_and_mask_contracts` |
-| ScapeManager, contracts §20.1 group index/missing-key rules | `register_group`, `remove_group`, `matching_groups`, `missing_group_instance`; resource creation remains separate | `au9_07_08_factory_qi_duplicate_and_mask_contracts`; `au9_09_removal_without_sound_system_still_cleans_local_state` |
-| ScapeManager, contracts §20.2 lifetime/local instance cleanup | `initialize`, `shutdown`, `remove_instance`, explicit `ScapeGlobals` acquired reference | `scape_service_initialization_and_reference_balance`; AU9-09 test |
-| ScapeManager, contracts §20.1–20.2 remaining slots/resources | open: AU42 group format/allocation/resource ownership, parameter smoothing, tick/timer widths, service getters/complete destruction | Local index is not a full group resource implementation |
-| EventHandlerDisasterFire, audio §7.4 / contracts §20.3 | `scape::DisasterFireHandler` idempotent Init, subscriptions/acquisition, Shutdown, nonnull occupant forwarding | `fire_requires_server_and_forwards_only_nonnull_occupants` |
-| EventHandlerDisasterFire, remaining §20.3 inventory | open: AU44 construction/defaults/QI/message dispatch/removal/full lifetime | Torch belongs to EventHandler, not this owner |
-| PreferencesWinProc, contracts §21.1 | Retained window/preferences state; open: AU43 constructor, QI/full dialog/song inventory | No guessed defaults |
-| PreferencesWinProc, contracts §21.2 | `preferences::PreferencesWinProc` preference copy, sound-system acquisition/event/message, EndDialog/Shutdown | `au9_10_service_failure_still_posts_and_update_copies`; `au9_13_14_15_selection_bounds_escape_and_window_lifetime` |
-| PreferencesWinProc, contracts §21.3–21.4 | `slider_volume`, accepted window/enable gates, Escape/special control, 30-entry arrays | `au9_11_12_slider_endpoints_offsets_and_banks`; `au9_13_14_15_selection_bounds_escape_and_window_lifetime` |
-| PreferencesWinProc, contracts §21.3 remaining control matrix | open: AU43 complete type-3 filter matrix/control actions and dialog/song rules | Explicit `PreferencesOpen::Au43` |
+| ScapeManager, contracts §20.1 group index/missing-key rules | `create_scape`, `remove_group`, `matching_groups`, `positions/grid/near`; copied names, no resource decoder | `au9_07_08_factory_qi_duplicate_and_mask_contracts`; `au42_capacity_sparse_grid_edges_and_near_marks` |
+| ScapeManager, contracts §20.2 lifetime/local instance cleanup | `initialize`, `shutdown`, `remove_instance`, explicit `ScapeGlobals` acquired reference; `destroy/release` preserve the no-Shutdown destructor contract | `scape_service_initialization_and_reference_balance`; `au42_service_getters_and_destructor_do_not_shutdown_or_stop_copies`; AU9-09 test |
+| ScapeManager, audio-scape §§3–7 (AU42) | `scape::runtime`, copied definitions, clustering/clear/move quirks, unsigned timer wrap, signed channel fades, cached start product, sparse grid; required Rust allocations, explicit native-invalid-grid/nontermination diagnostics | `au42_definition_bands_and_copied_input_worked_case`; `au42_wrap_channels_cache_and_pending_worked_cases`; `au42_capacity_sparse_grid_edges_and_near_marks`; `scape_average_move_clear_and_flag_quirks` |
+| EventHandlerDisasterFire, audio §7.4.1 / contracts §20.3 (AU44) | `scape::fire::Owner`, constructor/QI, partial Init, literal fire bands, position-interface dispatch keys, filtered renderer callback, Shutdown distinct from destruction | `au44_identity_partial_init_and_shutdown_worked_cases`; `au44_dispatch_position_keys_callback_and_destructor` |
+| PreferencesWinProc, audio-preferences §§1–3,6 (AU43) | `preferences::owner::{Owner,Process,Record}`, defaults, load-once exemplar tables, carried flags, discovery, packed grid, window views and saved/live record distinction | `au43_discovery_inheritance_packed_rows_and_load_once`; `au43_live_rebuild_cancel_snapshot_and_literal_modes` |
+| PreferencesWinProc, audio-preferences §§4–7 (AU43) | `Owner::{control,message,end,do_modal}`, visibility gate, complete notification matrix, slider normalization, live edits, literal mode lists, save-before-rebuild OK, restore-without-rebuild Cancel and repeated preview-end | `au43_visibility_notification_matrix_and_checkbox_state`; `au43_ok_saves_before_rebuild_skips_disabled_path_and_preview_ends_twice`; existing slider endpoint tests |
 | 83 leaf classes, audio §11 | Existing measured shapes/QI/predicates; slot 5 open: AU5 | Existing leaf tests |
 
 ## Lower sound-system owners
@@ -106,7 +103,7 @@ IDs AU1 and AU5 are in audio.md §15; AU40–AU50 are in
 | cSC4AudioEventHandler | Fully implemented for specified owner contracts | AU45 settled; §16 vector 12 now explicitly covers all five routes |
 | cSC4AudioAmbienceManager | Partial | audio-ambience §3.6 absent creation clock: open: AA10; literal rectangle/removal choices: AA12, AA13 |
 | cSC4AudioAmbienceLayer | Specified stages implemented | AA14 settled; core lifecycle/loading plus §§8.2–8.7 algorithms; no plugin replacement claimed |
-| cSC4AudioSoundManager | Partial | §8.3.1 voice/link/pause/Resume bodies, §10.8 gate comparisons, sentinel bits: open: AU50 |
+| cSC4AudioSoundManager | Implemented | AU50 applied: audio §8.3.2 and owner-closure §7; `sound_manager::execution` and four `au50_*` worked-case tests above; no open IDs |
 | cSC4AudioCOMDirector | Fully implemented for specified owner contracts | AU47 settled; class registration, startup, PostAppInit, PreAppShutdown and destructor |
 | cSC4AudioAEMSEventSystem | Specified stages implemented | AU48 settled; service/backend boundary remains abstract, no native integration |
 | cSC4AudioAEMSSoundBank | Partial | §10.7 library-level validation: open: AU1; raw owner IO settled by AU48 |
@@ -115,10 +112,14 @@ IDs AU1 and AU5 are in audio.md §15; AU40–AU50 are in
 | cSC4AudioEmanationModel2D | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |
 | cSC4AudioEmanationModel3D | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |
 | cSC4AudioEmanationModel3DEffects | Partial | contracts §19.1 slots 5–6 arithmetic: open: AU41 |
-| cSC4AudioScapeManager | Partial | contracts §§20.1–20.2 resources and remaining slots: open: AU42 |
-| cSC4AudioEventHandlerDisasterFire | Partial | §7.4 / contracts §20.3 construction, dispatch/removal and lifetime: open: AU44 |
-| cSC4AudioPreferencesWinProc | Partial | contracts §§21.1–21.3 dialog/song/control inventory: open: AU43 |
+| cSC4AudioScapeManager | Implemented | AU42 applied: audio-scape §§3.5,6.2,7.4–7.5; `scape::runtime` and five grouping/timer/query/lifetime tests above; no open IDs |
+| cSC4AudioEventHandlerDisasterFire | Implemented | AU44 applied: audio §7.4.1; `scape::fire::Owner` and both lifecycle/dispatch worked-case tests above; no open IDs |
+| cSC4AudioPreferencesWinProc | Implemented | AU43 applied: audio-preferences §§1–7,9.1; `preferences::owner` and four discovery/control/transaction worked-case tests above; no open IDs |
 | 83 audio leaf classes | Partial | §11 slot 5 behavior: open: AU5 |
 
 Lower sound-system owners remain partial under the SS questions in their linked
 table; this submission does not claim closure of the `cSC4Audio*` family.
+
+These four closure claims cover portable owner algorithms. Their foreign host
+operations remain abstract; no plugin class replacement or audio shadow is added.
+Scape instance IDs are the 32-bit addresses of their owned private definition copies.

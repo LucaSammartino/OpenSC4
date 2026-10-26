@@ -17,6 +17,15 @@ pub trait Driver: Send + Sync {
     fn id(&self) -> u32;
     fn modes(&self) -> Vec<ScreenMode>;
     fn enumerate_setup(&self);
+    fn ui_available(&self) -> bool {
+        false
+    }
+    fn ui_call(&self, _slot: u32, _arg: UiArgument) -> Result<()> {
+        Err(Error::Unsupported("GZG3"))
+    }
+    fn ui_viewport(&self) -> Result<Rect> {
+        Err(Error::Unsupported("GZG3"))
+    }
 }
 /// Observable lifecycle calls; platform-specific discovery and rollback policy
 /// belong to GZG3. The owner orders the settled successful path itself.
@@ -62,6 +71,7 @@ pub struct GraphicSystem {
     pub listener_present: bool,
     pub construction_words: [u32; 1],
     pub construction_bytes: [u8; 5],
+    pub control_float_f0: f32,
     host: Box<dyn GraphicsHost>,
 }
 impl GraphicSystem {
@@ -85,6 +95,8 @@ impl GraphicSystem {
             listener_present: false,
             construction_words: [1],
             construction_bytes: [0, 1, 0, 1, 1],
+            // SPEC-GAP: slot 20's stored float is known, its construction value is not.
+            control_float_f0: 0.,
             host,
         }
     }
@@ -159,11 +171,11 @@ impl GraphicSystem {
     pub fn driver_count(&self) -> usize {
         self.drivers.len()
     }
-    /// Literal named setter; consuming the preference during discovery is GZG3.
+    /// Explicit nonzero loaded ID takes priority during load_all_drivers.
     pub fn set_default_driver_class_id(&mut self, id: u32) {
         self.default_driver_class = id;
     }
-    /// Literal stored path; driver INI precedence/resolution remains GZG3.
+    /// A nonempty existing path takes priority during load_all_drivers.
     pub fn set_driver_settings_ini_file_path(&mut self, path: &str) {
         self.driver_ini = path.to_owned();
     }
@@ -244,7 +256,7 @@ impl GraphicSystem {
         self.screen_buffer_enabled = false;
     }
     pub fn set_ui_rendering_mode(&mut self) -> Result<()> {
-        Err(Error::Unsupported("GZG3"))
+        self.apply_ui_rendering_mode()
     }
     pub fn render_buffer_to_screen(&mut self) -> Result<()> {
         Err(Error::Unsupported("GZG3"))
@@ -356,6 +368,10 @@ pub trait WindowHost: Send + Sync {
 pub struct CanvasW32 {
     pub handle: Option<usize>,
     pub initialized: bool,
+    pub realized: bool,
+    pub suspended: bool,
+    pub paint_suppressed: bool,
+    pub auxiliary: Option<usize>,
     pub title: Vec<u8>,
     pub bounds: Rect,
     pub wheel_message: u32,
@@ -363,7 +379,10 @@ pub struct CanvasW32 {
     pub code_page: u32,
     pub coordinates: [u32; 2],
     counters: [u32; 2],
-    host: Box<dyn WindowHost>,
+    pub(super) host: Box<dyn WindowHost>,
+    pub(super) listeners: Vec<Arc<dyn CanvasListener>>,
+    pub(super) pending_text: Vec<u8>,
+    pub(super) pending_bytes: usize,
 }
 impl CanvasW32 {
     pub fn new(mut host: Box<dyn WindowHost>) -> Self {
@@ -372,6 +391,14 @@ impl CanvasW32 {
         Self {
             handle: None,
             initialized: false,
+            realized: false,
+            // SPEC-GAP: §7.2 leaves these host-control defaults unspecified.
+            suspended: false,
+            paint_suppressed: false,
+            auxiliary: None,
+            listeners: Vec::new(),
+            pending_text: Vec::new(),
+            pending_bytes: 0,
             title: Vec::new(),
             bounds: Rect::default(),
             wheel_message: u32::MAX,
@@ -393,19 +420,26 @@ impl CanvasW32 {
             return false;
         }
         self.configure_bounds(self.canvas_type, setting.width as i32, setting.height as i32);
+        self.realized = true;
         let Ok(handle) = self.host.realize(setting, self.canvas_type) else {
             return false;
         };
         self.handle = Some(handle);
-        self.wheel_message = self.host.register_wheel_message().unwrap_or(u32::MAX);
+        self.wheel_message = self
+            .host
+            .register_wheel_message()
+            .filter(|&v| v != 0)
+            .unwrap_or(u32::MAX);
+        self.host.call(self.handle, CanvasCall::Event(8));
         self.initialized = true;
         self.host.call(self.handle, CanvasCall::Event(0));
         true
     }
     pub fn shutdown(&mut self) -> bool {
-        if self.initialized {
+        if self.initialized || self.realized {
             self.host.call(self.handle, CanvasCall::Event(1));
             self.host.call(self.handle, CanvasCall::Cleanup);
+            self.host.call(None, CanvasCall::Event(9));
             self.host.call(self.handle, CanvasCall::ReleaseServices);
             // Equivalent to balancing all nested disables; only channel 2's
             // final transition is observable, so avoid a count-sized loop.
@@ -415,6 +449,7 @@ impl CanvasW32 {
             self.counters = [0; 2];
             self.initialized = false;
             self.handle = None;
+            self.realized = false;
         }
         true
     }
@@ -504,8 +539,5 @@ impl CanvasW32 {
             }
         }
         true
-    }
-    pub fn host_event_operation(&mut self) -> Result<()> {
-        Err(Error::Unsupported("GZG4"))
     }
 }

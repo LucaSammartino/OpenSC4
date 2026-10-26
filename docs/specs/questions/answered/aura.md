@@ -1,6 +1,41 @@
 # aura: answered questions (archive)
 <!-- Archive for [aura.md](../../aura.md). Lanes do not read this file. Open questions are in ../aura.md. -->
 
+<!-- from: growth-cities29; answered by re-gc30 -->
+- **AU-GC29-1 - first-cycle Lua occupant cones (sections 5.2, 7, 14.3).**
+  With the foundations section 18.2 simulation precision restoration active,
+  `build-runs/suite/growth-cities29-4/lua-lots-grown.log:3088` still differs in
+  482 park-map tracts (max 100); landmark map is exact. The qualified variant
+  at :3088 differs in 759 park and 233 landmark tracts (max 300/139).
+  State-5 work is exact in both; the first work difference is state 6. Both
+  follow states 1-17, all department-cursor moves and posted occupant messages;
+  subsequent cycles are exact. Demand, pollution, tract and neighbours are
+  now exact in both runs. No tolerance, field or case was excluded.
+  Does section 14.3's separate message-server subscriber observe the same
+  preview-marker presence, occupant position, lot association and effect
+  properties as the original aura recipient during Lua plop/demolish calls?
+  Please specify a supported boundary for capturing those inputs at the
+  original recipient, and whether any cone path bypasses posted messages.
+  Next diagnostic: compare original raw-park (+0x54), department and building
+  effect (+0x50) grids against the followed copies before states 2/3/13;
+  this will separate message-input drift from map-publication timing.
+  Blocks aura in lua-lots-empty, lua-lots-grown and lua-lots-grown-qualified;
+  reach29-views is the same class of case and still needs a corrected rerun.
+
+  Follow-up (`growth-cities29-5`): lua-lots-empty and reach29-views now each
+  compare 2/2 aura cycles exactly. Both grown Lua variants remain 2/3 exact;
+  only their first cycles differ. The remaining block is those two grown
+  scenarios; the empty Lua and reach29-views cases no longer reproduce.
+
+  **ANSWERED 2026-10-26 (re-gc30):** DIFFERS — aura.md §14.3.1 corrects the separate-subscriber
+  assumption: the message holds a live pointer and the original reads the preview gate, properties,
+  position and lot at its own recipient/helper boundaries (0x0068FA60/0x0068ECF0). No immutable
+  event snapshot API exists. The PostCityInit landmark rebuild calls remove/add directly, without
+  occupant broadcasts or the preview gate; public transient-effect calls are also synchronous.
+  Input-record fields, grid checkpoints and three worked cases are specified. The grown first-cycle
+  cause still needs recipient-versus-subscriber input traces and pre-consumption raw/department/building
+  grid comparisons; exact empty-Lua/reach and later grown cycles remain separate from those failures.
+
 ## From the aura glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
 About `docs/specs/aura.md` and its `docs/abi` rows. Ini: `enable = aura`; shadow `aura_shadow = 1` (compared at
