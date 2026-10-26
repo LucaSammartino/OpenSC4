@@ -345,6 +345,11 @@ pub fn place_poles(
             {
                 continue;
             }
+            // NO44: native draft skips generated links after the existing-link
+            // probe. Only saved displaced pairs create draft connections below.
+            if !tool.real {
+                continue;
+            }
             let source_lesser = lesser((tool.poles[i].x, tool.poles[i].z), (tool.poles[j].x, tool.poles[j].z));
             let endpoints = if source_lesser {
                 [source, destination]
@@ -365,7 +370,6 @@ pub fn place_poles(
                     }
                 }
             }
-            // Draft geometry has no permanent wire interfaces to retain.
             let wires = if tool.real && wire_index >= 0 {
                 Some(tool.wire_vectors[wire_index as usize].as_slice())
             } else {
@@ -457,9 +461,8 @@ pub fn undo_preview(tool: &mut PowerLineTool, world: &mut impl World) {
             world.release(a);
         }
         if let Some(b) = saved.endpoints[1] {
-            if let Some(a) = saved.endpoints[0] {
-                enable_connection(world, b, a, true);
-            }
+            // NO44: the second native call literally passes B as both inputs.
+            enable_connection(world, b, b, true);
             world.release(b);
         }
     }
