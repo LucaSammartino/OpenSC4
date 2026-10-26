@@ -665,6 +665,17 @@ def regress_lists(path):
     return replace, shadows
 
 
+def replace_run_keys(regress):
+    """The `enable =` keys of a regress's replace run (regress-<tag>-replace.ini beside it), or None when absent.
+
+    regress.ps1's list can be newer than the run: a key added after the run must not count until a run enables it."""
+    ini = Path(regress).with_name(Path(regress).stem + "-replace.ini")
+    if not ini.is_file():
+        return None
+    m = re.search(r"^\s*enable\s*=\s*(.*)$", ini.read_text(encoding="utf-8", errors="replace"), re.M)
+    return set(split_list(m.group(1))) if m else set()
+
+
 def subsystem_keys(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     keys = {}
@@ -865,6 +876,10 @@ def load_report_data(export=None, exe=None, regress=None):
     replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
     keys = subsystem_keys(inputs["subsystems"])
     reg = read_regress(regress)
+    ran = replace_run_keys(regress)
+    not_run = [k for k in replace_list if ran is not None and k not in ran]
+    if not_run:
+        replace_list = [k for k in replace_list if k not in not_run]
     if reg.get("resync_source"):
         inputs["resync evidence"] = reg["resync_source"]
     shadow_ev, shadow_warn = read_shadow_evidence(inputs["shadows"], REPO)
@@ -872,6 +887,9 @@ def load_report_data(export=None, exe=None, regress=None):
     # statuses per map row
     status_warn, rrun = map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
     warnings = list(shadow_warn) + status_warn
+    if not_run:
+        warnings.append(f"replace keys in regress.ps1 but not enabled in `{regress.name}`'s replace run (not credited): "
+                        + ", ".join(not_run))
 
     game, fun_row, lib_b, lib_n, used_rows = map_functions(rows, att, owner)
     for i, r in enumerate(rows):
