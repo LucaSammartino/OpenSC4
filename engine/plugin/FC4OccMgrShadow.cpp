@@ -1855,6 +1855,7 @@ uint32_t __fastcall ObserveMessagePost(void* self, void* edx, cIGZMessage2* msg,
         g_follow.postedMoves.insert(msg);
     }
     if (msg && msg->GetType() == kMsgMoved && g_followCalls && t_inCall == 0) {
+        Lock lock;  // The shared message server can accept posts from another thread.
         if (g_fol.core) {
             ++g_follow.externalMoves;
             void* p = nullptr;
