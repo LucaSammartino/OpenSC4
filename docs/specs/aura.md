@@ -960,8 +960,8 @@ int32.
 ### 14.3 Running beside the original (shadow comparison) *[choice]*
 
 A shadow that runs a whole cycle when `0x2A09B21A` arrives reads every input later than the original did (§5.3). It
-therefore shows timing differences, which hide real ones. A shadow that tracks the original **step by step** reads the
-same inputs:
+therefore shows timing differences, which hide real ones. Tracking the original **step by step** aligns pipeline
+reads. Matching occupant inputs additionally requires the recipient boundary in §14.3.1:
 
 - After each delivery of SimIdle or SimNewDay to the original's agent, read the original's **state** (s32). When it
   has moved from s to s′, run our steps s, s+1, …, s′−1 at once, before any other agent runs. If the original went
@@ -969,8 +969,9 @@ same inputs:
 - State 5 is spread over several calls. The simplest match is to run our whole state 5 in the call where the original
   leaves it. A lot added or removed between two of the original's slices can still differ; the work grid comparison
   below shows such lots.
-- Apply occupant inserted and removed to our raw park, department and building-effect grids when the original
-  receives them (the same posted message, §5.3), not when the occupant is created.
+- Apply occupant inserted and removed to our raw park, department and building-effect grids using the inputs
+  read by the original recipient (§14.3.1). Include the direct PostCityInit rebuild calls; a separate subscriber
+  to insert/remove broadcasts alone is insufficient.
 - For a per-step diagnostic, compare our work grid with the original's after each step from 5 to 13. The original's
   work grid keeps its values from state 13 until the next state 4, so at the end message it still holds the inputs
   of state 14.
@@ -983,6 +984,67 @@ The original object, as offsets from its `cISC4AuraSimulator` pointer (construct
 +0x08; grids: aura +0x40, work +0x44, base +0x48, transient +0x4C, building effect +0x50, raw park +0x54, park map
 +0x58, department map +0x5C, landmark map +0x68, landmark work +0x6C; state (s32) +0x70; cycleStartDay +0x74; lot
 iterator +0x78; departmentCursor +0x7C; mayorRating +0x84; globalEffect +0x88; previousTaxRate[12] (f32) +0x94.
+
+#### 14.3.1 Live occupant inputs and direct cone paths (AU-GC29-1) *[compat]*
+
+An occupant message contains a **live pointer**, not a snapshot of its property holder, position or lot.
+The original aura recipient obtains `void1`, calls the occupant's property-holder getter and tests **presence**
+of preview marker `0x029244DB` at delivery time (`0x0068FBEB`–`0x0068FC09`).
+The marker's value is irrelevant. If absent, it calls `DoOccupantChanged` (`0x0068ECF0`) at `0x0068FC19`.
+That helper reads the live effect properties and position and performs a live `GetLot(cell, false)` lookup
+(`0x0068ED31`–`0x0068EDAE`). The message does not retain an earlier lot association or effect values.
+There is no guarantee that another subscriber's reads occur with the same values, even for the same message
+and occupant pointer. A later read is equivalent only when these inputs have remained unchanged.
+
+**Native observation boundary.** Use the original `DoMessage` (`0x0068FA60`), reached through slot 3 of
+its `cIGZMessageTarget2` pointer (primary aura interface +`0x04`), to capture the preview test as it is made.
+Also observe every original `DoOccupantChanged` entry, whose `this` is the primary aura pointer and whose
+arguments are occupant and add/remove. This is a native recipient/helper boundary, **not** an additional
+public observer API: no aura slot supplies an immutable occupant-event record. Preserve each original call
+and its order. For inputs read within the helper, retain the results of the original getter/lookup calls
+as they occur, rather than dereferencing the occupant again after the helper returns:
+
+| Input | What must be retained |
+|---|---|
+| Broadcast gate | insert/remove type, occupant identity, marker presence result; an ignored event has no helper call |
+| Occupant | type ID; the float32 position components actually returned for each use (network transient, park/landmark and building-effect paths) |
+| Effect holder | presence and the two raw int32 elements for each of park `0x27812850`, landmark `0x2781284F`, building effect `0xCA5B9305`; apply §7's malformed-value choice separately |
+| Park/landmark centre | position-to-cell inputs/results, whether `GetLot(cell, false)` found a lot, its cell bounds and the city cell widths used by §7's even-width rule |
+| Landmark routing | result of `GetBudgetItemForPurpose(holder, 0xAA59670C, &item)` and the returned department ID on success; failure routes to 0 |
+| Grid geometry | actual tract sizes/counts for the three target kinds; original department-grid presence before a removal |
+
+These are service inputs to the cone rules, not the original's computed cone output. Capturing them at a
+separate subscriber is a diagnostic only until compared with the recipient's actual reads. Do not defer
+the lookup until the cycle-completed message or infer it from the final published park/landmark maps.
+
+**Paths without occupant broadcasts.** The exported direct callers of `DoOccupantChanged` are exactly the
+ordinary message call above and two calls in the PostCityInit landmark rebuild, at `0x0068FB1F` (remove) and
+`0x0068FB30` (add). The rebuild (§5.2, §11.3) invokes the helper directly for each qualifying landmark;
+it does not post an insert/remove message per lot, and does not pass through the preview-marker test.
+The helper is not a public aura-interface slot. Separately, public `AddTransientEffect` slots 6/7 (§8)
+write the transient grid synchronously without occupant broadcasts; the network-add branch of the helper
+also calls slot 6 with type 3 (`0x0068ED04`–`0x0068ED2E`). Those calls affect the transient grid, not the
+three permanent cone grids. Loading grid references (§11.3) is another source of initial grid state,
+not a sequence of cone notifications; seed a shadow from the same boundary before following events.
+
+**Worked cases** (isolated effect, zero initial grids, tract size 4):
+
+| Original-recipient inputs | Expected result and discriminator |
+|---|---|
+| Insert, park effect {100, 4}, preview marker present with value 0 | ignored; raw park stays zero. A subscriber reading after marker removal would incorrectly stamp a centre value of 100 |
+| Park effect {100, 4}, position at cell (16,16), lot bounds [16,24] on both axes at insert and remove | odd-width lot centre (20,20), tract (5,5), radius 1; add then remove cancels exactly. If a later subscriber sees no lot at removal, it subtracts at tract (4,4), leaving +100 at (5,5) and −100 at (4,4) |
+| PostCityInit with reAddLandmarks true, landmark effect {40,20}, no grid for its department | remove skips the missing department grid, then add creates it and stamps centre 40. A follower listening only for occupant broadcasts sees neither call |
+
+**Observation still needed for the grown-Lua first cycle.** Capture the above records at both boundaries
+for the first plop/demolish sequence. Compare initial raw park (+`0x54`), the ordered department map
+(+`0x5C`, each ID and grid), and building effect (+`0x50`) before events; then compare raw park immediately
+before state 2, each consumed department before its state-3 call, park map (+`0x58`) before state 6, and
+building effect before state 13. Retain funding inputs and the state/department cursor with these snapshots.
+A mismatch before the consuming step identifies seed/event-input drift; matching source grids followed
+by differing publication identifies pipeline timing or arithmetic instead. State-5 agreement alone does
+not test the park source consumed in state 6. Static analysis does not identify which event or grid differed
+in either reported grown run. Their first-cycle failure and exact later cycles remain distinct evidence;
+the two exact empty-Lua/reach29-views cycles do not validate those grown first cycles.
 
 ## 15. Original quirks (reproduced)
 
