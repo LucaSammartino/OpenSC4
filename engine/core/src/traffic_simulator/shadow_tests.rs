@@ -268,6 +268,16 @@ fn shadow_zero_progress_intersection_prelude() {
         let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
         let r0 = capture(&orig, &mut live);
         sh.before(delivery(msg::DAY, 2_460_000), Some(r0), &live);
+        // Network-info capacities are rebuilt, not serialized. Give both
+        // running models the same stale car record inside the dirty rect.
+        for s in [&*orig, &**sh.copy()] {
+            s.network().update_state(|n| {
+                let car = n.append_info(1, 2, 3).unwrap();
+                car.inv_cap = 0.25;
+                car.net_type = 3; // Street
+                car.conn_count = 3;
+            });
+        }
         orig.shadow_day_start();
         if entered_work {
             orig.network().update_intersection_data();
@@ -275,6 +285,11 @@ fn shadow_zero_progress_intersection_prelude() {
         let out = sh.after(Some(capture(&orig, &mut live)), &live);
         assert_eq!(out.mismatches, 0, "entered work {entered_work}: {:?}", out.lines);
         assert_eq!(sh.copy().network().state().intersection_dirty, !entered_work);
+        let capacity = |s: &TrafficSimulator| s.network().state().car_info(2, 3).unwrap().inv_cap;
+        assert_eq!(capacity(sh.copy()), capacity(&orig), "the prelude must rebuild capacities");
+        if entered_work {
+            assert_ne!(capacity(sh.copy()), 0.25);
+        }
         assert_eq!(sh.stats.units, 0, "no trip was processed");
     }
 }
