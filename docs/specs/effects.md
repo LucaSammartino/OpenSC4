@@ -94,7 +94,8 @@ Related specs:
 7. **Visual effect descriptions**: a `u16` section version, a `u32` count, then the records below. Shipped: version
    2, 1154 records.
 8. The **name map**. Each entry is a `u32` length, the name characters and a `u32` description index. The map ends
-   with the name "end" (or a length of `0xFFFFFFFF`). Names are looked up case-insensitively (§4.1).
+   with the exact name "end" **and** description index `0xFFFFFFFF` (§18.9.5); the length is 3, not `0xFFFFFFFF`.
+   Names are looked up case-insensitively (§4.1).
 
 Strings are a `u32` length followed by the characters, with no terminator.
 
@@ -2645,6 +2646,327 @@ case with the same stipulated foreign replies; count every original operation.
 | EF22-10 | Removal requested with a native frame returning through a gateway, or another host changed a patched cell | no unloading/freeing gateway or overwriting the other host's change; defer/refuse removal until ownership and exclusion hold |
 | EF22-11 | All observed depths zero, but a foreign publisher or worker cannot be excluded | refuse payload/combined snapshot; no whole-owner credit from matched names or repeated headers |
 | EF22-12 | Native final Release destroys R while its old pointer value remains in a trace | entry/lifetime event retained; no post-release payload read or invented lease renewal |
+
+### 18.9 Complete native effects-resource contract (EF25) *[compat]*
+
+This section specifies the Windows 1.1.641 resource used by the existing
+resource service and effects-resource serializer. R denotes its primary
+identity, C=R+4 its effects collection, and P=R+11C its persistence interface;
+offsets and addresses here are hexadecimal. These offsets describe the native
+interface fields, not a requirement to reproduce native allocator addresses.
+
+#### 18.9.1 Complete primary interface
+
+The primary vtable at `00AA0AC0` has **nine slots, 0 through 8**. The next word,
+at `00AA0AE4`, starts P's vtable; it is not primary slot 9. Every primary entry
+uses x86 **thiscall**, ECX=R, with explicit arguments on the stack in the order
+listed below. The callee removes those arguments. Pointers, interface IDs and
+class IDs are 32 bits. Boolean results are in **AL only**, not an HRESULT or a
+promise about all of EAX. The operation names below describe behavior; they do
+not recover an unavailable source-language header.
+
+| Slot / vtable byte offset | Entry | Explicit arguments, in order | Return and stack cleanup |
+|---|---|---|---|
+| 0 / +00 | `005A3B40` | u32 IID; nonnull writable interface-pointer output cell | bool AL; pop 8 |
+| 1 / +04 | `005A3BA0` | none | u32 new shared reference count, EAX; pop 0 |
+| 2 / +08 | `005A3BB0` | none | u32 remaining count, EAX; zero after final destruction; pop 0 |
+| 3 / +0C | `005A4DF0` | nonnull pointer to NUL-terminated const 8-bit name characters | assigns the owned name; EAX=borrowed internal string-object address R+134 on normal return; pop 4; no Boolean result |
+| 4 / +10 | `005A4DE0` | none | borrowed pointer to const NUL-terminated name characters, EAX; pop 0 |
+| 5 / +14 | `005A3BC0` | nonnull effects-collection interface pointer, the destination | void; pop 4; publication as §18.7.3 |
+| 6 / +18 | `005A3FC0` | nonnull `cIGZOStream` interface pointer | bool AL; pop 4; directory Write |
+| 7 / +1C | `005A51E0` | nonnull `cIGZIStream` interface pointer | bool AL; pop 4; directory Read |
+| 8 / +20 | `005A4D50` | none | u32 class ID **2A5118AD**, EAX; pop 0 |
+
+The name setter copies characters up to the first NUL. It neither retains the
+input pointer nor sets the persistence key. The getter exposes owned character
+storage, initially the empty string; its lifetime ends on a later name change
+or resource destruction. The setter's EAX points to a string **object**, whereas
+the getter's EAX points to characters. A caller that needs no setter result may
+ignore it; treating it as a success Boolean would misdeclare this operation.
+No destructor, stream-version argument or serializable-interface method follows
+slot 8. Evidence: vtable words `00AA0AC0–00AA0B14`; name operations
+`005A4DF0–005A4E1C`, `005A4DE0–005A4DE6`, assignment return
+`0044D3FD`, `0044D431`; class ID `005A4D50–005A4D55`.
+
+**Worked ABI case.** With a live R, set name from a temporary buffer containing
+`smoke` followed by NUL, then change that buffer to `other`. Slot 4 still returns
+`smoke`; slot 3's returned address is R+134, not that character pointer. Slot 8
+returns `2A5118AD` regardless of the name or persisted resource type. Calling
+slot 6 supplies one output-stream pointer and consumes four stack bytes; it
+does not accept a requested root version.
+
+#### 18.9.2 QueryInterface identities and persistence bridge
+
+Calling QI through R, C or P reaches the same resource-wide dispatcher. C's
+slots 0–2 adjust ECX by -4; P's slots 0–2 adjust it by -11C, before forwarding
+to the primary operations. Successful QI stores the following pointer and
+acquires **one shared reference**:
+
+| Requested IID | Result | Native vtable | Meaning |
+|---|---|---|---|
+| `CA51189B` | R | `00AA0AC0` | effects-resource primary |
+| `C97CF5CE` | C=R+4 | `00AA0A60` | effects collection, §18.7.1 |
+| `456B8F1D` | P=R+11C | `00AA0AE4` | `cIGZPersistResource` |
+| `00000001` | P=R+11C | `00AA0AE4` | `cIGZUnknown`, the canonical unknown identity |
+
+Every other IID fails with AL=0, **without changing the caller's output cell**
+and without acquiring a reference. In particular `cIGZSerializable` IID
+`E4FDA3D4` is not exposed; neither the resource CLSID nor resource type ID is
+an additional IID. The failed-QI output must be initialized by a caller that
+intends to test it for null. Nonnull output storage and a live receiver are
+preconditions. Evidence: `005A3B40–005A3B85`, delegated comparisons and miss
+`00975395–009753B6`; C thunks `005A4D60–005A4D87`, P thunks
+`005A4DA0–005A4DCA`; constructor `005A4CD5–005A4CEE`. Serializable IID is
+independently identified by its QI-to-serializable sub-object at
+`0045E770–0045E790` and vtable `00A878A4` (the SimGrid interface).
+
+The persistence key contains three u32 words, **type, group, instance**, in
+that order. On P they occupy +0C/+10/+14. Constructor values are all zero;
+creating the resource object alone does not set type `EA5118B0`. P slot 3
+(`009753EA`, one key-output pointer, pop 4) copies the three words to caller
+storage; EAX returns that output address. P slot 4 (`00975402`, one key-input
+pointer, pop 4) copies all three and returns true in AL. P slots 5/6/7
+(`009CEDE1`, `0099BE66`, `009D4714`, no explicit arguments) return type/group/
+instance respectively in EAX. P slots 8/9/10 (`00940536`, `009378C1`,
+`0097541C`, one u32, pop 4) set type/group/instance respectively and return
+true in AL. These entries also use thiscall, with ECX=P. There is no
+Write/Read pair on P: the resource factory bridges from P to primary slots 6–7.
+Evidence: `009753EA–00975427` and the six getter/setter entries above.
+
+**Worked identity case.** Starting with one held primary reference, QI through
+C for IID 1 yields P and count 2. QI through P for `CA51189B` yields R and count
+3. QI through R for `E4FDA3D4`, with an output cell prefilled with sentinel S,
+returns false, leaves S untouched and leaves count 3. Release the two successful
+QI results through their returned interfaces to restore count 1. Setting P's
+key to `(EA5118B0,EA5118B1,1)` makes P slot 5 return `EA5118B0`; primary slot 8
+still returns `2A5118AD`.
+
+#### 18.9.3 Shared reference and destruction contract
+
+The raw registered creator (`005A5110`) allocates a resource of native size
+14C and constructs it with shared count **zero**. It returns R, or null on
+allocation failure. The count is the u32 at P+4 (R+120), initialized by
+`00975633–0097564C`. An acquired factory/QI result owns one reference; the raw
+creator's zero-count construction is not an independently owned reference.
+AddRef atomically adds one and returns the new u32. Release atomically
+subtracts one and returns the remaining u32. R, C and P share this counter;
+collection-description references are separate. The atomic primitive is
+`00933015–0093302D`; forwarding and count operations are
+`005A3BA0–005A3BBA`, `009753B7–009753E9`.
+
+On the transition 1→0, Release calls **P slot 12**, with one 32-bit deletion
+flags argument equal to 1. Entry `005A4DD0` adjusts P to R and invokes
+`005A5130`. That destructor releases resource-owned auxiliary storage and
+name storage, destroys the persistence base and collection (including their
+owned descriptions/containers), then frees the complete R allocation when
+flags bit 0 is set. It returns the old R address in EAX, but Release itself
+returns zero. C slot 23 is another destructor adjustor (`005A4D90`); it is not
+an additional QI identity or reference count. Destructors are not normal
+reference-release substitutes. Releasing an unowned zero-count object
+underflows the unsigned counter; it does not perform the valid 1→0 destruction
+transition. No use of a resource pointer is valid after final Release.
+Evidence: `009753C5–009753E9`, `005A4DD0–005A4DDA`, `005A5130–005A514D`,
+cleanup `005A4E20–005A4E6E`.
+
+**Worked lifetime case.** After the raw creator, AddRef on R returns 1; AddRef
+on C returns 2; Release on P returns 1 without destroying any collection
+payload; Release on C returns 0, destroys the resource once and frees R once.
+Do not issue a third Release or inspect the former name/collection afterward.
+
+#### 18.9.4 Existing factory and stream-interface bridge
+
+The effects-resource factory's CreateInstance (`005A3C30`) uses thiscall with
+three stack arguments: u32 resource **type**, u32 requested IID, nonnull
+interface-pointer output cell; bool AL result, callee pop 0C. It accepts type
+**EA5118B0**, not class ID `2A5118AD`. On that type it asks GZCOM for CLSID
+`2A5118AD`, IID `CA51189B`, then QIs the resulting R for the caller's IID.
+It returns that QI's AL and releases its temporary primary reference. Thus a
+successful caller receives one acquired reference to the requested identity.
+Wrong type, or failure to obtain R, stores null in the output and returns
+false. If R exists but the requested IID is unsupported, the delegated QI's
+unchanged-output rule applies; the factory does not subsequently clear it.
+CreateInstance does not initialize the persistence key. Evidence:
+`005A3C30–005A3CB0`.
+
+Factory SerialRead (`005A3EC0`) and SerialWrite (`005A3F40`) also use thiscall:
+two stack arguments, nonnull **P** (`cIGZPersistResource`), then a nonnull
+stream object supporting QI; bool AL result, callee pop 8. Both first call
+**P slot 5** and reject any type other than `EA5118B0`, before querying the
+stream. The bridge then behaves as follows:
+
+| Operation | Requested stream IID | Interface passed to primary | Primary dispatch |
+|---|---|---|---|
+| SerialRead | `051B11BD`, `cIGZIStream` | the acquired input-stream interface | ECX=P−11C=R, slot 7 |
+| SerialWrite | `C51B11CB`, `cIGZOStream` | the acquired output-stream interface | ECX=P−11C=R, slot 6 |
+
+The stream-QI output cell starts null. A null result returns false without
+calling Read/Write; the bridge tests the resulting pointer, not QI's AL.
+For a nonnull result, the normal trace is stream QI's acquisition, one extra
+AddRef, one Release, the resource operation, then one final Release. The
+bridge returns the resource operation's AL. It neither QIs the resource for
+`cIGZSerializable` nor obtains R by QI: it subtracts 11C directly from P.
+Supplying R or a standalone serializable interface in place of P is invalid.
+The resource is borrowed for the bridge call. Direct primary Read/Write in
+turn borrow their already-typed stream argument and do not QI, AddRef,
+Release, seek, close, rewind or commit it. Evidence: `005A3EC0–005A3F36`,
+`005A3F40–005A3FB6`, primary reader/writer bodies.
+
+**Worked factory/stream case.** Create type `EA5118B0` requesting
+`456B8F1D`: the caller receives P with one shared reference. Its initially
+zero key makes SerialWrite return false without any stream QI. Set key type
+to `EA5118B0`; SerialWrite now QIs `C51B11CB` and calls R slot 6. If the stream
+started with count 5, a successful QI produces counts 6→7→6 before Write and
+the final Release restores 5. A stream exposing only the input IID is rejected
+for Write. Create with type `2A5118AD` instead returns false and null output.
+Create with the correct type but requested IID `E4FDA3D4` leaves a prefilled
+output sentinel unchanged and returns false; its temporary R is destroyed.
+
+#### 18.9.5 Writer versions, complete directory framing and result
+
+The primary writer emits **root version 4 only**, unconditionally. It has no
+version-selection argument and retains no input-root-version choice. A resource
+read from version 3 is written as version 4, including the dynamic-particle
+section. It writes at the stream's current position, without a length prefix
+for the entire resource, a TGI key, resource name, checksum, final stream-status
+test or transactional buffer. Scalars use the supplied stream's typed
+operations; the shipped resource uses little endian (§3.1).
+
+The following is the **complete outer sequence**, including renderer sections.
+Counts are u32 logical element counts; section versions are u16. Every ordered
+vector is written in index order, including unnamed and unreferenced entries.
+A count of zero omits its records, not its header. The C offsets identify the
+already documented collection fields (§18.7.1); they are not disk offsets.
+
+| Order | Output | Source / record rule |
+|---|---|---|
+| 1 | u16 **4** | root |
+| 2 | u16 **2**, particle count, particle records | C+38; particle record writer, `005AFFF0` |
+| 3 | u16 **1**, decal count, decal records | C+78; decal record writer, `005A3E00`; memory padding is not emitted |
+| 4 | u16 **0**, shake count, shake records | C+98; per record: f32 length, f32 fade, counted f32 amplitude vector, counted f32 frequency vector, f32 aspect, **u8 low byte** of stored table enum |
+| 5 | u16 **0**, light count, light records | C+B8; per record: counted color triples (three f32 per element), counted f32 strength vector, f32 duration |
+| 6 | brush count and records | component directory type 3; each description's primary slot 3 Write |
+| 7 | attractor count and records | type 4, same dispatch |
+| 8 | scrubber count and records | type 5, same dispatch |
+| 9 | sequence count and records | type 6, same dispatch |
+| 10 | sound count and records | type 7, same dispatch |
+| 11 | camera-component count and records | type 8, same dispatch; distinct from the optional collection camera below |
+| 12 | u16 **1**, dynamic/model-particle count and records | C+58; record writer `00583620` |
+| 13 | u16 **2**, visual-description count and records | C+18; record writer `005AB590`; component/binding framing is §3 |
+| 14 | visual name/index entries, then string **end** and u32 **FFFFFFFF** | visual dictionary only; traverse buckets in ascending order, following each node chain (§18.7.1); each entry is string then u32 index |
+| 15 | u8 camera-present; if nonzero, the collection camera value | C+D0 byte; preserve its byte value. Camera value: u16 **0**, position triple (three f32), then four f32 in stored order (`005AB340`) |
+| 16 | effect-ID-binding count and records | C+F0; each record: string, u32 group, u32 instance; preserve order and duplicates |
+| 17 | u16 **0**, message-trigger count and records | C+FC; each record: u32 message ID, string; preserve order and duplicates (`005AB390`) |
+
+The six built-in component directories have **no additional directory-level
+version word**: their descriptions' writers supply their record framing
+(§§8.1, 9.1, 18.8.4). Component types 9–15 have no serialized section here.
+The writer does not serialize the particle/decal/shake/light/built-in name
+dictionaries separately; visual references carry their component names/indices.
+All strings emitted here use output-stream slot 14: a u32 length followed by
+the characters, with no trailing NUL. Its input is a const NUL-terminated
+character pointer, so an embedded NUL ends the emitted spelling. The visual
+terminator is the pair `(end,FFFFFFFF)`, with **case-sensitive** three-byte
+spelling; `end` with a different index is an ordinary map entry. This corrects
+the former §3 wording that admitted a standalone FFFFFFFF length marker.
+
+Relevant stream entries use thiscall, ECX=stream, one stack argument and
+callee pop 4: output slots 5/7/9/12 take u8/u16/u32/f32 values respectively
+(stack cells are four bytes, f32 passed as its 32-bit value); slot 14 takes
+the character pointer. Input slots 5/7/9 take pointers to writable u8/u16/u32
+respectively. The string-read adapter `005811F0` calls input slot 15 with a
+writable `cIGZString` interface, then copies its returned text to owned storage.
+Primary Read/Write accept these stream interfaces directly, not raw file or
+DBPF segment pointers.
+
+On **every normal completion**, Write returns true in AL. It ignores stream
+primitive Boolean results and component Write results. A reported false does
+not stop subsequent output, undo earlier bytes or become a false resource
+result. If a stream stops storing bytes but returns normally, the resource may
+return true with a partial output. An exception/abnormal exit supplies no normal
+Boolean result and leaves any already-written prefix in the caller's stream;
+there is no resource-level rollback. The writer does not consume/publicize the
+collection or clear any retained family. Full compatibility therefore requires
+the renderer payload as well as simulation records; a simulation-only directory
+writer is insufficient. Nor is reading then writing a promise of byte-identical
+input: legacy versions, field masks and map iteration order can normalize it.
+
+Evidence: initial root/particle header `005A3FCC–005A3FEC`, decal header
+`005A401E–005A4049`, shake/light framing `005A40A3–005A4219`, six component
+dispatches `005A421B–005A43D8`, dynamic/visual headers
+`005A43DA–005A4429`, dictionary and terminator `005A44A2–005A458D`, camera and
+tail `005A4590–005A46CC`, unconditional result `005A46CE–005A46D6`.
+Counted float/triple helpers are `005DAD50–005DAD99`, `005A3CC0–005A3D0D`;
+camera and light writers are `005AB340–005AB38B`, `005AB3C0–005AB3EB`.
+
+**Worked writer cases (proposed conformance, not native executions).**
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EF25-W1 | Empty vectors and visual dictionary; camera-present zero; recording little-endian stream | 84 bytes (54 hex). Root at 00 is 4. Headers/counts: particle 02/04, decal 08/0A, shake 0E/10, light 14/16; six built-in counts at 1A,1E,22,26,2A,2E; dynamic header/count 32/34, visual 38/3A. Terminator length 3 at 3E, characters at 42, index FFFFFFFF at 45; camera byte at 49; binding count at 4A; trigger header/count at 4E/50. AL=1 |
+| EF25-W2 | W1, but one shake: length 1, fade 2, amplitude [3,4], frequency [5], aspect 6, table enum 123456A7 hex | shake count becomes 1; its body starts at 14 and occupies 33 bytes: two f32, u32 2 and two f32, u32 1 and one f32, one f32, u8 A7. Remaining sections follow 33 bytes later; total 117 bytes. Enum upper bytes and container addresses are absent |
+| EF25-W3 | W1 stream reports false on the first u16 Write but records every argument and returns normally afterward | complete W1 operation sequence still attempted; resource AL=1; no retry, seek, truncation or compensating write |
+| EF25-W4 | W1 stream throws on its third scalar call, before recording that call | root 4 and particle-section version 2 remain as a four-byte prefix; no resource normal result and no rewind |
+| EF25-W5 | Read a valid empty root-3 directory into a new resource, then Write | output is W1, root 4 with explicit empty dynamic section; it does not select a root-3 writer |
+
+#### 18.9.6 Read rejection, incremental state and interrupted input
+
+Read attempts one u16 root read into a zero-initialized local, then accepts
+**exactly 3 or 4**. Other values return false **before any collection mutation**.
+There is no seek or restoration of the already-consumed header. If that first
+stream call reports false and leaves its destination unchanged, the local is
+still zero, so the same early rejection occurs. If it supplies 3 or 4 despite
+reporting false, parsing proceeds: the Boolean status itself is not tested.
+Evidence: `005A51F5–005A5225`, false return `005A612D–005A613A`.
+
+After root acceptance, the reader works **in place**, in the writer's family
+order. It resizes each encountered vector to the supplied count, releases
+discarded owned entries on shrinking/replacement, and fills the retained
+records. Pointer-owned particle and built-in descriptions are installed as new
+objects before their record Read. It does not first clear the whole collection
+or stage a second collection for commit. The root-3 path skips the dynamic
+header/count/records **without clearing an existing dynamic vector**; root 4
+reads that section. The root version is not retained for a later Write.
+Evidence: particle resize/install/read `005A5240–005A52DF`, decal mutation
+`005A5314–005A53D9`, built-in installation/read, e.g.
+`005A5C20–005A5C8A`, root-version branch `005A5C8C–005A5C98` and skipped target
+`005A5DB0`.
+
+The reader's visual-map loop inserts into the existing dictionary; it does not
+clear the old map before inserting input entries. It stops only on the exact
+`(end,FFFFFFFF)` pair and does not insert that pair. Neither `end` alone nor an
+arbitrary name with index FFFFFFFF terminates it. Next it reads camera-present
+directly into the collection byte. A zero byte leaves the old camera value
+untouched but absent; a nonzero byte reads over that value. Binding/trigger
+vectors are subsequently resized and filled. These operations do not change
+the primary name or persistence key. Evidence: map loop/insertion
+`005A5E40–005A5F4E`, exact terminator test `005A5E80–005A5E9E`, camera
+`005A5F66–005A5F8E`, tail `005A5F8E–005A611C`.
+
+There is **no post-root failure rollback and no aggregate stream-status
+result**. Read ignores primitive/description reader Boolean results and returns
+true if control reaches the end (`005A611E–005A612A`). A child reader's early
+return may leave default/previous fields and an input cursor unsuitable for the
+next section; the resource does not turn that into false. A bare byte
+truncation consequently has no single guaranteed false/result/post-state:
+the stream's destination writes and failure behavior determine what follows,
+including possible nontermination in the map loop. Do not invent zero-filled
+missing counts, a successful empty directory or a restored pre-read snapshot.
+For an interrupted call, retain completed mutations and no normal result;
+ordinary owned resource state remains subject to the shared lifetime contract.
+An implementation may separately diagnose malformed input, but that diagnosis
+is not the native Boolean contract.
+
+**Worked reader cases (proposed conformance, not native executions).**
+
+| ID | Fixture | Required result |
+|---|---|---|
+| EF25-R1 | Live resource with known descriptions/name/key; input root 2 or 5 | one u16 read, AL=0, complete resource payload/name/key unchanged; input position is not restored |
+| EF25-R2 | Same resource; first u16 call returns false without touching its destination | zero-initialized root fails; same unchanged resource and false result |
+| EF25-R3 | W1 primitive replies, except the particle-section-version read supplies 2 while reporting false | parser continues through all remaining replies and returns AL=1; false primitive status is not propagated |
+| EF25-R4 | Seed two particle descriptions plus a brush; input supplies root 4, particle version 2, particle count 0, then throws before supplying the decal version | particle vector has already shrunk to empty and its owned references were released; brush and later families remain as before; no normal Read result, no restoration of the two particles |
+| EF25-R5 | Seed a dynamic description D and nonempty primary name/key; read valid otherwise-empty root-3 input | dynamic vector retains D because the section is skipped; name/key unchanged; writing next emits root 4 and D in the dynamic section |
+| EF25-R6 | Seed a visual-map entry `old` and camera value K; read empty visual vector/map with terminator pair and camera-present 0 | vector is empty, old map entry remains, K's stored value remains but presence is false; no global reset is implied |
+| EF25-R7 | Map input contains `(end,7)`, then `(x,FFFFFFFF)`, then `(end,FFFFFFFF)`, followed by valid empty tail | first two pairs are ordinary entries, third ends the map and is not inserted; tail is consumed and AL=1 |
 
 ## 19. Effects-script command contracts *[compat]*
 
