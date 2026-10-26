@@ -3,13 +3,16 @@ use super::*;
 #[derive(Default)]
 struct Host {
     posts: Vec<(u32, [u32; 4])>,
+    releases: Vec<u64>,
 }
 impl ScapeHost for Host {
     fn acquire(&mut self, _: u32, _: u32) -> Option<u64> {
         None
     }
     fn add_ref(&mut self, _: u64) {}
-    fn release(&mut self, _: u64) {}
+    fn release(&mut self, p: u64) {
+        self.releases.push(p);
+    }
     fn framework_available(&mut self) -> bool {
         false
     }
@@ -67,7 +70,17 @@ fn au42_wrap_channels_cache_and_pending_worked_cases() {
     assert!(m.on_tick(0x20, &g, &mut h));
     assert_eq!(m.pending.len(), 1);
     assert_eq!(m.pending[0].as_ref().unwrap().countdown, 12);
-    assert_eq!(h.posts, [(0x4A45_1915, [1, 146, 0, 0]), (0x4A45_1915, [1, 146, 0, 0])]);
+    let playing = &m.groups[&7].clusters[0].playing[0];
+    let instance = (&*playing.definition as *const Definition) as usize as u32;
+    assert_eq!(playing.instance, instance);
+    assert_eq!(std::mem::size_of::<Definition>(), 24);
+    assert_eq!(
+        h.posts,
+        [
+            (0x4A45_1915, [instance, 146, 0, 0]),
+            (0x4A45_1915, [instance, 146, 0, 0])
+        ]
+    );
     m.add_sound(7, 9, 0, 0, 1, 9);
     m.add_emanation(7, 0, 0, 2, [0.0; 3], 0.0, &g, &mut h);
     assert_eq!(m.groups[&7].clusters[0].cache, 20);
@@ -142,4 +155,27 @@ fn scape_average_move_clear_and_flag_quirks() {
     assert_eq!(m.groups[&99].clusters[0].playing[0].definition.sound, 99);
     m.move_emanation(0, 5, [100.0, 0.0, 0.0], 0.0, &g, &mut h);
     assert_eq!(m.groups[&99].clusters[0].average, [100.0, 0.0, 0.0]);
+}
+
+#[test]
+fn au42_service_getters_and_destructor_do_not_shutdown_or_stop_copies() {
+    let (mut m, g, mut h) = setup();
+    m.create_scape("live", 7, 1, 10.0);
+    m.add_emanation(7, 0, 0, 1, [0.0; 3], 0.0, &g, &mut h);
+    m.initialized = true;
+    m.sound_manager = Some(2);
+    m.sound_system = Some(3);
+    assert_eq!(m.priority(), 0x8000_0000);
+    assert!(!m.on_idle());
+    m.set_enabled(true);
+    assert!(m.enabled);
+    assert_eq!(m.add_ref(), 1);
+    assert_eq!(m.add_ref(), 2);
+    assert_eq!(m.release(&mut h), 1);
+    h.posts.clear();
+    assert_eq!(m.release(&mut h), 0);
+    assert_eq!(h.releases, [2, 3]);
+    assert!(h.posts.is_empty());
+    assert!(m.initialized);
+    assert_eq!(g.sound_system, Some(1));
 }

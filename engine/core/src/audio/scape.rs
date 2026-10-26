@@ -57,7 +57,6 @@ pub struct ScapeManager {
     pub groups: BTreeMap<u32, ScapeGroup>,
     pub order: Vec<u32>,
     pub pending: Vec<Option<Cluster>>,
-    next_instance: u32,
 }
 
 impl Default for ScapeManager {
@@ -75,7 +74,6 @@ impl Default for ScapeManager {
             groups: BTreeMap::new(),
             order: Vec::new(),
             pending: Vec::new(),
-            next_instance: 1,
         }
     }
 }

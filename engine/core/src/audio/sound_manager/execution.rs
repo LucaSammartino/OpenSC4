@@ -6,6 +6,8 @@ use crate::audio::{data::SoundManagerTuning, instance_id::InstanceIdCounter};
 use crate::x87::ftol32;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod policy;
+
 pub trait Host {
     fn service(&mut self, id: u32, iid: u32) -> Option<u64>;
     fn message_server(&mut self) -> Option<u64>;
@@ -23,6 +25,9 @@ pub trait Host {
     fn create_event(&mut self, system: u64, event: u32, iid: u32, data: [u32; 4]) -> Option<u64>;
     fn payload(&mut self, event: u64) -> Option<u64>; // borrowed
     fn enumerate_system(&mut self, system: u64) -> Vec<Option<u64>>; // borrowed sounds
+    fn listener(&mut self) -> Option<([f32; 3], [f32; 3])>;
+    fn view_geometry(&mut self) -> Option<([f32; 3], [f32; 3])>;
+    fn simulation_paused(&mut self) -> Option<bool>;
 }
 
 #[derive(Clone, Debug)]
@@ -45,9 +50,9 @@ pub struct Sound {
     pub radii: [f32; 2],
     pub master: Option<u32>,
     pub children: Vec<u32>,
+    pub timestamp: u32,
 }
-/// Still absent from §8.3.1: these are explicit unsupported owner algorithms,
-/// not foreign operations an adapter is allowed to invent (question AU50).
+/// Legacy diagnostic names retained for source compatibility; AU50 emits none.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Unsupported {
     StartVoicePolicy,
@@ -100,12 +105,10 @@ impl Manager {
         self.refcount = 0;
         0
     }
-    pub fn construct(pointer: u64, position_sentinel: f32) -> Self {
-        // AU50: the spec names but does not give the sentinel bits. Require it
-        // as explicit input rather than assigning a guessed numeric constant.
+    pub fn construct(pointer: u64) -> Self {
         Self {
             refcount: 0,
-            position_sentinel,
+            position_sentinel: 0.0,
             unsupported: BTreeSet::new(),
             pointer,
             system: None,
@@ -220,12 +223,15 @@ impl Manager {
         ids: &mut InstanceIdCounter,
         host: &mut impl Host,
     ) -> bool {
-        self.unsupported.insert(Unsupported::StartVoicePolicy);
         if self.instances.contains_key(&id) {
             self.stop(id, true, host);
         }
         if id == 0 {
             id = ids.generate();
+        }
+        let (admitted, matching) = self.admission(sound, host);
+        if !admitted {
+            return false;
         }
         let Some(manager) = self.sound_manager else {
             return false;
@@ -243,7 +249,7 @@ impl Manager {
         assert_ne!(pointer, 0, "required instance constructor");
         let radius = f64::from(host.property(buffer, 0x38, 0) as i32) * f64::from(0.01f32) * f64::from(100.0f32);
         host.retain(self.pointer);
-        let s = Sound {
+        let mut s = Sound {
             pointer,
             sound,
             id,
@@ -262,24 +268,53 @@ impl Manager {
             radii: [radius as f32, (radius * f64::from(4.0f32)) as f32],
             master: None,
             children: Vec::new(),
+            timestamp: self.elapsed,
         };
-        host.set_property(buffer, 0x10, 3, 0);
-        if host.call(holder, 0x14, &[u64::from(id), u64::from(self.master_volume), 512, 0]) == 0 {
+        Self::completion(&s, true, host);
+        let master = self.list.iter().copied().find(|id| {
+            let s = &self.instances[id];
+            s.sound == sound && s.master.is_none()
+        });
+        if let Some(master) = master {
+            let m = &self.instances[&master];
+            let master_pointer = m.pointer;
+            host.retain(master_pointer);
+            if host.property(m.buffer, 0x33, 0) != 0 {
+                s.master = Some(master);
+                self.instances.get_mut(&master).expect("master").children.push(id);
+            }
+            host.release(master_pointer);
+        }
+        if s.master.is_none() {
+            host.set_property(buffer, 0x10, 3, 0);
+        }
+        if s.master.is_none() && host.call(holder, 0x14, &[u64::from(id), u64::from(self.master_volume), 512, 0]) == 0 {
             host.release(buffer);
             host.release(holder);
             host.release(self.pointer);
             host.release(pointer);
             return false;
         }
-        Self::completion(&s, true, host);
         host.retain(pointer); // container reference; constructor temporary is dropped below
-        if host.property(buffer, 0x33, 0) == 0 {
+        let one_shot = host.property(buffer, 0x33, 0) == 0;
+        if s.master.is_none() && one_shot {
             self.one_shots = self.one_shots.wrapping_add(1);
-        } else {
+        } else if s.master.is_none() {
             self.independent_loops = self.independent_loops.wrapping_add(1);
         }
         self.instances.insert(id, s);
         self.list.push(id);
+        if matching != 0 && one_shot {
+            let gain = (self.curve(matching as i32 as f32) / 1024.0) as f32;
+            for i in self.list.clone() {
+                if self.instances[&i].sound == sound {
+                    self.instances.get_mut(&i).expect("instance").gain = gain;
+                    let volume = self.instances[&i].volume;
+                    self.volume(i, volume, host);
+                }
+            }
+        }
+        self.simulation_policy(id, host);
         host.release(pointer);
         true
     }
@@ -301,14 +336,17 @@ impl Manager {
             }
         } else {
             let first = s.children.remove(0);
-            self.unsupported.insert(Unsupported::LinkedPosition);
             if let Some(child) = self.instances.get_mut(&first) {
                 child.master = None;
                 child.children = std::mem::take(&mut s.children);
-                host.retain(s.holder);
-                host.retain(s.buffer);
-                host.release(child.holder);
-                host.release(child.buffer);
+                if child.holder != s.holder {
+                    host.retain(s.holder);
+                    host.release(child.holder);
+                }
+                if child.buffer != s.buffer {
+                    host.retain(s.buffer);
+                    host.release(child.buffer);
+                }
                 child.holder = s.holder;
                 child.buffer = s.buffer;
             }
@@ -322,6 +360,11 @@ impl Manager {
                     child.master = Some(first);
                 }
             }
+            host.release(s.holder);
+            host.release(s.buffer);
+            s.holder = 0;
+            s.buffer = 0;
+            self.update_position(first, host);
         }
         if let Some(master) = s.master {
             if let Some(master) = self.instances.get_mut(&master) {
@@ -333,8 +376,12 @@ impl Manager {
         } else if s.master.is_none() {
             self.independent_loops = self.independent_loops.wrapping_sub(1);
         }
-        host.release(s.buffer);
-        host.release(s.holder);
+        if s.buffer != 0 {
+            host.release(s.buffer);
+        }
+        if s.holder != 0 {
+            host.release(s.holder);
+        }
         host.release(s.manager);
         host.release(s.pointer);
         host.release(s.pointer);
@@ -390,10 +437,9 @@ impl Manager {
         s.volume = volume;
         Self::write_volume(s, host);
         if !s.children.is_empty() || s.master.is_some() {
-            self.unsupported.insert(Unsupported::LinkedPosition);
-            Self::write_position(s, host);
+            self.update_position(id, host);
         }
-        s.flags |= 1;
+        self.instances.get_mut(&id).expect("instance").flags |= 1;
         true
     }
     pub fn position(&mut self, id: u32, position: [f32; 3], host: &mut impl Host) -> bool {
@@ -402,19 +448,14 @@ impl Manager {
         };
         host.retain(s.pointer);
         s.raw = position;
-        self.unsupported.insert(Unsupported::DistancePause);
-        if s.master.is_some() || !s.children.is_empty() {
-            self.unsupported.insert(Unsupported::LinkedPosition);
-        }
-        Self::write_position(s, host);
         let master = s.master;
         let pointer = s.pointer;
-        s.flags |= 2;
+        self.update_position(id, host);
         if let Some(master) = master {
-            if let Some(s) = self.instances.get(&master) {
-                Self::write_position(s, host);
-            }
+            self.update_position(master, host);
         }
+        self.distance_policy(id, host);
+        self.instances.get_mut(&id).expect("instance").flags |= 2;
         host.release(pointer);
         true
     }
@@ -422,11 +463,11 @@ impl Manager {
         if self.system.is_none() {
             return false;
         }
-        for id in &self.list {
-            let s = self.instances.get_mut(id).expect("list entry");
+        for id in self.list.clone() {
             if gain {
-                self.unsupported.insert(Unsupported::Resume);
+                self.resume(id, host);
             } else {
+                let s = self.instances.get_mut(&id).expect("list entry");
                 s.pause_count = s.pause_count.wrapping_add(1);
                 if s.pause_count == 1 && s.master.is_none() {
                     Self::completion(s, false, host);
@@ -474,14 +515,14 @@ impl Manager {
         true
     }
     pub fn update_all(&mut self, host: &mut impl Host) -> bool {
-        self.unsupported
-            .extend([Unsupported::DistancePause, Unsupported::SimulationPause]);
-        for id in &self.list {
-            let s = &self.instances[id];
+        for id in self.list.clone() {
+            let s = &self.instances[&id];
             Self::write_volume(s, host);
             if s.master.is_some() || !s.children.is_empty() {
-                Self::write_position(s, host);
+                self.update_position(id, host);
             }
+            self.distance_policy(id, host);
+            self.simulation_policy(id, host);
         }
         true
     }
@@ -517,8 +558,8 @@ impl Manager {
             }
         }
         self.updates = self.updates.wrapping_add(1);
-        for id in &self.list {
-            let s = self.instances.get_mut(id).expect("list entry");
+        for id in self.list.clone() {
+            let s = self.instances.get_mut(&id).expect("list entry");
             if s.current != s.target {
                 let difference = f64::from(s.target) - f64::from(s.current);
                 let step = f64::from(dt as f32) * f64::from(s.rate);
@@ -531,7 +572,7 @@ impl Manager {
                 s.volume = ftol32(f64::from(s.current)) as u32;
                 Self::write_volume(s, host);
                 if s.master.is_some() || !s.children.is_empty() {
-                    Self::write_position(s, host);
+                    self.update_position(id, host);
                 }
             }
         }
@@ -555,7 +596,11 @@ impl Manager {
         if route == EventRoute::Focus && self.system.is_none() {
             return false;
         }
-        if matches!(route, EventRoute::Reset | EventRoute::Volume | EventRoute::Focus) && payload.is_none() {
+        if matches!(
+            route,
+            EventRoute::Reset | EventRoute::Volume | EventRoute::Focus | EventRoute::Start | EventRoute::Position
+        ) && payload.is_none()
+        {
             return false;
         }
         let p = payload.expect("required event payload");
@@ -591,10 +636,17 @@ impl Manager {
             }
             EventRoute::Enumerate => self.enumerate(p, host),
             EventRoute::Start => {
-                let sound = host.call(p, 0x24, &[]) as u32;
+                host.retain(p);
+                let flags = if host.call(p, 0x48, &[]) != 0 {
+                    host.call(p, 0x4C, &[]) as u8 as u32
+                } else {
+                    0
+                };
                 let id = host.call(p, 0x38, &[]) as u32;
-                let flags = host.call(p, 0x4C, &[]) as u32;
-                self.start(sound, id, flags, ids, host)
+                let sound = host.call(p, 0x24, &[]) as u32;
+                self.start(sound, id, flags, ids, host);
+                host.release(p);
+                true
             }
             EventRoute::Stop => {
                 let id = host.call(p, 0x24, &[]) as u32;
@@ -603,13 +655,14 @@ impl Manager {
                 true
             }
             EventRoute::Position => {
+                host.retain(p);
+                let z = host.call(p, 0x60, &[]) as i32 as f32;
+                let y = host.call(p, 0x4C, &[]) as i32 as f32;
+                let x = host.call(p, 0x38, &[]) as i32 as f32;
                 let id = host.call(p, 0x24, &[]) as u32;
-                let position = [
-                    host.call(p, 0x38, &[]) as i32 as f32,
-                    host.call(p, 0x4C, &[]) as i32 as f32,
-                    host.call(p, 0x60, &[]) as i32 as f32,
-                ];
-                self.position(id, position, host)
+                self.position(id, [x, y, z], host);
+                host.release(p);
+                true
             }
             EventRoute::UpdateAll | EventRoute::Ignore => false,
         }
@@ -619,6 +672,7 @@ impl Manager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod au50;
     #[derive(Default)]
     struct Trace {
         calls: Vec<(u64, u32, Vec<u64>)>,
@@ -631,8 +685,20 @@ mod tests {
         callbacks: usize,
         enumeration: usize,
         data: BTreeMap<u32, u64>,
+        looping: bool,
+        model: u32,
+        paused: bool,
     }
     impl Host for Trace {
+        fn listener(&mut self) -> Option<([f32; 3], [f32; 3])> {
+            Some(([0.0; 3], [0.0, 0.0, 1.0]))
+        }
+        fn view_geometry(&mut self) -> Option<([f32; 3], [f32; 3])> {
+            None
+        }
+        fn simulation_paused(&mut self) -> Option<bool> {
+            Some(self.paused)
+        }
         fn service(&mut self, id: u32, _: u32) -> Option<u64> {
             if id == 0x23CE_CBA0 {
                 Some(100)
@@ -681,6 +747,12 @@ mod tests {
         fn property(&mut self, _: u64, key: u32, _: u32) -> u32 {
             if key == 0x38 {
                 7
+            } else if key == 0x33 {
+                u32::from(self.looping)
+            } else if key == 0x39 {
+                self.model
+            } else if key == 0x15 {
+                1024
             } else {
                 0
             }
@@ -718,14 +790,14 @@ mod tests {
         }
     }
     fn manager() -> Manager {
-        let mut m = Manager::construct(1000, 0.0);
+        let mut m = Manager::construct(1000);
         m.system = Some(100);
         m.sound_manager = Some(200);
         m
     }
     #[test]
     fn au46_partial_init_null_and_unknown_payloads_and_enumeration() {
-        let mut m = Manager::construct(1000, 0.0);
+        let mut m = Manager::construct(1000);
         let mut h = Trace {
             missing_manager: true,
             ..Trace::default()
@@ -745,6 +817,7 @@ mod tests {
         m = manager();
         h.play = true;
         for id in 1..=3 {
+            m.elapsed += 50;
             assert!(m.start(8, id, 0, &mut ids, &mut h));
         }
         assert!(m.enumerate(50, &mut h));
@@ -809,6 +882,6 @@ mod tests {
         assert_eq!(h.enumeration, 50);
         assert_eq!(m.countdown, 0);
         assert_eq!(m.updates, 0);
-        assert!(m.unsupported.contains(&Unsupported::Resume));
+        assert!(m.unsupported.is_empty());
     }
 }

@@ -2,6 +2,7 @@
 use super::{ScapeGlobals, ScapeGroup, ScapeHost, ScapeManager};
 
 #[derive(Clone, Debug)]
+#[repr(C)]
 pub struct Definition {
     pub min: u32,
     pub max: u32,
@@ -12,7 +13,7 @@ pub struct Definition {
 }
 #[derive(Clone, Debug)]
 pub struct Playing {
-    pub definition: Definition,
+    pub definition: Box<Definition>,
     pub instance: u32,
 }
 #[derive(Clone, Debug)]
@@ -86,7 +87,6 @@ fn choose(
     c: &mut Cluster,
     defs: &[Definition],
     temporary: Option<&Definition>,
-    next: &mut u32,
     g: &ScapeGlobals,
     h: &mut impl ScapeHost,
 ) {
@@ -94,14 +94,11 @@ fn choose(
         let index = c.playing.iter().position(|p| p.definition.sound == d.sound);
         if d.min <= c.members.len() as u32 && c.members.len() as u32 <= d.max {
             if index.is_none() {
-                // SPEC-GAP: portable instance tokens replace private-copy addresses at the foreign boundary.
-                let instance = *next;
-                *next = next.wrapping_add(1);
+                let definition = Box::new(d.clone());
+                // The game-facing ID is the 32-bit address of this owned, stable copy.
+                let instance = (&*definition as *const Definition) as usize as u32;
                 c.cache = c.channels[0].wrapping_mul(c.channels[1]) / 1024;
-                c.playing.push(Playing {
-                    definition: d.clone(),
-                    instance,
-                });
+                c.playing.push(Playing { definition, instance });
                 post(g, h, 0xEA45_1903, [d.sound, instance, 0, 0]);
                 post(g, h, 0x4A45_1915, [instance, c.cache as u32, 0, 0]);
             }
@@ -129,7 +126,6 @@ fn insert(
     member: Option<Member>,
     position: [f32; 3],
     temporary: Option<&Definition>,
-    next: &mut u32,
     g: &ScapeGlobals,
     h: &mut impl ScapeHost,
 ) {
@@ -152,7 +148,7 @@ fn insert(
     }
     c.add_position(position);
     c.adds = c.adds.wrapping_add(1);
-    choose(c, &s.definitions, temporary, next, g, h);
+    choose(c, &s.definitions, temporary, g, h);
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryFault {
@@ -160,6 +156,10 @@ pub enum QueryFault {
     NativeNontermination,
 }
 impl ScapeManager {
+    pub fn add_ref(&mut self) -> u32 {
+        self.refcount = self.refcount.wrapping_add(1);
+        self.refcount
+    }
     pub fn create_scape(&mut self, name: &str, id: u32, flags: u32, radius: f32) -> bool {
         if self.groups.contains_key(&id) {
             return false;
@@ -244,7 +244,6 @@ impl ScapeManager {
             tracked.then_some(Member { key, position: p }),
             p,
             (sound != 0).then_some(&d),
-            &mut self.next_instance,
             g,
             h,
         );
@@ -261,7 +260,7 @@ impl ScapeManager {
                 let m = c.members.remove(j);
                 c.subtract(m.position);
                 s.total = s.total.wrapping_sub(1);
-                choose(c, &s.definitions, None, &mut self.next_instance, g, h);
+                choose(c, &s.definitions, None, g, h);
                 if c.members.is_empty() && g.sound_system.is_some() {
                     stop(c, g, h);
                     s.clusters.remove(i);
@@ -288,7 +287,7 @@ impl ScapeManager {
                     c.subtract(c.members[j].position);
                     c.add_position(p);
                     c.members[j].position = p;
-                    choose(c, &s.definitions, None, &mut self.next_instance, g, h);
+                    choose(c, &s.definitions, None, g, h);
                     if distance(p, c.average) <= f64::from(radius) + f64::from(c.radius) {
                         return true;
                     }
@@ -297,7 +296,7 @@ impl ScapeManager {
                         stop(c, g, h);
                         s.clusters.remove(i);
                     }
-                    insert(s, Some(member), p, None, &mut self.next_instance, g, h);
+                    insert(s, Some(member), p, None, g, h);
                     return true;
                 }
             }
@@ -434,7 +433,10 @@ impl ScapeManager {
             for c in &mut sa.clusters {
                 if c.adds == 0 && distance(p, c.average) < radius {
                     c.adds = 1;
-                    selected.push(c.clone());
+                    selected.push(Cluster {
+                        average: c.average,
+                        ..Cluster::new(sa.radius)
+                    });
                 }
             }
         }
@@ -448,7 +450,9 @@ impl ScapeManager {
     }
     pub fn destroy(&mut self, h: &mut impl ScapeHost) {
         // Listed scapes are not cleared/stopped; native destruction leaks their contents.
-        self.groups.clear();
+        for group in std::mem::take(&mut self.groups).into_values() {
+            std::mem::forget(group);
+        }
         self.order.clear();
         self.pending.clear();
         if let Some(p) = self.sound_manager.take() {
