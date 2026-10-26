@@ -264,7 +264,7 @@ cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	animation-tick.md	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	regionalcity
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4WriteCityRegionViewThumbnail	region	region	regional-city-records.md	-	-	-
 fn:SC4ReadCityRegionViewThumbnails	region	region	regional-city-records.md	-	-	-
