@@ -468,6 +468,67 @@ and AA enabled submits 64 copies of (0,0). With AA disabled and raster thickness
 These cases settle the previously assumed perpendicular/degenerate behavior;
 they do not require a device rasterizer to inspect the submitted corners.
 
+#### 3.2.7 Non-AA outline ellipses and line phase (GZG1)
+
+Kind 4/result 1 with AA disabled uses `0x0082DB00`, rather than the cubic
+outline route. For each complete corner pair it stores centre and absolute
+half-extents as binary32. For maximum radius r, take n=1 when r<=1, otherwise
+`ceil(sqrt(r))`; let `m=(n+1)>>1`, `N=8*m`. The step is binary32 of the
+binary64 constant **6.28318** divided by N. Start a binary32 angle accumulator
+at zero and sample N+1 times, adding the stored step after each sample.
+The input pointer advances to each new pair. Line-thickness state is not read.
+
+There are an inner and an outer point at each sample. With cosine/sine of the
+stored angle, the inner point is centre plus radius times cosine/sine. The
+outer point adds an offset initially (1,0). Its arithmetic order is
+`(offset+centre)+(radius*trig)`, not a rounded inner point plus offset. The
+x87 trig results are stored as binary64; each point component is stored as
+binary32 (`0x0082DB80`–`0x0082DD67`). Each sample after the first emits a quad
+in the order previous outer, previous inner, current inner, current outer.
+After samples m,3m,5m,7m, rotate the offset `(ox,oy)` to `(-oy,ox)`, recompute
+the two points at that same angle, and emit another quad connecting the old
+pair to the recomputed pair. The last sample is not forced equal to the first.
+All quads are submitted together as kind 7 through DrawNoTransform.
+
+Worked case: corners (-1,-1),(1,1) give n=m=1, N=8: eight ordinary quads plus
+four offset-transition quads, **48 points** in one submission. The first inner
+point is (1,0), first outer (2,0), regardless of line thickness. Two such pairs
+give 96 points; an odd trailing point is ignored. This is a fixed one-unit
+offset outline, not a centred stroke of the requested thickness.
+
+The integer-line helper first forces all four signed 24.8 coordinates' low
+bits to one. It chooses y as the major axis only when `abs(dy)>abs(dx)`;
+equal diagonals use x. For ordinary clips wider and taller than one pixel it
+orders the walk in increasing major-coordinate order and retains directional
+endpoint acceptance (§3.2.2). Its error update advances the minor coordinate
+only on a **strictly negative** error; zero stays on the current minor row.
+Clipping advances this same error by the skipped major steps before emitting;
+it does not recompute a slope from new integer endpoints
+(`0x0082D051`–`0x0082D174`, `0x0082D280`–`0x0082D332`,
+`0x0082D526`–`0x0082D560`). Arithmetic here is 32-bit integer arithmetic,
+including products; it is not floating-point Bresenham rounding.
+
+Worked cases, integer convenience Line, clip (0,0,10,10): (2,3)→(6,5)
+emits pixels (2,3),(3,4),(4,4),(5,5). With clip (3,0,10,10) it emits the
+last three of these; replacing the input start with (3,3) is not equivalent.
+The descending case (2,3)→(6,1) emits (2,3),(3,3),(4,2),(5,2).
+The positive diagonal (2,2)→(5,5) emits (2,2),(3,3),(4,4).
+
+**GZG1 observation boundary.** Exact fractional endpoint diamond-boundary
+ties and one-pixel-wide/high clips are not established as a complete coverage
+rule here. The helper uses ordered clip limits themselves to infer the minor
+step direction; equality of these limits takes a different branch. To settle
+these cases, capture engine slot 22's ordered packed spans for both directions
+of lines (0.5,0.5)→(4.5,2.5) and (0.5,2.5)→(4.5,0.5), and the four variants
+whose endpoints move by ±1/256 in each coordinate. Compare full clip
+(0,0,8,8) with clips (2,0,3,8), (0,1,8,2), (2,1,3,2), and (2,1,4,3).
+Record the transformed float bits and the 24.8 arguments at `0x0082D040`,
+not just final pixels, to distinguish conversion from coverage. For ellipse
+transcendental last-bit agreement, record the complete kind-7 float array
+for the worked radius-1 case and radii (4,2), with the native x87 control word.
+These observations are required before claiming the remaining cases exact;
+the question is narrowed to this explicit observation set.
+
 ### 3.3 Blit binding and suspension
 
 SetBlt supplies a source plus placement and x/y scaling to engine slot 13. The
