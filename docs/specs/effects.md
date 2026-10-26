@@ -2646,6 +2646,132 @@ case with the same stipulated foreign replies; count every original operation.
 | EF22-11 | All observed depths zero, but a foreign publisher or worker cannot be excluded | refuse payload/combined snapshot; no whole-owner credit from matched names or repeated headers |
 | EF22-12 | Native final Release destroys R while its old pointer value remains in a trace | entry/lifetime event retained; no post-release payload read or invented lease renewal |
 
+### 18.9 Complete native effects-resource contract (EF25) *[compat]*
+
+This section specifies the Windows 1.1.641 resource used by the existing
+resource service and effects-resource serializer. R denotes its primary
+identity, C=R+4 its effects collection, and P=R+11C its persistence interface;
+offsets and addresses here are hexadecimal. These offsets describe the native
+interface fields, not a requirement to reproduce native allocator addresses.
+
+#### 18.9.1 Complete primary interface
+
+The primary vtable at `00AA0AC0` has **nine slots, 0 through 8**. The next word,
+at `00AA0AE4`, starts P's vtable; it is not primary slot 9. Every primary entry
+uses x86 **thiscall**, ECX=R, with explicit arguments on the stack in the order
+listed below. The callee removes those arguments. Pointers, interface IDs and
+class IDs are 32 bits. Boolean results are in **AL only**, not an HRESULT or a
+promise about all of EAX. The operation names below describe behavior; they do
+not recover an unavailable source-language header.
+
+| Slot / vtable byte offset | Entry | Explicit arguments, in order | Return and stack cleanup |
+|---|---|---|---|
+| 0 / +00 | `005A3B40` | u32 IID; nonnull writable interface-pointer output cell | bool AL; pop 8 |
+| 1 / +04 | `005A3BA0` | none | u32 new shared reference count, EAX; pop 0 |
+| 2 / +08 | `005A3BB0` | none | u32 remaining count, EAX; zero after final destruction; pop 0 |
+| 3 / +0C | `005A4DF0` | nonnull pointer to NUL-terminated const 8-bit name characters | assigns the owned name; EAX=borrowed internal string-object address R+134 on normal return; pop 4; no Boolean result |
+| 4 / +10 | `005A4DE0` | none | borrowed pointer to const NUL-terminated name characters, EAX; pop 0 |
+| 5 / +14 | `005A3BC0` | nonnull effects-collection interface pointer, the destination | void; pop 4; publication as §18.7.3 |
+| 6 / +18 | `005A3FC0` | nonnull `cIGZOStream` interface pointer | bool AL; pop 4; directory Write |
+| 7 / +1C | `005A51E0` | nonnull `cIGZIStream` interface pointer | bool AL; pop 4; directory Read |
+| 8 / +20 | `005A4D50` | none | u32 class ID **2A5118AD**, EAX; pop 0 |
+
+The name setter copies characters up to the first NUL. It neither retains the
+input pointer nor sets the persistence key. The getter exposes owned character
+storage, initially the empty string; its lifetime ends on a later name change
+or resource destruction. The setter's EAX points to a string **object**, whereas
+the getter's EAX points to characters. A caller that needs no setter result may
+ignore it; treating it as a success Boolean would misdeclare this operation.
+No destructor, stream-version argument or serializable-interface method follows
+slot 8. Evidence: vtable words `00AA0AC0–00AA0B14`; name operations
+`005A4DF0–005A4E1C`, `005A4DE0–005A4DE6`, assignment return
+`0044D3FD`, `0044D431`; class ID `005A4D50–005A4D55`.
+
+**Worked ABI case.** With a live R, set name from a temporary buffer containing
+`smoke` followed by NUL, then change that buffer to `other`. Slot 4 still returns
+`smoke`; slot 3's returned address is R+134, not that character pointer. Slot 8
+returns `2A5118AD` regardless of the name or persisted resource type. Calling
+slot 6 supplies one output-stream pointer and consumes four stack bytes; it
+does not accept a requested root version.
+
+#### 18.9.2 QueryInterface identities and persistence bridge
+
+Calling QI through R, C or P reaches the same resource-wide dispatcher. C's
+slots 0–2 adjust ECX by -4; P's slots 0–2 adjust it by -11C, before forwarding
+to the primary operations. Successful QI stores the following pointer and
+acquires **one shared reference**:
+
+| Requested IID | Result | Native vtable | Meaning |
+|---|---|---|---|
+| `CA51189B` | R | `00AA0AC0` | effects-resource primary |
+| `C97CF5CE` | C=R+4 | `00AA0A60` | effects collection, §18.7.1 |
+| `456B8F1D` | P=R+11C | `00AA0AE4` | `cIGZPersistResource` |
+| `00000001` | P=R+11C | `00AA0AE4` | `cIGZUnknown`, the canonical unknown identity |
+
+Every other IID fails with AL=0, **without changing the caller's output cell**
+and without acquiring a reference. In particular `cIGZSerializable` IID
+`E4FDA3D4` is not exposed; neither the resource CLSID nor resource type ID is
+an additional IID. The failed-QI output must be initialized by a caller that
+intends to test it for null. Nonnull output storage and a live receiver are
+preconditions. Evidence: `005A3B40–005A3B85`, delegated comparisons and miss
+`00975395–009753B6`; C thunks `005A4D60–005A4D87`, P thunks
+`005A4DA0–005A4DCA`; constructor `005A4CD5–005A4CEE`. Serializable IID is
+independently identified by its QI-to-serializable sub-object at
+`0045E770–0045E790` and vtable `00A878A4` (the SimGrid interface).
+
+The persistence key contains three u32 words, **type, group, instance**, in
+that order. On P they occupy +0C/+10/+14. Constructor values are all zero;
+creating the resource object alone does not set type `EA5118B0`. P slot 3
+(`009753EA`, one key-output pointer, pop 4) copies the three words to caller
+storage; EAX returns that output address. P slot 4 (`00975402`, one key-input
+pointer, pop 4) copies all three and returns true in AL. P slots 5/6/7
+(`009CEDE1`, `0099BE66`, `009D4714`, no explicit arguments) return type/group/
+instance respectively in EAX. P slots 8/9/10 (`00940536`, `009378C1`,
+`0097541C`, one u32, pop 4) set type/group/instance respectively and return
+true in AL. These entries also use thiscall, with ECX=P. There is no
+Write/Read pair on P: the resource factory bridges from P to primary slots 6–7.
+Evidence: `009753EA–00975427` and the six getter/setter entries above.
+
+**Worked identity case.** Starting with one held primary reference, QI through
+C for IID 1 yields P and count 2. QI through P for `CA51189B` yields R and count
+3. QI through R for `E4FDA3D4`, with an output cell prefilled with sentinel S,
+returns false, leaves S untouched and leaves count 3. Release the two successful
+QI results through their returned interfaces to restore count 1. Setting P's
+key to `(EA5118B0,EA5118B1,1)` makes P slot 5 return `EA5118B0`; primary slot 8
+still returns `2A5118AD`.
+
+#### 18.9.3 Shared reference and destruction contract
+
+The raw registered creator (`005A5110`) allocates a resource of native size
+14C and constructs it with shared count **zero**. It returns R, or null on
+allocation failure. The count is the u32 at P+4 (R+120), initialized by
+`00975633–0097564C`. An acquired factory/QI result owns one reference; the raw
+creator's zero-count construction is not an independently owned reference.
+AddRef atomically adds one and returns the new u32. Release atomically
+subtracts one and returns the remaining u32. R, C and P share this counter;
+collection-description references are separate. The atomic primitive is
+`00933015–0093302D`; forwarding and count operations are
+`005A3BA0–005A3BBA`, `009753B7–009753E9`.
+
+On the transition 1→0, Release calls **P slot 12**, with one 32-bit deletion
+flags argument equal to 1. Entry `005A4DD0` adjusts P to R and invokes
+`005A5130`. That destructor releases resource-owned auxiliary storage and
+name storage, destroys the persistence base and collection (including their
+owned descriptions/containers), then frees the complete R allocation when
+flags bit 0 is set. It returns the old R address in EAX, but Release itself
+returns zero. C slot 23 is another destructor adjustor (`005A4D90`); it is not
+an additional QI identity or reference count. Destructors are not normal
+reference-release substitutes. Releasing an unowned zero-count object
+underflows the unsigned counter; it does not perform the valid 1→0 destruction
+transition. No use of a resource pointer is valid after final Release.
+Evidence: `009753C5–009753E9`, `005A4DD0–005A4DDA`, `005A5130–005A514D`,
+cleanup `005A4E20–005A4E6E`.
+
+**Worked lifetime case.** After the raw creator, AddRef on R returns 1; AddRef
+on C returns 2; Release on P returns 1 without destroying any collection
+payload; Release on C returns 0, destroys the resource once and frees R once.
+Do not issue a third Release or inspect the former name/collection afterward.
+
 ## 19. Effects-script command contracts *[compat]*
 
 This section concerns text-description commands, separate from the binary
