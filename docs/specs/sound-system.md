@@ -116,7 +116,24 @@ are written without notification (third argument 1 to register slot 3,
 `0x0093B268`, which skips the notification when it is nonzero, `0x0093B346`)
 under properties `0xFF141C48`, `0xFF9250B3`,
 `0xFF9EC945`, `0xFF1885BE`. Argument-routing mode is property `0xFF4DCD0D`;
-the complete mode table and bytecode interpretation remain SS1.
+the additional mode-dependent writes are:
+
+| Mode | Destinations in write order, for payloads A, B, C, D (IDs hex) |
+|---|---|
+| 1 | FF90AAC8 = A, FF3EC880 = B |
+| 2 | FFB4335C = A |
+| 3 | FFB4335C = A, FF90AAC8 = B, FF3EC880 = C |
+| 4 | FFCC4D2D = A, FF4A01D6 = B, FF469820 = C |
+| 5 | FFB4335C = A, FFCC4D2D = B, FF4A01D6 = C, FF469820 = D |
+| other | No additional writes; the four original argument properties are still written. |
+
+All these writes suppress notification. Evidence: `0x0093E1B9–0x0093E296`.
+Afterwards call primary slot 15 and save its boolean; independently, nonzero
+FF59FDD8 starts a dependent sound. Only if the saved result was true, call
+sound-view slot 18 (Unpause) and use its result as Play's result
+(`0x0093E299–0x0093E2D0`). Dependent-start failure is not combined with it.
+Worked case: mode 3 with `(9,512,-20,77)` writes all four argument properties
+and additionally object ID 9, volume 512 and pan -20. D has no extra mapping.
 
 ### 3.3 Properties, errors and commands
 
@@ -130,13 +147,127 @@ and substitute register 1; negative values pass this particular check.
 This is not a general guarantee that every negative index is valid.
 Evidence: `CMP`/signed `JLE` at `0x0093A7EF–0x0093A7F5`.
 
-DoCommand consumes an opcode from track data and supports register loads,
-notes, control and timer-driven continuation. It is not a text-command API.
-The inspected initial cases include register-based NoteOn with a missing-patch
-error (`Could not set patch - file or resource not found`), immediate NoteOn,
-and byte/long register loads. Complete operand widths, opcode semantics,
-branching and error recovery are **unsettled** (SS1); an engine must not assume
-ordinary MIDI semantics or treat unknown commands as successful no-ops.
+#### Register notifications (SS1)
+
+SetRegister offers IDs at most FF to alias helper `0x009377C9`, which indexes
+80 words at `0x00B169F8` for IDs below 50 (hex). A nonzero alias replaces
+the ID; a zero alias leaves the small ID unchanged (`0x0093B26E–0x0093B28B`).
+This API limit differs from bytecode CheckedRegId's limit of 4A. SetRegister
+also updates comparison flags against zero **before** property work: equality
+at base +9C, signed greater at +9D, signed less at +9E
+(`0x0093B291–0x0093B29A`, `0x0093A8CB–0x0093A8F0`). Its third argument
+suppresses notification when the low byte is nonzero. Otherwise it invokes
+primary slot 32 with the mapped property ID and returns its boolean
+(`0x0093B346–0x0093B35C`). Suppressed Play writes still affect these flags.
+
+HandleNotifySetPropertyValue first reads back the current integer value;
+its complete property dispatch is below (`0x0093BD06–0x0093BFEE`). IDs and
+base offsets in this table are hexadecimal.
+
+| Property ID(s) | Action and result |
+|---|---|
+| FF099DB2 | UpdatePitch, then true. |
+| FFAEC905 | UpdatePatch, then true. |
+| FF2D16F2 | Nonzero clears byte at base +100; return true. |
+| FF5F15E1 | Primary slot 26 with integer value; return its boolean. |
+| FF90AAC8, FF469820, FF4A01D6, FF4C6660, FF53DBF3, FF3EC880, FF40FF96, FF444C9A, FFA6A614, FFAAB623, FFC20061, FFC6B36D, FFCC3B29, FFCC4D2D, FFCE9997 | UpdateVolPan, then true. |
+| FF3071B9, FF0150F2, FF734343, FF86FE79, FFD3D39B | If current register interface at +7C exists, get float value with default zero, narrow to single precision and forward `(ID,float)` to its slot 7; return true. |
+| FF050A94, FF595FFD, FF7E5922, FFA42951, FFA9B525, FFBDB196, FFF3EDF2, FFF7B8DF, FFFF4E79 | If current register interface exists, forward `(ID,integer,0)` to its slot 3; return true. |
+| FFB36659 | With a current register interface, nonzero pauses current sound at +80 with argument false; zero unpauses it. Return true. |
+| FFC6E666 | Clear retained target at +84. For a nonzero value find a dependent sound with that sound ID, query IID EBB10CDD and retain it. Absent ID is ignored; failed QI reports `Attempt to set target to object with no register interface`. Return true. |
+| other | Return true without a track-specific action. |
+
+#### Confirmed bytecode subset
+
+DoCommand fetches an **unsigned byte**, advances PC at base +6C by one,
+subtracts one for the index and dispatches through 97 words at `0x0093DC8B`
+(`0x0093C237–0x0093C24C`). Buffer base is +68. There is no length check
+before the fetch or confirmed operand reads. Below, r is one unsigned byte
+passed through CheckedRegId, u8 is an unsigned byte, and u32 a little-endian
+four-byte word. Sizes include opcode and assume valid register operands.
+
+| Opcode (hex) | Size | Confirmed rule / instruction evidence |
+|---|---|---|
+| 01 | 3 | Read note-value register then countdown register; save second value at +48 and NoteOn(first). False reports `Could not set patch - file or resource not found`; 0093C32D–0093C38C. |
+| 02 | 2 | NoteOn(u8), discard return; 0093C391–0093C39F. |
+| 03 | 2 | Skip one unused byte, call current sound Stop (slot 8) if present and return its result; absent sound returns true; 0093C3A4–0093C3BA. |
+| 04 | 3 | SetRegister(r,u8,0); byte is **zero-extended**, not signed; 0093C3BF–0093C407. |
+| 05 | 6 | SetRegister(r,u32,0); 0093C40C–0093C455. |
+| 06, 4A | 3 | Destination r, source r; set destination from source with notification argument zero. Both dispatch to 0093C4D8. |
+| 07 | 5 | Read u32 file offset, push post-operand PC on return list +78, jump to buffer-base + offset; 0093C839–0093C85B. |
+| 08 | 1 | Pop return pointer and resume there; empty list follows 0C completion; 0093C88F–0093C8BE. |
+| 09 | 2 | Copy integer register r into wait counter +44; no tempo scale; 0093C8C3–0093C8F1. |
+| 0A | 5 | Read u32 entry ID, push post-operand PC, resolve HIT slot 14, set PC to result without null check; 0093C85D–0093C883. |
+| 0C | 1 | If execution byte +58 set, clear it and Release playing self-reference; 0093C8A9–0093C8BE. |
+| 0D | 5 | Jump to buffer-base + u32 offset, without pushing return pointer; 0093C821–0093C832. |
+| 0F, 1D, 1E, 5D, 5E | 1 | Dispatch directly to true-return tail 0093DC84; no operand. |
+| 00, 1A, 34–3D, 62–FF | 1 | Report `Illegal Instruction` through HIT slot 29, then normally return true; 0093C240–0093C246, table words, 0093DC72–0093DC84. This is not a silent no-op. |
+
+Most reported-error paths also return true; the boolean alone does not prove
+successful execution. Byte register IDs greater than 74 report illegal register
+and become register 1 before most per-opcode checks. Setter failure reports
+after already consumed operands; there is no PC/register rollback. An error
+callback can change track error state and prevent further timer execution.
+
+#### Timer and ramp arithmetic
+
+*[compat]* Timer callback `0x0093DF4C` includes the continuation exported as
+NoteOff at `0x0093E0FC–0x0093E143`: that address uses the timer's **existing
+stack frame**, not a separately callable note-off function. Actual note-off
+at the end calls `0x0093AE78`. The callback takes signed 32-bit elapsed
+milliseconds. With clear error state, prune nonplaying dependents. If track
+execution is stopped and the dependent list is empty, Kill. Otherwise:
+
+When FF0AD592 is nonzero, ramp target-register ID is FF47F685, current value
+comes from that register, endpoint is FF2D16F2, speed is FFD1C82F. Zero speed
+clears active. Negate speed with 32-bit wrap if `(current < endpoint)` differs
+from `(speed > 0)`. Multiply speed by elapsed with low-32-bit signed wrap,
+divide by signed 1000 toward zero, add with wrap. Clamp and clear active only
+on a **strict overshoot** in speed's direction, then notify the target register.
+Exact arrival leaves active until a later callback crosses the endpoint.
+Evidence: signed comparisons, NEG, IMUL/CDQ/IDIV and strict branches at
+`0x0093E016–0x0093E078`.
+
+If completion-after-ramp byte +100 is set and active is now zero, clear it
+and Kill. Otherwise reduce nonzero wait +44 by signed minimum of (wait,elapsed).
+Excess elapsed is discarded (`0x0093E0A5–0x0093E0BC`). While error is clear,
+execution byte +58 is set and wait is zero, execute commands in this callback.
+The local count starts zero; after each command increment it and, when the
+**old** count exceeds 100, report `Too many instructions executed without wait
+(infinite loop?)`, then return to the eligibility test (`0x0093E0FC–0x0093E11D`).
+First report is after command 102, not a hard loop break if the handler leaves
+eligibility unchanged. After the loop decrement nonzero note countdown +48
+**once per callback**, not by elapsed; reaching zero invokes actual NoteOff
+(`0x0093E11F–0x0093E130`).
+
+Worked cases: `04 0D FF` sets unmapped small register 13 to **255**, advancing
+PC by 3. `05 0E 78 56 34 12` sets register 14 to 0x12345678, advancing by 6.
+Wait 30 with elapsed 20 leaves 10; another elapsed 20 resumes commands, without
+carrying excess 10 into their next wait. Ramp current 0, endpoint 10, speed
+100, elapsed 100 arrives at 10 with active still set; next identical callback
+clamps back to 10 and clears active after a strict crossing.
+
+#### SS1 residual observation boundary
+
+The opcode table is an instruction-verified **subset**, not a complete
+interpreter license. Remaining operand/branch verification is narrowed to
+this exact set: **0B, 0E, 10–19, 1B–1C, 1F–33, 3E–49, 4B–5C, 5F–61**.
+None may be filled in as an unimplemented-success default. The export treats
+byte/word pointer arithmetic inconsistently. The following concrete original
+observations would settle the remaining cases without relying on those types:
+
+| Residual area | Required observation |
+|---|---|
+| Every opcode in the residual set | At DoCommand entry/return record PC +6C, all register API calls, flags +9C…+9E, wait +44, countdown +48 and error +5C. Use a separate padded stream per opcode with distinguishable following bytes and register sentinels; record each consumed byte/destination. Bound execution externally. |
+| Each residual branch | Run signed equal/less/greater inputs including 80000000; record next PC relative to whole-file buffer +68, return list +78, and any rewind to the opcode. Make taken/untaken targets observably different. |
+| Numeric and tempo-derived setup | Record destination bits/flags for -1, 0, 1, signed extrema, divide-by-zero and nonintegral floats. Vary only the proposed tempo/duration property while keeping bytecode/elapsed callbacks identical; record which setup register or wait/countdown changes. Opcode 09 and callback reduction above do no beat conversion; setup conversion and zero-divisor behavior are not inferred from them. |
+| Cross-object/source/HIT-list/global-cache operations | Provide recording interfaces, distinct object IDs and return sentinels, then failed lookup/QI. Record argument words, pointed-to writes, ordering and refcounts. This also settles SS2's external source-handler payload. |
+| Error continuation, especially opcode 58 | First use an error handler that records without changing state, then one that sets error. Record PC and actions following the callback. 58 dispatches to 0093C253; its report is followed immediately by the body at 0093C265, so do not assume throw terminates the instruction. |
+
+No runtime trace was performed in this lane. This residual is **narrowed to
+the stated observations**, not claimed fully decoded; confirmed rules and
+worked cases can be used independently. Conventional MIDI behavior or guessed
+decompiler operand widths do not settle the residual.
 
 ## 4. `cHitMan` and `cHitChannel`
 
@@ -163,8 +294,8 @@ Its HIT interface is the secondary table `0x00AD2968`, object `+0x1C`:
 
 Additional file operations are ParseHitFile `0x00938D8E`, ParseHitFileFromIGZPersistRecordAsIGZFile
 `0x009379EF`, and FilepathHasEmbeddedKey `0x00938EC6`; the Unpause-named
-routine is `0x00938419`. The folded slot 7 must not be identified as Unpause
-without checking its calling contract (SS2). Primary/service tables inherit
+routine is `0x00938419`; it is not the implementation of HIT slot 7 (see below).
+Primary/service tables inherit
 the framework system-service identity contract; they are not playback interfaces.
 
 *[compat]* Channels are retained by the manager after allocation. AllocChannel
@@ -179,10 +310,127 @@ of reproducing a process crash *[choice]*.
 HIT file parsing reads a file-sized buffer, registers track data and extracts
 entry-point pairs. It searches for track/entry markers (`0x00938D8E`);
 it does not establish a validated, bounds-safe interchange format. The exact
-file grammar, duplicate registration behavior, semaphore/ducking arbitration,
-pause behavior and source callback payloads remain SS2. Do not infer them from
-the names in the inventory. These are direct calls/callbacks, not demonstrated
-SC4 message-server subscriptions.
+file grammar, duplicate registration behavior, semantic/ducking arbitration,
+pause behavior and source callback boundary are specified below. These are
+direct calls/callbacks, not demonstrated SC4 message-server subscriptions.
+
+#### HIT file and registration rules (SS2)
+
+*[compat]* ParseHitFile (`0x00938D8E`) obtains the file's name and byte size,
+reads four bytes into a temporary, seeks back through file slot 9 (`+0x24`),
+then reads the **whole file** into a buffer. Neither read result is tested.
+It scans for little-endian word `0x58415254` (bytes `TRAX`) in four-byte
+steps from file offset zero, but the found pointer is **unused**: the track
+data block retains the original buffer and complete byte size, not a slice
+after TRAX (`0x00938DDF–0x00938E29`, SetDataBlock `0x00938CD7`). There is
+no checked magic/version/length field and no requirement here that TRAX be
+found. The scan itself can read at/past the buffer end on malformed input.
+
+The block is named, registered and locally released **before** entry parsing.
+Then scan from offset zero in **one-byte steps** for `0x50544E45` (bytes
+`ENTP`). Following those four bytes are repeated eight-byte records:
+
+| Relative byte offset from ENTP | Width | Meaning |
+|---|---|---|
+| 0 | 4 | `ENTP` marker |
+| 4 + 8n | 4 | unsigned entry ID; if word equals `0x544E4545` (bytes `EENT`), terminate without reading an offset |
+| 8 + 8n | 4 | unsigned byte offset **from the beginning of the retained whole-file buffer** |
+
+The loop tests only the start of each record against file end; it does not
+check that eight bytes remain, validate target offsets, require EENT, or
+escape an entry ID equal to EENT (`0x00938E48–0x00938E80`). AddEntryPoint
+uses map assignment, so a later duplicate ID **within a block** replaces its
+offset (`0x00938D49–0x00938D5A`). Missing ENTP simply leaves an empty entry
+map; the parser normally returns true even so. Allocation failures are not
+gracefully checked. A bounds-safe parser may reject malformed/truncated input
+instead of reproducing reads beyond allocation *[choice]*.
+
+RegisterTrackDataBlock rejects null or failed IID `0x9B82EAE7`. Otherwise it
+removes a previous registration of that **same object pointer**, then retains
+and inserts it at the **front** of the block list (`0x009384EB–0x0093851C`,
+insert-before-begin helper `0x009690F4`). Distinct objects sharing filenames
+or entry IDs are not deduplicated. GetTrackDataBlockAndOffset searches from
+front to back and returns the first block whose slot 5 supplies that ID;
+it writes the block and offset only on success and does not AddRef that result
+(`0x00937C18–0x00937C47`). TrackDataEntryPoint returns block-buffer + offset,
+or null if none; it performs no range validation (`0x009379CB–0x009379DD`).
+Re-registering an older object thus moves it ahead of newer competing blocks.
+
+RegisterSem obtains the semantic object's ID from slot 3, replaces the retained
+object in the map at that ID and returns whether the ID is nonzero. ID zero
+is still **inserted/replaced before returning false** (`0x00938BF1`). These
+are semantic objects (default 2D/3D), not semaphore locks with wait queues.
+GetSem by ID returns the mapped object or null; index enumeration follows the
+map. Registration replacement releases the previous retained object.
+
+#### Group, ducking and pause boundaries
+
+ControlGroup(group-ID) returns a cached control object, or allocates one with
+that ID, queries IID `0xFB1C0050`, and inserts it in the group map
+(`0x00938AF0`). AddToControlGroup calls this service's group lookup then
+group slot 3 with the supplied sound (`0x00937972`). SetSequenceGroupSnd
+assigns a retained sound in a separate group-ID map, replacing the previous
+one (`0x00938A26`); GetSequenceGroupSnd returns null when absent. These
+manager methods impose **no extra group priority contest or automatic stop**.
+Any policy implemented by the returned control object is a separate interface.
+
+*[compat]* DuckMapSetSndobPri is gated by the manager's initialized flag
+(byte `+4` relative to the HIT view). When enabled, nonzero signed priority
+sets/replaces the sound-key's entry; zero removes it. An absent zero removal
+and an unchanged nonzero value do nothing further. A real change recomputes
+DuckMapMaxPri, writes manager register `0x1B`, then invokes UpdateView
+(`0x00938A41`). DuckMapSndobPri returns zero for an absent key. DuckMapMaxPri
+starts at zero and takes the **signed** maximum; an all-negative map therefore
+has maximum zero (`0x00937DB3–0x00937DBA`). DuckMapRemoveAll clears the map
+and writes register `0x1B` = 0, then UpdateView (`0x00938492`). No random tie-breaker or
+winner removal is performed in these methods.
+
+HIT table slot 6, Pause `0x00937875`, calls slot 42 (DuckMapRemoveAll) and
+returns true; it does not pause allocated channels or set the paused flag.
+Slot 7 is the three-byte folded entry `0x00949ADE`: **no arguments**, return
+true, no unpause action. Slot 8 reads byte `+5` of the HIT view
+(`0x0093998F`); neither of these two slots writes it. In contrast the exported
+name Unpause at `0x00938419` consumes one 32-bit payload, passes it to slot
+17 (AllocChannel) and appends the result at view `+0x30`; its `RET 4` confirms
+it cannot describe slot 7. Do not implement recursive channel pause based on
+that name.
+
+#### Random and source-handler boundary
+
+Random's first argument is the upper endpoint U and second is lower L.
+Subtract as wrapping 32-bit `B = U − L`; when B is zero return L **without
+advancing the generator**. Otherwise, with unsigned 32-bit state s, form the
+64-bit unsigned product-plus-add `P = s × 0x41C64E6D + 0x3039`, save its
+low 32 bits as the next state, take `R = (P >> 16) mod 2^32`, then return
+`L + high32(R × B)` modulo `2^32`. This is the actual scaling law, with no
+rejection step and no guarantee of an exactly unbiased bounded distribution
+(`0x00939993`, `0x00913696–0x009136C9`). For nonwrapping U > L its result
+lies in `[L,U)`. Starting from constructor seed `0xFFFFFFFF`, one draw gives
+next state `0xBE39E1CC`, R `0x4E6CBE39`; Random(20,10) returns 13.
+
+RegisterSourceDataRequestHandler retains/replaces the handler at view `+0x40`
+and returns true (`0x00937961`). GetSourceDataField loads that pointer and
+**tail-calls its slot 3**, preserving the caller's entire argument stack and
+return bits (`0x00937959–0x0093795E`); it does not translate an event, copy a
+payload or test for null. Slot 34 is a folded getter of that retained pointer,
+not a second handler registration. The manager therefore specifies an opaque
+pass-through call boundary, not a source-data schema.
+
+Worked cases: block A maps ID 7 to file offset 32. Later block B maps 7 to 64
+and contains duplicate ENTP records `(7,48),(7,64)`: lookup returns B,64 and
+the entry pointer is B's file-buffer + 64. Re-register A: lookup returns A,32.
+Register a semantic object with ID zero: it is retrievable at zero even though
+registration returned false. Duck entries 5 and -2 give max 5; removing the
+5 with priority zero gives max 0, writes register 27 = 0 and updates the view.
+
+Runtime boundary for SS2: the external source-handler's **semantic payload
+types** are not defined by this tail-call, and a group object's own priority
+policy is not established by the manager's cache. To determine those contracts,
+install a recording slot-3 source handler and a recording control-group object,
+exercise a HIT source-field read and two competing group sounds, and record
+argument words, pointed-to output writes, return bits, ordering and refcounts.
+No claim about a synthesized callback payload or group winner is required by
+the statically settled manager rules above.
 
 ### 4.2 Channel construction and source IO
 
@@ -193,18 +441,18 @@ an owned property set, and a retained framework sound-manager service.
 Its primary table is installed at `0x00AD3FC0`; secondary tables are
 `0x00AD3F78`, `0x00AD3F64`, `0x00AD3F40`, `0x00AD3F30`, `0x00AD3F1C`
 at object offsets `+4`, `+8`, `+0x0C`, `+0x10`, `+0x14` respectively.
-The exported named-vtable index does not enumerate these tables; their full
-slot inventory is SS3, not an assumed copy of the track table.
+The exported named-vtable index does not enumerate these tables; the inventory
+below is recovered from executable table words, not that index.
 
 | Named operation | Address | Confirmed boundary |
 |---|---|---|
 | CreateSnd | `0x0093F304` | obtains a backend sound and associated source interface |
-| UpdatePitch | `0x0093F07E` | source pitch update; numeric law remains SS3 |
-| UpdateVolPan | `0x0093F136` | source volume/pan update; numeric law remains SS3 |
+| UpdatePitch | `0x0093F07E` | source pitch update; numeric law below |
+| UpdateVolPan | `0x0093F136` | source volume/pan update; numeric law below |
 | UpdatePatch | `0x0093F687` | patch/source refresh |
 | NoteOn | `0x0093F806` | refresh patch, load then play source |
 | Load | `0x0093F84D` | refresh patch and forward source Load |
-| HandleNotifySetPropertyValue | `0x0093FA5B` | property notification entry; full dispatch remains SS3 |
+| HandleNotifySetPropertyValue | `0x0093FA5B` | property notification dispatch below |
 
 *[compat]* CreateSnd chooses the manager's default 2D or 3D source-player
 class according to property `0xFFCC156F`, creates it through GZCOM using
@@ -227,6 +475,110 @@ UpdatePatch itself dereferences the source interface after attempting creation
 no-source branch is reached. A replacement may reject such missing dependencies
 safely *[choice]*.
 
+#### Channel views and complete table extents (SS3)
+
+QI `0x0093EC35` accepts exactly sound `0x206077D2` at base, 3D
+`0x306077D2` at `+4`, update `0x5B34F0AF` at `+8`, registers `0xFD584467`
+at `+0x0C`, `0xAA11A64F` at `+0x10`, and source `0x09D002D2` at `+0x14`.
+Success writes the adjusted pointer and AddRefs the base. Other IDs, including
+`1`, return false without touching the output or AddRef. Secondary QI/refcount
+entries adjust back to this same base. Constructor stores confirming the six
+views are `0x0093FE41–0x0093FE63`.
+
+The following table lists every installed slot. Addresses denote folded/unnamed
+entries when assigning an unrelated exported symbol name would be misleading.
+They are callable entry identities, not requirements for an implementation's
+internal layout. All addresses in the next table have prefix `0x00`.
+
+| Table/view | Slots | Entries in increasing slot order |
+|---|---|---|
+| AD3FC0, sound | 0–9 | QI EC35, AddRef EC9F, Release ECA6; Init F937; Shutdown FA21; Play F949; Play F93E; IsPlaying F954; Stop F95C; Kill F964 (all `93xxxx`) |
+| same | 10–19 | `94A5EA`, `949B47`, `93F45D`, `93F46C`, Load `93F84D`, Unload `93F06F`, IsLoaded `93FA4C`, Pause `93F96C`, Unpause `93F97F`, IsPaused `93F990` |
+| same | 20–28 | GetVolume `93ED1E`, SetVolume `93ED08`, `938789`, `94A5EA`, GetPan `93ECC0`, SetPan `93ECCE`, GetFrequency `93ECE4`, SetFrequency `93ECF2`, GetOriginalFrequency `93F44E` |
+| same | 29–39 | `93877E`, `93877E`, `949B47`, `949B73`, `93878E`, `93878E`, `9378BC`, `93877E`, destructor `93FDF6`, `94BC5D`, `968303` |
+| same | 40–46 | NoteOn `93F806`, NoteOff/Kill `93F964`, `93FA2E` (child Kill, true if absent), `93FA3D` (child IsPlaying, false if absent), UpdatePitch `93F07E`, UpdateVolPan `93F136`, `92B33A` |
+| same | 47–53 | `93F47B`, `93F4BA`, `93F4F5`, `93F547`, `93F599`, `93F5E7`, `93F635` (optional child-interface forwards described below) |
+| AD3F78, +4 | 0–16 | `93F9A1`, `93F9A9`, `93F9B1` (QI/refcount thunks); `93F933` (base view); `93ED2C`, `93ED8D`, `93EDE1`, `93EE42`, `93EE96`, `93EF4B`, `949B73`, `93EFE0`, `93EFF0`, `93F012`, `93F022`, `93F044`, `93F05C` |
+| AD3F64, +8 | 0–3 | `93F9B9`, `93F9C1`, `93F9C9` (QI/refcount thunks), `949B73` (folded update) |
+| AD3F40, +0C | 0–8 | `93F9D1`, `93F9D9`, `93F9E1` (QI/refcount thunks); integer SetRegister `93FD3C`, integer GetRegister `93F6BA`, Clear `93F781`, Has `93F7B4`, float SetRegister `93FD99`, float GetRegister `93F71B` |
+| AD3F30, +10 | 0–2 | `93F9E9`, `93F9F1`, `93F9F9` (QI/refcount thunks only) |
+| AD3F1C, +14 | 0–3 | `93FA01`, `93FA09`, `93FA11` (QI/refcount thunks), `93F2F3` (retain/replace source pointer at base +2C; consumes two arguments, ignores the second, returns true) |
+
+For primary slots 47/48, query the child for IID `0x6B0446EB` and forward
+to its `+0x18` with a float / `+0x1C` with an integer respectively. Slots
+49–53 query IID `0x4B79C1A9` and forward to its slots 3–7 with payload
+types float, float, integer, integer, float. The queried interface is released
+after the call. These are optional backend controls, not additional pitch math.
+
+#### Channel transformations and notifications
+
+*[compat]* UpdatePitch runs only with a child that reports loaded (`+0x40`);
+otherwise it returns false. The factor is 1.0 unless float property
+`0xFF3071B9` exists, in which case its value is rounded to a 32-bit float
+local. If integer property `0xFF099DB2` exists, multiply its **signed** 32-bit
+value by that factor in x87 arithmetic, truncate toward zero using `_ftol2`,
+pass the low 32-bit result to child SetFrequency (`+0x6C`), and return the
+inverse of the child's boolean result. If absent, get child GetFrequency
+(`+0x68`), apply the same multiply/truncate and store the result as property
+`0xFF099DB2` with notification suppressed (third argument 1); return true
+without setting the child frequency on that invocation. This peculiar return
+and first-use behavior are visible at `0x0093F0C5–0x0093F12B`.
+
+*[compat]* UpdateVolPan returns true, including with no child. With a child,
+property `0xFFCC156F` zero sends integer `0xFF3EC880` directly to SetPan
+(`+0x64`). Nonzero instead queries the child's 3D IID and applies:
+minimum distance from signed integer `0xFFAAB623` as float at `+0x30`;
+maximum distance from signed integer `0xFFA6A614` as float at `+0x38`,
+substituting **100000.0f only when zero**; position `(0xFFCC4D2D,
+0xFF4A01D6,0xFF469820)` at `+0x14`; velocity `(0xFF444C9A,
+0xFFC20061,0xFFCE9997)` at `+0x1C`. Coordinates are signed integer-to-float
+conversions, not reinterpretations of float bits. Afterwards, for either mode,
+multiply integer properties `0xFF90AAC8` and `0xFF53DBF3`, retain the low
+32 bits as signed, divide by signed 1024 with truncation toward zero, cache
+at `+0x1C`, and send to child SetVolume (`+0x54`). No clamp is applied.
+Instruction evidence: `0x0093F1A2–0x0093F293`, constant `0x00AD3F18`,
+and signed `IMUL/CDQ/IDIV` at `0x0093F2D5–0x0093F2DE`.
+
+HandleNotifySetPropertyValue reads back the property; it is not passed the
+new numeric value. Its complete dispatch (`0x0093FA5B–0x0093FD3B`) is:
+
+| Property ID(s) | Action |
+|---|---|
+| `FF099DB2`, `FF3071B9` | UpdatePitch; return true regardless of helper result. |
+| `FF3EC880`, `FF444C9A`, `FF469820`, `FF4A01D6`, `FF53DBF3`, `FF90AAC8`, `FFC20061`, `FFCC4D2D`, `FFCE9997`, `FF4C97BE` | UpdateVolPan; return its result. For `FF4C97BE`, first rebuild the property's inherited list described below. |
+| `FFA6A614`, `FFAAB623` | UpdateVolPan; discard result and return true. |
+| `FF0AD592` | Test primary slot 43 (child IsPlaying); if false write zero back to this property with the ordinary notification argument 0; return true. This is not a patch-load retry. |
+| `FFB36659` | If child exists, nonzero calls Pause(true), zero Unpause; return true. |
+| `FFAEC905` | Read integer property, discard that value, call this channel's source-view slot 3 with `(null,2)`; return true (`0x0093FC71–0x0093FC83`). |
+| `FF0150F2`, `FF86FE79`, `FF734343`, `FFD3D39B` | Read float and call primary slot 47, 53, 49, 50 respectively. First returns true regardless; others return the forwarded result. |
+| `FFA42951`, `FFBDB196` | Read integer and return primary slot 52, 51 respectively. |
+| all others | Return true, no channel-specific action. In particular `FFCC156F` is read during refresh but has no notification case. |
+
+For `FF4C97BE`, clear the retained property-set list, retain the notifying set,
+then follow its nonzero `FF4C97BE` resource reference: persist key has type
+`0xEBFEE345`, group `0xFC45CAF7`, instance equal to that property, queried
+as IID `0xEBB10CDD`. Append each successfully resolved set and repeat until
+the property is missing/zero or resolution returns null. There is no visited
+set or cycle bound; do not promise cycle recovery (`0x0093FB5B–0x0093FC12`).
+
+*[compat]* UpdatePatch (`0x0093F687–0x0093F6B9`) attempts CreateSnd only
+if child at `+0x24` is null, then unconditionally invokes source at `+0x28`,
+slot 3 with `(retained-source-at-+0x2C,2)`, UpdateVolPan, then UpdatePitch,
+and returns true. There is no rollback or null guard after failed creation/QI;
+it does not discard and recreate an already present child. The failure path
+can fault before returning. An implementation can return failure safely as
+already permitted above; it must not claim the original retries transactionally.
+
+Worked cases: a loaded child, explicit frequency 22051 and factor 0.5f receive
+SetFrequency(11025); a child returning true causes UpdatePitch to return false.
+Without the explicit frequency, child GetFrequency() = 22051 instead stores
+11025 in `FF099DB2`, suppresses notification, and makes no SetFrequency call
+on that first refresh. Volume inputs -3 and 512 produce -1 (not -2), while
+1024 and 512 produce 512. In 3D mode a zero maximum becomes 100000.0f,
+but -1 remains -1.0f. A failed CreateSnd followed by a null source reaches
+an unchecked call, not a successful silent channel; use a failure return in
+a safe replacement and test that no later volume/pitch calls occur *[choice]*.
+
 ## 5. `cHitIniFile` and `cHitPropertySetTrackResource`
 
 ### 5.1 INI adapter
@@ -234,7 +586,7 @@ safely *[choice]*.
 `cHitIniFile` is CLSID `0x3D802D67`. Constructors `0x0093638E` and
 `0x009363F5`, Create `0x00936480`, destructors `0x00936458`/`0x009364DE`.
 It combines the existing INI-file implementation with the HIT initialization
-interface at `+0x4C`, table `0x00AD2394`. That interface's slots 0–7 are
+interface at `+0x3C`, table `0x00AD2394` (constructor store `0x00936417`). That interface's slots 0–7 are
 QueryInterface, AddRef, Release, EnumDefaultEntries, InitDBSegments,
 EnumEntries thunk, SetFilename, ReadEntry thunk. The inherited INI table
 `0x00AD23B8` has slots 0–19: destructor, GetPath, SetPath, folded entry,
@@ -268,9 +620,92 @@ Initialization helpers and callbacks:
 *[compat]* `HitManTypeGroups` entries supply multiple numeric type/group
 associations; they are data, not a hard-coded audio resource-type switch.
 Directory extension binding and the TLO association are already specified
-in [audio.md §10](audio.md#10-sound-data). Full grammar, initialization
-ordering, duplicate keys and partial-failure aggregation remain SS4.
-No drawing or asynchronous message-consumer contract is exposed by this adapter.
+in [audio.md §10](audio.md#10-sound-data).
+
+#### Initialization grammar and order (SS4)
+
+*[compat]* Enumeration uses the inherited INI reader, not a HIT-specific lexer.
+Section lookup lowercases the requested section name. Within a section it reads
+lines in file order, left-trims them, skips empty lines and lines beginning `;`,
+and stops at the next line beginning `[`. It splits at the first `=`, right-trims
+the key and trims both ends of the value; only nonempty key/value pairs reach
+the callback. It does not strip an inline semicolon from the value. Callbacks
+are invoked after collecting the section, in that same order; callback results
+do not stop enumeration (`0x0091D91C`).
+No quoting or escaping layer is added by the HIT helpers.
+
+Except for the direct creator callbacks below, each section is first collected
+in a map from **converted unsigned key** to string value by `0x009368C0`:
+later entries with the same converted key replace earlier values. Processing
+then follows ascending unsigned key order, not file order. Thus `16`, `0x10`
+and `10A?` are not three independent string identifiers (the last converts to
+hexadecimal `0x10A`). Distinct malformed keys converting to zero also collide.
+This conversion is used for numeric values as well: `RZConvertToUint32A`
+(`0x0090FE93`) chooses base 16 for a leading `0x`/`0X`, or when its initial
+scan of decimal digits encounters `A–F`/`a–f`; otherwise it chooses base 10.
+It then calls unsigned 32-bit `strtoul`, without checking an end pointer or
+error status (`0x009F038B`, `0x009F01CC`). A nonnumeric prefix gives zero,
+trailing junk is accepted, a leading minus negates the magnitude modulo
+`2^32`, and positive overflow gives `0xFFFFFFFF`. For example `12tail` is 12,
+`12AB` is `0x12AB`, `-1` is `0xFFFFFFFF`, and `xyz` is zero. The base-selection
+scan does not skip a leading space/sign: ` AB` is therefore zero in base 10.
+There is no separate per-entry conversion-failure return.
+
+`SplitToken` here means: find the first literal delimiter, return the prefix
+and remove prefix plus delimiter from the mutable string. If absent, return
+an empty token and leave the string unchanged (`0x0090E98C`). No token trim
+is implied. Comma loops stop on an empty returned token, then process the
+whole remainder once; leading/repeated commas can therefore terminate a list
+early rather than being ignored. A semicolon inside a DB entry is structural.
+
+| Stage, in EnumDefaultEntries order | Section/key and grammar | Action |
+|---|---|---|
+| 1 | `[Config]`, the two default-player class keys above | Set 2D then 3D class on the sound manager when ReadEntry succeeds. |
+| 2 | `[SndFileDefaultDataSourceClassIds]`, numeric ordering key = `class,extension` | Split once at comma; convert the prefix and pass the entire remainder as the extension to sound-system slot 23 (`+0x5C`). Without a comma the class token is empty (zero) and the whole value is the extension. |
+| 3 | `[PackedDbSegments]`, numeric group = `class;covered-section;path` | Convert class from the start of the original value; extract the middle token as a section name, trim the final path, expand its leading `%DataDirectory%`, and test file existence. If present, create IID `0x286D4A6A`, query `0x656B8F0C`, initialize with `(group,path,false)`, apply `(true,false)` at `+0x18`, add to HIT and persist managers, then collect numeric keys from covered-section into the adapter's persistent exclusion set. Missing files are skipped successfully; COM creation failure returns false locally. |
+| 4a | `[Config] AllowTextAsKey` | When present, compare the value with `true` using the string comparison helper and save the boolean (initial default false). This flag is passed to new directory segments at `+0x40`. |
+| 4b | `[DBSegments]`, group = `class;path` | First pass creates all nonexcluded groups, using class converted from the beginning of the value, IID `0x856C8CF7`, calls `+0x3C` with `(true,true)`, applies AllowTextAsKey, and registers the segment with HIT. |
+| 4c | `[DBSegmentDirectoryFiles]`, group = `type:extension[,type:extension…]` | For each nonexcluded group, find IID `0x856C8CF7`, get its directory interface at `+0x30`, bind each converted type to its extension at directory `+0x0C`, and associate that type with the group at HIT slot 46. The final comma-free remainder is processed too. |
+| 4d | `[DBSegments]`, same entries | Second pass initializes each nonexcluded segment, after discarding `class;` and trimming the remainder; expand a leading `%DataDirectory%`, find IID `0x656B8F0C`, call `(group,path,true)` at `+0x0C`, and on success add it to persist manager `+0x70`. |
+| 5 | `[TrackDataBlocks]`, numeric ordering key = relative filename | Prefix the sound-system data-directory string and call HIT LoadHitFile (slot 9); the map key does not become a track ID. |
+| 6 | `[HitManTypeGroups]`, type = `group[,group…]` | Register every converted group for that type, including the final remainder, at HIT slot 46. |
+| 7a | `[SndDataSourceCreators]`, subsection name = `class,creator-ID` | Direct callback, in file order: create IID `0x9B75709E`, register the creator and converted creator-ID at sound-manager `+0x64`, and save creator-ID → subsection-name in a shared map. Equal creator-IDs replace the saved subsection name. |
+| 7b | Each saved creator subsection, numeric sound-ID = definition string | Visit saved creator-IDs in ascending order, query creator IID `0x9B75709E` through sound-manager `+0x70`, and pass `(sound-ID,definition-string)` to creator `+0x10`. Values are not comma-split here. |
+| 8 | `[SndCreators]`, class = optional definition-section name | Split at first comma. With a comma, use the prefix as the section and ignore the suffix; without one, use the entire value as the section. Create IID `0x3AF9866F`, register at sound-manager `+0x3C`, then enumerate that section if nonempty. Each entry converts its key to a sound-ID and invokes the creator's IID `0x1B6C8B18`, slot 3, with `(ID,value,0,0)`. Direct definition callbacks preserve duplicate entries. |
+| 9 | `[ResourceFactories]`, resource-type = factory-class | Convert the whole value and call persist-manager `+0x4C` with `(factory-class,resource-type,0)`. |
+
+Evidence: helpers `0x00936298–0x00937569`, creator callbacks
+`0x00936253`, `0x009364FA`, `0x009368ED`; delimiter bytes at `0x00A99F14`
+(comma), `0x00A870D0` (semicolon), `0x00AA0424` (colon). Stage 4 is the
+interface's slot 4, not a second call to EnumDefaultEntries. The exclusion set
+is not cleared at the beginning of these helpers. The data-directory expansion
+removes exactly the first 15 characters `%DataDirectory%` before prefixing.
+
+*[compat]* There is no aggregate rollback or all-stages success conjunction.
+The calls at `0x00937762–0x00937791` ignore earlier returns; the final return
+is InitResourceFactories' result, which is unconditionally true on ordinary
+return (`0x009374A0`), even when the persist service is absent. Individual
+segment failures leave earlier registrations installed. Several paths query
+an interface and immediately dereference it without testing success (including
+the directory/creator callbacks); malformed dependencies can crash before
+the nominal successful return. Safe rejection is an implementation choice.
+HitManTypeGroups likewise requires the HIT service when entries exist; missing
+services are only skipped where an explicit check exists.
+
+Worked case: `[TrackDataBlocks]` contains, in order, `16=a.hit`, `2=b.hit`,
+`0x10=c.hit`; stage 5 attempts `data-directory + b.hit`, then
+`data-directory + c.hit`, and never attempts `a.hit`. If loading `b.hit`
+fails, `c.hit` is still attempted and stage 9 is still reached; an absent
+ResourceFactories section still yields true. A directory value
+`0x2026960B:wav,0x00000001:bin` performs two bindings and two type/group
+associations. These cases test replacement, unsigned ordering and continuation.
+
+Runtime boundary: repeated **section headers**, locale-dependent comparison of
+AllowTextAsKey, and missing-backend crash details are inherited dependencies,
+not additional HIT grammar. To settle them, enumerate an INI containing two
+identically named sections, compare `true`/`TRUE` under the target locale, and
+record which callbacks and `+0x40` flag occur. The rules above do not require
+that observation for well-formed, uniquely headed configuration.
 
 ### 5.2 Track property resource
 
