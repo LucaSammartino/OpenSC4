@@ -2,12 +2,8 @@
 
 ## PR-MAPS30-01 — Census coverage differs from a fresh cone rebuild
 
-Open; maps-cities30; 2026-10-26. Please provide a conformance vector or clarify
-the historical inputs needed to reproduce these loaded coverage grids.
-Sections 4 and 11 retain saved grids, whereas the current month shadow
-rebuilds them from live stations (§5.1). I cannot establish from the present
-evidence whether the differences are retained saved state or an arithmetic
-error in the fresh rebuild; no comparison was weakened or skipped.
+Open; maps-cities30; 2026-10-26. Value-only request for §§5.1, 7.1 and 11;
+the affected implementation item is stopped pending these values.
 
 Evidence in `build-runs/suite/sh28-census3/`:
 - `maxisland-darris.log:3826`, 2097-05-01, police: eight cells differ by 1,
@@ -18,6 +14,15 @@ Evidence in `build-runs/suite/sh28-census3/`:
 - `maxisland-lamburg-villa.shadows.txt`, 2051-08-01, police: adjusted 334
   cells and unadjusted 363 cells differ by 1; one station, no dispatches.
 
-The existing shadow runs simgrid §7.1's table/exact-distance rule and the
-specified f32 multiply, subtraction and half-even rounding. Please identify
-the necessary same-call inputs/comparison boundary before changing those rules.
+For each sample above, return a numeric tuple for its first differing cell:
+`(cell_x, cell_z, int16_after_Read, UpdateUnadjusted_calls_since_Read,
+int16_after_last_UpdateUnadjusted, int16_at_sample)`.
+For the last rebuild, also return each station's input tuple in list order:
+`(tract_x, tract_z, radius_in_tracts_f32_bits, centre_f32_bits, outer_f32_bits)`
+and the cone contribution at that cell as an int16. Use uint32 hex for f32
+bits and decimal for integers; if no rebuild ran, return count 0 and omit
+its tuples. For Lamburg Villa use the first cell listed in the cited file.
+
+This distinguishes retained saved values from a fresh rebuild using values
+alone. The existing shadow follows simgrid §7.1's table/exact-distance rule
+and the specified f32 operations. Comparisons and arithmetic remain strict.
