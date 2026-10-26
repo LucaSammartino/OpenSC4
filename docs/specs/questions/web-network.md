@@ -81,3 +81,11 @@ construction and temporary ownership; §4.14 qualifies raw-text parsing, preserv
 preexisting pairs, and single first-empty-value erasure. WWW-22a–c and NORM01–NORM08 are
 proposed/unexecuted distinguishing fixtures. Those two blockers are resolved; Q9 remains
 open only for the residual O support/adapters in the owner checklist.
+
+<!-- from: reach-ui29 (2026-10-26) -->
+- **UI29-HTTP — public LoadDocument call order:** section 4.2 names URL,
+  notification target, custom data, representation preference and cache permission,
+  but does not order those five arguments or state whether the string overload
+  takes a cIGZString reference or a char pointer. Please qualify the exact public
+  slot-17 signature (008f72b5), target interface and return. ABI gives pop 20 only.
+  This blocks a loopback-only HTTP qualification action; no guessed call was made.

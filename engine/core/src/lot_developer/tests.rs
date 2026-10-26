@@ -50,6 +50,22 @@ fn geometry_is_total_and_matches_spec() {
 }
 
 #[test]
+fn vc29_slope_keeps_register_precision_until_float_sink() {
+    use crate::x87::Precision::{Bits24, Bits53};
+    let mut altitude = |x, z| match (x, z) {
+        (0, 0) => 0.0,
+        (3, 4) => 13.0,
+        _ => 6.0,
+    };
+    for (pc, bits) in [(Bits24, 0x40ED_B6DB), (Bits53, 0x40ED_B6DC)] {
+        assert_eq!(
+            super::geometry::area_slope_with_precision(CellRect::new(0, 0, 2, 3), &mut altitude, pc).to_bits(),
+            bits
+        );
+    }
+}
+
+#[test]
 fn development_cost_matches_spec() {
     let shipped = Tuning::shipped_exemplar();
     let mut t = Tuning::default();

@@ -443,10 +443,16 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Native entry census; opt-in only.
                                   "reach", "reach_cap", "reach_window", "reach_include_probes",
                                   "reach_contracts", "reach_output", "reach_diagnostics", "reach_lifecycle",
+                                  // Same-invocation UI oracle; default off.
+                                  "drawstream_shadow",
                                   // Explicit DX7 shadow selection before city resources, default off.
                                   "gdriver_shadow_select",
+                                  // Opt-in scenario drivers and pre-application reach window.
+                                  "ui_command_catalog", "reach_startup",
                                   // Sampled land-value input-change diagnostics (not native Step capture).
                                   "landvalue_shadow_inputs",
+                                  // GZ command stream comparison, independently default off.
+                                  "gzfw_trace",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

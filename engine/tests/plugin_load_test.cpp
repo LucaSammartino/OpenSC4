@@ -8378,6 +8378,11 @@ void ZdLotRect(void*, uint64_t t, fc4_cell_rect* o) {
     const ZdLot* l = ZdLotOf(t);
     *o = fc4_cell_rect{l->x, l->z, l->x + l->w - 1, l->z + l->h - 1};
 }
+bool __fastcall ZdLotRectOutput(void* self, void*, SC4Rect<int32_t>* out) {
+    const auto* l = static_cast<const ZdLot*>(self);
+    *out = SC4Rect<int32_t>(l->x, l->z, l->x + l->w - 1, l->z + l->h - 1);
+    return false;  // slot 14's output is valid independently of its unspecified AL
+}
 float ZdLotAltitude(void*, uint64_t) { return 50.0f; }
 void ZdLotLocation(void*, uint64_t t, int32_t* x, int32_t* z) {
     *x = ZdLotOf(t)->x;
@@ -8768,6 +8773,7 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
     stub.lotVt.slots[1] = reinterpret_cast<void*>(&ZdLotAddRef);
     stub.lotVt.slots[2] = reinterpret_cast<void*>(&ZdLotRelease);
     stub.lotVt.slots[5] = reinterpret_cast<void*>(&ZdLotClass);
+    stub.lotVt.slots[14] = reinterpret_cast<void*>(&ZdLotRectOutput);
     cISC4ZoneDeveloper* zd = NewZoneDeveloper(director);
     CHECK(zd != nullptr);
     if (zd == nullptr) return;
@@ -8850,6 +8856,19 @@ void ZoneDevStubTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         CHECK(list.Lots().size() == lots);
     }
     for (size_t i = 0; i < stub.used; ++i) CHECK(stub.lots[i].refs == 2);
+
+    // Exercise the production slot-14 host path, rather than the rectangle
+    // callback. A lot that crosses into the query is excluded (§8.3), while
+    // that same lot is returned for an adjacent query. Neither depends on AL.
+    {
+        host.lot_bounding_rect = nullptr;
+        ZdList list;
+        CHECK(lm->GetLotsSurroundingRect(SC4Rect<long>(6, 5, 6, 5), list.Get(), 0xF) == 0);
+        CHECK(list.Lots().empty() && made->refs == 2);
+        CHECK(lm->GetLotsSurroundingRect(SC4Rect<long>(7, 5, 7, 5), list.Get(), 0xF) == 1);
+        CHECK(list.Lots() == std::vector<ZdLot*>{made} && made->refs == 3);
+        host.lot_bounding_rect = &ZdLotRect;
+    }
 
     // Slot 15: a C block {first node, list object} over the raw master list
     // (FC4SafeLotIterator.h), registered until its owner releases it.
@@ -9492,7 +9511,7 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     // the 13, the late script's one, the save script's 5 and its "waits" line
     CHECK(CountOf(text, "script: line ") == 20);
     CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, network, speed, pause, "
-                        "resume, turbo, digest, mark, save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)") != std::string::npos);
+                        "resume, turbo, digest, mark, save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, budgetwindow)") != std::string::npos);
     CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
     CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
                     "it runs") != std::string::npos);
@@ -11108,6 +11127,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_lotrec_boundary_test.inc"
 #include "plugin_lotconf_ownership_test.inc"
 #include "plugin_netlot_ownership_test.inc"
+#include "plugin_effects_resource_registration_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11133,6 +11153,10 @@ int main(int argc, char** argv) {
     if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
         mode == "--effects-guarded")
         return EffectsRegistrationTest(dll, ini, log, mode);
+
+    if (mode == "--effectsres-default" || mode == "--effectsres-enabled" ||
+        mode == "--effectsres-disabled" || mode == "--effectsres-mixed")
+        return EffectsResourceRegistrationTest(dll, ini, log, mode);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {

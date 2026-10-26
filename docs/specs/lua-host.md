@@ -392,11 +392,24 @@ These are Lua 5.0's `lua_dofile`, `lua_dostring` and `lua_dobuffer` (lauxlib) un
 
 ### 4.5 Precision guard (all wrappers)
 
-Every `cGZLua5Thread`, `cGZLua5` and `cSCLua` wrapper that calls into Lua switches the x87 precision as described in
-foundations §18.1: get precision (`0x00892A0A`); if it is 24-bit, set 53-bit (`0x008929E0`) for the call and set
-24-bit back afterwards. **Exception:** `Unref` (slot 62) has no guard. Lua arithmetic in scripts therefore runs in
-double precision while the simulation runs in single precision *[compat]*. The only Lua code that may run under
-24-bit is a garbage collection triggered from `Unref` *[inferred]*.
+The guarded `cGZLua5Thread`, `cGZLua5` and `cSCLua` wrappers get the entry precision (`0x00892A0A`). If it is
+24-bit, they select 53-bit (`0x008929E0`) for the **whole call** and restore PC to 24-bit after it returns.
+Entry at 53-bit or 64-bit performs neither change. This saves the precision mode, not the entire control word;
+other control bits are preserved as they stand when the selector runs. **Exception:** `Unref` (slot 62) has no
+guard; a garbage collection it triggers can therefore run at 24-bit *[inferred]*.
+
+**Native re-entry is inside the scope (VC29-PC).** A C callback invoked by Lua inherits the live precision;
+the C-closure dispatch at `0x008BBEB9` has no precision change. So do native framework/simulation callbacks
+reached by a modal frame beneath that callback. An inner guarded Lua call entered at 53-bit leaves 53-bit on
+return. Only the outer wrapper that entered at 24-bit restores PC to 24-bit, after all its re-entry completes.
+`CallProtected` includes its native error reporter before restoration (`0x008B9016` before `0x008B903A`);
+`ResumeThread` does likewise (`0x008B8BBF` before `0x008B8C03`). This describes normal wrapper returns,
+including handled errors, not escapes that bypass the restoring path. There is no 24-bit scheduler boundary.
+
+See [foundations §18.4](foundations.md#184-lua-to-native-re-entry-uses-the-live-precision-vc29-pc) for the
+instruction evidence, arithmetic/storage rules, worked callback/balance/slope/EQ cases, and the observation
+needed to attribute a particular run's precision change. In particular, a 24-bit outer entry gives 53-bit
+inside the native callback, 53-bit after an inner Lua call, then 24-bit after the outer wrapper returns.
 
 ### 4.6 GC and references
 

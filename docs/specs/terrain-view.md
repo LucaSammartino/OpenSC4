@@ -106,8 +106,10 @@ grid on, the grid (§8.1), restoring the fixed state.
 
 ### 4.2 Triangles (`SetTriangleIndicesForCell`, `0x00752AF0`)
 
-Each cell (x, z) has two triangles over its vertices v = (x, z), v + 1, v + W and v + W + 1 (W = vertsX), chosen by
-the flags of vertex (x, z) (terrain.md §7):
+Each cell (x, z) has two triangles over its four vertices. In the index buffer below, v = x,
+relative to the bound pair of vertex rows, and W = vertsX; z selects the index-buffer row,
+not an addition to the stored indices. The flags of terrain vertex (x, z) choose the triangles
+(terrain.md §7; exact words and hide/winding cases in §15.5.13.4):
 
 | Flags | First triangle | Second triangle |
 |---|---|---|

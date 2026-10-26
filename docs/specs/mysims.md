@@ -176,6 +176,46 @@ finished/unfinished semantics**. MySims are driven by:
 ticks and read whatever the simulators last published (residential EQ/HQ, grids, budget). There is no defined
 order relative to a particular simulator's month *[compat]*: a replacement must not assume one.
 
+#### 3.1.1 Capturing the advisor ticker (MS-GC29-1) *[compat]*
+
+Import the **system scheduler state as well as the individual advisor records**. Obtain the original
+`cISC4AdvisorSystem` (`0x4A0DD617`) from the city's `GetAdvisorSystem`, slot 81 (`+0x144`). Its signed 32-bit
+`lastDay` is at **interface +`0x48`**. There is no public last-day getter in its slot vector. QI for
+`cIGZMessageTarget2` (`0x452294AA`) yields that same object at +4; relative to this message-recipient pointer
+the field is **+`0x44`**, not +`0x48`. Evidence: QI `0x0041866B`–`0x0041867F`; recipient
+`DoMessage` `0x0041AEC1`–`0x0041AED2` compares and writes the 32-bit field, signed.
+
+Capture immediately **before the original advisor-system recipient** handles `0x26D31EC1` (PostCityInit),
+`0x26D31EC4` (CityEstablished) or `0xCA5501F2` (ticker), together with the date and the establishment result
+that this delivery actually reads. Retain the boundary (entry or exit) with the snapshot: an exit snapshot
+already includes that delivery. A separate subscriber to the broadcast is not a recipient-entry boundary.
+For a shadow attached after city initialization, import the live system field and records at one boundary;
+do not manufacture an initial monthly call merely because a deferred notification reaches the shadow later.
+The exact dispatch rules are advisors.md §5.1–§5.2, with these consequences:
+
+- An established PostCityInit and CityEstablished each request a monthly step only when `lastDay < 1`.
+  Neither monthly step changes `lastDay`. Only a ticker that accepts a new date advances it. The loaded-save
+  flag does not gate the monthly call (`0x0041AB10`–`0x0041AB29`, `0x0041AE65`–`0x0041AE7A`).
+- Month counter and current day belong to **each advisor**. A daily `Simulate(0)` writes its current day;
+  a monthly `Simulate(1)` increments its month counter (`0x0040D840`, `0x0040D853`–`0x0040D860`).
+  Adding an advisor inserts it and sends the advisor-added notification, without a catch-up daily or monthly
+  step (`0x004197E0`–`0x00419832`). A newly added ID 30 may therefore be at 0/0 while earlier IDs have 1/date;
+  zero fields on that record do not mean the system ticker is uninitialized.
+
+**Worked cases.** With system `lastDay = 2451545` (2000-01-01), IDs 1–5 at month/day 1/2451545 and newly
+added ID 30 at 0/0, an established PostCityInit leaves all six counters unchanged. A ticker at the same date
+has no monthly call; a later accepted day 28 increments the six month counters once, to 2 and 1 respectively.
+Conversely, with system `lastDay = 0`, CityEstablished then established PostCityInit **before any ticker**
+produce two monthly calls and leave `lastDay = 0`. Do not deduplicate these calls using an establishment flag.
+
+**Limit of the reported capture.** The mixed 1/date and 0/0 records alone do not establish whether
+PostCityInit has already reached the original system: CityEstablished can start the same monthly/ticker
+chain. To settle the new-city runs, record recipient entry/exit for those three message types, with
+system pointer, `lastDay`, date, actual establishment result and per-advisor counters, beginning before
+CityEstablished and continuing through shadow attachment and the deferred PostCityInit. This determines
+whether the shadow replayed an old delivery or captured before a real pending one; the stated log values
+cannot distinguish them. No runtime result is asserted here for those runs.
+
 ### 3.2 Agent message handling (`cIGZMessageTarget2::DoMessage`, always returns true)
 
 Subscriptions, in `Init` order: `0x99EF1142`, `0x99EF1145`, `0x99EF1143`, `0xA6B79602`, `0xA6B79612`, `0x44778230`,

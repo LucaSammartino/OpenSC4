@@ -1679,6 +1679,10 @@ public:
     // 8: the network tile at the cell whose flags match `flagMask` / `flag`,
     // or null (a pointer into the map; no reference).
     virtual void* FindNetworkTile(int32_t x, int32_t z, uint32_t flagMask, bool flag) = 0;  // 8
+    virtual intptr_t NetworkMapSlot9(intptr_t a) = 0;                               // 9
+    virtual intptr_t NetworkMapSlot10(intptr_t a, intptr_t b, intptr_t c, intptr_t d) = 0; // 10
+    // regional-city-records §4.6 RR3: nonzero for any traffic-map entry at x,z.
+    virtual uint32_t AnyNetworkAt(int32_t x, int32_t z) = 0;                       // 11
 };
 
 // ---- zone manager (docs/specs/zones.md §11.1) ----------------------------------------------------

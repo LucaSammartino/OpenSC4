@@ -432,7 +432,8 @@ their own points (dump of all 12 in the exemplar data):
 Slicing: the shared adaptive helper with budget `ms` and this class's process-wide step `0x00B49098` (miss counter
 `0x00B4909C`, guard `0x00B490A0`) (`simulator.md` §5.5). The clock is the processor's time-stamp counter converted with
 the simulator's `MillisecsToCycles` (§5.5); a replacement may use any monotonic real-time clock such as
-`QueryPerformanceCounter` (DG2), because the slicing changes only how much of the pass runs per call, never its result.
+`QueryPerformanceCounter` (DG2). For fixed inputs, slicing changes only how much of the pass runs per call.
+In a running city, different slice boundaries can straddle other deliveries that change those inputs (§5.2.1).
 The deadline check comes **before** each tract. The tract developer is fetched once per call (BDS slot 35
 `GetTractDeveloper`).
 
@@ -450,8 +451,76 @@ tractDeveloper.UpdatePopulation({this, x, z, stage = uninitialised})       (trac
 When the iterator is exhausted → state 19. Out of time → stay in 18 (the iterator keeps its position).
 
 W, capacity and population are indexed with the same `(x, z)` (all six grids share S). The `GrowthProfile`'s
-fourth field (`uint8` stage) is never written *[quirk]*; `tract-developer.md` states that `UpdatePopulation`
-ignores it *[inferred]*. *[choice]* FreeCity4 passes 0.
+fourth field (`uint8` stage) is never written *[quirk]*; `UpdatePopulation` ignores it
+(tract-developer.md §4.18). *[choice]* FreeCity4 passes 0.
+
+#### 5.2.1 Capturing state-18 reads and synchronous effects (GD-GC29-1) *[compat]*
+
+Use the original developer's primary `cISC4GrowthDeveloper` pointer as the base for the following Windows
+1.1.641 fields. The message-target-2 pointer is base +4; `DoMessage` subtracts 4 before calling `DoIdle`
+(`0x006B70B4`–`0x006B70B7`). Do not apply the primary offsets to the message sub-object unchanged.
+
+| Offset | State / access contract |
+|---|---|
+| +`0xD4` | int32 update state; 18 during the population pass, 19 after exhaustion |
+| +`0xDC` | pointer to the 0x20-byte scanning iterator; no public iterator getter |
+| +`0x110` | W, working int16 desirability grid; no public W getter |
+| +`0x114` | D, published int16 desirability grid; public slot 13 (`+0x34`) returns D, not W |
+| +`0x118` | int16 population grid; public slot 15 (`+0x3C`) |
+| +`0x11C` | uint16 built-capacity grid; public slot 14 (`+0x38`) |
+| +`0x120` | uint16 maximum-capacity grid; public slot 16 (`+0x40`); not read by the state-18 population formula |
+
+The iterator has a state byte at +`0x00` (0 fresh, 1 running, 2 done), int32 current x/z at +`0x04`/+`0x08`,
+step at +`0x0C`, and inclusive rectangle x0/z0/x1/z1 at +`0x10`/+`0x14`/+`0x18`/+`0x1C`.
+`GetNext` (`0x0060C8D0`) returns the current pair on the fresh call and advances **before returning** on
+later successful calls; x runs inside z (simgrid.md §7.4). Thus an entry cursor is the last returned pair
+when running, not an unconditionally next-to-process pair. State 17 resets it to fresh (0,0) at
+`0x006B68BE`–`0x006B68F4`. A deadline return need not consume another pair.
+
+**Per-tract boundary.** In state 18, `DoIdle` obtains the tract developer once and the grid-data objects
+for capacity, population and W (`0x006B693D`–`0x006B6975`). Its successful iterator return at
+`0x006B69C5` supplies the pair about to be processed. Capture that pair and the actual W **signed word**
+and capacity **unsigned word** used at `0x006B69E4` and `0x006B6A27`. There are no intervening external calls
+between these two loads and the population store at `0x006B6A4D`, so a capture just after the successful
+iterator return can obtain both inputs for that tract. The raw grid data is a vector of column vectors:
+outer element stride 12 bytes at x, word offset 2×z in that column (simgrid.md §6.3).
+Retain developer subtype, delivery/date and pair order with each record. Do not substitute a capacity
+snapshot taken after the original's whole delivery, or after the whole state-18 pass.
+
+After computing and storing the population word, the original forms the profile {developer, x, z, unwritten
+stage} and synchronously calls tract-developer slot 7 at `0x006B6A65`, **before** requesting another pair
+(`0x006B6A68` returns to the timer/iterator loop). A shadow can replay the captured pairs in this order,
+using their captured W/capacity regardless of its own adaptive clock. It may keep the callback read-only
+with respect to the game; it must still model any per-lot effects it compares, from independent lot inputs.
+Record the original population immediately after its store and after callback return to separate numeric
+disagreement from subsequent mutations. Neither final D nor final capacity is a record of the earlier reads.
+
+**What the native callback can change.** `cSC4TractDeveloper::UpdatePopulation` (`0x00706BC0`,
+tract-developer.md §4.18) reads published D and the tract's intersecting lots. For each qualifying lot it
+calls `SetPopulation` (slot 55). Native `cSC4Lot::SetPopulation` (`0x006C1940`) clamps to available lot
+capacity, assigns one per-lot population-map entry and recomputes that lot's cached occupant wealth
+(`0x006C1A10`–`0x006C1A1A`, lot-records.md §3.2.1–§3.2.2). It does **not** call the growth developer's
+capacity/population updates or post a change message. The wealth recomputation (`0x006C1430`–`0x006C15CF`)
+updates the lot's cache, without a grid-update callback. Therefore this native call does not synchronously
+change a later tract's W, capacity or population grid, nor overwrite the just-stored tract population.
+It can change the lot populations/wealth a later tract's **lot-level** callback sees, especially for a
+lot intersecting more than one tract. Do not treat that as a rewrite of the later tract's grid capacity.
+Other deliveries between slices may update the grids through the ordinary capacity/population contracts.
+
+**Worked slice case.** Let tract (5,24) have W = 100 and capacity = 85 when the original consumes it;
+the formula writes population 85. Between deliveries, the host adds capacity 141 with no population delta,
+so capacity becomes 226. A shadow whose earlier slice stopped before (5,24) and reads live capacity on its
+next slice writes 226. Both finish with D = 100 and capacity = 226, while populations differ 85/226.
+Replaying the captured pair {W = 100, capacity = 85} writes 85 under any slice partition. This is a controlled
+test of the boundary, not a reconstruction of the historical city's unrecorded inputs. A separate callback
+case should verify that native lot-population/wealth changes leave the next tract's grid words unchanged.
+
+**Remaining observation.** A clean run through the reported 2027-12-03 residential pass must record every
+original successful state-18 pair, W/capacity at these loads, population before/after its store and callback,
+and entry/exit cursor and state for each delivery. Follow any intervening grid-changing messages with their
+date/order. This distinguishes changed inputs between unequal slices from arithmetic or callback drift at
+(5,24). The corrected-precision 263/263 and isolated 105/105 exact lines end before that date; their later
+corrupt/crash outcomes do not validate this case or prove it fixed.
 
 ### 5.3 State 19: phantom demand
 

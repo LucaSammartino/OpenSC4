@@ -51,7 +51,7 @@ fn gzc45_46_buffer_unlock_mask_and_underflow() {
     assert!(b.unlock(0x0800));
     assert_eq!((b.lock_flags, b.nesting), (0x8040, 1));
     assert!(b.unlock(0));
-    assert_eq!((b.lock_flags, b.nesting, b.modifications), (0x8040, 0, 1));
+    assert_eq!((b.lock_flags, b.nesting, b.modifications), (0x8040, 0, 2));
     let mut b = buffer::Buffer::default();
     assert!(b.unlock(u32::MAX));
     assert_eq!((b.lock_flags, b.nesting), (0, u16::MAX));

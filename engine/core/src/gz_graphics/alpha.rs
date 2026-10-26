@@ -1,6 +1,133 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
 
+/// Buffer metadata consumed by the ordinary 16-bit alpha operation (§6.2.1).
+pub struct AlphaSource<'a> {
+    pub buffer: &'a dyn Buffer,
+    pub depth: u32,
+    pub colour_key: Option<u16>,
+}
+
+/// Only the low byte is defined by the native entry. Bounds outside safe foreign
+/// storage return an error; valid NoClip inputs receive no geometric clipping.
+pub fn alpha_blt_no_clip(
+    source: AlphaSource<'_>,
+    destination: &dyn Buffer,
+    alpha: &dyn Buffer,
+    rect: Rect,
+    point: [i32; 2],
+) -> Result<u8> {
+    const FLAGS: u32 = 0x8040;
+    if !source.buffer.lock(FLAGS) {
+        return Ok(0);
+    }
+    if !destination.lock(FLAGS) {
+        source.buffer.unlock(FLAGS);
+        return Ok(0);
+    }
+    if !alpha.lock(FLAGS) {
+        destination.unlock(FLAGS);
+        source.buffer.unlock(FLAGS);
+        return Ok(0);
+    }
+    let result = (|| {
+        let d = destination.record();
+        if source.depth != 16 || !matches!(d.colour_type, 4..=6) {
+            return Ok(1);
+        }
+        // SPEC-GAP: §6.2.1 requires a separate alias capture; do not invent sampling order.
+        if std::ptr::eq(source.buffer, destination) {
+            return Err(Error::Unsupported("GZG5"));
+        }
+        let s = source.buffer.record();
+        let a = alpha.record();
+        let mut words = Vec::new();
+        let mut levels = Vec::new();
+        source.buffer.pixels(s, &mut |bytes, base| {
+            for y in rect.1..rect.3 {
+                for x in rect.0..rect.2 {
+                    let i = alpha_offset(s, base, x, y, 2)?;
+                    let pair = bytes.get(i..i + 2).ok_or(Error::InvalidInput)?;
+                    words.push(u16::from_le_bytes([pair[0], pair[1]]));
+                }
+            }
+            Ok(())
+        })?;
+        alpha.pixels(a, &mut |bytes, base| {
+            for y in rect.1..rect.3 {
+                for x in rect.0..rect.2 {
+                    let i = alpha_offset(a, base, x, y, 1)?;
+                    let level = *bytes.get(i).ok_or(Error::InvalidInput)?;
+                    // SPEC-GAP: GZG5 does not establish ordinary levels above 31.
+                    if level > 31 {
+                        return Err(Error::Unsupported("GZG5"));
+                    }
+                    levels.push(level);
+                }
+            }
+            Ok(())
+        })?;
+        destination.pixels(d, &mut |bytes, base| {
+            let mut n = 0;
+            for y in 0..rect.height() {
+                for x in 0..rect.width() {
+                    let src = words[n];
+                    let level = i32::from(levels[n]);
+                    n += 1;
+                    if source.colour_key == Some(src) {
+                        continue;
+                    }
+                    let i = alpha_offset(d, base, point[0] + x, point[1] + y, 2)?;
+                    let pair = bytes.get_mut(i..i + 2).ok_or(Error::InvalidInput)?;
+                    let dst = u16::from_le_bytes([pair[0], pair[1]]);
+                    let shifts = if d.colour_type == 5 { [11, 6, 0] } else { [10, 5, 0] };
+                    // The ordinary 1555 domain excludes the high bit (§6.2.1).
+                    if d.colour_type != 5 && (src | dst) & 0x8000 != 0 {
+                        return Err(Error::Unsupported("GZG5"));
+                    }
+                    let mut out = 0_u16;
+                    for shift in shifts {
+                        let s = i32::from((src >> shift) & 31);
+                        let d = i32::from((dst >> shift) & 31);
+                        out |= (((32 * d + level * (s - d)) >> 5).min(31) as u16) << shift;
+                    }
+                    pair.copy_from_slice(&out.to_le_bytes());
+                }
+            }
+            Ok(())
+        })?;
+        Ok(1)
+    })();
+    alpha.unlock(FLAGS);
+    destination.unlock(FLAGS);
+    source.buffer.unlock(FLAGS);
+    result
+}
+
+fn alpha_offset(record: BufferRecord, base: usize, x: i32, y: i32, size: i64) -> Result<usize> {
+    if x < 0 || y < 0 || x as u32 >= record.width || y as u32 >= record.height {
+        return Err(Error::InvalidInput);
+    }
+    usize::try_from(base as i64 + i64::from(y) * i64::from(record.stride) + i64::from(x) * size)
+        .map_err(|_| Error::InvalidInput)
+}
+
+/// The clipped entry mutates only its local rectangle copies (§6.3 / V57).
+pub fn alpha_blt(
+    source: AlphaSource<'_>,
+    destination: &dyn Buffer,
+    alpha: &dyn Buffer,
+    mut rect: Rect,
+    point: [i32; 2],
+    clip: Option<Rect>,
+) -> Result<u8> {
+    let mut dest = Rect(point[0], point[1], point[0] + rect.width(), point[1] + rect.height());
+    if !generic_buffer_clip(destination.record().canvas(), &mut rect, &mut dest, clip) {
+        return Ok(0);
+    }
+    alpha_blt_no_clip(source, destination, alpha, rect, [dest.0, dest.1])
+}
+
 fn edges(r: Rect) -> [i32; 4] {
     [r.0, r.1, r.2, r.3]
 }
@@ -86,7 +213,7 @@ pub fn generic_buffer_clip_stretch(
     true
 }
 
-/// Ordinary AlphaBlt's local copies; pixel kernels are still delegated (GZG5).
+/// Ordinary AlphaBlt's local copies, also used by the settled 16-bit kernel.
 pub fn clipped_alpha_rectangles(
     area: Rect,
     source: Rect,

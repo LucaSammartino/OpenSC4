@@ -26,3 +26,4 @@ pub trait References {
 
 #[cfg(test)]
 mod tests;
+pub mod registry;

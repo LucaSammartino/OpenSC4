@@ -280,7 +280,9 @@ void FpuReassert24Bit(const char* where) {
 }
 
 void FpuSimulationEntry(const char* where) {
-    if (OnMain() && !Is24Bit(X87ControlWord())) FpuReassert24Bit(where);
+    // Foundations §18.4: Lua/modal re-entry inherits live PC. Only startup
+    // repairs the separately measured DLL-load precision change.
+    FpuCheck(where);
 }
 
 void FpuTick() {

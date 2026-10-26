@@ -35,6 +35,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace fc4 {
 
 void SpanRender8888Start();  // PostAppInit: fixture, forwarders
@@ -42,5 +44,6 @@ void SpanRender8888Stop();   // PreAppShutdown: original entries back, counts
 // glue-span-context-final4: entries 1-5 = the originals (true) or our forwarders
 // (false); false if the bridge is not installed.
 bool SpanRender8888UseOriginal(bool original);
+void SpanRender8888Month(int32_t julian);  // cumulative, complete method evidence
 
 }  // namespace fc4

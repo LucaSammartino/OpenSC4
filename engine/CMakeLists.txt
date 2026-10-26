@@ -606,7 +606,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4QueryToolShadow.h
         # Default-off GZ framework constructed-buffer and command differential.
         plugin/FC4GZFrameworkShadow.cpp
-        plugin/FC4GZFrameworkShadow.h)
+        plugin/FC4GZFrameworkShadow.h
+        plugin/FC4GZFramework.h
+        plugin/FC4GZBuffer.cpp
+        plugin/FC4GZCommandServer.cpp)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -1430,6 +1433,25 @@ if(TARGET fc4_plugin_load_test)
         PROPERTIES RUN_SERIAL TRUE)
 endif()
 
+# Same-invocation UI draw/message transcripts, shared by window shadows.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4MapViewDrawStream.cpp plugin/FC4MapViewDrawStream.h plugin/FC4MapViewDrawBoundary.h plugin/FC4MapViewUIBoundary.h)
+    target_sources(FreeCity4 PRIVATE plugin/FC4DrawStream.h plugin/FC4DrawStreamCapture.cpp plugin/FC4DrawStreamCapture.h)
+    add_executable(fc4_draw_stream_test tests/draw_stream_test.cpp plugin/FC4DrawStreamCapture.cpp)
+    target_include_directories(fc4_draw_stream_test PRIVATE plugin)
+    target_compile_definitions(fc4_draw_stream_test PRIVATE FC4_DRAW_STREAM_TEST)
+    target_compile_options(fc4_draw_stream_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME draw_stream_oracle COMMAND fc4_draw_stream_test)
+endif()
+if(TARGET FreeCity4)
+    add_executable(fc4_gzfw_owner_test tests/gzfw_owner_test.cpp)
+    target_sources(fc4_gzfw_owner_test PRIVATE "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_gzfw_owner_test PRIVATE plugin "${FC4_GZCOM_DIR}/include")
+    target_compile_options(fc4_gzfw_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME gzfw_native_owners COMMAND fc4_gzfw_owner_test "$<TARGET_FILE:FreeCity4>")
+    set_tests_properties(gzfw_native_owners PROPERTIES TIMEOUT 20)
+endif()
+
 # Public DX7 slot/arity checks and bounded native transcript forwarding.
 if(TARGET FreeCity4)
     add_executable(fc4_gdriver_trace_test tests/gdriver_trace_test.cpp)
@@ -1472,6 +1494,26 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_automata_construction_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME automata_construction_test COMMAND fc4_automata_construction_test "$<TARGET_FILE:FreeCity4>")
     set_tests_properties(automata_construction_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+# City-situation persistence compares unordered map entries (section 7).
+add_executable(fc4_citysit_record_test tests/citysit_record_test.cpp)
+target_include_directories(fc4_citysit_record_test PRIVATE plugin)
+add_test(NAME citysit_record_comparison COMMAND fc4_citysit_record_test)
+
+# Effects resource: separate opt-in class, fixed persistence identity and stream ABI.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4EffectsResource.cpp plugin/FC4EffectsResource.h)
+    add_executable(fc4_effects_resource_test tests/effects_resource_test.cpp
+        plugin/FC4EffectsResource.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_effects_resource_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_options(fc4_effects_resource_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME effects_resource_test COMMAND fc4_effects_resource_test)
+    foreach(mode default enabled disabled mixed)
+        add_test(NAME plugin_effects_resource_registration_${mode}_test
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effectsres-${mode})
+        set_tests_properties(plugin_effects_resource_registration_${mode}_test
+            PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
+    endforeach()
 endif()
 
 # Native graphics-rule provider; the transport remains private to the static link.

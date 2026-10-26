@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 105;
+pub const FC4_ABI_VERSION: u32 = 106;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -1207,3 +1207,10 @@ mod regionalcity_owner;
 
 // Private graphics-rule owner transport; native acquisition requires GR9.
 mod cfgrules_owner;
+
+// Private UI oracle replay transport; linked statically into the plugin.
+mod draw_stream;
+// Private static-link GZ framework owners; no public DLL ABI changes.
+mod gzfw_owner;
+// Native simulation invocation context; private, no C ABI exports.
+mod invocation;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! cHitTrackPlayer, sound-system §3. Bytecode execution remains SS1.
+pub use super::track_vm::{TrackEffect, TrackIo};
 use super::{InterfaceView, Properties, Scheduler, SoundRef, Unsupported};
 use std::sync::{Arc, Mutex};
 
@@ -24,6 +25,14 @@ pub struct HitTrackPlayer {
     pub property_notifications: Vec<(u32, i32)>,
     pub embedded_channel: super::hit::HitChannel,
     pub services: Vec<super::directors::ForeignRef>,
+    pub pc: usize,
+    pub return_stack: Vec<usize>,
+    pub wait: i32,
+    pub note_countdown: i32,
+    pub completion_after_ramp: bool,
+    pub playing_reference: bool,
+    pub flags: [bool; 3],
+    pub float_properties: std::collections::BTreeMap<u32, f32>,
 }
 
 /// Effects whose values are known before the unsettled interpreter is entered.
@@ -145,11 +154,24 @@ impl HitTrackPlayer {
     pub fn original_frequency(&self) -> Option<i32> {
         self.properties.get(&0x49).copied()
     }
-    /// Confirmed notification writes, separate from SS1's argument routing.
+    /// §3.2: Play writes suppress notification, but still update comparison flags.
     pub fn write_play_payload(&mut self, payload: [u32; 4]) {
         for (property, value) in PAYLOAD_PROPERTIES.into_iter().zip(payload) {
             self.properties.insert(property, value as i32);
-            self.property_notifications.push((property, value as i32));
+            self.flags = [value == 0, (value as i32) > 0, (value as i32) < 0];
+        }
+        let mapped: &[(u32, usize)] = match self.properties.get(&0xFF4D_CD0D).copied().unwrap_or(0) {
+            1 => &[(0xFF90_AAC8, 0), (0xFF3E_C880, 1)],
+            2 => &[(0xFFB4_335C, 0)],
+            3 => &[(0xFFB4_335C, 0), (0xFF90_AAC8, 1), (0xFF3E_C880, 2)],
+            4 => &[(0xFFCC_4D2D, 0), (0xFF4A_01D6, 1), (0xFF46_9820, 2)],
+            5 => &[(0xFFB4_335C, 0), (0xFFCC_4D2D, 1), (0xFF4A_01D6, 2), (0xFF46_9820, 3)],
+            _ => &[],
+        };
+        for &(property, index) in mapped {
+            let value = payload[index] as i32;
+            self.properties.insert(property, value);
+            self.flags = [value == 0, value > 0, value < 0];
         }
     }
 
@@ -183,6 +205,7 @@ impl HitTrackPlayer {
         }
     }
     pub fn execute_command(&mut self, _data: &[u8]) -> Result<(), Unsupported> {
-        Err(Unsupported("SS1"))
+        self.execute_next(_data, &mut super::track_vm::RejectTrackIo)
+            .map(|_| ())
     }
 }

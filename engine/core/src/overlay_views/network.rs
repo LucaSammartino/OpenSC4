@@ -26,25 +26,23 @@ pub trait NetworkHost {
     fn route_origin(&mut self, occupant: Handle, first_key: u32) -> Option<Vec3>;
     fn terrain_altitude(&mut self, x: f32, z: f32) -> f32;
 }
-/// Shared process pulse. No certified static initial value (NOV2).
+/// Loader-zero process pulse; constructors, Init and Shutdown never reset it (NO 1.1).
 #[derive(Default)]
 pub struct Pulse {
-    value: Option<u8>,
+    value: u8,
 }
 impl Pulse {
     pub fn with_observed_value(value: u8) -> Self {
-        Self { value: Some(value) }
+        Self { value }
     }
-    pub fn value(&self) -> Option<u8> {
+    pub fn value(&self) -> u8 {
         self.value
     }
-    pub fn advance(&mut self) -> Result<u8> {
-        let old = self
-            .value
-            .ok_or(Boundary::Unsupported("NOV2 pulse static initializer"))?;
+    pub fn advance(&mut self) -> u8 {
+        let old = self.value;
         let next = if old == 255 { 0 } else { old.wrapping_add(5) };
-        self.value = Some(next);
-        Ok(next)
+        self.value = next;
+        next
     }
 }
 pub struct PathInfoView {
@@ -64,6 +62,17 @@ impl Default for PathInfoView {
     }
 }
 impl PathInfoView {
+    /// Folded byte store: an initialized view keeps its existing packed state.
+    pub fn set_should_ignore_depth_buffer(&mut self, ignore: bool) {
+        self.ignore_depth = ignore;
+    }
+    /// Models the caller's inline u32 store, not a recovered native setter entry.
+    pub fn set_filter(&mut self, filter: u32) {
+        self.filter = filter;
+    }
+    pub fn shutdown(&mut self) {
+        self.initialized = false;
+    }
     pub fn init(&mut self, resources: &mut impl Resources) -> bool {
         if !self.initialized {
             self.initialized = true;
@@ -103,7 +112,7 @@ impl PathInfoView {
         network: &mut impl NetworkHost,
         renderer: &mut impl Renderer,
     ) -> Result<()> {
-        let pulse = pulse.advance()?;
+        let pulse = pulse.advance();
         if !network.manager_available() {
             return Ok(());
         }

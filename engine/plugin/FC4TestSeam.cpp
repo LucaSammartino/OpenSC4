@@ -74,6 +74,7 @@
 
 #include <cstring>
 #include <vector>
+#include "FC4GZFramework.h"
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {
@@ -309,6 +310,12 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             case 4: return FC4NetOccRemovePoleConnection(t.first, t.second, t.value != 0);
             default: return 0;
             }
+        }
+        case kFC4SeamGZFrameworkCreate: {
+            if (b) return reinterpret_cast<intptr_t>(fc4::GZCommandServerTestCreate(static_cast<cIGZUnknown*>(a)));
+            auto* buffer = fc4::CreateGZBuffer();
+            if (buffer) buffer->AddRef();
+            return reinterpret_cast<intptr_t>(buffer);
         }
         default:
             return 0;

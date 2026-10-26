@@ -8,6 +8,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Reach.h"
 #include "FC4Observer.h"
+#include "FC4Interfaces.h"
 #include "compat/FC4Compat.h"
 #include "fc4.h"
 #include "cIGZCOM.h"
@@ -89,7 +90,16 @@ uint64_t shadowMonth = 0, completedFiles = 0, completedRecords = 0;
 uint64_t coverageCycle = 0;
 uint64_t saveGeneration = 0;
 bool cityAfterSave = false;
+cFC4ISC4Simulator* drainSimulator = nullptr;
 std::map<std::string, unsigned> covered, rotationCovered;
+
+void ReleaseDrainPause() {
+    if (!drainSimulator) return;
+    drainSimulator->HiddenResume(); // simulator.md 6: balanced, independent of the speed lock.
+    FC4_RELEASE(drainSimulator);
+    drainSimulator = nullptr;
+    Log("dbpf drain: hidden pause released");
+}
 
 std::string NormalPath(std::string path) {
     for (char& c : path) c = c == '/' ? '\\' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -662,7 +672,7 @@ void HeldSummary(const HeldSample& sample) {
 }
 
 void DbpfShadowTick() {
-    if (pending == nullptr || pending->empty()) return;
+    if (pending == nullptr || pending->empty()) { ReleaseDrainPause(); return; }
     ReachProbeScope reachProbes;  // queued load/month fixtures are not natural entries
     auto& sample = pending->front();
     if (!sample.full && coverageCycle != sample.month / 12 + 1) {
@@ -721,23 +731,40 @@ void DbpfShadowTick() {
         HeldSummary(sample);
         pending->pop_front();
     }
+    if (pending->empty()) ReleaseDrainPause();
 }
 
 bool DbpfShadowPending() { return pending != nullptr && !pending->empty(); }
+
+bool DbpfShadowWait() {
+    if (!DbpfShadowPending()) { ReleaseDrainPause(); return false; }
+    if (!drainSimulator) {
+        auto* city = ObserverCity();
+        auto* sim = city ? reinterpret_cast<cFC4ISC4Simulator*>(city->GetSimulator()) : nullptr;
+        if (sim) {
+            sim->AddRef();
+            FC4_ACQUIRED(sim, "DBPF drain hidden pause");
+            drainSimulator = sim;
+            sim->HiddenPause();
+            Log("dbpf drain: hidden pause held at julian=%d", sim->GetSimDateNumber());
+        }
+    }
+    return true;
+}
 
 void DbpfShadowBeforeSave() {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
         SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
     ++saveGeneration;
     cityAfterSave = true;
-    // Release acquired views while the game's owners are still registered;
-    // do not become the last holder of an old city segment after re-registration.
+    // Harness saves wait for sliced comparisons before calling SaveCity.
+    // SPEC-GAP: EX58 asks for a native-save completion boundary; PostSave is still a writing phase (8.3.1).
+    // Unexpected native saves still invalidate pending readers (section 8.3):
+    // never retain old segments or silently count incomplete work as exact.
     if (pending != nullptr)
         for (auto& sample : *pending)
             for (auto& file : sample.files)
                 ReleaseHeld(file);
-    // Literal section 8.3: in-flight reads lose stable-read status. Tick reports
-    // refusals for them; the next monthly discovery uses the new registration.
     Log("dbpf save transition: generation=%llu rediscovery=next-month transient=unobserved",
         static_cast<unsigned long long>(saveGeneration));
 }
@@ -745,6 +772,7 @@ void DbpfShadowBeforeSave() {
 void DbpfShadowShutdown() {
     // Never silently discard an unfinished monthly sample. A deadline that
     // interrupts it is explicitly non-exact, while all acquired QIs are released.
+    ReleaseDrainPause();
     if (pending == nullptr) return;
     for (auto& sample : *pending) {
         ++sample.counts.refusal;

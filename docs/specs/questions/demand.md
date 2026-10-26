@@ -1,22 +1,15 @@
 # Demand: open questions
 
-- **DM-GC29-1 — empty tax-history window (§8.1).** The spec's current choice uses
-  `maxRate = neutral * 10` when the history host reports no values. In census
-  `sh28-census3/empty-small.log:3433`, the first SimIdle (2000-01-01) reports
-  original tax modifiers `0.300000012` for all twelve types, versus core `0`,
-  with no history in the window. The shipped curve gives 0.3 at its low end
-  and 0 at ratio 1. What value does the original initialize the history maximum
-  to, and does a failed/empty history query overwrite it? Please specify both
-  the no-series and empty-date-window cases. Blocks the first-day demand
-  comparison in `empty-small`; no tolerance or comparison was changed.
-
-  Corrected-precision follow-up (`growth-cities29-5`): Sydenham :2577 and
-  reach29-growth :2492 both report original `-3.5`, ours `0`, with all twelve
-  history windows empty; lua-lots-empty :2525 reports original `0.300000012`,
-  ours `0`. Each of the three empty-size scenarios also has exactly one
-  differing first-day modifier sample. Modifiers changed in the original
-  delivery (the shadow checks this before comparing); this is not a comparison
-  of an untouched loaded modifier. Please also specify the history maximum's
-  initial storage and failed-query output contract, rather than assuming the
-  same empty-window maximum across loads. These six cases are blocked by this
-  question; the corrected grown-Lua demand comparisons are entirely exact.
+- **DM-GC29-2 — unordered active-demand min/max operands (2026-10-26, growth-cities29):**
+  Section 3.3 defines clamp's comparison order, but not the unordered operand
+  selection of its `min`/`max` expressions. With §8.1.1's captured history-output
+  bits, `growth-cities29-13/london-sydenham.log:2629` has original active demand
+  `-nan` in all twelve total nodes while ours is -6000; raw demand/supply and
+  neutral tax rate are exact. The run is clean, ref0 and reaches its end date;
+  31 of 103 demand samples differ. The current core's final
+  `fmax(activeMin, fmin(target, capLimit))` selects activeMin for NaN target.
+  Please specify operand/comparison order on unordered values for both bonus
+  and cap min/max, including whether a quiet NaN's payload/sign is preserved.
+  This blocks Sydenham's new NaN case; the twelve false history outputs are
+  retained, not replaced with a default. Evidence root:
+  `C:/Users/tlori/FreeCity4/build-runs/suite/`. No check or tolerance was weakened.
