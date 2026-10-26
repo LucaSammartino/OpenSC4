@@ -34,15 +34,6 @@ conversion failure, duplicate keys and aggregate success on partial failure.
 Start at EnumDefaultEntries 0x0093756A and the helper inventory in the spec.
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS6 — Adaptive score selection and full lifecycle:** [unsettled]
-
-For §6.1, settle Init overload signatures, dimension limits, cell add/subtract
-selection, probabilities, random reseeding, coordinate conversion, tempo,
-volume fade law and stop/shutdown order. Start at 0x00947220, 0x00948719,
-0x00947E90, 0x00947D28 and 0x0094832A. The probability-named function
-0x009477A6 actually counts busy cells; method names are not sufficient evidence.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS7 — Cell start, spatial policy and external controller:** [unsettled]
 
 For §6.2, settle Start/StartCellExternal, AutoPan, special loop/countdown state,

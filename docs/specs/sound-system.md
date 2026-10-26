@@ -419,7 +419,8 @@ Constructor state includes no score/timer, clear initialized/playing flags,
 volume `0x400`, empty cell-player storage, seeded private randomness and
 spatial/division configuration. The 4096 cell-pointer entries use a row
 stride of 64; this is storage capacity, **not** permission to read arbitrary
-64×64 scores. Accepted score dimensions and bounds checks remain SS6.
+64×64 scores. Init does not check dimensions against that capacity; see
+§6.1.1 for valid-input preconditions.
 
 Primary table `0x00AD4B48`:
 
@@ -436,8 +437,8 @@ Primary table `0x00AD4B48`:
 *[compat]* Init(resource) obtains a persist record, loads a score through a
 record-as-file adapter, and initializes playback only after successful score
 load (`0x00947C38`). Init() builds cell players for score cells, binds them
-to the owner and imports score configuration (`0x0094701E`). Full overload
-argument contracts remain SS6. LoadScore is `0x00948C11`.
+to the owner and imports score configuration (`0x0094701E`). The overload
+contracts are below. LoadScore is `0x00948C11`.
 
 *[compat]* Play() returns true even if not initialized. When initialized
 and previously stopped, it derives player settings from the score, starts
@@ -449,14 +450,131 @@ store the requested value when initialized (`0x0094776D`, `0x0094777F`).
 Update(volume) forwards the volume then invokes Play() (`0x00947150`);
 this method is not the periodic cell-selection algorithm.
 
-State changes use a shared freshness critical section. Volume fading uses
-a callback timer (`0x0094832A`, `0x0094761C`); callbacks can skip work when
-that lock is already held. Exact fade divisions/clamping, cell-selection
-probabilities, tempo timing, coordinate rounding, reseeding and stop/shutdown
-ordering remain SS6. In particular, the routine named ProbOfCellStarting
-at `0x009477A6` visibly counts busy cell players; its name is not sufficient
-evidence for a probability law. There is no demonstrated SC4 message-switch
-for this owner: scheduling enters through its update interface and callbacks.
+State changes use a shared freshness critical section. Scheduling enters
+through the update interface and callbacks; no additional SC4 message IDs
+are established. The rules below settle SS6, supplementing the score/cell
+fields, budgets and division placement in [freshness.md](freshness.md).
+
+#### 6.1.1 Initialization and lifetime (SS6)
+
+| Slot/address | Input and behavior |
+|---|---|
+| 3 / `0x00947C38` | Init(resource key): copies the key, obtains the persist manager, segment and record (open flag 1), queries serial-record IID `0xC56B8F08`, loads a new score through the record-as-file adapter, closes/releases adapter/record/segment, then calls Init() only on load success. Missing services, open/QI failure or failed load return false. |
+| 4 / `0x0094701E` | Init(): once only, requires an existing score; imports volume, budget bases and half-extents, sets listener coordinates to 1 and remembered coordinates to −1, creates/binds players for nonempty cells, counts selectable cells, then sets initialized. Repetition returns true without rebuilding. |
+| 38 / `0x00948CB4` | Init(full path string): splits directory and filename/extension and calls slot 39. |
+| 39 / `0x00948D5F` | Init(directory string, filename string): allocates a score, concatenates the strings, attempts path loading, then calls slot 40 **without testing the load result** (`0x00948DDE–0x00948DEB`). |
+| 40 / `0x00948E0B` | Init(score pointer, directory string): stores the pointer directly, copies the directory and calls Init(). No score AddRef or clone. |
+
+The score is owned and deleted by Shutdown. Replacing it through Init does
+not dispose the old score or rebuild an already initialized grid. Failed
+resource loading can leave an allocated score stored while initialized is
+false; Shutdown's score deletion is conditional on initialized.
+
+Neither the parser (`0x00946039`) nor Init checks dimensions against 64.
+Storage-safe rows/columns are at most 64; random selection also requires
+both positive. Oversized dimensions can overrun storage; zero dimensions
+can divide by zero during selection. These are input preconditions, not
+demonstrated false-return cases. Some candidate scans also dereference
+player entries without a null check; arbitrary sparse grids are unsafe.
+
+Stop locks and calls StopNoLock. When initialized and playing, StopNoLock
+(`0x00947E90`) unregisters the player's `+4` update view, ends the volume
+fade, stops/deletes the beat timer, calls Stop on each **busy** cell in score
+row/column order, then clears playing. Cells may remain fading. Shutdown
+(`0x00947D28`) first ends a fade, locks, calls Stop, deletes the score, then
+destroys/clears nonnull players across all 4096 slots. It finally clears
+playing/initialized and releases the external-controller reference.
+
+#### 6.1.2 Selection and random state (SS6)
+
+*[compat]* Use slot behavior, not the exported labels: slot 54
+`0x00948719` selects the best start; slot 55 `0x00947220` selects a cell to
+subtract; slot 56 `0x00947519` remembers row/column and stops a busy player.
+Slot 58 `0x00948573` returns an integer start score. Slot 59 `0x009477A6`
+counts nonnull busy players over the grid (`0x009477D1–0x009477E1`);
+it is not a probability.
+
+The subtraction selector uses byte 1 of a private random u32 modulo rows
+and byte 0 modulo columns as a scan origin. Rows start there and wrap;
+columns start at the same selected column and wrap on each row. It first
+takes a playing, unmarked cell outside the selection window. Otherwise it
+gathers playing unmarked cells inside the window, excludes class 20 and
+chooses `next private draw modulo candidate count`; none returns false.
+
+The best-start selector uses byte 1 modulo `(2×halfHeight+1)` minus
+halfHeight to offset the listener row, and byte 0/halfWidth for the column.
+It clamps the origin to the grid and scans the window in the same wrap
+order. Only a strictly larger score replaces the best: ties keep the first
+visited cell (`0x0094876A–0x009489AD`). Success means best score nonzero.
+
+The scorer rejects absent cells, dead/busy players, cells outside the
+window, the last subtracted cell, a nonzero group held by another busy
+unmarked player, or a linked busy unmarked player. Cell class is clamped
+in place to 0–20. **Class 0 returns zero**, confirmed by
+`0x009486B9 → 0x00948710`; this supersedes freshness.md's older undefined
+return caveat. Class 20 scores 101 for a matching **nonzero** requested
+group, otherwise 100. Other classes score 2 for that nonzero group match;
+otherwise they score 1 exactly when C `rand()` is less than signed integer
+`T[class] / selectableCellCount`, else zero. A zero count is first replaced
+with 10 (`0x009486D3–0x0094870C`). T at `0x00B16F30` is:
+
+| Classes | T values, in order |
+|---|---|
+| 0–6 | 0, 600, 1500, 3000, 7500, 12000, 15000 |
+| 7–13 | 18000, 21000, 25500, 32767, 36000, 45000, 58000 |
+| 14–20 | 67500, 90000, 120000, 210000, 300000, 40000000, 40000000 |
+
+C rand ranges over 0–32767: a positive threshold H accepts exactly the
+draws below min(H,32768). This is separate from the private cRZRandom
+used for scan origins/divisions. Reseed(seed) seeds only the private
+generator; it resets beat-in-bar/next/origin to 0/1/0, budget bases to 0/4,
+remembered coordinates to zero, recounts and Stop/Play restarts a playing
+player (`0x009479D4–0x00947A29`). It does not reseed C rand.
+
+For positive dimension D, SetXPos/SetYPos use signed 32-bit
+`p = D×v / 1000`, truncating toward zero. Block mode then snaps to
+`(p/(2×half+1))×(2×half+1)+half`, again using signed division; apply upper
+selection bound D−half−1, lower bound half and grid bounds. Input v is not
+first clamped to 0–1000. X changes column; Y changes row; both recount
+(`0x009484A0`, `0x00948504`). The group-count scratch array described in
+freshness.md §4.4 has 32 entries and no general bound check on group IDs.
+
+#### 6.1.3 Beat clock and fades (SS6)
+
+*[compat]* Beat due time is signed 32-bit
+`((beat−origin)×60000)/tempo`, truncating toward zero; zero tempo returns
+−1 (`0x009475FB–0x00947619`). Update compares due time as unsigned, so
+zero tempo normally suppresses beat work. Each due beat performs subtract/
+add decisions on bar beats bpb−1 and bpb−6, updates every nonnull cell, then
+advances counters. The manual/pause/start-switch gates, active-cell budget
+and division choice follow freshness.md §4.6. Strictly above 86,400,000 ms,
+all three counters become bpb and the timer restarts. SetTempo changes tempo
+only while playing and when different, restarts the timer and sets next
+beat to origin plus current beat-in-bar (`0x00948420`).
+
+FadeVolume(durationMs, target, stopAtEnd) returns true without work unless
+initialized and playing. It stores signed step `(target−current)/20`, target
+and stop flag. Both that division and timer period `durationMs/20` truncate
+toward zero (`0x00948371–0x00948379`, `0x009483EE–0x009483FD`). Zero step
+sets target immediately and calls Stop if requested; this path does not
+itself cancel an already active fade. Nonzero step creates a timer only
+when none is active, so retargeting preserves the old timer period.
+
+Each callback skips work while the freshness lock is held. Otherwise it
+adds step, clamps volume to 0–1024 and stores it. A negative step reaching/
+passing target ends the fade and calls StopNoLock if requested; a positive
+step reaching/passing target ends it without stopping. It does not snap
+an overshoot to target (`0x0094761C`). Out-of-range targets can leave a
+clamped fade running indefinitely.
+
+**Worked cases (SS6).** D=9, half=1, block mode, v=500 stores coordinate 4.
+Two eligible class-20 cells tie at 100 for requested group zero: the first
+visited wins. Class 1 with 10 selectable cells accepts C draws 0–59 and
+rejects 60. Private reseeding does not replay those C draws. A 400-ms fade
+from 100 to 145 has step 2 and period 20 ms: callback 23 stores 146 and ends
+it. A fade from 100 to 110 has step zero and sets 110 immediately. Stop
+unregisters before cell Stop calls; Shutdown deletes the score before the
+cell players.
 
 ### 6.2 Cell player and volume arithmetic
 
