@@ -88,8 +88,8 @@ impl HitMan {
         id != 0
     }
     pub fn control_group(&mut self, id: u32, create: impl FnOnce(u32) -> Option<ForeignRef>) -> Option<&ForeignRef> {
-        if !self.groups.contains_key(&id) {
-            self.groups.insert(id, create(id)?);
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.groups.entry(id) {
+            entry.insert(create(id)?);
         }
         self.groups.get(&id)
     }

@@ -700,8 +700,9 @@ fn cell_stop_fade_poll_and_scaled_forwarding() {
     assert_eq!(host.unregisters, 2);
     cell.update_source(false).unwrap();
     assert_eq!(cell.state, 0);
-    assert!(!cell.set_volume(1024, 513, 1024, 1024, 1024));
-    assert_eq!(child.calls(), ["volume:513"]);
+    assert!(cell.source.is_none());
+    assert!(cell.set_volume(1024, 513, 1024, 1024, 1024));
+    assert!(child.calls().is_empty());
     cell.state = 2;
     cell.set_cell(CellData::default());
     cell.stop(&mut host).unwrap();

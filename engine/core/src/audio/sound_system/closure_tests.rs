@@ -641,12 +641,20 @@ fn ss6_block_coordinate_selection_scores_and_separate_random_sources() {
     player.selectable_count = 10;
     assert_eq!(player.start_score(first, 0, || 59), 1);
     assert_eq!(player.start_score(first, 0, || 60), 0);
+    player.cells[first].cell.as_mut().unwrap().group = 7;
+    player.selectable_count = 0;
+    assert_eq!(
+        player.start_score(first, 7, || panic!("matched group does not draw")),
+        2
+    );
+    assert_eq!(player.selectable_count, 10);
     player.cells[first].cell.as_mut().unwrap().class = 0;
     assert_eq!(player.start_score(first, 0, || panic!()), 0);
     let mut host = FreshSpy::default();
     player.reseed(77, None, &mut host);
     assert_eq!(host.seeds, [77]);
     assert_eq!(host.c_draws, 0);
+    assert_eq!(player.last_subtracted, Some(0));
     assert_eq!((player.beat_in_bar, player.next_beat, player.origin), (0, 1, 0));
     player.cells[0].state = 2;
     assert_eq!(player.cell_to_subtract(0, || panic!("outside chosen first")), Some(0));

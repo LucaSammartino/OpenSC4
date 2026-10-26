@@ -325,11 +325,11 @@ impl FreshPlayer {
         if class == 20 {
             return if matched { 101 } else { 100 };
         }
-        if matched {
-            return 2;
-        }
         if self.selectable_count == 0 {
             self.selectable_count = 10;
+        }
+        if matched {
+            return 2;
         }
         const T: [i32; 21] = [
             0, 600, 1500, 3000, 7500, 12000, 15000, 18000, 21000, 25500, 32767, 36000, 45000, 58000, 67500, 90000,
@@ -512,6 +512,7 @@ impl FreshPlayer {
         self.origin = 0;
         self.budget_bases = [0, 4];
         self.remembered_coordinates = [0, 0];
+        self.last_subtracted = Some(0);
         self.recount();
         if self.playing {
             if let Some(schedule) = &mut scheduler {

@@ -398,8 +398,10 @@ impl FreshCellPlayer {
             self.update_countdown();
             return Ok(());
         }
-        if self.source.as_ref().is_some_and(|sound| !sound.is_playing()) {
-            self.state = 0;
+        if self.state == 3 && self.source.as_ref().is_some_and(|sound| !sound.is_fading()) {
+            self.kill();
+        } else if self.state == 2 && self.source.as_ref().is_some_and(|sound| !sound.is_playing()) {
+            return Err(Unsupported("cell-host-required"));
         }
         Ok(())
     }
