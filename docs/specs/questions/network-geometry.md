@@ -17,3 +17,20 @@
   differences (clean, ref_warnings=0, nettool=4/7, powerline=7/7), but staged the
   preceding DLL before the new public-terrain diagnostics finished building.
   A run of that diagnostic DLL is still needed for the multi-cell terrain trace.
+
+  Final-round diagnostic fixtures (native/core pairs; no check or tolerance changed):
+  `build-runs/suite/plans-cities29-final12/gen27-spandau-s1-default.log:3413`
+  reproduces the horizontal refusal and records every cell's terrain, retained
+  corners and vertices; vertical controls at line 3435 still cost 66/75.
+  Please also provide the ordered constraints and final network corner heights for
+  the following nonflat runs, to distinguish cross-section errors from missing
+  piece/plane inputs; a shared cause is not assumed:
+  - `timbuktu-big-city.log:2990` in the same directory: road `(10,3)` to `(10,7)`
+    and reverse both succeed with valid=5, price=52/54; street price=27/28.
+  - `gen27-tegel-s0-default.log:3380`: road `(83,79)` to `(95,79)` succeeds/refuses,
+    valid=13/0, price=173/100; street succeeds on both, price=86/83.
+  - `maxisland-downtown-weburg.log:3029`: street `(33,3)` to `(37,3)` refuses/succeeds,
+    valid=0/5, price=0/105; vertical `(33,3)` to `(33,7)` succeeds, price=78/102.
+  These fixtures use the restored specified 24-bit earthwork product. The price
+  differences therefore remain blocked on admitted multi-cell solver fixtures,
+  rather than being resolved by changing rounding or accepting a price tolerance.
