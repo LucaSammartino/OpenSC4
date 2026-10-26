@@ -654,7 +654,7 @@ nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopupStringListMenu	windows and panels	ui	widget-misc2.md	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
-cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinGrid	widget toolkit	ui	widget-controls.md	core/src/widget_controls/grid	-	-
 cGZWinTextEdit	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinListBox	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinTreeView	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
