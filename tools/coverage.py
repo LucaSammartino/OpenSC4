@@ -944,6 +944,7 @@ def main():
     methods = data["methods"]
     method_only = coverage_methods.incremental(game, rows, methods)
     method_bytes = sum(size for _, size in method_only)
+    method_eligible_bytes = sum(att.funcs[va] for va in methods)
     suite_evidence, suite_states, suite_stats = None, {}, ()
     if args.suite:
         suite_coverage = _sibling("suite_coverage")
@@ -1132,9 +1133,9 @@ def main():
     w("")
     w("## Method verification")
     w("")
-    w(f"**method-verified {method_bytes:,} bytes / {len(method_only):,} functions** beyond verified owner rows; "
-      f"included once in verified. Eligible method evidence covers {sum(att.funcs[va] for va in methods):,} "
-      f"bytes / {len(methods):,} functions, including overlap with verified owners. "
+    w(f"**method-verified {method_eligible_bytes:,} bytes / {len(methods):,} functions**; "
+      f"{method_bytes:,} bytes / {len(method_only):,} functions additional to verified owner rows. "
+      "The union is included once in verified. "
       "TSV identities must match the coverage function start, literal name, owner and byte size. "
       "Their named family must be exact with zero resynced lines in this house shadows run. "
       "Logged methods require positive final calls, final complete=calls, monotone counters, and zero "
@@ -1230,7 +1231,8 @@ def main():
                 f.write(f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\n")
     print(f"coverage: game code {game_n} functions, {game_b} bytes; "
           + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT + function_stats)
-          + f"; method-verified {method_bytes} bytes ({len(method_only)} functions); wrote {args.out}")
+          + f"; method-verified {method_eligible_bytes} bytes ({len(methods)} functions; "
+          + f"{method_bytes} additional bytes); wrote {args.out}")
     if suite_evidence:
         print(f"suite {args.suite}: " + ", ".join(
             f"{s} {whole[s + '_b']} bytes ({pct(whole[s + '_b'], game_b)})" for s in suite_stats))

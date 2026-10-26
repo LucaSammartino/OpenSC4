@@ -88,7 +88,7 @@ Coverage reads the recorded shadows log, or its method summary when the log is u
 An interface slot logged with address `-` gains no bytes. Addresses must be function starts and names, owners and
 sizes must match coverage's table; duplicate TSV addresses and identity collisions are warned and refused.
 Two starts sharing a name remain distinct. Library bytes stay excluded. Owner verification subsumes method
-credit; `method-verified` reports only additional bytes, with eligible bytes including overlap also in the report.
+credit; `method-verified` reports eligible bytes, and separately the bytes additional to verified owner rows.
 
 `python tools/coverage.py --suite <tag>` adds three suite columns beside these four, without changing their rules.
 The tag lives in `build-runs/suite/<tag>/`; `summary.tsv`, `per_key.tsv`, the staged request manifest, raw logs and
