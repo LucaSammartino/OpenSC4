@@ -24,6 +24,11 @@
   replace those algorithms. This remains a partial parent closure, not whole-cSC4SubBudgetWindow completion
   or acceptance of same-owner result callbacks as external inputs.
 
+  **ANSWERED 2026-10-26 (re-bw30, resumed):** DIFFERS — BW23 is now settled in companion §§5.3–5.4,
+  including all five service branches, saved floats, arithmetic, reuse, cleanup and the corrected initializer
+  continuation. Section 3.3 also settles BW22's unused metadata and counted enumeration-list releases.
+  BW22 options/rendering, BW24 and BW25 remain static gaps; the parent remains partial.
+
 <!-- from: re-budget-window-bw22 (2026-10-24); BW21 supplied in lane brief, absent from open file at this base. -->
 - **BW21 — constructor ABI, allocation, nonmodal population and observation:** settle the constructor arguments, matching allocation/free service, the minimum lifecycle computing group rows/totals/strings without a modal window, and the exposed state.
 

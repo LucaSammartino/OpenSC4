@@ -14,7 +14,7 @@ of `on_init` and `DoSubBudgetWindow` is stack-mangled and was checked against th
 
 BW17's native method/slot inventory and population/computation bodies are in
 [budget-window-bodies.md](budget-window-bodies.md). These are owner algorithms, not external callbacks that
-may supply populated rows or refreshed totals. Its bounded remainder is tracked by BW22–BW25 (split from BW17).
+may supply populated rows or refreshed totals. Its bounded remainder is tracked by BW22, BW24 and BW25 (split from BW17; BW23 is settled).
 
 | Item | Value |
 |---|---|
@@ -692,11 +692,11 @@ nonmodal observation boundary is §1.1.
 [budget-window-bodies.md](budget-window-bodies.md) §1 gives the method/slot inventory, §12 the requested-part
 crosswalk, raw-provider checklist and panel worked cases. Its §§4/8–11 specify the panel's calculation,
 rendering, formatting, taxes, loan windows, labels, Init and notifications, including BW18's former summary
-gaps. The remaining **sub-budget** body questions are BW22–BW25 (companion §7), not omitted panel methods:
-neighbour options/rendering, individual service arithmetic/continuation, group B and item rendering/cleanup,
+gaps. The remaining **sub-budget** body questions are BW22, BW24 and BW25 (companion §7), not omitted panel methods:
+neighbour options/rendering, group B and item rendering/cleanup,
 and remaining widget/popup/setup ownership. Companion §§1.2–1.3 now settle pointer-property and bounded
-empty/setup/segment ownership; §5 settles +0x44 acquisition/rebuild references but not its service-produced
-float values. The generator procedure setter's reference contract remains BW25. Counts, rows, restore
+empty/setup/segment ownership; §5 settles +0x44 acquisition/rebuild references, service-produced
+float values and amounts, control reuse and the initializer continuation. The generator procedure setter's reference contract remains BW25. Counts, rows, restore
 records and refresh results computed by either owner are never external raw inputs. No whole-sub-budget-owner,
 implementation or native-shadow completion is implied by the panel's specification status.
 
