@@ -2449,6 +2449,71 @@ are refreshed by step 4 of the base pass. **Replacement rule:** a replacement th
 anyway by §15.5.12.2) reads these statics in place and applies the rules above; it does not need to re-derive their
 contents. The two passes post nothing and touch only the texture layers of the records.
 
+### 15.5.14 Independent view replacement with the original terrain (TR45) *[compat]*
+
+**The 22-slot interface is insufficient.** There is no virtual `Init` or `Shutdown` in
+`cISTETerrainView3D`, and the original terrain does not query a separate lifecycle interface. The
+factory and saved-object paths both enter native `0x0075C420` unconditionally. A factory override
+alone therefore supplies an object **on which the native view implementation will run**; it does
+not replace that implementation. This corrects view3d.md §14. The following boundary applies with
+the original terrain enabled, independently of any replacement of the terrain simulator.
+
+Let `V` be the object base and `I = V+0x0C`. These are pointer identities, not interchangeable
+interface pointers. The external entry and field contract is:
+
+| Path | Required behaviour / receiver | Evidence |
+|---|---|---|
+| New city, successful factory | CLSID `0xC9B84E10`, IID `0x6771477D` returns owned reference `I`; terrain stores `I−12` at `T+0xE8`. Success with a null out pointer still proceeds to Init and is unsafe. | `0x0074957A`–`0x007495A9` |
+| Factory failure | Original terrain allocates `0xE8` bytes, runs native constructor `0x007567C0`, then base slot 1 AddRef. This is a native view, not another call to the overriding factory. | `0x007495AB`–`0x007495D1` |
+| Saved reference | Serializable Read runs before PostCityInit. `SC4ReadGZSerializable` queries the referenced object's **class ID** `0xC9B84E10`; that query must return owned reference `V`, not `I`. A null saved reference permits the new-city factory path. | §15.5.13.5, `0x005D96C0`, `0x005D9730` |
+| PostCityInit, either path | Direct thiscall `Init(V,T)`, one stack argument, callee pops 4. Its result is ignored: no success test or alternate lifecycle follows. Terrain then sets ready byte `T+0xEC=1` and runs §15.5.1 steps 6–9. | `0x007495D4`–`0x00749655` |
+| Per-cell flag changes | Direct thiscall `SetTriangleIndicesForCell(V,z,x)`, callee pops 8, no used result; synchronous after the terrain flag write, guarded by `T+0xEC`, with the flip-on-change exception in §15.5.13.4. | six terrain call sites: `0x007411E1`, `0x00741251`, `0x0074187D`, `0x007418DD`, `0x0074193D`, `0x0074208C` |
+| Draw callback | Base vtable slot 3 is `Update(context)`, slot 4 is the base Pick wrapper. `Update` is **not** a slot of the 22-slot interface. Native Init registers `V` on layers 0 and 2 (§15.5.4). Query `0xC989F960` also returns `V`. | base table `0x00AB4480`; §15.5.10 slot 0 |
+| Published interface | Terrain slot 66 returns `I`; consumers call the 22 slots there, including slot 18 `GetOverlayManager(0)` during PostCityInit. | `0x0074963D`–`0x00749644`; §15.5.6 |
+| Published collaborators | Terrain reads `V+0x70` and `V+0x74` directly into `T+0xF0/F4`, AddRef'ing each non-null result; it also AddRef's the slot-18 result into `T+0xF8`. They must be the initialized ripple/wave and overlay objects with the contracts already described, not opaque replacement bookkeeping. | `0x00749606`–`0x00749655` |
+| Redisplay altitude bounds | The original terrain reads float32 values at `V+0x64` and `V+0x68` directly. They are the view's maximum/minimum altitude caches, refreshed from terrain slots 22/21 on an enabled Update (§15.5.5); they can remain stale between Updates. | `0x0074273E`–`0x00742762`; `0x0075BFF5`–`0x0075C003` |
+| Terrain shutdown | Release `T+0xF8`, then `F4`, then `F0`; if `E8` is non-null, direct thiscall `Shutdown(V)`, no arguments, then base slot 2 Release, then clear `T+0xE8` and ready byte `EC`. External consumers can still own references: teardown is not postponed to final Release. | `0x0074377B`–`0x007437D4` |
+| Final destruction | If the native destructor is retained, it directly calls native Shutdown when `V+0x18` is set. A replacement destructor must preserve teardown-once semantics. | `0x007569AE`–`0x007569B0` |
+
+**Retaining the native direct entries requires the native object, not just padding.** The complete
+`0xE8` layout and constructor invariants are §15.5.2; native Init/Shutdown use the collaborator
+pointers, embedded containers and dirty rectangles, and Init also constructs process-wide buffers,
+subscribes `V+0x10`, and registers all §15.5.4 callbacks. Native per-cell indexing reads `V+0x20`
+and writes the process-wide index array using the process-wide dimensions (§15.5.13.4). A private
+replacement index array is not updated by that call. If native view slots, message thunks or the
+native destructor are retained, their direct internal calls remain native too: SetAllTriangleIndices
+at `0x00755FD4`, RemoveCellLevelling at `0x007586E8`, and LevelCell at `0x00759880` call the same
+index helper. It is not sufficient to make AddRef/Release and the public view slots callable.
+
+**Independent replacement boundary.** To substitute an independent implementation while keeping
+the original terrain, the host must additionally redirect the direct Init, Shutdown and per-cell
+index entries (or all their incoming paths), preserve the external field reads above, and supply
+the base draw callback, message-target and serializable identities as well as `I`. These are
+requirements on such a host bridge; the original program offers no interface route that performs
+them. Disabling native Init by pre-setting `V+0x18` is not a lifecycle route: the terrain ignores
+its failure return and still publishes fields and marks the view ready. The `terrainview` switch
+can be independent of `terrain` only when this boundary is covered on both fresh and loaded cities.
+
+**Read/write contract.** The serializable interface is `V+0x14`, IID `0xE4FDA3D4`; its slots 3/4/5
+are Write/Read/GetGZCLSID (the export's LoadGridFlag/SaveGridFlag labels are reversed). The payload
+is u16 version 1 followed by one grid-display byte; the class ID is `0xC9B84E10`. Read sets byte
+`V+0x19=1` before checking the stream, accepts only version 1, and restores the **process-wide**
+grid byte; Init then leaves that restored byte alone. Other renderer caches are reconstructed.
+Evidence: `0x007527D5`–`0x00752819`, `0x00752CD0`–`0x00752D07`, §15.5.4 step 2. The fresh-view
+choice in §15.5.13.5 is available to a replacement **terrain**; it does not bypass original terrain's
+direct Init when replacing only the view.
+
+**Worked boundary case.** A factory returns `0x1200000C` for IID `0x6771477D`. Original terrain
+stores `0x12000000`, directly initializes that address with `T`, sets ready, then reads collaborators
+at `0x12000070/74` and calls slot 18 on `0x1200000C`. Hiding a triangle in cell `(x=2,z=1)` next
+calls the direct index entry on `0x12000000` with arguments `(1,2)` before returning to the caller.
+On shutdown the direct teardown precedes base Release even if a zone developer still holds `I`.
+For a load test, serialize version 1 and grid byte 1, restore the reference through class-ID QI to
+`0x12000000`, then deliver PostCityInit: no second factory construction occurs and exactly one
+Init is attempted on that same base. An override which observes only the 22 interface slots will
+miss Init, the index notification, and Shutdown in both tests. No runtime observation is needed
+to establish this boundary; these are direct instruction-verified calls.
+
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
 All confirmed by reading `0x00AB3D18 + 4N` and disassembling the target. Two helpers matter throughout:
