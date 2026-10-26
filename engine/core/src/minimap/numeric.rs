@@ -78,6 +78,7 @@ impl E {
     pub fn rhe(self) -> i32 {
         self.add(Self::constant(12_582_912.0)).0.store(CONTROL).wrapping_sub(0x4b40_0000) as i32
     }
+    pub fn single(self) -> f32 { f32::from_bits(self.0.store(CONTROL)) }
     pub fn floor(self) -> i32 {
         let k = self.sub(Self::constant(0.5)).rhe();
         if self.cmp(Self::constant(f64::from(k) + 1.0)) == Ordering::Equal { k.wrapping_add(1) } else { k }

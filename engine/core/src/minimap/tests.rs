@@ -54,6 +54,22 @@ impl Surface for RecordingHost {
     }
     fn surface_clear(&mut self, s: Handle, color: [u8; 4]) { self.events.push(format!("clear:{s}:{color:?}")); }
 }
+
+impl Paint for RecordingHost {
+    fn paint_buffer_lock(&mut self, _: Window) -> Result<Option<PaintPixels>> { Ok(None) }
+    fn paint_buffer_unlock(&mut self, _: Window, _: PaintPixels) { self.events.push("buffer-unlock".into()); }
+    fn surface_source_rect(&mut self, _: Handle) -> base::Rect { base::Rect(0, 0, 1, 1) }
+    fn paint_blit(&mut self, _: Window, _: Handle, _: base::Rect, dst: base::Rect) { self.events.push(format!("blit:{dst:?}")); }
+    fn world_size(&mut self) -> [f32; 2] { [100.0; 2] }
+    fn main_dimensions(&mut self) -> [i32; 2] { [10; 2] }
+    fn eye_ray(&mut self, screen: [i32; 2]) -> Ray { Ray { origin: [screen[0] as f32, 0.0, screen[1] as f32], direction: [0.0, -1.0, 0.0] } }
+    fn pick_terrain_always(&mut self, ray: Ray, mode: u32) -> Result<[f32; 3]> { assert_eq!(mode, 1); Ok(ray.origin) }
+    fn marker_subject(&mut self, _: Handle) -> Option<Handle> { Some(400) }
+    fn marker_active(&mut self, _: Handle) -> bool { true }
+    fn marker_position(&mut self, _: Handle) -> [f32; 3] { [25.0, 0.0, 50.0] }
+    fn paint_buffer_color(&mut self, _: Window, c: u32) { self.events.push(format!("marker:{c:08x}")); }
+    fn paint_buffer_points(&mut self, _: Window, mode: u32, _: [[f32; 2]; 2], count: u32) { assert_eq!((mode, count), (3, 2)); }
+}
 impl widget_controls::Foreign for RecordingHost {
     fn add_ref(&mut self, h: Handle) { self.events.push(format!("add:{h}")); }
     fn release(&mut self, h: Handle) { self.events.push(format!("release:{h}")); }
