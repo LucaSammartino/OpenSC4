@@ -126,7 +126,7 @@ impl MiniMap {
                 let (row, col) = if self.shift >= 0 { (x0 >> self.shift, z0 >> self.shift) }
                     else { (x0 << -self.shift, z0 << -self.shift) };
                 let dst = self.map.pixels.as_mut().unwrap();
-                if col + side > self.n || (row + side).checked_mul(self.n).is_none_or(|end| end > dst.len()) {
+                if col + side > self.n || (row + side).checked_mul(self.n).map_or(true, |end| end > dst.len()) {
                     return Err(Unsupported::Precondition("resampled block exceeds pixel allocation"));
                 }
                 for r in 0..side {

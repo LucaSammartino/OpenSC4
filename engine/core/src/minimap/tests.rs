@@ -4,8 +4,13 @@ use crate::widget_controls::{Delivery, Draw, Message, Rect, Resource};
 
 #[derive(Default)]
 pub(super) struct RecordingHost {
-    events: Vec<String>,
-    cells: [usize; 2],
+    pub events: Vec<String>,
+    pub cells: [usize; 2],
+    pub finds: usize,
+    pub network_cell: Option<[usize; 2]>,
+    pub network_interface_present: bool,
+    pub network_mask: u32,
+    pub occupant_cell: [i32; 2],
 }
 
 impl base::Host for RecordingHost {}
@@ -22,6 +27,16 @@ impl Terrain for RecordingHost {
     fn terrain_heights(&mut self, _: base::Rect) -> Result<[f32; 256]> { unreachable!() }
     fn terrain_normal(&mut self, _: usize, _: usize) -> Result<[f32; 3]> { unreachable!() }
     fn zone_at(&mut self, _: usize, _: usize) -> Result<i8> { unreachable!() }
+}
+
+impl Network for RecordingHost {
+    fn find_occupant(&mut self, x: usize, z: usize, _: &SurfaceNetworkFilter) -> Option<Handle> {
+        self.finds += 1;
+        (self.network_cell == Some([x, z])).then_some(100)
+    }
+    fn network_interface(&mut self, _: Handle) -> Option<Handle> { self.network_interface_present.then_some(200) }
+    fn network_type_mask(&mut self, _: Handle) -> u32 { self.network_mask }
+    fn occupant_cell(&mut self, _: Handle) -> [i32; 2] { self.occupant_cell }
 }
 impl widget_controls::Foreign for RecordingHost {
     fn add_ref(&mut self, h: Handle) { self.events.push(format!("add:{h}")); }
