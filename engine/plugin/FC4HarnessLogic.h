@@ -232,7 +232,8 @@ enum class ScriptOp {
     LightingHour, // lightinghour 0..23: genuine lighting manager SetTimeOfDay
     MySim,        // mysim movein|query: replacement-interface persistence exercise
     Funds,        // funds 0..999999999: set treasury through the budget interface
-    Establish     // establish <name>: name and found an unfounded city
+    Establish,    // establish <name>: name and found an unfounded city
+    BudgetWindow  // budgetwindow: open the native budget UI; explicit script opt-in only
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -276,6 +277,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::MySim: return "mysim";
         case ScriptOp::Funds: return "funds";
         case ScriptOp::Establish: return "establish";
+        case ScriptOp::BudgetWindow: return "budgetwindow";
     }
     return "?";
 }
@@ -473,6 +475,9 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             *error = "funds '" + tok[2] + "' is not 0..999999999";
             return false;
         }
+    } else if (name == "budgetwindow") {
+        a.op = ScriptOp::BudgetWindow;
+        if (!wantArgs(0, "no arguments")) return false;
     } else if (name == "establish") {
         a.op = ScriptOp::Establish;
         if (a.text.empty() || a.text.size() > 80 || a.text.find_first_of("\t\r\n") != std::string::npos) {
@@ -666,7 +671,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)";
+                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, budgetwindow)";
         return false;
     }
     *out = a;

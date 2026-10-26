@@ -478,6 +478,14 @@ std::string RunFunds(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+std::string RunBudgetWindow(cISC4City* city) {
+    // Borrowed city getter; no reference is acquired or released here. Budget
+    // slot 24 takes no arguments (docs/abi/interfaces.tsv; budget.md method inventory).
+    auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
+    if (!budget) return "ok=0 (skipped: no city budget)";
+    return budget->ShowBudgetWindow() ? "ok=1 (ShowBudgetWindow)" : "ok=0 (ShowBudgetWindow)";
+}
+
 std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
     if (!city) return "ok=0 (skipped: no city)";
     if (city->GetEstablished()) return "ok=1 (already established; name unchanged)";
@@ -680,6 +688,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
     switch (a.op) {
         case ScriptOp::Funds: result = RunFunds(a, city); break;
         case ScriptOp::Establish: result = RunEstablish(a, city); break;
+        case ScriptOp::BudgetWindow: result = RunBudgetWindow(city); break;
         case ScriptOp::Zone:
         case ScriptOp::PriceZone:
         case ScriptOp::Dezone: result = RunZone(a, city); break;

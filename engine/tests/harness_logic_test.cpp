@@ -130,6 +130,14 @@ bool ErrorIs(const std::string& line, const std::string& message) {
 void ScriptParseTests() {
     using namespace fc4::harness;
     {
+        const auto p = One("2000-01-01 budgetwindow # explicit opt-in");
+        CHECK(p.errors.empty() && p.actions.size() == 1);
+        CHECK(p.actions[0].op == ScriptOp::BudgetWindow);
+        CHECK(ScriptOpName(p.actions[0].op) == std::string("budgetwindow"));
+        CHECK(One("2000-01-01 budgetwindow open").errors.size() == 1);
+        CHECK(One("2000-01-01 budgetwindow 1").errors.size() == 1);
+    }
+    {
         const auto p = One("2000-01-01 funds 999999999\n2000-01-01 establish FC4 small tile # comment");
         CHECK(p.errors.empty() && p.actions.size() == 2);
         CHECK(p.actions[0].op == ScriptOp::Funds && p.actions[0].funds == 999999999);
