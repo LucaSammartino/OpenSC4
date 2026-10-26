@@ -36,6 +36,7 @@
 #include "cFC4PropDeveloper.h"
 #include "cFC4MySim.h"
 #include "FC4GDriverShadow.h"
+#include "FC4GZFramework.h"
 
 #include "SC4Rect.h"
 #include "SC4String.h"
@@ -720,6 +721,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             digest = true;
             break;
         case ScriptOp::Mark: result = "marked"; break;
+        case ScriptOp::GZFrameworkProbe: result = GZFrameworkScriptProbe() ? "ok=1 (GZ command round trip)" : "ok=0 (GZ command round trip failed)"; break;
         case ScriptOp::MySim: result = MySimScriptAction(a.on); break;
         case ScriptOp::Save:
             NetMgrShadowBeforeSave(city, julian);  // netmgr_shadow = 1 only: the records the save writes

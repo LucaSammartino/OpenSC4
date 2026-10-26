@@ -1210,3 +1210,5 @@ mod cfgrules_owner;
 
 // Private UI oracle replay transport; linked statically into the plugin.
 mod draw_stream;
+// Private static-link GZ framework owners; no public DLL ABI changes.
+mod gzfw_owner;

@@ -45,6 +45,7 @@
 #include "FC4Observer.h"
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
+#include "FC4GZFramework.h"
 #include "FC4TractShadow.h"
 #include "FC4DisasterShadow.h"
 #include "FC4PropLotShadow.h"  // the glue15 lane
@@ -300,11 +301,13 @@ public:
     bool PreFrameWorkInit() override {
         FC4_LOGV("hook PreFrameWorkInit");
         fc4::FpuLog("hook PreFrameWorkInit", true);
+        fc4::GZFrameworkStart(FrameWork());
         return true;
     }
 
     bool PreAppInit() override {
         FC4_LOGV("hook PreAppInit");
+        fc4::GZFrameworkStart(FrameWork());
         fc4::SCResShadowStart(); // default-off capture before application resource loading
         // The first hook after the game's PreFrameWorkInit has run.
         fc4::FpuSetReference("hook PreAppInit");
@@ -374,6 +377,7 @@ public:
     }
 
     bool PreAppShutdown() override {
+        fc4::GZFrameworkStop();
         fc4::ReachStop();  // restore tracing before any entry hook is restored
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");

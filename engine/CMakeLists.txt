@@ -606,7 +606,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4QueryToolShadow.h
         # Default-off GZ framework constructed-buffer and command differential.
         plugin/FC4GZFrameworkShadow.cpp
-        plugin/FC4GZFrameworkShadow.h)
+        plugin/FC4GZFrameworkShadow.h
+        plugin/FC4GZFramework.h
+        plugin/FC4GZBuffer.cpp
+        plugin/FC4GZCommandServer.cpp)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -1440,6 +1443,15 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_draw_stream_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
     add_test(NAME draw_stream_oracle COMMAND fc4_draw_stream_test)
 endif()
+if(TARGET FreeCity4)
+    add_executable(fc4_gzfw_owner_test tests/gzfw_owner_test.cpp)
+    target_sources(fc4_gzfw_owner_test PRIVATE "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_gzfw_owner_test PRIVATE plugin "${FC4_GZCOM_DIR}/include")
+    target_compile_options(fc4_gzfw_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME gzfw_native_owners COMMAND fc4_gzfw_owner_test "$<TARGET_FILE:FreeCity4>")
+    set_tests_properties(gzfw_native_owners PROPERTIES TIMEOUT 20)
+endif()
+
 # Public DX7 slot/arity checks and bounded native transcript forwarding.
 if(TARGET FreeCity4)
     add_executable(fc4_gdriver_trace_test tests/gdriver_trace_test.cpp)
