@@ -8,13 +8,22 @@ impl ViewUtilities {
     /// Constructor transport only (§1). No camera-derived field is seeded
     /// from a native constructor result.
     #[doc(hidden)]
-    pub fn native_constructor_words() -> [u32; 0x470 / 4] {
+    pub fn native_constructor_words(initial: &[u32]) -> Option<[u32; 0x470 / 4]> {
+        if initial.len() != 0x470 / 4 {
+            return None;
+        }
         let view = Self::new();
         let mut words = [0; 0x470 / 4];
         for (offset, value) in [0x3f4, 0x3f8, 0x410].into_iter().zip(view.unused_constructor_fields) {
             words[offset / 4] = value.to_bits();
         }
-        words
+        // §1/§6 flags occupy bytes, not whole words. Preserve their adjacent
+        // padding from the supplied canary. gen27-r2b found exactly these three
+        // words (0, 138, 273) unchanged outside the documented flag bytes.
+        words[0] = initial[0] & !0xff;
+        words[0x228 / 4] = initial[0x228 / 4] & !0xff;
+        words[0x444 / 4] = initial[0x444 / 4] & !0xffff;
+        Some(words)
     }
 
     /// Internal observer transport, with the native word offsets in spec §1.

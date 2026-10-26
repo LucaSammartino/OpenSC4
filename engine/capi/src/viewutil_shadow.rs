@@ -259,7 +259,9 @@ unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: 
     };
     match op {
         0x007f6df0 => {
-            owner.copy_from_slice(&ViewUtilities::native_constructor_words());
+            if let Some(initialized) = ViewUtilities::native_constructor_words(owner) {
+                owner.copy_from_slice(&initialized);
+            }
             out[31] = 1; // constructor returns its own receiver
         }
         0x007f83f0 => {
@@ -330,6 +332,23 @@ unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn constructor_preserves_padding_beside_byte_flags() {
+        let mut owner = [0xcccc_cccc; 0x470 / 4];
+        owner[0] = 0x1234_5678;
+        owner[0x228 / 4] = 0x9abc_def0;
+        owner[0x444 / 4] = 0x1357_9bdf;
+        let input = [0; 64];
+        let mut out = [0; 32];
+        // SAFETY: fixed disjoint initialized arrays.
+        unsafe { fc4_viewutil_shadow_state(0x007f6df0, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr()) };
+        assert_eq!(owner[0], 0x1234_5600);
+        assert_eq!(owner[0x228 / 4], 0x9abc_de00);
+        assert_eq!(owner[0x444 / 4], 0x1357_0000);
+        assert_eq!(owner[1], 0);
+        assert_eq!(out[31], 1);
+    }
 
     #[test]
     fn private_state_transport_preserves_stale_geometry_and_failure_outputs() {
