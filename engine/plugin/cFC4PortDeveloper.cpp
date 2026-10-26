@@ -14,6 +14,7 @@
 #include "cFC4PortDeveloper.h"
 
 #include "FC4CoreProps.h"
+#include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4GameList.h"
@@ -1322,7 +1323,12 @@ std::string PortScriptBuild(uint32_t kind, uint32_t type, int32_t x, int32_t z, 
     cFC4ISC4Lot* l = fc4::AsGame(lot);
     l->SetLotConfiguration(cfg);  // slot 10
     l->UpdateZoneType();          // slot 32
-    const bool built = ld->ConstructDefaultLot(lot, cfg, 0, true);  // slot 7
+    const bool animate = fc4::SettingInt("script_port_instant", "FC4_SCRIPT_PORT_INSTANT", 0) != 1;
+    const bool built = ld->ConstructDefaultLot(lot, cfg, 0, animate);  // slot 7
+    if (fc4::SettingInt("script_port_probe", "FC4_SCRIPT_PORT_PROBE", 0) == 1) {
+        fc4::Log("script port probe: building=%p building_type=0x%08X animate=%d", l->GetBuilding(),
+                 l->GetBuildingType(false), animate ? 1 : 0);
+    }
     s_built[kind] = built;
     std::snprintf(b, sizeof(b), "ok=%d: cfg 0x%08X (type 0x%08X) lot %ux%u at (%d, %d) facing %u", built ? 1 : 0,
                   cfgId, types[type], w, d, x, z, facing);
