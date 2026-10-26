@@ -1,5 +1,15 @@
 # budget-window: answered questions (archive)
 
+<!-- from: re-budget-window-bw22 (2026-10-24), narrowed remainder of BW17 -->
+- **BW23 - budget-window-bodies.md §5 individual values and saved floats:** specify per-service public queries and exact float/integer operation order in updateIndividualBudget (`0x00785740`), including the two funding floats stored in each +0x44 restore record, visible-control reuse and final cleanup. Reconcile the malformed initializer continuation `0x00786F62` and rebuild=true call at `0x007875C5`. §5 already settles list ordering, record layout/references and rebuild=false preservation.
+
+  **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — companion §§5.3–5.4 specify the five public service-query paths,
+  binary32 saved percentages, separate staff/vehicle conversions with binary64 +0.5, signed32 annual wrap,
+  visible-control/property reuse, stale-control limits and reference cleanup. The apparent `00786F62`
+  method is an interior decode; real setup continues through `007875C5` and refreshes with rebuild=true.
+  Worked cases distinguish two rounded costs from one, all-occupant snapshots from visible rows, and
+  setup enumeration from the second enumeration supplying the actual snapshot.
+
 <!-- from: core-budgetwindow-ownership4 (2026-10-22); narrowed by re-budget-window-bw22 -->
 - **BW17 - sections 1, 4, 4.1, 5.2, 5.6 and 8 whole-owner inventory / omitted bodies:** please publish the full method/slot inventory for `cSC4SubBudgetWindow` and the owned budget-panel paths, and the non-layout algorithms still omitted: ordinance enumeration/filtering, A/B counts and row-map construction in `initOrdinanceBudget`; proposed-deal enumeration, section/count rules and `+0x50` selection edits in `initNeighborBudget`/combo handling; occupant enumeration and the exact creation/ownership of `+0x44` individual restore records; all four per-mode refreshes (including group row reuse on scroll), empty/popup window creation and failure reference rules, and the panel loan-display/balance-sheet bodies. Which public external interface calls and arguments supply their raw inputs? [unimplemented: existing same-class populate/refresh host callbacks remain explicit gaps, not core coverage; no native own-class result may count as an external input. BW14/BW15 ownership and BW16 visibility are implemented from their settled text; the documented BW13 null-content divergence is retained. No whole-owner completion claimed.]
 

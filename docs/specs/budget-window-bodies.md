@@ -529,7 +529,7 @@ that quota (`0x007858AF`–`0x007858EE`, `0x00785E6D`–`0x00785E85`). Thus a li
 The service-specific amount is a 32-bit integer. If +0x28 equals 1, multiply it by 12 retaining low32
 before sign-extending it into the two-word total. Every entry contributes, including off-screen entries;
 addition uses ADD/ADC (`0x00785E59`–`0x00785E69`, `0x007860E0`–`0x0078612A`). Service-specific raw
-query calls, rounding, and the initial amount itself remain unproved; this is an accumulation boundary,
+query calls, rounding, and the initial amount are specified in §5.3. These are owner computations,
 not permission to source computed rows or totals from the original owner.
 
 ### 5.2 Restore vector references and refresh distinction
@@ -540,7 +540,7 @@ append one 12-byte record: the original list occupant interface pointer, followe
 percentages used by RestoreStartSettings (main spec section 5.1). The pointer is not the result of the
 per-entry QI for `0x26BB767E`. The two working values start as positive-zero bit patterns each iteration;
 the service-kind branch can fill them before they are copied (`0x00785930`–`0x0078595A`,
-`0x00785DD5`–`0x00785E59`). Exact per-service production of those floats remains an audit item.
+`0x00785DD5`–`0x00785E59`). Their exact production is §5.3.
 
 The append takes a temporary AddRef, copies into the vector with another AddRef, then releases the
 temporary: one net retained occupant reference per record. The capacity-growth path has the same retained
@@ -555,6 +555,86 @@ QI is released separately at `0x007860FB`–`0x0078610B`; temporary list entries
 Discriminator: 12 returned occupants and rebuild=true produce 12 restore records at either offset 0 or 10.
 Another refresh with rebuild=false and a changed 11-entry list leaves those 12 saved records untouched.
 It recomputes the current count and total from the 11-entry list.
+
+### 5.3 Individual service values (BW23)
+
+For each original list entry, QI `0x26BB767E` into a temporary occupant interface O. The amount M and
+saved percentages F0/F1 start at integer zero and positive binary32 zero **each iteration**. A null O
+skips service calls. The service text string starts empty once per refresh; a branch which does not
+replace it leaves the preceding entry's text, rather than manufacturing an empty successful query.
+Service pointers below are the public simulator interfaces, not same-owner callbacks.
+
+| Kind | Raw queries in order | Service text; M and saved percentages |
+|---|---|---|
+| Hospital `CA565486` | Residential (`00B43DA4`) slot 27/+0x6C `(O,&Q)`; on true, slot 28/+0x70 `(O,&capacity,&other)` | `%d/%d`: Q dword +0x24, then capacity. F0 = binary32(Q f32 +0x2C × 100.0f); F1 = binary32(Q f32 +0x34 × 100.0f). M is the low32 sum of the separately converted vehicle cost and staff cost below. False first query leaves M/F0/F1 zero. |
+| School `EA5654B6` | Same residential interface, slot 26/+0x68 `(O,&Q)`; on true slot 28 `(O,&capacity,&other)` | Same Q offsets, text and calculation as hospital. |
+| Police `0A567BAA` | Police (`00B43D98`) slot 25/+0x64 `(&efficiencyTemporary,O)` returning a pointer to f32; then slot 7/+0x1C `(O,&baseCost,&funding)` | Format the returned efficiency × 100.0f as `%2.0f%%` (pass an f64 to the formatter). F0 = binary32(funding × 100.0f); F1 stays zero. M = low32(trunc(baseCost_signed32 × funding_f32 + 0.5_f64)). |
+| Fire `EA567BC3` | Fire (`00B43D78`) slot 10/+0x28 `(&efficiencyTemporary,O)`; then slot 8/+0x20 `(O,&baseCost,&funding)` | Same efficiency formatting, funding storage and cost arithmetic as police. The funding query result is ignored in both branches; its output funding starts at +0.0f. |
+| Power `CA58E540` | Power (`00B43DA0`) slot 33/+0x84 `(O,&denominator,&numerator)`; slot 50/+0xC8 `(O,&funding)`; only on true slot 49/+0xC4 `(O,&baseCost64)` | Text is `%d/%d`, numerator then denominator. Both integer outputs start zero. False funding query leaves M/F0/F1 zero; on true save binary32(funding × 100.0f) as F0. Only if the final query succeeds set M = low32(trunc(baseCost_signed64 × funding_f32 + 0.5_f64)). F1 stays zero. |
+
+Hospital/school cost uses Q's documented funding/cost pairs: staff fraction +0x2C and unsigned32 cost
++0x30, vehicle fraction +0x34 and unsigned32 cost +0x38. Compute the **vehicle** product first, add
+binary64 0.5, truncate toward zero with `_ftol2`, keep low32; then do the same for staff and add low32.
+Unsigned costs are converted by signed FILD followed, for a high-bit-set word, by adding exactly
+4294967296.0f. Multiplication/addition remain in x87 precision until each integer conversion; there is
+no intervening binary32 store of a cost product. Only the saved percentages have binary32 stores.
+The constants are 100.0f at `00A80AA0`, 2^32 as f32 at `00A80AA8`, and 0.5 as f64 at `00A92D28`.
+Evidence: hospital `00785989`–`00785A7D`; police `00785A98`–`00785AF9`; power
+`00785AFE`–`00785BB8`; fire/common single cost `00785BDF`–`00785C55`; school
+`00785C5E`–`00785DB2`. These instructions, including operand widths, take precedence over the
+saved pseudocode's missing service branches and mislabelled `_ftol2` calls.
+
+M is multiplied by 12 with low32 wrap only when period +0x28 equals 1, **after** the individual
+rounded costs have been added. The resulting signed32 value contributes to the signed64 total for
+every list entry (§5.1). Percentages saved in +0x44 records are independent of this annual scaling.
+
+### 5.4 Individual control reuse and setup continuation (BW23)
+
+Refresh creates no row controls. Each drawn entry uses the next text triple starting at `0x0ABCDE06`,
+the next primary slider starting at `0x0ABCE200` and its secondary at primary+0x100, and the next
+image pair starting at `0x0ABCE400` (advance three text IDs, one primary ID, two image IDs per draw).
+Name QI `0x87DDA3A9`, slot 19/+0x4C `(&name)`, supplies the name; failed QI or false name query
+uses literal `Error: No name`. Release that interface immediately after the name call.
+If owner +0x138 is nonzero, budget slot 51/+0xCC `(originalListOccupant,+0x138,&temporary)` decides
+secondary-control visibility by its boolean return; its output integer starts zero and is not the test.
+The name text, primary slider and first image are shown; secondary slider and second image follow
+that boolean (`00785E8B`–`00785FB7`).
+
+Replace the non-owning occupant property on the name text and both sliders with the **original list
+pointer**, including the hidden secondary slider (§1.2). QI each primary slider for `0x21325207` and,
+on success, call slot 5/+0x14 with trunc(F0); do the same with F1 for the secondary slider whenever
++0x138 is nonzero, even if that slider is hidden. Failed slider QI skips that assignment. Release each
+temporary slider interface. Set the three captions to name, service text, and SC4MakeMoneyString of
+sign-extended scaled M (`00785FBC`–`007860DF`).
+
+If drawn < min(current count,9), hide the remaining text triples, slider pairs and image pairs through
+that quota, with redraw=false; do not erase their old occupant properties. In particular count=0 gives
+quota=0, so this loop alone does not hide controls created for an earlier nonempty list. Set the total
+caption at the current text-triple start+1, after advancing past each drawn or cleaned triple. Normal
+cleanup releases each per-entry occupant QI, every counted original list entry, then list nodes/sentinel
+and temporary strings (`007860FB`–`0078629E`). Restore-record references survive separately.
+
+The export's apparent function `00786F62` starts **inside** an instruction of `initIndividualBudget`.
+Read from the real boundary `00786F50`: the third zero store is at `00786F60`, allocation is at
+`00786F67`, and the first text helper call is `00786FC2`. There is no extra method, early return or
+service query at the bogus boundary. Direct decoding of the executable from `00786F50` establishes
+this continuation. After building the visible row widgets and arrows, setup calls
+updateIndividualBudget(window,true) at `007875C5`, sets byte +8 to 1, and releases its own enumeration
+list (`007875C0`–`00787613`). Thus setup's first snapshot/amounts come from the refresh's **second**
+enumeration, which may differ from the setup list used to allocate controls.
+
+Worked cases for BW23:
+
+- Hospital Q has staff cost=1, vehicle cost=1, both fractions=0.5f. F0=F1=50.0f; the two conversions
+  each give 1, so M=2 monthly, 24 annually. Rounding their combined product once would incorrectly
+  give 1 monthly. At staff fraction=0.75f, cost=100 and vehicle fraction=0.5f, cost=30, M=90;
+  saved floats are 75.0f/50.0f and annual M=1080.
+- With 12 identical such occupants at offset 10, rebuild=true saves 12 counted records and total=1080
+  monthly, while two rows are drawn. A later rebuild=false keeps that snapshot even if funding changes.
+- Police baseCost=-1 and funding=1.0f gives trunc(-1+0.5)=0, not -1; F0=100.0f, F1=0.0f. Power
+  funding success followed by cost-query failure saves its funding percentage but contributes zero.
+- Setup returning 10 occupants then refresh returning 8 produces eight saved records; the nine controls
+  allocated from setup are not evidence for a ninth restore record.
 
 ## 6. Group refresh (`UpdateValues`, `0x007898A0`), bounded A traversal proof
 

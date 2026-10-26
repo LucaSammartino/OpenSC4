@@ -247,7 +247,7 @@ generated index: the questions live one file per spec, so read only the file for
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 6 | 18 | BW26 | questions/budget-window.md |
+| budget-window | 5 | 19 | BW26 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
@@ -432,4 +432,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **620** | **1678** | | |
+| **total** | **619** | **1679** | | |
