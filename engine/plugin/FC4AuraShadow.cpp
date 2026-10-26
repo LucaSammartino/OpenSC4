@@ -483,6 +483,7 @@ void CallBefore(void* ctx) {
 }
 
 void CallStep(void* ctx) {
+    // SPEC-GAP: Native state-5 per-lot inputs across unequal timed scans need AU-GC29-2.
     Call* c = static_cast<Call*>(ctx);
     fc4_aura_shadow_step_in in{};
     in.struct_size = sizeof(in);
