@@ -1,0 +1,20 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| reach-fix28: action-safe reach tracer (tools) | Codex / reach-fix28 / detached HEAD; reserved branch reach-fix28; code ef5e5ee33, 86faa4ac1 | ready with measured watchdog limits; pytest 461; Cargo 7848; clippy 0; CTest 118/118; required games 12/12 clean/end; shadows 5747/5988 exact; ABI unchanged; questions none | Coordinator lands the checked tools queue entry. |
+
+AC cause: arming false entry 00544547 changes a stack store into ESP=ECX. Disaster fault 00508317, tid 12088, EDI=5, ESP=1285e240=EBP-0x80; pending=0, previousTF=0, TF clear, last completed step 007fe190. No swallowed foreign exception; operand corruption, not copied/self-read code. Details: docs/ops/reach-tracing.md.
+AC fallback: ten individually justified operand addresses never armed; all ten reasons exported in each reach TSV header and zero-count row. Existing exclusions remain distinct. Optional reach_diagnostics is off by default; all tracer features require reach=1.
+AC disaster: reach-fix28-r2-disaster-{on,off}, Berlin/Konradshohe, end 2026-04-29, cap=32: both clean/end=1; actions 18 accepted/11 refused each; reach=8944; shadows on 572/580, off 557/573 exact.
+AC grown: Maxisland/West Weburg, end 2197-05-20, original Lua inputs, cap=1; all four on-runs clean/end=1 and census written; four matching DLL/off controls clean/end=1.
+Fire: reach-fix28-r1-grown-fire-{on,off}; reach=8510; Lua complete both, lots accepted/refused=2/1 each; shadows on 390/419, off 380/406 exact.
+Garbage: reach-fix28-r1-grown-garbage-{on,off}; reach=8679; Lua complete both, lots=2/1 each; shadows on 385/411, off 384/410 exact.
+Health: reach-fix28-r2-grown-health-{on,off}; reach=8522; Lua complete both, lots=2/1 each; shadows on 384/409, off 385/408 exact.
+Power: reach-fix28-r2-grown-power-on and reach-fix28-r3-grown-power-off; reach=8654; Lua complete both, lots=7/1 each; shadows on 385/410, off 380/406 exact.
+AC house: reach-fix28-r2-house-{on,off}, FC4 Test/Konradshohe, end 2026-05-01, cap=32: both clean/end=1; on 7394 functions/5 windows, foreign exceptions/watchdogs=0; shadows on 728/734, off 817/822 exact.
+AC tests: ran python -m pytest tools/tests -q: printed 461 passed in 384.43s. Once-only qbuild.py --wt <WT> all printed Cargo 7848 passed/0 failed, clippy exit=0 diagnostics=0, CTest 118/118, qbuild PASS.
+Native reach_test printed operand exclusions=10/10 relocated=1 valid-entry=1/1 header=10/10; failures=0. WoW64 BP/step=7/7, x87/flags/SEH exact; same-entry concurrency remains a measured lower bound (658/10000).
+AC real inputs: python build-runs/acceptance.py printed AC PASS: 12/12 clean end=1; Lua 8/8 complete with paired lot results; reach 6/6 with 10/10 header exclusions; shadows 5747/5988 exact. verify-inputs.py printed same_source=True for all six copied categories, including the four accepted categories.
+Limits: health/power on/off use existing FC4_WATCHDOG_STALL_MS/NOTICK_MS=60000, hard timeout 650s. Default ten-second full-shadow Lua first frames can stall with reach off too; r1 landmarks on/off, health-on and power on/off failures retained, not counted as passes.
+Phases: diag3 reproduced original disaster corruption and grown exit; missing-DLL request rejections retained. R2 power-off timed out after ~5-minute startup; isolated R3 retry clean. Required fire/garbage pairs used DLL a801d848; later pairs 60fa0aaa; hash equality checked within each pair.
+Evidence: build-runs/game-results/<labels>.{log,verdict,reach.tsv,lua.log}, build-runs/*diagnostics.txt, acceptance.py, verify-inputs.py, qbuild-*.log, engine/build-x86/Testing/Temporary/LastTest.log. Maximum four own games; shared queue or direct slots 9-12 only; no Documents writes, saves or third-party DLLs committed.
+AC landing: kind tools, full final HEAD in build-runs/merge-queue/reach-fix28.json; merge-train enqueue attaches checked credit. ABI exports/version unchanged; no questions. Remaining: default-limit heavy Lua watchdog failures outside the accepted matrix.
