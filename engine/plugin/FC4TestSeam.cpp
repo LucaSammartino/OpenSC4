@@ -317,10 +317,10 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             auto* buffer = fc4::CreateGZBuffer();
             if (buffer) buffer->AddRef();
             return reinterpret_cast<intptr_t>(buffer);
+        }
         case kFC4SeamNetworkToolOccupantViews:
             return fc4::NetToolOccupantViewsTest(static_cast<cIGZUnknown*>(a),
                                                static_cast<cIGZMessageServer2*>(b));
-}
         default:
             return 0;
     }
