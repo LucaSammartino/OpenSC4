@@ -62,6 +62,7 @@ def repo(tmp_path, monkeypatch):
     map_row(tmp_path)
     put(tmp_path, "tools/coverage.py", (ROOT / "tools/coverage.py").read_text(encoding="utf-8"))
     put(tmp_path, "tools/compare_metrics.py", (ROOT / "tools/compare_metrics.py").read_text(encoding="utf-8"))
+    put(tmp_path, "tools/coverage_methods.py", (ROOT / "tools/coverage_methods.py").read_text(encoding="utf-8"))
     put(tmp_path, "tools/regress.ps1", '[string]$Replace = "probe"\n    shadows = "probe_shadow = 1"\n')
     put(tmp_path, "engine/plugin/FC4Subsystems.cpp", '{"probe", nullptr, kProbe, false}\n')
     put(tmp_path, "engine/core/src/probe.rs", "pub fn probe() {}\n")
@@ -87,6 +88,39 @@ def test_justified_flip_uses_base_tree_and_byte_weights(repo):
     assert [r["row"] for r in result["rows_flipped"]] == ["Probe"]
     assert all(v == {"before": False, "after": True}
                for v in result["rows_flipped"][0]["statuses"].values())
+
+
+def test_address_bound_methods_add_bytes_without_flipping_an_owner(repo):
+    put(repo, "docs/specs/attribution/methods.tsv",
+        "address\tfunction_name\towner\tbytes\tshadow_key\tevidence_family\n"
+        "00000001\tProbe::First (void)\tProbe\t128\tprobe_shadow\tprobe\n")
+    result = cc.check(repo, [repo / "clean.log"])
+    assert result["deltas"]["verified"] == 128
+    assert result["rows_flipped"] == []
+    assert not result["refusals"]
+    # Once measured on main's evidence, unchanged method identities retain the same floor as owner rows.
+    commit(repo)
+    git(repo, "branch", "-f", "main", "HEAD")
+    result = cc.check(repo)
+    assert result["deltas"]["verified"] == 0
+    assert result["before"]["bytes"]["verified"] == result["after"]["bytes"]["verified"] == 128
+
+
+def test_method_log_credit_keeps_a_failure_from_any_supplied_log(repo, monkeypatch):
+    def attribution(tree, data_repo):
+        att, owners = fake_attribution(tree, data_repo)
+        att.name = lambda va: {1: "Probe::First", 2: "Probe::Rest"}.get(va)
+        return att, owners
+
+    monkeypatch.setattr(cc, "load_attribution", attribution)
+    exact = ("  probe method 0x00000001 Probe::First: 2 lines, 2 exact, calls=5 complete=5; "
+             "mismatches=0; resyncs=0; counters_valid=1\n")
+    monkeypatch.setattr(cc, "summarize_log", lambda wt, log: exact)
+    assert cc.check(repo, [repo / "clean.log"])["deltas"]["verified"] == 128
+    bad = exact.replace("2 exact", "1 exact").replace("resyncs=0", "resyncs=1")
+    monkeypatch.setattr(cc, "summarize_log", lambda wt, log: bad if log.name == "bad.log" else exact)
+    for logs in (("bad.log", "clean.log"), ("clean.log", "bad.log")):
+        assert cc.check(repo, [repo / name for name in logs])["deltas"]["verified"] == 0
 
 
 @pytest.mark.parametrize("cell,value,reason", [
@@ -177,7 +211,8 @@ def test_main_verified_floor_uses_main_profile_and_parser(repo, tmp_path, monkey
     git(repo, "branch", "-f", "main", "HEAD")
     main = tmp_path / "main-checkout"
     map_row(main, shadow="probe_shadow")
-    for name in ("tools/coverage.py", "tools/compare_metrics.py", "engine/plugin/FC4Subsystems.cpp"):
+    for name in ("tools/coverage.py", "tools/compare_metrics.py", "tools/coverage_methods.py",
+                 "engine/plugin/FC4Subsystems.cpp"):
         put(main, name, (repo / name).read_text(encoding="utf-8"))
     put(main, "tools/regress.ps1", '[string]$Replace = "probe"\nshadows = "probe_shadow = 1"\n')
     put(main, "build-runs/regress-main.out",

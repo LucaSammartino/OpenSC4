@@ -201,12 +201,17 @@ void NativeLocal(uint32_t op, const Packet& in, Packet& out) {
     }
 }
 
-uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields,
+uint32_t CompareLocal(const fc4_date& date, bool binding, bool liveAvailable,
+    const std::array<Words, 5>& live, uint32_t& totalFields,
     uint32_t& subsetFields, uint32_t& subsetMismatches) {
     uint32_t totalMismatches = 0;
     for (auto& family : localFamilies) {
         uint32_t mismatches = 0, fields = 0;
-        for (uint32_t sample = 0; binding && sample < 32; ++sample) {
+        // Selection-only helpers also consume copied live camera vectors.
+        // No native geometry output is used to construct the Rust expectation.
+        const bool liveSelection = family.va == 0x005d6900 || family.va == 0x007f6550 || family.va == 0x007f65b0;
+        const uint32_t sampleCount = 32 + (liveSelection && liveAvailable ? 5 : 0);
+        for (uint32_t sample = 0; binding && sample < sampleCount; ++sample) {
             Packet in{}, native{}, replacement{};
             native.fill(0x41200000); replacement = native;
             for (unsigned j = 0; j < 9; ++j) in[j] = Bits(static_cast<float>(static_cast<int>(sample * (j+1)) - 60));
@@ -245,6 +250,16 @@ uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields,
                 }
                 break;
             }
+            if (sample >= 32) {
+                const auto at = sample - 32;
+                if (family.va == 0x005d6900) {
+                    for (size_t j = 0; j < 3; ++j)
+                        std::memcpy(&in[j * 3], live[(at + j) % live.size()].data(), 12);
+                    in[9] = 3;
+                } else {
+                    for (size_t j = 0; j < 4; ++j) in[j] = live[(at + j) % live.size()][j % 3];
+                }
+            }
             NativeLocal(family.va, in, native);
             fc4_viewutil_shadow_local(family.va, in.data(), replacement.data());
             for (size_t j = 0; j < native.size(); ++j) {
@@ -257,13 +272,13 @@ uint32_t CompareLocal(const fc4_date& date, bool binding, uint32_t& totalFields,
         }
         if (!binding) ++mismatches;
         fc4::Log("viewutil-%s shadow %04d-%02d-%02d: body=%08x capture=f32 samples=%u fields=%u resyncs=0 mismatches=%u",
-            family.name,date.year,date.month,date.day_of_month,family.va,binding?32u:0u,fields,mismatches);
+            family.name,date.year,date.month,date.day_of_month,family.va,binding?sampleCount:0u,fields,mismatches);
         ++family.total; family.exact += mismatches == 0;
         totalFields += fields;
         totalMismatches += mismatches;
-        // Keep VU19 and VU12 observations visible in their family lines and the
+        // Keep VU12 observations visible in their family lines and the
         // all-body aggregate; the explicitly named subset excludes these bodies.
-        if (family.va != 0x007f6cb0 && family.va != 0x007f7780 && family.va != 0x007f8300) {
+        if (family.va != 0x007f7780 && family.va != 0x007f8300) {
             subsetFields += fields;
             subsetMismatches += mismatches;
         }
@@ -289,7 +304,8 @@ bool LiveInputs(std::array<Words, 5>& vectors, int32_t& rotation, Owner& snapsho
             std::memcpy(snapshot.data(), utilities, sizeof(snapshot));
             // §1 published cached inputs: camera position, look-at, forward,
             // right, up. Read only; never bootstrap a projection expectation
-            // from native projection output. Only the local rotation is tested.
+            // from native projection output. Local selection and rotation
+            // helpers consume these copied vectors.
             std::memcpy(&rotation, utilities + 0x10, sizeof(rotation));
             for (size_t i = 0; i < vectors.size(); ++i)
                 std::memcpy(vectors[i].data(), utilities + 0x3c + i * 12, 12);
@@ -366,13 +382,13 @@ void Compare(int32_t julian, bool load) {
         date.year,date.month,date.day_of_month,samples,fields,mismatches);
     ++rotationFamily.total; rotationFamily.exact += mismatches == 0;
     uint32_t subsetFields = fields, subsetMismatches = mismatches;
-    mismatches += CompareLocal(date, base != 0, fields, subsetFields, subsetMismatches);
+    mismatches += CompareLocal(date, base != 0, available, live, fields, subsetFields, subsetMismatches);
     const uint32_t beforeCached = fields;
     const uint32_t cachedMismatches = CompareCached(date, available && base != 0, snapshot, fields);
     mismatches += cachedMismatches;
     subsetFields += fields - beforeCached;
     subsetMismatches += cachedMismatches;
-    fc4::Log("viewutil-subset shadow %04d-%02d-%02d: bodies=33/50 excluded=object-angle,camera-angles,city-width fields=%u resyncs=0 mismatches=%u",
+    fc4::Log("viewutil-subset shadow %04d-%02d-%02d: bodies=34/50 excluded=camera-angles,city-width fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, subsetFields, subsetMismatches);
     subsetClean += subsetMismatches == 0;
     fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-and-cached bodies=36/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
@@ -400,7 +416,7 @@ void ViewUtilShadowMonth(int32_t julian) { Compare(julian, false); }
 void ViewUtilShadowCityShutdown() {
     if (active) {
         Log("viewutil: %u/%u exact (36/50 bodies), resyncs=0", clean, lines);
-        Log("viewutil-subset: %u/%u exact (33/50 bodies; excludes object-angle,camera-angles,city-width), resyncs=0", subsetClean, lines);
+        Log("viewutil-subset: %u/%u exact (34/50 bodies; excludes camera-angles,city-width), resyncs=0", subsetClean, lines);
         Log("viewutil-rotation: %u/%u exact, resyncs=0",rotationFamily.exact,rotationFamily.total);
         for (const auto& family : localFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
         for (const auto& family : cachedFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);

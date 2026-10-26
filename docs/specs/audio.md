@@ -436,7 +436,7 @@ offsets; this spec adds the field's meaning.
 |---|---|---|
 | 1 | `0x00509953` | read the argument (the SFX id) |
 | 2 | `0x0050995B` | if it is 0, return `0` immediately |
-| 3 | `0x00509968` | `call 0x004ECD60` (a method on the automaton; its return value only selects a dead branch, see the quirk below) |
+| 3 | `0x00509968` | `call 0x004ECD60` (`GetSC4AudioCOMDirector`, the static audio-director getter, tiny-owners-b9.md §3, not an automaton method; corrected 2026-10-25, re-tinyown8. Its result is never null, so the branch it selects is dead, see the quirk below) |
 | 4 | `0x0050998D` | `call 0x004F7BB0` = **`cSC4AudioSoundManager::GenerateNewInstanceId()`**; store the result at `this+0x8C` |
 | 5 | `0x00509992` | `operator_new(0x2C)` and `cRZMessage2Standard::cRZMessage2Standard` (`0x009134D6`) — build a message |
 | 6 | `0x005099B3` | `msg->slot1()` = `AddRef` |
@@ -1963,6 +1963,10 @@ vtables and their own factories. The 83 are a **registry of small tagged leaf ob
 QI/AddRef/Release, two always-true capability predicates and one unique method, in three fixed shapes (8, 16
 and 20 bytes) *[inferred]*. What would settle the remaining question of their role: who looks their CLSIDs up
 (a scan of the 83 IDs against the tuning data, and the `+0x20` constant of §3.4 as a cross-check).
+
+**Settled 2026-10-25 (re-audiofilters8):** they are the ambience layer's filters (audio-ambience.md §8.3–§8.4),
+created by class ID from the layer tuning lists; family B8 is the global stage, A the occupant stage, B20 the cell
+stage. Every class's test is in [audio-filters.md](audio-filters.md).
 
 ### 11.2 The 83 registrations
 
