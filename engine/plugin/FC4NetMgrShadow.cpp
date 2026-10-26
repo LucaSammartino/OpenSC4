@@ -251,6 +251,7 @@ std::map<uint64_t, std::pair<int32_t, int32_t>> g_decided;
 std::vector<std::pair<int32_t, int32_t>> g_decidedCells;
 std::map<uint64_t, bool> g_terrainBefore;
 std::map<uint64_t, bool> g_terrainAfter;
+bool g_replayDiffLogged = false;
 
 // The captures (reused).
 WriteCapture g_origMgr, g_origLot, g_ourMgr, g_ourLot;
@@ -1141,12 +1142,18 @@ bool MessageCells(const Msg& m, fc4_cell_rect* r) {
 
 constexpr int32_t kMaxSnapCells = 4096;
 
-void CheckReplayInput(const char* phase) {
+void CheckReplayInput(const char* phase, const Msg& m) {
     uint32_t original[625] = {}, ours[625] = {}, buckets = 0;
     if (!compat::CaptureNetworkLotRandom(original) || !fc4_netlot_get_random_state(g_lot, ours)) {
         PendingDiff("random capture refused (%s)", phase);
     } else if (std::memcmp(original, ours, sizeof(original)) != 0) {
         PendingDiff("random state differs (%s): next word %u/%u", phase, original[624], ours[624]);
+        // SPEC-GAP: NM19 leaves the census-only lot/random-input divergence unresolved.
+        if (!g_replayDiffLogged) {
+            g_replayDiffLogged = true;
+            Log("netmgr replay first difference (%s): message=0x%08X data=%u/%u/%u/%u next word=%u/%u",
+                phase, m.type, m.d[0], m.d[1], m.d[2], m.d[3], original[624], ours[624]);
+        }
     }
     const auto* nlm = g_city ? g_city->GetNetworkLotManager() : nullptr;
     if (!compat::CaptureNetworkLotPending(nlm, &buckets)) {
@@ -1158,7 +1165,7 @@ void CheckReplayInput(const char* phase) {
 
 void TakeSnapshot(void* p) {
     const Msg& m = *static_cast<const Msg*>(p);
-    CheckReplayInput("before message");
+    CheckReplayInput("before message", m);
     g_snap.clear();
     g_snapValid = false;
     fc4_cell_rect r{};
@@ -1322,7 +1329,7 @@ void CallMessage(void* p) {
         g_msgWrites.clear();
         fc4_netlot_do_message(g_lot, m.type, m.d[0], m.d[1], m.d[2], m.void1, m.unknown, m.hasRect ? &m.rect : nullptr);
         NetMgrReleaseHeld(&g_ctx);
-        if (g_late) CheckReplayInput("after message");
+        if (g_late) CheckReplayInput("after message", m);
         if (compare) CompareMessageStyle(m, afterOrig);
         g_snapValid = false;
         g_snap.clear();
@@ -1573,6 +1580,7 @@ void NetMgrShadowCityShutdown() {
     g_ctx.city = nullptr;
     g_lines = g_exactLines = g_draws = g_resyncs = 0;
     g_randomReady = false;
+    g_replayDiffLogged = false;
     g_n = Counters{};
     g_pendingDiffs.clear();
     g_pendingMismatches = 0;

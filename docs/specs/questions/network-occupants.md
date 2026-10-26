@@ -93,4 +93,8 @@ implementer of the class tables and records.
   and 424 load mismatches; `paradis-port-of-shiganshina.log` has the same failure and 755 load mismatches.
   The cited runs later stalled and are not acceptance runs; their completed load comparisons establish the
   codec failure. No prebuilt records have been excluded or normalized past this unsupported envelope.
+  `C:/Users/tlori/FreeCity4/build-runs/game-results/netocc-cities29-probe4-paradis.log` confirms captured
+  versions 4/4/2 for prebuilt `49C1A034`, bridge `49CC1BCD` and tunnel `8A4BD52B`, all status 2. Please include
+  the inherited envelope for the bridge and tunnel as well. This run is corrupt during load (not acceptance);
+  its completed load sample has 755 netocc mismatches and an exact initial netmgr record.
 

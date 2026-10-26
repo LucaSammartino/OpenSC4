@@ -16,3 +16,23 @@
   explanation; moving the check alone is not justified. The diagnostic now also captures placement at the
   candidate query. This blocks the 795 terrain-detail occurrences in the supplied census, including Tegel
   and the gen27 Konradshohe/Spandau cases. No mismatch, candidate or tolerance has been removed or relaxed.
+  The current boundary probe reproduces Tegel with the shadows-profile simulator settings:
+  `C:/Users/tlori/FreeCity4/build-runs/game-results/netocc-cities29-profile5-tegel.log`, clean/ref_warnings=0,
+  netocc exact 2/2, netmgr exact 1/3 (16 mismatches). Every reported extra removal was placed at the query
+  and absent at the late terrain listener (`placed before/after handler=1/0`). Thus already-removed query
+  results and a simple later-tick check do not explain these cases.
+
+- **NM19 — Port of Shiganshina's first lot/random divergence (§§8.5, 8.7, 17.3):** the census sample
+  `C:/Users/tlori/FreeCity4/build-runs/run7/census3/paradis-port-of-shiganshina.shadows.txt` first differs on
+  2041-01-01: lot (1,25), config `4BA69450`, exists only in the original, with variation 1, rotation 3,
+  flip 0, usable 1 and current compatibility false; zone/wealth are 0/0 in both. There are also two different
+  compatible choices and generator next-word indices 386/383. Component 53 and all zone/wealth cells agree.
+  After the avenue hash-order/bounds fix, which message or direct entry should first affect this edge lot,
+  and which inputs must be retained before the native handler changes them? In particular, does the specified
+  replay need transient forced/locked lot state not represented by component 11, or another native draw path?
+  Do not infer an answer from the later incompatible configuration alone. The new diagnostic reports the
+  first random disagreement's message and four data words without resyncing the generator or hiding errors.
+  Fresh attempts `netocc-cities29-probe4-paradis` (corrupt during load) and `netocc-cities29-profile5-paradis`
+  (stalled at the script's 2040-12-12 terrain action) cannot reach the census's first differing month;
+  the latter starts with an exact netmgr load sample. This blocks that distinct census-only case, not a
+  claim that the avenue fix has passed it. All comparison checks remain enabled.

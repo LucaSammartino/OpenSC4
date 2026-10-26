@@ -57,7 +57,7 @@ void Compare(const char* event, int32_t julian) {
             bytes += b.size();
             if (!compared || result.status != 0) {
                 ++mismatches;
-                // SPEC-GAP: §2.8/NO4 leaves the prebuilt record format open; retain
+                // SPEC-GAP: §2.8/NO46 leaves the prebuilt record format open; retain
                 // its parse failures and report the captured record version.
                 if (++badKinds[kind] <= 2) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u record_version=%u",
                     cls, id, captured ? 1u : 0u, compared ? result.status : 4u, result.first,
