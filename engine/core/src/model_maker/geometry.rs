@@ -4,7 +4,7 @@ use super::{Handle, ModelMaker, Rect, ALL_ROTATIONS, ALL_ZOOMS};
 /// §7: intentionally different from floor/ceil at exact odd integers.
 pub fn fast_floor(value: f32) -> i32 {
     let shifted = value - 0.5;
-    let nearest = shifted.round_ties_even();
+    let nearest = crate::x87::rhe(shifted) as f32;
     (if nearest + 1.0 == shifted {
         nearest + 1.0
     } else {
@@ -14,7 +14,7 @@ pub fn fast_floor(value: f32) -> i32 {
 
 pub fn fast_ceil(value: f32) -> i32 {
     let shifted = value + 0.5;
-    let nearest = shifted.round_ties_even();
+    let nearest = crate::x87::rhe(shifted) as f32;
     (if nearest - 1.0 == shifted {
         nearest - 1.0
     } else {

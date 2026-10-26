@@ -8,6 +8,8 @@
 use std::collections::BTreeMap;
 
 mod geometry;
+mod terrain_hiding;
+pub use terrain_hiding::{TerrainHost, TerrainOccupant};
 pub mod persistence;
 pub use geometry::{
     fast_ceil, fast_floor, lowest_rotation, lowest_zoom, HolderMasks, LoadRectHost, LoadView, UnloadHost,

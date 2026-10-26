@@ -213,7 +213,7 @@ impl Commands {
         self.capacity = size + size.max(n);
         let mut values = Vec::with_capacity(self.capacity);
         values.extend_from_slice(&self.values[..pos]);
-        values.extend(std::iter::repeat_n(value, n));
+        values.extend(std::iter::repeat(value).take(n));
         if !at_end {
             values.extend_from_slice(&self.values[pos..]);
         }
