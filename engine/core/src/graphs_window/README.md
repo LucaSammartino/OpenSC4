@@ -16,6 +16,13 @@ operations are foreign primitives. No C ABI or plugin wiring is added.
 | 7 Helpers | `SeriesRecords`, owned strings/map, `LineStyle`, `antialiased_line`, `line_query` | `section7_vector_growth_copy_strings_map_default_and_line_forwarding`; underlying cGZLineGraph construction/destruction is foreign GW1 |
 | 8 Quirks and cases | tests `gw_c1`–`gw_c5`, bar/line/pie paths | all five worked cases are portable tests; no native execution claim |
 | 9 Function inventory | portable methods and owned-container equivalents above | tests above; shared/foreign graph widget bodies receive no implementation credit here |
+| 2.1 Graph definitions | `Definition`, `read_series` | `section4_line_setup_legend_capture_and_pie_without_population`, bar vector case |
+| 2.2 Time scales | `TIMES`, `set_time_scale`, `sample_dates` | `gw_c1_dates_and_all_time_scales_have_one_extra_sample` |
+| 4.1 Bar setup | `setup_bar`, `read_axis` | `section5_bar_vectors_only_fill_their_group_and_make_unused_date`; raw B/G slots remain open GW1 |
+| 4.2 Line setup | `setup_line`, `LineStyle` | `section4_line_setup_legend_capture_and_pie_without_population`; raw G/L slots remain open GW1 |
+| 5.1 Bar refresh | `refresh_bar`, `bar_value` | GW-C2 and group-vector case; raw B21/G34 remain open GW1 |
+| 5.2 Line refresh | `refresh_line`, `sample_dates`, `line_value` | GW-C1/GW-C4 and strict-start-date case; G17 interpretation remains open GW2 |
+| 5.3 Y axis | `axis`, `apply_axis` | `gw_c3_axis_range_250_and_fractional_and_explicit_step`; raw output slots remain open GW1 |
 
 GW1–GW4 are open in `docs/specs/questions/graphs-window.md`. The trait defaults
 return `Unsupported::Open` naming each question. Tests supply literal raw slot
