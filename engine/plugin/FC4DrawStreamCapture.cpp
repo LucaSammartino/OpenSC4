@@ -46,8 +46,8 @@ void Bind(std::array<void*, 48>& hooks) { hooks[Slot] = reinterpret_cast<void*>(
 #endif
 }  // namespace
 
-Capture::Capture(void* context, Stream& stream, Objects& objects)
-    : context_(context), stream_(stream), objects_(objects), previous_(current) {
+Capture::Capture(void* context, Stream& stream, Objects& objects, Inputs* inputs)
+    : context_(context), stream_(stream), objects_(objects), inputs_(inputs), previous_(current) {
     current = this;
     // This adapter has no font/surface or complete owner-output binding yet.
     // Context-only traces must never produce complete method credit.
@@ -58,10 +58,24 @@ Capture* Capture::Current(void* context) {
     return current && current->context_ == context ? current : nullptr;
 }
 
-void Capture::Before(uint32_t slot, std::initializer_list<uint32_t> arguments) {
-    Event event{Domain::Context, slot, objects_.Borrow(context_), arguments, {}};
+namespace {
+// Argument counts from gz-graphics 2.1 and docs/abi/vtables.tsv. Slots without
+// settled transport/payload bindings are refused, never compared as empty calls.
+bool Arguments(uint32_t slot, std::initializer_list<uint32_t> arguments) {
+    constexpr int counts[] = {-1, -1, -1, 0, 0, 1, 1, 1, 1, 0, 0, 0,
+        1, 1, 1, 0, 0, -1, 0, 0, 2, 1, 1, 1, 1, 1, 0, -1,
+        0, 5, 0, 1, 0, 2, 4, 1, 4, 4, 3, 5, 0, 0, 0, 0, 3, 3, -1, -1};
+    return slot < 48 && counts[slot] >= 0 && arguments.size() == static_cast<size_t>(counts[slot]);
+}
+bool Getter(uint32_t slot) {
+    return slot == 12 || slot == 13 || slot == 14 || slot == 15 || slot == 16 || slot == 18 || slot == 41;
+}
+Event ContextCall(void* context, Stream& stream, Objects& objects, uint32_t slot,
+                  std::initializer_list<uint32_t> arguments) {
+    Event event{Domain::Context, slot, objects.Borrow(context), arguments, {}};
+    if (!Arguments(slot, arguments)) { stream.Refuse("unsupported context call"); return event; }
     auto copy = [&](uint32_t address, size_t size) {
-        if (size > 1024 * 1024 || (size && !address)) { stream_.Refuse("invalid context payload"); return; }
+        if (size > 1024 * 1024 || (size && !address)) { stream.Refuse("invalid context payload"); return; }
         if (size) {
             const auto* bytes = reinterpret_cast<const uint8_t*>(address);
             event.bytes.insert(event.bytes.end(), bytes, bytes + size);
@@ -75,30 +89,73 @@ void Capture::Before(uint32_t slot, std::initializer_list<uint32_t> arguments) {
     case 12: case 13: case 14:
         event.words.clear(); break; // output pointers, copied after forwarding
     case 29:
-        event.words[0] = objects_.Borrow(reinterpret_cast<const void*>(event.words[0]));
-        stream_.Refuse("SetBlt image key not bound"); break;
+        break; // keyed below, after all pointer payloads have been copied
     case 38: case 39:
         copy(event.words[1], 16); copy(event.words[2], 16);
-        event.words[0] = objects_.Borrow(reinterpret_cast<const void*>(event.words[0]));
         event.words[1] = event.words[2] = 0;
-        stream_.Refuse("Blt image key not bound"); break;
+        break;
     case 44: case 45:
-        if (event.words[2] > 1024 * 1024 / 8) stream_.Refuse("context point capacity");
+        if (event.words[2] > 1024 * 1024 / 8) stream.Refuse("context point capacity");
         else copy(event.words[1], static_cast<size_t>(event.words[2]) * 8);
         event.words[1] = 0; break;
     default: break;
     }
-    stream_.Append(std::move(event));
+    if (slot == 29 || slot == 38 || slot == 39) {
+        event.words[0] = objects.Borrow(reinterpret_cast<const void*>(event.words[0]));
+        ResourceKey key;
+        if (!objects.ImageKey(event.words[0], key)) stream.Refuse("context image key not bound");
+        else event.words.insert(event.words.end(), {key.type, key.group, key.instance});
+    }
+    return event;
+}
+}  // namespace
+
+void Capture::Before(uint32_t slot, std::initializer_list<uint32_t> arguments) {
+    stream_.Append(ContextCall(context_, stream_, objects_, slot, arguments));
 }
 void Capture::After(uint32_t slot, std::initializer_list<uint32_t> arguments, uint32_t result) {
+    if (!Getter(slot)) return;
+    if (!Arguments(slot, arguments)) { stream_.Refuse("invalid context getter"); return; }
     const auto id = objects_.Borrow(context_);
+    Event response{Domain::Return, slot, id, {}, {}};
     if (slot == 12 || slot == 13 || slot == 14) {
-        stream_.Data(Domain::Return, slot, id, reinterpret_cast<const void*>(*arguments.begin()), slot == 14 ? 8 : 16);
-    } else if (slot == 15 || slot == 16 || slot == 18 || slot == 41) {
+        if (!*arguments.begin()) { stream_.Refuse("null context output"); return; }
+        const auto* data = reinterpret_cast<const uint8_t*>(*arguments.begin());
+        response.bytes.assign(data, data + (slot == 14 ? 8 : 16));
+    } else {
         if (slot == 18) result = objects_.Borrow(reinterpret_cast<const void*>(result));
         if (slot == 16 || slot == 41) result &= 0xff;
-        stream_.Call(Domain::Return, slot, id, {result});
+        response.words.push_back(result);
     }
+    if (inputs_) inputs_->Observe({Domain::Context, slot, id, {}, {}}, response);
+    stream_.Append(std::move(response));
+}
+
+uint32_t ContextReplay::Invoke(uint32_t slot, std::initializer_list<uint32_t> arguments) {
+    auto request = ContextCall(context_, stream_, objects_, slot, arguments);
+    stream_.Append(request);
+    if (!Arguments(slot, arguments) || !Getter(slot)) return 0;
+    const auto* response = inputs_.Read(request);
+    if (!response || response->domain != Domain::Return || response->operation != slot ||
+        response->receiver != request.receiver) {
+        stream_.Refuse("context query replay mismatch"); return 0;
+    }
+    if (slot == 12 || slot == 13 || slot == 14) {
+        if (!*arguments.begin() || !response->words.empty() || response->bytes.size() != (slot == 14 ? 8u : 16u)) {
+            stream_.Refuse("invalid context query output"); return 0;
+        }
+        std::memcpy(reinterpret_cast<void*>(*arguments.begin()), response->bytes.data(), response->bytes.size());
+    } else if (!response->bytes.empty() || response->words.size() != 1) {
+        stream_.Refuse("invalid context query result"); return 0;
+    }
+    stream_.Append(*response);
+    if (slot == 12 || slot == 13 || slot == 14) return 0;
+    if (slot == 18) {
+        const auto* object = objects_.Resolve(response->words[0]);
+        if (!object && response->words[0]) stream_.Refuse("unknown borrowed context engine");
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object));
+    }
+    return response->words[0];
 }
 }  // namespace drawstream
 
@@ -107,26 +164,24 @@ namespace {
 uintptr_t paintOriginal[2]{};
 struct Counts { std::atomic<uint64_t> draws{0}, events{0}, incomplete{0}; } counts[2];
 template<unsigned Owner>
-bool __fastcall Paint(void* self, void*) noexcept {
+bool __fastcall Paint(void* self, void*) {
     using Fn = bool(__fastcall*)(void*, void*);
     const auto native = reinterpret_cast<Fn>(paintOriginal[Owner]);
-    bool called = false, result = false;
+    drawstream::Stream stream;
+    drawstream::Objects objects;
+    void* context = *reinterpret_cast<void**>(static_cast<uint8_t*>(self) + 0x6c); // widget-toolkit 14.1
+    bool result;
+    {
+        drawstream::Capture capture(context, stream, objects);
+        // The native invocation is outside observer exception handling. Capture
+        // failures cannot repeat it or turn a native exception into false.
+        result = native(self, nullptr);
+    }
     size_t events = 0;
     try {
-        drawstream::Stream stream;
-        drawstream::Objects objects;
-        void* context = *reinterpret_cast<void**>(static_cast<uint8_t*>(self) + 0x6c); // widget-toolkit 14.1
-        {
-            drawstream::Capture capture(context, stream, objects);
-            called = true;
-            result = native(self, nullptr);
-        }
         stream.Call(drawstream::Domain::Return, 88, objects.Borrow(self), {result ? 1u : 0u});
         events = stream.Events().size();
-    } catch (...) {
-        // Allocation/serialization failure cannot skip or repeat the native draw.
-        if (!called) { try { result = native(self, nullptr); } catch (...) {} }
-    }
+    } catch (...) {} // output serialization cannot change the native result
     ++counts[Owner].draws;
     counts[Owner].events += events;
     ++counts[Owner].incomplete; // context-only adapter, including capture failures
@@ -145,6 +200,11 @@ bool Patch(void** table, const void* const* replacements, size_t length) {
 
 void DrawStreamStartup() {
     if (SettingInt("drawstream_shadow", nullptr, 0) != 1) return;
+    static bool attempted = false;
+    if (attempted) return;
+    attempted = true; // never save one of our own taps as a native entry
+    // SPEC-GAP: MapView's full live-state snapshot layout is unpublished; no pilot method credit is emitted.
+    Log("drawstream pilot cSC4WinMapView unavailable: owner-state ABI binding missing; compare=0 complete=0");
     void** context = nullptr;
     void** tree = nullptr;
     void** list = nullptr;

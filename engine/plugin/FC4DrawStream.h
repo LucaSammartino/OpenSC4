@@ -45,6 +45,11 @@ public:
         key = found->second;
         return true;
     }
+    const void* Resolve(uint32_t id) const {
+        if (id == 0) return nullptr;
+        for (const auto& object : objects_) if (object.second == id) return object.first;
+        return nullptr;
+    }
 private:
     std::unordered_map<const void*, uint32_t> objects_;
     std::unordered_map<uint32_t, ResourceKey> images_;
@@ -104,7 +109,20 @@ private:
 // exact responses in order; an extra/missing/different query invalidates credit.
 class Inputs {
 public:
-    void Observe(Event request, Event response) { entries_.push_back({std::move(request), std::move(response)}); }
+    explicit Inputs(size_t entryLimit = 16384, size_t byteLimit = 4 * 1024 * 1024)
+        : entryLimit_(entryLimit), byteLimit_(byteLimit) {}
+    void Observe(Event request, Event response) {
+        size_t remaining = byteLimit_ - used_;
+        for (const auto* event : {&request, &response}) {
+            if (event->bytes.size() > remaining) { valid_ = false; return; }
+            remaining -= event->bytes.size();
+            if (event->words.size() > remaining / sizeof(uint32_t)) { valid_ = false; return; }
+            remaining -= event->words.size() * sizeof(uint32_t);
+        }
+        if (entries_.size() >= entryLimit_) { valid_ = false; return; }
+        entries_.push_back({std::move(request), std::move(response)});
+        used_ = byteLimit_ - remaining;
+    }
     const Event* Read(const Event& request) {
         if (cursor_ == entries_.size() || !(entries_[cursor_].request == request)) {
             valid_ = false;
@@ -116,6 +134,7 @@ public:
 private:
     struct Entry { Event request, response; };
     std::vector<Entry> entries_;
+    size_t entryLimit_, byteLimit_, used_ = 0;
     size_t cursor_ = 0;
     bool valid_ = true;
 };
