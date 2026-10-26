@@ -175,7 +175,7 @@ setter repack, byte-truncated filter, per-instance pulse and draw-only pulse adv
   chosen route is drawn last in its selected picture, then the marker model is placed there 0.2 m up (3 m more on
   elevated rail) and drawn.
 
-### 2.1 Exact junction draw contract and remaining lifecycle boundary (NOV3)
+### 2.1 Exact junction draw contract (NOV3)
 
 Constructor `0x005649D0` sets initialized=false, packed state zero, both stored cell pairs
 (+0x1C/+0x20 and +0x24/+0x28) to (−1,−1), and both models null. It does not initialize the
@@ -241,15 +241,20 @@ Marker uses model 0x8BB80000 **only** when cell matches pair +0x24/+0x28; otherw
 including a match only to pair +0x1C/+0x20. It is temporarily retained during draw. Translation is
 the shared origin, with y=O.y+currentOffset+binary32(.2), plus 3 for selected key type 7; unlike the
 quad, it does not max with terrain height. Orientation is derived from e of the **first route**,
-not necessarily the chosen route (`0x00564CA0–0x00564CD7`, `0x00564E78–0x00565085`). The exact
-rotation-helper handedness/remaining model state and the public setters which populate the two
-cell pairs remain unproved; this section does not certify those methods or train-current/target names.
+not necessarily the chosen route (`0x00564CA0–0x00564CD7`, `0x00564E78–0x00565085`). Exact
+orientation, state submission and the identities of the two cells are specified in §2.2.
 
 Shutdown `0x00563730` is guarded by initialized; clear flag, release/null binding slots in order
 +0x34,+0x38,+0x2C,+0x30,+0x3C,+0x40, then release/null both model references. It does not flush
 draws or clear train cells. Repeated shutdown is a no-op. Overlay-views §3.4 establishes shared
 refcount/deletion dispatch, including the deleting body's model cleanup **without** a Shutdown call.
-Whether all callers ensure Shutdown before deletion remains unproved.
+The sole exported direct Shutdown caller is the player-drive control: unregister through manager
+slot 33, call Shutdown, clear its stored pointer, then primary Release slot 2
+(0x00563B8A–0x00563BC0). Thus the observed owning caller does follow Shutdown discipline;
+Release itself still does not substitute for Shutdown. The creator constructs 0x4C bytes, retains
+a changed nonnull view before releasing the previous view, calls Init and registers it through
+manager slot 32 (0x00565D2E–0x00565D98). A failed view allocation is not a successful no-view
+initialization path: the following Init requires a nonnull object.
 
 Independent discriminators: for O=(0,7,8), entry west/exit east, terrain at (12,8)=5,
 offset=.1 and type not 7, quad xyz are (0,7.1,14),(12,7.1,14),(12,7.1,2),(0,7.1,2).
@@ -257,6 +262,62 @@ With no matched train cell, one plain route then selected route draw at .4 then 
 at offsets .1 then binary32(.1+.01); the next junction starts at the offset left by those draws.
 Matching only +0x1C/+0x20 gives .7/.8 but still model 0x8BB70000. A route whose last three points
 have a vertical-only chord falls back to the horizontal whole-route chord, irrespective of its 3D length.
+
+### 2.2 Cell mutations and marker basis/state (NOV3)
+
+The two cell pairs are **interaction highlights**, not a train's current and target coordinates.
+They are signed 32-bit x,z with (−1,−1) meaning unset. The recovered setters are inline stores,
+not additional callable or virtual methods:
+
+| Primary-view fields | Producer and mutation rule | Drawing meaning |
+|---|---|---|
+| +0x1C,+0x20 | Player-drive OnMouseMove 0x005631C0: pick the world point under the mouse through view slot 36, convert its x,z through city slot 95, store the resulting cell only when changed; a failed pick stores (−1,−1). Stores: 0x0056321F–54. | Hover cell: .7 plain/.8 chosen transparency, ordinary marker. |
+| +0x24,+0x28 | OnMouseDownL 0x005655D0: when network picking succeeds and service slot 42 accepts that occupant, obtain its cell through occupant slot 59 and store only when changed (0x0056568E–B5). OnMouseUpL 0x00564300 clears both to −1 (0x00564303–1F). | Pressed/accepted junction: .7/.8 and marker 0x8BB80000. Takes precedence when both pairs match. |
+
+No world-to-cell conversion occurs in DrawTrainJunction. It compares its integer cell arguments
+with these pairs. These stores do not retain an occupant, acquire a model, repack draw state or
+rebuild routes. There is no recovered out-of-line cell setter, public bounds/transform setter or
+getter in either interface table; Update requests the current visible rectangle from network
+slot 17. The inline operation's source-level C++ name/signature is not recoverable from these stores.
+
+The rotation helper **0x0080B830** receives the first route's e directly and writes nine binary32
+values (0x00564F04–0x00564FAB). Let h=√(e.x²+e.z²). For h>0 its three columns are
+**X=(e.z/h,0,−e.x/h)**, **Y=(−e.x·e.y/h,h,−e.z·e.y/h)**, **Z=e**, with intermediate float stores
+before the cross-product that forms Y (0x0080B830–0x0080B8E4). For this owner's horizontal unit
+directions, Y=(0,1,0): positive local z follows e, positive local x follows (e.z,0,−e.x).
+For e=(1,0,0), this is a quarter-turn with local x toward negative world z, not positive world z.
+The helper uses the constants float 0 at 0x00A81054 and float 1 at 0x00B0EC64. When h=0
+(also the unordered comparison branch), it writes X=(0,0,1), Y=(1,0,0), Z=e
+(0x0080B8E5–0x0080B906); a diagonal direction-table entry therefore gives a singular basis,
+not identity and not a substitute heading. No NaN repair contract follows.
+
+Marker state is a temporary **0x38-byte** record passed to the model's adjusted secondary
+interface slot 10 (+0x28). These are the bytes/fields this caller initializes, relative to that record:
+
+| Offset | Value |
+|---|---|
+| +0,+1 | Byte values 2 and 5; bytes +2,+3 are padding not explicitly written. |
+| +4…+0x24 | Nine binary32 matrix values, grouped by consecutive rows: (X.x,Y.x,Z.x), (X.y,Y.y,Z.y), (X.z,Y.z,Z.z). |
+| +0x28,+0x2C,+0x30 | Translation x,y,z from §2.1, using the offset left after the chosen quad, even if that quad was skipped. |
+| +0x34 | Binary32 1 (unit scale). |
+
+Submission order is temporary model AddRef through adjusted slot 1; secondary slot 10 with that
+state; primary slot 18 (+0x48) with integer 1 and binary32 chosen transparency (.8 or .5);
+secondary slot 12 (+0x30) with (context,0); secondary Release slot 2
+(0x00564E90–0x00565082). Results are ignored; no reset of the shared draw-context transparency
+or restoration of the model's previous state occurs here. Model animation/material behavior beyond
+these submissions belongs to the model service, not an additional train-view state field.
+
+**Worked interaction/marker case (UNEXECUTED):** start with both pairs unset, cell C=(3,4),
+first-route e=(1,0,0), origin (10,7,20), and one successful selected non-elevated quad. Its offset
+is .1, leaving binary32(.1+.01) for the marker; marker y is approximately **7.31**, independent
+of a higher terrain query used for the quad. The row-grouped rotation is
+**(0,0,1), (0,1,0), (−1,0,0)**. Before interaction use .5 and model 0x8BB70000. Move the mouse
+over C: only +0x1C/+0x20 change, transparency becomes .8, model remains 0x8BB70000. Accept a
+left press on C: +0x24/+0x28 become C and model changes to 0x8BB80000. Mouse-up resets the
+pressed pair only; a continuing hover still gives .8 and model 0x8BB70000. No train motion is
+needed to produce these changes. Shutdown/release should release each of the six bindings once
+and leave neither model retained; Release without Shutdown does not release those six bindings.
 
 ## 3. Users
 
@@ -271,9 +332,9 @@ The automata manager (cheat) and the U-Drive-It player train control.
 
 See [questions/network-overlay-views.md](questions/network-overlay-views.md): NOV1 retains the cheat
 and path-key meanings. NOV2 is answered by §§1.1–1.2, including loader-zero pulse and folded/inline setters;
-NOV3 retains marker rotation/model-state details, cell setters/current-target identities and caller
-Shutdown discipline. The geometry/state corrections in §§1.1–1.2 and 2.1 and shared lifecycle in
-overlay-views §3.4 supply the native contracts; NOV3 remains open pending the additions below.
+NOV3 is answered by §§2.1–2.2: hover/pressed cells, exact marker basis/state and observed owning
+caller Shutdown discipline. Overlay-views §3.4 supplies shared lifetime. All worked cases remain
+static expectations, not runtime verification.
 
 ## 6. Conformance expectations (UNEXECUTED)
 
@@ -303,6 +364,6 @@ are qualified in §2.1.
 | NO-L8: O=(10,7,20), e=(1,0,0), offset=.1, terrain query at (22,20) returns9, key type7 | Quad order (10,12.1,26),(22,12.1,26),(22,12.1,14),(10,12.1,14); UV=(0,0),(0,1),(1,1),(1,0); primitive6/format2/count4. | Cell-origin translation, center/corner sampling, wrong width/winding, failure to add3. 0x005637E0–0x00563968. |
 | NO-L9: one Update, junction J1 routes indices0,1,2 chosen2; index1 path is null; first route/origin and remaining bindings valid; J2 has one valid selected route | Draw J1 index0 plain at offset .1, then index2 selected at float(.1f+.01f); J2 selected at float(float(.1f+.01f)+.01f). Null index1 consumes no increment. Away from both stored pairs, transparencies .4,.5,.5. With J1 matching only pair +0x1C/+0x20, its values become .7,.8 but marker still uses model0x8BB70000. | Per-junction offset reset, increment on skip, selected-first order, matching-cell model conflation. 0x00564C19–0x00564E78, Update0x005657A0. |
 
-The marker's translation/model-selection portions can be checked separately from its unresolved
-rotation/model state. Successful bitmap lookup consumes an offset increment even when the eventual
+The marker's translation/model-selection portions can be checked separately from the basis/state
+case in §2.2. Successful bitmap lookup consumes an offset increment even when the eventual
 draw-context submission fails; no driver-result rollback is established.
