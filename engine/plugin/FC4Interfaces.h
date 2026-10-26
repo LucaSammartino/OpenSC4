@@ -1967,18 +1967,6 @@ namespace fc4 {
 inline cFC4ISC4TutorialSystem* AsGame(cISC4TutorialSystem* p) { return static_cast<cFC4ISC4TutorialSystem*>(p); }
 }  // namespace fc4
 
-// Terrain prefix through slot 6 (docs/abi/interfaces.tsv cISTETerrain and
-// vtables.tsv cSTETerrain::vftable). The SDK's CellWidth is uint32_t, but
-// the game returns float in ST0. Use this view for the pole's terrain width;
-// ReadCellWidth distinguishes this corrected call from the unused SDK method.
-class cFC4ISTETerrainCellWidth : public cIGZUnknown {
-public:
-    virtual bool Init() = 0;                 // 3
-    virtual bool Shutdown() = 0;             // 4
-    virtual bool IsInitialized() = 0;        // 5
-    virtual float ReadCellWidth() = 0;       // 6
-};
-
 // ---- command parameter set (docs/abi/interfaces.tsv, re-answers12 CB16) -----------------------------
 
 #include "cIGZCommandParameterSet.h"
@@ -2369,3 +2357,15 @@ inline cFC4ISC4DisasterManagerEffect* AsGame(cISC4DisasterManagerEffect* p) {
     return reinterpret_cast<cFC4ISC4DisasterManagerEffect*>(p);
 }
 }  // namespace fc4
+
+// Terrain prefix through slot 6 (docs/abi/interfaces.tsv cISTETerrain and
+// vtables.tsv cSTETerrain::vftable). The SDK's CellWidth is uint32_t, but
+// the game returns float in ST0. Use this view for the pole's terrain width;
+// ReadCellWidth distinguishes this corrected call from the unused SDK method.
+class cFC4ISTETerrainCellWidth : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                 // 3
+    virtual bool Shutdown() = 0;             // 4
+    virtual bool IsInitialized() = 0;        // 5
+    virtual float ReadCellWidth() = 0;       // 6
+};
