@@ -8,6 +8,8 @@ use crate::widget_controls;
 pub use widget_controls::{Handle, Result, Unsupported};
 
 mod city;
+mod palette;
+pub use palette::{interpolate_ramp, TUNING_KEY};
 pub mod tz_map;
 pub use tz_map::TzMap;
 
@@ -21,6 +23,8 @@ pub trait Host: base::Host + widget_controls::Foreign {
     /// Animation manager slots 5/6; the registration argument is always zero.
     fn animation_target(&mut self, window: Window, register: bool);
     fn subscribe(&mut self, window: Window, message: u32, subscribe: bool);
+    /// Raw exemplar/property values, not a native palette result.
+    fn tuning_ramp(&mut self, key: [u32; 3], property: u32) -> Result<Option<Vec<(u32, u32)>>>;
 }
 
 #[derive(Debug)]

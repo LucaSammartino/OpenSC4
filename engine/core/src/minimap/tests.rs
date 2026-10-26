@@ -3,13 +3,14 @@ use super::*;
 use crate::widget_controls::{Delivery, Draw, Message, Rect, Resource};
 
 #[derive(Default)]
-struct RecordingHost {
+pub(super) struct RecordingHost {
     events: Vec<String>,
     cells: [usize; 2],
 }
 
 impl base::Host for RecordingHost {}
 impl Host for RecordingHost {
+    fn tuning_ramp(&mut self, _: [u32; 3], _: u32) -> Result<Option<Vec<(u32, u32)>>> { Ok(None) }
     fn city_cells(&mut self) -> [usize; 2] { self.cells }
     fn animation_target(&mut self, _: Window, register: bool) { self.events.push(format!("tick:{register}")); }
     fn subscribe(&mut self, _: Window, message: u32, subscribe: bool) { self.events.push(format!("sub:{message:08x}:{subscribe}")); }
@@ -45,7 +46,7 @@ impl widget_controls::Foreign for RecordingHost {
     fn draw(&mut self, d: Draw) { self.events.push(format!("draw:{d:?}")); }
 }
 
-fn fixture() -> (Windows, RecordingHost, MiniMap) {
+pub(super) fn fixture() -> (Windows, RecordingHost, MiniMap) {
     let mut windows = Windows::new(1);
     let mut host = RecordingHost::default();
     let map = MiniMap::new(&mut windows, &mut host);
