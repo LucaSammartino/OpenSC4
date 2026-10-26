@@ -1,0 +1,18 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| trace-replay30: C ABI host record/replay (engine) | Codex; .claude/worktrees/trace-replay30; reserved branch trace-replay30 (detached HEAD) | wip; code d4c8b38ad, 6a0663dd6, d6f14bead; ABI adds 3 tooling exports, version unchanged; cargo 8081/8081, clippy 0, CTest 135/135; game trace-replay30-pilot-k1 clean, refs 0, shadow mismatch counters 0; questions none | 1. Retest shutdown flush in game. 2. Complete ten-city pilot and overhead control. 3. Coordinator coverage ingestion, remaining callback owners and exclusions inventory. |
+
+- Recorder: opt-in trace_record/trace_scenario; budget, power, pollution and nested grid callbacks; typed LE length-prefixed frames, SHA-256 storage and manifest.tsv. Code/format: engine/capi/TRACE.md.
+- Replayer: cargo binary fc4-replay, same shadow entry points/comparisons, strict callback sequence/argument checks, parallel unique traces; no live fallback on a miss.
+- Cache: (trace SHA, compiled crate/dependency source SHA); conservative invalidation across the shared capi/core/formats crates. Six new tests cover round trips, misses, corruption, SHA vectors, cache and live-shadow shutdown flushing.
+- Final qbuild all PASS after shutdown fix: 8081 Rust tests, clippy 0 diagnostics, CTest 135/135; build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Owned-file fmt PASS.
+- Game: main build-runs/game-results/trace-replay30-pilot-k1.{log,verdict}; Berlin/Konradshohe, 2026-01-27 to 2026-02-02, no actions; clean, ref_warnings=0, 7.766 loaded seconds, 21 s harness wall, 904 s queued.
+- All three in-game shadows reported mismatch counters 0. Power's initial bookkeeping comparison displayed four differences explicitly excluded by its existing baseline policy; no shadow rules were changed.
+- Recording defect found: game retains power/pollution shadows through shutdown, so k1 left those two files partial. d6f14bead adds explicit PreAppShutdown flush; focused live-shadow/idempotence tests pass, game retest still required. Do not salvage k1 partials.
+- Real-game budget trace: 27,888 bytes, 1/1 exact offline; build-runs/traces/k1/manifest.tsv and build-runs/replay-k1-cold.log. No complete real-game power/pollution replay proof yet.
+- Fixture power: 1,743,451 bytes, 11/11 exact; fixture pollution: 13,914,377 bytes, 32/32 exact. Manifests: build-runs/trace-tests/37272-{2-power,0-pollution}-roundtrip/manifest.tsv.
+- Final release replay: 44 exact comparisons total, cold 0.258 s and cached 0.075 s engine wall summed across three invocations; build-runs/replay-bench.json and replay-*-{cold,cached}.log. Final source SHA 384a8b7f6cbd2a4cd09499ddd1ea9598f7b840183bab9c9cf1cc47de427160e7.
+- Deliberate core bug: temporary power ring-index increment 1 to 2; replay returned 1/inexact, shadow_equal=false, cache=false, one mismatch; build-runs/mutation-{build,replay}.log. Source restored byte-for-byte and release binary rebuilt; no mutant committed.
+- Acceptance remaining: ten census cities (only one shortened city window so far), recording overhead versus control, post-flush real-game proof, reach-linked coverage ingestion and further owners/exclusion inventory. No strict suite-verified credit claimed.
+- No tools/coverage.py, coverage-map.tsv, specs or regress lists changed; no questions filed. No game request outstanding. The coordinator must perform coverage ingestion/enqueue; clean-room rules prohibit running tools/ scripts here.
+- Next: use the final engine/build-x86/FreeCity4.dll; enqueue a new shared-queue label and fresh trace directory for the Konradshohe window, confirm flushed=2 and three manifest keys, then replay all keys before expanding to ten cities.
