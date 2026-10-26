@@ -298,6 +298,11 @@ unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: 
                 }
             }
         }
+        0x0080b000 => {
+            if TriangleIterator::native_non_deleting_destructor_words(&mut owner[..11], input[0]).is_some() {
+                out[31] = 1; // the native result is the same receiver
+            }
+        }
         0x0080b3b0 => {
             let mesh = Mesh {
                 vertices: (0..16).map(|i| vector(input, i * 3)).collect(),

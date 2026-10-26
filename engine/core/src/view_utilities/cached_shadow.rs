@@ -4,6 +4,20 @@
 //! to this explicitly scoped comparison, never expected projection outputs.
 use super::*;
 
+impl TriangleIterator<'_> {
+    /// Native non-deleting destructor transport (§12/§13.3). The iterator
+    /// borrows its buffers; only its vtable changes when flags bit 0 is clear.
+    /// A native-heap deletion cannot be represented by borrowed word storage.
+    #[doc(hidden)]
+    pub fn native_non_deleting_destructor_words(words: &mut [u32], flags: u32) -> Option<()> {
+        if words.len() != 0x2c / 4 || flags & 1 != 0 {
+            return None;
+        }
+        words[0] = 0x00ab_d92c;
+        Some(())
+    }
+}
+
 impl ViewUtilities {
     /// Constructor transport only (§1). No camera-derived field is seeded
     /// from a native constructor result.
@@ -113,6 +127,34 @@ impl ViewUtilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn non_deleting_destructor_preserves_borrowed_fields_and_rejects_heap_deletion() {
+        let initial = [0xcccc_cccc; 11];
+        for flags in [0, 2, 0xffff_fffe] {
+            let mut words = initial;
+            assert_eq!(
+                TriangleIterator::native_non_deleting_destructor_words(&mut words, flags),
+                Some(())
+            );
+            assert_eq!(words[0], 0x00ab_d92c);
+            assert_eq!(words[1..], initial[1..]);
+        }
+        for flags in [1, 3, u32::MAX] {
+            let mut words = initial;
+            assert_eq!(
+                TriangleIterator::native_non_deleting_destructor_words(&mut words, flags),
+                None
+            );
+            assert_eq!(words, initial);
+        }
+        let mut short = [0xcccc_cccc; 10];
+        assert_eq!(
+            TriangleIterator::native_non_deleting_destructor_words(&mut short, 0),
+            None
+        );
+        assert_eq!(short, [0xcccc_cccc; 10]);
+    }
 
     #[test]
     fn cached_adapter_uses_inputs_without_recomputing_trig_or_scales() {
