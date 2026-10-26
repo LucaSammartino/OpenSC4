@@ -6,11 +6,16 @@
 
 use crate::ui_windows::base::{Host as WindowHost, Window, Windows};
 use crate::widget_controls::Handle;
+use std::collections::BTreeSet;
+
+mod messages;
+pub mod transport;
 
 #[cfg(test)]
 mod tests;
 
 pub type Sim = u64;
+pub type Advice = u64;
 pub const PANELS: [u32; 7] = [
     0xca1f_1d9c,
     0xea1f_1e4d,
@@ -87,6 +92,12 @@ pub trait Host: WindowHost {
     fn close_pick_dialog(&mut self, dialog: Handle);
     fn release_pick_dialog(&mut self, dialog: Handle);
     fn drop_sim(&mut self, sim: Sim);
+    /// Borrowed advice interfaces; None means QI 0x8A09F5F5 failed.
+    fn advice_owner(&mut self, advice: Advice) -> Option<Sim>;
+    fn advice_items(&mut self, sim: Sim) -> Vec<Advice>;
+    fn advice_flags(&mut self, advice: Advice) -> u32;
+    fn set_advice_flags(&mut self, advice: Advice, flags: u32);
+    fn invalidate_text(&mut self, control: Handle);
 }
 
 #[derive(Debug, Default)]
@@ -96,6 +107,15 @@ pub struct MySimWindow {
     selected: Option<usize>,
     shown: bool,
     pick_dialog: Option<Handle>,
+    advice: Vec<Advice>,
+    set_aside: BTreeSet<Advice>,
+    body_size: Option<BodySize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BodySize {
+    Small,
+    Large,
 }
 
 impl MySimWindow {
@@ -144,6 +164,9 @@ impl MySimWindow {
             }
         }
         windows.release(host, bindings.root);
+        self.advice.clear();
+        self.set_aside.clear();
+        self.body_size = None;
         self.selected = None;
         self.shown = false;
     }

@@ -9,6 +9,8 @@ struct Fake {
     buttons: Vec<(Handle, SlotImage)>,
     subscriptions: Vec<(u32, bool)>,
     calls: Vec<String>,
+    flags: BTreeMap<Advice, u32>,
+    advice: Vec<Advice>,
 }
 impl WindowHost for Fake {}
 impl Host for Fake {
@@ -69,12 +71,28 @@ impl Host for Fake {
     fn drop_sim(&mut self, sim: Sim) {
         self.sims.retain(|s| *s != sim);
     }
+    fn advice_owner(&mut self, advice: Advice) -> Option<Sim> {
+        (advice < 100).then_some(1)
+    }
+    fn advice_items(&mut self, _: Sim) -> Vec<Advice> {
+        self.advice.clone()
+    }
+    fn advice_flags(&mut self, advice: Advice) -> u32 {
+        self.flags[&advice]
+    }
+    fn set_advice_flags(&mut self, advice: Advice, flags: u32) {
+        self.flags.insert(advice, flags);
+    }
+    fn invalidate_text(&mut self, control: Handle) {
+        self.calls.push(format!("redraw:{control}"));
+    }
 }
 
 fn setup() -> (MySimWindow, Windows, Fake, Bindings) {
     let mut host = Fake::default();
     let mut windows = Windows::default();
     let root = windows.create_default(&mut host);
+    windows.add_ref(root); // The caller owns a reference independently of the procedure.
     for id in PANELS {
         let child = windows.create_default(&mut host);
         windows.get_mut(child).id = id;
@@ -170,5 +188,61 @@ fn occupied_slot_mode_boot_and_stat_boundary() {
     assert_eq!(owner.slots(), &[None; 5]);
     assert_eq!(owner.selected_slot(), None);
     assert_eq!(host.refs[&1], 0);
+    owner.shutdown(&mut windows, &mut host);
+}
+
+#[test]
+fn text_redraw_keeps_list_and_raw_set_aside_flags_follow_spec() {
+    let (mut owner, mut windows, mut host, _) = setup();
+    host.sims = vec![1];
+    host.advice = vec![10, 11, 12];
+    host.flags = [(10, 0x20), (11, 0x22), (12, 0x60)].into();
+    owner.show(&mut windows, &mut host).unwrap();
+    let _ = owner.set_current_sim(0, &mut windows, &mut host);
+    assert_eq!(owner.set_small_window(&mut windows, &mut host), Err(Unsupported::MessageHtmlLayout));
+    for id in [10, 11] {
+        assert_eq!(owner.do_message(0x8a09_fa64, Some(id), &mut windows, &mut host), Err(Unsupported::MessageHtmlLayout));
+    }
+    assert_eq!(owner.set_aside_items(), &[10, 11].into());
+    assert_eq!(host.flags[&10], 0);
+    assert_eq!(host.flags[&11], 2);
+    host.flags.insert(10, 0x60);
+    host.flags.insert(11, 0x22);
+    owner.get_message_list(&mut host).unwrap();
+    assert_eq!(host.flags[&10], 0x40);
+    assert_eq!(host.flags[&11], 0x22);
+    assert!(owner.set_aside_items().is_empty());
+    let before = owner.advice_items().to_vec();
+    let redraws = host.calls.len();
+    assert_eq!(owner.do_message(0x8a09_fa65, None, &mut windows, &mut host), Err(Unsupported::MessageHtmlLayout));
+    assert_eq!(owner.advice_items(), before);
+    assert_eq!(&host.calls[redraws..], ["redraw:30"]);
+    let _ = owner.do_message(0x8a09_fa64, Some(12), &mut windows, &mut host);
+    let _ = owner.do_message(0xca09_fa6c, Some(12), &mut windows, &mut host);
+    assert!(owner.set_aside_items().is_empty());
+    assert_eq!(owner.visible_advice(), Err(Unsupported::MessageVisibility));
+    owner.shutdown(&mut windows, &mut host);
+}
+
+#[test]
+fn changed_sims_retains_occupied_selection_or_returns_main_only_while_shown() {
+    let (mut owner, mut windows, mut host, bindings) = setup();
+    host.sims = vec![1, 2];
+    owner.show(&mut windows, &mut host).unwrap();
+    let _ = owner.set_current_sim(1, &mut windows, &mut host);
+    owner.set_mode_window(&mut windows, &mut host).unwrap();
+    host.sims = vec![2];
+    assert_eq!(owner.do_message(0xaa25_827c, None, &mut windows, &mut host), Ok(true));
+    assert_eq!(owner.selected_slot(), Some(1));
+    assert_eq!(visible(&windows, bindings.root), [0xea1f_1e4e]);
+    host.sims.clear();
+    owner.do_message(0xaa25_827c, None, &mut windows, &mut host).unwrap();
+    assert_eq!(visible(&windows, bindings.root), [PANELS[0]]);
+    assert_eq!(owner.selected_slot(), None);
+    owner.hide(&mut windows, &mut host);
+    host.sims = vec![3];
+    owner.do_message(0xaa25_827c, None, &mut windows, &mut host).unwrap();
+    assert_eq!(owner.slots(), &[None; 5]);
+    assert_eq!(owner.do_message(0xac08_746e, None, &mut windows, &mut host), Err(Unsupported::TransportChoice));
     owner.shutdown(&mut windows, &mut host);
 }

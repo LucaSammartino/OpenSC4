@@ -14,3 +14,4 @@
   advice kind/flag-to-colour/icon mappings, HTML structure and title/note selection rules? The summary gives
   palettes, fonts and an icon range but not these decisions. The core reports Unsupported for image selection
   and HTML construction, while retaining the documented raw list operations and redraw requests.
+  Also, how are the five vehicle icon properties assigned to the transport dialog's widgets?
