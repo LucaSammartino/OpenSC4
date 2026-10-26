@@ -9,7 +9,9 @@
 #include "fc4.h"
 #include <array>
 #include <atomic>
+#include <cstdio>
 #include <cstring>
+#include <string>
 #include <vector>
 
 extern "C" bool fc4_budgetwin_restore_replay(const uint32_t*, uint32_t, uint32_t*);
@@ -59,7 +61,7 @@ bool __fastcall QueryHook(void* self, void*, uint32_t iid, void** out) {
 
 void __fastcall RestoreHook(void* self, void*, void* win) {
     ++calls;
-    // SPEC-GAP: individual restore needs a service-query/funding call recorder;
+    // Individual restore needs a service-query/funding call recorder;
     // no individual call earns complete evidence until those outputs are bound.
     if (Word(self, 0x24) != 0) {
         ++partial;
@@ -75,6 +77,19 @@ void __fastcall RestoreHook(void* self, void*, void* win) {
         return;
     }
     const uint32_t count = (end - begin) / 8;
+    // Documented +0x2C SliderInfo identities let a later script address the
+    // controls actually created; these observations are not comparison credit.
+    const uint32_t sliderBegin = Word(self, 0x2C), sliderEnd = Word(self, 0x30);
+    std::string ids;
+    if (sliderEnd >= sliderBegin && (sliderEnd - sliderBegin) % 8 == 0) {
+        for (uint32_t p = sliderBegin; p < sliderEnd; p += 8) {
+            char id[16];
+            std::snprintf(id, sizeof(id), " %08X", Word(reinterpret_cast<void*>(p), 0));
+            ids += id;
+        }
+    }
+    Log("budgetwin observation: selector=%08X saved=%u slider_ids=%s (not comparison credit)",
+        Word(self, 0x20), count, ids.c_str());
     std::vector<uint32_t> saved(count * 2), expected(count * 4), observed;
     if (count) std::memcpy(saved.data(), reinterpret_cast<void*>(begin), count * 8);
     const bool replayed = fc4_budgetwin_restore_replay(saved.data(), count, expected.data());

@@ -860,6 +860,7 @@ void ScriptOnTick() {
             if (action->op == harness::ScriptOp::Save) {
                 DbpfShadowWait();
                 return;
+            }
     if (g_waiting.empty()) return;
     if (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0) return;
     g_uiDelay = false;
@@ -880,7 +881,6 @@ void ScriptOnTick() {
         return;
     }
     if (g_inTick) return;
-}
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them

@@ -3,6 +3,14 @@
 2026-01-28 mark budgetwin-methods begin
 2026-01-28 budgetwindow
 2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC400
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x00000200
+2026-01-28 uiwait 300
+2026-01-28 uikey 37
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA4C353B
+2026-01-28 uiwait 300
 2026-01-28 uicontrol 0xAA3AC401
 2026-01-28 uiwait 300
 2026-01-28 uikey 27
@@ -13,7 +21,7 @@
 2026-01-28 uiwait 300
 2026-01-28 uicontrol 0xAA3AC403
 2026-01-28 uiwait 300
-2026-01-28 uicontrol 0x0000006D
+2026-01-28 uikey 27
 2026-01-28 uiwait 300
 2026-01-28 uicontrol 0xAA3AC404
 2026-01-28 uiwait 300
@@ -33,11 +41,11 @@
 2026-01-28 uiwait 300
 2026-01-28 uicontrol 0xAA3AC40B
 2026-01-28 uiwait 300
-2026-01-28 uicontrol 0x0000006D
+2026-01-28 uikey 27
 2026-01-28 uiwait 300
 2026-01-28 uicontrol 0xAA3AC40C
 2026-01-28 uiwait 300
-2026-01-28 uicontrol 0x0000006D
+2026-01-28 uikey 27
 2026-01-28 uiwait 300
 2026-01-28 uikey 27
 2026-01-28 uiwait 300
