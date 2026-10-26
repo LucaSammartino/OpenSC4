@@ -463,6 +463,9 @@ their queues. The following list rules are instruction-confirmed (SS12):
   active list: one handler, or one entry from each of the two target lists.
   It stops searching that list after erasure. Absence still returns true
   (`0x00967E9F–0x00967EEA`, `0x00967FAB–0x00967FD5`).
+  Target unregistration is suppressed entirely when the byte at object
+  `+0x120` is set: it returns true without locking or changing a list
+  (`0x00967E57–0x00967E5F`). The replacement rule assumes this guard is clear.
 - During enumeration, requests retain their pointer in separate queues. At the
   outermost target exit, drain removals FIFO, ordinary additions FIFO (period
   20), then slower additions FIFO (period 250), irrespective of the original
@@ -492,8 +495,8 @@ notifies registered audio renderers using the stored master volume
 
 The method/address inventory and sound-id transformation remain in
 [audio.md §8.6](audio.md#86-cgzsndmgr--the-framework-sound-manager).
-The export lacks usable bodies for most `cGZSndMgr` methods; this section
-adds instruction-confirmed facts, not guessed implementations of those bodies.
+The export lacks usable pseudocode for most `cGZSndMgr` methods; the rules
+below were recovered from the instructions (SS9).
 Create `0x009663F8`, constructor `0x00969AF1`, destructors
 `0x00969889`/`0x00969AB9`; manager interface `+0x1C`, table `0x00AD7300`:
 
@@ -512,9 +515,137 @@ interface (`+0x20`) with period 250 and retains a persist-resource-manager
 reference. Instructions `0x00968BBE–0x00968C08` establish this partial-init
 behavior. SystemSndID `0x009692FC` looks up the configured system-sound
 mapping and returns zero when no entry exists (`0x00969313–0x00969324`).
-GetSound/SndAutoPlay resource/cache/creator selection and shutdown reference
-ordering remain SS9. This service is invoked through interfaces; no additional
-SC4 message IDs are established by these methods.
+This service is invoked through interfaces; no additional SC4 message IDs are
+established by these methods.
+
+#### Construction and service acquisition (SS9)
+
+*[compat]* The factory allocates `0xA8` bytes and returns null on allocation
+failure (`0x009663F8–0x00966410`). Construction uses system-service ID
+`0x1AF85BFB`, priority `0x7A11E`, and these base-object offsets; manager-method
+instructions generally use the interface pointer at `+0x1C`, so their apparent
+member offsets are smaller by `0x1C`.
+
+| Base offset | Initial state / purpose |
+|---|---|
+| `+0x24` | initialized byte = 0 |
+| `+0x28`, `+0x2C` | null sound-system and persist-resource-manager references |
+| `+0x30` | system-sound volume = `0x400` |
+| `+0x34`, `+0x4C` | empty registered-sound and system-sound-ID hash tables; each initialized with bucket request 100 |
+| `+0x48`, `+0x68`, `+0x70`, `+0x80`, `+0x90` | zero registry/list traversal counters |
+| `+0x60` | separately allocated critical-section object; null if that allocation fails |
+| `+0x64`, `+0x6C` | empty sound-creator and autoplay lists |
+| `+0x74`, `+0x84` | empty unsigned-ID ordered maps of data-source creators and registered data sources |
+| `+0x94` | empty unsigned-ID set |
+| `+0xA0`, `+0xA4` | default 2D/3D player class IDs = 0 |
+
+Evidence: `0x00969AF7–0x00969BC4`, hash initializer
+`0x00969AD5–0x00969AE8`. The class-ID setters simply store the supplied
+32-bit value and return true (`0x00968B67`, `0x00968B87`); the manager does not
+substitute a built-in renderer class for zero.
+
+*[compat]* Init does not test the result of RegisterTarget and returns true
+even if resource-manager acquisition produces null (`0x00968BDF–0x00968C08`).
+GetResource takes `(key, iid, output)` and delegates to resource-manager slot
+3 (`+0x0C`), forwarding those arguments followed by two zero arguments.
+Without the resource-manager reference it returns false without writing the
+output (`0x00968C18–0x00968C38`). This is a separate API; GetSound and
+GetSndDataSource do not implicitly call it or synthesize a resource key.
+
+#### Registry and creator resolution (SS9)
+
+*[compat]* Both ID lookup forms accept `(id, a, b, iid, output)` and return
+a Boolean in the low byte. `a` and `b` are forwarded unchanged to creators.
+The manager itself does not zero the output before a lookup.
+
+| Stage | GetSound, slot 18 (`0x009693C0`) | GetSndDataSource, slot 24 (`0x00969055`) |
+|---|---|---|
+| Gate | Ask stored sound system for NumRenderers, slot 38 (`+0x98`). Zero returns false before cache lookup, even for a registered sound. The service pointer is assumed valid. | No renderer-count or initialized-flag gate. |
+| Registered object | Under the manager lock, find the exact ID in the sound hash. | Under the same lock, find the exact ID in the registered-source map. |
+| Cache hit | A nonnull object receives QI with only `(iid, output)`; return its result. A null stored object returns false. | Same. |
+| Cache miss | End the first lock scope, reacquire the lock and try sound creators in list order, newest registration first. | End the first lock scope, reacquire the lock and try data-source creators in ascending unsigned creator-ID order. The requested source ID is not used to select only a same-ID creator. |
+| Creator call | Creator slot 3 (`+0x0C`) receives all five original arguments; stop on the first true result. | Same. |
+| Failure | No creators, or every creator returning false, yields false. | Same. |
+
+There is **no creator fallback after a cache hit whose QI fails**, and no
+automatic insertion of creator results into either registry. A callback can
+register its own result, but that is its action. Output writes and successful
+reference transfers on delegated QI/creator calls belong to that callee's
+contract. In particular the manager does not restore an output changed by a
+failed callback. Evidence: `0x009693C9–0x0096946D`,
+`0x0096905F–0x009690ED`. GetSound before a successful service acquisition has
+an unchecked service dereference, not an additional clean false result.
+
+*[compat]* RegisterSnd and RegisterSndDataSource retain the first pointer
+registered for an ID; later same-ID registrations leave it unchanged. These
+are side-effect operations, without an established Boolean status result
+(`0x009699BA–0x00969A2E`, `0x009697B7–0x0096982B`). A null pointer can occupy
+a previously absent ID and then blocks creator fallback just like any cache
+hit. RegisterSndCreator rejects null or failure to QI `0x3AF9866F`; on success
+it removes the original pointer's old list entry and pushes that original
+pointer to the front. RegisterSndDataSourceCreator rejects null or failure to
+QI `0x9B75709E`; on success it replaces the creator at the supplied creator
+ID. The QI is an eligibility check; storage retains the supplied pointer,
+not the returned interface pointer (`0x00969335–0x009693B8`,
+`0x00969A31–0x00969AB1`). GetSndDataSourceCreator does an exact creator-ID
+lookup and QI, returning false without an output write on absence; it does
+not perform the source-resolution walk (`0x00968FFE–0x00969050`).
+
+*[compat, worked SS9 lookup]* With zero renderers, registered sound S under
+ID 7 is not queried and GetSound(7) returns false, preserving an output
+sentinel. With one renderer, if S rejects IID X, that rejection is returned
+and creator C is not tried. For a missing data-source ID 99, creators at
+IDs 20 and 10 are tried in order 10, 20; if 10 fails and 20 succeeds, the
+result is true. A second call repeats that walk unless a creator registered
+a source in the meantime. A missing resource-manager reference makes
+GetResource fail independently of these outcomes.
+
+#### Autoplay and shutdown (SS9)
+
+*[compat]* SndAutoPlay(id, volume), slot 20, first checks the sound registry
+under the lock. On a hit it retains that sound directly, without the renderer
+gate or a QI. On a miss it calls GetSound's ID form with
+`(id, 0, 0, 0x206077D2, output)`; a false result returns false. A successful
+lookup is appended to the autoplay list **before** Play is called. The list
+retains its own reference; the temporary lookup reference is released after
+leaving the lock, before invoking sound slot 6 (`+0x18`) with
+`(volume, 0, 1)`. Return the Play result. A false Play result does not undo
+the list insertion (`0x009694A2–0x00969534`). Cached null pointers and creators
+that report success without a valid pointer are unchecked in this path.
+
+AddSndToAutoPlayList always appends, retaining one reference per entry, and
+returns true; it does not deduplicate (`0x00969475–0x0096949F`). Each manager
+update checks **only the front sound** using its slot 7 (`+0x1C`). If it is
+no longer playing, remove exactly that one front entry. A playing front blocks
+cleanup of all later entries, even stopped ones (`0x00968F11–0x00968F4C`).
+The volume-less overload uses the stored system volume. SystemSndAutoPlay
+resolves the system-sound index and passes ID **zero** to SndAutoPlay when
+unmapped; it does not short-circuit that missing mapping
+(`0x00969536–0x00969583`).
+
+*[compat]* Shutdown acquires the manager lock and releases retained contents
+in this order: autoplay list, system-sound mapping, registered sounds,
+sound-creator list, data-source-creator map, then the ID set. Finally it clears
+the initialized byte and returns true (`0x0096966C–0x0096970F`). It calls
+neither Play/Stop/Kill on the sounds nor UnregisterTarget on the sound system.
+The **registered-data-source map at `+0x84` survives Shutdown**, as do the two
+service references, system volume and default player class IDs. Thus the
+"clears every registry and list" shorthand in sound-framework.md §3.2 is too
+broad; this paragraph specifies the observed boundary. Reinitialization can
+register the same manager update pointer again using §7.1's replacement rule.
+
+Destruction calls Shutdown first, destroys the critical section, then destroys
+the ID set, registered-data-source map, creator map, list/hash containers,
+and finally releases the resource-manager reference before the sound-system
+reference (`0x00969889–0x00969917`). Those surviving source references are
+therefore released at destruction or explicit unregistration, not Shutdown.
+
+*[compat, worked SS9 ownership]* Autoplay A reports false from Play and B
+reports true. Both are retained in order A, B. If both subsequently report
+stopped, the next update releases only A's list reference; the following
+update releases B's. Register data source D at ID 42, then Shutdown: the
+autoplay/sound/creator references are released, but GetSndDataSource(42)
+still queries D. Destroying the manager releases D's registry reference.
 
 ## 8. Directors
 
@@ -522,7 +653,8 @@ These are class-factory/lifecycle objects, not sound sources. They inherit
 the COM director's framework and class-registration contract. The named
 owner-specific operations below augment that common table; in the director
 interface OnStart is slot 4 (`+0x10`), as in [audio.md §1](audio.md#1-identity).
-Other inherited lifecycle slot numbers are not reconstructed from names here.
+Folded export names are not used as lifecycle names; the complete slot
+contracts are listed below (SS10).
 
 | Owner | Construction and named lifecycle operations | Identity/factory effects |
 |---|---|---|
@@ -538,9 +670,7 @@ system. It returns true even when individual creations produce null outputs.
 PreAppShutdown calls sound-system DisableUpdates (slot 34, `call [edx+0x88]` at
 `0x00966551`) if the service exists and returns true; it does not call Panic (slot 47).
 The byte-level detail of this layer is in [sound-framework.md](sound-framework.md).
-PostAppInit returns false when the sound system is absent; when present it
-uses the property-cache interface and value `0xCC3014EE`. The meaning of that
-cache operation and its missing-cache behavior remain SS10.
+PostAppInit is specified below, including its missing-cache behavior.
 
 *[compat]* Despite its name, GZSndSysMacCOMDirector is present in the Windows
 program. Its constructor registers classes `0xFDED7F31`, `0xFDED7F34`,
@@ -554,8 +684,141 @@ Backend creation is distinct from choosing the active renderer.
 Both GetDirector entry points return the same lazily constructed process
 singleton; construction occurs only once and arranges process-exit cleanup.
 No separate owner-specific message switch is established for these directors.
-Complete inherited vtable slots and factory-failure/aggregation conventions
-remain SS10; their names must not be used to invent such behavior.
+
+### 8.1 Complete inherited dispatch (SS10)
+
+*[compat]* The primary tables are `0x00AD7070` (sound), `0x00AC2848`
+(Windows backend named Mac), and `0x00AD47C0` (freshness). All use the following
+17 slots; byte offsets are relative to the selected interface's table.
+Shared-body details are also documented in
+[renderer-gdrivers-director.md §6](renderer-gdrivers-director.md#6-shared-dispatch-and-destruction-checklist).
+
+| Slot / offset | Contract and target |
+|---|---|
+| 0 / `+0x00` | QI `0x0090DE02`: IID 1 or `0xA21EE941` returns primary; `0x03FA40BF` returns object `+0x04`; successful queries AddRef once. Unsupported IID returns false without clearing output. Supported IID assumes a writable output pointer. |
+| 1 / `+0x04` | `0x0094C4B1`: increment the 32-bit reference count at object `+0x08`, return the new count. |
+| 2 / `+0x08` | Release `0x0090E242`: delegate to slot 10; reaching zero does not delete the director. |
+| 3 / `+0x0C` | InitializeCOM `0x0090DE57`: null COM handle returns false; otherwise remember it, obtain framework, store library path, initialize children in vector order, return true without aggregating child results. |
+| 4 / `+0x10` | OnStart: sound `0x0096655A`, backend `0x008748BF`; freshness uses `0x0091559A`, which ignores its one argument and returns true. |
+| 5 / `+0x14` | EnumClassObjects `0x0090E02B`: enumerate children first, then the director's local class registry; no Boolean result contract. |
+| 6 / `+0x18` | GetClassObject `0x0090DFAC`, §8.2. |
+| 7 / `+0x1C` | CanUnloadNow `0x0090DEA2`: with count zero, return false if any child returns false; otherwise true. A nonzero local count returns true without consulting children. |
+| 8 / `+0x20` | `0x00648F00`: return true, no side effects. The folded label `operator.new` does not describe this slot. |
+| 9 / `+0x24` | `0x009C32AC`: return current 32-bit reference count. |
+| 10 / `+0x28` | RemoveRef `0x0090DE43`: decrement only when nonzero, return resulting count; no destruction. |
+| 11 / `+0x2C` | `0x009CDC23`: return stored framework handle, initially null, without retaining it. |
+| 12 / `+0x30` | `0x009D858F`: return stored COM handle, initially null, without retaining it. |
+| 13 / `+0x34` | GetDirectorID: owner-specific constants in the table above. |
+| 14 / `+0x38` | GetLibraryPath `0x0090DECD`: assign stored path to supplied string; return true. |
+| 15 / `+0x3C` | `0x0090DE52`: shared size query returns 32-bit zero. |
+| 16 / `+0x40` | Deleting destructor; sound/backend share `0x0090E117`; freshness `0x00945636`. Explicit deletion is separate from Release. |
+
+Construction initializes reference count zero, null COM/framework handles,
+an empty path, empty child vector and empty class registry
+(`0x0090E18D–0x0090E1CC`). Reference increment wraps at 32 bits; decrement
+saturates at zero. These are GZ Boolean/interface contracts, not HRESULTs.
+
+*[compat]* The secondary identity at object `+0x04` has exactly slots 0–10.
+Tables: sound `0x00AD7040`, backend `0x00AC281C`, freshness `0x00AD4790`.
+Slots 0/1/2 (`+0x00/+0x04/+0x08`) adjust to the primary identity and invoke
+QI/AddRef/Release (`0x00460F50`, `0x00460F60`, `0x00460F70`).
+
+| Secondary slot / offset | Sound | Backend | Freshness |
+|---|---|---|---|
+| 3 / `+0x0C` | true, no-op | true, no-op | true, no-op |
+| 4 / `+0x10` (PreAppInit) | true, no-op | true, no-op | true, no-op |
+| 5 / `+0x14` (PostAppInit) | §8.3 | true, no-op | true, no-op |
+| 6 / `+0x18` (PreAppShutdown) | DisableUpdates if service exists; true | same shared body | true, no-op |
+| 7 / `+0x1C` | true, no-op | true, no-op | true, no-op |
+| 8 / `+0x20` | true, no-op | true, no-op | true, no-op |
+| 9 / `+0x24` | true, no-op | true, no-op | true, no-op |
+| 10 / `+0x28` | true, no-op | true, no-op | true, no-op |
+
+All listed no-ops point to `0x00949ADE`, whose instructions return true
+without an explicit argument or side effect. The unrelated nonempty
+PreFrameWorkInit at `0x0087B1FC` is not installed in these tables. Unnamed
+callback slots above are fully specified by position and behavior; their
+folded symbol names do not establish additional lifecycle actions.
+
+### 8.2 Class factories and failures (SS10)
+
+*[compat]* Constructors register no-argument construction callbacks using
+the shared AddCls form at `0x0090E133`, registry kind 1. GetClassObject takes
+`(class ID, requested IID, output)`, tries children in vector order until one
+returns true, then looks up the local class. For kind 1 it calls the
+constructor callback and immediately invokes QI on its returned identity.
+Successful QI returns true and supplies the caller's retained interface.
+Failed QI causes AddRef followed by Release on the construction identity,
+then returns false (`0x0090DFAC–0x0090E023`). The director adds no output
+clearing: an unknown class leaves a sentinel alone when no child changed it;
+failed delegated QI preserves or changes it according to that QI.
+
+There is no controlling-outer parameter, aggregation negotiation, or
+aggregation-specific error in this director API. The stored COM/framework
+handles are services, not an outer unknown. Do not infer Windows
+IClassFactory/CreateInstance semantics from the method name. The shared
+kind-2 registry form delegates directly to `(iid, output)` callbacks, but
+these owners install kind-1 callbacks.
+
+*[compat]* Construction callbacks return null when their initial heap
+allocation fails. For the backend's five registrations the returned identity
+is as follows; successful results may be subobjects rather than allocation
+base addresses.
+
+| Class ID | Callback | Allocation bytes | Returned identity relative to allocation |
+|---|---|---:|---:|
+| `0xFDED7F31` | `0x008747F5` | `0xD8` | `+0x00` |
+| `0xFDED7F34` | `0x0087480E` | `0x100` | `+0xD8` |
+| `0xE9D28415` | `0x008747B0` | `0xA0` | `+0x08` |
+| `0x89D3D983` | `0x008747D4` | `0x54` | `+0x04` |
+| `0x1C5F21FE` | `0x00874835` | `0x14` | `+0x00` |
+
+The offset-returning callbacks explicitly keep allocation failure null; they
+do not return an offset from null. However GetClassObject has **no null-result
+check** before the QI dereference (`0x0090DFFC–0x0090E00B`). Consequently
+allocation failure in a kind-1 callback is not a guaranteed false return
+through that API. Likewise OnStart assumes a valid framework and COM handle.
+Its true return on null service outputs concerns ordinary failed creations
+that return control, not an exception from an invalid handle or allocation.
+Previously added services are not rolled back when a later creation fails.
+
+*[compat, worked SS10 factory]* On a newly constructed backend director,
+Release returns zero and does not destroy it; AddRef then returns one.
+GetClassObject for an unknown class with output sentinel P returns false and
+preserves P when there are no children. A known class that rejects the IID
+receives QI, AddRef, Release in that order on its construction identity.
+If OnStart's first service succeeds and the second outputs null, the first
+remains registered and OnStart returns true. Injecting allocation failure
+into a constructor requires testing the unchecked factory dereference as a
+failure boundary, not expecting an ordinary false result.
+
+### 8.3 PostAppInit creates the global property set (SS10)
+
+*[compat]* Sound PostAppInit obtains a retained sound-system service. Absence
+returns false. Otherwise it gets the borrowed property cache through primary
+slot 42 (`+0xA8`), retains a nonnull cache, invokes **CreateInstanceSet** through
+cache slot 3 (`+0x0C`) with instance `0xCC3014EE`, releases the cache and service,
+and returns true. It ignores CreateInstanceSet's Boolean result. If the sound
+system exists but its cache is null, the conditional AddRef is skipped but the
+slot-3 dereference is not: this is an unchecked null-cache failure, not false
+or successful no-op (`0x00966678–0x009666C8`).
+
+The cache table installed at `0x0096A38E` is `0x00AD73F8`; its slot 3 points
+to `0x0096A3DE`. That body requests a new resource with key
+`(type 0xEBFEE345, group 0xAC31543D, instance 0xCC3014EE)` and IID
+`0x456B8F1D`, then registers the resource with its resource manager. Only if
+both operations return true does it store the retained set in its instance
+map and return true; otherwise it releases any temporary resource and returns
+false (`0x0096A3DE–0x0096A460`). Thus the director creates the **global property
+set**, rather than assigning a property value or warming a sound instance.
+The same instance ID is used by SetGlobalProperty
+(`0x00969F72–0x00969F77`).
+
+*[compat, worked SS10 cache]* A fake sound system returns cache C. PostAppInit
+retains C, calls C slot 3 with `0xCC3014EE`, then releases C. Even when that
+call reports false, PostAppInit reports true. A missing sound-system service
+reports false; a present service with a null cache reaches an invalid
+dereference. These three cases must not share a success/failure policy.
 
 ## 9. `cGZPlayList`
 
@@ -565,8 +828,9 @@ _GrabSegment `0x008D6056`, _StripEndSegment `0x008D60C4`, _IsSpec
 `0x008D6123`, _AddNextPathSegment `0x008D6196`, _GetLine `0x008D6258`,
 _MakeAbsolutePath `0x008D6352`, _ParseExtM3UFormat `0x008D64E3`,
 _ParseM3UFormat `0x008D66C9`, _ParsePLSFormat `0x008D6824`.
-No sound-playback, window-drawing or message-handler vtable is demonstrated
-for this owner. Any proposed COM slots require evidence (SS11).
+No sound-playback, window-drawing, message-handler or COM vtable belongs to
+this parser. Its strings and file helper use interfaces internally; that
+does not make the playlist itself a COM service (SS11).
 
 *[compat]* Open selects extended M3U for a first header `#EXTM3U`, PLS for
 `[playlist]`, otherwise plain M3U. In the plain case it restores the content
@@ -574,12 +838,10 @@ position so that the first line is parsed as input, not discarded as an
 unrecognized header. The format is content-selected; the filename extension
 alone is not the selector (`0x008D6B22`).
 
-*[compat]* _GetLine trims the obtained line and applies the framework string
-encoding conversion (`0x008D6258`). Path resolution is based on the playlist
-directory; _MakeAbsolutePath processes path segments and allows an absolute
-specification to replace the current base (`0x008D6352`). Drive-letter syntax
-is recognized by a colon in the second character (`0x008D6123`). Exact UNC,
-separator, dot-segment and encoding corner cases remain SS11.
+*[compat]* Format-header comparisons are exact and case-sensitive after line
+trimming/conversion. A lowercase `#extm3u` or `[Playlist]` selects plain M3U.
+Filename extension does not override the header (`0x008D6C0F–0x008D6C2C` and
+the following comparison). The full IO, grammar and path rules follow (SS11).
 
 *[compat, SS12 simple-path rule]* The path helper appends the next segment
 directly to the base string; it neither chooses a slash style nor inserts a
@@ -595,11 +857,225 @@ then consumes a following path line, resolves it, and appends a record.
 Its numeric metadata uses the C-library decimal-long conversion. EOF before
 the next record is success; EOF where a record's path is required, or a
 record header without the required prefix, returns false. Previously appended
-entries are not rolled back by this parser (`0x008D64E3`). Full title storage,
-plain-M3U comment behavior, PLS ordering/version rules, Open's reset/append
-semantics and file IO failure behavior remain SS11. Do not replace this with
+entries are not rolled back by this parser (`0x008D64E3`). Do not replace this with
 a standards-compliant general-purpose playlist parser without compatibility
 tests: the observed extended parser has no general comment-skipping loop.
+
+### 9.1 Object state, IO and line conversion (SS11)
+
+*[compat]* Construction starts with an empty entry vector and three empty
+strings: stored playlist path (`+0x0C`), playlist directory (`+0x20`), remaining
+input (`+0x34`); it installs no playlist vtable
+(`0x008D569F–0x008D56C7`). Open does **not** clear the entry vector. All three
+parsers append to it, including across repeated Open calls. Failure does not
+roll back entries already appended by this or an earlier call.
+
+Open first tries the file/shortcut-resolution helper `0x0091AA3B` for the
+stored path; on false it stores the supplied path literally. It derives the
+directory from that stored path using GetPathDirectory. It constructs the file
+helper from the supplied Open argument and opens with numeric arguments
+`(1, 2, 1)` (`0x008D6B31–0x008D6B72`). Failure to open returns false without
+parsing. On success it obtains the byte size, resizes the remaining-input
+string, allocates a size-byte buffer, reads the entire file and closes it.
+A false read returns false without parsing (`0x008D6B7D–0x008D6BBA`). Thus even
+a failed Open may change the stored path/directory/input string, while
+preserving prior entries.
+
+After a successful read, NUL bytes at offsets 0 through size−2 are replaced
+with spaces; the last byte is left alone. The buffer is copied into the
+framework string and freed (`0x008D6BBF–0x008D6BE8`). The first logical line
+selects a parser. For plain M3U the saved pre-header input is restored, so
+the first line becomes a record. A parser's Boolean result becomes Open's
+result; Open does not validate existence or playability of any listed path.
+
+*[compat]* _GetLine skips leading space, tab, LF and CR, extracts through the
+next LF or CR (or the remaining input at EOF), trims the resulting line, and
+converts it **in place** from the current system/locale encoding (`−1`) to
+framework encoding ID 8 (`0x008D6258–0x008D631F`). Consequently blank lines
+are skipped, and leading/trailing whitespace cannot be preserved in titles
+or paths. There is no playlist-specific UTF-8/UTF-16 BOM detector or stripping
+step. The conversion helper resolves `−1` through GetCurrentSystemCodePage;
+source ID 8 is already in the destination encoding, source ID 16 returns
+false, and other code pages invoke the byte converter
+(`0x00911473–0x0091151C`). _GetLine ignores the conversion status and still
+reports a line. This must not be replaced by automatic Unicode sniffing or
+an encoding error that aborts the playlist.
+
+*[quirk]* If the nonblank final text has **no CR or LF**, _GetLine copies it
+to the output but does not erase it from the remaining input
+(`0x008D62E4–0x008D630F`). The two scanning helpers only find offsets; they
+do not consume source text (`0x008D5F5B`, `0x008D5FDC`). Repeated calls thus
+return the same final text. Plain M3U with an unterminated final path keeps
+appending it and does not reach normal EOF. Other parsers may terminate on
+that text as a count/header/error, but must not be assumed to consume it.
+Worked helper case: source `a.mp3` yields `a.mp3` on each of two calls and
+the source remains unchanged; source `a.mp3` followed by CR/LF yields one
+line and then false. Use a bounded helper test for the first case rather
+than running an unbounded Open loop.
+
+*[runtime boundary]* To pin down non-ASCII output bytes rather than guess the
+framework encoding table or OS locale, run the original under recorded
+code-page settings with a one-line title containing bytes `0x80`, `0xE9`, an
+invalid multibyte sequence, and UTF-8/UTF-16 BOM variants; record the resulting
+title/path bytes and Open result. The static contract fixes the conversion
+call, destination ID, ignored failure status and absence of BOM handling,
+but does not supply a locale-independent replacement-byte table.
+
+For a zero-byte file, the successful-read path computes an unsigned size−1
+bound and scans the buffer with no zero-size guard (`0x008D6BBF–0x008D6BD8`).
+The allocation is also unchecked before Read. To settle these IO edge outcomes,
+observe whether a zero-byte read returns false before that scan; if it returns
+true, record the exception/outcome. Repeat with injected buffer-allocation
+failure. Do not claim that empty-file Open is a guaranteed successful empty
+playlist or that allocation failure has a clean false return. Nonempty
+whitespace-only input reaches plain M3U, appends nothing and returns true.
+
+### 9.2 Entry formats (SS11)
+
+*[compat]* An entry stores title at entry `+0x00`, path at `+0x14`, and a
+32-bit duration at `+0x28` (`0x008D6171–0x008D618D`). Numeric metadata is the
+signed 32-bit C decimal-long conversion: optional sign and leading whitespace,
+decimal prefix, nonnumeric text yielding zero, with no duration scaling or
+clamping in the parser. Negative durations, including `−1`, are retained.
+Out-of-range text is delegated to the library conversion, not parsed as a
+floating-point value.
+
+| Format | One record and its stored fields | Return / ordering |
+|---|---|---|
+| Plain M3U (`0x008D66C9`) | Every logical nonblank line becomes a path, resolved as §9.3. Title is the last filename component **without its extension**, obtained before resolution by GetPathName with its extension flag zero. Duration is 0. Lines beginning `#` are records, not comments; HTTP URLs are path text, not network requests. | Read to EOF, append in file order, return true. |
+| Extended M3U (`0x008D64E3`) | Require the exact prefix `#EXTINF:`. Consume the prefix through `:`, split the next token at the first comma and decimal-convert that token as duration. The remaining header text is the title, including any later commas. Consume one following logical line as path and resolve it. | EOF between records is true; wrong record prefix or missing path is false. Append each completed pair in file order; retain completed pairs on later failure. |
+| PLS (`0x008D6824`) | Sequential, case-sensitive prefix parser described below. Numeric suffixes on File/Title/Length are not matched or sorted. | Counts only entries appended in this parse; partial additions survive false. |
+
+The plain parser's extra concatenation branch requires both `:` and `\\` to
+be found at index zero of the same line (`0x008D66F7–0x008D671D`), which an
+ordinary string cannot satisfy. In particular it is not a URL/comment filter.
+GetPathName's false extension flag omits the extension
+(`0x0091A9EF–0x0091AA03`). Extended M3U does not separately trim the title
+after splitting; spaces immediately after the comma remain. If the comma
+is absent, SplitToken produces an empty duration token without consuming the
+remaining header text: duration zero and that remaining text as title, not
+a format rejection (`0x0090E9DF–0x0090EA16`).
+
+*[compat]* PLS starts by reading a logical line after `[playlist]`. Immediate
+EOF succeeds with no new entries. Thereafter:
+
+1. A line beginning `NumberOfEntries` (first 15 bytes) terminates parsing.
+   Erase the first **16** bytes, decimal-convert the remainder, and compare
+   against this parse's appended count. Return that equality immediately,
+   without reading Version or anything else (`0x008D6A9A–0x008D6AB8`). An
+   equals sign is not separately validated by this count operation.
+2. Other than that terminator, skip lines until one begins `File` (first four
+   bytes). Strip through its first `=` and use the remaining text as path.
+   A missing `=` erases zero bytes. Names such as `File99` and `Filename`
+   pass the same prefix check (`0x008D688F–0x008D68D6`).
+3. Read the next logical line, required even at the final record. Use it as
+   title. If it begins `Title` (five bytes), strip through its first `=`.
+   Otherwise keep the whole line as title **and** as the next outer-loop
+   lookahead. In that latter case duration stays zero and no Length line is
+   consumed (`0x008D68EB–0x008D6952`).
+4. If there is no lookahead yet, read another required line. If it begins
+   `Length` (six bytes), strip through its first `=`; otherwise retain that
+   line as the outer lookahead. In either case decimal-convert this line for
+   duration (`0x008D6958–0x008D69B8`).
+5. Obtain a nonempty lookahead before appending, reading another logical line
+   if necessary. EOF here returns false **before this record is appended**.
+   After each such read the loop also exits if the **current path** begins
+   `File`, even if the converted lookahead is empty; the prefix test is on
+   the path, not the newly read line (`0x008D69D4–0x008D69E5`).
+   Resolve the current path, append its title/path/duration, increment the
+   local count, and resume at the lookahead (`0x008D69BD–0x008D6A48`). There
+   is no suffix correlation, uniqueness check or index-based reorder.
+
+EOF while skipping unrecognized lines, or while any required title/duration/
+lookahead is needed, returns false. A final `NumberOfEntries` is therefore
+needed for ordinary nonempty records, and it must follow them; a conventional
+PLS that puts a nonzero count immediately after `[playlist]` fails before
+reading records. Version has no validation or required value: an unrelated
+Version line before the terminator is skipped, and one after it is unread.
+
+### 9.3 Literal path processing (SS11)
+
+*[compat]* The directory helper used by Open splits on either `/` or `\`
+and retains the original directory bytes, including its final separator;
+it does not choose a canonical slash style (`0x0091A847–0x0091A914`,
+`0x00917C28–0x00917C77`, IsPathSeparator `0x005F8FE0`). It copies a two-byte
+drive prefix when byte 1 is `:`. This does not make a relative playlist
+filename into an OS-canonical absolute path.
+
+_MakeAbsolutePath starts with the supplied base and consumes the entry text
+from left to right (`0x008D6352`). The following rules act on **backslash**
+segments only, not on forward slashes:
+
+- A remaining string beginning with `\` is a specification: search for the
+  next backslash starting at byte offset **2**, take the whole prefix through
+  that separator, and replace the accumulated base with it. For a remaining
+  string with `:` as byte 1, do the same starting at offset **0**. The drive
+  character is not validated (`0x008D6123–0x008D6168`). UNC host prefixes
+  therefore replace the base, as do drive prefixes and single-root paths.
+- Otherwise take the next prefix through its backslash, or all remaining
+  text at end. Append it literally unless it starts with `.`. No separator
+  is inserted and existing separators are not collapsed
+  (`0x008D6056–0x008D60B5`, `0x008D6208–0x008D6211`).
+- For a segment starting with dots, count its leading dots. One dot appends
+  nothing; two dots strip one segment from the accumulated base; three dots
+  strip two, and so on. The rest of that dot-leading segment is discarded,
+  so `.hidden\` is treated like `.\`, and `..hidden\` like `..\`
+  (`0x008D61CF–0x008D6204`). This is not general filesystem normalization.
+- Stripping first removes one trailing backslash, then truncates through the
+  last remaining backslash. It has no drive/UNC-share root clamp. With no
+  backslash left, truncation can empty the base (`0x008D60C4`). Forward slash
+  segments and URL schemes receive no analogous normalization.
+
+For a one-byte remaining `\`, specification extraction at offset 2 fails;
+the ordinary segment path appends it instead. Repeated separators can cause
+a later leading-backslash specification to replace the accumulated base;
+they are not a request to join with exactly one separator. These routines
+return a textual path without resolving symlinks, checking the target file,
+or implementing URL retrieval.
+
+*[compat, worked SS11 paths]* With base `C:\Music\Lists\`:
+
+| Entry text | Resolved text |
+|---|---|
+| `sub\a.mp3` | `C:\Music\Lists\sub\a.mp3` |
+| `.\a.mp3` | `C:\Music\Lists\a.mp3` |
+| `..\a.mp3` | `C:\Music\a.mp3` |
+| `...\a.mp3` | `C:\a.mp3` |
+| `.hidden\a.mp3` | `C:\Music\Lists\a.mp3` |
+| `sub/../a.mp3` | `C:\Music\Lists\sub/../a.mp3` |
+| `http://host/a.mp3` | `C:\Music\Lists\http://host/a.mp3` |
+| `D:a.mp3` | `D:a.mp3` |
+| `\root\a.mp3` | `\root\a.mp3` |
+| `\\host\share\a.mp3` | `\\host\share\a.mp3` |
+
+With base `C:/Music/`, `sub\a.mp3` becomes `C:/Music/sub\a.mp3` (mixed
+separators). With base `C:\`, `..\a.mp3` becomes `a.mp3`, losing the drive
+prefix. These cases distinguish the parser from an OS path canonicalizer.
+
+### 9.4 Worked IO/format cases (SS11)
+
+*[compat]* In these format fixtures every listed line ends with CR/LF unless
+the fixture explicitly states otherwise. Open a plain file at
+`C:\Music\list.m3u` containing the three
+logical lines `a.mp3`, `#note`, `http://host/b.mp3`. It returns true and appends
+three records, all duration zero. Their paths are the directory plus those
+literal line texts; the first title is `a`. Open the same file again on the
+same object: six records, not three. A following missing-file Open returns
+false and leaves all six entries.
+
+An extended file consisting of `#EXTM3U`, `#EXTINF:-1,Two, parts`, `a.mp3`,
+then `#comment` appends one entry with duration `−1` and title `Two, parts`,
+then returns false at the comment. The appended entry remains.
+
+A PLS file with lines `[playlist]`, `File2=b.mp3`, `Title99=Bee`, `Length7=12`,
+`File1=a.mp3`, `Title1=Aye`, `Length1=-1`, `NumberOfEntries=2`, `Version=99`
+returns true and appends B then A with their given titles and durations
+12 and `−1`. Indices are ignored and Version is unread. Put
+`NumberOfEntries=2` immediately after the header instead: false, no new
+entries. Omit the count and end immediately after `Length1=-1`: false,
+with B retained but A not yet appended. Use only `[playlist]`: true with no
+new entries. These results depend on logical-line content, not the filename
+extension.
 
 ## 10. Conformance vectors
 
@@ -628,9 +1104,9 @@ runs. Use fake services and child sounds to observe forwarding and ownership.
 | SS-V18 | Manager Init with missing sound service, then call Init again | first false; second may return true from retained initialization flag; no successful service acquisition is implied |
 | SS-V19 | Missing SystemSndID mapping | result zero |
 | SS-V20 | Both freshness GetDirector entry points, repeatedly | same singleton identity and one construction |
-| SS-V21 | Valid extended playlist header, then EOF between records | extended parser returns true |
-| SS-V22 | Extended record header with no following path, or non-EXTINF record header | false; earlier records retained by parser |
-| SS-V23 | Playlist with no recognized first header, containing one path | plain-M3U selection retains that first path as parser input |
+| SS-V21 | Valid CR/LF-terminated extended playlist header, then EOF between records | extended parser returns true |
+| SS-V22 | CR/LF-terminated extended record header with no following path, or non-EXTINF record header | false; earlier records retained by parser |
+| SS-V23 | Playlist with no recognized first header, containing one CR/LF-terminated path | plain-M3U selection retains that first path as parser input |
 | SS-V24 | Track resource of neither supported write type | Write returns false; do not use that result to infer the Read selector |
 
 ## 11. Open items

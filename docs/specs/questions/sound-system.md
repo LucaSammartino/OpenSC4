@@ -66,29 +66,3 @@ renderer duplicate rules, cache ownership, initialization dependencies and
 shutdown queue/reference order. Start at 0x00967DD4, 0x00967885,
 0x00967FE4, 0x009683EF. Preserve the confirmed consuming event chain.
 
-<!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS9 — Manager creation/cache and complete failure paths:** [unsettled]
-
-For §7.2, recover instruction-confirmed construction defaults, GetSound and
-GetSndDataSource resource/creator/cache resolution, autoplay ownership and
-shutdown behavior. Most exported pseudocode is unavailable because of a
-structure error; use instructions at 0x00969AF1, 0x009693C0, 0x00969055,
-0x009694A2, 0x0096966C. Existing audio AU9 concerns the sound-ID tag and is
-not answered or duplicated by this item.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS10 — Director complete inherited slots and cache setup:** [unsettled]
-
-For §8, enumerate inherited lifecycle slots, factory return/aggregation failure
-contracts, and the sound-director PostAppInit cache operation (0x00966678).
-The observed constant 0xCC3014EE does not establish the cache operation's meaning.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS11 — Playlist complete IO and format compatibility:** [unsettled]
-
-For §9, settle constructor/Open clearing versus appending, file failure results,
-title/duration fields, ordinary M3U comments/URLs, PLS ordering/count/version,
-UNC/dot/parent path normalization and string conversion. Start at 0x008D6B22,
-0x008D6824, 0x008D66C9, 0x008D6196. No COM/drawing/message API has been
-established for this parser.
-
