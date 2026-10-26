@@ -1,22 +1,26 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| close-legacyctl29: legacy replay (engine) | Codex / close-legacyctl29 / detached 019420a6a; ABI unchanged | continue: round time guard; Rust 7884/0, clippy 0, native pending, no game runs | Collect gate; fix Gen capture accounting; complete replay and game measurement. |
+| close-legacyctl29: legacy replay (engine) | Codex / close-legacyctl29 / detached code a2df43ca5; ABI unchanged | wip: final all waiting for Cargo slot; fmt 4/4; earlier quick 5946/0; final game evidence pending | 1. Collect session 2710. 2. Measure corrected DLL, 2032 and second city. 3. Complete remaining capture; resolve LC8/LC17/LC18. |
 
-Code commits: 5367aa903, 7029926a3, 8d377c4a2, 019420a6a. All code committed before the guard stopped edits.
-Gate: qbuild all once; build-runs/qbuild-test.log: 7884 passed; qbuild-clippy.log: diagnostics=0; four owned Rust files pass fmt.
-Pending native request: qbuild-20261026-090054-build-ctest; original exec session 42790. Collect before starting another check.
-Game: none submitted; full house to 2032, second city load, exactness and ref_warnings unmeasured. No coverage credit.
-Replay transport uses production core and a recording Foreign host; property order/duplicates/null/U32/I32/String retained; other types unsupported.
-Capture: factory, window writes, QI/ref effects; Common/FlatRect/Outline/Slider/Folders entry detours; switch remains default-off.
-Per-method eligibility below is UNMEASURED, not earned credit:
-Primary slots 0 QI, 1 AddRef, 7 SetOwnControl, 8 ImplementInterface: pure owner comparisons.
-Primary 5 GetID, 6 SetID, 9 SetParent; legacy 5 ForceControl, 6 UseWinProc: state and primitive-call replay.
-Primary 3 SetParameters: complete=0 always; final trees/defaults and temporary metadata lifetimes remain missing.
-Primary 2 Release, 4 GetControlVocabulary, 10 deleting destructor: no new complete evidence.
-Control-area 0..7: unpatched; LC17 filed in docs/specs/questions/legacy-control.md for overlapping table extent.
-Legacy 0 QI, 1 AddRef, 2 Release, 4 SetOwnControl thunk: no separate address credit; legacy 3 GetControl retains owner replay.
-Legacy 7 GetScriptFragment: non-null calls counted only; native fragment and lifetime comparison missing (LC8/Q9).
-Common first pass remains partial (variant/list lifetimes); second pass may complete. FlatRect/Outline and resource-free Slider/Folders may complete.
-Other 15 types, resources and complex payloads remain uncaptured; Folders String font metadata also remains partial.
-Next: successful Gen QI currently marks a trace exhaustive after installing only slot7; mark it partial before game runs (fix denied by guard).
-Next: finish native gate, fix failures, run shared MAIN game queue iterations; implement remaining capture/tree/fragment comparisons.
+This round: 71c1d540c, 79abe847f, 12aabc1dd, a2df43ca5; default-off switch and public ABI unchanged.
+Fixed Gen completeness, unsafe private-comment-list SDK casts, failed-factory out reads, byte colour capture and pass-local resource exclusions.
+Prior all collected: build PASS 316/316; CTest FAIL 123/124 (ret_channel_check); build-runs/build-results/qbuild-20261026-090054-build-ctest.verdict. This is superseded source.
+Quick at 79abe847f: PASS 5946/0, build 47/47; build-runs/build-results/qbuild-20261026-094602-quick.verdict. Current fmt 4/4; return-channel check 0 unreviewed, 98 reviewed.
+Final qbuild all: session 2710, waiting over 30 minutes for one of three occupied Cargo slots; no current Rust/clippy/native verdict. Collect this operation before another gate; existing qbuild-test/clippy logs belong to the previous round.
+Game evidence below is MAIN/build-runs/game-results/; both requests completed through MAIN's shared queue, no game request outstanding.
+close-legacyctl29-r2-month1: corrupt at startup, ref_warnings=0; unsafe private comment-list virtual call removed afterward; .log/.verdict retained.
+close-legacyctl29-r2-month2: DLL 991c6ff3 (79abe847f), clean to 2026-03-04, ref_warnings=0, watchdog_stalls=1; shadow 0/2 exact, 68 FlatRect differences; .log/.verdict retained. Not final-source acceptance.
+Per-method table below is complete/calls at month2's final line; exact means mismatches=0 and resyncs=0 in that earlier DLL only:
+Primary 0 QueryInterface 2367/2367 exact; 1 AddRef 3270/3270 exact; 5 GetID 204/204 exact.
+Primary 7 SetOwnControl 775/775 exact; 9 SetParent 775/775 exact.
+Primary 2 Release, 4 GetControlVocabulary, 10 deleting destructor: unhooked/unmeasured.
+Primary 3 SetParameters 0/775; final tree/defaults and temporary metadata lifetimes remain unobserved.
+Primary 6 SetID and 8 ImplementInterface: 0/0, unreached; no credit.
+Control-area slots 0..7: unpatched/unmeasured (LC17 overlapping vtable extent).
+Legacy 0 QI, 1 AddRef, 2 Release, 4 SetOwnControl thunks: no separate-address evidence.
+Legacy 3 GetControl 1564/1564 exact, including 775 explicit post-build probes; 5 ForceControl 14/14 exact; 6 UseWinProc 775/775 exact.
+Legacy 7 GetScriptFragment 0/0; populated fragment/lifetime observation missing, per-type serializer LC8 remains open.
+Common 550/1550 exact partial calls; FlatRect 34/34 with 68 mismatches; Outline/Folders 0 calls; Slider 0/2. Colour masks/pass filters were corrected after this run and remain unmeasured.
+Questions: existing LC8/LC17; new LC18 in docs/specs/questions/legacy-control.md requests private comment-list reader/lifetimes. No guessed list interface remains.
+Missing: full trees/defaults, fifteen per-type captures, resources/complex payloads, fragment comparison; whole row is unverified and no final method credit is claimed.
+Next: collect all; fix failures, repeat one-month run, then full house to 2032 and a second city load with final DLL; preserve failed/earlier-source evidence separately.
