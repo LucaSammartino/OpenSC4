@@ -424,10 +424,10 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
 | widget-slider | 2 | 0 | WSL3 | questions/widget-slider.md |
 | widget-spinner | 2 | 0 | WSP3 | questions/widget-spinner.md |
-| widget-toolkit | 11 | 9 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 5 | 12 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | widget-wingen | 2 | 1 | WGN4 | questions/widget-wingen.md |
 | win-filebrowser | 0 | 6 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **632** | **1639** | | |
+| **total** | **626** | **1642** | | |

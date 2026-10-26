@@ -18,7 +18,7 @@ cites an instruction address.
 
 | Item | Value |
 |---|---|
-| Class | `cGZWin` (framework base window; abstract in practice, always a base of `cGZWinGen`, widgets, game windows) |
+| Class | `cGZWin` (framework base window; normally a base of `cGZWinGen`, widgets and game windows) |
 | Interface | `cIGZWin`, IID `0x22BA0121` (ui-windows.md §2.1) |
 | Own vtable | `0x00ADC8D8`, 151 callable slots, 0–150 (§1.1; WT1). Written by both constructors and by the destructor; absent from the ABI export table |
 | Constructors | `0x0099D938` (no arguments: window manager taken from `RZ::WM()`), `0x0099DA5A` (`winMgr`, `keyboard` explicit) |
@@ -348,6 +348,16 @@ corruption, not a supported harmless repeat; no stable subsequent callback/retur
 mutation vectors below keep at least one active occurrence per queued removal. Clearing lists through Shutdown
 inside a callback likewise is not covered by deferred-removal safety.
 
+**Temporary reference effects.** AddMessageFilter and RemoveMessageFilter each first AddRef a non-null
+argument temporarily and Release it before returning, including an unsuccessful Remove. A newly inserted
+active or pending entry owns its own additional reference, independent of that temporary
+(`0x0099D83E–5C`, `0x0099D873–E8`, helper `0x004F20C0–D5`). While draining, each pending pointer is also
+temporarily AddRef'd for the lookup/erase and then Released before advancing to the next pending entry
+(`0x0099E6CF–0x0099E71E`, helper `0x00966956–6F`). These temporary pairs do not change the net ownership
+rules above. Worked count case: B has one caller and one active reference (count 2). A queues removal of B:
+after Remove returns B has count 3 (caller, active, pending). Nested and outer DoMessage returns leave 3.
+An outer paint pass offers B once more, then drains; after the pass B has count 1, owned only by its caller.
+
 ### 7.3 Dispatch table (jump table at `0x0099CEF9`, 20 entries, type 1–20)
 
 | Type | Handler slot | Handler | Arguments passed |
@@ -565,6 +575,11 @@ Callbacks below mutate only once and otherwise return false. Reference observati
 | Same retained block, but caller also owns C | Last old-block unlock releases that reference but does not destroy C; caller's final Release does |
 | Unparented live W; direct SetParentWin(W), without subsequent traversal | Returns true and stores self as parent/notification target; no cycle rejection or reference acquisition |
 | ChildAdd(null) or unregistered pointer; existing valid list member | Returns false; no child Init or insertion; cycles are a separate unsafe domain |
+| Construct a registered root W, acquire one caller reference, then immediate manager DestroyWindow(W), with no other owners or children | Construction starts at 0; caller AddRef makes 1; manager temporarily raises it to 2, shuts down, Releases back to 1; W remains registered until caller's final Release |
+
+The last case is not permission to traverse a destroyed object: for the retired-block vectors the parent
+and reader lock must remain live, and the child may already be shut down. For invalid/self/cyclic parenting,
+test the finite pointer-storage or rejection step only; do not require recursive tree work to complete.
 
 ## 11. Open questions
 
