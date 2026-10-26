@@ -13220,4 +13220,13 @@ uint32_t fc4_automata_derived_record_roundtrip(uint32_t class_id,
 }
 #endif
 
+/* Shadow-only unsaved scheduler import, at the advisor-record capture boundary. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_advisors_shadow_last_day(fc4_advisors* p, int32_t last_day);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

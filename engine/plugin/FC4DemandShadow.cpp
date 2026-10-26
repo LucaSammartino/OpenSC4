@@ -14,6 +14,7 @@
 #include "FC4DemandShadow.h"
 
 #include "FC4Config.h"
+#include "FC4BoundarySlot.h"
 #include "FC4Diag.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -28,6 +29,8 @@
 #include "cISC4City.h"
 #include "cISC4Demand.h"
 #include "cISC4DemandSimulator.h"
+#include "cISC4HistoryWarehouse.h"
+#include "cIGZDate.h"
 #include "cRZCOMDllDirector.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -163,8 +166,47 @@ bool TestHistoryMax(void* u, uint32_t, uint32_t, uint32_t, float* max) {
 float TestOrdinance(void* u, uint32_t, uint32_t) { return TestOf(u)->ordinanceFactor; }
 float TestNation(void* u, uint32_t) { return TestOf(u)->nationModifier; }
 
+struct HistoryOutput {
+    uint32_t key, from, to, before, after;
+    bool ok;
+};
+BoundarySlot g_historySlot;
+std::vector<HistoryOutput> g_historyOutputs;
+bool __fastcall HistoryQuery(cISC4HistoryWarehouse* self, void*, uint32_t key,
+                            const cIGZDate& from, const cIGZDate& to,
+                            float& minimum, float& maximum, float& average) {
+    using Fn = bool(__thiscall*)(cISC4HistoryWarehouse*, uint32_t, const cIGZDate&, const cIGZDate&,
+                                float&, float&, float&);
+    HistoryOutput output{};
+    output.key = key;
+    output.from = const_cast<cIGZDate&>(from).DayNumber();
+    output.to = const_cast<cIGZDate&>(to).DayNumber();
+    // demand.md §8.1.1: even a false return leaves consumed stack bits.
+    // Copy bytes, never evaluate the indeterminate input as a C++ float.
+    std::memcpy(&output.before, &maximum, sizeof(output.before));
+    output.ok = reinterpret_cast<Fn>(g_historySlot.original)(self, key, from, to, minimum, maximum, average);
+    std::memcpy(&output.after, &maximum, sizeof(output.after));
+    g_historyOutputs.push_back(output);
+    return output.ok;
+}
+bool CapturedHistoryMax(void* user, uint32_t key, uint32_t from, uint32_t to, float* maximum) {
+    for (const auto& output : g_historyOutputs) {
+        if (output.key != key || output.from != from || output.to != to) continue;
+        std::memcpy(maximum, &output.after, sizeof(output.after));
+        // The demand caller ignores the boolean. Supply its actual consumed
+        // value, including false-return residue, to the independent formula.
+        return true;
+    }
+    const auto host = DemandReadOnlyHost(static_cast<cISC4City*>(user));
+    return host.history_max && host.history_max(host.user, key, from, to, maximum);
+}
+
 fc4_demand_host HostFor(cISC4City* city) {
-    if (!g_testMode) return DemandReadOnlyHost(city);
+    if (!g_testMode) {
+        auto h = DemandReadOnlyHost(city);
+        h.history_max = &CapturedHistoryMax;
+        return h;
+    }
     fc4_demand_host h{};
     h.struct_size = sizeof(h);
     h.user = const_cast<FC4DemandShadowTestInput*>(g_test);
@@ -763,7 +805,18 @@ bool DemandShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZ
         EnsureGraph(city, sim);
     }
     const bool beforeClean = SehGuard("demand shadow (before the original's update)", &BeforeStep, nullptr);
+    g_historyOutputs.clear();
+    if (!g_testMode) {
+        const bool hooked = g_historySlot.Install(city->GetHistoryWarehouse(), 7,
+                                                   reinterpret_cast<void*>(&HistoryQuery));
+        if (!hooked) Log("demand boundary: WARNING history output capture unavailable");
+    }
     *finished = target->DoMessage(msg);  // the original demand simulator, unchanged
+    g_historySlot.Remove();
+    for (const auto& output : g_historyOutputs) {
+        if (!output.ok) Log("demand boundary: key=%08X window=%u..%u history=false max bits=%08X -> %08X",
+                            output.key, output.from, output.to, output.before, output.after);
+    }
     const bool afterClean = SehGuard("demand shadow (after the original's update)", &AfterStep, nullptr);
     g_lastResult = g_u.day ? ReportDay(beforeClean, afterClean) : ReportIdle(beforeClean, afterClean);
     g_u.city = nullptr;

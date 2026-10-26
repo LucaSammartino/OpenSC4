@@ -361,6 +361,26 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn shadow_scheduler_import_does_not_replay_old_startup_month() {
+    let f = Fixture::new();
+    unsafe {
+        let day = 2_451_545;
+        f.game.day.set(day);
+        let before = f.advisor(1).month_counter;
+        assert!(fc4_advisors_shadow_last_day(f.p, day));
+        for msg_type in [fc4_core::advisors::msg::POST_CITY_INIT, fc4_core::advisors::msg::CITY_ESTABLISHED, fc4_core::advisors::msg::TICKER] {
+            let m = fc4_adv_message { msg_type, ..Default::default() };
+            assert!(fc4_advisors_do_message(f.p, &m));
+        }
+        assert_eq!(f.advisor(1).month_counter, before);
+        let mut state = fc4_advisors_state::default();
+        assert!(fc4_advisors_get_state(f.p, &mut state));
+        assert_eq!(state.last_day, day);
+        assert!(!fc4_advisors_shadow_last_day(std::ptr::null_mut(), 0));
+    }
+}
+
+#[test]
 fn create_checks_its_tables() {
     let game = Game::new();
     let mut h = advisor_host(&game);

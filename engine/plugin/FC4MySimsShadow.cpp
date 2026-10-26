@@ -59,6 +59,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Seed.h"
 #include "FC4Streams.h"
+#include "FC4BoundarySlot.h"
 #include "FC4WriteCapture.h"
 
 #include "GZServPtrs.h"
@@ -195,22 +196,40 @@ uint32_t g_handleCounter = 0;
 
 struct ShadowState {
     uint32_t created = 0, hadMysims = 0, months = 0, cleanMonths = 0, lastMismatches = 0, lastSims = 0, compared = 0;
-    bool injected = false, postCityInitDelivered = false, cityEstablishedDelivered = false;
-    bool postCityInitPending = false;  // deferred to the next forwarded message (MySimsShadowCityLoaded)
+    bool injected = false;
 } g_state;
 
 void TraceAdvisorPart(const char* stage);
 
-// The load's PostCityInit, once, after the game's own PostCityInit dispatch
-// (see MySimsShadowCityLoaded).
-void DeliverPendingPostCityInit() {
-    if (!g_state.postCityInitPending || g_core == nullptr) return;
-    g_state.postCityInitPending = false;
-    fc4_adv_message m{};
-    m.msg_type = kMsgPostCityInit;
-    fc4_advisors_do_message(g_core, &m);
-    g_state.postCityInitDelivered = true;
-    TraceAdvisorPart("after PostCityInit");
+BoundarySlot g_systemSlot;
+cIGZMessageTarget2* g_systemTarget = nullptr; // identity only; city owns it
+uint32_t g_systemTraces = 0;
+int32_t SystemLastDay(cIGZMessageTarget2* target) {
+    int32_t day = 0;
+    // mysims.md §3.1.1: message interface is primary +4.
+    std::memcpy(&day, reinterpret_cast<const uint8_t*>(target) + 0x44, sizeof(day));
+    return day;
+}
+bool __fastcall SystemDelivery(cIGZMessageTarget2* target, void*, cIGZMessage2* msg) {
+    using Fn = bool(__thiscall*)(cIGZMessageTarget2*, cIGZMessage2*);
+    const uint32_t type = msg ? msg->GetType() : 0;
+    const bool follow = target == g_systemTarget && g_core && IsSystemMessage(type);
+    const bool trace = follow && g_systemTraces++ < 12;
+    if (trace) {
+        Log("mysims boundary entry: type=%08X system=%p lastDay=%d", type, target, SystemLastDay(target));
+        TraceAdvisorPart("recipient entry");
+    }
+    if (follow) {
+        fc4_adv_message m{};
+        m.msg_type = type;
+        fc4_advisors_do_message(g_core, &m);
+    }
+    const bool result = reinterpret_cast<Fn>(g_systemSlot.original)(target, msg);
+    if (trace) {
+        Log("mysims boundary exit: type=%08X system=%p lastDay=%d", type, target, SystemLastDay(target));
+        TraceAdvisorPart("recipient exit");
+    }
+    return result;
 }
 
 // ---- helpers -----------------------------------------------------------------------------------
@@ -316,7 +335,6 @@ public:
 
     bool DoMessage(cIGZMessage2* msg) override {
         if (g_core == nullptr) return true;
-        DeliverPendingPostCityInit();
         cIGZMessage2Standard* m = nullptr;
         if (msg == nullptr || !msg->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m)) ||
             m == nullptr) {
@@ -338,7 +356,7 @@ public:
             return true;
         }
         if (IsSystemMessage(t)) {
-            fc4_advisors_do_message(g_core, &a);
+            // Captured by the original recipient, never by subscriber order.
             return true;
         }
         // Per-advisor and broadcast families: AdviceCommand names the advisor
@@ -826,6 +844,8 @@ void BuildAdvisorEntries(cISC4City* city) {
 }
 
 void DropCore() {
+    g_systemSlot.Remove();
+    g_systemTarget = nullptr;
     if (g_core == nullptr) return;
     fc4_advisors_destroy(g_core);
     g_core = nullptr;
@@ -836,9 +856,6 @@ void DropCore() {
     g_handleCounter = 0;
     g_entries.clear();
     g_state.injected = false;
-    g_state.postCityInitDelivered = false;
-    g_state.cityEstablishedDelivered = false;
-    g_state.postCityInitPending = false;
 }
 
 // ---- comparison ---------------------------------------------------------------------------------
@@ -1350,19 +1367,23 @@ void MySimsShadowCityLoaded(cISC4City* city) {
         Log("mysims shadow %s: WARNING agent init false", date);
     }
     TraceAdvisorPart("after inject");
-    // ONE hand-delivered PostCityInit, deferred (DeliverPendingPostCityInit): this
-    // runs inside the game's PostCityInit dispatch BEFORE the original advisor system
-    // handles it (measured mysims1fix3-sh-5: original month counter 316 at this point,
-    // 317 from the next month on). The load comparisons (here and the observer's
-    // immediate MySimsShadowMonth) therefore compare the shadow before its PostCityInit
-    // against the original before its own; the core's PostCityInit (monthly step when
-    // lastDay < 1, advisors.md §5.2) runs at the next forwarded message, ahead of the
-    // first ticker the original posts from its PostCityInit.
-    // No hand-delivered CityEstablished: the game sends it only when a city becomes
-    // established (budget.md resets the funds on it), never on a load; a real one
-    // reaches the core through the forwarder.
-    g_state.postCityInitPending = !g_state.postCityInitDelivered;
-    // SPEC-GAP: the original system's unsaved lastDay is not captured (MS-GC29-1).
+    // Import the system and the individual records at this same attachment
+    // boundary. Only subsequent original-recipient deliveries are replayed.
+    cISC4AdvisorSystem* system = city->GetAdvisorSystem(); // borrowed
+    void* recipient = nullptr;
+    if (system && system->QueryInterface(kIIDMessageTarget2, &recipient) && recipient) {
+        auto* target = static_cast<cIGZMessageTarget2*>(recipient);
+        FC4_ACQUIRED(target, "QueryInterface");
+        g_systemTarget = target;
+        const int32_t lastDay = SystemLastDay(target);
+        fc4_advisors_shadow_last_day(g_core, lastDay);
+        g_systemTraces = 0;
+        const bool hooked = g_systemSlot.Install(target, 3, reinterpret_cast<void*>(&SystemDelivery));
+        Log("mysims boundary attach: system=%p lastDay=%d hooked=%d", target, lastDay, hooked);
+        FC4_RELEASE(target);
+    } else {
+        Log("mysims boundary: WARNING original advisor recipient unavailable");
+    }
     char loadDate[16];
     const int mismatches = RunCompare(julian, 0, loadDate);
     Log("mysims shadow %s load: sims=%u injected=%u compared=load mismatches=%d; "
