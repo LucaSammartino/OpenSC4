@@ -804,6 +804,7 @@ void ScriptOnNewDay(int32_t julian) {
 }
 
 void ScriptOnTick() {
+    int32_t bootstrapJulian = 0;
     if (g_waiting.empty() && !g_inTick && g_schedule.Remaining()) {
         cISC4City* city = ObserverCity();
         auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
@@ -816,6 +817,7 @@ void ScriptOnTick() {
                 g_inTick = true;
                 ScriptOnNewDay(julian);
                 g_inTick = false;
+                bootstrapJulian = julian;
             }
         }
     }
@@ -823,7 +825,8 @@ void ScriptOnTick() {
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them
-    const int32_t julian = static_cast<int32_t>(PublishedJulian());
+    // No new day has published a date in an unfounded city yet.
+    const int32_t julian = bootstrapJulian ? bootstrapJulian : static_cast<int32_t>(PublishedJulian());
     cISC4City* city = ObserverCity();
     for (const harness::ScriptAction* a : run) RunAction(*a, julian, city);
     g_inTick = false;
