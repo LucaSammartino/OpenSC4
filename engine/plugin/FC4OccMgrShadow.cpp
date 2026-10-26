@@ -69,6 +69,7 @@ bool g_probeWanted = true;
 bool g_followCalls = false;  // occmgr_shadow_follow = 1: follow the calls (slots 20-24), not the messages
 thread_local int t_inMove = 0;  // inside the original's Move on this thread (a synchronous Move message, §5.4 step 9)
 thread_local int t_inCall = 0;  // inside a followed original call on this thread (nesting)
+thread_local int t_externalMoveSend = 0;
 int g_samples = 4;
 bool g_listening = false;
 bool g_loggedOurs = false;
@@ -162,6 +163,10 @@ struct Follow {
     bool routeSync = false;
     uint32_t syncExact = 0, syncTotal = 0;
     uint32_t externalMoves = 0;
+    uint32_t externalSyncMoves = 0;
+    uint32_t moveDeliveries = 0;
+    std::unordered_set<cIGZMessage2*> postedMoves;
+    std::unordered_set<uint64_t> shutdowns;
 };
 Follow g_follow;
 
@@ -262,7 +267,9 @@ void HRelease(void* u, uint64_t t) {
 }
 
 void HInit(void*, uint64_t) {}
-void HShutdown(void*, uint64_t) {}
+void HShutdown(void* u, uint64_t occ) {
+    if (Ctx(u) == &g_fol) g_follow.shutdowns.insert(occ);
+}
 bool HHasHolder(void*, uint64_t t) { return t != 0 && Occ(t)->AsPropertyHolder() != nullptr; }
 uint32_t HType(void*, uint64_t t) { return t != 0 ? static_cast<uint32_t>(Occ(t)->GetType()) : 0u; }
 
@@ -1469,12 +1476,16 @@ void LogMonth(const Month& mo) {
     // The uncompared tails (calls mode) carry over to the next month.
     std::vector<MsgRec> oq = std::move(g_follow.origMsgs), cq = std::move(g_follow.coreMsgs),
                         os = std::move(g_follow.origSync), cs = std::move(g_follow.coreSync);
+    auto posted = std::move(g_follow.postedMoves);
+    auto shutdowns = std::move(g_follow.shutdowns);
     g_follow = Follow{};
     if (g_followCalls) {
         g_follow.origMsgs = std::move(oq);
         g_follow.coreMsgs = std::move(cq);
         g_follow.origSync = std::move(os);
         g_follow.coreSync = std::move(cs);
+        g_follow.postedMoves = std::move(posted);
+        g_follow.shutdowns = std::move(shutdowns);
     }
 }
 
@@ -1548,6 +1559,10 @@ void NoteDestroy(uint64_t occ) {
         return;
     }
     ++g_follow.destroyOther;  // its own remove is outstanding, but not just before
+    if (g_follow.destroyOther <= 4) {
+        Log("occmgr shadow destroy origin: %p shutdown-requested=%u", static_cast<void*>(Occ(occ)),
+            unsigned(g_follow.shutdowns.count(occ) != 0));
+    }
     if (g_follow.rmListed++ < 4) {
         char b[160];
         const char* prev = g_follow.origMsgs.empty() ? "nothing" : MsgName(g_follow.origMsgs.back().kind);
@@ -1669,7 +1684,17 @@ void OnMessage(cIGZMessage2* msg) {
                 if (type == kMsgInserted) ++g_follow.ins;
                 if (type == kMsgRemoved) ++g_follow.rem;
                 if (type == kMsgMoved) ++g_follow.mov;
-                const bool sync = type == kMsgMoved && t_inMove != 0;
+                if (type == kMsgMoved) {
+                    const bool posted = g_follow.postedMoves.erase(msg) != 0;
+                    if (++g_follow.moveDeliveries <= 8) {
+                        Log("occmgr shadow native delivery: move of %p msg=%p post-seen=%u call=%d move=%d "
+                            "orig/core=%u/%u boundary=%u",
+                            static_cast<void*>(Occ(m.occ)), static_cast<void*>(msg), unsigned(posted), t_inCall,
+                            t_inMove, unsigned(g_follow.origMsgs.size()), unsigned(g_follow.coreMsgs.size()),
+                            unsigned(g_waitingBoundary));
+                    }
+                }
+                const bool sync = type == kMsgMoved && (t_inMove != 0 || t_externalMoveSend != 0);
                 (sync ? g_follow.origSync : g_follow.origMsgs).push_back(MsgRec{type, m.occ, m.data4});
                 if (type == kMsgRemoved) {
                     g_follow.removed.insert(m.occ);
@@ -1794,12 +1819,43 @@ void Apply(FollowCall& c) {
 
 using MessagePostFn = uint32_t(__fastcall*)(void*, void*, cIGZMessage2*, uint32_t);
 MessagePostFn g_messagePost = nullptr;
+using MessageSendFn = uint32_t(__fastcall*)(void*, void*, cIGZMessage2*);
+MessageSendFn g_messageSend = nullptr;
+
+uint32_t __fastcall ObserveMessageSend(void* self, void* edx, cIGZMessage2* msg) {
+    bool external = false;
+    if (msg && msg->GetType() == kMsgMoved && g_followCalls && t_inCall == 0) {
+        Lock lock;
+        if (g_fol.core && g_follow.postedMoves.count(msg) == 0) {
+            void* p = nullptr;
+            if (msg->QueryInterface(GZIID_cIGZMessage2Standard, &p) && p) {
+                auto* s = static_cast<cIGZMessage2Standard*>(p);
+                FC4_ACQUIRED(s, "QueryInterface");
+                external = true;
+                g_follow.coreSync.push_back(MsgRec{kMsgMoved, Canonical(static_cast<cIGZUnknown*>(s->GetVoid1())),
+                                                   static_cast<uint32_t>(s->GetData4())});
+                if (++g_follow.externalSyncMoves <= 4) {
+                    Log("occmgr shadow native send: external move of %p d4=%u msg=%p", s->GetVoid1(),
+                        unsigned(s->GetData4()), static_cast<void*>(msg));
+                }
+                FC4_RELEASE(s);
+            }
+        }
+    }
+    if (external) ++t_externalMoveSend;
+    const uint32_t result = g_messageSend(self, edx, msg);
+    if (external) --t_externalMoveSend;
+    return result;
+}
 
 uint32_t __fastcall ObserveMessagePost(void* self, void* edx, cIGZMessage2* msg, uint32_t priority) {
     // Observe the posting boundary, rather than infer the producer from the
     // later delivery. External callers can use occupant slot 15 directly.
-    if (msg && msg->GetType() == kMsgMoved && g_followCalls && t_inCall == 0) {
+    if (msg && msg->GetType() == kMsgMoved && g_followCalls) {
         Lock lock;
+        g_follow.postedMoves.insert(msg);
+    }
+    if (msg && msg->GetType() == kMsgMoved && g_followCalls && t_inCall == 0) {
         if (g_fol.core) {
             ++g_follow.externalMoves;
             void* p = nullptr;
@@ -1831,17 +1887,20 @@ void InstallPostObserver() {
     void** vt = *reinterpret_cast<void***>(ms.operator->());
     // SDK cIGZMessageServer2 slot 4; docs/abi/interfaces.tsv GOG 1.1.641.
     if (reinterpret_cast<uintptr_t>(vt) != 0x00AD1BF4 ||
+        reinterpret_cast<uintptr_t>(vt[3]) != 0x0092EA65 ||
         reinterpret_cast<uintptr_t>(vt[4]) != 0x0092D0BB) {
         Log("occmgr shadow native post: observer refused (unexpected slot)");
         return;
     }
     DWORD before = 0;
-    if (!VirtualProtect(vt + 4, sizeof(void*), PAGE_READWRITE, &before)) return;
+    if (!VirtualProtect(vt + 3, 2 * sizeof(void*), PAGE_READWRITE, &before)) return;
+    g_messageSend = reinterpret_cast<MessageSendFn>(vt[3]);
     g_messagePost = reinterpret_cast<MessagePostFn>(vt[4]);
+    vt[3] = reinterpret_cast<void*>(&ObserveMessageSend);
     vt[4] = reinterpret_cast<void*>(&ObserveMessagePost);
     DWORD ignored = 0;
-    VirtualProtect(vt + 4, sizeof(void*), before, &ignored);
-    FlushInstructionCache(GetCurrentProcess(), vt + 4, sizeof(void*));
+    VirtualProtect(vt + 3, 2 * sizeof(void*), before, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), vt + 3, 2 * sizeof(void*));
 }
 
 template <class Fn, class... A>
