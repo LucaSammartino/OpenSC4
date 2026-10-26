@@ -183,6 +183,7 @@ struct OwnerSample {
         if (s.serializable->GetGZCLSID() != s.classId) return;
         s.capture.BeginRecord();
         // Unit Write returns AL; these two occupant writers return EAX=0/1.
+        if (s.type == 0x895D1169) ++wallMethods.writes;
         const bool ok = s.type == 0 ? s.serializable->Write(s.capture) :
             Call<uint32_t>(s.serializable, 3, static_cast<cIGZOStream*>(&s.capture)) != 0;
         s.captured = ok && s.capture.GetError() == 0;
@@ -191,7 +192,10 @@ struct OwnerSample {
         owner = value; serializable = nullptr; captured = false;
         const bool safe = SehGuard("LR15 owner Write", &Capture, this);
         if (serializable) { FC4_RELEASE(serializable); serializable = nullptr; }
-        if (!safe || !captured) { observation.Record(false, false, false); return; }
+        if (!safe || !captured) {
+            if (type == 0x895D1169) ++wallMethods.mismatches;
+            observation.Record(false, false, false); return;
+        }
         // Read is a state transition, not an identity decoder (§7/T7/T88).
         // Retain every input byte; compare native and core after the same
         // transition. Never patch masks or adopt the native output as state.
@@ -206,6 +210,12 @@ struct OwnerSample {
             const int32_t size = fc4_lotowner_verify(classId, record.data(), static_cast<uint32_t>(record.size()),
                 snapshot.data(), static_cast<uint32_t>(snapshot.size()), true);
             snapshotEqual = size >= 0 && static_cast<size_t>(size) == record.size() && snapshot == record;
+            if (!snapshotEqual) {
+                size_t first = 0;
+                while (first < record.size() && first < snapshot.size() && record[first] == snapshot[first]) ++first;
+                Log("lotwall snapshot difference: bytes=%u encoded=%d first=%u", static_cast<uint32_t>(record.size()),
+                    size, static_cast<uint32_t>(first));
+            }
             replayRecord = record; replayed = false;
             const bool safeReplay = SehGuard("lotwall detached Read/Write", &ReplayWall, this);
             if (replay) { FC4_RELEASE_CREATED(replay); replay = nullptr; }
@@ -214,7 +224,15 @@ struct OwnerSample {
                 observation.Record(true, false, false);
                 return;
             }
-            readChanges += capture.Bytes() != record ? 1u : 0u;
+            if (capture.Bytes() != record) {
+                if (++readChanges <= 2) {
+                    size_t first = 0;
+                    while (first < record.size() && first < capture.Bytes().size() && record[first] == capture.Bytes()[first]) ++first;
+                    Log("lotwall native Read transition: index=%u first=%u before=%u after=%u", observation.visited - 1,
+                        static_cast<uint32_t>(first), first < record.size() ? record[first] : 0,
+                        first < capture.Bytes().size() ? capture.Bytes()[first] : 0);
+                }
+            }
         }
         const auto& native = type == 0x895D1169 ? capture.Bytes() : record;
         const bool equal = snapshotEqual && n >= 0 && static_cast<size_t>(n) == native.size() && encoded == native;
@@ -293,7 +311,7 @@ struct OwnerSample {
         if (!SehGuard("LR15 scoped owner inventory", &Run, this)) ++observation.errors;
         if (!SehGuard("LR15 owner inventory cleanup", &Cleanup, this)) ++observation.errors;
         const auto& s = observation;
-        Log("%s shadow %04d-%02d-%02d %s: complete=%u expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u empty=%u bytes=%llu masters=%u/%u mode=record-only scope=%s; mismatches=%u",
+        Log("%s shadow %04d-%02d-%02d %s: complete=%u expected=%u visited=%u captures=%u exact=%u/%u differences=%u errors=%u empty=%u bytes=%llu masters=%u/%u mode=record-only scope=%s; mismatches=%u resyncs=0",
             label, date.year, date.month, date.day_of_month, loaded ? "load" : "month",
             complete ? 1u : 0u, s.expected, s.visited, s.captures, s.exact, s.expected,
             s.differences, s.errors, complete && s.expected == 0 && s.Mismatches() == 0 ? 1u : 0u,
