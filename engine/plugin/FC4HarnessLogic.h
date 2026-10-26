@@ -233,7 +233,8 @@ enum class ScriptOp {
     MySim,        // mysim movein|query: replacement-interface persistence exercise
     Funds,        // funds 0..999999999: set treasury through the budget interface
     Establish,    // establish <name>: name and found an unfounded city
-    GDriverProbe  // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -278,6 +279,12 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::MySim: return "mysim";
         case ScriptOp::Funds: return "funds";
         case ScriptOp::Establish: return "establish";
+        case ScriptOp::UiCommand: return "uicommand";
+        case ScriptOp::UiMouse: return "uimouse";
+        case ScriptOp::UiCell: return "uicell";
+        case ScriptOp::UiKey: return "uikey";
+        case ScriptOp::UiText: return "uitext";
+        case ScriptOp::UiWait: return "uiwait";
     }
     return "?";
 }
@@ -291,6 +298,7 @@ struct ScriptAction {
     int32_t type = 0;                        // zone, pricezone (dezone: 0); network: the network type
     int32_t speed = 0;                       // speed
     int32_t funds = 0;                       // treasury target, whole simoleons
+    uint32_t command = 0;                    // uicommand: unsigned data-file ID
     bool on = false;                         // turbo
     bool fast = false;                       // save
     float height = 0.0f;                     // terrain (metres)
@@ -339,6 +347,20 @@ inline bool ParseCount(const std::string& s, int32_t max, int32_t* out) {
     if (v > max) return false;
     *out = v;
     return true;
+}
+
+inline bool ParseCommandID(const std::string& s, uint32_t* out) {
+    if (s.size() != 10 || s[0] != '0' || s[1] != 'x') return false;
+    uint32_t value = 0;
+    for (size_t i = 2; i < s.size(); ++i) {
+        const char c = s[i];
+        const unsigned digit = c >= '0' && c <= '9' ? c - '0' :
+            c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : 16;
+        if (digit > 15) return false;
+        value = (value << 4) | digit;
+    }
+    *out = value;
+    return value != 0;
 }
 
 // A height in metres: digits, optionally a point and more digits, 0..max.
@@ -434,7 +456,47 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         }
         return true;
     };
-    if (name == "mysim") {
+    if (name == "uicommand") {
+        a.op = ScriptOp::UiCommand;
+        if (!wantArgs(1, "0x12345678") || !detail::ParseCommandID(tok[2], &a.command)) {
+            *error = "uicommand requires a nonzero eight-digit hexadecimal ID";
+            return false;
+        }
+    } else if (name == "uiwait" || name == "uikey") {
+        a.op = name == "uiwait" ? ScriptOp::UiWait : ScriptOp::UiKey;
+        if (!wantArgs(1, name == "uiwait" ? "milliseconds" : "virtual-key")) return false;
+        if (!detail::ParseCount(tok[2], name == "uiwait" ? 60000 : 255, &a.type) ||
+            (name == "uikey" && a.type == 0)) {
+            *error = "uiwait requires 0..60000 ms; uikey requires 1..255";
+            return false;
+        }
+    } else if (name == "uimouse" || name == "uicell") {
+        a.op = name == "uimouse" ? ScriptOp::UiMouse : ScriptOp::UiCell;
+        const bool cell = name == "uicell";
+        if (!wantArgs(cell ? 4 : 3, cell ? "x z height move|down|up|click" : "x y move|down|up|click")) return false;
+        if (!detail::ParseCount(tok[2], cell ? kScriptMaxCell : 32767, &a.x0) ||
+            !detail::ParseCount(tok[3], cell ? kScriptMaxCell : 32767, &a.z0) ||
+            (cell && !detail::ParseHeight(tok[4], 9000.0, &a.height))) {
+            *error = "invalid UI coordinates or height";
+            return false;
+        }
+        const std::string phase = tok[cell ? 5 : 4];
+        if (phase != "move" && phase != "down" && phase != "up" && phase != "click") {
+            *error = "mouse phase requires move, down, up or click";
+            return false;
+        }
+        a.kind = phase == "move" ? 0 : phase == "down" ? 1 : phase == "up" ? 2 : 3;
+    } else if (name == "uitext") {
+        a.op = ScriptOp::UiText;
+        if (tok.size() < 3 || a.text.size() > 256) {
+            *error = "uitext requires 1..256 printable ASCII characters";
+            return false;
+        }
+        for (unsigned char c : a.text) if (c < 32 || c > 126) {
+            *error = "uitext requires printable ASCII";
+            return false;
+        }
+    } else if (name == "mysim") {
         a.op = ScriptOp::MySim;
         if (!wantArgs(1, "movein or query")) return false;
         if (tok[2] != "movein" && tok[2] != "query") {

@@ -59,6 +59,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include "FC4UiDriver.h"
 
 // Game calls (checked against docs/abi/interfaces.tsv; none returns in ST0,
 // so the x87 rule holds with the declarations of FC4Interfaces.h):
@@ -80,6 +81,8 @@ namespace fc4 {
 namespace {
 
 harness::ScriptSchedule g_schedule;  // main thread only (game start, SimNewDay)
+DWORD g_uiReady = 0;
+bool g_uiDelay = false;
 std::string g_path;                  // the loaded script, "" = none
 // A `save` and every action due after it, waiting for the observer's next
 // tick (pointers into g_schedule; cleared whenever it is reloaded).
@@ -679,6 +682,9 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
     std::string result;
     bool digest = false;
     switch (a.op) {
+        case ScriptOp::UiCommand: case ScriptOp::UiMouse: case ScriptOp::UiCell:
+        case ScriptOp::UiKey: case ScriptOp::UiText: case ScriptOp::UiWait:
+            result = ui_driver::Run(a); break;
         case ScriptOp::Funds: result = RunFunds(a, city); break;
         case ScriptOp::Establish: result = RunEstablish(a, city); break;
         case ScriptOp::Zone:
@@ -747,6 +753,7 @@ void NoteAllRun() {
 }  // namespace
 
 int ScriptLoad(const char* rawPath, const char* why) {
+    g_uiDelay = false;
     g_waiting.clear();
     g_schedule.Load({});
     g_path.clear();
@@ -796,7 +803,7 @@ void ScriptOnNewDay(int32_t julian) {
     // `save` and what follows it wait for the tick (FC4Script.h).
     cISC4City* city = ObserverCity();
     for (const harness::ScriptAction* a : due) {
-        if (g_waiting.empty() && !g_inTick && a->op != harness::ScriptOp::Save) {
+        if (g_waiting.empty() && !g_inTick && a->op != harness::ScriptOp::Save && !ui_driver::IsAction(a->op)) {
             RunAction(*a, julian, city);
             continue;
         }
@@ -829,14 +836,39 @@ void ScriptOnTick() {
             }
         }
     }
-    if (g_waiting.empty() || g_inTick) return;
+    if (g_waiting.empty()) return;
+    if (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0) return;
+    g_uiDelay = false;
+    // Modal windows pump framework ticks. Consume a UI action before calling
+    // the game so a nested tick can deliver the queued close/input action.
+    // Non-UI actions and nested commands stay behind the active command.
+    const auto* first = g_waiting.front();
+    if (ui_driver::IsAction(first->op)) {
+        if (g_inTick && first->op == harness::ScriptOp::UiCommand) return;
+        g_waiting.erase(g_waiting.begin());
+        const bool previousTick = g_inTick;
+        g_inTick = true;
+        g_uiReady = GetTickCount() + (first->op == harness::ScriptOp::UiWait ? first->type : 150);
+        g_uiDelay = true;
+        RunAction(*first, static_cast<int32_t>(PublishedJulian()), ObserverCity());
+        g_inTick = previousTick;
+        NoteAllRun();
+        return;
+    }
+    if (g_inTick) return;
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them
     // No new day has published a date in an unfounded city yet.
     const int32_t julian = bootstrapJulian ? bootstrapJulian : static_cast<int32_t>(PublishedJulian());
     cISC4City* city = ObserverCity();
-    for (const harness::ScriptAction* a : run) RunAction(*a, julian, city);
+    for (size_t i = 0; i < run.size(); ++i) {
+        if (ui_driver::IsAction(run[i]->op)) {
+            g_waiting.insert(g_waiting.begin(), run.begin() + i, run.end());
+            break;
+        }
+        RunAction(*run[i], julian, city);
+    }
     g_inTick = false;
     NoteAllRun();
 }

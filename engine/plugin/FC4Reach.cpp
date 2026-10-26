@@ -651,6 +651,12 @@ bool ReachLifecycleEnabled() {
     return SettingInt("reach_lifecycle", nullptr, 0) == 1;
 }
 
+void ReachStartupStart() {
+    if (SettingInt("reach_startup", nullptr, 0) != 1) return;
+    ReachStart(harness::JulianFromCivil(1999, 1, 1));
+    if (g_reachStarted) Log("reach lifecycle phase=startup date=1999-01-01 sentinel=1");
+}
+
 void ReachLifecycleStart() {
     if (!ReachLifecycleEnabled()) return;
     // No city/simulator exists yet. Give the load window an explicit sentinel;

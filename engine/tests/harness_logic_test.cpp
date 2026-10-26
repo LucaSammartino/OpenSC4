@@ -419,6 +419,31 @@ void CellRectArgsTests() {
     CHECK(CellRectArgs(5, 5, 5, 4).empty && CellRectArgs(5, 5, 5, 4).h == 0);
 }
 
+void UiScriptTests() {
+    using namespace fc4::harness;
+    const auto p = ParseScript(
+        "2026-01-28 uicommand 0xFA935cf3\n"
+        "2026-01-28 uiwait 60000\n"
+        "2026-01-28 uicell 63 64 250.5 down\n"
+        "2026-01-28 uimouse 320 240 up\n"
+        "2026-01-28 uikey 27\n"
+        "2026-01-28 uitext test city name\n");
+    CHECK(p.errors.empty() && p.actions.size() == 6);
+    if (p.actions.size() == 6) {
+        CHECK(p.actions[0].command == 0xFA935CF3u);
+        CHECK(p.actions[1].type == 60000);
+        CHECK(p.actions[2].height == 250.5f && p.actions[2].kind == 1);
+        CHECK(p.actions[3].kind == 2 && p.actions[4].type == 27);
+        CHECK(p.actions[5].text == "test city name");
+        CHECK(std::string(ScriptOpName(p.actions[0].op)) == "uicommand");
+    }
+    for (const auto* bad : {"uicommand 0x00000000", "uicommand 0x100000000", "uicommand -1",
+            "uicommand 0x6a935cf3 extra", "uiwait 60001", "uiwait -1", "uikey 0", "uikey 256",
+            "uicell 4096 1 250 click", "uicell 1 1 nan click", "uimouse 1 2 drag", "uitext"}) {
+        CHECK(!ParseScript(std::string("2026-01-28 ") + bad + "\n").errors.empty());
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -429,6 +454,7 @@ int main() {
     ScriptParseTests();
     ScriptScheduleTests();
     CellRectArgsTests();
+    UiScriptTests();
     if (g_failures == 0) std::printf("harness logic test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
