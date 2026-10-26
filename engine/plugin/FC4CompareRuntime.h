@@ -227,7 +227,9 @@ void Dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* mac
     const auto* args=reinterpret_cast<const uint32_t*>(registers+1);
     const uint32_t traceSelf=registers->ecx;
     const auto original=[&] {
+        fc4::ConfigRulesTraceLifecycle(fn.name,traceSelf,true);
         fc4_inplace_invoke(registers,machine,fn.original,args,fn.argCount*4,fn.pop!=0||fn.argCount==0);
+        fc4::ConfigRulesTraceLifecycle(fn.name,traceSelf,false);
         fc4::ConfigRulesTraceOriginal(fn.name,traceSelf,args,registers->eax);
     };
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
