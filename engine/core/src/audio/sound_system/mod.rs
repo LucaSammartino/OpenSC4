@@ -10,6 +10,11 @@ pub mod hit;
 pub mod playlist;
 pub mod track;
 
+mod fresh_playback;
+mod hit_config;
+mod hit_resource;
+mod track_vm;
+
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -90,11 +95,6 @@ pub trait Scheduler {
 }
 
 #[cfg(test)]
-mod tests;
-
-#[cfg(test)]
 mod closure_tests;
-mod fresh_playback;
-mod hit_config;
-mod hit_resource;
-mod track_vm;
+#[cfg(test)]
+mod tests;
