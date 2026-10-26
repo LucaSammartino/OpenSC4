@@ -46,6 +46,7 @@ pub mod extras;
 pub mod grading;
 pub mod params;
 pub mod passes;
+mod plane;
 pub mod satisfier;
 pub mod smoothing;
 
@@ -414,6 +415,7 @@ impl NetworkGeometry {
         let info = self.info(self.run.type_id);
         self.smoothing =
             smoothing::compute_initial_smoothing_set(&self.run, &self.solved, &self.cells, level, t.cells());
+        plane::apply(self, t, host);
         smoothing::smoothen_network(
             &mut self.network,
             &self.smoothing,
