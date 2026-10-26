@@ -7,6 +7,7 @@
 #include "cRZBaseString.h"
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <limits>
@@ -24,6 +25,34 @@ struct Collection {
     static void* __fastcall Destroy(Collection*, void*, uint32_t);
 };
 struct Key { uint32_t type = 0, group = 0, instance = 0; };
+// effects.md 18.7.2; allocator B, not SDK containers or this DLL's CRT.
+struct Vector {
+    unsigned char* begin = nullptr;
+    unsigned char* end = nullptr;
+    unsigned char* capacity = nullptr;
+    uint32_t Count(uint32_t stride) const {
+        return begin == end ? 0 : static_cast<uint32_t>((end - begin) / stride);
+    }
+};
+template<class T> T& At(void* p, size_t offset) {
+    return *reinterpret_cast<T*>(static_cast<unsigned char*>(p) + offset);
+}
+const char* Text(const void* p) {
+    const auto* s = static_cast<const Vector*>(p);
+    return s->begin ? reinterpret_cast<const char*>(s->begin) : "";
+}
+bool PointerFamily(uint32_t family) { return family == 0 || family == 16 || (family >= 3 && family <= 8); }
+uint32_t Stride(uint32_t family) {
+    switch (family) {
+    case 1: return 0x64;
+    case 2: return 0x38;
+    case 20: return 0x28; // shake
+    case 21: return 0x1C; // light
+    case 22: return 0x14; // ID binding
+    case 23: return 0x10; // message trigger
+    default: return 4;
+    }
+}
 class Persist : public cIGZUnknown {
 public:
     bool QueryInterface(uint32_t, void**) override;
@@ -114,28 +143,36 @@ public:
     bool Read(cIGZIStream* stream) override;
     uint32_t ClassID() override { return kFC4_CLSID_cSC4EffectsResource; }
 
-    bool Empty() const {
-        for (size_t offset : {0x4, 0x24, 0x44, 0x64, 0x84, 0xA4}) {
-            uint32_t count;
-            std::memcpy(&count, Bytes() + offset + 0x10, 4);
-            if (count) return false;
-        }
-        // Logical vector ends, never spare capacity or the dictionary count.
-        for (size_t offset : {0x18, 0x38, 0x58, 0x78, 0x98, 0xB8, 0xF0, 0xFC}) {
-            const auto* p = reinterpret_cast<const uintptr_t*>(Bytes() + offset);
-            if (p[0] != p[1]) return false;
-        }
-        const auto* directories = reinterpret_cast<const uintptr_t*>(Bytes() + 0xC4);
-        for (auto* p = reinterpret_cast<const unsigned char*>(directories[0]);
-             p != reinterpret_cast<const unsigned char*>(directories[1]); p += 0x20) {
-            const auto* vector = reinterpret_cast<const uintptr_t*>(p + 0x14);
-            if (vector[0] != vector[1]) return false;
-            uint32_t count;
-            std::memcpy(&count, p + 0x10, 4);
-            if (count) return false;
-        }
-        return true;
+    Vector& Values(uint32_t family);
+    void FreeVector(Vector& v) {
+        if (v.begin) bindings_.freeString(v.begin);
+        v = {};
     }
+    template<class Initialize, class Destroy>
+    void Resize(Vector& v, uint32_t count, uint32_t stride, Initialize initialize, Destroy destroy) {
+        if (count > std::numeric_limits<uint32_t>::max() / stride) throw std::bad_alloc();
+        while (v.Count(stride) > count) { v.end -= stride; destroy(v.end); }
+        const uint32_t old = v.Count(stride);
+        if (v.Count(1) < count * stride && (!v.begin || static_cast<size_t>(v.capacity - v.begin) < count * stride)) {
+            auto* fresh = static_cast<unsigned char*>(bindings_.allocateString(count * stride));
+            if (!fresh) throw std::bad_alloc();
+            if (old) std::memcpy(fresh, v.begin, old * stride);
+            if (v.begin) bindings_.freeString(v.begin);
+            v = {fresh, fresh + old * stride, fresh + count * stride};
+        }
+        while (v.Count(stride) < count) {
+            initialize(v.end);
+            v.end += stride;
+        }
+    }
+    void Initialize(uint32_t family, void* value);
+    void DestroyValue(uint32_t family, void* value);
+    void ResizeValues(uint32_t family, uint32_t count);
+    void ReadString(cIGZIStream*, Vector&);
+    void ReadList(cIGZIStream*, Vector&, uint32_t width);
+    void WriteList(cIGZOStream*, const Vector&, uint32_t width);
+    void ReadValue(uint32_t, uint16_t, cIGZIStream*, void*);
+    void WriteValue(uint32_t, cIGZOStream*, const void*);
     unsigned char* Bytes() { return reinterpret_cast<unsigned char*>(&collection_); }
     const unsigned char* Bytes() const { return reinterpret_cast<const unsigned char*>(&collection_); }
 
@@ -165,78 +202,218 @@ void* Persist::Destroy(uint32_t flags) {
     return resource;
 }
 
+Vector& Resource::Values(uint32_t family) {
+    if (family >= 3 && family <= 8) {
+        auto& directories = At<Vector>(Bytes(), 0xC4);
+        return At<Vector>(directories.begin + (family - 3) * 0x20, 0x14);
+    }
+    size_t offset = 0;
+    switch (family) {
+    case 0: offset = 0x38; break;
+    case 1: offset = 0x78; break;
+    case 2: offset = 0x18; break;
+    case 16: offset = 0x58; break;
+    case 20: offset = 0x98; break;
+    case 21: offset = 0xB8; break;
+    case 22: offset = 0xF0; break;
+    case 23: offset = 0xFC; break;
+    }
+    return At<Vector>(Bytes(), offset);
+}
+void Resource::ReadString(cIGZIStream* stream, Vector& value) {
+    cRZBaseString text;
+    stream->GetGZStr(text);
+    const uint32_t size = text.Strlen();
+    if (size == std::numeric_limits<uint32_t>::max()) throw std::bad_alloc();
+    auto* copy = static_cast<unsigned char*>(bindings_.allocateString(size + 1));
+    if (!copy) throw std::bad_alloc();
+    std::memcpy(copy, text.ToChar(), size);
+    copy[size] = 0;
+    FreeVector(value);
+    value = {copy, copy + size, copy + size + 1};
+}
+void Resource::ReadList(cIGZIStream* stream, Vector& value, uint32_t width) {
+    uint32_t count = 0;
+    stream->GetUint32(count);
+    if (width == 1 && count >= 1000000) return; // EF26 counted-f32 gate
+    Resize(value, count, 4 * width, [](void* p) { (void)p; }, [](void* p) { (void)p; });
+    for (auto* p = value.begin; p != value.end; p += 4) stream->GetFloat32(*reinterpret_cast<float*>(p));
+}
+void Resource::WriteList(cIGZOStream* stream, const Vector& value, uint32_t width) {
+    stream->SetUint32(value.Count(4 * width));
+    for (auto* p = value.begin; p != value.end; p += 4) stream->SetFloat32(*reinterpret_cast<const float*>(p));
+}
+void Resource::Initialize(uint32_t family, void* value) {
+    std::memset(value, 0, Stride(family));
+    if (family == 1) {
+        bindings_.constructDescription(family, value);
+    } else if (family == 2) {
+        // SPEC-GAP: new old-format visual records have unspecified trailing defaults; use zero.
+    } else if (family == 20 || family == 21) {
+        // SPEC-GAP: fresh shake/light constructor defaults are unspecified; use zeroed valid containers.
+    } else if (PointerFamily(family)) {
+        uint32_t extent = 0;
+        switch (family) {
+        case 0: extent = 0x208; break;
+        case 16: extent = 0x40; break;
+        case 3: extent = 0x34; break;
+        case 5: extent = 0x50; break;
+        case 8: extent = 0x18; break;
+        default: extent = 0x1C; break;
+        }
+        void* object = bindings_.allocateObject(extent);
+        if (!object) throw std::bad_alloc();
+        bindings_.constructDescription(family, object);
+        // A newly installed reference belongs to this collection (18.9.6).
+        ++At<uint32_t>(object, family == 0 ? 0x204 : family == 16 ? 4 : 8);
+        *static_cast<void**>(value) = object;
+    }
+}
+void Resource::DestroyValue(uint32_t family, void* value) {
+    if (PointerFamily(family)) {
+        if (void* object = *static_cast<void**>(value)) bindings_.releaseDescription(family, object);
+    } else {
+        if (family == 1) for (size_t offset : {0x10, 0x1C, 0x28, 0x34, 0x40}) FreeVector(At<Vector>(value, offset));
+        if (family == 20) for (size_t offset : {8, 0x14}) FreeVector(At<Vector>(value, offset));
+        if (family == 21) for (size_t offset : {0, 0xC}) FreeVector(At<Vector>(value, offset));
+        if (family == 2) {
+            for (size_t offset : {8, 0x14}) {
+                auto& list = At<Vector>(value, offset);
+                const uint32_t stride = offset == 8 ? 0x6C : 0x18;
+                for (auto* p = list.begin; p != list.end; p += stride) FreeVector(At<Vector>(p, offset == 8 ? 0 : 4));
+                FreeVector(list);
+            }
+            FreeVector(At<Vector>(value, 0x2C));
+        }
+        if (family == 22 || family == 23) FreeVector(At<Vector>(value, family == 22 ? 0 : 4));
+    }
+}
+void Resource::ResizeValues(uint32_t family, uint32_t count) {
+    Resize(Values(family), count, Stride(family),
+        [&](void* p) {
+            if (PointerFamily(family)) *static_cast<void**>(p) = nullptr;
+            else Initialize(family, p);
+        }, [&](void* p) { DestroyValue(family, p); });
+}
+void Resource::ReadValue(uint32_t family, uint16_t version, cIGZIStream* stream, void* value) {
+    if (family == 20) {
+        stream->GetFloat32(At<float>(value, 0));
+        stream->GetFloat32(At<float>(value, 4));
+        ReadList(stream, At<Vector>(value, 8), 1);
+        ReadList(stream, At<Vector>(value, 0x14), 1);
+        stream->GetFloat32(At<float>(value, 0x20));
+        uint8_t table = 0;
+        stream->GetUint8(table);
+        At<uint32_t>(value, 0x24) = table;
+    } else if (family == 21) {
+        ReadList(stream, At<Vector>(value, 0), 3);
+        ReadList(stream, At<Vector>(value, 0xC), 1);
+        stream->GetFloat32(At<float>(value, 0x18));
+    } else if (family == 22) {
+        ReadString(stream, At<Vector>(value, 0));
+        stream->GetUint32(At<uint32_t>(value, 0xC));
+        stream->GetUint32(At<uint32_t>(value, 0x10));
+    } else if (family == 23) {
+        stream->GetUint32(At<uint32_t>(value, 0));
+        ReadString(stream, At<Vector>(value, 4));
+    } else {
+        bindings_.readDescription(family, version, stream, PointerFamily(family) ? *static_cast<void**>(value) : value);
+    }
+}
+void Resource::WriteValue(uint32_t family, cIGZOStream* stream, const void* value) {
+    auto* p = const_cast<void*>(value);
+    if (family == 20) {
+        stream->SetFloat32(At<float>(p, 0));
+        stream->SetFloat32(At<float>(p, 4));
+        WriteList(stream, At<Vector>(p, 8), 1);
+        WriteList(stream, At<Vector>(p, 0x14), 1);
+        stream->SetFloat32(At<float>(p, 0x20));
+        stream->SetUint8(static_cast<uint8_t>(At<uint32_t>(p, 0x24)));
+    } else if (family == 21) {
+        WriteList(stream, At<Vector>(p, 0), 3);
+        WriteList(stream, At<Vector>(p, 0xC), 1);
+        stream->SetFloat32(At<float>(p, 0x18));
+    } else if (family == 22) {
+        stream->SetRZCharStr(Text(p));
+        stream->SetUint32(At<uint32_t>(p, 0xC));
+        stream->SetUint32(At<uint32_t>(p, 0x10));
+    } else if (family == 23) {
+        stream->SetUint32(At<uint32_t>(p, 0));
+        stream->SetRZCharStr(Text(static_cast<unsigned char*>(p) + 4));
+    } else {
+        bindings_.writeDescription(family, stream, PointerFamily(family) ? *static_cast<void* const*>(value) : value);
+    }
+}
 bool Resource::Write(cIGZOStream* stream) {
-    // SPEC-GAP: EF26: non-interface renderer value codecs lack complete typed
-    // call declarations; do not guess them or invoke native resource Write.
-    if (!Empty()) {
-        fc4::Log("effectsres: nonempty Write unsupported (EF26); replacement incomplete");
-        return false;
-    }
+    auto section = [&](uint32_t family, int version) {
+        if (version >= 0) stream->SetUint16(static_cast<uint16_t>(version));
+        const auto& values = Values(family);
+        stream->SetUint32(values.Count(Stride(family)));
+        for (auto* p = values.begin; p != values.end; p += Stride(family)) WriteValue(family, stream, p);
+    };
     stream->SetUint16(4);
-    for (uint16_t version : {2, 1, 0, 0}) {
-        stream->SetUint16(version);
-        stream->SetUint32(0);
-    }
-    for (unsigned type = 3; type <= 8; ++type) stream->SetUint32(0);
-    stream->SetUint16(1); // dynamic particles, even after a root-3 Read
-    stream->SetUint32(0);
-    stream->SetUint16(2); // visual descriptions
-    stream->SetUint32(0);
-    stream->SetRZCharStr("end");
-    stream->SetUint32(0xFFFFFFFF);
-    const uint8_t present = Bytes()[0xD0];
-    stream->SetUint8(present);
-    if (present) {
-        stream->SetUint16(0);
-        for (unsigned offset = 0xD4; offset <= 0xEC; offset += 4) {
-            float value;
-            std::memcpy(&value, Bytes() + offset, 4);
-            stream->SetFloat32(value);
+    section(0, 2); section(1, 1); section(20, 0); section(21, 0);
+    for (uint32_t family = 3; family <= 8; ++family) section(family, -1);
+    section(16, 1); section(2, 2);
+    const auto& buckets = At<Vector>(Bytes(), 8);
+    for (auto* b = buckets.begin; b != buckets.end; b += 4) {
+        for (void* node = *reinterpret_cast<void**>(b); node; node = *static_cast<void**>(node)) {
+            stream->SetRZCharStr(Text(static_cast<unsigned char*>(node) + 4));
+            stream->SetUint32(At<uint32_t>(node, 0x10));
         }
     }
-    stream->SetUint32(0); // bindings
-    stream->SetUint16(0);
-    stream->SetUint32(0); // triggers
-    return true; // Normal completion ignores all primitive Boolean results.
+    stream->SetRZCharStr("end"); stream->SetUint32(0xFFFFFFFF);
+    stream->SetUint8(Bytes()[0xD0]);
+    if (Bytes()[0xD0]) {
+        stream->SetUint16(0);
+        WriteList(stream, At<Vector>(Bytes(), 0xD4), 1);
+        for (unsigned offset = 0xE0; offset <= 0xEC; offset += 4) stream->SetFloat32(At<float>(Bytes(), offset));
+    }
+    section(22, -1); section(23, 0);
+    return true; // Primitive and dependency Boolean statuses are not a result.
 }
-
 bool Resource::Read(cIGZIStream* stream) {
     uint16_t root = 0;
     stream->GetUint16(root);
     if (root != 3 && root != 4) return false;
-    // Empty directories are a conformance path, not a substitute for the
-    // shipped renderer payload. Until EF26 is settled, refuse that payload.
-    if (!Empty()) return false;
-    auto emptySection = [stream](bool versioned) {
+    auto section = [&](uint32_t family, bool versioned) {
         uint16_t version = 0;
-        if (versioned) stream->GetUint16(version);
+        // SPEC-GAP: an unwritten section count has no specified value; diagnose via an oversized sentinel.
         uint32_t count = 0xFFFFFFFF;
+        if (versioned) stream->GetUint16(version);
         stream->GetUint32(count);
-        if (count) fc4::Log("effectsres: nonempty/incomplete Read unsupported (EF26), count=%u; replacement incomplete", count);
-        return count == 0;
+        ResizeValues(family, count);
+        auto& values = Values(family);
+        for (auto* p = values.begin; p != values.end; p += Stride(family)) {
+            // Pointer owners are replaced before their typed Read (18.9.6).
+            if (PointerFamily(family)) { DestroyValue(family, p); Initialize(family, p); }
+            ReadValue(family, version, stream, p);
+        }
     };
-    for (unsigned family = 0; family < 4; ++family) if (!emptySection(true)) return false;
-    for (unsigned type = 3; type <= 8; ++type) if (!emptySection(false)) return false;
-    if (root == 4 && !emptySection(true)) return false;
-    if (!emptySection(true)) return false;
-    // Read the exact counted spelling (including the index); no standalone
-    // FFFFFFFF string-length terminator is admitted.
-    cRZBaseString spelling;
-    uint32_t index = 0;
-    stream->GetGZStr(spelling);
-    stream->GetUint32(index);
-    if (std::strcmp(spelling.ToChar(), "end") || index != 0xFFFFFFFF) return false;
+    section(0, true); section(1, true); section(20, true); section(21, true);
+    for (uint32_t family = 3; family <= 8; ++family) section(family, false);
+    if (root == 4) section(16, true);
+    section(2, true);
+    for (;;) {
+        cRZBaseString spelling;
+        uint32_t index = 0;
+        stream->GetGZStr(spelling); stream->GetUint32(index);
+        if (spelling.Strlen() == 3 && !std::memcmp(spelling.ToChar(), "end", 3) && index == 0xFFFFFFFF) break;
+        if (!bindings_.insertVisualName) {
+            fc4::Log("effectsres: visual-map insertion unavailable; replacement incomplete (EF27)");
+            return false;
+        }
+        bindings_.insertVisualName(Bytes() + 4, spelling.ToChar(), index);
+    }
     stream->GetUint8(Bytes()[0xD0]);
     if (Bytes()[0xD0]) {
         uint16_t version = 0;
         stream->GetUint16(version);
-        for (unsigned offset = 0xD4; offset <= 0xEC; offset += 4) {
-            auto& value = *reinterpret_cast<float*>(Bytes() + offset);
-            stream->GetFloat32(value);
-        }
+        ReadList(stream, At<Vector>(Bytes(), 0xD4), 1);
+        for (unsigned offset = 0xE0; offset <= 0xEC; offset += 4) stream->GetFloat32(At<float>(Bytes(), offset));
     }
-    if (!emptySection(false)) return false;
-    return emptySection(true);
+    section(22, false); section(23, true);
+    return true;
 }
 }
 
@@ -263,6 +440,11 @@ cIGZUnknown* CreateFC4EffectsResource() {
     StlNodeAllocateFn allocate = nullptr;
     StlNodeFreeFn release = nullptr;
     if (!construct || !publish || !StlNodeAllocator(&allocate, &release)) return nullptr;
+    if (!DirectCall(Direct::GlobalHeapAllocate)) return nullptr;
+    for (unsigned n = static_cast<unsigned>(Direct::EffectsParticleConstruct);
+         n <= static_cast<unsigned>(Direct::EffectsDynamicDestroy); ++n) {
+        if (!DirectCall(static_cast<Direct>(n))) return nullptr;
+    }
     FC4EffectsResourceBindings bindings{};
     bindings.constructCollection = [](void* receiver) {
         reinterpret_cast<void*(__thiscall*)(void*)>(DirectCall(Direct::EffectsCollectionConstruct))(receiver);
@@ -280,6 +462,64 @@ cIGZUnknown* CreateFC4EffectsResource() {
     bindings.allocateString = allocate;
     bindings.freeString = release;
     bindings.stringVtable = GameStringVtable();
+    bindings.allocateObject = [](uint32_t size) {
+        return reinterpret_cast<void*(__cdecl*)(uint32_t)>(DirectCall(Direct::GlobalHeapAllocate))(size);
+    };
+    bindings.constructDescription = [](uint32_t family, void* value) {
+        Direct target = Direct::EffectsDecalConstruct;
+        switch (family) {
+        case 0: target = Direct::EffectsParticleConstruct; break;
+        case 16: target = Direct::EffectsDynamicConstruct; break;
+        case 3: target = Direct::EffectsBrushConstruct; break;
+        case 4: target = Direct::EffectsAttractorConstruct; break;
+        case 5: target = Direct::EffectsScrubberConstruct; break;
+        case 6: target = Direct::EffectsSequenceConstruct; break;
+        case 7: target = Direct::EffectsSoundConstruct; break;
+        case 8: target = Direct::EffectsCameraConstruct; break;
+        }
+        reinterpret_cast<void*(__thiscall*)(void*)>(DirectCall(target))(value);
+    };
+    bindings.releaseDescription = [](uint32_t family, void* value) {
+        if (family == 0) {
+            // [abi-ret] effects.md 18.8.3: 005B1C80 is intrusive release, not assignment.
+            reinterpret_cast<uintptr_t(__thiscall*)(void*)>(DirectCall(Direct::EffectsParticleDrop))(value);
+        } else if (family == 16) {
+            if (--At<uint32_t>(value, 4) == 0) {
+                reinterpret_cast<void*(__thiscall*)(void*, uint32_t)>(DirectCall(Direct::EffectsDynamicDestroy))(value, 1);
+            }
+        } else {
+            auto** table = *static_cast<void***>(value);
+            // effects.md 18.7.1: component descriptions release through slot 5.
+            reinterpret_cast<uint32_t(__thiscall*)(void*)>(table[5])(value);
+        }
+    };
+    bindings.readDescription = [](uint32_t family, uint16_t version, cIGZIStream* stream, void* value) {
+        // effects.md 18.10.1: borrowed typed values; no helper AL success test.
+        if (family == 0 && version == 1) {
+            reinterpret_cast<void(__thiscall*)(void*, cIGZIStream*)>(DirectCall(Direct::EffectsParticleReadOld))(value, stream);
+        } else if (family == 2 && version == 1) {
+            reinterpret_cast<cIGZIStream*(__thiscall*)(void*, cIGZIStream*)>(DirectCall(Direct::EffectsVisualReadOld))(value, stream);
+        } else if (family >= 3 && family <= 8) {
+            auto** table = *static_cast<void***>(value);
+            reinterpret_cast<bool(__thiscall*)(void*, cIGZIStream*)>(table[2])(value, stream);
+        } else {
+            const Direct target = family == 0 ? Direct::EffectsParticleRead : family == 1 ? Direct::EffectsDecalRead :
+                family == 16 ? Direct::EffectsDynamicRead : Direct::EffectsVisualRead;
+            reinterpret_cast<void(__cdecl*)(cIGZIStream*, void*)>(DirectCall(target))(stream, value);
+        }
+    };
+    bindings.writeDescription = [](uint32_t family, cIGZOStream* stream, const void* value) {
+        if (family >= 3 && family <= 8) {
+            auto* table = *static_cast<void* const* const*>(value);
+            reinterpret_cast<bool(__thiscall*)(const void*, cIGZOStream*)>(table[3])(value, stream);
+        } else if (family == 1) {
+            reinterpret_cast<cIGZOStream*(__cdecl*)(cIGZOStream*, const void*)>(DirectCall(Direct::EffectsDecalWrite))(stream, value);
+        } else {
+            const Direct target = family == 0 ? Direct::EffectsParticleWrite :
+                family == 16 ? Direct::EffectsDynamicWrite : Direct::EffectsVisualWrite;
+            reinterpret_cast<void(__cdecl*)(cIGZOStream*, const void*)>(DirectCall(target))(stream, value);
+        }
+    };
     if (!bindings.stringVtable) return nullptr;
     return CreateFC4EffectsResourceWithBindings(bindings);
 }

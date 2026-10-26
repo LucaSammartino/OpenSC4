@@ -93,6 +93,27 @@ enum class Direct : unsigned {
     // effects.md 18.7.3, 18.9: collection services, never resource Read/Write.
     EffectsCollectionConstruct, // thiscall C, no args; EAX=this
     EffectsCollectionPublish,   // thiscall source C, destination C; void
+    EffectsParticleConstruct,
+    EffectsDecalConstruct,
+    EffectsDynamicConstruct,
+    EffectsBrushConstruct,
+    EffectsAttractorConstruct,
+    EffectsScrubberConstruct,
+    EffectsSequenceConstruct,
+    EffectsSoundConstruct,
+    EffectsCameraConstruct,
+    EffectsParticleReadOld,
+    EffectsParticleRead,
+    EffectsParticleWrite,
+    EffectsDecalRead,
+    EffectsDecalWrite,
+    EffectsDynamicRead,
+    EffectsDynamicWrite,
+    EffectsVisualReadOld,
+    EffectsVisualRead,
+    EffectsVisualWrite,
+    EffectsParticleDrop,
+    EffectsDynamicDestroy,
     Count
 };
 

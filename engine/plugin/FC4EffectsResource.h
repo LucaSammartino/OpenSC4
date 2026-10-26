@@ -35,5 +35,14 @@ struct FC4EffectsResourceBindings {
     void* (*allocateString)(uint32_t);
     void (*freeString)(void*);
     const void* stringVtable;
+    // Family numbers are the directory component types (0 particle, 1 decal,
+    // 3..8 built-ins, 16 dynamic, 2 visual); 17 is the collection camera.
+    // These are borrowed typed operations, never native resource Read/Write.
+    void (*constructDescription)(uint32_t family, void* value) = nullptr;
+    void (*releaseDescription)(uint32_t family, void* value) = nullptr;
+    void (*readDescription)(uint32_t family, uint16_t version, cIGZIStream*, void*) = nullptr;
+    void (*writeDescription)(uint32_t family, cIGZOStream*, const void*) = nullptr;
+    void* (*allocateObject)(uint32_t) = nullptr; // allocator C; containers use B above
+    void (*insertVisualName)(void* dictionary, const char*, uint32_t index) = nullptr;
 };
 cIGZUnknown* CreateFC4EffectsResourceWithBindings(const FC4EffectsResourceBindings& bindings);
