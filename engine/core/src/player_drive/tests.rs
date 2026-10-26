@@ -387,6 +387,10 @@ fn dashboard_selection_is_id_selection_only_and_preserves_zero_override() {
         .iter()
         .any(|op| matches!(op, Operation::WindowEnabled { .. })));
     assert_eq!(owner.show_ui(5), Err(Unsupported::DashboardShowUi));
+    assert_eq!(owner.dashboard_id(), Some(0x0BE8_824F));
+    assert_eq!(owner.dashboard, None); // An unresolved ShowUI must not invent a window.
+    assert_eq!(owner.update(), Err(Unsupported::UpdateGauges));
+    assert!(f.operations.is_empty());
 }
 
 #[test]

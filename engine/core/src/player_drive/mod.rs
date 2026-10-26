@@ -307,9 +307,11 @@ impl PlayerDrive {
         Err(Unsupported::NativeShutdown)
     }
     pub fn show_ui(&mut self, _id: u32) -> Result {
+        // SPEC-GAP: DR1 does not identify ShowUI resources, layout or interface bindings.
         Err(Unsupported::DashboardShowUi)
     }
     pub fn update(&mut self) -> Result {
+        // SPEC-GAP: DR1 does not publish gauge fields, formatting or tracking cadence.
         Err(Unsupported::UpdateGauges)
     }
     pub fn handle_key_effects(&mut self, _key: u32) -> Result {
