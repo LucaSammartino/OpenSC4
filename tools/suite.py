@@ -490,6 +490,7 @@ def write_results(directory, manifest, results):
 
 
 def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slots=6):
+    slots = min(slots, 6)  # Include waiting requests in the shared queue footprint.
     deadline = time.monotonic() + wait_seconds
     pending = {r['scenario']['name']: r for r in manifest['requests']}
     active = set(pending) if not submit else {
@@ -567,6 +568,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
 
 
 def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=7200, dry_run=False, slots=6):
+    slots = min(slots, 6)
     directory, manifest = make_batch(root, scenarios, profile, dll, tag, extra)
     if dry_run:
         print(f'prepared {len(scenarios)} requests (not submitted): {directory}')
@@ -673,7 +675,7 @@ def main(argv=None, root=ROOT):
     show.add_argument('tag'); show.add_argument('--against')
     resume = commands.add_parser('resume', help='harvest/restart a staged batch without resubmitting claimed labels')
     resume.add_argument('tag')
-    resume.add_argument('--slots', type=int, choices=range(1, 13), default=12)
+    resume.add_argument('--slots', type=int, choices=range(1, 13), default=6)
     resume.add_argument('--wait-seconds', type=int, default=7200)
     resume.add_argument('--seconds', type=int, help='bound only requests not yet claimed by the shared queue')
     resume.add_argument('--timeout', type=int)

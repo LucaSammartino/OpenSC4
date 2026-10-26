@@ -200,7 +200,10 @@ class SuiteParsingTests(unittest.TestCase):
                 self.assertIn(row['name'], ('berlin-tempelhof', 'berlin-schonerlinde'))
                 self.assertEqual(row['script'], '-')
                 continue
-            lines = [line.split() for line in (ROOT / row['script']).read_text().splitlines()
+            script = ROOT / row['script']
+            if script.suffix == '.lua':
+                script = script.with_suffix('.script')  # Lua establishes mayor mode first.
+            lines = [line.split() for line in script.read_text().splitlines()
                      if line and not line.startswith('#')]
             actions = {line[1] for line in lines}
             self.assertTrue({'zone', 'network', 'terrain', 'disaster', 'save', 'speed', 'clockmode'} <= actions)
@@ -372,7 +375,7 @@ class SuiteQueueTests(unittest.TestCase):
                 request.unlink()  # the shared poller has moved it to done/
 
             with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
-                _, results = suite.run_scenarios(root, rows, profile='plain', dll=str(root), tag='bounded')
+                _, results = suite.run_scenarios(root, rows, profile='plain', dll=str(root), tag='bounded', slots=12)
             self.assertEqual(len(set(completed)), 9)
             self.assertEqual(max(peak), 6)
             self.assertTrue(suite.successful(results))
