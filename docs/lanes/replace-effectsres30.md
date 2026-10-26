@@ -1,19 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| replace-effectsres30: effects resource; kind engine | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/replace-effectsres30; detached HEAD; reserved branch replace-effectsres30 | BLOCKED EF27; effectsres not ready; ABI exports unchanged; cargo 7959 PASS, clippy 0, CTest 134/134 | 1. Answer EF27. 2. Implement visual-map insertion. 3. Restore golden baselines, measure (a)-(c), enqueue engine. |
+| replace-effectsres30: effects resource; kind engine | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/replace-effectsres30; detached HEAD; reserved branch replace-effectsres30 | ready; code 309848372; EF27 implemented; ABI unchanged; cargo 8253 PASS, clippy 0, CTest 142/142; (a)-(c) measured below; native name shadow 4/4 exact, 13860 queries per mode; no questions | 1. Land engine tip. 2. Add effectsres to replace list and flip cSC4EffectsResource (28,498 B). |
 
-- Both requested branches were already ancestors of the starting main HEAD; restored the prior lane's omitted engine changes in d24ab2245.
-- Implemented EF26 typed renderer codecs/version selection and ordered nonempty resource sections; native values retain their allocator/ownership boundary.
-- Added nonempty shake/light IO, camera counted curve, bindings/triggers, map writer traversal, in-place shrinking and root-3 dynamic retention.
-- Visual-map **Read insertion remains unavailable**: the first nonterminator pair returns false and logs EF27; default-off effectsres is incomplete.
-- EF27 is filed in `docs/specs/questions/effects.md`: typed native insertion arguments/ownership or complete compatible string-hash insertion contract.
-- Focused checks: **6/6 PASS**, including four registration modes and return-channel review; EF26-C1 uses injected renderer dependencies to test the 86-byte decal, publication, source destruction and normalized write-back; EF26-C6 covers camera normalization. Auxiliary duplicate rows and interrupted shrinking pass.
-- Corrected-source `qbuild all`: cargo **7959/7959**, clippy **0 diagnostics**, native build **29/29**, CTest **134/134 PASS**.
-- Gate logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; verdict `build-runs/build-results/qbuild-20261026-182918-build-ctest.verdict`.
-- Gate's tree-change note is EF27 question text only; engine tree is identical to 4dce5a8a7, the source at gate start. Initial quick build's const-pointer compile error was fixed before the passing checks.
-- Native diagnostic **effectsres30-codecs-on1: clean**, 2026-04-01, foreign_exceptions=0, ref_warnings=0; native manager plus effectsres, not the house list. DLL SHA prefix 45ee85db.
-- Diagnostic log: `C:/Users/tlori/FreeCity4/build-runs/game-results/effectsres30-codecs-on1.log`; line **166** shows the shipped description sections reached the explicit EF27 map refusal. Its clean verdict is not payload equivalence.
-- **(a) NOT MET:** house list plus effectsres to 2032 unmeasured; complete resource Read is blocked by the refusal above. No house-acceptance verdict claimed.
-- **(b) UNMEASURED:** restored-golden owner shadow and both save/load directions were not run; no unchanged/exact or cross-save claim while resource Read is incomplete.
-- **(c) UNMEASURED:** gen27 Konradshohe s0-grow/s1-grow baseline/candidate pairs were not run; no differential failure claim.
-- **effectsres is not ready for the replace list.** No credit/list edits and no ready enqueue; local merge-queue entry is WIP, kind engine.
+- Merged main first (e19fbfab3); replace-effectsres28 was already an ancestor. Prior EF26 nonempty description/map/binding/trigger IO is retained.
+- EF27 uses independent native grow/insert helpers with counted borrowed pairs, explicit hidden iterator storage, count+1 growth before every insertion, native copied-key ownership and duplicate-preserving ordering. No native resource Read/Write delegation.
+- Focused resource test PASS: EF27-C1 retained old entry, two MiXeD indices, ten decoded visual records, exact terminator, source destruction and normalized bucket-order write; C3 insertion after first duplicate. Existing EF25/EF26 checks pass.
+- Game logs/verdicts: `C:/Users/tlori/FreeCity4/build-runs/game-results/effectsres30-r2-<suffix>.log` / `.verdict`; all acceptance DLLs SHA256 `66227506e1474b51c8276e4951e132ea9534c745064373b671b0950b1c2b12a7`.
+- Baseline: coordinator-restored FC4 Test/Konradshohe. House list was captured in this lane's `C:/Users/tlori/FreeCity4/build-runs/regress-effectsres30-r2-house-base-replace.ini`; profiles/scripts are in ignored build-runs requests.
+- **(a) PASS:** `house2` house list plus effectsres, clean to **2032-01-01**, foreign_exceptions=0, ref_warnings=0; log line 68869 verdict (see .verdict for counters).
+- **(b) PASS, native owner shadow:** `shadowoff1` and `shadowon1` clean/ref=0; **4/4 exact samples each**, 1,094,484 resource bytes, 1,154 entries and 3,465 queries/sample; mismatches=0, refusal=0, resyncs=0. Payload text is unchanged between modes.
+- Shadow scope is **name membership**; native payload/history attachment remains unavailable per EF22. The house effects mirror has zero activity and is not counted as equivalence evidence.
+- **(b) PASS, saves:** `offsave3` and `onsave4` clean/ref=0, all 4 actions, SaveCity(full) ok=1. `offload1` (on-save loaded key off) and `onload2` (off-save loaded key on) clean/ref=0 to **2026-05-01**; `offcontrol1` same off-save/key-off control also clean.
+- Save exports under `C:/Users/tlori/FreeCity4/build-runs/suite/states/effectsres30-r2/`: offsave3 SHA256 `894180979233d94b00dec7c02690cbe4c416f78b40f3b86a80b9907010ea560d`; onsave4 `3f31fee5ee4292d50e9b2dee266dff5b8886dc47a7f77cb6250245ac15d07989`; reload verdicts confirm exact input hashes.
+- **(c) PASS, s0-grow:** `s0off1` clean/ref=0 to 2028-01-30, `s0on1` clean/ref=0 to 2028-01-28; **216/216 actions each**, no candidate failure.
+- **(c) PASS, s1-grow:** `s1off1` corrupt before advancement, native +0xE2C06/ref=0; `s1on1` **clean/ref=0 to 2028-02-01, 216/216 actions**, no candidate failure. No quit-time construction fault was needed to excuse a candidate failure.
+- Retained failed attempts: `onsave3` plugin corrupt at 2026-01-30 (native +0x1DF76E/ref=0), harness-error because no save could export; unchanged-source `onsave4` passed, cause not attributed. `onload1` corrupt at native +0xE2C06/ref=0, also seen with key off in s1off1; unchanged onload2 and same-save offcontrol1 passed.
+- Request setup attempts house1/offsave1/onsave1 were rejected (settings outside [ini]); offsave2/onsave2 failed before game start (export path). They supply no acceptance evidence. Interrupted regression helper staged in Documents by default; stopped, unqualified, no acceptance claim.
+- **(d) qbuild all PASS once on final code:** cargo **8253/8253**, clippy **0 diagnostics**, native **29/29**, CTest **142/142**. Initial quick failed for missing compatibility target names, fixed before the passing quick/full gate.
+- Gate logs in WT build-runs: `qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`; verdict `build-results/qbuild-20261026-230253-build-ctest.verdict`. No Rust changed; formatting n/a.
+- No C ABI exports/version or replacement-list/coverage credit edits. No new spec questions; EF27 is answered and implemented.
+- **effectsres is ready for the replace list. Credit to flip: cSC4EffectsResource (28,498 B).** Queue kind engine; supervisor publishes detached HEAD to the reserved branch.
