@@ -197,3 +197,5 @@ pub mod model_background_loader;
 pub mod graphs_window;
 pub mod mysim_window;
 pub mod mysim_input_control;
+pub mod dispatch_vehicle_track_info;
+pub mod dispatch_vehicle_view;
