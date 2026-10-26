@@ -237,7 +237,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
-| application | 13 | 7 | AP20 | questions/application.md |
+| application | 14 | 7 | AP21 | questions/application.md |
 | audio | 3 | 17 | AU51 | questions/audio.md |
 | audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
@@ -277,14 +277,14 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 0 | 30 | EF27, EFP7 | questions/effects.md |
+| effects | 0 | 31 | EF28, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 2 | 3 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 8 | 10 | AO4, HG9, RN6, SV2, VC30 | questions/foundations.md |
+| foundations | 9 | 10 | AO4, HG9, RN6, SV2, VC30 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | freshness | 5 | 0 | FS6 | questions/freshness.md |
@@ -297,7 +297,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
-| gz-framework-core | 8 | 5 | GZF14 | questions/gz-framework-core.md |
+| gz-framework-core | 9 | 5 | GZF14 | questions/gz-framework-core.md |
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
@@ -396,8 +396,8 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
-| terrain | 9 | 38 | TR48 | questions/terrain.md |
-| terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
+| terrain | 9 | 39 | TR48 | questions/terrain.md |
+| terrain-view | 3 | 1 | TV5 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
@@ -434,4 +434,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **609** | **1696** | | |
+| **total** | **613** | **1698** | | |
