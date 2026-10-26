@@ -3,6 +3,7 @@
 #include "FC4LotRecordShadow.h"
 #include "FC4LotRecordObservation.h"
 #include "FC4LotRecordView.h"
+#include "FC4LotWallReplay.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
@@ -15,14 +16,19 @@
 #include "cISC4City.h"
 #include "cIGZAllocatorService.h"
 #include "GZServPtrs.h"
+#include "cRZCOMDllDirector.h"
+#include "cIGZCOM.h"
 #include "fc4.h"
 #include <algorithm>
 #include <vector>
 
 extern "C" int32_t fc4_lotrec_verify(const uint8_t*, uint32_t, uint8_t*, uint32_t, uint32_t*);
-extern "C" int32_t fc4_lotowner_verify(uint32_t, const uint8_t*, uint32_t, uint8_t*, uint32_t);
+extern "C" int32_t fc4_lotowner_verify(uint32_t, const uint8_t*, uint32_t, uint8_t*, uint32_t, bool);
 extern "C" bool fc4_lotrec_project_view(const uint8_t*, uint32_t, uint32_t*);
 namespace fc4 { namespace {
+struct WallMethods {
+    uint64_t reads = 0, writes = 0, mismatches = 0;
+} wallMethods;
 template<class R, class... A> R Call(void* p, unsigned slot, A... args) {
     using F = R (__thiscall*)(void*, A...);
     return reinterpret_cast<F>((*static_cast<void***>(p))[slot])(p, args...);
@@ -147,6 +153,26 @@ struct OwnerSample {
     cIGZSerializable* serializable = nullptr;
     bool captured = false, complete = false;
     int removed = -1;
+    cIGZSerializable* replay = nullptr;
+    std::vector<uint8_t> replayRecord;
+    bool replayed = false;
+    uint32_t readChanges = 0;
+
+    static void ReplayWall(void* p) {
+        auto& s = *static_cast<OwnerSample*>(p);
+        auto* director = RZGetCOMDllDirector();
+        auto* com = director ? director->GZCOM() : nullptr;
+        if (!com || !com->GetClassObject(s.classId, 0xE4FDA3D4,
+            reinterpret_cast<void**>(&s.replay)) || !s.replay) return;
+        FC4_ACQUIRED(s.replay, "lotwall detached replay factory");
+        LotWallInput input(s.capture, s.replayRecord);
+        ++wallMethods.reads;
+        if (!s.replay->Read(input) || !input.AtEnd()) return;
+        s.capture.BeginRecord(); // preserve the original reference-identity mapping
+        ++wallMethods.writes;
+        s.replayed = Call<uint32_t>(s.replay, 3, static_cast<cIGZOStream*>(&s.capture)) == 1 &&
+            s.capture.GetError() == 0;
+    }
 
     static void Capture(void* p) {
         auto& s = *static_cast<OwnerSample*>(p);
@@ -166,19 +192,40 @@ struct OwnerSample {
         const bool safe = SehGuard("LR15 owner Write", &Capture, this);
         if (serializable) { FC4_RELEASE(serializable); serializable = nullptr; }
         if (!safe || !captured) { observation.Record(false, false, false); return; }
-        const auto& record = capture.Bytes();
+        // Read is a state transition, not an identity decoder (§7/T7/T88).
+        // Retain every input byte; compare native and core after the same
+        // transition. Never patch masks or adopt the native output as state.
+        const auto record = capture.Bytes();
         bytes += record.size();
         std::vector<uint8_t> encoded(record.size());
         const int32_t n = fc4_lotowner_verify(classId, record.data(), static_cast<uint32_t>(record.size()),
-            encoded.data(), static_cast<uint32_t>(encoded.size()));
-        const bool equal = n >= 0 && static_cast<size_t>(n) == record.size() && encoded == record;
+            encoded.data(), static_cast<uint32_t>(encoded.size()), false);
+        bool snapshotEqual = true;
+        if (type == 0x895D1169) {
+            std::vector<uint8_t> snapshot(record.size());
+            const int32_t size = fc4_lotowner_verify(classId, record.data(), static_cast<uint32_t>(record.size()),
+                snapshot.data(), static_cast<uint32_t>(snapshot.size()), true);
+            snapshotEqual = size >= 0 && static_cast<size_t>(size) == record.size() && snapshot == record;
+            replayRecord = record; replayed = false;
+            const bool safeReplay = SehGuard("lotwall detached Read/Write", &ReplayWall, this);
+            if (replay) { FC4_RELEASE_CREATED(replay); replay = nullptr; }
+            if (!safeReplay || !replayed) {
+                ++wallMethods.mismatches;
+                observation.Record(true, false, false);
+                return;
+            }
+            readChanges += capture.Bytes() != record ? 1u : 0u;
+        }
+        const auto& native = type == 0x895D1169 ? capture.Bytes() : record;
+        const bool equal = snapshotEqual && n >= 0 && static_cast<size_t>(n) == native.size() && encoded == native;
+        if (type == 0x895D1169 && !equal) ++wallMethods.mismatches;
         observation.Record(true, n >= 0, equal);
         if (!equal && observation.Mismatches() <= 8) {
             size_t offset = 0;
-            while (offset < record.size() && record[offset] == encoded[offset]) ++offset;
+            while (offset < native.size() && offset < encoded.size() && native[offset] == encoded[offset]) ++offset;
             Log("%s-shadow: difference index=%u bytes=%u encoded=%d first=%u native=%u core=%u",
                 label, observation.visited - 1, static_cast<uint32_t>(record.size()), n,
-                static_cast<uint32_t>(offset), offset < record.size() ? record[offset] : 0,
+                static_cast<uint32_t>(offset), offset < native.size() ? native[offset] : 0,
                 offset < encoded.size() ? encoded[offset] : 0);
         }
     }
@@ -230,6 +277,7 @@ struct OwnerSample {
     }
     static void Cleanup(void* p) {
         auto& s = *static_cast<OwnerSample*>(p);
+        if (s.replay) { FC4_RELEASE_CREATED(s.replay); s.replay = nullptr; }
         if (s.block) {
             s.removed = safelots::Release(s.block, s.freeNode, s.freeBlock, 65536);
             if (s.removed < 0) ++s.observation.errors;
@@ -251,10 +299,22 @@ struct OwnerSample {
             s.differences, s.errors, complete && s.expected == 0 && s.Mismatches() == 0 ? 1u : 0u,
             bytes, masters.visited, masters.expected,
             type == 0 ? "master-rooted-units" : "full-grid-registered-occupants", s.Mismatches());
+        if (type == 0x895D1169) {
+            Log("lotwall replay: native_read_changes=%u mode=detached-native-and-core-read-write resyncs=0", readChanges);
+            // Bytes/returns are compared; reference/QI lifetime calls and
+            // nonsaved fields are not traced. No whole-method credit.
+            if (!loaded) {
+                Log("lotwall method 0x005E2AB0 cSC4LotRetainingWallOccupant::Write (month) %04d-%02d-%02d: calls=%llu complete=0 mismatches=%llu; resyncs=0",
+                    date.year, date.month, date.day_of_month, wallMethods.writes, wallMethods.mismatches);
+                Log("lotwall method 0x005E2B40 cSC4LotRetainingWallOccupant::Read (month) %04d-%02d-%02d: calls=%llu complete=0 mismatches=%llu; resyncs=0",
+                    date.year, date.month, date.day_of_month, wallMethods.reads, wallMethods.mismatches);
+            }
+        }
     }
 };
 }
 void LotRecordShadowObserve(cISC4City* city, int32_t julian, bool loaded) {
+    if (loaded) wallMethods = {};
     static const bool enabled = SettingInt("lotrec_shadow", "FC4_LOTREC_SHADOW", 0) != 0;
     static const bool tripEnabled = SettingInt("lottrip_shadow", "FC4_LOTTRIP_SHADOW", 0) != 0;
     static const bool unitEnabled = SettingInt("lotunit_shadow", "FC4_LOTUNIT_SHADOW", 0) != 0;

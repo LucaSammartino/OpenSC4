@@ -1022,17 +1022,39 @@ fn tunnel_offsets_and_means() {
 }
 
 #[test]
-fn diagonal_end_extension() {
-    struct Ext;
+fn underground_end_extension_uses_steps_and_preserves_staircase() {
+    struct Ext(std::cell::RefCell<Vec<(i32, i32)>>);
     impl GeometryHost for Ext {
         fn extends_diagonal_end(&self, x: i32, z: i32, _t: u32) -> bool {
-            (x, z) == (6, 5)
+            self.0.borrow_mut().push((x, z));
+            true
         }
     }
     let t = flat();
     let mut g = geo();
-    // (0, 0) → (5, 4): end direction 5 (+x +z), the next cell (6, 5).
-    g.draw_network_line(ROAD, (0, 0), (6, 4), true, &t, &Ext);
-    assert_eq!(g.run.dragged_count, 7);
-    assert_eq!(g.run.cells.last(), Some(&(6, 5)));
+    let host = Ext(Default::default());
+    g.draw_network_line(PIPE, (4, 4), (6, 4), false, &t, &host);
+    assert_eq!(*host.0.borrow(), [(3, 4), (7, 4)]);
+    assert_eq!(g.run.cells, [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]);
+    assert_eq!((g.run.straight_count, g.run.dragged_count), (5, 5));
+    host.0.borrow_mut().clear();
+    g.draw_network_line(PIPE, (4, 4), (6, 5), false, &t, &host);
+    assert_eq!(*host.0.borrow(), [(3, 3), (7, 6)]);
+    assert_eq!(
+        g.run.cells,
+        [(3, 3), (4, 3), (4, 4), (5, 4), (5, 5), (6, 5), (6, 6), (7, 6)]
+    );
+    assert_eq!((g.run.straight_count, g.run.dragged_count), (0, 5));
+    assert_eq!(
+        g.run.steps.iter().map(|s| s.last - s.first + 1).collect::<Vec<_>>(),
+        [1, 2, 2, 2, 1]
+    );
+    host.0.borrow_mut().clear();
+    g.draw_network_line(ROAD, (4, 4), (6, 4), false, &t, &host);
+    assert!(host.0.borrow().is_empty()); // base slot 64 is false
+    g.draw_network_line(PIPE, (4, 4), (4, 4), false, &t, &host);
+    assert!(host.0.borrow().is_empty()); // length gate, even with matching neighbours
+    g.draw_network_line(PIPE, (0, 4), (1, 4), false, &t, &host);
+    assert_eq!(*host.0.borrow(), [(2, 4)]); // unsigned bounds gate skips (-1,4)
+    assert_eq!((g.run.straight_count, g.run.dragged_count), (3, 3));
 }
