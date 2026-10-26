@@ -254,7 +254,9 @@ Proved order and mode differences:
    creates missing line occupants for each wire cell: allocate 0x58, construct, AddRef, Init, set its mode,
    bind its endpoints and pivot flag, set its position from ComputePolePosition, and store the interface
    in that wire-cell record. Endpoint selection uses unsigned lexicographic **(z,x)** order.
-5. Finish both endpoint connections in source/destination order. For a wire-bearing link the wire vector
+5. **Real mode only:** finish both endpoint connections in source/destination order. Draft skips these
+   generated-link builder calls altogether (`0x00651C2B–0x00651C34`); its later queued repairs are separate.
+   For a wire-bearing link the wire vector
    is supplied to the endpoint chosen by that ordering; the other endpoint receives null. For index -1
    both receive null. The connection geometry builder `0x0064E3E0` is specified in §§5.3,5.5.
 6. After generated links, real mode releases and nulls stored wire interfaces through the pole-link walk
@@ -290,15 +292,21 @@ Do these passes in order; empty each corresponding list after its pass:
 1. Newly created draft poles: occupant SetHighlight(0,0). If occupant manager exists, remove occupant
    with `(AsOccupant,true,false)` and Release the pole. With no manager this Release is also skipped.
 2. Reused poles: SetHighlight(0,0), primary slot 14(0), Release.
-3. Saved connection edits: if endpoint A is nonnull, restore its connection-to-B state using
-   `0x00649910(A,B,true)`, Release A and null it; then if B is nonnull restore its connection-to-A state,
-   Release B and null it. Restoration selects the canonical direction using unsigned (z,x) ordering.
+3. Saved connection edits: if endpoint A is nonnull, invoke `0x00649910(A,B,true)`, Release A and null it;
+   then if B is nonnull invoke **`0x00649910(B,B,true)`**, Release B and null it. The second call's
+   self argument is a native quirk, not a B→A restore. No saved state byte is read here. On an ordinary
+   A↔B connection the second call finds no B→B record, so B's owning byte stays disabled. The first
+   call selects A's owning byte by unsigned (z,x) ordering (`0x0064F4E6–0x0064F525`; specifically
+   B ECX and B stack argument at `0x0064F507–0x0064F511`, also checked against executable bytes).
 4. Call the base cleanup at `0x00625580`.
 
 No rebuilding of pole positions or wire cells happens in this undo entry. The call order and the unusual
 manager-null release branch are verified at `0x0064F407–0x0064F55C`.
 
 ### 5.2 Connection support contracts
+
+The exact x86 argument/return channels, fixed interface views, container layouts/allocators and the
+native-tool replacement boundary are in [network-occupants §4.6.3](network-occupants.md#463-native-power-line-tool-boundary-compat-no44-from-replace-netocc27).
 
 `0x00649910(self, other, enable)` locates the **first** connection record whose endpoint pointer equals
 other, scanning `self+0xAC..+0xB0` in 44-byte strides. It reads other's cell even if the connection vector

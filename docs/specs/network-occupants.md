@@ -1554,6 +1554,226 @@ SetDefaultExemplar with an unchanged pointer is inert; a changed exemplar is hel
 releasing the old, then LoadModel and InitConnectionPoints run, followed by RebuildWires on
 this and the destination for each record (`0x0064D910–0x0064D98C`).
 
+#### 4.6.3 Native power-line tool boundary *[compat; NO44 from replace-netocc27]*
+
+This answers the **power-line-tool/replacement-pole** question filed on 2026-10-25; the earlier
+answered pylon-constructor question also used NO44. The two questions are distinct. The rules here
+cover the native tool, its undo/zone-repair paths and pole demolition in GOG 1.1.641. Geometry and
+cell enumeration retain the algorithms in §4.6.1–§4.6.2 and power-line-tool §§5.3,5.5.
+
+**Pointer views and calls.** In this section P and Q mean primary `cISC4PowerPoleOccupant`
+interfaces, IID `0xA8C86142`, at the native object's base. QI for the class ID `0x09C05C6A`
+also returns that address, counted. The occupant-manager's `cISC4Occupant` address is P+8;
+the exemplar interface is P+0x24. These are subobjects with their own vtables, not pointers
+stored in those fields. P's slot 3 returns the occupant view without taking a reference, but
+several tool paths form P+8 directly instead of calling slot 3. A QI result with the right
+primary methods alone does not establish those additional fixed views.
+
+All four pole entries below use **x86 thiscall**: ECX is P, stack arguments are in the listed
+order, each occupying four bytes, callee pops **8**, caller pops **0**. No hidden result or
+output-container argument is added. Registers EAX/ECX/EDX are scratch; EBX/ESI/EDI/EBP are
+preserved. A boolean input reads only its low byte. A boolean result is defined in **AL**;
+the rest of EAX is not a boolean result.
+
+| Entry | Two stack arguments, in logical order | Return / required pointer views |
+|---|---|---|
+| Direct `0x00649910`, enable connection drawing | Q; enable boolean | **void**. ECX must be the concrete pole base; Q must be a non-null primary pole interface. Q's slot 8 is called even when P has no records. |
+| Direct `0x0064E3E0`, AddConnection | Q; optional wire-vector-header pointer | **void**. ECX must be the concrete pole base. Null Q is an immediate no-op; otherwise Q is a primary pole interface and, on the owning branch, is also passed as a concrete base to GetAttachmentPoints. |
+| Primary slot 5, `0x0064BE50`, GetLineCells | signed connection index; cell-vector-header pointer | boolean in AL. Valid writable output header required; there is no null-output guard. |
+| Primary slot 16, `0x00649DD0`, GetLineCellsTo | Q; cell-vector-header pointer | boolean in AL. Search by exact Q pointer, then call P's slot 5 for the first match. A null Q can match a null endpoint record. |
+
+For both direct helpers, an incidental EAX value, another virtual call's result, or an x87
+value is **not** a return channel. Neither helper consumes a caller-owned P/Q reference.
+The already documented direct RemoveConnection at `0x0064DA00` has the same primary-base
+ECX/Q views, two stack dwords (Q, quiet), pop 8 and void result. It removes only P's first
+pointer-matching record; a reciprocal removal is a separate operation.
+
+The enable helper searches P's native vector at +AC/+B0 in 0x2C-byte strides for the first
+exact Q pointer. False changes only record byte +9 to zero. True calls Q's GetCell again
+and sets that byte to the unsigned comparison `(P.z,P.x) < (Q.z,Q.x)`, using P's stored
++CC/+C8. No match changes nothing. No allocation, erase, AddRef/Release, dirty flag,
+geometry rebuild or notification accompanies this operation. AddConnection instead rejects
+an existing **cell pair**, not an existing pointer; its new record retains Q once and follows
+the geometry/reference-copy rules below. Evidence: enable argument setup/body/returns
+`0x00649916–0x006499A4`; AddConnection entry/gates `0x0064E3E9–0x0064E47F`, Q retention
+`0x0064E4C9–0x0064E4F9`, cleanup/return `0x0064E886–0x0064E91C`; slot-5/16 dispatch and
+AL returns `0x0064BE58–0x0064BEED`, `0x0064BFB2–0x0064BFC8`, `0x00649DD0–0x00649E43`.
+
+**Containers crossing the boundary.** All addresses and header words here are 32-bit.
+These are native containers, not a host-language vector, array descriptor or linked-list API.
+
+| Container | Header / element layout | Ownership at this call boundary |
+|---|---|---|
+| Optional wire vector supplied to AddConnection | 12-byte header: begin +0, used-end +4, capacity-end +8. Contiguous **16-byte** items: signed cell x +0, signed cell z +4, primary `cISC4PowerLineOccupant` pointer +8 (IID `0xC98F3B24`), pivot byte +C; +D…+F are padding. Used count is (end−begin)/16. | Header, buffer and existing line refs belong to the caller/tool. Null header or empty range copies nothing. The owning connection reads items in order and AddRefs each +8 interface once, including duplicates; no null-line test. It does not clear, free, retain the header, or consume the caller's refs. The non-owning connection ignores this input entirely. |
+| A pole's stored line list | Connection record +4 is **one sentinel pointer**, not a 12-byte vector. Sentinel and each node are 12 bytes: next +0, previous +4, primary line interface +8. Empty sentinel links to itself; its payload is unused. No stored count. | The logical connection owns each retained line reference, its nodes and sentinel. RemoveConnection removes each line from the manager and releases it, even if the inserted byte is false (§4.6.2). Container-only relocation/destruction frees storage without extra pointer AddRefs/Releases. |
+| Connection vector | Pole +AC/+B0/+B4 are begin/end/capacity pointers. Each **44-byte** record is the layout in §4.6: pole +0, sentinel +4, inserted/owning bytes +8/+9, other cell +C/+10, sampled-curve vector +14, coarse-curve vector +20. | Native AddConnection allocates/appends into this vector. Its nested outer vectors have 12-byte begin/end/capacity headers, with 12-byte inner-vector headers as elements; each inner buffer contains 12-byte f32 xyz points. None of these buffers aliases the input wire vector. |
+| Slot-5/16 cell output | Caller-owned **12-byte** begin/end/capacity header. Contiguous **8-byte** values: signed x +0, signed z +4. Empty initialization is three null pointers. Existing nonempty storage must be a valid native allocation of these values. | The callee mutates the header and may replace/free its old buffer. It returns values, with no occupant refs. The caller owns the resulting buffer and frees it when finished; the pole retains neither header nor buffer. |
+
+The ordinary container allocator/free entries used here are `0x0090CF54` and `0x0090CF63`.
+Each is **cdecl**, one four-byte stack argument, callee pop 0, caller cleanup 4: byte count
+to allocate (pointer in EAX), or buffer/node address to free (no result used). They forward
+to the allocator owner at `0x00B62698`; the export's constructor/destructor names do not
+describe these storage operations. A buffer the native caller will grow/free must use
+this allocator pair. A host allocator's pointer is not interchangeable with it. Pole and
+line **object pools** are separate from these ordinary container allocations (§4.1.1, §5.1).
+
+On a local successful slot-5 lookup, clear the output by setting end=begin, **preserving
+the allocation/capacity**, then emit §4.6.1's ordered cell values. Insufficient capacity
+allocates a replacement, copies used values, frees the former begin and updates all three
+header pointers. For the native single-item growth used here, new capacity is used count
+plus max(used count,1): an initially empty output grows through 1,2,4,… elements. No shrink
+occurs when clearing/reusing a sufficient allocation. Invalid index or absent slot-16
+match returns false **without changing any output word or old contents**. A non-owning
+slot-5 record with non-null Q delegates to Q's slot 16 with P and the same header; it does
+not clear locally and propagates AL. These delegation rules require a working reverse
+connection; there is no cycle guard. The tool initializes temporary headers to null, walks
+the returned values and frees begin; it does not adopt a pole's internal connection buffer.
+
+AddConnection first makes temporary list/curve storage, then deep-copies that storage into
+the appended record. Its one Q AddRef and each line AddRef transfer to the logical stored
+record; the deep copy does **not** AddRef the pointers a second time. It then frees the
+temporary nodes/sentinel, inner point buffers and outer buffers, without releasing those
+transferred pointer refs. The caller's wire vector remains intact and can immediately be
+reused or destroyed after its own refs are handled. Evidence: list append/16-byte stride
+`0x0064B6E0–0x0064B749`; stored-record copy `0x0064CFA0–0x0064D01A`; allocation/free wrappers
+`0x0090CF54–0x0090CF71`; clear `0x00606870–0x0060689A`; cell append and growth/free
+`0x0064BF40–0x0064BFB0`, `0x007C61A0–0x007C62A2`. The AttachLines helper's destination
+argument is the **connection record address** (it reads the sentinel at argument+4), not
+the address of a standalone vector or of the sentinel word.
+
+**Native call order when drawing or extending.** “Real” is the tool's +50 byte; the
+PlacePoles boolean means allow displaced-connection repair, not real/preview. The complete
+record-generation rules remain in power-line-tool §§4–5; the pole-facing sequence is:
+
+1. Probe cells through the occupant manager and QI `0xA8C86142`. The last position-matching
+   pole is returned with one owned QI reference. A probed line returns **counted** endpoint
+   primary pole interfaces through line slot 3; their cells are read through pole slot 8.
+   Saved old-span endpoints A,B and their state bytes remain in the generated pole record.
+2. Create/reuse **all** generated poles before linking. Native CreatePowerPole
+   (`0x00650140`, tool-base ECX, one stack pointer to the 48-byte pole-info record, pop 4,
+   void) probes again. A new pole comes from the native 0x124-byte pool allocation
+   `0x006499D0` and concrete constructor `0x0064DB30`, then primary AddRef and slot 15
+   Init(exemplar,kind). **It does not call the COM pole factory.** Reuse keeps the probe's
+   counted primary pointer, ORs the requested kind with the dword at P+B8, and invokes
+   SetDefaultExemplar through the fixed P+24 view, slot 3. In both cases it writes kind
+   directly to P+B8, computes the position, calls fixed P+8 occupant slot 9 SetPosition,
+   then primary slot 14 SetPreview(not real). The record owns the one pole reference.
+3. For each record with saved A/B, read cells through their primary slot 8. With both
+   endpoints present, real mode calls direct RemoveConnection(A,B,false), then the
+   reciprocal direct call. Draft uses direct enable(A,B,false), then enable(B,A,false),
+   retaining the old records and their line refs/geometry. A nonzero saved A-state queues
+   (A,new pole); a nonzero B-state queues (B,new pole), in that order, each endpoint
+   AddRefed independently. Draft with both endpoints transfers their descriptor refs to
+   the undo list; otherwise release them. Clear the record's saved pointers.
+4. For each generated directed link, read the source's count through primary slot 4 and
+   borrowed neighbours through slot 7. An exact destination pointer already present skips
+   the link. **Draft skips the remaining generated-link construction altogether**: no
+   permanent line allocation and no AddConnection calls for that link. Real mode creates
+   any missing native line occupants for the wire cells (0x58-byte pool/constructor,
+   primary AddRef, line occupant Init, preview=false, endpoint binding and position),
+   storing one counted primary line pointer per wire item. A nonnegative wire index
+   supplies its header only to the endpoint earlier in unsigned (z,x) order; the other
+   receives null. Index −1 supplies null to both. Call direct AddConnection on source
+   first, destination second. The native builder itself chooses the owning record.
+5. Real mode releases/nulls tool-held wire refs through the link walk **only for indices
+   greater than 0**, so index 0 is skipped by that pass. Newly created poles are inserted
+   with manager slot 20(P+8,0). Draft highlights through fixed P+8 occupant slot 17(3,0),
+   appends P to the new/reused preview list and AddRefs for that list. Real calls primary
+   slot 9 InsertLines for every pole, including reused poles. Release and null the
+   per-record pole pointer.
+6. Process queued displaced pairs in append order. Draft calls direct AddConnection in
+   **both directions with null wire vectors**, even when allowRepair=false. Real with
+   allowRepair=true releases the current pole infos, clears wire-vector storage, draws
+   the saved pair's cells with snap=0, determines poles and recursively PlacePoles(false).
+   Real with allowRepair=false skips that rebuild. Release each queued pair's two refs.
+
+Evidence: factory bypass/fixed views/kind `0x00650140–0x00650241`; saved endpoint calls
+`0x00651880–0x00651A76`; generated-link probe and **draft early skip**
+`0x00651BD0–0x00651C34`; native line construction and source/destination builder calls
+`0x00651CD4–0x00651DAD`; insertion/reference passes `0x00651DDC–0x00651F37`;
+queued repair `0x00651F50–0x0065209D`.
+
+**Preview undo, in order** (`0x0064F3F0`, tool slot 16): new preview poles get fixed P+8
+SetHighlight(0,0), manager RemoveOccupant(P+8,true,false), then primary Release. Both the
+manager call **and Release** are skipped if the manager is absent. Reused preview poles
+get fixed P+8 SetHighlight(0,0), primary SetPreview(false), Release. Empty each list's
+nodes after its pass. For every saved descriptor, if A exists call enable(A,B,true),
+Release A and null the stored A. Then if B exists call **enable(B,B,true)**, Release B
+and null it. Finally empty the edit-list nodes and run base cleanup.
+
+The second call is a native **self-argument quirk**, not a reciprocal B→A restore. It
+does not consult the saved state bytes. In an ordinary A↔B span with no B→B record, B's
+old owning byte stays disabled. If B was the lexicographically earlier endpoint, undo
+does not restore that span's owner byte. Do not infer a missing A argument from the
+function name. Evidence: `0x0064F407–0x0064F49D`, first restore/release/clear
+`0x0064F4E6–0x0064F500`, second call's B ECX and B stack argument
+`0x0064F507–0x0064F511`, release/clear `0x0064F516–0x0064F525`. The last sequence was
+also checked directly against the executable bytes.
+
+**Zone repair and demolition.** Zone update QIs queried occupants for the primary pole
+interface. For an accepted pole: slot 4 count; for each index slot 5 into an initially
+empty caller-owned cell vector; slot 7 borrowed neighbour; FindNewPolePosition as in
+power-line-tool §6.2; free that temporary buffer. That helper uses the neighbour's slot 8
+and the same CreatePowerPole, DeterminePolePositions and PlacePoles(true) chain. For an
+accepted line, obtain counted endpoint refs, call first endpoint slot 16(second,cell out),
+then compare the cells to the line's slot-5 cell. A matched split removes first→second
+and second→first through **direct** `0x0064DA00`, then attempts the two relocations in
+order. Release the endpoint refs and temporary cell buffer. After wire repairs, retained
+poles receive primary slot 6(true), manager RemoveOccupant(P+8,true,false), and Release.
+The native backward-split indexing issue remains power-line-tool NT22; no new bound or
+recovery rule is implied. Evidence: `0x0065249D–0x006525AC`,
+`0x0065272D–0x0065283A`, `0x00652890–0x006528B1`.
+
+DemolishOccupant QIs the occupant for the pole interface and obtains cost from primary
+slot 10 (int64 **EDX:EAX**). For actual demolition it enumerates slot 4/slot 7, AddRefs
+each borrowed neighbour into a temporary vector, sends pre-demolition `0xAA7A014D`, then
+manager RemoveOccupant(original occupant,false,false). Only on successful removal call
+primary slot 6(true), then the original occupant's Shutdown (slot 4). Check each held
+neighbour's primary slot 4 afterwards: zero-count neighbours yield a counted occupant QI
+`0x26BB767E`, transferred to the orphan output list or released when that output is null.
+Destroy the neighbour-reference vector and release the pole QI. No concrete connection
+record is handed to this demolition caller (demolition §4.3;
+`0x0046927F–0x0046939A`). Native pole Shutdown itself calls primary slot 6(true) again.
+Native slot 6 calls direct RemoveConnection on **each destination as ECX**, with this
+pole and quiet=false, before clearing its own record with the caller's quiet. Its local
+records remain allocated/countable (§4.6.2; `0x0064BC85–0x0064BC8D`,
+`0x0064DAE5–0x0064DB22`).
+
+**What must be interposed or represented.** The native tool does not directly walk a
+pole's +AC connection vector outside the pole helpers/virtual implementations. The
+native container ABI is nevertheless mandatory for buffers passed back to the tool.
+The native pole connection layout is required whenever a native body below is allowed
+to operate on a replacement pole; a vtable-compatible primary pointer alone is unsafe.
+
+| Native access boundary | Concrete requirements if that native body is retained |
+|---|---|
+| CreatePowerPole, including extension and zone relocation | Native allocator/constructor for a new pole; fixed occupant +8 and exemplar +24 views; readable/writable kind +B8. Factory registration alone cannot change its construction. |
+| Direct enable, RemoveConnection and AddConnection | Enable reads +AC/+B0, stored +C8/+CC and writes record +9. RemoveConnection owns/erases native records and nested storage. AddConnection reads/grows +AC/+B0/+B4, reads world position +A0/+A8 and stored cell +C8/+CC, writes +D0, and uses the fixed occupant +8 notification view. |
+| AddConnection's owning geometry branch | Direct GetAttachmentPoints `0x00649BA0` is called with **both endpoint bases**: it reads each endpoint's attachment-table pointer +E4 and world xyz +A0/+A4/+A8, not an interface getter. Thus native-self/replacement-other is also a concrete-layout crossing. |
+| Reused-pole exemplar update | Fixed +24 slot 3 is virtual, but the native implementation `0x0064D910` obtains its base by subtracting 0x24, loads model/attachment table, walks its native records and directly calls RebuildWires `0x0064D510` on **self and each other pole**. RebuildWires reads native connection/position/cell storage, writes +D0 and calls GetAttachmentPoints on both endpoints. |
+| Demolition, zone removal and preview removal | The outside callers use interfaces/fixed +8. Native slot 6's outgoing direct RemoveConnection can enter a replacement **destination** even when the removed pole is native. Native Shutdown and other native pole virtual bodies require their own documented concrete layout if executed. |
+
+GetAttachmentPoints is thiscall, concrete-base ECX, orientation dword (low byte used) and
+caller-owned 48-byte output for four xyz triplets, pop 8; callers use the output, not a
+return value. RebuildWires is thiscall, concrete-base ECX and one primary other-pole stack
+argument, pop 4, void. Evidence for these additional crossings:
+`0x00649BB7–0x00649CF8`, `0x0064E5C0–0x0064E5DF`,
+`0x0064D942–0x0064D97F`, `0x0064D51A–0x0064D58B`, `0x0064D685–0x0064D695`.
+
+There is **no unavoidable caller-side demand for native connection storage** in these
+audited paths if the concrete operations are interposed before they execute. Such a
+boundary must cover CreatePowerPole's construction/kind/fixed-view accesses (or provide
+those views/field), all three direct connection operations, and the reciprocal/geometry
+crossings from native neighbours. In particular, routing only calls whose **self** is a
+replacement misses native AddConnection's other-end attachment read and native exemplar
+refresh's direct RebuildWires on the other pole. Routing GetAttachmentPoints for foreign
+endpoints and RebuildWires for foreign self, or replacing the enclosing operations, avoids
+those reads without exposing a native connection vector. Replacement virtual methods
+must own their behavior rather than enter concrete native pole bodies with incompatible
+storage. If any such crossing is left native, expose all layout and allocator invariants
+it uses. This is a boundary contract, not evidence that any particular interposition has
+been installed or tested in game, nor a full-program inventory beyond these paths.
+
 ### 4.7 Position, model, effect and drawing *[compat]*
 
 **Position** (occupant slot 9 `SetPosition(p)`, `0x0064C540`): the position becomes `p`; the model is moved
@@ -2989,3 +3209,55 @@ Each test names its section. A "city" is a fresh 64 × 64 city unless stated oth
     Repeat on the now-uninitialized line: no releases or removal post, return true. Separately,
     assigning P back to an equal field still calls AddRef(P) before Release(P); verify each field
     independently and check that +54 is written only after the second field.
+75. **Direct connection call boundary** (§4.6.3). Enter enable with primary P in ECX, primary Q
+    and a four-byte false stack argument: exactly 8 argument bytes are popped, no result is
+    consumed, and Q's GetCell is called even for an empty P vector. With two Q-pointer records,
+    only the first +9 byte is cleared; no reference, dirty, geometry or notification changes.
+    True makes a second GetCell call after a match and writes the unsigned (z,x) comparison.
+    AddConnection with null Q is inert and still pops 8. Supply distinct primary/occupant
+    addresses in boundary fixtures so an accidental occupant-view ECX or other argument fails.
+76. **Wire-vector ownership** (§4.6.3). Give an owning AddConnection a native 12-byte header
+    with two 16-byte items holding the same non-null primary line L at +8. The connection
+    takes two L refs and one Q ref. The stored circular list has two 12-byte payload nodes
+    and a separate sentinel. The source header, item bytes and source refs are unchanged.
+    Free the source storage after releasing its two caller refs: the stored line refs and
+    deep-copied curve buffers remain valid. Removing the connection removes/releases L twice
+    and releases Q once. Repeat on a non-owning endpoint: retain Q, ignore the supplied wire
+    vector, and take no L refs. Verify stored-container copies do not multiply these counts.
+77. **Native cell output** (§4.6.3). At cell widths 16, enumerate an owning connection from
+    position `(32,0,48)` to stored cell `(4,3)`. An initially null header returns AL=true and
+    the 8-byte values `(2,3),(3,3),(4,3)`; native growth leaves capacity four values. Seed a
+    larger valid allocation and old values: success replaces the logical contents while
+    retaining its capacity/address. An invalid index and an absent slot-16 Q each return
+    AL=false with all header words/old bytes unchanged. A non-owning record delegates the
+    exact same header through Q slot 16(P,out). Free the final begin with the game container
+    allocator; no pole/line ref is taken or returned by cell enumeration.
+78. **Creation and extension views** (§4.6.3). For a generated pole info, no occupant hit
+    takes the concrete 0x124-byte allocator/constructor path, with no COM-factory request,
+    followed by primary AddRef and Init(exemplar,kind). An existing pole with kind 2 and
+    requested kind 1 selects kind 3, calls fixed +24 exemplar slot 3, writes dword +B8=3,
+    then fixed +8 SetPosition and primary SetPreview. Real finishing inserts only new
+    poles but calls InsertLines for new and reused poles, then releases each record ref.
+    Verify a factory substitution alone cannot redirect new-pole creation by this tool.
+79. **Draft, repair and asymmetric undo** (§4.6.3). Seed descriptor A,B, both state bytes 1,
+    with an A↔B connection and no self connections. Draft disables A→B then B→A without
+    deleting either record, queues (A,N) then (B,N), and skips generated-link AddConnection.
+    After pole insertion, queued repairs call (A,N), (N,A), (B,N), (N,B), each with a null
+    wire vector. Undo removes new preview occupants before processing saved edits, clears
+    reused preview/highlight state, then calls enable(A,B,true), releases/nulls A, and calls
+    enable(B,B,true), releases/nulls B. For A=(1,3), B=(8,3), A's owner byte becomes 1 and
+    B's stays 0. Reverse the descriptor endpoints: A's byte becomes 0 and B's stays 0,
+    rather than being restored to 1. This reversed-order fixture tests the entry contract;
+    it does not assert that the line constructor produces that endpoint order in game.
+80. **Zone/demolition and mixed endpoints** (§4.6.3). Log a zone wire split: counted line
+    endpoints, first pole slot 16(second,out), two ordered direct reciprocal removals,
+    two relocation attempts, buffer free and endpoint releases. Accepted pole relocation
+    uses slot 5/slot 7 and frees each temporary cell buffer; retained pole removal uses
+    slot 6(true), manager removal of fixed +8, then Release. For successful demolition,
+    neighbour AddRefs precede the pre-demolition message and manager removal; slot 6(true)
+    and occupant Shutdown precede zero-count-neighbour queries and orphan-ref transfers.
+    Failed manager removal skips those two teardown calls. In a mixed graph, exercise a
+    native owning endpoint's GetAttachmentPoints on a replacement other, native exemplar
+    refresh's RebuildWires on a replacement self, and native slot 6's RemoveConnection on
+    a replacement destination. Every such concrete entry must reach the adapter or a
+    valid native facade before any native storage read; self-only helper routing is insufficient.
