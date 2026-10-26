@@ -1,5 +1,6 @@
 """Queue round trips, recorded-log accounting and shipped scenario contracts."""
 import contextlib
+import csv
 from datetime import date
 import io
 import json
@@ -30,6 +31,41 @@ def checkout(root):
 
 
 class SuiteParsingTests(unittest.TestCase):
+    def test_resume_preserves_claimed_labels_and_only_bounds_unsubmitted_requests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = dict(checkout(root), script='-')
+            other = dict(row, name='other')
+            directory, manifest = suite.make_batch(root, [row, other], 'plain', str(root), 'resume')
+            results = root / 'build-runs/game-results'
+            results.mkdir(parents=True)
+            request = manifest['requests'][0]
+            source = results / request['label']
+            Path(str(source) + '.log').write_text(
+                'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.0)\n', encoding='utf-8')
+            Path(str(source) + '.verdict').write_text('verdict: clean\n', encoding='utf-8')
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                status = suite.main(['resume', 'resume', '--wait-seconds', '0',
+                                     '--seconds', '240', '--timeout', '300'], root=root)
+            updated = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+            self.assertEqual(status, 1)
+            self.assertIn('seconds = 750\n', updated['requests'][0]['request'])
+            self.assertIn('seconds = 240\n', updated['requests'][1]['request'])
+            self.assertIn('timeout = 300\n', updated['requests'][1]['request'])
+            self.assertFalse(list((root / 'build-runs/game-queue').glob('*.req')))
+            with (directory / 'summary.tsv').open(encoding='utf-8', newline='') as stream:
+                rows = list(csv.DictReader(stream, delimiter='\t'))
+            self.assertEqual(rows[0]['verdict'], 'clean')
+            self.assertEqual(rows[1]['verdict'], 'not-submitted')
+
+    def test_reach_refuses_a_stale_dll_before_submitting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            with self.assertRaisesRegex(ValueError, 'DLL lacks reach tracer'):
+                suite.make_batch(root, [row], 'plain', str(root), 'old', ['reach = 1'])
+            self.assertFalse((root / 'build-runs/suite/old').exists())
+
     def test_actions_summaries_and_compare_counts(self):
         text = (FIXTURES / 'suite-evidence.log').read_text(encoding='utf-8')
         text += (FIXTURES / 'shadowlabels-clean.log').read_text(encoding='utf-8')
@@ -73,6 +109,46 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertTrue(suite.successful({'case': result}))
         self.assertEqual(result['worst_shadow'], 'terrain:1/1')
 
+    def test_quit_crash_retains_address_and_raw_verdict_but_does_not_pass(self):
+        text = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8')
+        result = suite.parse_log(text, '2028-01-28', 'verdict: corrupt')
+        self.assertEqual((result['verdict'], result['end_reached'], result['raw_verdict']),
+                         ('clean-exit-crash', '1', 'corrupt'))
+        self.assertEqual(result['exception_address'], '0x005D0F94')
+        self.assertEqual(result['exceptions'][0]['location'], 'SimCity 4.exe+0x1D0F94')
+        self.assertEqual(result['exceptions'][0]['line'], 3)
+        self.assertFalse(suite.successful({'quit': result}))
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            manifest = dict(requests=[dict(scenario=dict(name='quit', end='2028-01-28'))],
+                            profile='shadows', dll_sha256='fixture', shadow_keys=[])
+            suite.write_results(directory, manifest, {'quit': result})
+            summary = (directory / 'summary.tsv').read_text(encoding='utf-8')
+            self.assertIn('exception_address', summary.splitlines()[0])
+            self.assertIn('clean-exit-crash', summary)
+            self.assertIn('0x005D0F94', summary)
+
+    def test_end_date_alone_cannot_reclassify_an_exception_as_a_quit_crash(self):
+        lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
+        cases = [
+            lines[2] + lines[0] + lines[1] + lines[3],  # exception before target
+            lines[0] + lines[2] + lines[1] + lines[3],  # exception before quit
+            lines[0] + lines[2] + lines[3],  # target, no accepted quit
+            lines[1] + lines[2] + lines[3],  # final verdict date alone
+            lines[0] + lines[1].replace('-> 1', '-> 0') + lines[2] + lines[3],
+            ''.join(lines[:2] + lines[3:]),  # no exception evidence
+            lines[2] + ''.join(lines),  # earlier exception plus exit exception
+        ]
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(suite.parse_log(text, '2028-01-28')['verdict'], 'corrupt')
+        for verdict in ('harness-error', 'stalled', 'aborted'):
+            with self.subTest(verdict=verdict):
+                result = suite.parse_log(''.join(lines), '2028-01-28', 'verdict: ' + verdict)
+                self.assertEqual(result['verdict'], verdict)
+        loaded = suite.parse_log(''.join(lines), '2028-01-28', only_load=True)
+        self.assertEqual((loaded['verdict'], loaded['end_reached']), ('corrupt', '0'))
+
     def test_frozen_clock_and_short_windows_fail_but_explicit_load_only_passes(self):
         text = ('memory: address space 968/2047 MiB; largest free 624 MiB\n'
                 'AUTOTEST VERDICT: clean (date=2000-01-01, real_seconds=1800, days_per_second=0.00)\n')
@@ -96,12 +172,13 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertIn('terrain', replace)
         self.assertIn('netrules', replace)
         self.assertNotIn('enable', shadows)
-        self.assertEqual(suite.profile_ini(ROOT, 'plain'), {})
+        self.assertEqual(suite.profile_ini(ROOT, 'plain'),
+                         {'disable': 'simulator,budget', 'enable': 'none'})
         for value in ('x = 1\ncity = Other', 'region = Other', 'dll = evil.dll', '[ini]', 'script = other'):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])
 
-    def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
+    def test_starter_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
         # Trigger/Lua lanes append focused scenarios; the original city census
         # keeps its stronger all-actions contract independently of those rows.
@@ -124,7 +201,10 @@ class SuiteParsingTests(unittest.TestCase):
                 self.assertIn(row['name'], ('berlin-tempelhof', 'berlin-schonerlinde'))
                 self.assertEqual(row['script'], '-')
                 continue
-            lines = [line.split() for line in (ROOT / row['script']).read_text().splitlines()
+            script = ROOT / row['script']
+            if script.suffix == '.lua':
+                script = script.with_suffix('.script')  # Lua establishes mayor mode first.
+            lines = [line.split() for line in script.read_text().splitlines()
                      if line and not line.startswith('#')]
             actions = {line[1] for line in lines}
             self.assertTrue({'zone', 'network', 'terrain', 'disaster', 'save', 'speed', 'clockmode'} <= actions)
@@ -156,18 +236,38 @@ class SuiteParsingTests(unittest.TestCase):
 
 
 class SuiteQueueTests(unittest.TestCase):
+    def test_dated_saves_opt_into_bounded_grace_with_explicit_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            script = root / row['script']
+            for tag, action, expected in (
+                    ('full', '2000-01-01 save # full save', True),
+                    ('fast', '2000-01-01 save fast', True),
+                    ('none', '# 2000-01-01 save\n2000-01-01 mark save', False)):
+                script.write_text(action + '\n', encoding='utf-8')
+                _, manifest = suite.make_batch(root, [row], 'plain', str(root), tag)
+                body = manifest['requests'][0]['request']
+                self.assertEqual('\nscript_save_grace_ms = 60000\n' in body, expected)
+                self.assertIn('[ini]\n', body.split('script_save_grace_ms')[0])
+            script.write_text('2000-01-01 save\n', encoding='utf-8')
+            _, manifest = suite.make_batch(root, [row], 'plain', str(root), 'override',
+                                           ['script_save_grace_ms=0'])
+            self.assertIn('\nscript_save_grace_ms = 0\n', manifest['requests'][0]['request'])
+
     def test_lua_can_stage_a_dated_terrain_companion_without_replacing_lua_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             row = checkout(root)
             row['script'] = 'probe.lua'
             (root / 'probe.lua').write_text('-- Lua fixture\n')
-            setup = '2000-01-01 terrain 0 0 256 256 280 1\n'
+            setup = '2000-01-01 terrain 0 0 256 256 280 1\n2000-01-01 save\n'
             (root / 'probe.script').write_text(setup)
             directory, manifest = suite.make_batch(root, [row], 'plain', str(root), 'companion')
             body = manifest['requests'][0]['request']
             self.assertIn('lua_script = build-runs/suite/companion/scripts/case.one.lua', body)
             self.assertIn('\nscript = build-runs/suite/companion/scripts/case.one.script', body)
+            self.assertIn('\nscript_save_grace_ms = 60000\n', body)
             self.assertEqual((directory / 'scripts/case.one.script').read_text(), setup)
 
     def test_lua_request_and_harvested_command_evidence_round_trip(self):
@@ -296,7 +396,7 @@ class SuiteQueueTests(unittest.TestCase):
                 request.unlink()  # the shared poller has moved it to done/
 
             with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
-                _, results = suite.run_scenarios(root, rows, profile='plain', dll=str(root), tag='bounded')
+                _, results = suite.run_scenarios(root, rows, profile='plain', dll=str(root), tag='bounded', slots=12)
             self.assertEqual(len(set(completed)), 9)
             self.assertEqual(max(peak), 6)
             self.assertTrue(suite.successful(results))
@@ -310,3 +410,29 @@ class SuiteQueueTests(unittest.TestCase):
                                                  tag='not-sent', wait_seconds=0)
             self.assertEqual(results[row['name']]['verdict'], 'not-submitted')
             self.assertFalse(list((root / 'build-runs/game-queue').glob('*.req')))
+
+    def test_stop_file_drains_claimed_requests_without_refilling(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = dict(checkout(root), script='-')
+            directory, manifest = suite.make_batch(root, [row, dict(row, name='later')],
+                                                    'plain', str(root), 'drain')
+            queue = root / 'build-runs/game-queue'
+            queue.mkdir(parents=True)
+            claimed = queue / (manifest['requests'][0]['label'] + '.req')
+            claimed.write_text(manifest['requests'][0]['request'])
+            stop = directory / 'STOP'
+            stop.touch()
+
+            def finish_claimed(_):
+                self.assertEqual(list(queue.glob('*.req')), [claimed])
+                output = root / 'build-runs/game-results' / claimed.stem
+                output.parent.mkdir(parents=True)
+                Path(str(output) + '.verdict').write_text('verdict: clean\n')
+                Path(str(output) + '.log').write_text(
+                    'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8)\n')
+
+            with patch.object(suite.time, 'sleep', side_effect=finish_claimed), contextlib.redirect_stdout(io.StringIO()):
+                results = suite.wait_for_batch(root, directory, manifest, 60, submit=True, stop_file=stop)
+            self.assertEqual(results[row['name']]['verdict'], 'clean')
+            self.assertEqual(results['later']['verdict'], 'not-submitted')

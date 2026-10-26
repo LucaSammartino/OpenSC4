@@ -52,6 +52,9 @@ public:
     bool Prepare(const std::vector<Contract>& contracts, uintptr_t preferredBase,
                  uintptr_t actualBase, size_t imageSize);
     bool Start(uint32_t cap);
+    // Optional first-chance diagnostics, opened before arming. No tracing I/O
+    // on ordinary breakpoint/step delivery; foreign exceptions dump a ring.
+    bool Diagnostics(const std::string& path);
     void NextWindow();
     void Stop();
     bool Suspend();

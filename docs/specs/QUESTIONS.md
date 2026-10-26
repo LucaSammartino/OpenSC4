@@ -302,7 +302,7 @@ generated index: the questions live one file per spec, so read only the file for
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | intro-video | 2 | 0 | IV3 | questions/intro-video.md |
 | landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
-| landvalue | 3 | 8 | LV10 | questions/landvalue.md |
+| landvalue | 2 | 10 | LV11 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 13 | LC16 | questions/legacy-control.md |
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
@@ -355,7 +355,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
-| prop-lotconfig | 8 | 10 | PL25 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 12 | PL25 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | radio | 4 | 0 | RA5 | questions/radio.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **669** | **1575** | | |
+| **total** | **667** | **1579** | | |

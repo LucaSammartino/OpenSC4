@@ -13,6 +13,23 @@ import sys
 
 SIZES = {"small": 64, "medium": 128, "large": 256}
 MIXES = ("default", "grow", "churn", "edge")
+TREASURY = 150_000_000  # also covers a large-tile dry-run's full-area reserve
+MONTHLY_RESERVE = 5_000_000  # conservative upkeep allowance; no game-state input
+
+
+def estimated_cost(action):
+    """Conservative reserve, including dry-run solvency and occupied-cell costs.
+
+    This is a budget for test construction, not the game's pricing formula.
+    Failed attempts consume the reserve too, so refills do not depend on results.
+    """
+    op, *args = action.split()
+    if op in ("zone", "pricezone", "dezone", "terrain", "network"):
+        x0, z0, x1, z1 = map(int, args[:4])
+        cells = ((abs(x1 - x0) + 1) * (abs(z1 - z0) + 1) if op != "network"
+                 else abs(x1 - x0) + abs(z1 - z0) + 1)
+        return cells * 2000
+    return 2_000_000 if op == "port" else 0
 
 
 def add_months(day, months):
@@ -52,14 +69,22 @@ def generate(seed, size, start, months, mix="default"):
     zone_types = list(range(16))
     rng.shuffle(zone_types)
     lines = [
-        "# scenario_gen v2: seed={} size={} start={} months={} mix={}".format(
+        "# scenario_gen v5: seed={} size={} start={} months={} mix={}".format(
             seed, size, start.isoformat(), months, mix),
         "# Cells stay inside the tile. Native refusals are expected in edge/churn.",
         "# pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.",
         "# Disaster starts run on the final date: native emergency mode can stop new days.",
     ]
 
+    balance = TREASURY
+
     def emit(day, action):
+        nonlocal balance
+        cost = estimated_cost(action)
+        if cost + MONTHLY_RESERVE > balance:
+            lines.append("{} funds {}".format(day.isoformat(), TREASURY))
+            balance = TREASURY
+        balance -= cost
         lines.append("{} {}".format(day.isoformat(), action))
 
     def rectangle():
@@ -78,15 +103,21 @@ def generate(seed, size, start, months, mix="default"):
 
     def grow(day, month):
         if month == 0:
-            # Land above sea level, small enough to leave most of a tile alone.
-            emit(day, "terrain {} {} {} {} 270 1".format(ox, oz, ox + 32, oz + 32))
+            # Clear zoning under the entire construction pad, including the
+            # rail, avenue and utility corridors. Existing civic lots/networks
+            # can still refuse placement: a static script cannot inspect them.
+            zone(day, "dezone", (ox - 1, oz - 1, ox + 39, oz + 39))
+            # Flatten the vertices beyond the last cell as well: flattening
+            # just the 33-cell grid leaves water/slopes under its outer cells
+            # and all the separate transport and power-line corridors.
+            emit(day, "terrain {} {} {} {} 270 1".format(ox - 1, oz - 1, ox + 40, oz + 40))
             for offset in range(0, 33, 8):
                 network(day, ox, oz + offset, ox + 32, oz + offset, 0)
                 network(day, ox + offset, oz, ox + offset, oz + 32, 3)
-            network(day, ox, oz + 1, ox + 32, oz + 1, 4)  # pipe
-            network(day, ox + 1, oz, ox + 1, oz + 32, 5)  # power line
-            network(day, ox, oz + 16, ox + 32, oz + 16, 1)  # rail crossing
-            network(day, ox + 24, oz, ox + 24, oz + 32, 6)  # avenue
+            # Parallel transport types need separate corridors: a rail line
+            # cannot occupy the road's entire row. Keep these outside the grid.
+            network(day, ox, oz + 34, ox + 32, oz + 34, 1)
+            network(day, ox + 36, oz, ox + 36, oz + 32, 6)
         # Every type, including all R/C/I densities, within four months (or
         # within the only available month for a one-month request).
         batches = min(months, 4)
@@ -96,10 +127,15 @@ def generate(seed, size, start, months, mix="default"):
             col, row = index % 4, index // 4
             x, z = ox + col * 8 + 2, oz + row * 8 + 1
             zone(day, "zone", (x, z, x + 3, z + 3), kind)
-        # Extend utilities and try new port sites over subsequent months.
-        offset = (month % 4) * 8 + 1
-        network(day, ox, oz + offset, ox + 32, oz + offset, 4)
-        network(day, ox + offset, oz, ox + offset, oz + 32, 5)
+        # Extend each utility along reserved, unzoned land rather than drawing
+        # long parallel pipes through developed lots or repeating built runs.
+        # Two columns per type leave the avenue's two-cell footprint clear.
+        # Once these finite corridors are built, do not retry the same cells.
+        if month < 60:
+            utility_z = oz + month % 30
+            pipe_x, power_x = ox + 38 + month // 30, ox + 34 + month // 30
+            network(day, pipe_x, utility_z, pipe_x, utility_z + 2, 4)
+            network(day, power_x, utility_z, power_x, utility_z + 2, 5)
         if month % 6 == 0:
             emit(day, "port {} {} {} {} 0".format(
                 "airport" if month % 12 == 0 else "seaport",
@@ -146,6 +182,8 @@ def generate(seed, size, start, months, mix="default"):
         zone(day, "zone", (ox + 2, oz + 1, ox + 5, oz + 4), month % 16)
         zone(day, "pricezone", rectangle(), rng.randrange(16))
 
+    emit(start, "establish FC4 generated {}".format(seed))
+    emit(start, "funds {}".format(TREASURY))
     emit(start, "mark seed={} mix={} size={} begin".format(seed, mix, size))
     emit(start, "speed 2")
     emit(start, "resume")
@@ -153,6 +191,7 @@ def generate(seed, size, start, months, mix="default"):
     for month in range(months):
         day = add_months(start, month)
         stop = add_months(start, month + 1)
+        balance -= MONTHLY_RESERVE
         emit(day, "mark seed={} mix={} month={}".format(seed, mix, month))
         phases = ("grow", "churn", "edge") if mix == "default" else (mix,)
         # A fixed topology-before-zoning order, while mixing all three families

@@ -2,6 +2,7 @@
 import csv
 from pathlib import Path
 import sys
+import re
 
 import pytest
 
@@ -31,3 +32,23 @@ def test_catalog_sweep_covers_every_categorized_lot_without_overlap(size):
     assert generated == lot_sweep.render(reversed(rows), size)
     with pytest.raises(ValueError, match='fit'):
         lot_sweep.plan(rows, 32)
+
+
+def test_qualified_civic_pads_fit_the_measured_medium_tile():
+    with (ROOT / 'engine/tests/scenarios/lotconfigs.tsv').open() as stream:
+        catalog = {r['iid'][2:]: r for r in csv.DictReader(stream, delimiter='\t')}
+    text = (ROOT / 'engine/tests/scenarios/lua/lot-sweep-grown-sites.lua').read_text()
+    sites = re.findall(r"\{'([0-9A-F]{8})', (\d+), (\d+)\}", text)
+    expected = {iid for iid, r in catalog.items() if set(r['category'].split(',')) &
+                {'power', 'fire', 'health', 'police', 'education', 'water'}}
+    assert len(sites) == len(expected) == 37
+    assert {iid for iid, _, _ in sites} == expected
+    occupied = set()
+    for iid, x, z in sites:
+        x, z = int(x), int(z)
+        row = catalog[iid]
+        pad = {(xx, zz) for xx in range(x-2, x+int(row['width'])+3)
+               for zz in range(z-2, z+int(row['depth'])+3)}
+        assert all(0 <= xx < 128 and 0 <= zz < 128 for xx, zz in pad)
+        assert not pad & occupied
+        occupied |= pad
