@@ -73,6 +73,46 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertTrue(suite.successful({'case': result}))
         self.assertEqual(result['worst_shadow'], 'terrain:1/1')
 
+    def test_quit_crash_retains_address_and_raw_verdict_but_does_not_pass(self):
+        text = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8')
+        result = suite.parse_log(text, '2028-01-28', 'verdict: corrupt')
+        self.assertEqual((result['verdict'], result['end_reached'], result['raw_verdict']),
+                         ('clean-exit-crash', '1', 'corrupt'))
+        self.assertEqual(result['exception_address'], '0x005D0F94')
+        self.assertEqual(result['exceptions'][0]['location'], 'SimCity 4.exe+0x1D0F94')
+        self.assertEqual(result['exceptions'][0]['line'], 3)
+        self.assertFalse(suite.successful({'quit': result}))
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            manifest = dict(requests=[dict(scenario=dict(name='quit', end='2028-01-28'))],
+                            profile='shadows', dll_sha256='fixture', shadow_keys=[])
+            suite.write_results(directory, manifest, {'quit': result})
+            summary = (directory / 'summary.tsv').read_text(encoding='utf-8')
+            self.assertIn('exception_address', summary.splitlines()[0])
+            self.assertIn('clean-exit-crash', summary)
+            self.assertIn('0x005D0F94', summary)
+
+    def test_end_date_alone_cannot_reclassify_an_exception_as_a_quit_crash(self):
+        lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
+        cases = [
+            lines[2] + lines[0] + lines[1] + lines[3],  # exception before target
+            lines[0] + lines[2] + lines[1] + lines[3],  # exception before quit
+            lines[0] + lines[2] + lines[3],  # target, no accepted quit
+            lines[1] + lines[2] + lines[3],  # final verdict date alone
+            lines[0] + lines[1].replace('-> 1', '-> 0') + lines[2] + lines[3],
+            ''.join(lines[:2] + lines[3:]),  # no exception evidence
+            lines[2] + ''.join(lines),  # earlier exception plus exit exception
+        ]
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertEqual(suite.parse_log(text, '2028-01-28')['verdict'], 'corrupt')
+        for verdict in ('harness-error', 'stalled', 'aborted'):
+            with self.subTest(verdict=verdict):
+                result = suite.parse_log(''.join(lines), '2028-01-28', 'verdict: ' + verdict)
+                self.assertEqual(result['verdict'], verdict)
+        loaded = suite.parse_log(''.join(lines), '2028-01-28', only_load=True)
+        self.assertEqual((loaded['verdict'], loaded['end_reached']), ('corrupt', '0'))
+
     def test_frozen_clock_and_short_windows_fail_but_explicit_load_only_passes(self):
         text = ('memory: address space 968/2047 MiB; largest free 624 MiB\n'
                 'AUTOTEST VERDICT: clean (date=2000-01-01, real_seconds=1800, days_per_second=0.00)\n')
@@ -101,7 +141,7 @@ class SuiteParsingTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])
 
-    def test_shipped_scenarios_cover_regions_sizes_and_actions(self):
+    def test_starter_scenarios_cover_regions_sizes_and_actions(self):
         rows = suite.read_scenarios(ROOT, 'full')
         # Trigger/Lua lanes append focused scenarios; the original city census
         # keeps its stronger all-actions contract independently of those rows.

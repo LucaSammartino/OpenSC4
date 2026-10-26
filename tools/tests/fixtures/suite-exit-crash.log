@@ -1,0 +1,4 @@
+2026-10-25 21:38:45.047 [pid 33500 tid 29616] autotest: end date 2028-01-28 reached at the new day 2028-01-28 (julian 2461799), 827.563 s after the clock started; quitting at the next tick (autotest_end = quit)
+2026-10-25 21:38:45.055 [pid 33500 tid 29616] autotest: cISC4App::RequestQuit(false, false) -> 1; the verdict follows at PostSystemServiceShutdown
+2026-10-25 21:38:46.903 [pid 33500 tid 29616] first-chance exception OUTSIDE FreeCity4.dll in SimCity 4.exe+0x1D0F94 (report 1 of at most 2 for this address): code 0xC0000005 ACCESS_VIOLATION (reading address 0x00000000) at 0x005D0F94 (OUTSIDE FreeCity4.dll base 0x549F0000, image size 0x15AB000) eip=0x005D0F94 esp=0x001AFBE0
+2026-10-25 21:38:46.903 [pid 33500 tid 29616] AUTOTEST VERDICT: corrupt (foreign_exceptions=1, watchdog_stalls=1, rtc=0, overruns=0, ref_warnings=0, dialogs_closed=0, julian=2461800, date=2028-01-29, real_seconds=829.422, days_per_second=0.88, switches_off=-, disabled=budget)

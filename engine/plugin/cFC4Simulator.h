@@ -21,6 +21,7 @@
 #include "cIGZSerializable.h"
 #include "cIGZSystemService.h"
 #include "FC4Interfaces.h"
+#include "FC4HarnessLogic.h"
 #include "fc4.h"
 
 #include <cstdint>
@@ -159,6 +160,8 @@ private:
     uint32_t serviceId_;
     bool serviceRunning_ = false;
     fc4_sim* sim_ = nullptr;
+    bool fixedStep_ = false;  // tooling; sim_fixed_step, default off
+    fc4::harness::FixedStepClock fixedClock_;
     cFC4Date date_;
     cIGZMessageServer2* msgServer_ = nullptr;
     cIGZCheatCodeManager* cheatMgr_ = nullptr;
