@@ -22,7 +22,10 @@ struct Forwarding { Forwarding() { ++forwarding; } ~Forwarding() { --forwarding;
 template<unsigned Slot, class... Args>
 uint32_t __fastcall Tap(void* self, void*, Args... args) {
     auto* capture = forwarding ? nullptr : Capture::Current(self);
-    if (capture) capture->Before(Slot, {static_cast<uint32_t>(args)...});
+    if (capture) {
+        try { capture->Before(Slot, {static_cast<uint32_t>(args)...}); }
+        catch (...) { capture->Refuse(); }
+    }
     uint32_t result;
     {
         Forwarding guard;
@@ -31,7 +34,10 @@ uint32_t __fastcall Tap(void* self, void*, Args... args) {
         using Fn = uint32_t(__fastcall*)(void*, void*, Args...);
         result = reinterpret_cast<Fn>(original[Slot])(self, nullptr, args...);
     }
-    if (capture) capture->After(Slot, {static_cast<uint32_t>(args)...}, result);
+    if (capture) {
+        try { capture->After(Slot, {static_cast<uint32_t>(args)...}, result); }
+        catch (...) { capture->Refuse(); }
+    }
     return result;
 }
 
@@ -99,20 +105,29 @@ namespace {
 uintptr_t paintOriginal[2]{};
 struct Counts { std::atomic<uint64_t> draws{0}, events{0}, incomplete{0}; } counts[2];
 template<unsigned Owner>
-bool __fastcall Paint(void* self, void*) {
-    drawstream::Stream stream;
-    drawstream::Objects objects;
-    void* context = *reinterpret_cast<void**>(static_cast<uint8_t*>(self) + 0x6c); // widget-toolkit 14.1
-    bool result;
-    {
-        drawstream::Capture capture(context, stream, objects);
-        using Fn = bool(__fastcall*)(void*, void*);
-        result = reinterpret_cast<Fn>(paintOriginal[Owner])(self, nullptr);
+bool __fastcall Paint(void* self, void*) noexcept {
+    using Fn = bool(__fastcall*)(void*, void*);
+    const auto native = reinterpret_cast<Fn>(paintOriginal[Owner]);
+    bool called = false, result = false;
+    size_t events = 0;
+    try {
+        drawstream::Stream stream;
+        drawstream::Objects objects;
+        void* context = *reinterpret_cast<void**>(static_cast<uint8_t*>(self) + 0x6c); // widget-toolkit 14.1
+        {
+            drawstream::Capture capture(context, stream, objects);
+            called = true;
+            result = native(self, nullptr);
+        }
+        stream.Call(drawstream::Domain::Return, 88, objects.Borrow(self), {result ? 1u : 0u});
+        events = stream.Events().size();
+    } catch (...) {
+        // Allocation/serialization failure cannot skip or repeat the native draw.
+        if (!called) { try { result = native(self, nullptr); } catch (...) {} }
     }
-    stream.Call(drawstream::Domain::Return, 88, objects.Borrow(self), {result ? 1u : 0u});
     ++counts[Owner].draws;
-    counts[Owner].events += stream.Events().size();
-    if (!stream.Valid()) ++counts[Owner].incomplete;
+    counts[Owner].events += events;
+    ++counts[Owner].incomplete; // context-only adapter, including capture failures
     return result;
 }
 bool Patch(void** table, const void* const* replacements, size_t length) {

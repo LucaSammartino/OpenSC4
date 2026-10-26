@@ -86,12 +86,16 @@ public:
         event.words.insert(event.words.end(), geometry.begin(), geometry.end());
         Append(std::move(event));
     }
-    void Refuse(const char* reason) { if (reason_.empty()) reason_ = reason; }
-    bool Valid() const { return reason_.empty(); }
+    void Refuse(const char* reason) noexcept {
+        invalid_ = true;
+        try { if (reason_.empty()) reason_ = reason; } catch (...) {}
+    }
+    bool Valid() const { return !invalid_; }
     const std::string& Reason() const { return reason_; }
     const std::vector<Event>& Events() const { return events_; }
 private:
     size_t eventLimit_, byteLimit_, used_ = 0;
+    bool invalid_ = false;
     std::string reason_;
     std::vector<Event> events_;
 };

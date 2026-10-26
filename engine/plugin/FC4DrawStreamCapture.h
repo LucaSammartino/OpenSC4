@@ -20,6 +20,7 @@ public:
     static Capture* Current(void* context);
     void Before(uint32_t slot, std::initializer_list<uint32_t> arguments);
     void After(uint32_t slot, std::initializer_list<uint32_t> arguments, uint32_t result);
+    void Refuse() noexcept { stream_.Refuse("context recording failed"); }
 private:
     void* context_;
     Stream& stream_;
