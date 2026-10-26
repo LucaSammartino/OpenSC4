@@ -43,3 +43,16 @@
 
 <!-- from: records-cities29 (2026-10-26) -->
 - **AP19 - sections 6.2 and 15, lifecycle input observation during modal delivery:** what supported, nonmutating boundary exposes the mode-changing message before an earlier notification target enters a modal loop? In `C:/Users/tlori/FreeCity4/build-runs/suite/records-cities29-1a/maxisland-bevopolis.log`, native slot 25 returns mode 2 at 11:47:34.287 (startup), 11:47:48.980 (May), and 11:48:17.216 (June), while our message-derived model is still 0 with zero mode notifications. Our ordinary server-2 subscription receives PreCityShutdown at 11:48:49.091, then PostCityInitComplete at 11:48:49.375, immediately after modal EndModal fallbacks and just before LoadCity returns. This is delayed delivery to our target, not evidence that the app's section 6.2 transition is wrong. The public AddNotification API has no priority argument. Deferring comparisons until our late notification can discard an entire running city, and seeding mode from slot 25 would compare an output with itself; neither is applied. Blocks app/app-startup in Bevopolis, Norte Delano, South Pennoli and South Weburg from census3; Norte Delano also reproduces in records-cities29-1a. Please specify an independent early input capture or a guaranteed observation boundary that retains these samples.
+
+<!-- from: automata-actions30 (2026-10-26) -->
+- **AP20 - section 7, native wait/wakeup boundary during the s1 action acceptance:** identify the native
+  path containing saved return addresses `0x00923A61` and `0x0090CF71`, its wait/wakeup contract and any
+  required runtime control capture. `C:/Users/tlori/FreeCity4/build-runs/game-results/aa30-tv4-house-s1-e.log`
+  lines 12432-12448 and 12515-12531 show the main thread at `win32u.dll+0x11EC` in two watchdog samples,
+  with zero main-thread CPU progress, outside FreeCity4, and no OnTick for 5484 then 10531 ms.
+  The unchanged house replace list and `gen27-konradshohe-s1-grow.script` completed 27/216 actions before
+  the final stalled verdict on 2026-02-22; exceptions, RTC failures and reference warnings are all zero.
+  DLL SHA256 prefix `2a82f565`; matching request/verdict are in main's game-queue/done and game-results.
+  Is this an intended modal/message wait, and which independently observable input releases it?
+  Ownership is unassigned: the current capture does not establish an automata or terrain-view call.
+  [runtime observation required; stop this item without changing the application loop or watchdog]

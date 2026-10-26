@@ -4,13 +4,18 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4DbpfNative.h"
+#include "compat/FC4Compat.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
+#include "cIGZMessage2.h"
 #include "cISC4App.h"
 #include "cRZCOMDllDirector.h"
 #include "cRZBaseString.h"
 #include "fc4.h"
 #include <cstring>
+#include <windows.h>
+#include <intrin.h>
 
 extern "C" {
 void* fc4_app_shadow_new();
@@ -28,6 +33,63 @@ bool seeded = false;
 bool pathCacheDiagnostic = false;
 uint32_t lines = 0, clean = 0, startupLines = 0, startupClean = 0, events = 0;
 uint32_t cacheLines = 0, cacheClean = 0;
+using MessageFn = bool (__fastcall*)(void*, void*, cIGZMessage2*);
+using SaveFn = bool (__fastcall*)(void*, void*, const cIGZString&, bool);
+MessageFn nativeMessage = nullptr;
+SaveFn nativeSave = nullptr;
+void** messageEntry = nullptr;
+void** saveEntry = nullptr;
+void* appTarget = nullptr;
+void* saveApp = nullptr;
+uint32_t delivery = 0;
+thread_local uint32_t deliveryDepth = 0;
+
+bool ModeInput(uint32_t type) {
+    return type == 0x26D31EC2 || type == 0x8BB5BB46 || type == 0xCBB5BB45 || type == 0xEA8AE29A;
+}
+
+bool Exchange(void** entry, void* value) {
+    DWORD old = 0;
+    if (!VirtualProtect(entry, sizeof(void*), PAGE_READWRITE, &old)) return false;
+    InterlockedExchangePointer(entry, value);
+    DWORD ignored = 0;
+    VirtualProtect(entry, sizeof(void*), old, &ignored);
+    return true;
+}
+
+// AP19: observe the app's actual target, not our later notification. Forward
+// the identical message once, without pumping or changing subscriber order.
+bool __fastcall MessageForward(void* self, void* edx, cIGZMessage2* msg) {
+    const auto original = nativeMessage;
+    const uint32_t type = msg ? msg->GetType() : 0;
+    const bool observe = self == appTarget && ModeInput(type);
+    const uint32_t id = observe ? ++delivery : 0;
+    if (observe) {
+        ++deliveryDepth;
+        fc4::Log("app input entry: id=%u thread=%lu depth=%u target=%p message=%p type=0x%08X",
+            id, GetCurrentThreadId(), deliveryDepth, self, msg, type);
+    }
+    const bool result = original(self, edx, msg);
+    if (observe) {
+        fc4::AppShadowMessage(type);
+        fc4::Log("app input return: id=%u thread=%lu depth=%u target=%p type=0x%08X result=%u",
+            id, GetCurrentThreadId(), deliveryDepth, self, type, result ? 1u : 0u);
+        --deliveryDepth;
+    }
+    return result;
+}
+
+// EX58: all public slot-15 callers, including independent native callers.
+// Execution here after original() is the actual caller continuation, not a
+// PostSave/next-tick guess. Untraced PreSave still invalidates without replay.
+bool __fastcall SaveForward(void* self, void* edx, const cIGZString& path, bool fast) {
+    const auto original = nativeSave;
+    const bool observe = self == saveApp;
+    if (observe) fc4::DbpfShadowSaveEnter(self, _ReturnAddress());
+    const bool result = original(self, edx, path, fast);
+    if (observe) fc4::DbpfShadowSaveReturned(self, result);
+    return result;
+}
 // AP3: exact slots, never the incompatible SDK directory names/signatures.
 constexpr uint32_t offsets[] = {0x7C, 0x90, 0xA4, 0xB8, 0xCC, 0xE0, 0x108, 0x11C};
 
@@ -89,12 +151,12 @@ void Report(int32_t julian, bool load) {
                 fc4::Log("app: field=%u slot=%u differs (AP3/AP7/AP18); native=%s expected=%s", i, slot, out.ToChar(), expected);
             }
         }
-        // Compare after dispatch has completed (next observer tick for load,
-        // monthly quiet point thereafter), so notification order is immaterial.
+        // Inputs were captured at the native app target's normal returns.
         using Mode = uint32_t (__thiscall*)(void*);
         const uint32_t nativeMode = reinterpret_cast<Mode>(table[25])(app);
         const uint32_t modeMismatch = fc4_app_shadow_mode(model, nativeMode);
         differences += modeMismatch;
+        if (!messageEntry) ++differences; // missing app-input coverage is never exact
         if (modeMismatch) fc4::Log("app: mode differs; native=%u observed_events=%u", nativeMode, events);
         ++fields;
         FC4_RELEASE(app);
@@ -119,17 +181,42 @@ bool loadDue = false;
 
 namespace fc4 {
 void AppShadowStart() {
-    if (model || SettingInt("app_shadow", nullptr, 0) == 0) return;
-    model = fc4_app_shadow_new();
+    const bool appEnabled = SettingInt("app_shadow", nullptr, 0) != 0;
+    const bool dbpfEnabled = SettingInt("dbpf_shadow", nullptr, 0) != 0 ||
+        SettingInt("dbpf_bounds_shadow", nullptr, 0) != 0;
+    if ((!appEnabled && !dbpfEnabled) || model || messageEntry || saveEntry) return;
+    if (appEnabled) model = fc4_app_shadow_new();
     seeded = loadDue = false;
     lines = clean = startupLines = startupClean = events = 0;
     cacheLines = cacheClean = 0;
     pathCacheDiagnostic = SettingInt("app_shadow_path_cache", nullptr, 0) != 0;
-    Log("app: ON; 17 supported path/filename/mode fields; AP18 excludes slots65/66 (app_shadow_path_cache diagnostic=%u); AP17 excludes startup replay, pause/speed, frame/tick counters, idle/pump decisions; no whole-owner credit", pathCacheDiagnostic ? 1u : 0u);
+    // application.md 1.2 and 6.2.1: install before the first city transition.
+    // Validate the identified image's published interface tables, never code bytes.
+    auto* app = AcquireApp();
+    const auto* version = compat::IdentifiedVersion();
+    if (app && version && version->imageBase == 0x00400000) {
+        auto** table = *reinterpret_cast<void***>(app);
+        auto* target = reinterpret_cast<char*>(app) - 8; // app object +4 (section 1.2)
+        auto** messages = *reinterpret_cast<void***>(target);
+        if (model && reinterpret_cast<uintptr_t>(messages) == 0x00A86C1C) {
+            nativeMessage = reinterpret_cast<MessageFn>(messages[3]);
+            appTarget = target;
+            if (Exchange(messages + 3, reinterpret_cast<void*>(&MessageForward))) messageEntry = messages + 3;
+        }
+        if (dbpfEnabled && reinterpret_cast<uintptr_t>(table) == 0x00A86AF0) {
+            nativeSave = reinterpret_cast<SaveFn>(table[15]);
+            saveApp = app;
+            if (Exchange(table + 15, reinterpret_cast<void*>(&SaveForward))) saveEntry = table + 15;
+        }
+        Log("app observation: target=%p message_forward=%u save_app=%p save_forward=%u before-city-transitions=1",
+            appTarget, messageEntry ? 1u : 0u, saveApp, saveEntry ? 1u : 0u);
+    }
+    if (app) FC4_RELEASE(app);
+    if (model) Log("app: ON; 17 supported path/filename/mode fields; AP18 excludes slots65/66 (app_shadow_path_cache diagnostic=%u); AP17 excludes startup replay, pause/speed, frame/tick counters, idle/pump decisions; no whole-owner credit", pathCacheDiagnostic ? 1u : 0u);
 }
 void AppShadowMessage(uint32_t kind) {
     if (!model) return;
-    if (kind == 0x26D31EC2 || kind == 0x8BB5BB46 || kind == 0xCBB5BB45 || kind == 0xEA8AE29A) {
+    if (ModeInput(kind)) {
         fc4_app_shadow_message(model, kind);
         ++events;
         Log("app: mode message=0x%08X observed_events=%u", kind, events);
@@ -146,6 +233,10 @@ void AppShadowTick(int32_t julian) {
     if (model && loadDue && julian > 0) { loadDue = false; Report(julian, true); }
 }
 void AppShadowStop() {
+    if (messageEntry) Exchange(messageEntry, reinterpret_cast<void*>(nativeMessage));
+    if (saveEntry) Exchange(saveEntry, reinterpret_cast<void*>(nativeSave));
+    messageEntry = saveEntry = nullptr;
+    appTarget = saveApp = nullptr;
     if (!model) return;
     Log("app shadow: shutdown: scope=paths-mode %u lines, %u with mismatches=0; resyncs=0", lines, clean);
     Log("app-startup shadow: shutdown: scope=first-city-paths-mode %u lines, %u with mismatches=0; resyncs=0", startupLines, startupClean);

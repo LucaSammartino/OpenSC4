@@ -2934,7 +2934,8 @@ Evidence: particle resize/install/read `005A5240–005A52DF`, decal mutation
 The reader's visual-map loop inserts into the existing dictionary; it does not
 clear the old map before inserting input entries. It stops only on the exact
 `(end,FFFFFFFF)` pair and does not insert that pair. Neither `end` alone nor an
-arbitrary name with index FFFFFFFF terminates it. Next it reads camera-present
+arbitrary name with index FFFFFFFF terminates it. The typed insertion dependency,
+duplicate handling and retained spelling are specified in §18.9.7. Next it reads camera-present
 directly into the collection byte. A zero byte leaves the old camera value
 untouched but absent; a nonzero byte reads over that value. Binding/trigger
 vectors are subsequently resized and filled. These operations do not change
@@ -2967,6 +2968,152 @@ is not the native Boolean contract.
 | EF25-R5 | Seed a dynamic description D and nonempty primary name/key; read valid otherwise-empty root-3 input | dynamic vector retains D because the section is skipped; name/key unchanged; writing next emits root 4 and D in the dynamic section |
 | EF25-R6 | Seed a visual-map entry `old` and camera value K; read empty visual vector/map with terminator pair and camera-present 0 | vector is empty, old map entry remains, K's stored value remains but presence is false; no global reset is implied |
 | EF25-R7 | Map input contains `(end,7)`, then `(x,FFFFFFFF)`, then `(end,FFFFFFFF)`, followed by valid empty tail | first two pairs are ordinary entries, third ends the map and is not inserted; tail is consumed and AL=1 |
+
+#### 18.9.7 Typed visual-name insertion and ordering (EF27) *[compat]*
+
+The resource's operation is **duplicate-preserving insertion**, with bucket
+growth performed separately. It calls `00587010` followed by `00589E80` for
+each nonterminator pair (`005A5EFD–005A5F27`). The string-keyed unique-insertion
+entry `0051FDC0` is not this operation. These two collection helpers are
+independent native dependencies: neither calls effects-resource Read/Write.
+The following also specifies their hash, growth and chain behavior for an
+independent compatible insertion. Evidence throughout is Windows GOG 1.1.641
+instruction bytes and the original image's constant table, not a game run.
+
+**Receiver, arguments and result.** Let **H** be the live visual dictionary
+header at collection C+4 (§18.7.2), equivalently primary resource R+8 (§18.9).
+It is a container header, not an interface pointer. Both helpers receive H in
+ECX. Pointers and words are 32 bits; offsets and record sizes below are hex.
+All objects and source ranges must be valid and allocations must succeed.
+
+| Address / operation | Ordered stack words after the return address | Cleanup and return |
+|---|---|---|
+| `00587010`, grow buckets | +4: unsigned requested element capacity N, passed **by value** | Callee removes 4 bytes. No hidden result or semantic register result; do not test AL. |
+| `00589E80`, insert without growth | +4: pointer to caller-owned **8-byte iterator result storage**; +8: pointer to the borrowed name/index pair below | Callee removes 8 bytes. Writes result+0 = new node pointer, result+4 = H; **EAX = result-storage pointer** on both insertion paths. No Boolean or inserted/duplicate flag. |
+
+Thus the insertion's first stack word is hidden aggregate-result storage;
+the second is the pair address. The caller pushes the pair address before the
+result address. The result need not be initialized. It is a borrowed cursor,
+does not acquire the container or node, and needs no destruction. The actual
+resource caller discards it. The ABI inventory's inferred `void` return does
+not describe the explicit result writes or EAX's value. Evidence: caller setup
+`005A5F03–005A5F27`; insertion input loads `00589E87–00589E96`, result/return
+`00589F1A–00589F2D` and `00589F76–00589F89`; grow return `00587132–00587138`.
+
+For each nonterminator, request growth with **current H+10 count plus one**,
+then call insertion once with that same H and the decoded pair. Growth is
+needed even for duplicate keys because they create nodes. The insert helper
+does not grow on its own and requires a nonempty bucket array. It does not
+interpret the resource terminator; that check belongs to Read before either
+call (§18.9.6). Neither helper validates the description index or retains a
+description reference. An index is a raw u32, including FFFFFFFF.
+
+**Pair, node and ownership.** The borrowed source pair is `10` bytes: string
+begin at +0, logical end at +4, allocation end at +8, and u32 index at +C.
+The string is the counted three-word byte string of §18.7.2, not a C string,
+COM string or polymorphic string object. Only [begin,end) supplies key bytes;
+source capacity is not consulted. Each insertion allocates a distinct `14`-byte
+node: next at +0, copied string triple at +4/+8/+C, index at +10. H+10 counts
+all nodes. H+4/+8/+C remain the bucket vector's begin/end/allocation-end.
+
+The helper allocates both the node and its own **length+1-byte** key buffer
+through native allocator trampoline `0090CF54`. It copies all counted source
+bytes, adds a trailing zero outside the logical string, sets copied end to
+begin+length and allocation end to begin+length+1, and copies the index word.
+It neither adopts nor mutates the source pair/buffer. The dictionary owns the
+new allocation; the caller can immediately destroy its temporary pair and
+decoded string. Indeed Read frees both temporary key buffers after insertion
+through the native free trampoline `0090CF63` (`005A5F2C–005A5F4B`). Native-owned
+nodes, key buffers and bucket storage must remain compatible with that native
+allocator/free family; no AddRef/Release applies to the numeric index. Evidence:
+node/copy paths `00589ED2–00589F07`, `00589F30–00589F6D`; counted string copy
+`00408420–00408479`; allocator/free routing `0090CF54–0090CF71`.
+
+**Hash, equality and spelling.** Start with a zero u32 hash. For each counted
+byte in order, interpret that byte as signed eight-bit (-128 through 127),
+multiply the previous hash by **5**, add the signed value and retain the low
+32 bits. The bucket is the **unsigned** remainder after division by the current
+bucket count. Embedded zero bytes participate; the extra trailing zero does
+not. Equality first compares lengths, then every counted byte exactly. There
+is no lowercase conversion, case folding, trimming or spelling normalization
+in Read, growth or insertion. Names `MiXeD` and `mixed` are different keys;
+the lowercasing of other collection APIs (§18.7.1) does not apply here.
+The bucket helper `0051C9B0` uses H in ECX, one stack pointer to the string
+triple, callee cleanup 4, and returns the bucket number in EAX; it has no hidden
+result. Evidence: signed-byte loads, wrapping arithmetic and unsigned remainder
+`0051C9B0–0051C9E6`; exact equality `00589EA5–00589ED0`; Read's unmodified
+counted-byte copy `005A5E74–005A5F12`.
+
+Within the selected bucket, insertion searches from the head for the **first**
+equal key. If found, it links the new node **immediately after that node**,
+preserving that node's former successor as the new node's next. It keeps all
+old nodes, indices and spellings. If no equal key exists, it prepends the new
+node to the bucket head. Either path increments H+10 by one and returns the
+new node through the iterator storage. Three successive equal keys with indices
+7,9,11 therefore form **7 → 11 → 9**, without growth between them. Evidence:
+no-match head insertion `00589F0A–00589F1A`; equal-key insertion
+`00589F70–00589F76`. There is no unique-key rejection or index overwrite.
+
+**Growth and writer traversal.** Let B be the bucket count, the byte difference
+H+8 minus H+4 divided by four. If unsigned N ≤ B, growth changes nothing.
+Otherwise select the first value ≥ N from this ascending table, saturating
+at the last value when N exceeds it. These table entries are **decimal**.
+
+| Table positions | Bucket counts |
+|---|---|
+| 0–6 | 53, 97, 193, 389, 769, 1543, 3079 |
+| 7–13 | 6151, 12289, 24593, 49157, 98317, 196613, 393241 |
+| 14–20 | 786433, 1572869, 3145739, 6291469, 12582917, 25165843, 50331653 |
+| 21–27 | 100663319, 201326611, 402653189, 805306457, 1610612741, 3221225473, 4294967291 |
+
+If the selected size is not greater than B, leave the header alone. Otherwise
+allocate that many zero bucket-head words. Visit old buckets in ascending
+index; repeatedly detach each current head and prepend it to its recomputed
+new bucket. Install the new bucket vector and free the old bucket storage.
+Node addresses, owned key buffers, indices and H+10 count do not change;
+chain order can change, including reversal of equal-key nodes. There is no
+key sort or duplicate coalescing. A normally constructed visual dictionary
+requests 100 buckets and starts with **193**, count zero. Evidence: grow
+selection `0058701B–00587093`, unsigned lower bound `0079FA90–0079FACE`, table
+`00A829B0–00A82A1C`, bucket allocation/fill `0051C950–0051C9A8`,
+rechain/install/free `005870A6–0058712F`, constructor
+`0058C584–0058C59D` and bucket initialization `00829BC0–00829C27`.
+
+Write visits the current nonempty buckets in ascending index and emits every
+node in its next-chain order, each as its retained string then u32 index. It
+does not enumerate the source read order, sort names/indices, normalize keys
+or collapse duplicates. It then emits exactly one additional `(end,FFFFFFFF)`
+pair. Evidence: `005A44A2–005A4551`, terminator `005A4553–005A458D`.
+
+**Worked case — retained entry, mixed-case duplicates and exact terminator.**
+Start with 193 buckets, one node O holding `(old,4)` and H+10 = 1. Read valid
+root-4 framing and a visual vector with at least ten valid records, then map
+pairs `(MiXeD,7)`, `(MiXeD,9)`, `(end,FFFFFFFF)` and a valid empty tail. This is
+a proposed conformance fixture, not a native execution.
+
+The hash of `old` is 3415, giving bucket **134**. The hash of `MiXeD` is 64023,
+giving bucket **140**. Growth requests 2 and 3 leave 193 buckets unchanged.
+First insertion creates A with index 7 as bucket 140's head; second creates B
+with index 9 immediately after A. O remains the same node with the same key
+and index. The exact terminator creates no node and makes no growth call.
+The final count is **3**, bucket 134 is O → null, and bucket 140 is A → B → null.
+A and B each own separate buffers containing exactly `MiXeD` plus their
+non-counted trailing zero. No node named `end` is added. Read proceeds through
+the tail and returns true. Write's name-map output is, in order,
+**`(old,4)`, `(MiXeD,7)`, `(MiXeD,9)`, `(end,FFFFFFFF)`**. Record bytes and
+camera/binding/trigger framing follow their existing contracts.
+
+| ID | Additional fixture / operation | Required result |
+|---|---|---|
+| EF27-C1 | The complete worked resource Read/Write above | Three nodes with the exact bucket/chain/spelling/index state above; growth then insert for each ordinary pair; terminator neither grows nor inserts. |
+| EF27-C2 | Direct grow followed by insert on H; source pair names `MiXeD`, index 7; writable result storage with sentinels | ECX = H for both calls; grow takes count+1 by value and pops 4; insert takes result pointer then pair pointer and pops 8. Both result words overwritten with new node and H; EAX is the result pointer. Destroying/changing the source buffer afterward does not change the inserted key. |
+| EF27-C3 | After C1, insert `(MiXeD,11)` with the prescribed grow-first sequence | Count 4; bucket 140 indices 7 → 11 → 9, all exact `MiXeD`. O remains unchanged. This distinguishes insertion after the first equal key from append and prepend. |
+| EF27-C4 | Separate single-pair insertions into a 193-bucket map: `mixed`, empty bytes, one byte 80 hex, or bytes 61 00 62 hex | Hashes 84855, 0, FFFFFF80 hex, 2523 respectively; exact counted bytes retained, including embedded zero. `mixed` has bucket 128 and does not equal `MiXeD`. No case normalization or C-string truncation. |
+| EF27-C5 | Starting with C1's map, call grow directly with N = 194, without another insertion | 389 zero-initialized buckets before rechain; count stays 3; same node/key allocations. `MiXeD` bucket 227 becomes B → A; `old` bucket 303 remains O. Writer emits `(MiXeD,9)`, `(MiXeD,7)`, `(old,4)`, then the terminator. |
+
+All EF27 boundary and valid-input ordering questions are settled statically.
+These fixtures and the constant/hash calculations are not replacement
+acceptance, payload verification or an in-game result.
 
 ### 18.10 Typed renderer value codecs (EF26) *[compat]*
 
