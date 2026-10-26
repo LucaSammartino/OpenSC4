@@ -65,4 +65,3 @@ extension map operations and tail/folded slots, listener numeric conversions,
 renderer duplicate rules, cache ownership, initialization dependencies and
 shutdown queue/reference order. Start at 0x00967DD4, 0x00967885,
 0x00967FE4, 0x009683EF. Preserve the confirmed consuming event chain.
-
