@@ -419,3 +419,78 @@ entry is recorded with the lane it came from. Every answer is written into the s
     `+0x90` = 36 is `TweenSpeed`. This matches the Mac `ReturnToDefaultSpeed` (`0x000caa42`,
     `(defaultSpeed, 0.3/m)`).
   automata.md 6.5, S11.
+
+<!-- from: automata-cities29 (2026-10-26); imported by re-at30 -->
+The branch's AT24–AT28 were imported as AT29–AT33 because main already used AT24 and AT25.
+
+- ~~**AT29 — concrete carjacked/limo records (branch AT24):** Publish the complete ordered wire fields,
+  leading version (if any), nesting, accepted versions and reference IIDs for
+  `cSC4CarjackedVehicle` (`0xCBB32B0A`) and `cSC4MayorLimo` (`0x4C0DD224`).
+  automata-managers.md §1 specifies their construction, not their records;
+  docs/abi/vtables.tsv assigns both Write `0053ce00`, Read `00524490`, distinct
+  from Vehicle. Census sh28-census3 reports unsupported records in 23 and 9
+  scenarios respectively (e.g. maxisland-bevopolis, maxisland-derris-heights).
+  Blocks replay of these two cases; no presumed alias or opaque-byte bypass.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.1 specifies
+  both distinct classes as `u16 1` plus complete Vehicle, with no tail and no new reference IID.
+  The shared reader accepts exactly 1 and delegates its Boolean result; worked cases cover both
+  identities, lengths and outer/inherited rejection. No plain-Vehicle alias is assumed.
+
+- ~~**AT30 — ambulance record (branch AT25):** Publish the complete ordered wire fields, leading
+  version, nesting, accepted versions and reference IIDs for `cSC4Ambulance`
+  (`0x6C1ACDE1`). automata-managers.md §1 identifies an emergency subclass but
+  not its record; ABI assigns Write `00504bf0`, Read `00504c10` rather than the
+  emergency base's methods. Unsupported in 12 census scenarios, e.g.
+  lua-lots-grown and maxisland-east-weburg. Blocks this case's full replay.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.2 specifies
+  `u16 1`, complete Emergency (`u16 2`, complete Vehicle, target vector, station occupant reference
+  with IID `0x26BB767E`, attempts byte, call-number word, dispatch-state dword), no Ambulance tail.
+  Exactly 1 is accepted; inherited results are preserved. The worked null-station case is V+27 bytes.
+
+- ~~**AT31 — tank record framing (branch AT26):** vehicles.md §§1, 6, 12.13 say Vehicle plus
+  two owner dwords, but do not specify whether Tank Write `0054aa30` / Read
+  `0054a8e0` add a leading version wrapper, its value/acceptance, or the order
+  and meanings of those dwords. Please specify the exact wire sequence (or
+  explicitly confirm no wrapper and two raw dwords). Unsupported class
+  `0xEBE0DCAD` in maxisland-norte-delano and paradis-zoe blocks those two cases.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.3 and
+  [vehicles.md](../../vehicles.md) §§1, 6, 12.13 correct the record to `u16 2`, complete Vehicle,
+  two signed byte model indices (first auxiliary handle, then second). Read accepts 0/1 without
+  those bytes and 2 with them; it returns the stream-error result after an accepted outer version,
+  even when Vehicle returned false. Worked cases distinguish widths, duplicate model positions,
+  historical versions, interface views and the swallowed inherited failure. There are no new refs.
+
+- ~~**AT32 — mass-transit train record (branch AT27):** Publish the complete ordered wire
+  sequence, wrapper versions, nesting, reference IIDs and failure semantics for
+  `cSC4MassTransitTrain` (`0x4C22AE53`). automata-managers.md §1 specifies its
+  constructor, but neither that section nor vehicles.md §12.1 defines its record.
+  docs/abi/vtables.tsv assigns Write `0053cb30` and Read `0053cb50`, distinct
+  from Train. The new run automata-cities29-2/paradis-braus.log reports this
+  unsupported class during its initial owner capture (line 2137); that run
+  stalled before the first month. Blocks this concrete class's replay; do not
+  presume that it aliases Train or discard its trailing bytes.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.4 specifies
+  `u16 1`, Train `u16 2`, TrainCar `u16 2`, complete Vehicle, car count/references (IID `0x4A416254`),
+  raw dword, vector, independent network reference (IID `0xA821EF94`), raw dword. The outer reader
+  accepts exactly 1 and preserves Train's result and list/null handling. Worked cases give exact
+  lengths, retained existing cars and rejection positions; no train tail is discarded.
+
+- ~~**AT33 — fire-truck record framing (branch AT28):** Publish the full ordered record,
+  wrapper version/acceptance, inherited Emergency Read behavior and reference
+  IIDs for `cSC4FireTruck` (`0xAA222B83`). vehicles.md §7.2 describes its crew
+  and §1 says Emergency plus a reference, but automata.md §6.4 specifies the
+  complete wrapper only for PatrolCar. ABI assigns FireTruck Write `00532ee0`
+  and Read `00532f20`, distinct from PatrolCar. The shared-queue run
+  automata-cities29-5/maxisland-norte-delano.log line 2145 has one unsupported
+  fire truck at load: `derived[0xAA222B83]=0/1`, one of 12 automaton failures.
+  The eight-line diagnostic cap hides it behind other classes, but the complete
+  per-class summary retains it. Blocks this load case; no presumed PatrolCar alias.~~
+  **ANSWERED 2026-10-26 (re-at30):** MATCHES — [automata.md](../../automata.md) §6.4.2 proves
+  FireTruck's own sequence: `u16 2`, complete Emergency, one crew reference requesting IID
+  `0xA9B40F05`. Both wrappers require exactly 2; inherited failure prevents the crew operation.
+  The wrapper retains the inherited Boolean and explicitly AddRefs/stores/releases a changed crew.
+  Worked cases cover non-null and null crews, byte lengths and inherited-version rejection.
+
+All five record questions are settled statically from Windows 1.1.641 instruction bytes and the
+documented inherited records. No runtime observation is needed to determine these layouts; the
+worked cases are proposed conformance fixtures, not a claim of a passing game/shadow run.
