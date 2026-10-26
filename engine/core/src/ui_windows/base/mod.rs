@@ -15,6 +15,8 @@ mod resolved_tests;
 #[cfg(test)]
 mod tests;
 mod tree;
+#[cfg(test)]
+mod wt14_tests;
 pub use tree::ChildRead;
 
 pub type Window = u64;
@@ -250,7 +252,8 @@ pub enum NativeOp {
 pub struct BufferInfo {
     pub area: Rect,
     pub usable: bool,
-    pub content: bool,
+    /// Buffer slot 39: surface initialized/readiness, not image content (WT14).
+    pub initialized: bool,
     pub context: Option<Object>,
     /// Interface 0xAB300B2B slot 5 for presentation; slot 4 above is drawing.
     pub present_context: Option<Object>,
@@ -259,7 +262,7 @@ pub struct BufferInfo {
 }
 
 /// Host supplies services or subclass overrides, never native memory to core.
-/// Buffer creation internals and native slot meanings stay at this boundary (§12).
+/// Graphics implementation stays at this boundary; the window owns WT14 call ordering.
 pub trait Host {
     fn event(&mut self, _event: NativeOp) {}
     /// Explicit AL left by a slot-16 override (the native declaration is void).
@@ -290,6 +293,17 @@ pub trait Host {
     fn clock(&mut self) -> u32 {
         0
     }
+    /// Borrowed RZ::GS() used by slot 150's fallback.
+    fn graphics_system(&mut self) -> Option<Object> {
+        None
+    }
+    /// Owning service handles; the window Releases each returned reference.
+    fn acquire_graphics_system(&mut self) -> Option<Object> {
+        None
+    }
+    fn acquire_draw_system(&mut self) -> Option<Object> {
+        None
+    }
     fn screen_buffer(&mut self) -> Option<Object> {
         None
     }
@@ -299,7 +313,30 @@ pub trait Host {
     fn buffer_info(&mut self, _buffer: Object) -> BufferInfo {
         BufferInfo::default()
     }
-    fn create_private_buffer(&mut self, _w: Window, _width: i32, _height: i32) -> Option<Object> {
+    /// Service slot 5 writes an owned output independently of its result byte.
+    fn draw_system_create_buffer(
+        &mut self,
+        _service: Object,
+        _out: &mut Option<Object>,
+        _width: i32,
+        _height: i32,
+        _mode: u32,
+    ) -> bool {
+        false
+    }
+    /// Graphics slot 3: the window ignores the result and examines the owned output.
+    fn graphics_system_create_buffer(&mut self, _graphics: Object, _out: &mut Option<Object>) -> bool {
+        false
+    }
+    fn init_buffer(&mut self, _buffer: Object, _width: i32, _height: i32, _color_type: u32, _bpp: u32) -> bool {
+        false
+    }
+    /// QI 0xAB300B2B. Any non-null output is owned, even on a false result.
+    fn query_draw_interface(&mut self, _buffer: Object, _out: &mut Option<Object>) -> bool {
+        false
+    }
+    /// Interface slot 4 returns a borrowed context, distinct from presentation slot 5.
+    fn drawing_context(&mut self, _interface: Object) -> Option<Object> {
         None
     }
     fn lock_buffer(&mut self, _buffer: Object, _flags: u32) -> bool {
@@ -329,8 +366,8 @@ pub trait Host {
     fn filter(&mut self, _wins: &mut Windows, _filter: Object, _w: Window, _msg: Message) -> bool {
         false
     }
-    fn handler(&mut self, _wins: &mut Windows, _w: Window, _slot: u32, _args: &[u32]) -> bool {
-        matches!(base_slot(_slot), Some(BaseSlot::Constant { byte: 1, .. }))
+    fn handler(&mut self, _wins: &mut Windows, _w: Window, slot: u32, _args: &[u32]) -> bool {
+        matches!(base_slot(slot), Some(BaseSlot::Constant { byte: 1, .. }))
     }
     fn accelerate(&mut self, _accelerator: Object, _msg: Message) -> bool {
         false

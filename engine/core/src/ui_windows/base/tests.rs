@@ -36,6 +36,12 @@ impl Host for TestHost {
     fn clock(&mut self) -> u32 {
         self.time
     }
+    fn acquire_graphics_system(&mut self) -> Option<Object> {
+        Some(901)
+    }
+    fn acquire_draw_system(&mut self) -> Option<Object> {
+        Some(902)
+    }
     fn screen_buffer(&mut self) -> Option<Object> {
         Some(900)
     }
@@ -45,22 +51,42 @@ impl Host for TestHost {
     fn buffer_info(&mut self, b: Object) -> BufferInfo {
         self.buffers.get(&b).copied().unwrap_or_default()
     }
-    fn create_private_buffer(&mut self, w: Window, width: i32, height: i32) -> Option<Object> {
+    fn draw_system_create_buffer(
+        &mut self,
+        _: Object,
+        out: &mut Option<Object>,
+        width: i32,
+        height: i32,
+        mode: u32,
+    ) -> bool {
+        assert_eq!(mode, 1);
         if self.fail_create {
-            return None;
+            return false;
         }
-        let b = 1000 + w;
+        let b = 1000 + self.buffers.len() as u64;
         self.buffers.insert(
             b,
             BufferInfo {
                 area: Rect(0, 0, width, height),
                 usable: true,
-                content: true,
+                initialized: true,
                 color: Some(u32::MAX),
                 ..BufferInfo::default()
             },
         );
-        Some(b)
+        *out = Some(b);
+        true
+    }
+    fn query_draw_interface(&mut self, buffer: Object, out: &mut Option<Object>) -> bool {
+        if self.buffer_info(buffer).context.is_some() {
+            *out = Some(buffer);
+            true
+        } else {
+            false
+        }
+    }
+    fn drawing_context(&mut self, interface: Object) -> Option<Object> {
+        self.buffer_info(interface).context
     }
     fn lock_buffer(&mut self, _: Object, _: u32) -> bool {
         !self.fail_lock

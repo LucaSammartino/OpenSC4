@@ -178,14 +178,32 @@ impl Windows {
             }
             p = self.get(a).parent;
         }
-        let buffered = buffer.is_some();
+        let mut buffered = true;
         if buffer.is_none() {
-            buffer = host.screen_buffer();
+            if let Some(graphics) = host.acquire_graphics_system() {
+                buffer = host.screen_buffer();
+                buffered = false;
+                host.event(NativeOp::Release(graphics));
+            }
         }
-        let context = buffer.and_then(|b| host.buffer_info(b).context);
         let s = self.get_mut(w);
         s.draw_buffer = buffer;
         s.buffered = buffered;
+        s.draw_context = None;
+        let mut context = None;
+        if let Some(buffer) = buffer {
+            let mut interface = None;
+            let ok = host.query_draw_interface(buffer, &mut interface);
+            if ok {
+                if let Some(interface) = interface {
+                    context = host.drawing_context(interface);
+                }
+            }
+            if let Some(interface) = interface {
+                host.event(NativeOp::Release(interface));
+            }
+        }
+        let s = self.get_mut(w);
         s.draw_context = context;
         self.set_draw_area_recursive(host, w);
     }
