@@ -198,13 +198,13 @@ cIGZBuffer* MakeBuffer(uint32_t w, uint32_t h, uint32_t type, uint32_t bits) {
 
 void Span565SetEnabled(bool on) { g_enabled = on; }
 
-const char* Span565ScriptProbe() {
+const char* Span565ScriptProbe(const char* date) {
     const bool enabled = g_enabled, installed = g_installed;
     g_enabled = true;
     Span565Install();
     if (!g_installed) {
         g_enabled = enabled;
-        Log("span565 shadow scripted-buffer: compared=0 mismatches=1 resyncs=0; bridge unavailable");
+        Log("span565 shadow %s scripted-buffer: samples=0 mismatches=1 resyncs=0; bridge unavailable", date);
         return "failed: span565 bridge unavailable";
     }
     const uint64_t cases = g_cases565, exact = g_exact565, different = g_diff565;
@@ -215,8 +215,8 @@ const char* Span565ScriptProbe() {
     const bool pass = compared == 249 && matched == compared && g_diff565 == different &&
         g_refused565 == refused && g_unaccounted565 == unaccounted &&
         g_contract565 == contract && g_unchanged565 == unchanged;
-    Log("span565 shadow scripted-buffer: compared=%llu exact=%llu mismatches=%u different=%llu refused=%llu unaccounted=%llu contract_failures=%llu unchanged_unexpected=%llu resyncs=0; scope=constructed-public-context",
-        compared, matched, pass ? 0u : 1u, g_diff565 - different, g_refused565 - refused,
+    Log("span565 shadow %s scripted-buffer: samples=%llu exact=%llu mismatches=%u different=%llu refused=%llu unaccounted=%llu contract_failures=%llu unchanged_unexpected=%llu resyncs=0; scope=constructed-public-context",
+        date, compared, matched, pass ? 0u : 1u, g_diff565 - different, g_refused565 - refused,
         g_unaccounted565 - unaccounted, g_contract565 - contract, g_unchanged565 - unchanged);
     if (!installed) Span565Restore();
     g_enabled = enabled;

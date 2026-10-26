@@ -38,6 +38,6 @@ void Span565Install();            // PostAppInit: entries, then the trace if ask
 void Span565Restore();            // PreAppShutdown: originals back, counter line
 // Explicit suite workload, outside monthly ReachProbeScope. Uses only public
 // buffer/context calls; constructed buffers still do not prove shipped usage.
-const char* Span565ScriptProbe();
+const char* Span565ScriptProbe(const char* date);
 
 }  // namespace fc4

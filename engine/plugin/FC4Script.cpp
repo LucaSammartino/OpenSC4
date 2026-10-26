@@ -741,7 +741,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             result = GDriverShadowProbe();
             break;
         case ScriptOp::Span565Probe:
-            result = Span565ScriptProbe();
+            result = Span565ScriptProbe(harness::FormatDate(harness::CivilFromJulian(julian)).c_str());
             break;
     }
     std::string late;
