@@ -1597,5 +1597,8 @@ fn pt11_friction_clamps_strict_negatives_and_preserves_negative_zero() {
     let mut simulator = Simulator::default();
     let id = simulator.add_object(&description, false);
     simulator.integrate_list(false, 0.).unwrap();
-    assert_eq!(simulator.objects[&id].description.velocity.map(f32::to_bits), [0x8000_0000, 0]);
+    assert_eq!(
+        simulator.objects[&id].description.velocity.map(f32::to_bits),
+        [0x8000_0000, 0]
+    );
 }

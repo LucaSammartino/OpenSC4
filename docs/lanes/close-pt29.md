@@ -1,0 +1,19 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| close-pt29 particle owner closure; kind engine | Codex; .claude/worktrees/close-pt29; detached HEAD; reserved branch close-pt29 | continue; implementation 968de1131, corrected closure e1db1922b; ABI false; no seam reservations; pre-fix cargo 7905/7905 and clippy 0; corrected focus 1/1; native pending; game/shadow n/a; questions none | 1. Collect existing qbuild session 12307. 2. Run corrected all after it terminates. 3. Shared-queue game smoke. 4. Enqueue engine with actual HEAD. |
+
+Particles: PT1 pre-pack factors, PT2 literal event firing, PT3 zero scalar/baseline and PT13 services/transforms/parameters implemented with worked fixtures. Open rows 5.1/6/6.1/7/7.1 require PT1 height, city-volume, walk, tractor/attractor and terrain/building observations; 9.1/13.2 retain PT8 draw/state captures and the PT1 slot12 aim limit.
+Geometry: PT3 inherited scalar correction and PT8 null/zero-group and wave-prefix cases implemented. Rows 14.1–14.3 remain open for runtime center/wave defaults, nonempty mesh/dicing, displacement/damping and packed draw captures (§21.2).
+Decal: PT9 finite rows 15.1/15.2 implemented: all 128 flag words, Start/lifetime modes, elapsed-seconds quirk, transforms/turns, RNG order, whole-city calls and projection trace. Row 15.3 retains §15.4 exceptional/key-boundary and native placement-record observations; logical Placement is not native packing.
+Dynamic: row 16.1 applies PT10 radius and PT11 joint records for valid distinct endpoints. Rows 16.2/16.3 retain PT10 normal response, final basis, static-description/interface-state, draw/shading and lifecycle observations (§21.3); tested floor/gravity and filter prefixes are not a complete tick.
+Rigid body: PT11 finite admission/integration rows 17.1/17.2 and PT12 unsigned maximum predicate implemented. Row 17.3 tests conditional RB-C0, sector/vector order and joint equalities; PT11 clock/RNG, static/low/hash and exceptional traces remain open; whole collision dispatch remains unsupported.
+Description base: row 2 applies PT3 positive-zero scalar defaults with supplied RGB constructor primitive; row 18.2 retains deep-copy/refcount tests. Row 3 remains open PT1 for flag-consumer captures (§21.1).
+README marks rows without open domains implemented within their stated domain; no whole-owner flip is claimed while an owner retains an open row. No coverage-map edits.
+Pre-fix focused owners: 34/34 passed; those fixtures also passed in build-runs/qbuild-test.log.
+Pre-fix all Rust gate: 7905 passed, 0 failed; build-runs/qbuild-test.log. Clippy -D warnings: 0 diagnostics; build-runs/qbuild-clippy.log. These precede the signed-zero correction and are superseded for final gating.
+Corrected signed-zero regression: 1/1 passed; build-runs/pt11-signed-zero.log. Strict-negative friction comparison preserves negative zero.
+Formatting: qbuild fmt passed for all 10 owned Rust files, diff_lines=0. Final formatting-only regression assertion edit is included with this handoff.
+Native gate: original qbuild all still running as exec session 12307, queued request qbuild-20261026-122450-build-ctest. engine/build-x86 did not exist at 12:49 UTC. Do not launch a duplicate while that operation remains pending.
+Game: no request submitted, DLL not yet produced; ref_warnings unmeasured. Particle owners have no shadow adapter; do not claim native exactness.
+Next: collect the SAME qbuild operation to its terminal result, then rerun all for the corrected source. Submit one new request through MAIN/build-runs/game-queue with the lane DLL, turbo/end_date and refaudit; wait via qwait, require clean/ref_warnings=0, then enqueue kind engine using actual HEAD.
+Next: finish the lane record with measured final gate/game values and write the merge entry only after those checks; no merge-queue file or enqueue was produced this round.
