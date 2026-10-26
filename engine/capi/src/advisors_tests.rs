@@ -673,7 +673,10 @@ fn mysim_record_round_trip() {
         assert_eq!((loaded.slot, loaded.residence, loaded.generation), (2, HOME, 1));
         assert_eq!(loaded.dispatch, 0xD15);
         let mut loaded_name = [0i8; 8];
-        assert_eq!(fc4_adv_advisor_text(n, 1, loaded_name.as_mut_ptr(), loaded_name.len()), 3);
+        assert_eq!(
+            fc4_adv_advisor_text(n, 1, loaded_name.as_mut_ptr(), loaded_name.len()),
+            3
+        );
         assert_eq!(&loaded_name[..4], &[65, 110, 110, 0], "the personal name survives Read");
         assert_eq!(
             f.game.refs(0xD15),
