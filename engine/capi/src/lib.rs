@@ -1204,3 +1204,6 @@ mod compare;
 
 // Private RegionalCity handle transport; no public DLL exports.
 mod regionalcity_owner;
+
+// Private graphics-rule owner transport; native acquisition requires GR9.
+mod cfgrules_owner;
