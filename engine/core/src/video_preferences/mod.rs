@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Bounded portable owner from `docs/specs/video-preferences.md` §§2–7.
+//! Portable `cSC4VideoPreferencesWinProc` from `docs/specs/video-preferences.md`.
 //!
 //! This is not a native constructor, COM layout, widget implementation, or a
 //! complete panel. Raw initial fields and pointer identities are explicit inputs.
@@ -7,7 +7,7 @@
 //! cleanup does not perform logical Release/free. Unknown slices fail explicitly.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Object(pub u64);
+pub struct Object(pub crate::widget_controls::Handle);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Payload {
@@ -115,7 +115,6 @@ pub enum Unsupported {
     MissingService,
     AllocationFailure,
     UnqualifiedEvent(u32),
-    RemainingRedrawVp1,
     AutoRedrawVp1Vp4,
     ShowMiddleVp3,
     FreedOwner,
@@ -136,6 +135,7 @@ pub enum Call {
     Lookup { root: Object, id: u32, iid: u32 },
     Slot { object: Object, slot: u16, args: Vec<Arg> },
     Utility { root: Object, id: u32 },
+    SetToggle { root: Object, id: u32, on: bool },
     Global(Global),
     Framework,
     Service { framework: Object, id: u32, iid: u32 },
@@ -490,14 +490,9 @@ impl Owner {
         Ok(FirstGroupExit::At0079020d { retained: local })
     }
 
-    /// Full redraw has only one qualified complete path: null P (§6.1).
+    /// Complete redraw, including the settled intervening groups (§9.2).
     pub fn redraw(&mut self, host: &mut impl Host) -> Result<(), Unsupported> {
-        self.live()?;
-        if self.state.preferences.is_some() {
-            return Err(Unsupported::RemainingRedrawVp1);
-        }
-        self.redraw_first_group(host)?;
-        Ok(())
+        self.redraw_complete(host)
     }
 
     /// Qualified entry at 00791201 with the live preceding local reference.
@@ -863,6 +858,9 @@ impl Owner {
     }
 }
 
+mod completion;
+#[cfg(test)]
+mod completion_tests;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]

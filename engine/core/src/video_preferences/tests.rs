@@ -77,7 +77,7 @@ fn owner(state: RawState) -> Owner {
 }
 
 /// Raw independent callback inputs. No branch, preference, or marker oracle.
-struct Inputs {
+pub(super) struct Inputs {
     checked: Vec<(u32, u8)>,
     utilities: [u8; 2],
     app: Option<Object>,
@@ -203,7 +203,9 @@ impl Host for Inputs {
                 slot: 0xa4,
                 ..
             } => Reply::U32(self.modal_result),
-            Call::Slot { .. } | Call::Unpause(_) | Call::FreeOwner(_) => Reply::U32(self.ignored),
+            Call::Slot { .. } | Call::SetToggle { .. } | Call::Unpause(_) | Call::FreeOwner(_) => {
+                Reply::U32(self.ignored)
+            }
             other => panic!("unprovided primitive input {other:?}"),
         })
     }
@@ -712,7 +714,6 @@ fn unsupported_domains_and_unknown_work_never_become_successful_noops() {
         );
     }
     let mut o = owner(state());
-    assert_eq!(o.redraw(&mut Inputs::default()), Err(Unsupported::RemainingRedrawVp1));
     assert_eq!(
         o.action(&mut Inputs::default(), 0x6a57da49),
         Err(Unsupported::UnqualifiedEvent(0x6a57da49))
