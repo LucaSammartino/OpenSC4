@@ -101,7 +101,7 @@ bool fc4_regionalcity_owner_deal_action(FC4RegionalCityOwner*, uint32_t action,
     const FC4RegionalCityRegionCalls*, void* const*, uint32_t, const FC4RegionalCityDealCalls*);
 // event 0: return L to O; 1: reset growth; 2: release all three lists.
 bool fc4_regionalcity_owner_event(FC4RegionalCityOwner*, uint32_t event);
-// SPEC-GAP: Native ConnectionHost border edits await regional-city-records RR3's network/demolition call contract (RY9); do not register an incomplete COM replacement.
+// SPEC-GAP: Native ConnectionHost border demolition awaits RR3's privilege/flags/filter contract (RY9); do not register an incomplete COM replacement.
 bool fc4_regionalcity_owner_change_connection(FC4RegionalCityOwner*, void*, const FC4RegionalCityConnectionCalls*,
     int32_t sourceX, int32_t sourceZ, int32_t sourceSizeX, int32_t sourceSizeZ, bool add);
 bool fc4_regionalcity_owner_cache(FC4RegionalCityOwner*, const FC4RegionalCityCache*);
