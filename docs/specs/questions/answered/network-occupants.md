@@ -1,5 +1,16 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: core-netocc-close5 (2026-10-23) -->
+- **NO32 - sections 2.4, 2.5 and 2.7 base-owner closure inputs:** what are the numeric UV tables
+  `0x00AA7D98`/`0x00AA7D88`, the three packed render states made by StaticInit, and the zoom-table
+  `0x00B0B374` entries and exact `0x6000000` Draw predicate? How are normalized triangle normals encoded
+  into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
+  without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
+  **ANSWERED 2026-10-26 (re-no29):** DIFFERS — §2.5 publishes value/mask words; §2.11 publishes
+  binary32 UVs and the HasAny predicate. B0B374 is a scalar cached zoom, not a table. §2.7 gives
+  normalization, degenerate NaN delegation and RGB-to-BGRA copies with a worked fixture case;
+  normals themselves are not encoded as colour bytes.
+
 <!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
 - **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
   after Clip, or does the clipped row override the options-skip row for all three calls? The core treats

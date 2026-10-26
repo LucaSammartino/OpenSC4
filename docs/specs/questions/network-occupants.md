@@ -66,13 +66,6 @@ implementer of the class tables and records.
   mode-0 call that actually needs six-plane cutting returns `UnspecifiedClipMode`; null lo or contained
   x/z bounds return unchanged. No six-plane output is fabricated.
 
-<!-- from: core-netocc-close5 (2026-10-23) -->
-- **NO32 - sections 2.4, 2.5 and 2.7 base-owner closure inputs:** what are the numeric UV tables
-  `0x00AA7D98`/`0x00AA7D88`, the three packed render states made by StaticInit, and the zoom-table
-  `0x00B0B374` entries and exact `0x6000000` Draw predicate? How are normalized triangle normals encoded
-  into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
-  without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
-
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
   serves, and what the small interface at `+0x20` (vtable `0x00AA7F60`, slots `0x005E06A0`, `0x005E06B0`,

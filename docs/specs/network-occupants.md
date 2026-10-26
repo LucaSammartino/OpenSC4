@@ -434,6 +434,20 @@ connections, no override, path origin offset 0, cost 0, type `0xC772BF98`.
    `0x04003500`, `0x04003600`, `0x04005200`, `0x04005300`, `0x04005400`, `0x04006900`, `0x04007100`, `0x04007400`,
    `0x04007500`, `0x04008500`, `0x04009000`, `0x04009300`, `0x04009400` (slot 55).
 
+**Packed words (NO32, 2026-10-26).** Each state is a u32 value followed by a u32 mask.
+With x87 round-to-nearest/even the three tuples above produce:
+
+| State | Value | Mask |
+|---|---|---|
+| A, `0x00B45260` | `0x024A91FF` | `0x1FFFFFFF` |
+| B, `0x00B45268` | `0x020001E7` | `0x1E0003FF` |
+| C, `0x00B45270` | `0x0242317F` | `0x1FFFFFFF` |
+
+All three leave stage-1 mode unchanged. B also leaves blend factors, alpha function and alpha
+reference unchanged. Reference `0.1f` (`0x3DCCCCCD`) quantizes to nibble 2 with nearest/even
+rounding. These are computed words: tuple calls in `0x0061C690`, packing field shifts/masks
+in `0x007D2B50–0x007D2D15`, reference quantization at `0x007D2CA2–0x007D2CC9`.
+
 The static shutdown releases the cached textures (§2.11), the texture manager and the resource manager, and clears
 the latch.
 
@@ -489,6 +503,25 @@ connection from side `entry` to side `exit` (answers NO12).
   hand: data1 (message slot 11, not void1) and the object are the occupant, data2 is **1**, data3 the type
   `0xC772BF98`, data4 0 (`PostOccupantMessage`, flora.md §9.1, would set void1 instead and put the occupant's flag 4
   in data2). `SetTranslucency` uses `PostOccupantMessage(0x99EF1145, 0)`.
+
+**NO32 normal/colour boundary (2026-10-26).** The triangle normal is not packed into colour
+bytes. After the triangle helper `0x005D6EA0`, the owner computes z²+y², then adds x² in x87,
+takes the square root, divides 1 by it, and multiplies each component by that extended-precision
+reciprocal, storing three binary32 components (`0x0061BC57–0x0061BCB9`). No zero-length test,
+epsilon, fallback normal or clamp intervenes. Lighting slot 19 (`+0x4C`) receives the first
+position and normalized normal. Its returned R, G, B are copied to vertex+14, +13, +12 for
+all three vertices; alpha at +15 is preserved (`0x0061BCBB–0x0061BD19`). Part stride is `0x4C`,
+vertex stride `0x18`. The standard provider is `0x007D7840` (lighting.md §4.1, §4.7): store
+binary32(c+49152), add `0xB8C00000` to its word, then output the low byte of u−(u>>8).
+For finite c in [0,1] this is n−(n>>8), n=round(256c); c=(0,0.5,1) yields (0,128,255).
+
+With masked x87 exceptions, a degenerate zero normal yields NaNs passed to the provider. This
+owner supplies no fixed degenerate RGB; it copies the provider's answer. Unmasked exceptions
+can trap before the query. **Worked case:** have a lighting fixture return RGB=(17,34,51).
+Every vertex becomes BGRA=(51,34,17,old alpha). Repeat with three identical positions: expect
+NaNs at the query boundary under masked exceptions, one query and the same byte-copy rule,
+then flag `0x8000` set. Do not assert that a real lighting provider returns the same RGB for
+the two normals. The byte conversion is colour conversion, not a normal-component encoding.
 
 ### 2.8 The prebuilt subclass *(cSC4NetworkOccupantWithPreBuiltModel)*
 
@@ -606,6 +639,17 @@ recomputed (slot 80) and the lighting marked out of date (slot 46).
 
 **`GetSortValue(out)`** (model instance slot 17): with any of flags `0x06000000`, the piece id; otherwise, with
 parts, the first part's texture id; otherwise `0xA821EF94`.
+
+**NO32 numeric inputs and predicate (2026-10-26).** The UV tables above are four binary32 words
+each, containing only 0 and `0x3F800000`. Rotation 1 without flip gives corner UVs
+(0,1), (1,1), (1,0), (0,0). `0x00B0B374` is one cached u32 zoom, initially 5, not a table.
+`SetTextureZoom` copies context+0x14 directly to it (`0x0061C5F4–0x0061C5FF`). GetTexture adds
+that integer exactly when the ID's low nibble is zero (`0x0061C950–0x0061C978`). Thus zoom 3
+maps ID `0x12345000` to `0x12345003`, while `0x12345002` stays unchanged. There is no table
+lookup or range clamp. Draw tests primary slot **9**, HasAnyNetworkFlag, with `0x06000000`
+(`0x0061A9B1–0x0061A9BF`; predicate body `0x00604D30`): either bit enters the surface-texture
+path; neither skips it, continuing to the parts. Test the four masks 0, `0x02000000`,
+`0x04000000`, `0x06000000`: respectively zero, first, second, both quad triangles are eligible.
 
 **Textures** (`GetTexture(id, fallback)`, slot 77, `0x0061C950`): a texture id whose low 4 bits are 0 gets the
 current zoom offset added (`0x00B0B374`, 5 at start). The id is looked up in a static cache; a miss loads the
