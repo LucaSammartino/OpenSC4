@@ -13,6 +13,23 @@ import sys
 
 SIZES = {"small": 64, "medium": 128, "large": 256}
 MIXES = ("default", "grow", "churn", "edge")
+TREASURY = 150_000_000  # also covers a large-tile dry-run's full-area reserve
+MONTHLY_RESERVE = 5_000_000  # conservative upkeep allowance; no game-state input
+
+
+def estimated_cost(action):
+    """Conservative reserve, including dry-run solvency and occupied-cell costs.
+
+    This is a budget for test construction, not the game's pricing formula.
+    Failed attempts consume the reserve too, so refills do not depend on results.
+    """
+    op, *args = action.split()
+    if op in ("zone", "pricezone", "dezone", "terrain", "network"):
+        x0, z0, x1, z1 = map(int, args[:4])
+        cells = ((abs(x1 - x0) + 1) * (abs(z1 - z0) + 1) if op != "network"
+                 else abs(x1 - x0) + abs(z1 - z0) + 1)
+        return cells * 2000
+    return 2_000_000 if op == "port" else 0
 
 
 def add_months(day, months):
@@ -52,14 +69,22 @@ def generate(seed, size, start, months, mix="default"):
     zone_types = list(range(16))
     rng.shuffle(zone_types)
     lines = [
-        "# scenario_gen v2: seed={} size={} start={} months={} mix={}".format(
+        "# scenario_gen v3: seed={} size={} start={} months={} mix={}".format(
             seed, size, start.isoformat(), months, mix),
         "# Cells stay inside the tile. Native refusals are expected in edge/churn.",
         "# pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.",
         "# Disaster starts run on the final date: native emergency mode can stop new days.",
     ]
 
+    balance = TREASURY
+
     def emit(day, action):
+        nonlocal balance
+        cost = estimated_cost(action)
+        if cost + MONTHLY_RESERVE > balance:
+            lines.append("{} funds {}".format(day.isoformat(), TREASURY))
+            balance = TREASURY
+        balance -= cost
         lines.append("{} {}".format(day.isoformat(), action))
 
     def rectangle():
@@ -146,6 +171,8 @@ def generate(seed, size, start, months, mix="default"):
         zone(day, "zone", (ox + 2, oz + 1, ox + 5, oz + 4), month % 16)
         zone(day, "pricezone", rectangle(), rng.randrange(16))
 
+    emit(start, "establish FC4 generated {}".format(seed))
+    emit(start, "funds {}".format(TREASURY))
     emit(start, "mark seed={} mix={} size={} begin".format(seed, mix, size))
     emit(start, "speed 2")
     emit(start, "resume")
@@ -153,6 +180,7 @@ def generate(seed, size, start, months, mix="default"):
     for month in range(months):
         day = add_months(start, month)
         stop = add_months(start, month + 1)
+        balance -= MONTHLY_RESERVE
         emit(day, "mark seed={} mix={} month={}".format(seed, mix, month))
         phases = ("grow", "churn", "edge") if mix == "default" else (mix,)
         # A fixed topology-before-zoning order, while mixing all three families

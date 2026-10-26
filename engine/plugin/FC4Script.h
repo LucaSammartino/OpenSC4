@@ -38,6 +38,9 @@
 //   turbo on|off               our simulator's turbo clock (FC4Turbo.h)
 //   digest                     the observer's DIGEST line, now
 //   mark <text>                a log line
+//   funds amount               budget SetTotalFunds, whole simoleons 0..999999999
+//   establish <name>           name and found only an unfounded city; a leading
+//                              due establish can run at a tick without new days
 //   dispatch type              real station: begin tool, dispatch, record/shadow,
 //                              revoke, end; INCOMPLETE unless a vehicle dispatched
 //   save [fast]                cISC4App::SaveCity(fast) (docs/abi/vtables.tsv

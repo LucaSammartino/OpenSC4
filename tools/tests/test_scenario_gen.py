@@ -113,10 +113,37 @@ class ScenarioGeneratorTests(unittest.TestCase):
                         turbo_off = args[0] == "off"
                     elif op == "save":
                         self.assertIn(args, ([], ["fast"]))
+                    elif op == "funds":
+                        self.assertEqual(args, [str(gen.TREASURY)])
+                    elif op == "establish":
+                        self.assertEqual(args, ["FC4", "generated", str(seed)])
                     else:
                         self.assertIn(op, ("mark", "digest"))
                     self.assertTrue(all(0 <= c < side and c <= 4095 for c in coords), line)
                 self.assertFalse(paused or stopped or turbo_off)
+
+    def test_funding_reserve_and_empty_bootstrap(self):
+        for mix in gen.MIXES:
+            lines = [line for line in gen.generate(2, "large", date(2000, 1, 1), 48, mix).splitlines()
+                     if line and not line.startswith("#")]
+            self.assertEqual(lines[0], "2000-01-01 establish FC4 generated 2")
+            self.assertEqual(lines[1], "2000-01-01 funds " + str(gen.TREASURY))
+            balance, months, refills = 0, 0, 0
+            for line in lines:
+                _, action = line.split(" ", 1)
+                if action.startswith("funds "):
+                    balance = int(action.split()[1])
+                    refills += 1
+                elif " month=" in action:
+                    balance -= gen.MONTHLY_RESERVE
+                    months += 1
+                else:
+                    cost = gen.estimated_cost(action)
+                    if cost:
+                        self.assertGreaterEqual(balance, cost)
+                        balance -= cost
+            self.assertEqual(months, 48)
+            self.assertGreater(refills, 1)
 
     def test_required_mix_coverage(self):
         for mix in gen.MIXES:

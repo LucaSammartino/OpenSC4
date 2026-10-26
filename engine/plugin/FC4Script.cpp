@@ -35,6 +35,7 @@
 #include "cFC4PropDeveloper.h"
 
 #include "SC4Rect.h"
+#include "SC4String.h"
 #include "cISC4City.h"
 #include "cISC4DispatchManager.h"
 #include "cISC4Occupant.h"
@@ -461,6 +462,34 @@ std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
 
 // ---- speed, pause, resume: the city's simulator ------------------------------------------------------
 
+std::string RunFunds(const harness::ScriptAction& a, cISC4City* city) {
+    auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
+    if (!budget) return "ok=0 (skipped: no city budget)";
+    const int64_t before = budget->GetTotalFunds();
+    const bool result = budget->SetTotalFunds(a.funds);
+    const int64_t after = budget->GetTotalFunds();
+    char b[192];
+    std::snprintf(b, sizeof(b), "ok=%d (SetTotalFunds(%d); treasury %lld -> %lld)",
+                  result && after == a.funds ? 1 : 0, a.funds,
+                  static_cast<long long>(before), static_cast<long long>(after));
+    return b;
+}
+
+std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
+    if (!city) return "ok=0 (skipped: no city)";
+    if (city->GetEstablished()) return "ok=1 (already established; name unchanged)";
+    // cSC4City::SetEstablished (00459a80) posts the city's establishment
+    // message and calls simulator slot 33, enabling its established agents.
+    // This is also the city command exposed to Maxis Lua as SetCityEstablished.
+    const SC4String name(a.text.c_str());
+    city->SetCityName(name);
+    city->SetEstablished(true);
+    SC4String actual;
+    city->GetCityName(actual);
+    return std::string(city->GetEstablished() ? "ok=1" : "ok=0") +
+           " (SetEstablished(true); city name=" + actual.ToChar() + ")";
+}
+
 std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
     cFC4ISC4Simulator* sim = city ? AsGame(city->GetSimulator()) : nullptr;  // city slot 50, borrowed
     if (sim == nullptr) return "skipped: no city simulator";
@@ -646,6 +675,8 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
     std::string result;
     bool digest = false;
     switch (a.op) {
+        case ScriptOp::Funds: result = RunFunds(a, city); break;
+        case ScriptOp::Establish: result = RunEstablish(a, city); break;
         case ScriptOp::Zone:
         case ScriptOp::PriceZone:
         case ScriptOp::Dezone: result = RunZone(a, city); break;
@@ -773,6 +804,21 @@ void ScriptOnNewDay(int32_t julian) {
 }
 
 void ScriptOnTick() {
+    if (g_waiting.empty() && !g_inTick && g_schedule.Remaining()) {
+        cISC4City* city = ObserverCity();
+        auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+        if (sim && !city->GetEstablished()) {
+            const int32_t julian = sim->GetSimDateNumber();
+            if (g_schedule.BootstrapDue(julian)) {
+                // An unfounded city never sends SimNewDay. Queue the explicit
+                // leading establish and its same-date actions at a framework
+                // tick instead; future actions still wait for real new days.
+                g_inTick = true;
+                ScriptOnNewDay(julian);
+                g_inTick = false;
+            }
+        }
+    }
     if (g_waiting.empty() || g_inTick) return;
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
