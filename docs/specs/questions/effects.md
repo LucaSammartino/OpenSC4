@@ -24,3 +24,26 @@ No open questions. EF15 and EF16 are archived in answered/effects.md.
      answered EF22 in sections 18.8.6–18.8.7; originals moved to answered/effects.md. -->
 
 No open questions remain.
+
+## EF25 - Effects-resource creation and complete primary interface (replace-effectsres28)
+
+The requested `effectsres` factory would replace CLSID `2A5118AD` while leaving
+the original manager usable. Sections 18.7.3 and 18.8.1 specify resource IID
+`CA51189B`, collection IID `C97CF5CE` at resource+4, publication at primary slot 5,
+and stream Read at primary slot 7. The SDK supplies the class ID but no resource
+interface declaration. `docs/abi/vtables.tsv` supplies the collection vtable
+`00AA0A60`, but not the primary vtable `00AA0AC0`.
+
+Please specify the complete primary slot declarations (argument/return types,
+stream interfaces and calling conventions), all QI identities/sub-object offsets
+used by the existing resource factory/serializer, and reference-count/destruction
+contracts. In particular, what are primary slots 3, 4, 6 and the slots after 7;
+does QI expose `cIGZSerializable` and/or `cIGZPersistResource`, and at what offsets?
+Also specify the writer's supported root versions, output/result contract and
+failure-state behavior for a partially read resource. The existing Rust directory
+writer explicitly emits only its simulation sections, so its output alone cannot
+establish full-resource serialization compatibility.
+
+The lane stopped native resource registration rather than invent these ABI facts.
+It separately fixed the specified rejection of root versions outside 3..4
+(section 18.8.1), which both Rust directory entry points previously accepted.
