@@ -203,7 +203,8 @@ terrain or any grid. Calling it from a shadow, or more often than state 5 does, 
 ### 6.1 When each input is read *[compat]* (QUESTIONS LV1, from the exe)
 
 A pass has **no single input instant**. Each state reads the world at the moment it handles a tract (or developer),
-inside its own `Step` call, and never reads it again for that pass. The calls of one pass are spread over frames
+inside its own `Step` call, and retains that work. Later states can read the same terrain again, and state 3's
+zoning fallback can rescan (§6.1.6). The calls of one pass are spread over frames
 and days (SimIdle every frame, paused or not, plus one 5 ms call per SimNewDay, §5), so two states, and two tracts
 of one time-sliced state, can see different worlds. The original keeps no copy of any input: nothing is snapshotted
 at the pass start, at SimNewMonth or at the pass end.
@@ -635,7 +636,7 @@ into the next eligible monthly pass; it is not a queue of per-edit recalculation
 | 3, scan end | Mean is first stored as 0, or sum/count when count is positive (`0x006BEB12–0x006BEB2D`). With zero count and ignoreZoning=false, reset sum/count/histogram and iterator, set ignoreZoning=true and return in 3; **keep min/max from the first scan** (`0x006BEBED–0x006BEC2B`). The next scan reads live terrain again and can extend those extrema. Otherwise finish mode/clamping and altitude-effect setup, reset the slope iterator and enter 5 (`0x006BEB30–0x006BEBDD`). Neither a terrain edit nor a state-4 read repeats this setup. |
 | 5 | Read live altitude/water through GetAreaSlope for each yielded slope tract and store float32 to that cell (`0x006BECF0–0x006BED31`). An already written slope cell keeps its value, including across later slices of state 5. After the final cell, reset the intrinsic iterator and enter 4 (`0x006BED39–0x006BED45`). |
 | 4 | Read each tract's centre altitude **again**, round the argument to float32, evaluate it with the retained state-3 parameters, add the retained state-1/2 scratch byte and saturate to 255 (`0x006BEE11–0x006BEE6F`). Do not read slope or recompute mean/mode/extrema here. Written intrinsic cells survive later edits; unprocessed cells use their later live altitude. If the altitude curve is absent, retain the whole old intrinsic grid (§6). |
-| 6, 7, 8 | Copy intrinsic in 6; apply each developer's actually published D in its own state-7 call, then publish total. Do not regenerate D from the new slope/terrain. State 8 retests live zoning/land to choose cells for the average; it does not recompute their intrinsic, slope or total. Its total-byte sum/count are separate from the completed state-3 altitude statistics (`0x006BF016–0x006BF048`). |
+| 6, 7, 8 | Copy intrinsic in 6; apply each developer's actually published D in its own state-7 call, then publish total. Do not regenerate D from the new slope/terrain. State-7 completion clears the reused sum/count fields for averaging (`0x006BEF52–0x006BEF61`); the stored mean/mode and altitude-effect parameters survive. State 8 retests live zoning/land to choose cells for the average; it does not recompute their intrinsic, slope or total (`0x006BF016–0x006BF048`). |
 | 9, then monthly restart | State 9 does no work. SimNewMonth clears dirty and selects state 0 **only if dirty and state 9** (`0x006BF122–0x006BF134`); it does not execute state 0 in that delivery. A month arriving during a running pass leaves its work and dirty flag intact. The following eligible month begins a new pass, whose states 1/3/5/4 obtain new inputs. |
 
 Consequently mean/mode and altitude-effect parameters can describe older terrain than
@@ -1288,5 +1289,5 @@ Shipped tuning unless stated; S = 2.
     The supplied unchanged-input idle house control remains 73/73 output-exact, without
     granting native-input provenance or settling LV2/LV7.
 
-Vectors 19–36 are specified here for an engine/adapter lane to implement; this RE lane has
+Vectors 19–36 are specified here for engine/adapter validation; this RE lane has
 not added executable vectors or run native capture. They do not change vectors 1–18.
