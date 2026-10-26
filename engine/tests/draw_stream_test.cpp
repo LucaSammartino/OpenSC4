@@ -72,5 +72,11 @@ int main() {
     assert(copied == 1); // input payload owned by trace, not a borrowed rectangle
     std::memcpy(&copied, captured.Events()[1].bytes.data(), sizeof(copied));
     assert(copied == 99); // out-parameter observed after native execution
+    Stream tooManyPoints;
+    {
+        Capture scope(&context, tooManyPoints, objects);
+        scope.Before(44, {8, 1, 0x20000001}); // must not wrap to an eight-byte read on x86
+    }
+    assert(!tooManyPoints.Valid() && tooManyPoints.Events().size() == 1 && tooManyPoints.Events()[0].bytes.empty());
     return 0;
 }

@@ -83,7 +83,9 @@ void Capture::Before(uint32_t slot, std::initializer_list<uint32_t> arguments) {
         event.words[1] = event.words[2] = 0;
         stream_.Refuse("Blt image key not bound"); break;
     case 44: case 45:
-        copy(event.words[1], static_cast<size_t>(event.words[2]) * 8); event.words[1] = 0; break;
+        if (event.words[2] > 1024 * 1024 / 8) stream_.Refuse("context point capacity");
+        else copy(event.words[1], static_cast<size_t>(event.words[2]) * 8);
+        event.words[1] = 0; break;
     default: break;
     }
     stream_.Append(std::move(event));
@@ -148,6 +150,13 @@ void DrawStreamStartup() {
     void** list = nullptr;
     if (!compat::DrawStreamTables(&context, &tree, &list)) {
         Log("drawstream capture unavailable: unsupported context/window tables");
+        return;
+    }
+    // Native tables retain these callbacks until process exit.
+    HMODULE pinned = nullptr;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+                           reinterpret_cast<LPCSTR>(&DrawStreamStartup), &pinned)) {
+        Log("drawstream capture unavailable: DLL pin failed");
         return;
     }
     std::array<void*, 48> hooks{};
