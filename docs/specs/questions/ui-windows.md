@@ -9,3 +9,11 @@
   Evidence: shared game-results/reach-ui29-p7.log lines 6472, 6624, 6739;
   corrupt/ref_warnings=0, no completed reach trace. The candidate driver was
   removed; there is no qualified template/import driver or tree reach claim.
+  Final-round reconciliation: ui-script-service.md section 3 settles slot 4 as
+  `(key, parent, control-set element id)`, returning the element's AddRef'd
+  window. It looks up that element after executing the resource, so a null
+  result does not establish that script execution failed. The test used
+  FC402901 as the element id, while the visible child was 00001000.
+  The remaining question is safe partial-creation cleanup and the import
+  template's required initialization before delivering tree input. The SDK
+  header's third-argument name `windowClsid` does not settle either point.
