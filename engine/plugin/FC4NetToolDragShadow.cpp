@@ -119,6 +119,25 @@ bool ClearPlanningOrigin(cISC4City* city, int32_t& x, int32_t& z) {
             if (clear) { x = ix; z = iz; return true; }
         }
     }
+    uint32_t dry = 0, empty = 0, clearCells = 0, firstType = 0;
+    for (int32_t iz = 2; iz < static_cast<int32_t>(city->CellCountZ()) - 2; ++iz) {
+        for (int32_t ix = 2; ix < static_cast<int32_t>(city->CellCountX()) - 2; ++ix) {
+            cISC4Occupant* occupant = nullptr;
+            const bool hit = occupants->GetFirstOccupantByStandardCityCell(
+                occupant, ix, iz, static_cast<cISC4OccupantFilter*>(nullptr));
+            if (occupant) {
+                FC4_ACQUIRED(occupant, "GetFirstOccupantByStandardCityCell");
+                if (firstType == 0) firstType = static_cast<uint32_t>(occupant->GetType());
+                FC4_RELEASE(occupant);
+            }
+            const bool water = host.cell_has_water(host.user, ix, iz);
+            dry += !water;
+            empty += !hit;
+            clearCells += !water && !hit;
+        }
+    }
+    Log("nettool plan origin unavailable: dry-cells=%u empty-cells=%u clear-cells=%u first-occupant-type=%08x",
+        dry, empty, clearCells, firstType);
     return false;
 }
 void LogPlanningInputs(NetToolContext& context, const fc4_netgeom_host& host, int32_t x, int32_t z) {
@@ -259,7 +278,7 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
                         p.failure, failure, p.valid, valid, p.drag.straight, state.straight_count,
                         p.drag.total, state.dragged_count, static_cast<uint32_t>(p.drag.cells.size()),
                         static_cast<uint32_t>(cells.size()), p.cost, cost);
-                        if (!power && cells.size() == 1) LogPlanningInputs(context, gh, cells[0].x, cells[0].z);
+                        if (!power) for (const auto& cell : cells) LogPlanningInputs(context, gh, cell.x, cell.z);
                     }
                 }
                 if (initialized && !SehGuard("nettool plan undo", &UndoPlan, &p)) ++unavailable;
