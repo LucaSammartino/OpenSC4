@@ -80,6 +80,9 @@ Pool tokens represent the specified offsets and rings, not native addresses;
 the adapter owns actual native storage and interface adjustment. `fresh()`
 implements constructor defaults; `new(fields)` and `init_published_state` are
 explicit state/prefix helpers, while `init` implements the full lifecycle.
+Exemplar identity/lifetime belongs to the base holder, including after Read;
+`model::tests::unchanged_exemplar_uses_base_holder_identity_including_loaded_state`
+covers its unchanged/changed decisions without a duplicate pole cache.
 
 | Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|

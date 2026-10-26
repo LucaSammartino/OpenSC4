@@ -74,6 +74,10 @@ pub trait PolePickHost {
 pub trait PoleLifecycleHost: PoleModelHost + super::links::PoleLinkHost + PoleHost + PoleStaticHost {
     fn base_init(&mut self, base: &mut OccupantBase);
     fn view_zoom_rotation(&mut self) -> [u32; 2];
+    /// Borrowed identity from the base property holder, including after Read.
+    fn current_exemplar(&mut self, base: &OccupantBase) -> RefValue;
+    /// Base property-holder primitive: acquire new before releasing its owned
+    /// old ref. Never dispatch the pole's overriding SetDefaultExemplar here.
     fn assign_exemplar(&mut self, base: &mut OccupantBase, exemplar: &RefValue);
     fn exemplar_model_instance(&mut self, base: &OccupantBase) -> u32;
     fn refresh_other_wires(&mut self, other: &RefValue, this: &RefValue);
@@ -174,15 +178,10 @@ impl PowerPole {
         tables: &AttachmentTables,
         host: &mut impl PoleLifecycleHost,
     ) -> Result<(), PoleUnsupported> {
-        if same_ref(&self.exemplar, &exemplar) {
+        if same_ref(&host.current_exemplar(&self.base), &exemplar) {
             return Ok(());
         }
-        if !exemplar.is_null() {
-            host.add_ref(&exemplar);
-        }
-        clear_ref(&mut self.exemplar, host);
-        self.exemplar = exemplar;
-        host.assign_exemplar(&mut self.base, &self.exemplar);
+        host.assign_exemplar(&mut self.base, &exemplar);
         self.load_model(this, host);
         self.init_connection_points(host.exemplar_model_instance(&self.base));
         let c = &statics.control;
@@ -202,11 +201,11 @@ impl PowerPole {
         Ok(())
     }
 
-    /// Destruction's releases only: no reciprocal teardown or effect stop.
+    /// Destruction's releases before base destruction: no reciprocal teardown
+    /// or effect stop. The base property holder owns its exemplar lifetime.
     pub fn destroy_resources(&mut self, host: &mut impl References) {
         clear_ref(&mut self.model, host);
         clear_ref(&mut self.effect, host);
-        clear_ref(&mut self.exemplar, host);
         for record in &mut self.fields.connections {
             clear_ref(&mut record.pole, host);
             for line in &mut record.wire_points {
@@ -269,12 +268,12 @@ impl PowerPole {
             }
         }
         for vertex in self.geometry[1..].iter().flatten() {
-            for axis in 0..3 {
-                if vertex.pos[axis] < bounds[0][axis] {
-                    bounds[0][axis] = vertex.pos[axis];
+            for (axis, &coordinate) in vertex.pos.iter().enumerate() {
+                if coordinate < bounds[0][axis] {
+                    bounds[0][axis] = coordinate;
                 }
-                if vertex.pos[axis] > bounds[1][axis] {
-                    bounds[1][axis] = vertex.pos[axis];
+                if coordinate > bounds[1][axis] {
+                    bounds[1][axis] = coordinate;
                 }
             }
         }

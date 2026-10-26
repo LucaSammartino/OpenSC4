@@ -90,6 +90,7 @@ fn pole_pick_conformance_68() {
 struct Host {
     log: Vec<String>,
     exemplar: bool,
+    base_exemplar: RefValue,
     resource: bool,
     instance: bool,
     property: Option<ResKey>,
@@ -103,6 +104,7 @@ impl Default for Host {
         Self {
             log: vec![],
             exemplar: true,
+            base_exemplar: RefValue::Null,
             resource: true,
             instance: true,
             property: None,
@@ -211,7 +213,17 @@ impl PoleLifecycleHost for Host {
     fn view_zoom_rotation(&mut self) -> [u32; 2] {
         [3, 2]
     }
-    fn assign_exemplar(&mut self, _: &mut OccupantBase, _: &RefValue) {
+    fn current_exemplar(&mut self, _: &OccupantBase) -> RefValue {
+        self.base_exemplar.clone()
+    }
+    fn assign_exemplar(&mut self, _: &mut OccupantBase, exemplar: &RefValue) {
+        if !exemplar.is_null() {
+            self.add_ref(exemplar);
+        }
+        let old = std::mem::replace(&mut self.base_exemplar, exemplar.clone());
+        if !old.is_null() {
+            self.release(&old);
+        }
         self.log.push("exemplar".into());
     }
     fn exemplar_model_instance(&mut self, _: &OccupantBase) -> u32 {
@@ -261,7 +273,29 @@ fn pole_init_guard_exemplar_refresh_and_destruction_conformance_71_73() {
     p.effect = reference(81);
     h.log.clear();
     p.destroy_resources(&mut h);
-    assert_eq!(h.log, ["release:80", "release:81", "release:11", "release:3"]);
+    assert_eq!(h.log, ["release:80", "release:81", "release:3"]);
+    assert_eq!(token(&h.base_exemplar), 11); // Released by base destruction, not twice here.
+}
+
+#[test]
+fn unchanged_exemplar_uses_base_holder_identity_including_loaded_state() {
+    let mut p = PowerPole::fresh();
+    let mut host = Host {
+        base_exemplar: reference(10),
+        resource: false,
+        ..Default::default()
+    };
+    let statics = PoleStatics::new(0, 0);
+    let tables = AttachmentTables::default();
+    p.set_default_exemplar(&reference(99), reference(10), &statics, &tables, &mut host)
+        .unwrap();
+    assert!(host.log.is_empty());
+    // A base Read can replace the holder without going through a pole setter.
+    host.base_exemplar = reference(12);
+    p.set_default_exemplar(&reference(99), reference(10), &statics, &tables, &mut host)
+        .unwrap();
+    assert_eq!(&host.log[..3], ["add:10", "release:12", "exemplar"]);
+    assert!(host.log.iter().any(|line| line == "load"));
 }
 
 #[test]
