@@ -25,7 +25,9 @@ are accessed through `Host`; no controls, foreign windows or simulators are copi
 | 9 quirks | held state, tuning selector | double-click/held-hover and tuning tests; CA2 is never requested |
 | 10 open questions | `Unsupported::Open` | QR1..QR5 and view RGV5 boundaries above |
 | 11 conformance | `tests.rs` | screen-C1..C4 are the four worked cases, each named above |
-| 12, 12.1, 12.2 scroll/cloud windows | separate foreign owners, `scroll` messages and `Host::cloud_opacity` | command/tuning tests cover screen-facing contracts; scroll/cloud owners are outside this two-owner task |
+| 12 scroll/cloud windows | separate foreign owners | outside this two-owner task; screen-facing contracts below |
+| 12.1 scroll window | `scroll` message receiver, foreign scroll producer | command test checks fixed-point displacement; drag/glide owner outside this task |
+| 12.2 cloud window | `Host::cloud_opacity` | tuning test checks screen's opacity values; cloud drawing owner outside this task |
 
 `Host` provides primitive application, localization, resource and control calls.
 It does not choose city sizes, launch fallbacks, double-click decisions or commands.
