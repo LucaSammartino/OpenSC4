@@ -709,8 +709,8 @@ that observation for well-formed, uniquely headed configuration.
 
 ### 5.2 Track property resource
 
-The constructor `0x00939750` builds a property set and copies a supplied
-three-word resource key; it is not an empty anonymous track. Key setters are
+The constructors `0x009396D9` and `0x00939750` build a property set and copy a
+supplied three-word resource key; neither creates an anonymous track. Key setters are
 SetKey `0x009377AF`, SetType `0x0094052A`, SetInstance `0x00940536`;
 GetKey is `0x00940512`. QI/Release are `0x00939796`/`0x009397CA`,
 GetRefCount `0x00939792`, destructor `0x00939727`, assignment `0x00939FFC`,
@@ -720,12 +720,19 @@ Primary property table `0x00AD2898`: slots 0–2 QI/AddRef/Release;
 3–9 SetValue, ClearValue, ClearAll, FirstKeyAndValue, NextKeyAndValue,
 Value, HasValue; 10 folded count getter; 11 destructor; 12–13 folded
 Read entries; 14–15 unnamed entries; 16–18 folded debug entries.
-Resource table `0x00AD285C`: slots 0–2 QI/AddRef/Release thunks;
+Resource interface at object `+0x18`, table `0x00AD285C`: slots 0–2 QI/AddRef/Release thunks;
 3 GetKey, 4 SetKey, 5–7 folded key-component accessors,
 8 SetType, 9 folded component setter, 10 SetInstance, 11 GetRefCount,
-12–14 unnamed resource operations. The export also lists tables
-`0x00AD28E4`/`0x00AD2920`; these must not be conflated without checking
-which resource constructor installs them (SS5).
+12–14 unnamed resource operations. Constructor `0x009396D9` installs these
+two tables (`0x009396EB–0x009396F1`). Constructor `0x00939750`, also used by
+CreatePrivateCopy, installs primary `0x00AD2920` and resource `0x00AD28E4`
+(`0x0093975F–0x00939765`). Its primary slots 12/13/14 are ReadLegacyFormat,
+Write_OldFormat and the XML-write thunk `0x00941794`; slots 15–17 are debug
+entries. The earlier primary table's slots 12/13 both enter the generic
+serializer reader, 14 writes XML and 15 requests binary serialization
+(`0x00941636`, `0x0094164D`). The resource key is at full-object
+`+0x1C/+0x20/+0x24` (type/group/instance); resource methods receive the
+`+0x18` interface, so their key offsets are `+4/+8/+0xC`.
 
 *[compat]* Write `0x0093FF4A` selects an output path by resource type:
 `0x0B8D821A` selects the old path, `0x0B9EB87E` the other path;
@@ -733,9 +740,108 @@ other types report false. Read `0x00940DFF` installs the resource instance
 as property `0xFF6F9546`, then selects legacy input for `0x0B8D821A`
 and the property serializer for other types. This asymmetry is intentional
 to the observed boundary; do not reject every nonlegacy read solely because
-Write would reject its type. Write_OldFormat `0x00940E5C` starts with
-`TKDT,2,`; ReadLegacyFormat is `0x00941930`. Complete field order, escaping,
-version handling, malformed-input behavior and copy ownership remain SS5.
+Write would reject its type. The generic serializer, including the binary
+header, XML grammar and partial-read behavior, is specified in
+[property-sets.md §§3–5](property-sets.md#3-reading-a-record-cgzpropertysetserializertreadstream-set-0x009408a5-compat).
+It requires serial-record IID `0xC56B8F08`, a successful initial u32 read and
+rewind to zero. `0x2BEA4862` and `0xCBE750E0` select its binary reader
+(the latter subsequently fails that reader's magic check); all other first
+words select XML. The normal nonlegacy Write path selects **XML**, through
+`0x00941794 → 0x00941636 → 0x00940973`, binary flag zero. It does not promise
+binary output merely because the resource type is `0x0B9EB87E`.
+
+#### 5.2.1 Legacy text and record framing (SS5)
+
+*[compat]* The legacy writer (`0x00940E5C`) emits `TKDT,2,,`, the following
+27 fields in order, a comma after every field, and `ETKD`. Missing properties
+emit empty fields. All values are u32 property values; decimal output treats
+the word as signed (`%ld`), and hex output is `0x%08lx`. Fields 1, 2, 9,
+13–16 use hex; the others use decimal. Constants/field stores are at
+`0x00940F05–0x0094158D`; format strings/trailer at
+`0x00AD448C/0x00AD4494/0x00AD44A0`. The writer submits exactly the string
+length, without a NUL, through stream slot 17 (`+0x44`), ignores that call's
+success and returns true (`0x009415D3–0x00941635`).
+
+| Fields | Property IDs in positional order |
+|---|---|
+| 1–5 | `0xFFAEC905`, `0xFF5F15E1`, `0xFF4DCD0D`, `0xFF050A94`, `0xFFB0333D` |
+| 6–10 | `0xFF706616`, `0xFFCC156F`, `0xFFCC3B29`, `0xFF891EAA`, `0xFFAE9DDB` |
+| 11–15 | `0xFFF7B8DF`, `0xFF90AAC8`, `0xFF3C2160`, `0xFFD7EE4D`, `0xFF59FDD8` |
+| 16–21 | `0xFF2D7CD1`, `0xFF0246FE`, `0xFFFF4E79`, `0xFF595FFD`, `0xFF8DCFD8`, `0xFF69510B` |
+| 22–27 | `0xFF099DB2`, `0xFF53DBF3`, `0xFF3EC880`, `0xFF47F685`, `0xFFCAA344`, `0xFF303B1B` |
+
+*[compat]* ReadLegacyFormat (`0x00941930`) obtains serial-record size S,
+consumes a u32 H, and, if H equals S−4, consumes a replacement H and reduces
+S by four. It then reads S−4 bytes into its text buffer. If H is
+`0x544B4432` (on-disk bytes `32 44 4B 54`, “2DKT”), it skips **eight further
+bytes of that buffer** before tokenizing; otherwise it starts at buffer
+offset zero (`0x00941963–0x009419C1`). Thus an ordinary raw `TKDT,2,,…`
+record has its first four bytes consumed before the comma tokenizer sees
+`,2,,…`. The optional length word and special eight-byte skip are part of
+the stream contract; do not infer framing from a TKDT prefix search.
+
+The tokenizer splits on literal comma, preserves empty fields and has no
+quote, backslash or CSV escaping. A field needs a following comma; an
+undelimited remainder produces an empty token (`0x0090E98C–0x0090EA41`).
+The first token is discarded without validating the tag; the second is
+converted to the version word; the third is an unused name. Version 0 omits
+field 6; versions 0/1 omit fields 22–27; every unsigned version greater than
+1 uses all 27 fields. There is no maximum-version rejection or ETKD check.
+Nonempty numeric fields use RZConvertToUint32A (`0x0090FE93`): initial
+`0x`/`0X` selects base 16; otherwise encountering A–F/a–f in the initial
+digit/hex-letter run also selects base 16, and the default is decimal.
+No end-pointer or conversion-success check is made here.
+
+The reader overlays the set; it does not clear old properties for empty
+fields. Nonempty field 1 equal to the object's instance word causes false
+before setting that field or any later legacy field
+(`0x00941AC4–0x00941B2E`). The enclosing Read has already installed
+`0xFF6F9546 = instance`, and does not roll that back. Field 9 is always
+written: default `0x7DCDED3D` if the parsed field 7 is nonzero, else
+`0x7DCDED2D`; only a nonempty, nonzero field-9 conversion overrides it
+(`0x00941DF8–0x00941E6E`). Empty field 7 counts as zero for this decision,
+even if a preexisting 3D property remains in the set. Other empty fields
+leave their preexisting values untouched. Ordinary completion returns true.
+
+Legacy QI/read/length failures have no checked false exit: the routine goes
+on using its buffer and ignores the record calls' results. Tiny/truncated
+records can underflow S−4 or leave data unavailable. These are invalid-input
+preconditions, not a demonstrated recoverable error. To establish a stable
+verdict for such inputs requires calling the original reader with a mock
+serial record that denies QI, then with S=0/3 and with short reads, recording
+return/crash, stream requests and properties after each call. No engine
+decoder is required to emulate an invalid memory access.
+
+#### 5.2.2 Assignment and private ownership (SS5)
+
+*[compat]* Assignment copies the source reference-count word (`+4`), map
+storage, iteration-cursor word (`+0x14`) and all three key words; it leaves
+the destination interface tables installed (`0x00939FFC–0x0093A034`).
+The map has its own nodes/byte blocks, but owning members inside those
+blocks are copied byte for byte; see
+[property-sets.md §2](property-sets.md#2-the-property-set-cgzpropertysett-iid-0xebb10cdd-compat)
+for the original string-aliasing quirk and the chosen safe value-copy rule.
+The copied cursor is not rebased onto the new map. Assignment is not a
+reference to the original resource and does not AddRef it.
+
+CreatePrivateCopy is called on the resource view. It allocates 40 bytes,
+constructs with the source key using `0x00939750`, assigns from the source
+full object (interface minus `0x18`), and returns the new object's QI result
+for the caller's requested IID/output (`0x00939D62–0x00939DA0`). There is no
+local Release after QI and no null-allocation recovery before assignment.
+For a supported IID, QI increments the copied count: a source count N gives
+the new object count N+1. An unsupported IID returns the usual QI failure;
+this wrapper does not destroy the allocated copy on that path.
+
+**Worked cases (SS5).** A version-0 record with field 7 nonzero and field 9
+empty sets sem `0x7DCDED3D`, skips field 6 entirely and consumes no fields
+22–27. With instance 42, a nonempty field 1 of `42` returns false while
+retaining the enclosing Read's `0xFF6F9546=42`. Writing a set containing
+only field 12 equal to `0xFFFFFFFF` emits `-1,` at position 12 and empty
+tokens at the other positions; a stream refusing that write still gets a
+true writer result. Copying a set with scalar field 12=512 yields independent
+scalar storage: changing the copy's field 12 to 256 leaves the original at
+512, while its key remains the copied type/group/instance.
 See [audio.md §10](audio.md#10-sound-data) for resource-factory selection.
 
 ## 6. `cFreshPlayer` and `cFreshCellPlayer`
@@ -748,7 +854,8 @@ Constructor state includes no score/timer, clear initialized/playing flags,
 volume `0x400`, empty cell-player storage, seeded private randomness and
 spatial/division configuration. The 4096 cell-pointer entries use a row
 stride of 64; this is storage capacity, **not** permission to read arbitrary
-64×64 scores. Accepted score dimensions and bounds checks remain SS6.
+64×64 scores. Init does not check dimensions against that capacity; see
+§6.1.1 for valid-input preconditions.
 
 Primary table `0x00AD4B48`:
 
@@ -765,8 +872,8 @@ Primary table `0x00AD4B48`:
 *[compat]* Init(resource) obtains a persist record, loads a score through a
 record-as-file adapter, and initializes playback only after successful score
 load (`0x00947C38`). Init() builds cell players for score cells, binds them
-to the owner and imports score configuration (`0x0094701E`). Full overload
-argument contracts remain SS6. LoadScore is `0x00948C11`.
+to the owner and imports score configuration (`0x0094701E`). The overload
+contracts are below. LoadScore is `0x00948C11`.
 
 *[compat]* Play() returns true even if not initialized. When initialized
 and previously stopped, it derives player settings from the score, starts
@@ -778,14 +885,131 @@ store the requested value when initialized (`0x0094776D`, `0x0094777F`).
 Update(volume) forwards the volume then invokes Play() (`0x00947150`);
 this method is not the periodic cell-selection algorithm.
 
-State changes use a shared freshness critical section. Volume fading uses
-a callback timer (`0x0094832A`, `0x0094761C`); callbacks can skip work when
-that lock is already held. Exact fade divisions/clamping, cell-selection
-probabilities, tempo timing, coordinate rounding, reseeding and stop/shutdown
-ordering remain SS6. In particular, the routine named ProbOfCellStarting
-at `0x009477A6` visibly counts busy cell players; its name is not sufficient
-evidence for a probability law. There is no demonstrated SC4 message-switch
-for this owner: scheduling enters through its update interface and callbacks.
+State changes use a shared freshness critical section. Scheduling enters
+through the update interface and callbacks; no additional SC4 message IDs
+are established. The rules below settle SS6, supplementing the score/cell
+fields, budgets and division placement in [freshness.md](freshness.md).
+
+#### 6.1.1 Initialization and lifetime (SS6)
+
+| Slot/address | Input and behavior |
+|---|---|
+| 3 / `0x00947C38` | Init(resource key): copies the key, obtains the persist manager, segment and record (open flag 1), queries serial-record IID `0xC56B8F08`, loads a new score through the record-as-file adapter, closes/releases adapter/record/segment, then calls Init() only on load success. Missing services, open/QI failure or failed load return false. |
+| 4 / `0x0094701E` | Init(): once only, requires an existing score; imports volume, budget bases and half-extents, sets listener coordinates to 1 and remembered coordinates to −1, creates/binds players for nonempty cells, counts selectable cells, then sets initialized. Repetition returns true without rebuilding. |
+| 38 / `0x00948CB4` | Init(full path string): splits directory and filename/extension and calls slot 39. |
+| 39 / `0x00948D5F` | Init(directory string, filename string): allocates a score, concatenates the strings, attempts path loading, then calls slot 40 **without testing the load result** (`0x00948DDE–0x00948DEB`). |
+| 40 / `0x00948E0B` | Init(score pointer, directory string): stores the pointer directly, copies the directory and calls Init(). No score AddRef or clone. |
+
+The score is owned and deleted by Shutdown. Replacing it through Init does
+not dispose the old score or rebuild an already initialized grid. Failed
+resource loading can leave an allocated score stored while initialized is
+false; Shutdown's score deletion is conditional on initialized.
+
+Neither the parser (`0x00946039`) nor Init checks dimensions against 64.
+Storage-safe rows/columns are at most 64; random selection also requires
+both positive. Oversized dimensions can overrun storage; zero dimensions
+can divide by zero during selection. These are input preconditions, not
+demonstrated false-return cases. Some candidate scans also dereference
+player entries without a null check; arbitrary sparse grids are unsafe.
+
+Stop locks and calls StopNoLock. When initialized and playing, StopNoLock
+(`0x00947E90`) unregisters the player's `+4` update view, ends the volume
+fade, stops/deletes the beat timer, calls Stop on each **busy** cell in score
+row/column order, then clears playing. Cells may remain fading. Shutdown
+(`0x00947D28`) first ends a fade, locks, calls Stop, deletes the score, then
+destroys/clears nonnull players across all 4096 slots. It finally clears
+playing/initialized and releases the external-controller reference.
+
+#### 6.1.2 Selection and random state (SS6)
+
+*[compat]* Use slot behavior, not the exported labels: slot 54
+`0x00948719` selects the best start; slot 55 `0x00947220` selects a cell to
+subtract; slot 56 `0x00947519` remembers row/column and stops a busy player.
+Slot 58 `0x00948573` returns an integer start score. Slot 59 `0x009477A6`
+counts nonnull busy players over the grid (`0x009477D1–0x009477E1`);
+it is not a probability.
+
+The subtraction selector uses byte 1 of a private random u32 modulo rows
+and byte 0 modulo columns as a scan origin. Rows start there and wrap;
+columns start at the same selected column and wrap on each row. It first
+takes a playing, unmarked cell outside the selection window. Otherwise it
+gathers playing unmarked cells inside the window, excludes class 20 and
+chooses `next private draw modulo candidate count`; none returns false.
+
+The best-start selector uses byte 1 modulo `(2×halfHeight+1)` minus
+halfHeight to offset the listener row, and byte 0/halfWidth for the column.
+It clamps the origin to the grid and scans the window in the same wrap
+order. Only a strictly larger score replaces the best: ties keep the first
+visited cell (`0x0094876A–0x009489AD`). Success means best score nonzero.
+
+The scorer rejects absent cells, dead/busy players, cells outside the
+window, the last subtracted cell, a nonzero group held by another busy
+unmarked player, or a linked busy unmarked player. Cell class is clamped
+in place to 0–20. **Class 0 returns zero**, confirmed by
+`0x009486B9 → 0x00948710`; this supersedes freshness.md's older undefined
+return caveat. Class 20 scores 101 for a matching **nonzero** requested
+group, otherwise 100. Other classes score 2 for that nonzero group match;
+otherwise they score 1 exactly when C `rand()` is less than signed integer
+`T[class] / selectableCellCount`, else zero. A zero count is first replaced
+with 10 (`0x009486D3–0x0094870C`). T at `0x00B16F30` is:
+
+| Classes | T values, in order |
+|---|---|
+| 0–6 | 0, 600, 1500, 3000, 7500, 12000, 15000 |
+| 7–13 | 18000, 21000, 25500, 32767, 36000, 45000, 58000 |
+| 14–20 | 67500, 90000, 120000, 210000, 300000, 40000000, 40000000 |
+
+C rand ranges over 0–32767: a positive threshold H accepts exactly the
+draws below min(H,32768). This is separate from the private cRZRandom
+used for scan origins/divisions. Reseed(seed) seeds only the private
+generator; it resets beat-in-bar/next/origin to 0/1/0, budget bases to 0/4,
+remembered coordinates to zero, recounts and Stop/Play restarts a playing
+player (`0x009479D4–0x00947A29`). It does not reseed C rand.
+
+For positive dimension D, SetXPos/SetYPos use signed 32-bit
+`p = D×v / 1000`, truncating toward zero. Block mode then snaps to
+`(p/(2×half+1))×(2×half+1)+half`, again using signed division; apply upper
+selection bound D−half−1, lower bound half and grid bounds. Input v is not
+first clamped to 0–1000. X changes column; Y changes row; both recount
+(`0x009484A0`, `0x00948504`). The group-count scratch array described in
+freshness.md §4.4 has 32 entries and no general bound check on group IDs.
+
+#### 6.1.3 Beat clock and fades (SS6)
+
+*[compat]* Beat due time is signed 32-bit
+`((beat−origin)×60000)/tempo`, truncating toward zero; zero tempo returns
+−1 (`0x009475FB–0x00947619`). Update compares due time as unsigned, so
+zero tempo normally suppresses beat work. Each due beat performs subtract/
+add decisions on bar beats bpb−1 and bpb−6, updates every nonnull cell, then
+advances counters. The manual/pause/start-switch gates, active-cell budget
+and division choice follow freshness.md §4.6. Strictly above 86,400,000 ms,
+all three counters become bpb and the timer restarts. SetTempo changes tempo
+only while playing and when different, restarts the timer and sets next
+beat to origin plus current beat-in-bar (`0x00948420`).
+
+FadeVolume(durationMs, target, stopAtEnd) returns true without work unless
+initialized and playing. It stores signed step `(target−current)/20`, target
+and stop flag. Both that division and timer period `durationMs/20` truncate
+toward zero (`0x00948371–0x00948379`, `0x009483EE–0x009483FD`). Zero step
+sets target immediately and calls Stop if requested; this path does not
+itself cancel an already active fade. Nonzero step creates a timer only
+when none is active, so retargeting preserves the old timer period.
+
+Each callback skips work while the freshness lock is held. Otherwise it
+adds step, clamps volume to 0–1024 and stores it. A negative step reaching/
+passing target ends the fade and calls StopNoLock if requested; a positive
+step reaching/passing target ends it without stopping. It does not snap
+an overshoot to target (`0x0094761C`). Out-of-range targets can leave a
+clamped fade running indefinitely.
+
+**Worked cases (SS6).** D=9, half=1, block mode, v=500 stores coordinate 4.
+Two eligible class-20 cells tie at 100 for requested group zero: the first
+visited wins. Class 1 with 10 selectable cells accepts C draws 0–59 and
+rejects 60. Private reseeding does not replay those C draws. A 400-ms fade
+from 100 to 145 has step 2 and period 20 ms: callback 23 stores 146 and ends
+it. A fade from 100 to 110 has step zero and sets 110 immediately. Stop
+unregisters before cell Stop calls; Shutdown deletes the score before the
+cell players.
 
 ### 6.2 Cell player and volume arithmetic
 
@@ -812,7 +1036,7 @@ fade to zero. Already-stopping state is preserved. Other states become idle.
 With an external controller the call uses StopCellExternal instead
 (`0x00945D1A`, `0x00945C20`). Update polls the source/controller and can
 return a finished cell to idle (`0x009459BF`). The complete external-controller
-protocol and special loop/countdown branch remain SS7.
+protocol and special loop/countdown branch are specified in §6.2.2 below.
 
 *[compat]* UpdateScaledVol `0x00945820` uses signed integer arithmetic,
 not a single floating-point product. Let `C` be cell word `+0x24`, `A`
@@ -832,7 +1056,104 @@ SetVol caches the requested local volume and forwards the recalculated
 scaled volume to an existing sound; without a sound it succeeds without
 forwarding (`0x00945A89`). Other named helpers are AutoPan `0x00945AAF`,
 FilenameHasGuid `0x00945F38`, StartCellExternal `0x0094680F`, Start
-`0x00946C2C`, UpdateScaledVol `0x00945820`; their remaining policies are SS7.
+`0x00946C2C`, UpdateScaledVol `0x00945820`; their policies follow.
+
+#### 6.2.1 Start and spatial policy (SS7)
+
+*[compat]* Start requires the sound-system service even with an external
+controller. It returns false if the service is absent, the player is dead
+or busy; otherwise it clears stop mark `+0x2D` and takes the external path
+when controller `+0x54` is nonnull (`0x00946C2C`). A valid bound cell is a
+precondition: there is no null-cell or sound-manager recovery.
+
+FilenameHasGuid (`0x00945F38`) means **any run of eight consecutive ASCII
+hex digits anywhere in the name**. It does not validate a suffix or GUID
+syntax. On a match, Start splits at the first literal dot and converts the
+last eight characters of the preceding token as hex, stores the result in
+cell `+8`, and requests that sound ID (manager slot 18, IID `0x206077D2`).
+Otherwise it uses cRZPath::GetFileName and manager slot 17. A failed manager
+call or successful call yielding a null sound returns false. Because the
+comma-independent SplitToken helper returns empty when the delimiter is
+absent, an eight-digit name **without a dot** does not reliably yield those
+digits as the ID; no special suffix parser repairs it.
+
+With a sound, Start optionally queries `0xFD584467` and sets register
+`0x1C` to 1. It queries 3D IID `0x306077D2`, then immediately dereferences
+that view without testing QI success. It sets head-relative, min/max
+distance and the stored position when position-set `+0x3C` is true. Distances
+are unsigned u32 converted to f32; coordinates are signed integers converted
+to f32 (`0x00946E20–0x00946E79`). AutoPan is a separate slot-14 operation;
+Start does not call it.
+
+Cell fade-in selector `+0x34` zero starts at the cached scaled volume with
+the loop flag and final argument 1. Nonzero starts at zero and requests a
+fade from zero to that cached volume using cell `+0x38`, final argument 1.
+These playback results are ignored. State becomes 2; a successful query of
+update IID `0x5B34F0AF` registers it at period 250. The random-volume factor
+is then reset to 1024, or reduced by `abs(signed private draw) remainder
+256` when random volume is enabled; scaled volume is recomputed and sent.
+Looping loads counter `+0x28` from cell `+0x48`. Successful setup returns
+true regardless of Play/fade/registration results. Temporary queried views
+are released; the sound reference remains owned at `+0x1C`.
+
+Pitch spread uses signed remainder: for nonzero ordered low/high endpoints,
+`k = signed(private draw) remainder (high−low+1) + low`, with remainder
+truncated toward zero (`0x00946F67–0x00946F69`). The source frequency is
+multiplied by double table P[k] for k≥0 and divided by P[−k] for k<0, then
+converted to an integer before setting frequency (`0x00946F7B–0x00946FA4`).
+P is the semitone table at `0x00B16EB0`; only indices 0–12 are its intended
+range. Signed negative draws can put k below low; there is no bounds clamp.
+
+AutoPan does nothing without a cell. It computes x/z from signed
+`(pan−512)×(1/512)` in double precision, then multiplies by double 100 and
+rounds to f32 for the 3D position call (`0x00945AD5–0x00945C1F`, double
+constant `0x00AD4900`). Without random pan there is no coordinate clamp.
+With both axes centered and random pan, one private draw's low two bits
+choose `(0,1)`, `(0,−1)`, `(−1,0)`, `(1,0)`. With only one centered axis,
+that axis becomes −1 or +1 from a draw's low bit. Debug byte `0x00B6349D`
+forces random pan on in the cell; `0x00B6349C` enables forced quadrant
+`0x00B634A0`. The 3D sound/QI is assumed valid here too.
+
+#### 6.2.2 External controller and beat transitions (SS7)
+
+*[compat]* StartCellExternal (`0x0094680F`) sets state 2 and computes factor,
+scaled volume, loop counter and pitch **before** asking the controller to
+start. The name-derived ID is used only if nonzero; otherwise it uses
+`CRC24(cRZPath::FileName(name), seed 0) OR 0xFF000000`. Controller slot 3
+receives, in order: original filename text, sound ID, cell pointer,
+head-relative Boolean, loop Boolean and signed fade-in selector converted
+to f32 (`0x0094698F–0x009469BE`). False returns false **without reverting
+state 2**, volume factor or counter. Success then calls controller slots
+5 position (always), 8 distances, 6 volume, 7 pitch, in that order. Volume
+is signed scaled volume × f32 `1/1024` (`0x00A931FC`); position/distance
+conversions match the internal path. Pitch is P[abs(k)] for **both signs**,
+converted from double to f32, so a negative step raises external pitch.
+Post-start setter results are ignored. No internal sound is created.
+
+Update's special loop branch decrements the counter first. Without a stop
+mark, exactly zero reloads the configured length. With the mark, a
+**nonzero** remaining counter calls Kill (slot 8); zero leaves it playing
+until a later update (`0x00945A4C–0x00945A6D`). This is not a conventional
+“stop when zero” countdown and does not notify the external controller.
+
+For nonlooping state 2 and state 3, an external controller's slot 9 is
+queried with the cell. If it returns false, slot 4 is called with the cell
+and signed cell `+0x38` converted to f32, then state becomes zero
+(`0x009459D0–0x00945A32`). If it returns true, normal internal-sound checks
+continue: a null internal sound leaves the state unchanged; a finished
+sound invokes Stop, and a finished fade invokes Kill. StopCellExternal
+notifies slot 4 only from state 2; nonzero fade-out changes it to state 3,
+while zero fade-out leaves state 2 pending a later controller notification.
+Already-stopping state stays 3; other states become zero (`0x00945C20`).
+
+**Worked cases (SS7).** `amb_1234ABCD.wav` is recognized and requests ID
+`0x1234ABCD`; `1234-ABCD.wav` is not. External Start returning false leaves
+IsBusy true, so another Start fails until the state is cleared. A marked
+loop with counter 1 remains in state 2 after the next decrement to zero;
+the following decrement to −1 calls Kill. Pan values (768,512), without
+random pan, produce position (50,0,0); centered random pan with low draw
+bits 2 produces (−100,0,0). An external controller reporting false from
+slot 9 receives one slot-4 notification before the player becomes idle.
 
 ## 7. `cGZSndSys` and `cGZSndMgr`
 
@@ -854,7 +1175,7 @@ Primary table `0x00AD7180`:
 | 5–8 | DoEvent overloads: payload forms, existing event last |
 | 9–12 | PostEvent overloads: payload forms, existing event last |
 | 13–17 | two EventCreate overloads, RegisterEventHandler, UnregisterEventHandler, Update |
-| 18–27 | folded entry, SetDataDirectory, directory/extension mapping operations (SS8) |
+| 18–27 | running-latch getter, SetDataDirectory, DataDirectory, GetEnabledFlag, SetEnabledFlag, SetExtensionDefaultDataSourceClassId, GetExtensionDefaultDataSourceClassId, mapping count, mapping class-ID lookup, mapping extension lookup |
 | 28–34 | GetMasterVolume, SetMasterVolume, RegisterTarget, UnregisterTarget, EnumerateTargets, EnableUpdates, DisableUpdates |
 | 35–41 | RegisterRenderer, UnregisterRenderer, IsRegisteredRenderer, NumRenderers, FindPlayingGZSnd, IsSndPlaying, GetCriticalSection |
 | 42–48 | two GetSndPropertyCache forms, two GetSndInstanceCache forms, AddToMainlineReleaseList, Panic, SetTestMode |
@@ -866,7 +1187,7 @@ and AsIGZSnd3DListenerEx at 10. Init `0x00967FE4`, Shutdown `0x009683EF`,
 DataDirectory `0x0096C061`, GetTestMode `0x00968352` and extension helpers
 `0x009676D2`, `0x00967ACB`, `0x0096818B`, `0x009686B6`, `0x009689E9`
 complete the named lifecycle/configuration inventory. Numeric listener
-conversion and the unlisted tail/folded entries remain SS8.
+conversion and the tail/folded entries are specified in §§7.1.1–7.1.2 below.
 
 *[compat]* DoEvent(existing event) offers it to registered handlers in
 list order and stops at the first true result; it returns false when none
@@ -923,8 +1244,143 @@ the removal runs first, then fast-add, then slow-add; exactly one T survives
 in the slow list. A chronological target queue would incorrectly remove it.
 
 The remaining target timing contracts are SS8. SetMasterVolume
+their queues; UnregisterTarget removes the matching target from both active
+lists, or defers removal during enumeration (`0x00967DD4`, `0x00967E4F`).
+The exact period classifier and timer boundary are below. SetMasterVolume
 notifies registered audio renderers using the stored master volume
 (`0x009675DF`); no visual drawing operation is involved.
+
+#### 7.1.1 Timing and table completion (SS8)
+
+*[compat]* RegisterTarget(target, period) classifies **period exactly 20**
+as ordinary; every other word, including 0, 19, 21 and 250, means slow
+(`0x00967DFF–0x00967E2C`). These are two categories, not per-target clocks.
+Outside enumeration, registration first unregisters the same pointer and
+then appends one retained entry. During enumeration it appends a retained
+pending entry to the corresponding category without altering active lists.
+Unregister removes the pointer from both categories, or queues removal.
+
+UpdateTargets visits ordinary targets every enabled call. It visits slow
+targets only when unsigned elapsed milliseconds are **greater than 250**,
+and restarts that timer before visiting them (`0x009678E0–0x009678E9`).
+A false callback stops its current list; it does not suppress the separate
+slow-list check. At outermost enumeration exit it drains pending removals,
+ordinary additions, then slow additions. Replayed additions use periods
+20 and 250 respectively and unregister before appending. Thus additions
+win over removals queued during the same enumeration, and a target queued
+in both addition categories ends in the slow list. EnableUpdates controls
+this enumeration gate; EnabledFlag is the separate initialization gate.
+
+Primary slots 40–52, completing the earlier inventory:
+
+| Slots | Operations, in order |
+|---|---|
+| 40–45 | IsSndPlaying, GetCriticalSection, borrowed property-cache getter, property-cache out getter, borrowed instance-cache getter, instance-cache out getter |
+| 46–52 | AddToMainlineReleaseList, Panic, SetTestMode, GetTestMode, GetSoundSystemThreadId, destructor, running-latch setter |
+
+Slot 18 (`0x0096831B`, folded under a cell-player name) reads the byte at
+full-object `+0x3D`; slot 52 (`0x0096831F`) stores its Boolean argument there.
+It is the callback-running latch, not SetEnabledFlag. Slots 21/22 manage
+EnabledFlag. Slots 42/44 (`0x009683D9`, `0x009683E0`) return borrowed cache
+pointers. Slots 43/45 (`0x00966F31`, `0x00966F63`) write the pointer, AddRef
+when nonnull, and return whether nonnull; null writes null and returns false.
+The system owns its own cache references independently of those callers.
+
+#### 7.1.2 Extensions, listener and renderers (SS8)
+
+*[compat]* Extension insertion (`0x009689E9`) copies the text, lowercases,
+trims, removes **one** leading dot, and rejects an empty result. Otherwise
+it inserts/replaces that key's class ID, including zero. Lookup
+(`0x009686B6`) applies the same normalization and returns false without
+changing the output on a miss. It does not insert a miss or parse a full
+filename into an extension. Count is the ordered map's entry count.
+Class-ID-by-index (`0x00967ACB`) walks sorted keys from the first; out of
+range returns false and leaves the output unchanged.
+
+The extension-text-by-index entry (`0x0096818B`) has a different observed
+contract: it first **finds the current output string as an exact map key**,
+then advances index times from that entry, and assigns the found key to
+the output string. No normalization is performed. A missing seed key or
+walking past the end returns false unchanged
+(`0x00968194–0x009681EA`). Do not replace this with ordinary index-from-first
+enumeration without a deliberate compatibility choice.
+
+The basic listener view is full object `+0x0C` (table `0x00AD7110`);
+the extended view is `+0x10` (`0x0096830F`). Basic slots 5–10 are
+CommitDeferredSettings, GetPosition, SetPosition, GetOrientation,
+SetOrientation, AsIGZSnd3DListenerEx. Position is three f32 values and
+orientation six f32 values: getters use f32 loads/stores
+(`0x009667CA–0x00966837`); setters store/forward the argument words without
+integer scaling, normalization or double conversion (`0x00967056`,
+`0x00967109`). Relative to the basic view, position is `+0xD8/+0xDC/+0xE0`
+and orientation `+0xE4` through `+0xF8`. Renderer notifications query
+IID `0x406077D2`, invoke listener slots 7 or 9, and release the temporary
+view. A failed query skips that renderer; setter return values are ignored.
+Extended velocity uses three f32 words (`0x0096683A`, `0x009671EC`) and
+IID `0x5B30E7B3`; the combined update forwards velocity, orientation, then
+position (`0x0096729F`).
+
+RegisterRenderer (`0x00967CEE`) checks exact interface-pointer identity,
+appends/retains only when absent, and returns true even on duplicates.
+IsRegisteredRenderer uses the same pointer test; it does not QI for a COM
+identity. UnregisterRenderer removes the matching retained entry under the
+renderer lock. Cache/renderer success alone does not establish playback.
+
+#### 7.1.3 Initialization and shutdown (SS8)
+
+*[compat]* Init is entered on service view `S = full object +4`.
+It locks the service, optionally refreshes the data directory from the
+filesystem, then unconditionally registers message handler `0xDB53383B`
+through RZ::MS2. That message service is assumed present. When EnabledFlag
+is true and the running latch false, it creates a message queue, requests
+property cache class/IID `0x9D4C6B95/0x5D4C6B90`, then instance cache
+`0xBDF613B4/0x3DF613A1`, creates/starts the elapsed timer and slow timer,
+and creates the callback timer. The callback period/configuration are 20 ms;
+it installs UpdateTimerCallback, starts the callback timer, requests thread
+priority 4, then stores the timer-start result in the running latch
+(`0x00967FE4–0x0096818A`). Cache factory results are not tested. Init returns
+true even when disabled or timer start fails; allocations and required
+services have no general checked recovery. Repeating Init still registers
+the message handler before checking the running latch.
+
+Shutdown (`0x009683EF`) sets the shutdown byte `S+0x11C` first, stops the
+callback and elapsed timers under the service lock, releases/reacquires
+that lock, unregisters message `0xDB53383B`, and stops/deletes the callback
+timer. It clears the three event-handler operation lists at
+`S+0x9C/+0xA0/+0xA4` before target cleanup. Under the target lock it visits
+ordinary `S+0x68` then slow `S+0x6C` targets; each successful QI for
+`0x206077D2` gets sound slot 9 (Stop). A temporary sound reference is
+released before the next query, with the last released after the traversal.
+
+It clears active and queued target lists in order
+`S+0x68, +0x6C, +0x70, +0x74, +0x78`, clears the running latch through
+primary slot 52, and clears those lists again. It then clears renderers
+`S+0x8C`, the three event-handler lists again, the extension map `S+0xB8`,
+and the mainline-release list `S+0xC4`. Last it releases/nulls the property
+cache `S+0xD4`, instance cache `S+0xD8`, and message queue `S+0x2C`, in that
+order (`0x00968617–0x009686AC`). Retained list entries release their owned
+references when cleared. No renderer Shutdown call or rollback transaction
+is implied by those reference releases; this method returns true.
+
+The consuming event chain in §7.1 above is unchanged. These lifecycle rules
+do not change DoEvent's event ownership or turn PostEvent into synchronous
+playback. Runtime scheduling precision and device/cache factory outcomes
+remain external observations: to determine an actual backend failure case,
+record both factory results and callback-timer Start's result, then the
+running latch/cache outputs and whether `0xDB53383B` is still registered.
+That observation distinguishes a disabled/failed start from successful Init's
+unconditional true return.
+
+**Worked cases (SS8).** Targets registered at 20, 19 and 250 put only the
+first in the ordinary list. At slow elapsed 250 ms only ordinary runs; at
+251 ms slow also runs and its timer restarts. Queued remove plus ordinary
+add plus slow add of the same pointer leaves one slow registration. Setting
+`" .WAV "` to 7 then `"wav"` to 9 leaves count 1 and lookup `".WaV"` gives 9.
+Extension-text index 0 with an empty output string fails; seeding it with
+`"wav"` succeeds. Registering the same renderer twice retains one entry.
+SetPosition(1.5,−2.25,0) round-trips as those f32 values. With EnabledFlag
+false, Init returns true and registers the message handler but creates no
+new cache/timer set. Shutdown releases caches before its message queue.
 
 ### 7.2 Framework manager
 
