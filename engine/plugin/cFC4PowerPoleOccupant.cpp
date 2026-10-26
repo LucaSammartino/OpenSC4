@@ -120,7 +120,7 @@ void fc4_netpole_on_message(void*, uint32_t, bool, const PoleHostVt*);
 void fc4_netpole_shutdown(void*, uint64_t, const PoleHostVt*);
 void fc4_netpole_init(void*, const uint32_t*, uint32_t, const PoleHostVt*);
 int64_t fc4_netpole_demolition_cost(const PoleHostVt*);
-void fc4_netpole_set_highlight(void*, uint8_t);
+void fc4_netpole_set_highlight(void*, uint32_t);
 bool fc4_netpole_bbox(const void*, const float*, float*);
 void fc4_netpole_tuning(const PoleTuning*);
 bool fc4_netpole_write(void*, const fc4_props*, const fc4_ostream*);
@@ -323,7 +323,7 @@ public:
     }
     // Occupant slot 17 (§4.2 quirk): the draw attributes only; GetHighlight stays.
     bool SetHighlight(uint32_t h, bool) override {
-        Lock g(lock_); fc4_netpole_set_highlight(core_, static_cast<uint8_t>(h)); return true;
+        Lock g(lock_); fc4_netpole_set_highlight(core_, h); return true;
     }
 
     // ---- cIGZSerializable (§4.4) ----

@@ -749,7 +749,7 @@ pub unsafe extern "C" fn fc4_netpole_bbox(p: *const PowerPole, cell: *const [f32
 
 /// Occupant slot 17 (§4.2): the draw attributes only.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_netpole_set_highlight(p: *mut PowerPole, h: u8) {
+pub unsafe extern "C" fn fc4_netpole_set_highlight(p: *mut PowerPole, h: u32) {
     guard((), || {
         if let Some(p) = p.as_mut() {
             p.set_highlight(h);
