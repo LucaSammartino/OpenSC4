@@ -116,7 +116,24 @@ are written without notification (third argument 1 to register slot 3,
 `0x0093B268`, which skips the notification when it is nonzero, `0x0093B346`)
 under properties `0xFF141C48`, `0xFF9250B3`,
 `0xFF9EC945`, `0xFF1885BE`. Argument-routing mode is property `0xFF4DCD0D`;
-the complete mode table and bytecode interpretation remain SS1.
+the additional mode-dependent writes are:
+
+| Mode | Destinations in write order, for payloads A, B, C, D (IDs hex) |
+|---|---|
+| 1 | FF90AAC8 = A, FF3EC880 = B |
+| 2 | FFB4335C = A |
+| 3 | FFB4335C = A, FF90AAC8 = B, FF3EC880 = C |
+| 4 | FFCC4D2D = A, FF4A01D6 = B, FF469820 = C |
+| 5 | FFB4335C = A, FFCC4D2D = B, FF4A01D6 = C, FF469820 = D |
+| other | No additional writes; the four original argument properties are still written. |
+
+All these writes suppress notification. Evidence: `0x0093E1B9–0x0093E296`.
+Afterwards call primary slot 15 and save its boolean; independently, nonzero
+FF59FDD8 starts a dependent sound. Only if the saved result was true, call
+sound-view slot 18 (Unpause) and use its result as Play's result
+(`0x0093E299–0x0093E2D0`). Dependent-start failure is not combined with it.
+Worked case: mode 3 with `(9,512,-20,77)` writes all four argument properties
+and additionally object ID 9, volume 512 and pan -20. D has no extra mapping.
 
 ### 3.3 Properties, errors and commands
 
@@ -130,13 +147,127 @@ and substitute register 1; negative values pass this particular check.
 This is not a general guarantee that every negative index is valid.
 Evidence: `CMP`/signed `JLE` at `0x0093A7EF–0x0093A7F5`.
 
-DoCommand consumes an opcode from track data and supports register loads,
-notes, control and timer-driven continuation. It is not a text-command API.
-The inspected initial cases include register-based NoteOn with a missing-patch
-error (`Could not set patch - file or resource not found`), immediate NoteOn,
-and byte/long register loads. Complete operand widths, opcode semantics,
-branching and error recovery are **unsettled** (SS1); an engine must not assume
-ordinary MIDI semantics or treat unknown commands as successful no-ops.
+#### Register notifications (SS1)
+
+SetRegister offers IDs at most FF to alias helper `0x009377C9`, which indexes
+80 words at `0x00B169F8` for IDs below 50 (hex). A nonzero alias replaces
+the ID; a zero alias leaves the small ID unchanged (`0x0093B26E–0x0093B28B`).
+This API limit differs from bytecode CheckedRegId's limit of 4A. SetRegister
+also updates comparison flags against zero **before** property work: equality
+at base +9C, signed greater at +9D, signed less at +9E
+(`0x0093B291–0x0093B29A`, `0x0093A8CB–0x0093A8F0`). Its third argument
+suppresses notification when the low byte is nonzero. Otherwise it invokes
+primary slot 32 with the mapped property ID and returns its boolean
+(`0x0093B346–0x0093B35C`). Suppressed Play writes still affect these flags.
+
+HandleNotifySetPropertyValue first reads back the current integer value;
+its complete property dispatch is below (`0x0093BD06–0x0093BFEE`). IDs and
+base offsets in this table are hexadecimal.
+
+| Property ID(s) | Action and result |
+|---|---|
+| FF099DB2 | UpdatePitch, then true. |
+| FFAEC905 | UpdatePatch, then true. |
+| FF2D16F2 | Nonzero clears byte at base +100; return true. |
+| FF5F15E1 | Primary slot 26 with integer value; return its boolean. |
+| FF90AAC8, FF469820, FF4A01D6, FF4C6660, FF53DBF3, FF3EC880, FF40FF96, FF444C9A, FFA6A614, FFAAB623, FFC20061, FFC6B36D, FFCC3B29, FFCC4D2D, FFCE9997 | UpdateVolPan, then true. |
+| FF3071B9, FF0150F2, FF734343, FF86FE79, FFD3D39B | If current register interface at +7C exists, get float value with default zero, narrow to single precision and forward `(ID,float)` to its slot 7; return true. |
+| FF050A94, FF595FFD, FF7E5922, FFA42951, FFA9B525, FFBDB196, FFF3EDF2, FFF7B8DF, FFFF4E79 | If current register interface exists, forward `(ID,integer,0)` to its slot 3; return true. |
+| FFB36659 | With a current register interface, nonzero pauses current sound at +80 with argument false; zero unpauses it. Return true. |
+| FFC6E666 | Clear retained target at +84. For a nonzero value find a dependent sound with that sound ID, query IID EBB10CDD and retain it. Absent ID is ignored; failed QI reports `Attempt to set target to object with no register interface`. Return true. |
+| other | Return true without a track-specific action. |
+
+#### Confirmed bytecode subset
+
+DoCommand fetches an **unsigned byte**, advances PC at base +6C by one,
+subtracts one for the index and dispatches through 97 words at `0x0093DC8B`
+(`0x0093C237–0x0093C24C`). Buffer base is +68. There is no length check
+before the fetch or confirmed operand reads. Below, r is one unsigned byte
+passed through CheckedRegId, u8 is an unsigned byte, and u32 a little-endian
+four-byte word. Sizes include opcode and assume valid register operands.
+
+| Opcode (hex) | Size | Confirmed rule / instruction evidence |
+|---|---|---|
+| 01 | 3 | Read note-value register then countdown register; save second value at +48 and NoteOn(first). False reports `Could not set patch - file or resource not found`; 0093C32D–0093C38C. |
+| 02 | 2 | NoteOn(u8), discard return; 0093C391–0093C39F. |
+| 03 | 2 | Skip one unused byte, call current sound Stop (slot 8) if present and return its result; absent sound returns true; 0093C3A4–0093C3BA. |
+| 04 | 3 | SetRegister(r,u8,0); byte is **zero-extended**, not signed; 0093C3BF–0093C407. |
+| 05 | 6 | SetRegister(r,u32,0); 0093C40C–0093C455. |
+| 06, 4A | 3 | Destination r, source r; set destination from source with notification argument zero. Both dispatch to 0093C4D8. |
+| 07 | 5 | Read u32 file offset, push post-operand PC on return list +78, jump to buffer-base + offset; 0093C839–0093C85B. |
+| 08 | 1 | Pop return pointer and resume there; empty list follows 0C completion; 0093C88F–0093C8BE. |
+| 09 | 2 | Copy integer register r into wait counter +44; no tempo scale; 0093C8C3–0093C8F1. |
+| 0A | 5 | Read u32 entry ID, push post-operand PC, resolve HIT slot 14, set PC to result without null check; 0093C85D–0093C883. |
+| 0C | 1 | If execution byte +58 set, clear it and Release playing self-reference; 0093C8A9–0093C8BE. |
+| 0D | 5 | Jump to buffer-base + u32 offset, without pushing return pointer; 0093C821–0093C832. |
+| 0F, 1D, 1E, 5D, 5E | 1 | Dispatch directly to true-return tail 0093DC84; no operand. |
+| 00, 1A, 34–3D, 62–FF | 1 | Report `Illegal Instruction` through HIT slot 29, then normally return true; 0093C240–0093C246, table words, 0093DC72–0093DC84. This is not a silent no-op. |
+
+Most reported-error paths also return true; the boolean alone does not prove
+successful execution. Byte register IDs greater than 74 report illegal register
+and become register 1 before most per-opcode checks. Setter failure reports
+after already consumed operands; there is no PC/register rollback. An error
+callback can change track error state and prevent further timer execution.
+
+#### Timer and ramp arithmetic
+
+*[compat]* Timer callback `0x0093DF4C` includes the continuation exported as
+NoteOff at `0x0093E0FC–0x0093E143`: that address uses the timer's **existing
+stack frame**, not a separately callable note-off function. Actual note-off
+at the end calls `0x0093AE78`. The callback takes signed 32-bit elapsed
+milliseconds. With clear error state, prune nonplaying dependents. If track
+execution is stopped and the dependent list is empty, Kill. Otherwise:
+
+When FF0AD592 is nonzero, ramp target-register ID is FF47F685, current value
+comes from that register, endpoint is FF2D16F2, speed is FFD1C82F. Zero speed
+clears active. Negate speed with 32-bit wrap if `(current < endpoint)` differs
+from `(speed > 0)`. Multiply speed by elapsed with low-32-bit signed wrap,
+divide by signed 1000 toward zero, add with wrap. Clamp and clear active only
+on a **strict overshoot** in speed's direction, then notify the target register.
+Exact arrival leaves active until a later callback crosses the endpoint.
+Evidence: signed comparisons, NEG, IMUL/CDQ/IDIV and strict branches at
+`0x0093E016–0x0093E078`.
+
+If completion-after-ramp byte +100 is set and active is now zero, clear it
+and Kill. Otherwise reduce nonzero wait +44 by signed minimum of (wait,elapsed).
+Excess elapsed is discarded (`0x0093E0A5–0x0093E0BC`). While error is clear,
+execution byte +58 is set and wait is zero, execute commands in this callback.
+The local count starts zero; after each command increment it and, when the
+**old** count exceeds 100, report `Too many instructions executed without wait
+(infinite loop?)`, then return to the eligibility test (`0x0093E0FC–0x0093E11D`).
+First report is after command 102, not a hard loop break if the handler leaves
+eligibility unchanged. After the loop decrement nonzero note countdown +48
+**once per callback**, not by elapsed; reaching zero invokes actual NoteOff
+(`0x0093E11F–0x0093E130`).
+
+Worked cases: `04 0D FF` sets unmapped small register 13 to **255**, advancing
+PC by 3. `05 0E 78 56 34 12` sets register 14 to 0x12345678, advancing by 6.
+Wait 30 with elapsed 20 leaves 10; another elapsed 20 resumes commands, without
+carrying excess 10 into their next wait. Ramp current 0, endpoint 10, speed
+100, elapsed 100 arrives at 10 with active still set; next identical callback
+clamps back to 10 and clears active after a strict crossing.
+
+#### SS1 residual observation boundary
+
+The opcode table is an instruction-verified **subset**, not a complete
+interpreter license. Remaining operand/branch verification is narrowed to
+this exact set: **0B, 0E, 10–19, 1B–1C, 1F–33, 3E–49, 4B–5C, 5F–61**.
+None may be filled in as an unimplemented-success default. The export treats
+byte/word pointer arithmetic inconsistently. The following concrete original
+observations would settle the remaining cases without relying on those types:
+
+| Residual area | Required observation |
+|---|---|
+| Every opcode in the residual set | At DoCommand entry/return record PC +6C, all register API calls, flags +9C…+9E, wait +44, countdown +48 and error +5C. Use a separate padded stream per opcode with distinguishable following bytes and register sentinels; record each consumed byte/destination. Bound execution externally. |
+| Each residual branch | Run signed equal/less/greater inputs including 80000000; record next PC relative to whole-file buffer +68, return list +78, and any rewind to the opcode. Make taken/untaken targets observably different. |
+| Numeric and tempo-derived setup | Record destination bits/flags for -1, 0, 1, signed extrema, divide-by-zero and nonintegral floats. Vary only the proposed tempo/duration property while keeping bytecode/elapsed callbacks identical; record which setup register or wait/countdown changes. Opcode 09 and callback reduction above do no beat conversion; setup conversion and zero-divisor behavior are not inferred from them. |
+| Cross-object/source/HIT-list/global-cache operations | Provide recording interfaces, distinct object IDs and return sentinels, then failed lookup/QI. Record argument words, pointed-to writes, ordering and refcounts. This also settles SS2's external source-handler payload. |
+| Error continuation, especially opcode 58 | First use an error handler that records without changing state, then one that sets error. Record PC and actions following the callback. 58 dispatches to 0093C253; its report is followed immediately by the body at 0093C265, so do not assume throw terminates the instruction. |
+
+No runtime trace was performed in this lane. This residual is **narrowed to
+the stated observations**, not claimed fully decoded; confirmed rules and
+worked cases can be used independently. Conventional MIDI behavior or guessed
+decompiler operand widths do not settle the residual.
 
 ## 4. `cHitMan` and `cHitChannel`
 
@@ -251,7 +382,7 @@ DuckMapMaxPri, writes manager register `0x1B`, then invokes UpdateView
 (`0x00938A41`). DuckMapSndobPri returns zero for an absent key. DuckMapMaxPri
 starts at zero and takes the **signed** maximum; an all-negative map therefore
 has maximum zero (`0x00937DB3–0x00937DBA`). DuckMapRemoveAll clears the map
-and writes register `0x1B` = 0 (`0x00938492`). No random tie-breaker or
+and writes register `0x1B` = 0, then UpdateView (`0x00938492`). No random tie-breaker or
 winner removal is performed in these methods.
 
 HIT table slot 6, Pause `0x00937875`, calls slot 42 (DuckMapRemoveAll) and

@@ -1,6 +1,22 @@
 # sound-system: answered questions
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
+- **SS1 — HIT instruction and register execution:**
+
+In sound-system.md §3, settle all DoCommand opcodes, operand widths, branches,
+timer/tempo arithmetic, complete register notifications and Play argument modes.
+Starting points: 0x0093C229, 0x0093DF4C, 0x0093BD06 and 0x0093E146.
+The export has overlapping/incorrect structures; instruction verification is required.
+
+**ANSWERED 2026-10-26 (re-ss29a):** DIFFERS — §3 specifies Play modes,
+notification dispatch, verified initial opcode widths/branches, illegal/no-op
+sets and timer/ramp pacing, including the shared timer tail misnamed NoteOff.
+Complete interpreter closure is **narrowed**, not claimed: §3.3 lists the exact
+residual opcode set and concrete operand/PC/flag/interface/error/tempo observations.
+No runtime trace was performed. Worked cases cover unsigned byte loads, word
+order, discarded wait excess and strict ramp arrival.
+
+<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS2 — HIT manager resource arbitration and file grammar:**
 
 For sound-system.md §4.1, settle HIT marker layout and entry offsets, duplicate

@@ -2,14 +2,6 @@
 <!-- Engine questions and RE gaps for docs/specs/sound-system.md. -->
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS1 — HIT instruction and register execution:** [unsettled]
-
-In sound-system.md §3, settle all DoCommand opcodes, operand widths, branches,
-timer/tempo arithmetic, complete register notifications and Play argument modes.
-Starting points: 0x0093C229, 0x0093DF4C, 0x0093BD06 and 0x0093E146.
-The export has overlapping/incorrect structures; instruction verification is required.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS5 — Track resource byte/text formats and private copies:** [unsettled]
 
 For §5.2, settle TKDT legacy field order, escaping/version handling, serializer
