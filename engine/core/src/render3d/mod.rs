@@ -18,6 +18,10 @@ mod shake;
 pub use shake::*;
 mod container;
 pub use container::*;
+mod objects;
+pub use objects::*;
+mod picking;
+pub use picking::*;
 
 pub const CLASS_ID: u32 = 0xE9C6_22D8;
 
@@ -80,6 +84,7 @@ pub struct Render3d {
     grid: Option<QuadGrid>,
     shakes: Shakes,
     geometry: ContainerGeometry,
+    objects: ViewObjects,
     state: State,
 }
 
@@ -101,6 +106,7 @@ impl Render3d {
             grid: None,
             shakes: Shakes::default(),
             geometry: ContainerGeometry::default(),
+            objects: ViewObjects::default(),
             state: State::default(),
         }
     }
@@ -143,6 +149,7 @@ impl Render3d {
         if let Some(context) = self.context.take() {
             host.destroy_helper(context);
         }
+        self.clear_view_object_lists(host);
         self.clear_dirty_rectangle_queue(host);
         self.shakes.clear();
         self.references = 0;
@@ -202,6 +209,8 @@ mod container_tests;
 mod dirty_tests;
 #[cfg(test)]
 mod grid_tests;
+#[cfg(test)]
+mod picking_tests;
 #[cfg(test)]
 mod shake_tests;
 #[cfg(test)]
