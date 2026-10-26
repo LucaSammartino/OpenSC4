@@ -20,17 +20,19 @@ roster is unqualified: reach29-r1 had three corrupt runs and one clean run.
 Use the generated roster explicitly as `reach_contracts = <absolute path>`;
 it retains reached and unreached implemented functions under baseline-exact
 keys. It changes the instrumentation footprint, never the coverage weights.
-The reduced-roster r2 still had three corrupt mature-city runs. Lifecycle-off
-controls of all four cities were game-clean. Only `reach29-growth` currently
-qualifies for lifecycle tracing; keep this option off for mature cities until
-the instrumentation fault is resolved. The lotdev and pollution mismatches in
-West Weburg also occur with lifecycle off and are separate engine findings.
+The earlier reduced-roster r2 had three corrupt mature-city runs. The
+continuation found and excluded the false entry at 00707865 (below). The
+rebuilt-DLL `reach29-repaired` replay qualifies all four rows: 4/4 clean and
+end-reaching, 47/47 actions, zero aborted steps or thread-slot exhaustions.
+The complete 35,648-entry roster remains unqualified. The lotdev and pollution
+mismatches in West Weburg also occur with lifecycle off and are separate engine
+findings; lifecycle qualification does not mean every shadow is exact.
 `python tools/suite.py run --set reach29 --profile shadows --slots 4
 --extra "reach = 1" --extra "reach_lifecycle = 1" --extra "reach_cap = 1"
 --extra "reach_contracts = <absolute path>" --tag TAG` runs the four load/save,
 empty-development and Lua-view scenarios in isolated queue slots. Add
-`--scenario reach29-growth` for the qualified lifecycle run; run the other rows
-with ordinary `--reach` and without `reach_lifecycle = 1`.
+`--scenario NAME` to select a single qualified row. `--reach` may replace the
+first extra setting; explicit roster extras take precedence over its defaults.
 `python tools/suite_reach_gaps.py --baseline build-runs/suite/BEFORE
 --after build-runs/suite/NEW --out build-runs/reach-delta` ranks exact-shadow
 gaps and reports per-owner executed/verified gains and first mismatch lines.
@@ -82,6 +84,19 @@ There was no intervening foreign exception in the diagnostics. This failure
 is a patched operand, not a swallowed game exception or copied/self-read code.
 The matching grown-city baseline exited C0000005 with no diagnostic report;
 do not claim its exact fault context from the disaster evidence.
+
+The reachgen29 continuation isolated mature-city lifecycle corruption using
+four queued roster splits of 3,146, 787, 196 and 49 entries. The only failing
+range at each split contained 00707865. `re_query.py asm 00707864 --max 4`
+decodes the real instruction as `mov eax, dword ptr [0xb43d94]`; the purported
+entry at 00707865 is its address operand. Replacing 94 with CC reads a different
+global, stores it at tract developer +30, and faults later during lot growth.
+Old-DLL controls omitting just that entry reached the end date in all four
+scenarios: three clean, one empty-city stalled exit (19/19 actions). These are
+diagnostic controls, separate from the rebuilt-DLL qualification results.
+`--reach` now supplies defaults before explicit `--extra` values, so the
+selected `reach_contracts` roster is preserved; the first exploratory split
+used the full roster because the earlier CLI silently overwrote that setting.
 
 For investigations only, `reach_diagnostics = <absolute file>` opens a dump
 before arming. It is off by default and requires `reach = 1`. Each thread
