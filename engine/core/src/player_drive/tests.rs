@@ -50,6 +50,7 @@ struct Foreign {
     terrain: Option<World>,
     command: u32,
     fail: Option<&'static str>,
+    view_present: bool,
 }
 impl Default for Foreign {
     fn default() -> Self {
@@ -65,6 +66,7 @@ impl Default for Foreign {
             terrain: None,
             command: 0,
             fail: None,
+            view_present: true,
         }
     }
 }
@@ -81,7 +83,35 @@ impl Foreign {
         self.queries.clear();
     }
 }
+impl ControlHost for Foreign {
+    fn lookup_cursor(&mut self, _: u32) -> Option<u64> {
+        panic!("native cursor lifecycle remains unsupported")
+    }
+    fn apply_window_cursor(&mut self, _: u64, _: bool) {
+        panic!("native cursor lifecycle remains unsupported")
+    }
+    fn am_capturing(&self) -> bool {
+        panic!("drive-tool does not change capture")
+    }
+    fn capture(&mut self) -> bool {
+        panic!("drive-tool does not change capture")
+    }
+    fn release_capture(&mut self) -> bool {
+        panic!("drive-tool does not change capture")
+    }
+    fn remove_top_control(&mut self, stack: bool) {
+        assert!(self.view_present);
+        self.operations.push(Operation::RemoveTopControl(stack));
+    }
+    fn post_sound(&mut self, _: u32, _: u32) {
+        panic!("drive-tool uses positioned and AEMS sound interfaces")
+    }
+}
 impl Primitives for Foreign {
+    fn base_view_present(&mut self) -> Raw<bool> {
+        self.queries.push("base_view");
+        Ok(self.view_present)
+    }
     fn emit(&mut self, op: Operation) {
         // Only individual raw setters are applied here, never owner outcomes.
         match op {
@@ -767,6 +797,21 @@ fn non10_cleanup_uses_literal_scope_without_inventing_a_state_transition() {
         assert!(!f.queries.contains(&"flags31"));
         assert!(!f.queries.contains(&"group"));
     }
+}
+
+#[test]
+fn end_input_without_base_view_cleans_up_without_removing_a_control() {
+    let (mut owner, mut f) = driving();
+    f.view_present = false;
+    owner.end_input(&mut f).unwrap();
+    assert_eq!(owner.current(), None);
+    assert!(f.operations.contains(&Operation::ReleaseDriven(A)));
+    assert_eq!(
+        &f.operations[f.operations.len() - 2..],
+        [Operation::ClearCursorText(0xAB73_510C), Operation::DisasterLayer(true)]
+    );
+    assert!(!f.operations.iter().any(|op| matches!(op, Operation::RemoveTopControl(_))));
+    assert_eq!(f.queries.last(), Some(&"base_view"));
 }
 
 #[test]

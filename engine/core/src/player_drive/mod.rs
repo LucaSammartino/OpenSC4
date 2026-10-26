@@ -12,6 +12,8 @@
 //! explicit and already emitted prefixes are not rolled back. No RefCell or
 //! hidden getter mutation is used.
 
+pub use crate::view_input_controls::ControlHost;
+
 pub const ID: u32 = 0x2B70_9676;
 pub const CURSOR: u32 = 0xC16C_4E1B;
 pub const CAMERA_SPEED_BITS: u32 = 0x3D2C_0831;
@@ -165,6 +167,7 @@ pub enum Operation {
         tool: u64,
         values: [RawValue; 2],
     },
+    /// Observation of the shared ControlHost stack operation, not an emit hook.
     RemoveTopControl(bool),
     PostCommand(u32),
 }
@@ -173,8 +176,11 @@ pub enum Operation {
 /// occupant queried for the specified IID, not a tool-level selection outcome.
 /// `emit` records/transports individual operations infallibly; native adapters
 /// with failure or reentrant delivery need contracts not yet published (DR3).
-pub trait Primitives {
+pub trait Primitives: ControlHost {
     fn emit(&mut self, operation: Operation);
+    /// Whether the inherited base holds a city view (city-tools-input.md §2.7).
+    /// Native acquisition remains Unsupported; this is a borrowed presence read.
+    fn base_view_present(&mut self) -> Raw<bool>;
     fn simulator_paused(&mut self) -> Raw<bool>;
     fn situation_slot32(&mut self) -> Raw<bool>;
     fn flags31(&mut self, a: Automaton) -> Raw<u32>;
@@ -500,7 +506,9 @@ impl PlayerDrive {
         self.stop_tracking(host)?;
         self.clear_hover(host);
         host.emit(Operation::DisasterLayer(true));
-        host.emit(Operation::RemoveTopControl(false));
+        if host.base_view_present()? {
+            host.remove_top_control(false);
+        }
         Ok(Progress::Partial(vec![
             Unsupported::EndCallbackValue,
             Unsupported::CallbackDelivery,

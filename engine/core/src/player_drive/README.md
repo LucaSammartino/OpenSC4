@@ -4,6 +4,11 @@ Portable `cSC4ViewInputControlPlayerDrive`, from `docs/specs/drive-tool.md`.
 The existing owner implements ordered primitive plans behind `Primitives`;
 it introduces no C ABI or plugin wiring. Picks and city conversions are foreign
 service operations; the mode, command and cleanup decisions belong to this core.
+`Primitives` extends the existing `view_input_controls::ControlHost`; EndInput
+uses its stack operation only when the inherited base view is present, as in
+`city-tools-input.md` §2.7. No base cursor, capture or stack implementation is
+duplicated. `Operation::RemoveTopControl` records that shared call in tests;
+the player-drive owner does not emit it through its own primitive hook.
 
 `Progress::Partial` and `Operation::Gap` expose omitted steps. Selecting a
 dashboard ID does not load a window. Caller-supplied `CameraFields` do not resolve
@@ -27,3 +32,4 @@ still-open `docs/specs/questions/drive-tool.md`, including its bracketed notes.
 | 1 Making it | `new`, `init`, `shutdown` | `construction_has_literal_bits_and_empty_state`; Init/Shutdown services, four resource interfaces, three command/subscription IDs and native ownership Unsupported: open DR1, DR3, DR8 |
 | 2 Choosing mode | `enter_choosing_mode`, `on_mouse_move`, `on_mouse_down_l`, `pick_automaton`, `pick_network_occupant` | `choosing_pauses_all_four_but_simulator_only_if_needed`, `accepted_network_pick_wins_in_choosing_and_driving`, `choosing_empty_click_preserves_pause_and_does_not_start_driving`, `hover_terrain_and_valid_drive_mouse_paths_use_individual_foreign_queries`; non-null hover ownership/text and missing drive state Unsupported: open DR3, DR6; numeric slot/group semantics open DR2 |
 | 3 Driving mode | `enter_driving_mode`, `dashboard_selection`, `CameraFields`, `pause_everything` | `driving_projection_orders_raw_operations_and_resumes_conditionally`, `dashboard_selection_is_id_selection_only_and_preserves_zero_override`, `switching_driven_automata_releases_old_before_acquiring_drivable_form`, `raw_camera_values_keep_bits_and_reject_undefined_subtraction_domains`; ShowUI, three audio-table values and native settings selection Unsupported: open DR1, DR4; failure/ownership contracts open DR3 |
+| 4 Leaving | `stop_tracking`, `end_input`, `automaton_removed`, inherited `ControlHost` | `stopping_state10_selects_slot13_or_slot53_using_only_published_bits`, `non10_cleanup_uses_literal_scope_without_inventing_a_state_transition`, `end_input_and_escape_order_callbacks_slot18_cleanup_and_base_stack_removal`, `end_input_without_base_view_cleans_up_without_removing_a_control`, `removed_and_notification_identity_matching_is_mandatory`; callback payload/delivery and native state-slot meaning/scope remain open DR2, DR3, DR8 |
