@@ -125,8 +125,21 @@ impl<'a, P: Properties> RuleParser<'a, P> {
     }
 
     fn lines(&mut self, files: &mut impl ScriptFiles, path: &str, text: &str) -> Result<(), ParseError> {
+        // sc-resources 12 (SCR11): physical filtering precedes tokenization.
+        // Each included file has its own flag; an unclosed block ends at EOF.
+        let mut block = false;
         for (line, text) in text.split('\n').enumerate() {
             let line = line + 1;
+            let mut text = text;
+            if let Some(opener) = text.find("#<") {
+                block = true;
+                text = &text[..opener];
+            }
+            if block {
+                let Some(closer) = text.find("#>") else { continue };
+                block = false;
+                text = &text[closer + 2..];
+            }
             let mut args = tokenize(text).map_err(|m| error(path, line, m))?;
             if args.is_empty() {
                 continue;

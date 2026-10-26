@@ -426,3 +426,19 @@ pub unsafe extern "C" fn fc4_cfgrules_owner_auto(owner: *const Owner, group: u32
         0
     })
 }
+
+/// Emit a copied diagnostic while the owner lock is held; the callback must not reenter.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_cfgrules_owner_parse_error(
+    owner: *const Owner,
+    context: *mut c_void,
+    emit: unsafe extern "C" fn(*mut c_void, Bytes),
+) -> i32 {
+    call(owner, |s| {
+        if let Some(error) = &s.manager.last_parse_error {
+            let message = error.to_string();
+            emit(context, bytes(message.as_bytes()));
+        }
+        0
+    })
+}

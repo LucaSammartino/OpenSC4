@@ -225,7 +225,11 @@ void Dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* mac
     if (registers->index>=std::size(functions)) {std::memcpy(machine->after,machine->before,512);return;}
     auto& fn=functions[registers->index];auto& count=fn.counts[source];
     const auto* args=reinterpret_cast<const uint32_t*>(registers+1);
-    const auto original=[&] {fc4_inplace_invoke(registers,machine,fn.original,args,fn.argCount*4,fn.pop!=0||fn.argCount==0);};
+    const uint32_t traceSelf=registers->ecx;
+    const auto original=[&] {
+        fc4_inplace_invoke(registers,machine,fn.original,args,fn.argCount*4,fn.pop!=0||fn.argCount==0);
+        fc4::ConfigRulesTraceOriginal(fn.name,traceSelf,args,registers->eax);
+    };
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
     if (depth) ++count.nested;
     const auto call=++count.calls;const std::string mode=modeOverride.empty()?fn.mode:modeOverride;

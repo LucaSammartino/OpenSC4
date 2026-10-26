@@ -185,7 +185,7 @@ fn fixture(script: &str) -> (Manager, Arc<Mutex<Registry>>, Provider, Files) {
         &properties,
         &mut provider,
         &mut files,
-        &InitContext::from_directories("data", "user", false),
+        &InitContext::from_directories("data/", "user/", false),
     );
     (manager, properties, provider, files)
 }
@@ -607,11 +607,11 @@ fn v9_vendor_latch_fixed_offsets_and_unmatched_vendor_reset() {
         &p,
         &mut provider,
         &mut files,
-        &InitContext::from_directories("data", "user", false),
+        &InitContext::from_directories("data/", "user/", false),
     );
     assert_eq!(m.environment.strings[12], "First, Chosen");
     files.text.insert("data/Graphics Rules.sgr".into(), "bad".into());
-    assert!(!m.parse_config_file(&mut files, &InitContext::from_directories("data", "user", false)));
+    assert!(!m.parse_config_file(&mut files, &InitContext::from_directories("data/", "user/", false)));
     assert_eq!(m.environment.strings[12], "Unlisted");
 }
 
@@ -669,7 +669,7 @@ fn v10_errors_never_publish_partial_lists_and_init_installs_fallback() {
             "data/Graphics Rules.sgr".into(),
             format!("partialRule partly\nend\n{script}"),
         );
-        assert!(!m.parse_config_file(&mut files, &InitContext::from_directories("data", "user", false)));
+        assert!(!m.parse_config_file(&mut files, &InitContext::from_directories("data/", "user/", false)));
         assert_eq!(m.rules(), rules);
         assert_eq!(m.groups(), groups);
         assert_eq!(m.last_parse_error.as_ref().unwrap().message, expected);
@@ -677,7 +677,7 @@ fn v10_errors_never_publish_partial_lists_and_init_installs_fallback() {
             &p,
             &mut provider,
             &mut files,
-            &InitContext::from_directories("data", "user", false),
+            &InitContext::from_directories("data/", "user/", false),
         );
         assert_eq!(m.rules()[0].name, "standard software");
         assert_eq!(m.groups(), groups);
@@ -880,7 +880,7 @@ fn production_render_properties_adapter_fallback_without_foreign_rule_results() 
         &p,
         &mut Provider::default(),
         &mut Files::default(),
-        &InitContext::from_directories("data", "user", false),
+        &InitContext::from_directories("data/", "user/", false),
     );
     assert!(m.last_init_error.is_none());
     assert_eq!(m.apply_rules(&AsciiLowercase).unwrap(), ["standard software"]);
@@ -983,7 +983,7 @@ fn parse_success_replaces_both_lists_and_uint32_recommendations_keep_bits() {
         "data/Graphics Rules.sgr".into(),
         "partialRule new\noption 3 4294967295\nend".into(),
     );
-    assert!(m.parse_config_file(&mut files, &InitContext::from_directories("data", "user", false)));
+    assert!(m.parse_config_file(&mut files, &InitContext::from_directories("data/", "user/", false)));
     assert_eq!(m.rules()[0].name, "new");
     assert!(m.groups().is_empty());
     m.set_options_from_configuration(
