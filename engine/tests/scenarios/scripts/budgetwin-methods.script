@@ -1,0 +1,44 @@
+# Native budget-panel/sub-budget lifecycle, all nine selectors (budget-window section 2.1).
+# UI actions run from the opt-in script; waits permit modal tick re-entry.
+2026-01-28 mark budgetwin-methods begin
+2026-01-28 budgetwindow
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC401
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC402
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC403
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC404
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC406
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC407
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC408
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC40B
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC40C
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 mark budgetwin-methods end

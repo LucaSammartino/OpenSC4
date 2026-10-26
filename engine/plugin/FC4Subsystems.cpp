@@ -133,6 +133,7 @@
 #include "cFC4RegionalCity.h"
 #include "FC4EffectsResource.h"
 #include "cFC4ConfigRules.h"
+#include "FC4BudgetWinShadow.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -904,6 +905,7 @@ void Resolve() {
     ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
     LegacyCtlShadowStartup();
     InplaceStartup();
+    BudgetWinShadowStartup();
 }
 
 }  // namespace
