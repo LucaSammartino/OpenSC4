@@ -26,7 +26,7 @@ fn record() -> ConnectionRecord {
         loaded: false,
     }
 }
-fn connection() -> UndergroundConnection {
+pub(super) fn connection() -> UndergroundConnection {
     UndergroundConnection {
         record: record(),
         descriptor_kind: None,
@@ -34,12 +34,16 @@ fn connection() -> UndergroundConnection {
         surface: [Vertex::default(); 4],
         matrices: [[9.0; 16]; 2],
         bottom_y: 99.0,
+        cached_bounds: [[0.0; 3]; 2],
+        bindings: std::array::from_fn(|_| RefValue::Null),
+        meshes: std::array::from_fn(|_| RefValue::Null),
     }
 }
 
 #[test]
 fn connection_unattached_builders_conformance_49() {
     let mut c = connection();
+    let mut h = ConnHost::default();
     for (i, v) in c.surface.iter_mut().enumerate() {
         *v = Vertex {
             pos: [i as f32, 4.0 + i as f32, 8.0 + i as f32],
@@ -50,19 +54,16 @@ fn connection_unattached_builders_conformance_49() {
     }
     c.record.walls[5] = vec![Vertex::default()];
     c.record.walls[6] = vec![Vertex::default(); 2];
-    assert_eq!(
-        c.create_floor(),
-        Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
-    );
+    assert_eq!(c.create_floor(&mut h), Ok(()));
     assert!(c.record.model_state);
     let expected = c.surface.map(|mut v| {
         v.color |= 0x00FF_FFFF;
         v
     });
     assert_eq!(c.record.walls[4], expected);
-    assert_eq!(c.create_floor(), Ok(()));
+    assert_eq!(c.create_floor(&mut h), Ok(()));
     assert_eq!(c.record.walls[4], expected); // Clear, never append another floor.
-    assert_eq!(c.create_walls(), Ok(()));
+    assert_eq!(c.create_walls(&mut h), Ok(()));
     assert_eq!(c.record.saved_68, 4);
     for (wall, (a, b)) in c.record.walls[..4].iter().zip([(1, 0), (0, 3), (3, 2), (2, 1)]) {
         assert_eq!(wall.len(), 4);
@@ -78,14 +79,14 @@ fn connection_unattached_builders_conformance_49() {
         );
     }
     c.record.model_state = false;
-    assert!(c.create_walls().is_err()); // Walls also consume the false latch.
+    assert_eq!(c.create_walls(&mut h), Ok(())); // Walls also consume the false latch.
     assert!(c.record.model_state);
     c.record.model_state = false;
     c.record.attached = reference(123);
     c.record.saved_68 = 3;
-    assert_eq!(c.create_floor(), Ok(()));
+    assert_eq!(c.create_floor(&mut h), Ok(()));
     assert!(c.record.walls[4].is_empty());
-    assert_eq!(c.create_walls(), Ok(()));
+    assert_eq!(c.create_walls(&mut h), Ok(()));
     assert!(c.record.walls[..4].iter().all(Vec::is_empty));
     assert_eq!(c.record.saved_68, 3);
     assert!(!c.record.model_state); // Attached paths never notify or consume it.
@@ -128,11 +129,15 @@ fn connection_wall_slope_append_conformance_50() {
     assert_eq!((out[6].v, out[7].v), (-1.0, -1.0));
 }
 #[derive(Default)]
-struct ConnHost {
+pub(super) struct ConnHost {
     h: Host,
     queries: Vec<(bool, (i32, i32), u32)>,
     requests: Vec<([i32; 4], [i32; 4])>,
     own_hit: bool,
+    query_fail: bool,
+    queried_cell: (i32, i32),
+    view_rotation: u32,
+    draws: Vec<(u32, Vec<Vertex>)>,
 }
 impl References for ConnHost {
     fn add_ref(&mut self, v: &RefValue) {
@@ -181,8 +186,9 @@ impl ConnectionHost for ConnHost {
     fn message(&mut self, id: u32, subscribe: bool) {
         self.h.log.push(format!("message{id:x}/{subscribe}"));
     }
-    fn clear_texture_binding(&mut self, slot: u32) {
-        self.h.log.push(format!("binding{slot}"));
+    fn model_bounds_changed(&mut self, _: [[f32; 3]; 2], argument: u32) {
+        assert_eq!(argument, 3);
+        self.h.log.push("bounds-changed".into());
     }
     fn position_to_cell(&mut self, p: [f32; 3]) -> (i32, i32) {
         assert_eq!(p, [32.0, 12.0, 64.0]);
@@ -236,13 +242,23 @@ impl ConnectionHost for ConnHost {
         self.h.log.push(format!("refresh{}", token(v)));
     }
     fn remove_self(&mut self, destroy: bool, arg: u32) {
-        assert!(destroy);
         assert_eq!(arg, 0);
-        self.h.log.push("remove-self".into());
+        self.h.log.push(
+            if destroy {
+                "remove-self"
+            } else {
+                "remove-self-without-destroy"
+            }
+            .into(),
+        );
     }
     fn query_interface(&mut self, _: &RefValue, iid: u32) -> RefValue {
         self.h.log.push(format!("qi{iid:x}"));
-        reference(300)
+        if self.query_fail {
+            RefValue::Null
+        } else {
+            reference(300)
+        }
     }
     fn model_instance(&mut self) -> RefValue {
         reference(999)
@@ -251,6 +267,8 @@ impl ConnectionHost for ConnHost {
         self.h.log.push(format!("post{id:x}/{value}"));
     }
 }
+
+mod pipeline;
 
 #[test]
 fn connection_record_exact_version_seven_lists_refs_and_partial_failure() {
@@ -325,10 +343,7 @@ fn connection_creation_search_order_fresh_loaded_and_own_hit_conformance_10_11()
         c.record.linked = reference(82);
         let mut s = ConnectionStatics::default();
         let mut h = ConnHost::default();
-        assert_eq!(
-            c.create(ConnectionKind::Pipe, &mut s, &mut h),
-            Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
-        );
+        assert_eq!(c.create(ConnectionKind::Pipe, &mut s, &mut h), Ok(()));
         let expected = [
             (10, 20),
             (9, 20),
@@ -398,7 +413,7 @@ fn connection_creation_search_order_fresh_loaded_and_own_hit_conformance_10_11()
         own_hit: true,
         ..ConnHost::default()
     };
-    assert!(c.create(ConnectionKind::Subway, &mut s, &mut h).is_err());
+    assert_eq!(c.create(ConnectionKind::Subway, &mut s, &mut h), Ok(()));
     assert_eq!(h.queries, [(false, (10, 20), 0xCA16_374F)]);
     assert!(h.requests.is_empty());
     assert_eq!(h.h.log.iter().filter(|s| *s == "refresh101").count(), 1);
@@ -498,11 +513,8 @@ fn connection_linked_refs_refresh_messages_query_and_shutdown() {
     c.set_linked_occupant(RefValue::Null, &mut h);
     c.set_linked_occupant(RefValue::Null, &mut h);
     assert_eq!(h.h.log, ["release1", "add2", "release2", "remove-self"]);
-    assert_eq!(
-        c.model_state_changed(),
-        Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
-    );
-    assert_eq!(c.model_state_changed(), Ok(()));
+    assert_eq!(c.model_state_changed(&mut h), Ok(()));
+    assert_eq!(c.model_state_changed(&mut h), Ok(()));
     c.record.attached = reference(3);
     h.h.log.clear();
     c.refresh_attached(&mut h);
@@ -517,12 +529,13 @@ fn connection_linked_refs_refresh_messages_query_and_shutdown() {
     assert_eq!(c.sort_value(ConnectionKind::Pipe), 0xEA0A_5ACF);
     assert_eq!(c.hidden_triangles(), [0, 1, 1]);
     c.record.linked = reference(4);
+    c.bindings = [reference(11), reference(12), reference(13)];
     c.record.walls[0] = vec![Vertex::default()];
     h.h.log.clear();
     c.shutdown(&mut h);
     assert_eq!(
         &h.h.log[..5],
-        ["binding0", "binding1", "binding2", "release3", "release4"]
+        ["release11", "release12", "release13", "release3", "release4"]
     );
     assert!(c.record.walls.iter().all(Vec::is_empty));
     assert_eq!(h.h.log.last().unwrap(), "shutdown");

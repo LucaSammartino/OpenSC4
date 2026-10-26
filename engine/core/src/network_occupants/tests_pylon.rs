@@ -95,6 +95,14 @@ pub(super) struct Host {
     pub prepare: bool,
     pub insert_renderer: bool,
     pub packs: Vec<RenderStateArgs>,
+    pub bitmaps: bool,
+    pub portrait: bool,
+    pub source_pixel: u32,
+    pub pixels: std::collections::HashMap<u32, u32>,
+    pub measurements: [i32; 2],
+    pub bitmap_acquisition: bool,
+    pub bitmap_lock: bool,
+    pub quads: Vec<(u32, [BillboardVertex; 4])>,
 }
 impl Default for Host {
     fn default() -> Self {
@@ -106,6 +114,14 @@ impl Default for Host {
             prepare: true,
             insert_renderer: true,
             packs: Vec::new(),
+            bitmaps: false,
+            portrait: false,
+            source_pixel: 0x0011_2233,
+            pixels: Default::default(),
+            measurements: [20, 10],
+            bitmap_acquisition: true,
+            bitmap_lock: true,
+            quads: Vec::new(),
         }
     }
 }
@@ -420,29 +436,29 @@ fn pylon_lifecycle_packing_and_all_placement_edges() {
 }
 
 #[test]
-fn pylon_position_visibility_and_explicit_model_gap_conformance_42() {
+fn pylon_position_visibility_and_model_refresh_conformance_42() {
     let mut p = Pylon::new([0; 3]);
     let mut h = Host::default();
     assert_eq!(p.set_position(None, &mut h), Ok(()));
     assert!(h.log.is_empty());
     p.record.transform.counter = 255;
     p.record.transform.mask = 0x80;
-    assert_eq!(
-        p.set_position(Some([4.0, 5.0, 6.0]), &mut h),
-        Err(PylonUnsupported::ModelCompositionDrawMessagesNO36)
-    );
-    assert_eq!((p.record.transform.counter, p.record.transform.mask), (0, 0x81));
+    assert_eq!(p.set_position(Some([4.0, 5.0, 6.0]), &mut h), Ok(()));
+    assert_eq!((p.record.transform.counter, p.record.transform.mask), (1, 0x85));
     assert_eq!(
         h.log,
         [
             "city",
             "city",
+            "texture7ab50e44/1abe787d/ea3ee100",
             "city",
             "manager+",
             "city",
             "city",
             "prepare",
-            "renderer+"
+            "renderer+",
+            "city",
+            "city"
         ]
     );
     let mut out = [0.0; 3];
@@ -622,11 +638,9 @@ fn pylon_texture_replacement_conformance_48() {
     h.log.clear();
     assert_eq!(p.rebuild_current_texture(&mut h), Ok(true));
     assert_eq!(h.log, ["release33", "texture7ab50e44/1abe787d/0"]);
+    p.set_dispatch_state(0);
     p.set_dispatch_type(4);
-    assert_eq!(
-        p.rebuild_current_texture(&mut h),
-        Err(PylonUnsupported::ModelCompositionDrawMessagesNO36)
-    );
+    assert_eq!(p.rebuild_current_texture(&mut h), Ok(false));
     p.set_dispatch_type(0);
     for state in [-1, 7] {
         p.set_dispatch_state(state);
