@@ -3,10 +3,40 @@
 
 use super::{length, Airplane, Vec3};
 use crate::automata::{aircraft_altitude, clip_aircraft_to_world, AircraftBounds, AircraftWorld};
+use crate::automata::{DriveParameterSource, FlightPhase, SoundRequest};
 
 pub trait RunwayTerrain: AircraftWorld {
     fn accepts_point(&mut self, x: f32, z: f32) -> bool;
     fn auxiliary_height(&mut self, mode: u32, x: f32, z: f32) -> f32;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlightCalibration {
+    pub orientation: Vec3,
+    pub velocity: Vec3,
+    pub controls: [f32; 6],
+    pub seconds: f32,
+    pub maximum_iterations: u32,
+}
+impl Airplane {
+    /// §3.2.1 synthetic seeds; convergence/attitude remains the §9.1 boundary.
+    pub fn calibration_inputs(&self) -> [FlightCalibration; 3] {
+        let angle = f64::from(self.drive_parameters.0[4]);
+        let orientation = [0.0, angle.sin() as f32, angle.cos() as f32];
+        let velocity = orientation.map(|v| (f64::from(v) * f64::from(self.drive_parameters.0[2])) as f32);
+        [
+            [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+            [-1.0, 0.0, 0.0, self.player_gains[7], 1.0, 0.0],
+            [self.player_gains[8], 1.0, 1.0, self.player_gains[7], 1.0, 0.0],
+        ]
+        .map(|controls| FlightCalibration {
+            orientation,
+            velocity,
+            controls,
+            seconds: 0.1,
+            maximum_iterations: 100,
+        })
+    }
 }
 
 pub fn evaluate_clearance<W: RunwayTerrain>(world: &mut W, origin: Vec3, direction: Vec3) -> f32 {
@@ -110,14 +140,19 @@ pub fn approach_box(
     let lateral = [-direction[2], 0.0, direction[0]];
     let size = length(lateral);
     let mut lateral = lateral.map(|v| (f64::from(v) / size) as f32);
-    let center_dot = f64::from(lateral[0]) * ((f64::from(bounds.min_x) + f64::from(bounds.max_x)) * 0.5 - f64::from(runway[0]))
+    let center_dot = f64::from(lateral[0])
+        * ((f64::from(bounds.min_x) + f64::from(bounds.max_x)) * 0.5 - f64::from(runway[0]))
         + f64::from(lateral[2]) * ((f64::from(bounds.min_z) + f64::from(bounds.max_z)) * 0.5 - f64::from(runway[2]));
     if center_dot <= 0.0 {
         lateral = lateral.map(|v| -v);
     }
     let dimension = (bounds.max_x - bounds.min_x).max(bounds.max_z - bounds.min_z);
     let nominal = (f64::from(base_altitudes[0].max(base_altitudes[1])) - f64::from(runway[1])) / f64::from(slope);
-    let leg = if nominal < 500.0 { 500.0 } else { nominal.min(f64::from(dimension)) };
+    let leg = if nominal < 500.0 {
+        500.0
+    } else {
+        nominal.min(f64::from(dimension))
+    };
     let mut result = [runway; 4];
     let mut point = runway;
     let mut distance = 0.0;
@@ -175,6 +210,173 @@ impl Airplane {
     }
 }
 
+/// Source offsets in the destination gain order +0x300..+0x32C (§4.3.3).
+pub const PLAYER_GAIN_RECORD_OFFSETS: [u32; 12] =
+    [0x60, 0x78, 0x64, 0x68, 0x6C, 0x7C, 0x80, 0x84, 0x88, 0x90, 0x70, 0x8C];
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AirplanePlayerRecord {
+    pub speed: f32,
+    pub gains: [f32; 12],
+}
+impl AirplanePlayerRecord {
+    pub fn import(mut field: impl FnMut(u32) -> f32) -> Self {
+        Self {
+            speed: field(8),
+            gains: PLAYER_GAIN_RECORD_OFFSETS.map(field),
+        }
+    }
+}
+pub trait AirplanePlayerSource {
+    fn direct_record(&self) -> Option<&AirplanePlayerRecord>;
+    fn script_record(&self) -> Option<&AirplanePlayerRecord>;
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AirplaneStateCallback {
+    pub base_result: bool,
+    pub limits: Option<[f32; 2]>,
+    pub sounds: Vec<SoundRequest>,
+}
+impl Airplane {
+    pub fn refresh_player_parameters(&mut self, provider: Option<&dyn AirplanePlayerSource>) {
+        let Some(record) = provider.and_then(|p| p.direct_record().or_else(|| p.script_record())) else {
+            return;
+        };
+        let speed = (f64::from(record.speed) * 1000.0) as f32;
+        if speed != 0.0 {
+            self.drive_parameters.0[3] = speed;
+        }
+        for (destination, value) in self.player_gains.iter_mut().zip(record.gains) {
+            let value = (f64::from(value) * f64::from(f32::from_bits(0x3C23D70A))) as f32;
+            if value != 0.0 {
+                *destination = value;
+            }
+        }
+    }
+
+    pub fn enter_state(
+        &mut self,
+        state: Option<u32>,
+        player: Option<&dyn AirplanePlayerSource>,
+        base: impl FnOnce() -> bool,
+    ) -> AirplaneStateCallback {
+        let base_result = base();
+        let is_player = state == Some(0x10);
+        let mut sounds = vec![];
+        if is_player {
+            self.refresh_player_parameters(player);
+            if self.phase != Some(FlightPhase::Phase0) {
+                sounds.push(SoundRequest::Start(8));
+            }
+        } else {
+            self.control_fields = [0.0; 4];
+            if state == Some(0x39) {
+                self.fire_search_anchor = self.base().vectors[2];
+            }
+        }
+        self.water_drop_active = false;
+        AirplaneStateCallback {
+            base_result,
+            limits: is_player.then_some([0.0, 1.0]),
+            sounds,
+        }
+    }
+
+    pub fn exit_state(
+        &mut self,
+        state: Option<u32>,
+        ai: Option<&dyn DriveParameterSource>,
+        base: impl FnOnce() -> bool,
+    ) -> bool {
+        let base_result = base();
+        if state == Some(0x10) {
+            self.drive_parameters = super::AirplaneDriveParameters::load(ai);
+            self.control_fields = [0.0; 4];
+        }
+        self.water_drop_active = false;
+        base_result
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AirplaneGoalInputs {
+    pub land_succeeded: bool,
+    pub destination_succeeded: bool,
+    pub destination_sentinel: bool,
+    pub fire_found: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AirplaneGoalAction {
+    Dispatch(u32),
+    Push(u32),
+    Pop,
+    Stop,
+    Land,
+    ClipDestination,
+    GotoDestination,
+    VisitLoiter,
+    SearchFire,
+}
+impl Airplane {
+    /// Ordered §4.4 dispatch plan. Controller/query results are supplied, not invented.
+    /// An adapter executes Push/Pop with the shared stack and its entry/exit callbacks.
+    pub fn goal_actions(&self, input: AirplaneGoalInputs) -> Vec<AirplaneGoalAction> {
+        use AirplaneGoalAction::*;
+        let goal = self.base().states.last().map_or(0, |s| s.state_type);
+        let mut actions = vec![];
+        match goal {
+            0x32 => {
+                if !matches!(self.dispatch_state, 0 | 4) {
+                    actions.push(Dispatch(6));
+                }
+                actions.push(Land);
+                if input.land_succeeded {
+                    actions.extend([Dispatch(0), Pop]);
+                }
+                return actions;
+            }
+            0x33 => {
+                actions.push(ClipDestination);
+                if input.destination_sentinel {
+                    actions.push(Pop);
+                } else {
+                    actions.push(GotoDestination);
+                    if input.destination_succeeded {
+                        actions.push(Pop);
+                    }
+                }
+                return actions;
+            }
+            0x35 => return vec![Dispatch(5), VisitLoiter],
+            0x39 => {
+                actions.push(SearchFire);
+                if self.ammunition.is_some_and(|n| n > 0) {
+                    if !input.fire_found {
+                        actions.push(Pop);
+                    }
+                    actions.push(Dispatch(3));
+                    if !input.fire_found {
+                        actions.push(Push(0x32));
+                    }
+                    actions.extend([Push(0x35), Push(0x33)]);
+                } else {
+                    actions.extend([Dispatch(4), Push(0x32)]);
+                }
+                return actions;
+            }
+            0 => {}
+            _ => actions.push(Pop),
+        }
+        if matches!(self.phase, Some(FlightPhase::Phase1)) {
+            actions.push(Stop);
+        } else if self.phase.is_some_and(|p| p != FlightPhase::Phase0) {
+            actions.push(Push(0x32));
+        }
+        actions
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AirplaneCleanup {
     ReleaseFilter,
@@ -185,11 +387,7 @@ pub enum AirplaneCleanup {
 
 impl Airplane {
     /// Execute retained-reference cleanup before invoking base Shutdown (§3.2.1).
-    pub fn shutdown(
-        &mut self,
-        mut effect: impl FnMut(AirplaneCleanup),
-        base: impl FnOnce() -> bool,
-    ) -> bool {
+    pub fn shutdown(&mut self, mut effect: impl FnMut(AirplaneCleanup), base: impl FnOnce() -> bool) -> bool {
         if self.fire_filter_present {
             effect(AirplaneCleanup::ReleaseFilter);
             self.fire_filter_present = false;

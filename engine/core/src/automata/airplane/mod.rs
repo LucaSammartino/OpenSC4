@@ -114,9 +114,10 @@ impl Default for Airplane {
             velocity: [0.0; 3],
             angular_fields: [0.0; 3],
             player_gains: [
-                0x3ECCCCCD, 0x3E99999A, 0x3E4CCCCD, 0x3F800000, 0x3F000000, 0x3E4CCCCD,
-                0x3DCCCCCD, 0x3E99999A, 0x3DCCCCCD, 0x3E4CCCCD, 0x3E4CCCCD, 0x3DCCCCCD,
-            ].map(f32::from_bits),
+                0x3ECCCCCD, 0x3E99999A, 0x3E4CCCCD, 0x3F800000, 0x3F000000, 0x3E4CCCCD, 0x3DCCCCCD, 0x3E99999A,
+                0x3DCCCCCD, 0x3E4CCCCD, 0x3E4CCCCD, 0x3DCCCCCD,
+            ]
+            .map(f32::from_bits),
             control_fields: [0.0; 4],
             fire_search_anchor: [-1.0, -2.0, -3.0],
             dispatch_state: 0,
@@ -314,11 +315,19 @@ pub fn physics_seconds(milliseconds: f32, ai_multiplier: Option<f32>) -> f32 {
     match ai_multiplier {
         Some(multiplier) => {
             let seconds = stored * multiplier;
-            if seconds > cap { cap } else { seconds }
+            if seconds > cap {
+                cap
+            } else {
+                seconds
+            }
         }
         None => {
             // §3.4.1a: player cap compares the unrounded conversion.
-            if conversion > f64::from(cap) { cap } else { stored }
+            if conversion > f64::from(cap) {
+                cap
+            } else {
+                stored
+            }
         }
     }
 }
