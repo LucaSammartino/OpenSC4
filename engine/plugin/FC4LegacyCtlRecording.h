@@ -340,13 +340,13 @@ inline bool SetupDrawing() {
     Quiet q;
     auto* fw=RZGetFrameWork(); cIGZUnknown* graphics=nullptr; cIGZUnknown* fonts=nullptr;
     // Service identities from SDK GZServPtrs; calls from spec sections 9.2/9.9.
-    bool ok=fw && fw->GetSystemService(3296425084ul,3289776732ul,reinterpret_cast<void**>(&graphics)) && graphics;
+    bool ok=fw && fw->GetSystemService(3289776732ul,3296425084ul,reinterpret_cast<void**>(&graphics)) && graphics;
     if(graphics) {
         FC4_ACQUIRED(graphics,"legacy graphics service");
         ok=Patch(graphics,0x88,reinterpret_cast<void*>(&Colour),true) && ok;
         FC4_RELEASE(graphics);
     }
-    ok=fw && fw->GetSystemService(583199519ul,3267554063ul,reinterpret_cast<void**>(&fonts)) && fonts && ok;
+    ok=fw && fw->GetSystemService(3267554063ul,583199519ul,reinterpret_cast<void**>(&fonts)) && fonts && ok;
     if(fonts) {
         FC4_ACQUIRED(fonts,"legacy font service");
         ok=Patch(fonts,0x14,reinterpret_cast<void*>(&Font),true) && Patch(fonts,0x98,reinterpret_cast<void*>(&FontID),true) && ok;
