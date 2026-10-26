@@ -172,7 +172,10 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
     // The registry replacement does not own the native manager's private
     // factory. Calling that factory directly works with enable=nettool too.
     int32_t originX = 0, originZ = 0;
+    const bool hasOriginalManager = manager != nullptr;
     if (manager && !ClearPlanningOrigin(city, originX, originZ)) manager = nullptr;
+    if (!manager) Log("%s unavailable inputs julian=%d manager=%d city-cells=%ux%u clear-origin=%d",
+        label, julian, hasOriginalManager ? 1 : 0, city->CellCountX(), city->CellCountZ(), manager ? 1 : 0);
     constexpr int32_t offsets[][4] = {
         {0,0,0,0}, {0,0,4,0}, {4,0,0,0},
         {0,0,0,4}, {0,4,0,0}, {0,0,12,0},
