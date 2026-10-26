@@ -1435,6 +1435,7 @@ endif()
 
 if(TARGET FreeCity4)
     add_executable(fc4_gzfw_owner_test tests/gzfw_owner_test.cpp)
+    target_sources(fc4_gzfw_owner_test PRIVATE "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
     target_include_directories(fc4_gzfw_owner_test PRIVATE plugin "${FC4_GZCOM_DIR}/include")
     target_compile_options(fc4_gzfw_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME gzfw_native_owners COMMAND fc4_gzfw_owner_test "$<TARGET_FILE:FreeCity4>")

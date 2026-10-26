@@ -222,8 +222,8 @@ public:
     bool FromText(const char* text,uint32_t n,uint32_t& id,cIGZCommandParameterSet*& out) override {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
         if (!initialized_) return false;
-        // SPEC-GAP: GZF3 generator traversal uses registration order.
-        for (auto* g:generators_) if (g && Slot<bool(__thiscall*)(void*,const char*,uint32_t,uint32_t&,cIGZCommandParameterSet*&)>(g,9)(g,text,n,id,out)) return true;
+        // command-system section 5: slot 22 uses the default string generator;
+        // registered generators receive notifications, not conversion requests.
         std::vector<std::string> words; fc4_gzfw_words(reinterpret_cast<const uint8_t*>(text),Length(text,n),&words,Words);
         if (words.empty()) return false;
         id=fc4_gzfw_registry_lookup(core_,reinterpret_cast<const uint8_t*>(words[0].data()),words[0].size(),false); if (!id) return false;
@@ -237,7 +237,6 @@ public:
     bool ToText(uint32_t id,cIGZCommandParameterSet* ps,cIGZString& out) override {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
         if (!initialized_) return false;
-        for (auto* g:generators_) if (g && Slot<bool(__thiscall*)(void*,uint32_t,cIGZCommandParameterSet*,cIGZString&)>(g,10)(g,id,ps,out)) return true;
         out.Erase(0,0xffffffff); std::string info[2]; if (!Strings(id,info)) return false;
         std::string text; Quote(text,info[0].data(),info[0].size()); AppendParameters(ps,text,true);
         out.FromChar(text.data(),static_cast<uint32_t>(text.size())); return true;
@@ -245,7 +244,6 @@ public:
     bool OutputText(cIGZCommandParameterSet* ps,cIGZString& out) override {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
         if (!initialized_) return false;
-        for (auto* g:generators_) if (g && Slot<bool(__thiscall*)(void*,cIGZCommandParameterSet*,cIGZString&)>(g,11)(g,ps,out)) return true;
         std::string text; AppendParameters(ps,text,false); out.FromChar(text.data(),static_cast<uint32_t>(text.size())); return true;
     }
 };
