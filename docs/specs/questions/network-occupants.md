@@ -8,7 +8,8 @@ implementer of the class tables and records.
 
 <!-- from: the network occupants spec (2026-10-20) -->
 - **NO4 - the prebuilt record's first five fields:** the semantics of the prebuilt `Write` fields
-  `+0x170`/`+0x174`/`+0x178`/`+0x17C`/`+0x180` (network-occupants.md §2.8): model refs? shear inputs?
+  (three f32 at primary `+0x178`/`+0x17C`/`+0x180`, u32 `+0x1B0`, u8 `+0x1B4`; corrected by NO46,
+  network-occupants.md §2.8.1): model refs? shear inputs?
   [not specified]
 
 <!-- from: the network occupants spec (2026-10-20) -->
@@ -80,4 +81,3 @@ implementer of the class tables and records.
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
-
