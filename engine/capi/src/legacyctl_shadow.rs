@@ -7,12 +7,7 @@ mod recording;
 // Words: refs, control, parent, procedure, own. Output adds a scalar at [5].
 // Safety: plugin supplies disjoint live arrays of five and six u32 respectively.
 #[no_mangle]
-unsafe extern "C" fn fc4_legacyctl_shadow_replay(
-    before: *const u32,
-    op: u32,
-    argument: u32,
-    output: *mut u32,
-) -> i32 {
+unsafe extern "C" fn fc4_legacyctl_shadow_replay(before: *const u32, op: u32, argument: u32, output: *mut u32) -> i32 {
     if before.is_null() || output.is_null() {
         return 0;
     }

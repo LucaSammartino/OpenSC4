@@ -6,3 +6,6 @@
 
 <!-- from: close-legacyctl29 (2026-10-26) -->
 - **LC17 — §3 control-area table identity:** the specified base `0x00AD5344` plus eight slots places slot 7 at `0x00AD5360`, which §3 also assigns to primary QueryInterface (`0x0094C431`), rather than the stated stub `0x0092B33A`. The stated half-open extent to `0x00AD5360` holds only seven slots. Please resolve the base/extent/slot numbering and confirm the area slots' word addresses. The shadow leaves this table unpatched; no native mismatch or alternate layout is inferred.
+
+<!-- from: close-legacyctl29 (2026-10-26) -->
+- **LC18 — §8 comment-list observation for §6.2 replay:** §8 specifies eight strings, a 20-byte private list with vtable `0x00AD5420`, and a variant stored under `0xBACA6879`, but gives no reader interface or field layout. Please specify a safe way to observe the eight strings and the temporary list/variant allocation and reference effects. Is there a queryable public interface, or a published private storage contract? The recorder cannot assume this object implements SDK `cIGZUnknownList`; first-pass Common and whole-build completeness remain zero while this observation is unsupported.
