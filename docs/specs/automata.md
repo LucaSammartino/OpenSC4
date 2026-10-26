@@ -1316,7 +1316,7 @@ signature, and the Windows code matches.
 | 1 | `u32` automata group ID | selects the exemplar and the class through the script system's group |
 | 2 | `const vec3&` position | `SetPosition` (slot 8) after creation |
 | 3 | `u32` automata flags | set on the new automaton with slot 30 `SetAutomataFlag(flags, true)` (`0x005107EF`). Bit 2 = self-controlling; bit `0x80` lets the creation through when the manager is full (below) |
-| 4 | `const key3&` model key | when its instance is 0, the model comes from an exemplar chosen for the group (manager slot 25); otherwise that key is used. Callers pass an all-zero key |
+| 4 | model-key reference | when its instance is 0, the model comes from an exemplar chosen for the group (manager slot 25); otherwise that key is used. Many callers pass an all-zero key; construction passes an explicit key (§7.6, including its Windows memory order) |
 | 5 | `cIGZMessageTarget2*` | callback target, added with slot 39 `AddCallback` when non-null |
 | 6 | `u8` priority | stored with slot 64. `0xFF` forces the creation |
 | 7 | `const vec3*` orientation | slot 14 `SetOrientation` when non-null |
@@ -1357,6 +1357,7 @@ Any priority below `0xFF` is first offered to the city situation manager:
 |---|---|
 | riot | (`0x4107`, cell position, 2, zero key, null, `0xFF`, null) |
 | generators | (current group, spawn point, `0x2000002`, zero key, null, the template's priority byte, null) |
+| building construction crew | (`0x4101`, terrain-height spawn point, `0x32000`, explicit construction model key, null, `0x32`, null); then clear flag 2 and set orientation (§7.6) |
 
 **Watercraft override** (`0x00568F30`, also pops 28). It returns null without creating anything when either check
 fails:
@@ -1502,6 +1503,174 @@ original does either way.
 queue point and the queue direction, written by the point search (`0x00516070`) and by the record reader
 (`0x0051B520`), and they are already specified in §3.3: both are metres, the point is 1 m outside a lot edge,
 the direction is a unit axis vector, and the entry's `vec3`s are written point-then-direction.
+
+### 7.6 Native construction-site boundary (NM17) *[compat]*
+
+The owner of the crew is a native **building construction occupant**. Its SetLot call sequence and a
+starting-site worked case are in [network-manager.md §3.2.1](network-manager.md#321-construction-site-automata-boundary-nm17-compat).
+This section owns the automata-side contract, including a factory boundary that is stricter than the
+construction caller's use of the returned interface. Addresses below were checked in Windows instruction
+bytes and the pedestrian's primary vtable `0x00A9A718`.
+
+#### 7.6.1 Interfaces, arguments and ordered calls
+
+The construction caller obtains `cISC4AutomataManager` through city slot 44 (`+0xB0`), and receives the
+**primary `cISC4Automaton*` A** (IID `0xA9B40F05`) from manager slot 15 (`+0x3C`). Its ABI is `__thiscall`:
+the interface pointer is `this`, pointers and scalar arguments each occupy one 4-byte stack slot, and
+the callee removes **28 bytes**. Priority uses the low byte of its slot. A valid primary automaton
+interface cannot be substituted with an occupant-interface pointer: the two have different slot tables.
+
+Construction passes `(0x4101, &position, 0x32000, &modelKey, null, 0x32, null)`
+(`0x005CE67B`–`0x005CE6B1`). Position is three `f32` values, x/y/z. For this **Windows in-memory argument**,
+the model key is 12 bytes with the following order, independently of §1's record notation:
+
+| Byte offset from model-key argument | Value |
+|---|---|
+| `+0x00` | group `0x29A5D1EC` |
+| `+0x04` | type `0x49A593E7` |
+| `+0x08` | chosen instance: ground `0x0210B000`, `0x0210C000`, `0x0210A000`; roof `0x02109000` or `0x0210D000` |
+
+The model key, position and subsequent orientation are caller-local buffers. Copy their values during
+the call; no ownership of their storage is transferred, and none can be retained as a pointer into the
+construction caller's stack. Null callback and orientation are valid independent arguments.
+
+When native `CreateAutomaton` `0x00505370` is used, it first calls manager slot 46 (`+0xB8`) with
+`(group,flags,&modelKey,null,priority)`; that is a five-argument call with **20-byte** callee cleanup.
+On a non-null result, its remaining order is:
+
+| Order | Interface and slot (byte offset) | Arguments / effect |
+|---|---|---|
+| 1 | A slot 39 (`+0x9C`) AddCallback | the callback argument, **including null**; the native slot is a null-safe no-op for this crew |
+| 2 | A slot 8 (`+0x20`) SetPosition | one pointer to the three-`f32` position; callee removes 4 bytes |
+| 3 | A slot 14 (`+0x38`) SetOrientation | one vector pointer **only if** the creation orientation is non-null; construction's null skips this call |
+| 4 | manager slot 7 (`+0x1C`) AddAutomaton | A; establishes manager-list ownership and calls A slot 3 Init |
+| 5 | A slot 2 (`+0x08`) Release | balances the creation reference; return A as a **borrowed** interface |
+
+Those calls are `0x0050538E`–`0x005053D8`. Native AddAutomaton takes its reference before Init and list
+insertion (`0x0050F7A9`–`0x0050F7DA`, pedestrian entry `0x005469EF`); its remaining placement/visibility
+behaviour still applies. On null creation none of these post-creation calls occurs.
+
+After slot 15 returns non-null, the **construction caller**, without any QI or interface adjustment, calls:
+
+| Order | A slot (byte offset) | Arguments | Callee cleanup |
+|---|---|---|---|
+| 1 | 30 (`+0x78`) SetAutomataFlag | mask 2, false; clear only that mask | 8 bytes, even though false is a bool |
+| 2 | 14 (`+0x38`) SetOrientation | one pointer to `(direction.x,0,direction.z)`, three `f32` | 4 bytes |
+| 3 | 1 (`+0x04`) AddRef | none; construction-owner reference | 0 bytes |
+
+The horizontal direction comes from `RandomDirection2` (`0x0080B680`), whose two components the caller
+puts into x/z and whose y it forces to zero (`0x005CE6C6`–`0x005CE71B`). SetOrientation obeys §7.5;
+it is a vector setter, not a second creation method or a callback registration. The first call clears
+bit 2 without clearing `0x32000` (native flag method `0x004FAD20`–`0x004FAD4F`).
+
+Later scaffold movement uses A slot 7 (`+0x1C`) **GetPosition(outVec3*)**, not a returned vector or
+pointer: it writes all three `f32`, removing 4 argument bytes. A slot 8 then receives one input-vector
+pointer with only y changed. AddRef/Release have no stack arguments. These signatures matter even when
+the replacement only records workers and does not animate them (`0x00505520`–`0x00505535`,
+`0x005CC3A9`–`0x005CC3C8`).
+
+#### 7.6.2 Native internal creation requires concrete embedded views
+
+If **native manager slot 46** (`0x00510690`) creates the object, it asks GZCOM slot 3 (`+0x0C`) for the
+chosen class and **IID `0xA9B40F05`**, keeping that acquired creation reference. The class comes from the
+selected automata-group template, falling back to the manager's class. The ordinary pedestrian class
+is `0x896E75AF` (`0x00546030`). An IID is the requested view, not that class ID.
+
+After a non-null factory result A, native slot 46 performs these operations **before** §7.6.1's wrapper:
+
+1. A slot 64 (`+0x100`) SetPriority with the effective priority, then A slot 30 (`+0x78`) with
+   `(requested flags,true)` (`0x005107D3`–`0x005107EF`). The situation-priority adjustment in §7.2 still applies.
+2. For a nonzero requested model instance, call **the concrete helper** AddModelResourceKey at
+   `0x00510360` directly with A as its base and the model-key pointer. With a zero instance and a chosen
+   model description, pass that description's key instead (`0x005107F2`–`0x0051080A`). This is not a vtable
+   dispatch that an unrelated facade can satisfy by adding a similarly named method.
+3. If a model description was resolved, use the embedded occupant view at **A + `0x04`**, slot 6
+   (`+0x18`), to get its property holder; use the embedded exemplar-holder view at **A + `0x20`**, slot 3
+   (`+0x0C`), to attach the description's exemplar; add the description's occupant-group variant as
+   property `0xAA1DD396` on the property holder, slot 14 (`+0x38`, final argument false). If the description's
+   marker requires it, set flag `0x100000`. If there is no model description but a group template exists,
+   add that template's group variant to the occupant's property holder instead. These branches are
+   `0x0051080F`–`0x00510899`. They obtain embedded views by address arithmetic, **without QI**.
+4. A slot 95 (`+0x17C`) SetAutomataGroup with the selected template (possibly null), then A slot 33
+   (`+0x84`) SetOpacity with `(0.0,0)` and then `(1.0,fadeDuration)` (`0x0051089C`–`0x005108C5`). Both opacity
+   arguments occupy one 4-byte slot each; the first is `f32`. `fadeDuration` is the native `f32` tuning
+   value at `0x00B21C84` (initially zero), not a fixed extra creation priority. Return the creation reference.
+
+These are the concrete data dependencies crossed by that native setup, relative to **primary A**:
+
+| Offset | Native boundary requirement |
+|---|---|
+| `+0x04` | embedded occupant vptr, not a pointer to a separate occupant object; slot 5 IsInitialized and slot 6 property-holder accessor must work on this adjusted view |
+| `+0x0C` | native property-holder view reached by that accessor (`0x006C2044` adds 8 to the occupant view); returned borrowed, with no AddRef |
+| `+0x20` | embedded exemplar-holder vptr; slot 3 takes one exemplar pointer, AddRefs a changed new value and Releases the old value (`0x00458E60`) |
+| `+0xC0`, `+0xC4`, `+0xC8` | model-key vector begin, end, capacity-end pointers; initially null, then a valid native vector of **12-byte keys** with storage compatible with the native allocator/growth/destruction |
+| `+0x11C`, `+0x120`, `+0x124` | first model key's group, type, instance words; when incoming instance is nonzero and `+0x124` is zero, the direct helper copies all three |
+| `+0x128` | also receives that first nonzero model instance |
+
+AddModelResourceKey reads/writes these key fields, appends a complete copied key to the vector, then
+calls **embedded occupant slot 5** (`+0x14`) IsInitialized. If already initialized it also calls the native
+AddModelInstance helper; a freshly constructed object has not reached manager AddAutomaton's Init yet
+(`0x00510366`–`0x005103F2`, constructor `0x005141BB`–`0x00514208`). The first-key copy is conditional;
+the vector append still occurs when it is not the first key.
+
+Native QI confirms the view relationship: IID `0xA9B40F05` returns primary A; occupant IID `0x26BB767E`
+returns A + `0x04`, and successful QI AddRefs the common identity (`0x00505D8D`–`0x00505DA6`,
+`0x00505DC5`–`0x00505E09`). Primary AsOccupant slots 5/6 return A + `0x04` **without** acquiring a reference
+(`0x005FD7E0`); construction's successful-creation sequence does not call those slots itself.
+
+The table is the observed direct-setup footprint, not a complete object-size or constructor substitute.
+Retaining any native concrete helper requires its actual constructed subobjects and containers, in
+addition to the primary interface slots. A replacement implementing the entire manager creation path
+can supply these behaviours itself; the construction caller alone reads no concrete fields of A. Its
+uses of A in this boundary are virtual calls. Merely answering occupant QI on a separate object does
+not satisfy native slot 46's fixed-offset accesses.
+
+#### 7.6.3 Removal, ownership and discriminating cases
+
+Each successful construction request stores one **extra AddRef** beyond the manager-list reference.
+There is no ownership of the stack argument buffers and no extra construction reference on a null
+return. In the simple case without tracked groups, callbacks or other owners: factory result = 1;
+manager AddAutomaton = 2; wrapper Release = 1; construction AddRef = **2**. Reference-bearing optional
+tracking sets retain their own independent references (§7.3).
+
+Construction Shutdown fetches the pedestrian manager and, for every worker in creation order, calls
+manager slot 8 (`+0x20`) with `(A,false)` when that manager exists, followed by **A Release once** regardless
+of manager presence (`0x005D1007`–`0x005D1036`). It does not call A Shutdown or consume the manager's
+ownership itself. Native manager `RemoveAutomaton(A,false)` is **deferred**: notify event `(2,0)` through
+A slot 102 (`+0x198`), set the removal flag through slot 89 (`+0x164`, argument true, delegating to flag
+mask 1), set opacity to `(0.0,fadeDuration)` through slot 33, then stop its effects. It does not erase
+the base-list node or Release the list reference in this false branch (`0x0050CAE9`–`0x0050CB2A`).
+
+The effects operation is another concrete dependency **if the native removal body is retained**: at
+**A + `0x18C`**, it expects an embedded `cSC4ModelRegEffects` object, calls that subobject's slot 7
+(`+0x1C`) with true, then slot 2 (`+0x08`) with false. That slot 2 is an effects operation, not A's
+IUnknown Release. It is a constructed object with its own effect container, not an optional pointer
+or a zero-filled area (`0x00514292`–`0x0051429E`, constructor `0x005E8670`). Later immediate removal or the
+manager's normal bulk drain performs the manager-owned shutdown/release (§5.2.1); it may also have
+happened before the construction owner drops its final reference.
+
+Use the starting-site case in network-manager.md §3.2.1 to check these independent boundaries:
+
+- **Returned interface:** all three workers receive flag-clear, orientation and AddRef in that order;
+  the manager creation call removes 28 bytes, flag setter 8, vector setter 4, and AddRef 0. Local key
+  words are `(0x29A5D1EC,0x49A593E7,instance)`; the group word never becomes a callable address.
+- **Native factory continuation:** when native slot 46 is used, a first ground worker with instance
+  `0x0210B000` has copied first-key words `(0x29A5D1EC,0x49A593E7,0x0210B000)`, mirror instance
+  `0x0210B000`, one vector entry (end = begin + 12), and working embedded occupant/exemplar/property-holder
+  views before AddAutomaton Init. Correct QI alone does not establish this result.
+- **Scaffold and normal removal:** setting scaffold height to 9 calls GetPosition/SetPosition for the
+  roof worker only. Removing the site requests `(A,false)` for all three workers, then drops one
+  construction reference each. With a live native manager and no other owners, each still has its
+  manager-list reference until the later immediate removal/drain. If that drain happened first, the
+  construction reference instead keeps each worker valid until its own final Release.
+- **Refused creation:** let the middle request return null; expect no setter, AddRef, stored list entry
+  or later construction Release for that request. The other two workers and later dust setup still
+  proceed. This is the caller's accepted null path, not a requirement to refuse valid requests.
+
+NM17's log observations do not determine which replacement contract failed. The native model-group
+constant `0x29A5D1EC` explains why that value is present among the creation arguments, but neither a
+stack-imbalance diagnosis nor a factory-layout diagnosis follows from the reported crash address alone.
+These rules enable an engine boundary test; they do not report a passing full-profile action run.
 
 ## 8. Riot and fire hooks *[compat]*
 

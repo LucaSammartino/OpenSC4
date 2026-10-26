@@ -24,6 +24,7 @@
 //     allocation leave the set untouched.
 
 #include "FC4GameSet.h"
+#include "FC4NetworkConfigurationSet.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -208,12 +209,46 @@ void TestRefusals() {
     CHECK(g_blocks.empty());
 }
 
+void TestNetworkConfigurationFillRefill() {
+    auto storage = MakeSet();
+    struct Boundary {
+        fc4::NetworkConfigurationSet set;
+        uint32_t after = 0xDEADBEEF;
+    } boundary{{storage.header, 0}};
+    auto* const header = storage.header;
+    const std::vector<uint32_t> catalogue{0x10002000, 0x10003000, 0x10001000};
+    std::map<uint32_t, int> refs{{0x10001000, 1}, {0x10002000, 1}, {0x10003000, 1}};
+    const auto fill = [&](const std::vector<uint32_t>& values) {
+        CHECK(fc4::ReplaceNetworkConfigurationSet<FakeB>(&boundary.set, values,
+            [&](uint32_t pointer) { ++refs[pointer]; }));
+        CHECK(boundary.after == 0xDEADBEEF && boundary.set.header == header);
+        storage.count = boundary.set.count;
+    };
+    fill(catalogue);
+    CHECK(SetMatches(storage, {0x10001000, 0x10002000, 0x10003000}));
+    CHECK(g_blocks.size() == 4);
+    for (auto& item : refs) { CHECK(item.second == 2); --item.second; }  // caller Releases
+    fill(catalogue);
+    CHECK(SetMatches(storage, {0x10001000, 0x10002000, 0x10003000}));
+    CHECK(g_blocks.size() == 4);  // old entries freed with B; header preserved
+    for (auto& item : refs) { CHECK(item.second == 2); --item.second; }
+    fill({0x10002000, 0x10002000});
+    CHECK(storage.count == 1 && refs[0x10002000] == 3);  // AddRef even on duplicate
+    refs[0x10002000] -= 2;
+    fill({});
+    CHECK(SetMatches(storage, {}) && g_blocks.size() == 1);
+    for (auto& item : refs) CHECK(item.second == 1);  // clearing never Releases a value
+    DestroySet(storage);
+    CHECK(g_blocks.empty());
+}
+
 }  // namespace
 
 int main() {
     TestEmptyAndSingle();
     TestRandomOrders();
     TestRefusals();
+    TestNetworkConfigurationFillRefill();
     if (g_failures != 0) {
         std::printf("game_set_test: %d failure(s)\n", g_failures);
         return 1;
