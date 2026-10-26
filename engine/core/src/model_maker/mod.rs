@@ -8,6 +8,8 @@
 use std::collections::BTreeMap;
 
 pub mod persistence;
+mod geometry;
+pub use geometry::{fast_ceil, fast_floor, lowest_rotation, lowest_zoom, HolderMasks, LoadRectHost, LoadView, UnloadHost};
 
 pub const CLASS_ID: u32 = 0xA9C7_41B3;
 pub const SERIALIZABLE: u32 = 0xE4FD_A3D4;
