@@ -119,3 +119,12 @@ contracts. AT22 stays open.
   and meanings of those dwords. Please specify the exact wire sequence (or
   explicitly confirm no wrapper and two raw dwords). Unsupported class
   `0xEBE0DCAD` in maxisland-norte-delano and paradis-zoe blocks those two cases.
+- **AT27 — mass-transit train record:** Publish the complete ordered wire
+  sequence, wrapper versions, nesting, reference IIDs and failure semantics for
+  `cSC4MassTransitTrain` (`0x4C22AE53`). automata-managers.md §1 specifies its
+  constructor, but neither that section nor vehicles.md §12.1 defines its record.
+  docs/abi/vtables.tsv assigns Write `0053cb30` and Read `0053cb50`, distinct
+  from Train. The new run automata-cities29-2/paradis-braus.log reports this
+  unsupported class during its initial owner capture (line 2137); that run
+  stalled before the first month. Blocks this concrete class's replay; do not
+  presume that it aliases Train or discard its trailing bytes.
