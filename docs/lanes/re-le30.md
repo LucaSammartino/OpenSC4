@@ -1,21 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| re-le30 lot editor LE9–LE18; kind docs | Codex / re-le30 / reserved re-le30, detached HEAD | continue; commits 7230661cb, 082324e5a, a2c401b56, c67bc7f69; ABI false; no game runs; no shadow measurement; LE9–LE18 archived; doccheck/questions check not run | 1. Apply the two checked corrections below. 2. Review bounded runtime answers and reconcile stale cross-references. 3. Run checks directly in PowerShell, commit, then finish and queue kind docs. |
+| re-le30 lot editor LE9–LE18; kind docs | Codex / re-le30 / reserved branch re-le30, detached HEAD | ready; spec commits 7230661cb, 082324e5a, a2c401b56, c67bc7f69, 8c0aace94; ABI false; doccheck PASS; diff check PASS; global questions check FAIL (9 pre-existing unrelated diagnostics); game n/a; shadow n/a; LE9–LE18 archived | 1. Land kind docs. 2. Assign LE16-R and LE17-R1–R5 observations before full owner closure. 3. Keep LE18 exclusive-source attribution bounded. |
 
-## Handoff
-Goal: answer or narrowly bound LE9–LE18, provide worked cases and README-row mappings, pass doccheck and enqueue docs; never read/edit engine/.
-Done: behavior spec §§27–36; all ten original entries moved to the named answered archive with dated markers; questions index regenerated after each milestone.
-7230661cb: LE9/10 hit, rectangle and masked-x87 conversion rules. 082324e5a: LE11/12 wall/foundation selectors and sizing.
-a2c401b56: LE13/14 popup/wrappers, edge table, shared primary-grid sorting/search and names. c67bc7f69: LE15–18 resources, input, partial rendering and attribution boundaries.
-Next: a patch immediately before guard denial did NOT run. In §31.1 change texture cursor field from +0x158 to +0x154; main decomp lines 6535–6540 proves this.
-Also correct §35 foundation name helper: successful nonempty name gets parenthesized description; no initial output clear, failed acquisition appends Unknown implementation type without delimiter. Property 0x68FCFF37 present -> type 3, absent -> type 1; type-2 Generic label exists but this route never produces 2.
-Source for that correction: re_query asm 0x0047FF30 --bytes --skip 10 --max 56, especially 0x0047FFA3..0x0047FFC1. Main decomp lines 3294–3361 shows formatting and missing-clear behavior.
-Checks: q.py doccheck and questions check both failed to launch Bash with CreateFileMapping Win32 error 5; neither Python check executed. Rerun directly using absolute WT/tools/doccheck.py check and WT/tools/questions.py check. Do not call those failed checks passed.
-git diff --check HEAD~4 HEAD completed with no output after the wrapper failures; rerun for final edits. Git commits succeeded despite a packed-refs.lock permission warning from git add.
-Important: LE17 is narrowed to LE17-R1–R4 call/buffer/terrain/resource observations, not full static closure; §35 maps the rows still partial. LE16-R is an actual list-end read; no deterministic heap outcome. LE18 exclusive source ownership cannot be proved by absence of runtime hits and needs an unavailable provenance map.
-No REA calls, no ABI rows, no original/decompiler files committed, no engine/ access, no merge queue written. Helpers/messages are gitignored in WT/build-runs/.
-Main absolute root C:/Users/tlori/FreeCity4; source helper WT/build-runs/read-le30.py reads <=80-line ranges and original PE data, UTF-8 stdout. All original sources read from main.
-Primary grid table is 0x00ADD578: +0x20C=0x009ACED6; +0x214=0x009A9892. The exported 0x00ADD7B0 is a different window subobject. re_query --full also needs --limit raised when filtering more than 40 vtable rows.
-_ftol2 0x009EEF04 converts through signed64; masked-invalid indefinite has low32 zero. Forward hit scan top alone spills reciprocal to binary32. SetLotSize's aspect-dependent branch is intentionally unusual.
-Closure references are by method/address because engine README access is forbidden. Historical inventory counts were not changed. Review stale §3/§12/§18 stopping text against new §§27–36 before finalizing.
-Next: finish corrections and verification in a fresh context, then write final lane report/queue using actual full HEAD and reserved branch re-le30.
+Behavior is in lot-configuration-editor.md §27–§36; §36.1 maps all ten IDs to inventory/README rows by method/address.
+LE9/10: exact hit/rectangle arithmetic, signed-64 _ftol2 intermediate and masked-invalid low-word zero.
+LE11/12: wall/foundation selector lifecycle and writes; full-argument versus byte sizing and aspect-dependent scale.
+LE13/14: remaining popup branches/edge table/add wrappers, primary-grid collation/search and name fallbacks.
+LE15/16: static resources, PostInit, input/capture/drag and valid live-occupant cycling.
+Review commit corrects texture cursor +0x154, foundation classification/formatting, and unordered Home behavior.
+LE17: name/help/redraw contracts, drawing order and 3D-refresh service protocol; five precise remaining observations.
+LE18: five shared entries/427 bytes remain dependencies, with no exclusive editor-byte credit.
+All ten entries have dated answers in docs/specs/questions/answered/lot-configuration-editor.md; index regenerated.
+Direct PowerShell: python tools/doccheck.py check PASS; git diff --check across all spec commits PASS.
+Global python tools/questions.py check FAIL: 9 diagnostics present before this round's edits, unchanged afterwards.
+Those diagnostics belong to aura, demand, growth-developer, mysims, network-manager and network-occupants; none to this spec/index.
+Prior-round q.py Bash launch failures did not execute either Python check; the direct results above supersede them.
+No runtime results: LE16-R needs guarded list-end memory tracing; LE17-R1–R5 need buffer/terrain/service/resource observations.
+LE18-R can demonstrate sharing; exclusive source ownership needs an unavailable original link/debug/source map.
+No complete-owner claim or historical inventory-count rewrite. engine/ was neither read nor edited.
+Original sources read only from main via re_query, qgrep, bounded decomp ranges and PE data; no REA calls/errors.
+No ABI changes or proposed ABI rows; no game runs, shadow measurements, decompiler output or game files committed.
+Detached-HEAD commits succeeded despite git add's packed-refs.lock permission warning; supervisor publishes reserved branch re-le30.
