@@ -30,7 +30,7 @@
 //     reading the terrain, the zones, the lot developer's area slope and the
 //     growth developers' desirability maps live and read-only, and the two are
 //     compared tract by tract;
-//   - SimNewDay (posted): the listed developers' desirability maps are
+//   - PostCityInit and SimNewDay (posted): the listed developers' desirability maps are
 //     snapshotted while their GrowthAndDeclineListsAreValid (slot 10) is true
 //     (landvalue.md §7.4, LV2); a map republished after the original's pass
 //     read it is retried with the map from before the developer's last
@@ -74,7 +74,7 @@ void LandValueShadowStop();
 struct FC4LandValueShadowTestInput {
     cISC4City* city;
     int32_t julian;
-    uint32_t event;  // 0 = LandValueMapChanged (a pass end), 1 = SimNewDay, 2 = PostCityShutdown
+    uint32_t event;  // 0 = pass end, 1 = SimNewDay, 2 = PostCityShutdown, 3 = PostCityInit
 };
 // A pass end: its difference count, -1 (not run: no city, no original, ours)
 // or -2 (ran, nothing compared). A day: the maps that changed, or -1. A

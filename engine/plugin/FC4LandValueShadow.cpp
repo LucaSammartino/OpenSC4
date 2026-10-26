@@ -455,7 +455,10 @@ void Step(void*) {
                               !g_run.day && !g_run.observeOnly);
     }
     if (g_run.observeOnly) {
-        g_run.result = 0;
+        // Section 6.1 startup: retain the restored D before the first state-17
+        // publication, even if no SimNewDay precedes the first pass end.
+        // With no previous comparison, note_day only snapshots developer maps.
+        g_run.result = static_cast<intptr_t>(fc4_landvalue_shadow_note_day(g_shadow));
     } else if (g_run.day) {
         g_run.result = static_cast<intptr_t>(fc4_landvalue_shadow_note_day(g_shadow));
     } else {
@@ -526,7 +529,7 @@ intptr_t Dispatch(uint32_t type, cISC4City* city, int32_t julian) {
             DropShadow();
             return 0;
         case kMsgPostCityInit:
-            return g_traceInputs ? OnEvent(city, julian, true, true) : 0;
+            return OnEvent(city, julian, true, true);
         default:
             return -1;
     }
@@ -627,7 +630,8 @@ void LandValueShadowStop() {
 
 intptr_t LandValueShadowTest(const FC4LandValueShadowTestInput* in) {
     if (in == nullptr) return -1;
-    static const uint32_t kEvents[] = {fc4::kMsgLandValueMapChanged, fc4::kMsgSimNewDay, fc4::kMsgPostCityShutdown};
-    const intptr_t r = in->event < 3 ? fc4::Dispatch(kEvents[in->event], in->city, in->julian) : -1;
+    static const uint32_t kEvents[] = {fc4::kMsgLandValueMapChanged, fc4::kMsgSimNewDay, fc4::kMsgPostCityShutdown,
+                                      fc4::kMsgPostCityInit};
+    const intptr_t r = in->event < 4 ? fc4::Dispatch(kEvents[in->event], in->city, in->julian) : -1;
     return r;
 }

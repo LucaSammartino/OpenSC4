@@ -6398,6 +6398,11 @@ int LandValueShadowTest(const std::string& dll, const std::string& ini, const st
         CHECK(LvShadowOnce(seam, nullptr, 2451576, 0) == -1);
         CHECK(LvShadowOnce(seam, &orig.noLv, 2451576, 0) == -1);
         CHECK(LvShadowOnce(seam, nullptr, 2451576, 1) == -1);
+        // The startup observation also runs with input tracing disabled. It
+        // seeds developer-map history without reading outputs or counting a pass.
+        CHECK(LvShadowOnce(seam, &orig.city, 2451576, 3) == 0);
+        CHECK(orig.writes == 0 && orig.typeCalls == 0);
+        CHECK(orig.total.reads == 0 && orig.intrinsic.reads == 0 && orig.slope.reads == 0);
         // 1. Clean: our pass equals the original's (2000-02-01).
         CHECK(LvShadowOnce(seam, &orig.city, 2451576, 0) == 0);
         // A day: no developer listed (code defaults), so no map changed.
