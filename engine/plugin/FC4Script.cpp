@@ -17,6 +17,7 @@
 #include "FC4Watchdog.h"
 #include "FC4Diag.h"
 #include "FC4DisasterShadow.h"
+#include "FC4DbpfNative.h"
 #include "FC4DispatchShadow.h"
 #include "FC4WriteCapture.h"
 #include "FC4Fpu.h"
@@ -826,6 +827,12 @@ void ScriptOnTick() {
         }
     }
     if (g_waiting.empty() || g_inTick) return;
+    // Complete both readers on stable pre-save bytes across normal ticks.
+    // A synchronous drain inside PreSave can exceed the watchdog interval.
+    // Keep the save and every action behind it in their existing order.
+    if (DbpfShadowPending())
+        for (const auto* action : g_waiting)
+            if (action->op == harness::ScriptOp::Save) return;
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them

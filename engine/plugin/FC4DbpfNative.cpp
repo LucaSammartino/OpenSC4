@@ -724,20 +724,15 @@ bool DbpfShadowPending() { return pending != nullptr && !pending->empty(); }
 void DbpfShadowBeforeSave() {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
         SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
-    // Finish both readers on the pre-save bytes while the held segments are
-    // still registered. Invalidating a queued slice here compares no bytes at
-    // all (including unchanged DATs), rather than finding a DBPF difference.
-    while (DbpfShadowPending()) DbpfShadowTick();
     ++saveGeneration;
     cityAfterSave = true;
-    // Release acquired views while the game's owners are still registered;
-    // do not become the last holder of an old city segment after re-registration.
+    // Harness saves wait for sliced comparisons before calling SaveCity.
+    // Unexpected native saves still invalidate pending readers (section 8.3):
+    // never retain old segments or silently count incomplete work as exact.
     if (pending != nullptr)
         for (auto& sample : *pending)
             for (auto& file : sample.files)
                 ReleaseHeld(file);
-    // Literal section 8.3: in-flight reads lose stable-read status. Tick reports
-    // refusals for them; the next monthly discovery uses the new registration.
     Log("dbpf save transition: generation=%llu rediscovery=next-month transient=unobserved",
         static_cast<unsigned long long>(saveGeneration));
 }
