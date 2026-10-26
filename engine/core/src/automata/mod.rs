@@ -45,13 +45,16 @@
 //!   manager's version, the traffic manager's `u32` and cursor, the vehicle's
 //!   path entries, its `u32` 0 and its constant vector (§12 item 5).
 //! - **Versions the spec gives no read check for** (pedestrian, vehicle,
-//!   emergency, patrol car, trailer, the incident list's `u16`) are accepted
+//!   patrol car, trailer, the incident list's `u16`) are accepted
 //!   and kept (AM2).
+//!   Emergency and the derived record codecs instead follow the version and
+//!   failure contracts in §§6.4.1–6.4.4.
 //! - **The occupant base's exemplar parent** is kept by key even when no
 //!   exemplar resolves it (`codec::KeepParentKeys`).
 //! - **Emergency vehicles** are never written by the managers (§12 quirk 3);
 //!   class `0x896E714A` loads as a plain vehicle.
-//! - **Reads are atomic** (nothing changes on failure). The manager base
+//! - **Reads are atomic** except for the concrete record codecs whose
+//!   partial updates and inherited results are specified in §§6.4.1–6.4.4. The manager base
 //!   Read reports a short stream (the original does not, §12 item 4) so a
 //!   truncated record is detected; the controller manager gives back the
 //!   host references it read when it fails or drops a duplicate (§12 item 2).
