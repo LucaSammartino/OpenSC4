@@ -97,3 +97,25 @@ contracts. AT22 stays open.
   vehicle/pedestrian/aircraft/watercraft routes (including a concrete aircraft using the automaton
   constructor), but no separate automaton factory: confirm which route can support the complete inherited
   owner without delegating its missing methods back to native code. [blocked; no new wrapper or factory]
+
+<!-- from: automata-actions29 (2026-10-26) -->
+- **AT25 - §7.6 (NM17), native construction continuation after balanced worker slots:** The replacement
+  manager returns its own primary pedestrian wrapper (class `0x896E75AF`); it does not invoke native
+  CreateAutomatonInternal or register a concrete pedestrian factory. Its former argument-free placeholders
+  at slots 30/14 left 8/4 bytes on the stack. Those calls now have NM17's signatures; slots 7/8 supply
+  GetPosition(out vec3)/SetPosition(in vec3), each popping 4 bytes. A real-DLL slot test verifies balanced
+  stack/x87 and the worked roof change `(12.5,7,34.5)` to `(12.5,9,34.5)` for both manager wrappers.
+  The original `0x29A5D1EC` fault disappears, but the full-house generated grow acceptance is incomplete:
+  `aa29-fix-house-s0-a` reaches 216/216 and 2028-01-28 (only the excluded native quit fault at +0x1D0F94);
+  `aa29-fix-house-s1-a` reaches 27/216, creates three workers and then faults on another thread in
+  ucrtbase.dll+0x973FE; its repeat `aa29-fix-house-s1-b` reaches 27/216 then faults in ntdll.dll+0x4E728.
+  `aa29-fix-house-s2-a` reaches 75/216 then faults at SimCity 4.exe+0x1CC3B3, reading `0x4396001C`
+  (`eax=0x43960000 ecx=0x18747A88 edx=0x001AED84`); its repeat reaches 84/216 then faults at +0x3529C0.
+  All have ref_warnings=0. With only automata disabled, the same DLL/house/s1 script completes 216/216
+  and quits cleanly (`aa29-control-noauto-a`, 2028-01-29, ref0). Logs are in main's build-runs/game-results/.
+  What additional observable contract must these returned workers satisfy during construction/scaffold
+  continuation? In particular, settle the return-register value of GetPosition (the ABI row says
+  eax-or-void), whether callers consume a returned vector/reference, and any further called slots or
+  concrete views despite replacement of the manager's own creation/removal bodies. The new failures do
+  not establish a specific cause; no return value, concrete layout or native callback was guessed.
+  [blocked item: full-house s1/s2; retain NM17's already-tested stack correction]

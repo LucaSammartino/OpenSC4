@@ -10329,6 +10329,9 @@ void fc4_automata_automaton_set_position(const fc4_automata_object* o, const flo
 void fc4_automata_automaton_remove(const fc4_automata_object* o);
 void fc4_automata_automaton_return_to_source(const fc4_automata_object* o);
 bool fc4_automata_automaton_get_state(const fc4_automata_object* o, fc4_automata_automaton_state* out);
+/* Native construction setup, automata.md 7.2/7.5 (slots 14 and 30). */
+void fc4_automata_automaton_set_orientation(const fc4_automata_object* o, const float* orientation);
+void fc4_automata_automaton_set_flag(const fc4_automata_object* o, uint32_t mask, bool on);
 
 /* Component 40, the script system (§2): the templates and occupant groups
  * the scripts define (not saved). The record is u16 1; Read fails on anything else. */

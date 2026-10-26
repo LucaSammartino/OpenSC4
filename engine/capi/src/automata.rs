@@ -909,6 +909,25 @@ pub unsafe extern "C" fn fc4_automata_automaton_set_position(o: *const fc4_autom
     with_automaton(o, (), |x| x.set_position(p))
 }
 
+/// Slot 14 `SetOrientation`; a null vector is ignored.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_automata_automaton_set_orientation(
+    o: *const fc4_automata_object,
+    orientation: *const f32,
+) {
+    if orientation.is_null() {
+        return;
+    }
+    let v = [*orientation, *orientation.add(1), *orientation.add(2)];
+    with_automaton(o, (), |x| x.set_orientation(v))
+}
+
+/// Slot 30 `SetAutomataFlag`.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_automata_automaton_set_flag(o: *const fc4_automata_object, mask: u32, on: bool) {
+    with_automaton(o, (), |x| x.set_automata_flag(mask, on))
+}
+
 /// Slot 13 `Remove` (dispatch despawn).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_automata_automaton_remove(o: *const fc4_automata_object) {
