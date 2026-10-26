@@ -20,3 +20,15 @@
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
 2026-01-28 mark ui29-house complete
+2026-01-28 uicommand 0x2a9496c9
+2026-01-28 uiwait 500
+2026-01-28 uitext ui29 text input
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935ca4
+2026-01-28 uicontrol 0x00000041
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicontrol 0xca2aedcc
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 mark ui29-house finished

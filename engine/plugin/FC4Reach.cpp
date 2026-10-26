@@ -661,7 +661,9 @@ void ReachLifecycleStart() {
     if (!ReachLifecycleEnabled()) return;
     // No city/simulator exists yet. Give the load window an explicit sentinel;
     // PostCityInit opens the first window bearing the actual saved city date.
-    ReachStart(harness::JulianFromCivil(2000, 1, 1));
+    const auto date = harness::JulianFromCivil(2000, 1, 1);
+    if (g_reachStarted && !g_reachStopped) ReachNewMonth(date);
+    else ReachStart(date);
     if (g_reachStarted)
         Log("reach lifecycle phase=load window=1 date=2000-01-01 sentinel=1");
 }

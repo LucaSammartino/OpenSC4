@@ -234,7 +234,7 @@ enum class ScriptOp {
     Funds,        // funds 0..999999999: set treasury through the budget interface
     Establish,    // establish <name>: name and found an unfounded city
     GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
-    UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait
+    UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -285,6 +285,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::UiKey: return "uikey";
         case ScriptOp::UiText: return "uitext";
         case ScriptOp::UiWait: return "uiwait";
+        case ScriptOp::UiControl: return "uicontrol";
     }
     return "?";
 }
@@ -456,10 +457,10 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         }
         return true;
     };
-    if (name == "uicommand") {
-        a.op = ScriptOp::UiCommand;
+    if (name == "uicommand" || name == "uicontrol") {
+        a.op = name == "uicommand" ? ScriptOp::UiCommand : ScriptOp::UiControl;
         if (!wantArgs(1, "0x12345678") || !detail::ParseCommandID(tok[2], &a.command)) {
-            *error = "uicommand requires a nonzero eight-digit hexadecimal ID";
+            *error = "uicommand/uicontrol requires a nonzero eight-digit hexadecimal ID";
             return false;
         }
     } else if (name == "uiwait" || name == "uikey") {

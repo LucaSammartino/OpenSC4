@@ -39,6 +39,8 @@
 //   digest                     the observer's DIGEST line, now
 //   mark <text>                a log line
 //   funds amount               budget SetTotalFunds, whole simoleons 0..999999999
+//   uicommand/uimouse/uicell/uicontrol/uikey/uitext/uiwait
+//                              tick-driven UI actions (docs/ops/ui-drivers.md)
 //   establish <name>           name and found only an unfounded city; a leading
 //                              due establish can run at a tick without new days
 //   dispatch type              real station: begin tool, dispatch, record/shadow,

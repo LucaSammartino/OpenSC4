@@ -4,6 +4,8 @@
 #include "FC4HarnessLogic.h"
 #include "FC4WinInterfaces.h"
 #include "FC4RefAudit.h"
+#include "FC4Config.h"
+#include "FC4Log.h"
 #include "compat/FC4Compat.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
@@ -14,6 +16,7 @@
 #include "cISC43DRender.h"
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
+#include "SC4Vector.h"
 #include <windows.h>
 #include <cmath>
 #include <cstring>
@@ -22,7 +25,7 @@ namespace fc4 { namespace ui_driver {
 inline bool IsAction(harness::ScriptOp op) {
     using harness::ScriptOp;
     return op == ScriptOp::UiCommand || op == ScriptOp::UiMouse || op == ScriptOp::UiCell ||
-        op == ScriptOp::UiKey || op == ScriptOp::UiText || op == ScriptOp::UiWait;
+        op == ScriptOp::UiKey || op == ScriptOp::UiText || op == ScriptOp::UiWait || op == ScriptOp::UiControl;
 }
 
 // Never find a window by title: another slot may be running the same city.
@@ -43,6 +46,16 @@ inline std::string Command(uint32_t id) {
     if (!fw || !fw->GetSystemService(0xEB903A32, 0xCB90253A,
             reinterpret_cast<void**>(&server)) || !server) return "SKIPPED: no command server";
     FC4_ACQUIRED(server, "UI driver command server");
+    static bool catalogued = false;
+    if (!catalogued && SettingInt("ui_command_catalog", nullptr, 0) == 1) {
+        catalogued = true;
+        SC4Vector<uint32_t> ids;
+        if (server->EnumerateCommands(ids)) for (uint32_t command : ids) {
+            cRZBaseString commandName, parameters;
+            if (server->GetCommandInfo(command, commandName, parameters))
+                Log("ui driver catalog id=%08x name=%s args=%s", command, commandName.ToChar(), parameters.ToChar());
+        }
+    }
     cRZBaseString name, info;
     const bool known = server->GetCommandInfo(id, name, info);
     cIGZCommandParameterSet* in = nullptr;
@@ -102,6 +115,23 @@ inline bool CellPixel(const harness::ScriptAction& a, int& x, int& y) {
     return ok;
 }
 
+inline bool ControlPixel(uint32_t id, int& x, int& y) {
+    auto* fw = RZGetFrameWork();
+    auto* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (!app || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || !sc4) return false;
+    FC4_ACQUIRED(sc4, "UI driver app");
+    auto* main = reinterpret_cast<cFC4IGZWin*>(sc4->GetMainWindow());
+    auto* child = main ? main->GetChildWindowFromIDRecursive(id) : nullptr; // borrowed
+    bool ok = false;
+    if (child && child->GetW() > 0 && child->GetH() > 0) {
+        x = child->GetW() / 2; y = child->GetH() / 2;
+        ok = child->WindowToScreenCoordinates(x, y);
+    }
+    FC4_RELEASE(sc4);
+    return ok;
+}
+
 inline std::string Run(const harness::ScriptAction& a) {
     using harness::ScriptOp;
     if (a.op == ScriptOp::UiWait) return "wait-ms=" + std::to_string(a.type);
@@ -119,6 +149,7 @@ inline std::string Run(const harness::ScriptAction& a) {
     } else {
         int x = a.x0, y = a.z0;
         if (a.op == ScriptOp::UiCell && !CellPixel(a, x, y)) return "SKIPPED: cell projection unavailable";
+        if (a.op == ScriptOp::UiControl && !ControlPixel(a.command, x, y)) return "SKIPPED: control unavailable";
         RECT client{};
         if (!GetClientRect(window, &client) || !PtInRect(&client, POINT{x, y}))
             return "SKIPPED: point outside game client";
@@ -127,11 +158,11 @@ inline std::string Run(const harness::ScriptAction& a) {
         static bool down = false;
         const LPARAM point = MAKELPARAM(x, y);
         ok = PostMessageA(window, WM_MOUSEMOVE, down ? MK_LBUTTON : 0, point) != 0;
-        if (a.kind == 1 || a.kind == 3) {
+        if (a.kind == 1 || a.kind == 3 || a.op == ScriptOp::UiControl) {
             ok = (PostMessageA(window, WM_LBUTTONDOWN, MK_LBUTTON, point) != 0) && ok;
             down = true;
         }
-        if (a.kind == 2 || a.kind == 3) {
+        if (a.kind == 2 || a.kind == 3 || a.op == ScriptOp::UiControl) {
             ok = (PostMessageA(window, WM_LBUTTONUP, 0, point) != 0) && ok;
             down = false;
         }

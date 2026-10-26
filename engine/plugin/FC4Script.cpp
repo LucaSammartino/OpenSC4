@@ -684,6 +684,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
     switch (a.op) {
         case ScriptOp::UiCommand: case ScriptOp::UiMouse: case ScriptOp::UiCell:
         case ScriptOp::UiKey: case ScriptOp::UiText: case ScriptOp::UiWait:
+        case ScriptOp::UiControl:
             result = ui_driver::Run(a); break;
         case ScriptOp::Funds: result = RunFunds(a, city); break;
         case ScriptOp::Establish: result = RunEstablish(a, city); break;

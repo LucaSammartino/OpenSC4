@@ -442,6 +442,8 @@ void UiScriptTests() {
             "uicell 4096 1 250 click", "uicell 1 1 nan click", "uimouse 1 2 drag", "uitext"}) {
         CHECK(!ParseScript(std::string("2026-01-28 ") + bad + "\n").errors.empty());
     }
+    const auto control = ParseScript("2026-01-28 uicontrol 0x00000041\n");
+    CHECK(control.errors.empty() && control.actions.size() == 1 && control.actions[0].command == 0x41);
 }
 
 }  // namespace

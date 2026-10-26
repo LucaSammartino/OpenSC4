@@ -1,0 +1,22 @@
+# Candidate census; explicit world height is a test input, not a terrain lookup.
+2257-04-20 mark ui29-bevopolis begin
+2257-04-20 uicommand 0x6a935cf3
+2257-04-20 uicell 63 63 250 move
+2257-04-20 uicell 63 63 250 click
+2257-04-20 uiwait 500
+2257-04-20 uikey 27
+2257-04-20 uicommand 0x6a935e2a
+2257-04-20 uiwait 500
+2257-04-20 uikey 27
+2257-04-20 uicommand 0x6a935ca8
+2257-04-20 uiwait 500
+2257-04-20 uikey 27
+2257-04-20 uicommand 0x6a935ca4
+2257-04-20 uicontrol 0xca2aedcc
+2257-04-20 uiwait 500
+2257-04-20 uikey 27
+2257-04-20 uicommand 0x2a9496c9
+2257-04-20 uiwait 500
+2257-04-20 uitext ui29 census
+2257-04-20 uikey 27
+2257-04-20 mark ui29-bevopolis complete
