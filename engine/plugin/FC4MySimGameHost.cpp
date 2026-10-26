@@ -9,6 +9,8 @@
 #include "FC4MySimGameHost.h"
 
 #include "FC4RefAudit.h"
+#include "FC4GameList.h"
+#include "FC4Interfaces.h"
 #include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cIGZApp.h"
@@ -202,7 +204,7 @@ int64_t MBuildingsInBox(void*, int32_t x0, int32_t z0, int32_t x1, int32_t z1, u
     city->CellCornerToPosition(x0, z0, ax, az);
     city->CellCornerToPosition(x1 + 1, z1 + 1, bx, bz);
     const float fx[2] = {ax, bx}, fz[2] = {az, bz};
-    om->GetOccupantsByBBox(list, fx, fz, kOccupantTypeBuilding, 0);  // slot 40
+    om->GetOccupantsByBBox(list, fx, fz, kOccupantTypeBuilding, UINT32_MAX);  // maxCount, not flags
     int64_t n = 0;
     for (cISC4Occupant* o : list) {
         if (out != nullptr && static_cast<size_t>(n) < cap) out[n] = TokenOf(o);
@@ -217,7 +219,7 @@ int64_t MAllBuildings(void*, uint64_t* out, size_t cap) {
     cISC4OccupantManager* om = city ? city->GetOccupantManager() : nullptr;
     if (om == nullptr) return -1;
     SC4List<cISC4Occupant*> list;
-    om->GetOccupantsByBBox(list, nullptr, nullptr, kOccupantTypeBuilding, 0);
+    om->GetOccupantsByBBox(list, nullptr, nullptr, kOccupantTypeBuilding, UINT32_MAX);
     int64_t n = 0;
     for (cISC4Occupant* o : list) {
         if (out != nullptr && static_cast<size_t>(n) < cap) out[n] = TokenOf(o);
@@ -231,10 +233,13 @@ size_t MLotsInRect(void*, int32_t x0, int32_t z0, int32_t x1, int32_t z1, fc4_my
     cISC4City* city = AppCity();
     cISC4LotManager* lm = city ? city->GetLotManager() : nullptr;
     if (lm == nullptr) return 0;
-    SC4List<cISC4Lot*> list;
-    lm->GetLotsInCellRect(list, x0, z0, x1, z1, false);  // slot 7 (borrowed lots)
+    GameList<cISC4Lot*> list;  // docs/abi/allocators.md: B nodes, one owned reference per lot.
+    if (!list.valid()) return 0;
+    AsGame(lm)->GetLotsInCellRect(list, x0, z0, x1, z1, false);
     size_t n = 0;
-    for (cISC4Lot* lot : list) {
+    for (cISC4Lot*& lot : list) {
+        if (!lot) continue;
+        FC4_ACQUIRED(lot, "GetLotsInCellRect");
         if (out != nullptr && n < cap) {
             uint64_t bt = 0;
             if (cISC4BuildingOccupant* b = lot->GetBuilding()) {  // slot 48, borrowed
@@ -243,6 +248,8 @@ size_t MLotsInRect(void*, int32_t x0, int32_t z0, int32_t x1, int32_t z1, fc4_my
             MLotOf(lot, bt, &out[n]);
         }
         ++n;
+        FC4_RELEASE(lot);
+        lot = nullptr;
     }
     return n;
 }
@@ -296,9 +303,9 @@ bool MAverageAge(void*, int32_t x, int32_t z, int32_t* out) {
     cISC4City* city = AppCity();
     cISC4ResidentialSimulator* res = city ? city->GetResidentialSimulator() : nullptr;
     if (res == nullptr || out == nullptr) return false;
-    const int32_t map = res->GetAverageAgeMap();  // slot 41 -> cISC4SimGrid<int32_t>*
+    const int32_t map = res->GetAverageAgeMap();  // residential.md slot 41: uint8 grid (SDK int32 error).
     if (map == 0) return false;
-    *out = reinterpret_cast<cISC4SimGrid<int32_t>*>(map)->GetCellValue(x, z);
+    *out = reinterpret_cast<cISC4SimGrid<uint8_t>*>(map)->GetCellValue(x, z);
     return true;
 }
 bool MEqByWealth(void*, int32_t x, int32_t z, uint8_t w, float* out) {
