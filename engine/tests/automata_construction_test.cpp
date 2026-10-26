@@ -8,8 +8,38 @@
 #include <windows.h>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <iterator>
+#include <string>
 
 namespace {
+// The DLL's ini takes precedence over FC4_ENABLE, including ini files left by
+// other serial DLL tests. Restore the exact previous bytes on every exit path.
+struct ScopedIni {
+    std::string path, previous;
+    bool existed = false, ready = false;
+    explicit ScopedIni(const char* dll) {
+        const std::string module(dll);
+        path = module.substr(0, module.find_last_of("/\\") + 1) + "FreeCity4.ini";
+        std::ifstream input(path, std::ios::binary);
+        existed = input.is_open();
+        previous.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+        input.close();
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        output << "[subsystems]\nenable = automata\ndisable = simulator\n";
+        output.close();
+        ready = !output.fail();
+    }
+    ~ScopedIni() {
+        if (existed) {
+            std::ofstream output(path, std::ios::binary | std::ios::trunc);
+            output << previous;
+        } else {
+            DeleteFileA(path.c_str());
+        }
+    }
+};
+
 void EnumClass(uint32_t, uint32_t, void*) {}
 uint32_t Address(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 uint32_t Word(float f) { uint32_t u; std::memcpy(&u, &f, sizeof(u)); return u; }
@@ -96,8 +126,8 @@ bool Crew(cIGZCOMDirector* director, uint32_t managerClass, bool drainFirst) {
 
 int main(int argc, char** argv) {
     if (argc != 2) return 1;
-    SetEnvironmentVariableA("FC4_ENABLE", "automata");
-    SetEnvironmentVariableA("FC4_DISABLE", "simulator");
+    ScopedIni ini(argv[1]);
+    if (!ini.ready) return 5;
     HMODULE dll = LoadLibraryA(argv[1]);
     if (!dll) return 2;
     auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(dll, "GZDllGetGZCOMDirector"));
