@@ -249,6 +249,7 @@ size_t g_pmListed = 0;
 std::set<uint64_t> g_candidates;
 std::map<uint64_t, std::pair<int32_t, int32_t>> g_decided;
 std::vector<std::pair<int32_t, int32_t>> g_decidedCells;
+std::map<uint64_t, bool> g_terrainBefore;
 std::map<uint64_t, bool> g_terrainAfter;
 
 // The captures (reused).
@@ -445,7 +446,10 @@ void OccupantsInRect(void* u, const fc4_cell_rect* r, uint32_t mask, fc4_token_c
         u, r, mask,
         [](void* c, uint64_t n) {
             Tap* t = static_cast<Tap*>(c);
-            if (t->record && g_candidates.insert(n).second) NetHold(n);
+            if (t->record && g_candidates.insert(n).second) {
+                NetHold(n);
+                g_terrainBefore[n] = Placed(n);
+            }
             if (t->cb != nullptr) t->cb(t->ctx, n);
         },
         &tap);
@@ -544,14 +548,18 @@ void SettleStep(void*) {
             ++g_n.rebuilt;
         } else {
             ++g_n.origOnly;
-            PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it (placed after handler=%d)",
+            // SPEC-GAP: NM16 leaves the provenance of these extra removals open;
+            // preserve every mismatch and report both handler-boundary flags.
+            PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it (placed before/after handler=%d/%d)",
                         static_cast<void*>(FromToken(c)), cx, cz,
+                        g_terrainBefore.count(c) ? (g_terrainBefore[c] ? 1 : 0) : -1,
                         g_terrainAfter.count(c) ? (g_terrainAfter[c] ? 1 : 0) : -1);
         }
     }
     g_candidates.clear();
     g_decided.clear();
     g_decidedCells.clear();
+    g_terrainBefore.clear();
     g_terrainAfter.clear();
     // Road style (§8.7): the original made the same writes after ours.
     for (const auto& w : g_style) {
