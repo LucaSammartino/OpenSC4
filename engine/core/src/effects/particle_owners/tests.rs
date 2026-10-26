@@ -1345,6 +1345,14 @@ fn pt8_null_empty_mesh_and_wave_worked_prefix() {
     let mut cache = [2., 2.];
     assert_eq!(geometry::wave_prefix(&mut cache, 0.25, 4., &[400.], 0.5), Some(400.));
     assert_eq!(cache, [3., 2.]);
+    // §21.2 samples the fractional double clock, even beyond f32 phase precision.
+    for clock in [0.5, 1.5, 16_777_216.5] {
+        assert_eq!(
+            geometry::wave_prefix(&mut cache, 0.25, 4., &[0., 800.], clock),
+            Some(400.)
+        );
+        assert_eq!(cache, [3., 2.]);
+    }
     assert_eq!(geometry::wave_prefix(&mut cache, 0.25, 0., &[], 0.5), None);
     assert_eq!(cache, [3., 2.]);
 }
