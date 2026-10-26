@@ -4,6 +4,7 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4HarnessLogic.h"
+#include "FC4MapViewDrawStream.h"
 #include "compat/FC4Compat.h"
 #include <array>
 #include <atomic>
@@ -203,8 +204,6 @@ void DrawStreamStartup() {
     static bool attempted = false;
     if (attempted) return;
     attempted = true; // never save one of our own taps as a native entry
-    // SPEC-GAP: MapView's full live-state snapshot layout is unpublished; no pilot method credit is emitted.
-    Log("drawstream pilot cSC4WinMapView unavailable: owner-state ABI binding missing; compare=0 complete=0");
     void** context = nullptr;
     void** tree = nullptr;
     void** list = nullptr;
@@ -220,6 +219,7 @@ void DrawStreamStartup() {
         return;
     }
     std::array<void*, 48> hooks{};
+    MapViewDrawStreamStartup();
     using namespace drawstream;
     Bind<3>(hooks); Bind<4>(hooks); Bind<5, uint32_t>(hooks); Bind<6, uint32_t>(hooks);
     Bind<7, uint32_t>(hooks); Bind<8, uint32_t>(hooks); Bind<9>(hooks); Bind<10>(hooks); Bind<11>(hooks);
@@ -249,6 +249,7 @@ void DrawStreamStartup() {
 }
 void DrawStreamMonth(int32_t julian) {
     if (SettingInt("drawstream_shadow", nullptr, 0) != 1) return;
+    MapViewDrawStreamMonth(julian);
     const auto date = harness::CivilFromJulian(julian);
     const char* owners[] = {"cGZWinTreeView", "cGZWinListBox"};
     for (unsigned i = 0; i < 2; ++i)

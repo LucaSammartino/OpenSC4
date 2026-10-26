@@ -22,6 +22,7 @@ mod settled;
 mod source;
 mod traffic;
 mod window;
+mod oracle;
 
 pub use execution::*;
 pub use exemplar::*;
@@ -34,6 +35,7 @@ pub use settled::*;
 pub use source::*;
 pub use traffic::*;
 pub use window::*;
+pub use oracle::*;
 
 /// Refusal of an unpublished/out-of-domain contract, not a native failure code.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -125,5 +125,17 @@ int main() {
     Inputs boundedBytes(1, 7);
     boundedBytes.Observe(request, {Domain::Return, 5, 7, {50}, {}});
     assert(!boundedBytes.Complete() && !boundedBytes.Read(request));
+    Stream a, b;
+    a.Call(Domain::Surface, 6, 1, {0x8040, 1});
+    b.Call(Domain::Surface, 6, 1, {0x8040, 1});
+    a.Call(Domain::Surface, 100, 1, {10, 20});
+    b.Call(Domain::Surface, 100, 1, {10, 21});
+    const auto difference = Inspect(a, b);
+    assert(difference.operation == 1 && difference.element == 1);
+    assert(difference.native == 20 && difference.core == 21 && difference.exactOperations == 1);
+    assert(std::strcmp(difference.field, "word") == 0);
+    Stream empty;
+    assert(std::strcmp(Inspect(empty, empty).field, "none") == 0);
+    assert(std::strcmp(Inspect(a, empty).field, "operation-count") == 0);
     return 0;
 }

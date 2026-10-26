@@ -1432,6 +1432,7 @@ endif()
 
 # Same-invocation UI draw/message transcripts, shared by window shadows.
 if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4MapViewDrawStream.cpp plugin/FC4MapViewDrawStream.h)
     target_sources(FreeCity4 PRIVATE plugin/FC4DrawStream.h plugin/FC4DrawStreamCapture.cpp plugin/FC4DrawStreamCapture.h)
     add_executable(fc4_draw_stream_test tests/draw_stream_test.cpp plugin/FC4DrawStreamCapture.cpp)
     target_include_directories(fc4_draw_stream_test PRIVATE plugin)

@@ -141,6 +141,37 @@ private:
 
 enum Output : uint32_t { Return = 1, OutParameters = 2, OwnerFields = 4, Collaborators = 8, All = 15 };
 struct Result { bool exact = false, complete = false; size_t firstDifference = 0; };
+struct Difference {
+    size_t operation = 0, element = 0, exactOperations = 0;
+    const char* field = "none";
+    uint64_t native = 0, core = 0;
+};
+inline Difference Inspect(const Stream& native, const Stream& core) {
+    Difference result;
+    const auto& a = native.Events(); const auto& b = core.Events();
+    for (size_t i = 0; i < a.size() && i < b.size(); ++i) if (a[i] == b[i]) ++result.exactOperations;
+    size_t i = 0;
+    while (i < a.size() && i < b.size() && a[i] == b[i]) ++i;
+    result.operation = i;
+    if (i == a.size() && i == b.size()) return result;
+    auto field = [&](const char* name, uint64_t x, uint64_t y, size_t element = 0) {
+        result.field = name; result.native = x; result.core = y; result.element = element;
+    };
+    if (i == a.size() || i == b.size()) field("operation-count", a.size(), b.size());
+    else if (a[i].domain != b[i].domain) field("domain", static_cast<uint32_t>(a[i].domain), static_cast<uint32_t>(b[i].domain));
+    else if (a[i].operation != b[i].operation) field("operation", a[i].operation, b[i].operation);
+    else if (a[i].receiver != b[i].receiver) field("receiver", a[i].receiver, b[i].receiver);
+    else if (a[i].words.size() != b[i].words.size()) field("word-count", a[i].words.size(), b[i].words.size());
+    else if (a[i].words != b[i].words) {
+        size_t j = 0; while (a[i].words[j] == b[i].words[j]) ++j;
+        field("word", a[i].words[j], b[i].words[j], j);
+    } else if (a[i].bytes.size() != b[i].bytes.size()) field("byte-count", a[i].bytes.size(), b[i].bytes.size());
+    else {
+        size_t j = 0; while (a[i].bytes[j] == b[i].bytes[j]) ++j;
+        field("byte", a[i].bytes[j], b[i].bytes[j], j);
+    }
+    return result;
+}
 inline Result Compare(const Stream& native, const Stream& core, uint32_t captured, const Inputs& inputs) {
     const auto& a = native.Events();
     const auto& b = core.Events();

@@ -997,5 +997,22 @@ bool DrawStreamTables(void*** context, void*** tree, void*** list) {
     *list = reinterpret_cast<void**>(tables[2]);
     return true;
 }
+uintptr_t MapViewDrawStreamEntry(unsigned which) {
+    const auto* version = IdentifiedVersion();
+    constexpr uintptr_t sites[] = {0x007A2F60, 0x0079ED90, 0x0079F230};
+    if (version != &kVersions[0] || which >= 3 || !CheckCode("MapView drawstream", sites[which], version->imageBase)) return 0;
+    return sites[which];
+}
+void** MapViewDrawStreamTable(unsigned which) {
+    const auto* version = IdentifiedVersion();
+    constexpr uintptr_t sites[] = {0x00AB838C, 0x00AB8140, 0x00AB7EE0};
+    if (version != &kVersions[0] || which >= 3) return nullptr;
+    MEMORY_BASIC_INFORMATION memory{};
+    auto** table = reinterpret_cast<void**>(sites[which]);
+    if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) || memory.State != MEM_COMMIT ||
+        memory.Type != MEM_IMAGE || reinterpret_cast<uintptr_t>(memory.AllocationBase) != version->imageBase ||
+        memory.Protect != PAGE_READONLY) return nullptr;
+    return table;
+}
 }  // namespace compat
 }  // namespace fc4
