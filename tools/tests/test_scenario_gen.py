@@ -156,6 +156,31 @@ class ScenarioGeneratorTests(unittest.TestCase):
                 self.assertNotIn(key, seen, line)
                 seen.add(key)
 
+    def test_growth_clears_and_flattens_all_network_footprints_before_zoning(self):
+        for seed in range(3):
+            for size in gen.SIZES:
+                actions = [line.split() for line in gen.generate(seed, size, date(2000, 1, 1), 120, 'grow').splitlines()
+                           if line and not line.startswith('#')]
+                clear = next(list(map(int, p[2:6])) for p in actions if p[1] == 'dezone')
+                flat = next(list(map(int, p[2:6])) for p in actions if p[1] == 'terrain')
+                lots = [list(map(int, p[2:6])) for p in actions if p[1] == 'zone']
+                seen = {k: set() for k in range(13)}
+                for p in actions:
+                    if p[1] != 'network':
+                        continue
+                    x0, z0, x1, z1, kind = map(int, p[2:])
+                    cells = {(x, z) for x in range(min(x0, x1), max(x0, x1) + 1)
+                             for z in range(min(z0, z1), max(z0, z1) + 1)}
+                    self.assertTrue(cells - seen[kind], p)  # each run adds cells
+                    seen[kind].update(cells)
+                    for x, z in cells:
+                        self.assertTrue(clear[0] <= x <= clear[2] and clear[1] <= z <= clear[3], p)
+                        self.assertTrue(flat[0] <= x and x + 1 <= flat[2] and
+                                        flat[1] <= z and z + 1 <= flat[3], p)
+                        if kind in (4, 5):
+                            self.assertFalse(any(a <= x <= c and b <= z <= d for a, b, c, d in lots), p)
+                self.assertEqual(sum(p[1] == 'network' and p[6] == '4' for p in actions), 60)
+
     def test_required_mix_coverage(self):
         for mix in gen.MIXES:
             lines = [line.split() for line in gen.generate(7, "small", date(2026, 1, 1), 24, mix).splitlines()

@@ -1,4 +1,4 @@
-# scenario_gen v4: seed=0 size=medium start=2029-08-21 months=24 mix=edge
+# scenario_gen v5: seed=0 size=medium start=2029-08-21 months=24 mix=edge
 # Cells stay inside the tile. Native refusals are expected in edge/churn.
 # pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.
 # Disaster starts run on the final date: native emergency mode can stop new days.

@@ -69,7 +69,7 @@ def generate(seed, size, start, months, mix="default"):
     zone_types = list(range(16))
     rng.shuffle(zone_types)
     lines = [
-        "# scenario_gen v4: seed={} size={} start={} months={} mix={}".format(
+        "# scenario_gen v5: seed={} size={} start={} months={} mix={}".format(
             seed, size, start.isoformat(), months, mix),
         "# Cells stay inside the tile. Native refusals are expected in edge/churn.",
         "# pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.",
@@ -103,11 +103,14 @@ def generate(seed, size, start, months, mix="default"):
 
     def grow(day, month):
         if month == 0:
-            # Clear grown residential/commercial lots before laying the grid.
-            # Existing civic lots can still make a native placement fail.
-            zone(day, "dezone", (ox, oz, ox + 32, oz + 32))
-            # Land above sea level, small enough to leave most of a tile alone.
-            emit(day, "terrain {} {} {} {} 270 1".format(ox, oz, ox + 32, oz + 32))
+            # Clear zoning under the entire construction pad, including the
+            # rail, avenue and utility corridors. Existing civic lots/networks
+            # can still refuse placement: a static script cannot inspect them.
+            zone(day, "dezone", (ox - 1, oz - 1, ox + 39, oz + 39))
+            # Flatten the vertices beyond the last cell as well: flattening
+            # just the 33-cell grid leaves water/slopes under its outer cells
+            # and all the separate transport and power-line corridors.
+            emit(day, "terrain {} {} {} {} 270 1".format(ox - 1, oz - 1, ox + 40, oz + 40))
             for offset in range(0, 33, 8):
                 network(day, ox, oz + offset, ox + 32, oz + offset, 0)
                 network(day, ox + offset, oz, ox + offset, oz + 32, 3)
@@ -124,13 +127,15 @@ def generate(seed, size, start, months, mix="default"):
             col, row = index % 4, index // 4
             x, z = ox + col * 8 + 2, oz + row * 8 + 1
             zone(day, "zone", (x, z, x + 3, z + 3), kind)
-        # Extend utilities and try new port sites over subsequent months.
-        # Extend rather than redraw the same four completed utility runs.
-        # Power lines use a corridor outside lots and the road/street grid.
-        offset = month % 31 + 1
-        network(day, ox, oz + offset, ox + 32, oz + offset, 4)
-        power_x, power_z = ox + 34 + (month // 30) % 4, oz + month % 30
-        network(day, power_x, power_z, power_x, power_z + 2, 5)
+        # Extend each utility along reserved, unzoned land rather than drawing
+        # long parallel pipes through developed lots or repeating built runs.
+        # Two columns per type leave the avenue's two-cell footprint clear.
+        # Once these finite corridors are built, do not retry the same cells.
+        if month < 60:
+            utility_z = oz + month % 30
+            pipe_x, power_x = ox + 38 + month // 30, ox + 34 + month // 30
+            network(day, pipe_x, utility_z, pipe_x, utility_z + 2, 4)
+            network(day, power_x, utility_z, power_x, utility_z + 2, 5)
         if month % 6 == 0:
             emit(day, "port {} {} {} {} 0".format(
                 "airport" if month % 12 == 0 else "seaport",
