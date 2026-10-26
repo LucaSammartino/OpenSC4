@@ -10,10 +10,18 @@ pub(super) struct RecordingHost {
 
 impl base::Host for RecordingHost {}
 impl Host for RecordingHost {
+    fn rotation(&mut self) -> u32 { 0 }
     fn tuning_ramp(&mut self, _: [u32; 3], _: u32) -> Result<Option<Vec<(u32, u32)>>> { Ok(None) }
     fn city_cells(&mut self) -> [usize; 2] { self.cells }
     fn animation_target(&mut self, _: Window, register: bool) { self.events.push(format!("tick:{register}")); }
     fn subscribe(&mut self, _: Window, message: u32, subscribe: bool) { self.events.push(format!("sub:{message:08x}:{subscribe}")); }
+}
+
+impl Terrain for RecordingHost {
+    fn terrain_info(&mut self) -> Option<([usize; 2], f32)> { None }
+    fn terrain_heights(&mut self, _: base::Rect) -> Result<[f32; 256]> { unreachable!() }
+    fn terrain_normal(&mut self, _: usize, _: usize) -> Result<[f32; 3]> { unreachable!() }
+    fn zone_at(&mut self, _: usize, _: usize) -> Result<i8> { unreachable!() }
 }
 impl widget_controls::Foreign for RecordingHost {
     fn add_ref(&mut self, h: Handle) { self.events.push(format!("add:{h}")); }
