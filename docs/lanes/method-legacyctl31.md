@@ -1,0 +1,25 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| method-legacyctl31: method recording (engine) | Codex / method-legacyctl31 / detached HEAD, reserved branch method-legacyctl31; ABI unchanged | wip: final gate PASS; game acceptance missing; no new verified-byte claim | 1. Run final DLL in shared house profile. 2. Capture variant/resource effects and complete reached methods. |
+Code: named-font metadata copy (§9.4); all 20 non-empty interpreter entry hooks; ten additional simple-interface recorders; legacy GS/font outcomes; strict parameter-lifetime incompleteness. No ABI/export/version change.
+Final gate at 19523a80c (same code after report amend): cargo 8205/0, clippy 0 diagnostics, native 30/30, CTest 142/142. Logs: build-runs/qbuild-{test,clippy}.log, fc4verify-{build,ctest}.log; build-results/qbuild-20261026-232335-build-ctest.verdict.
+Game R6 = C:/Users/tlori/FreeCity4/build-runs/method-legacyctl31-house-r6-direct.log (slot 9, pre-final DLL 3e6dc653): 775 builds, 7976 owner comparisons; one monthly summary, counted mismatches=0; all resyncs=0. Helper clean fallback only; native verdict/ref_warnings unavailable, UI script incomplete.
+R2 = 230608.log: startup census prevented entry hooks; rejected evidence. R4 = method-legacyctl31-house-r4-direct.log: hooks installed, drawing-service lookup unavailable. R6 exposed GS2/legacy-GS vtable distinction; final source corrects lookup and withholds temporary-variant credit, not yet game-tested.
+Table is R6 evidence, NOT final-source acceptance. Names belong to cGZLegacyControl; I:X = InterpretPropertiesGZWinX, I:SC3WinGen uses InterpretPropertiesSC3WinGen; V:X = ControlVocabularyGZWinX (SC3 similarly). Tuple = address; bytes; calls/complete/mismatches. ? = unobserved, not zero.
+| Methods and evidence |
+|---|
+| AreaStub 0x0091559A;5;0/0/0 / AreaStub2 0x0092B33A;5;0/0/0 / ImplementInterface 0x00935EA0;5;0/0/0 / GetControlVocabulary 0x0094C30E;6;?/0/? / SetOwnControl 0x0094C314;10;775/775/0 / SetParent 0x0094C31E;87;775/775/0 |
+| UseWinProc 0x0094C375;44;775/775/0 / ForceControl 0x0094C3A1;44;14/14/0 / GetID 0x0094C3CD;20;204/204/0 / SetID 0x0094C3E1;20;0/0/0 / SetArea 0x0094C3F5;30;0/0/0 / GetArea 0x0094C413;30;0/0/0 |
+| QueryInterface 0x0094C431;75;2367/2367/0 / AddRef 0x0094C47C;7;3270/3270/0 / Release 0x0094C483;23;?/0/? / ~cGZLegacyControl 0x0094C761;28;?/0/? / DoExceptions 0x0094C77D;81;0/0/0 / I:TextTicker 0x0094CE28;799;0/0/0 |
+| I:Folders 0x0094D17E;465;0/0/0 / V:Common 0x0094D641;3322;?/0/? / I:FlatRect 0x0094E33B;475;34/34/0 / I:Text 0x0094E516;690;458/0/0 / I:TextEdit 0x0094E7C8;1649;26/0/0 / I:ListBox 0x0094EE39;1332;4/0/0 |
+| I:Combo 0x0094F36D;1002;0/0/0 / I:Btn 0x0094F757;2261;574/287/0 / I:BMP 0x0095002C;492;238/129/0 / I:Slider 0x00950218;403;2/1/0 / I:Scrollbar 0x009503AB;523;0/0/0 / I:LineInput 0x009505B6;1344;0/0/0 |
+| I:Spinner 0x00950AF6;1422;28/14/0 / I:Outline 0x00951084;485;0/0/0 / V:TextTicker 0x00951269;339;?/0/? / I:SC3WinGen 0x009513BC;1260;100/0/0 / V:Folders 0x009518A8;182;?/0/? / V:Custom 0x0095195E;182;?/0/? |
+| V:FlatRect 0x00951A14;651;?/0/? / V:Text 0x00951C9F;935;?/0/? / V:TextEdit 0x00952046;1535;?/0/? / V:ListBox 0x00952645;547;?/0/? / V:Combo 0x00952868;391;?/0/? / V:Btn 0x009529EF;1639;?/0/? |
+| V:BMP 0x00953056;339;?/0/? / V:Slider 0x009531A9;391;?/0/? / V:Scrollbar 0x00953330;339;?/0/? / V:LineInput 0x00953483;807;?/0/? / V:Spinner 0x009537AA;755;?/0/? / V:Outline 0x00953A9D;339;?/0/? |
+| V:SC3WinGen 0x00953BF0;1162;?/0/? / I:FileBrowser 0x00954212;3761;0/0/0 / V:FileBrowser 0x009552BE;3615;?/0/? / I:Common 0x0095660D;1593;1550/775/0 / I:OptGrp 0x00956C46;2629;0/0/0 / SetParameters 0x00957A9B;493;775/0/0 |
+| V:OptGrp 0x00957C88;1171;?/0/? / I:TreeView 0x009586B0;4857;0/0/0 / V:TreeView 0x009599D2;1119;?/0/? / I:Grid 0x0095A250;3537;0/0/0 / V:Grid 0x0095B021;2211;?/0/? / cGZLegacyControl 0x0095B8C4;221;?/0/? |
+| GetScriptFragment 0x0096638D;82;0/0/0 / GetControl 0x009C32AC;4;1564/1564/0 |
+Missing: SetParameters final defaults/tree and all collaborator/temporary effects; Common comment-list storage/lifetimes (LC18); all metadata-producing methods temporary variant references; image/string resources and remaining complex interfaces. Partial methods retain no method credit.
+Unhooked lifecycle/vocabulary functions lack state/map/reference-effect observation; LC17 area identity remains unpatched; populated fragments remain LC8. Zero-call hooked methods were not reached by R6. Largest gaps by bytes: TreeView 4857, FileBrowser 3761, Grid 3537, OptGrp 2629, Btn 2261.
+No new questions (existing LC8/LC17/LC18: docs/specs/questions/legacy-control.md). R1/R3/R5 queue requests withdrawn before execution; no game request remains. Shared qwait timeouts are queue-wait results, not game verdicts. Merge entry is wip; ready enqueue withheld.
+Next: stage the final DLL in a new shared-queue house request with reach (without reach_startup), obtain native verdict/ref_warnings=0 and finish the budget/query/window script; bind temporary variant/resource outputs before requesting method credit.

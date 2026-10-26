@@ -7,6 +7,7 @@
 #include "cRZCOMDllDirector.h"
 #include "cIGZCOM.h"
 #include "cIGZFrameWork.h"
+#include "cIGZGraphicSystem.h"
 #include "cIGZVariant.h"
 #include "cIGZString.h"
 #include "cRZBaseString.h"
@@ -75,7 +76,7 @@ struct Input {
     }
 };
 struct Event { Words call,result; };
-struct Trace { std::vector<Event> events; size_t cursor=0; uint32_t bad=0; bool exhaustive=true; };
+struct Trace { std::vector<Event> events; size_t cursor=0; uint32_t bad=0; bool exhaustive=true,allOutputs=true; };
 inline thread_local Trace* active=nullptr;
 inline thread_local unsigned suppressed=0;
 struct Quiet { Quiet(){++suppressed;} ~Quiet(){--suppressed;} };
@@ -183,7 +184,12 @@ inline uint32_t __fastcall Fill(void* self,void*,uint32_t r,uint32_t g,uint32_t 
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,uint32_t,uint32_t)>(Original(self,0x1ac))(self,nullptr,r,g,b);
 }
 inline uint32_t __fastcall SetParam(void* self,void*,uint32_t key,cIGZVariant* value) {
-    if(Recording()) Record(Call(7,self,0x1c8,{U(key),Parameter(value,key)})); Quiet q;
+    if(Recording()) {
+        // Payloads are compared, but temporary variant reference effects are not.
+        active->allOutputs=false;
+        Record(Call(7,self,0x1c8,{U(key),Parameter(value,key)}));
+    }
+    Quiet q;
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,cIGZVariant*)>(Original(self,0x1c8))(self,nullptr,key,value);
 }
 inline uint32_t __fastcall GetID(void* self,void*) {
@@ -340,7 +346,8 @@ inline bool SetupDrawing() {
     Quiet q;
     auto* fw=RZGetFrameWork(); cIGZUnknown* graphics=nullptr; cIGZUnknown* fonts=nullptr;
     // Service identities from SDK GZServPtrs; calls from spec sections 9.2/9.9.
-    bool ok=fw && fw->GetSystemService(3289776732ul,3296425084ul,reinterpret_cast<void**>(&graphics)) && graphics;
+    // GS2 has a separate SDK vtable. Section 9.2 names the legacy GS interface.
+    bool ok=fw && fw->GetSystemService(3289776732ul,GZIID_cIGZGraphicSystem,reinterpret_cast<void**>(&graphics)) && graphics;
     if(graphics) {
         FC4_ACQUIRED(graphics,"legacy graphics service");
         ok=Patch(graphics,0x88,reinterpret_cast<void*>(&Colour),true) && ok;
@@ -388,7 +395,7 @@ inline void Replay(Trace& trace,const uint32_t* before,uint32_t op,const std::ar
     for(unsigned i=0;i<5;++i) bad+=(expected[i]!=native[i]);
     if(scalar) bad+=(expected[5]!=native[5]);
     if(op==7) for(unsigned i=6;i<10;++i) bad+=(expected[i]!=native[i]);
-    if(allOutputs) ++s.complete;
+    if(allOutputs && trace.allOutputs) ++s.complete;
     s.bad+=bad;
     if(bad && s.bad.load()<8) Log("legacyctl replay difference: op=%u calls=%u effects=%u consumed=%u mismatches=%u",op,s.calls.load(),static_cast<unsigned>(trace.events.size()),static_cast<unsigned>(trace.cursor),bad);
 }
@@ -439,6 +446,7 @@ template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t f
     if(parent) {
         parent->events.insert(parent->events.end(),trace.events.begin(),trace.events.end());
         parent->exhaustive=parent->exhaustive && trace.exhaustive;
+        parent->allOutputs=parent->allOutputs && trace.allOutputs;
     }
     uint32_t before[5]{},native[10]{};
     // First-pass Common records payloads, but not the temporary variant/list
