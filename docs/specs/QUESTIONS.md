@@ -62,7 +62,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DP | dispatch |
 | DQ | demand, demolition |
 | DR | drive-tool |
-| DS | disasters |
+| DS | disasters, map-view |
 | DT | dates |
 | EF | effects |
 | EFP | effects, effects-parser |
@@ -313,7 +313,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 1 | 15 | QV17 | questions/map-view.md |
+| map-view | 1 | 16 | DS30, QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
@@ -327,7 +327,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 8 | NG9 | questions/network-geometry.md |
 | network-manager | 0 | 17 | NM18 | questions/network-manager.md |
-| network-occupants | 17 | 30 | NO46 | questions/network-occupants.md |
+| network-occupants | 14 | 33 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
@@ -408,7 +408,7 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
 | ui-script-service | 1 | 0 | UIS2 | questions/ui-script-service.md |
-| underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
+| underground-occupants | 1 | 4 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 9 | VH12 | questions/vehicles.md |
 | video-preferences | 0 | 5 | VP6 | questions/video-preferences.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **633** | **1634** | | |
+| **total** | **629** | **1639** | | |
