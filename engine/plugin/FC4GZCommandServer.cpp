@@ -284,6 +284,7 @@ bool GZFrameworkScriptProbe() {
     if (!fw || !fw->GetSystemService(0xEB903A32,0xCB90253A,reinterpret_cast<void**>(&server)) || !server) return false;
     FC4_ACQUIRED(server,"gzfw script command service");
     constexpr uint32_t id=0x475A29F1;
+    // [abi-ret] gz-framework-core §4.2 specifies successful/rejected registration as bool.
     const bool registered=server->RegisterCommand(id,"fc4_gzfw_probe","text");
     bool ok=registered;
     if (registered) {
@@ -293,7 +294,8 @@ bool GZFrameworkScriptProbe() {
             Log("gzfw probe: text='%s' status=%d",command,status);
             ok=ok && status==0;
         }
-        ok=server->UnregisterCommand(id) && ok;
+        server->UnregisterCommand(id);
+        ok=server->GetCommandIDFromCommandString("fc4_gzfw_probe",-1)==0 && ok;
     }
     FC4_RELEASE(server); return ok;
 }
