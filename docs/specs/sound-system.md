@@ -274,8 +274,8 @@ No drawing or asynchronous message-consumer contract is exposed by this adapter.
 
 ### 5.2 Track property resource
 
-The constructor `0x00939750` builds a property set and copies a supplied
-three-word resource key; it is not an empty anonymous track. Key setters are
+The constructors `0x009396D9` and `0x00939750` build a property set and copy a
+supplied three-word resource key; neither creates an anonymous track. Key setters are
 SetKey `0x009377AF`, SetType `0x0094052A`, SetInstance `0x00940536`;
 GetKey is `0x00940512`. QI/Release are `0x00939796`/`0x009397CA`,
 GetRefCount `0x00939792`, destructor `0x00939727`, assignment `0x00939FFC`,
@@ -285,12 +285,19 @@ Primary property table `0x00AD2898`: slots 0–2 QI/AddRef/Release;
 3–9 SetValue, ClearValue, ClearAll, FirstKeyAndValue, NextKeyAndValue,
 Value, HasValue; 10 folded count getter; 11 destructor; 12–13 folded
 Read entries; 14–15 unnamed entries; 16–18 folded debug entries.
-Resource table `0x00AD285C`: slots 0–2 QI/AddRef/Release thunks;
+Resource interface at object `+0x18`, table `0x00AD285C`: slots 0–2 QI/AddRef/Release thunks;
 3 GetKey, 4 SetKey, 5–7 folded key-component accessors,
 8 SetType, 9 folded component setter, 10 SetInstance, 11 GetRefCount,
-12–14 unnamed resource operations. The export also lists tables
-`0x00AD28E4`/`0x00AD2920`; these must not be conflated without checking
-which resource constructor installs them (SS5).
+12–14 unnamed resource operations. Constructor `0x009396D9` installs these
+two tables (`0x009396EB–0x009396F1`). Constructor `0x00939750`, also used by
+CreatePrivateCopy, installs primary `0x00AD2920` and resource `0x00AD28E4`
+(`0x0093975F–0x00939765`). Its primary slots 12/13/14 are ReadLegacyFormat,
+Write_OldFormat and the XML-write thunk `0x00941794`; slots 15–17 are debug
+entries. The earlier primary table's slots 12/13 both enter the generic
+serializer reader, 14 writes XML and 15 requests binary serialization
+(`0x00941636`, `0x0094164D`). The resource key is at full-object
+`+0x1C/+0x20/+0x24` (type/group/instance); resource methods receive the
+`+0x18` interface, so their key offsets are `+4/+8/+0xC`.
 
 *[compat]* Write `0x0093FF4A` selects an output path by resource type:
 `0x0B8D821A` selects the old path, `0x0B9EB87E` the other path;
@@ -298,9 +305,108 @@ other types report false. Read `0x00940DFF` installs the resource instance
 as property `0xFF6F9546`, then selects legacy input for `0x0B8D821A`
 and the property serializer for other types. This asymmetry is intentional
 to the observed boundary; do not reject every nonlegacy read solely because
-Write would reject its type. Write_OldFormat `0x00940E5C` starts with
-`TKDT,2,`; ReadLegacyFormat is `0x00941930`. Complete field order, escaping,
-version handling, malformed-input behavior and copy ownership remain SS5.
+Write would reject its type. The generic serializer, including the binary
+header, XML grammar and partial-read behavior, is specified in
+[property-sets.md §§3–5](property-sets.md#3-reading-a-record-cgzpropertysetserializertreadstream-set-0x009408a5-compat).
+It requires serial-record IID `0xC56B8F08`, a successful initial u32 read and
+rewind to zero. `0x2BEA4862` and `0xCBE750E0` select its binary reader
+(the latter subsequently fails that reader's magic check); all other first
+words select XML. The normal nonlegacy Write path selects **XML**, through
+`0x00941794 → 0x00941636 → 0x00940973`, binary flag zero. It does not promise
+binary output merely because the resource type is `0x0B9EB87E`.
+
+#### 5.2.1 Legacy text and record framing (SS5)
+
+*[compat]* The legacy writer (`0x00940E5C`) emits `TKDT,2,,`, the following
+27 fields in order, a comma after every field, and `ETKD`. Missing properties
+emit empty fields. All values are u32 property values; decimal output treats
+the word as signed (`%ld`), and hex output is `0x%08lx`. Fields 1, 2, 9,
+13–16 use hex; the others use decimal. Constants/field stores are at
+`0x00940F05–0x0094158D`; format strings/trailer at
+`0x00AD448C/0x00AD4494/0x00AD44A0`. The writer submits exactly the string
+length, without a NUL, through stream slot 17 (`+0x44`), ignores that call's
+success and returns true (`0x009415D3–0x00941635`).
+
+| Fields | Property IDs in positional order |
+|---|---|
+| 1–5 | `0xFFAEC905`, `0xFF5F15E1`, `0xFF4DCD0D`, `0xFF050A94`, `0xFFB0333D` |
+| 6–10 | `0xFF706616`, `0xFFCC156F`, `0xFFCC3B29`, `0xFF891EAA`, `0xFFAE9DDB` |
+| 11–15 | `0xFFF7B8DF`, `0xFF90AAC8`, `0xFF3C2160`, `0xFFD7EE4D`, `0xFF59FDD8` |
+| 16–21 | `0xFF2D7CD1`, `0xFF0246FE`, `0xFFFF4E79`, `0xFF595FFD`, `0xFF8DCFD8`, `0xFF69510B` |
+| 22–27 | `0xFF099DB2`, `0xFF53DBF3`, `0xFF3EC880`, `0xFF47F685`, `0xFFCAA344`, `0xFF303B1B` |
+
+*[compat]* ReadLegacyFormat (`0x00941930`) obtains serial-record size S,
+consumes a u32 H, and, if H equals S−4, consumes a replacement H and reduces
+S by four. It then reads S−4 bytes into its text buffer. If H is
+`0x544B4432` (on-disk bytes `32 44 4B 54`, “2DKT”), it skips **eight further
+bytes of that buffer** before tokenizing; otherwise it starts at buffer
+offset zero (`0x00941963–0x009419C1`). Thus an ordinary raw `TKDT,2,,…`
+record has its first four bytes consumed before the comma tokenizer sees
+`,2,,…`. The optional length word and special eight-byte skip are part of
+the stream contract; do not infer framing from a TKDT prefix search.
+
+The tokenizer splits on literal comma, preserves empty fields and has no
+quote, backslash or CSV escaping. A field needs a following comma; an
+undelimited remainder produces an empty token (`0x0090E98C–0x0090EA41`).
+The first token is discarded without validating the tag; the second is
+converted to the version word; the third is an unused name. Version 0 omits
+field 6; versions 0/1 omit fields 22–27; every unsigned version greater than
+1 uses all 27 fields. There is no maximum-version rejection or ETKD check.
+Nonempty numeric fields use RZConvertToUint32A (`0x0090FE93`): initial
+`0x`/`0X` selects base 16; otherwise encountering A–F/a–f in the initial
+digit/hex-letter run also selects base 16, and the default is decimal.
+No end-pointer or conversion-success check is made here.
+
+The reader overlays the set; it does not clear old properties for empty
+fields. Nonempty field 1 equal to the object's instance word causes false
+before setting that field or any later legacy field
+(`0x00941AC4–0x00941B2E`). The enclosing Read has already installed
+`0xFF6F9546 = instance`, and does not roll that back. Field 9 is always
+written: default `0x7DCDED3D` if the parsed field 7 is nonzero, else
+`0x7DCDED2D`; only a nonempty, nonzero field-9 conversion overrides it
+(`0x00941DF8–0x00941E6E`). Empty field 7 counts as zero for this decision,
+even if a preexisting 3D property remains in the set. Other empty fields
+leave their preexisting values untouched. Ordinary completion returns true.
+
+Legacy QI/read/length failures have no checked false exit: the routine goes
+on using its buffer and ignores the record calls' results. Tiny/truncated
+records can underflow S−4 or leave data unavailable. These are invalid-input
+preconditions, not a demonstrated recoverable error. To establish a stable
+verdict for such inputs requires calling the original reader with a mock
+serial record that denies QI, then with S=0/3 and with short reads, recording
+return/crash, stream requests and properties after each call. No engine
+decoder is required to emulate an invalid memory access.
+
+#### 5.2.2 Assignment and private ownership (SS5)
+
+*[compat]* Assignment copies the source reference-count word (`+4`), map
+storage, iteration-cursor word (`+0x14`) and all three key words; it leaves
+the destination interface tables installed (`0x00939FFC–0x0093A034`).
+The map has its own nodes/byte blocks, but owning members inside those
+blocks are copied byte for byte; see
+[property-sets.md §2](property-sets.md#2-the-property-set-cgzpropertysett-iid-0xebb10cdd-compat)
+for the original string-aliasing quirk and the chosen safe value-copy rule.
+The copied cursor is not rebased onto the new map. Assignment is not a
+reference to the original resource and does not AddRef it.
+
+CreatePrivateCopy is called on the resource view. It allocates 40 bytes,
+constructs with the source key using `0x00939750`, assigns from the source
+full object (interface minus `0x18`), and returns the new object's QI result
+for the caller's requested IID/output (`0x00939D62–0x00939DA0`). There is no
+local Release after QI and no null-allocation recovery before assignment.
+For a supported IID, QI increments the copied count: a source count N gives
+the new object count N+1. An unsupported IID returns the usual QI failure;
+this wrapper does not destroy the allocated copy on that path.
+
+**Worked cases (SS5).** A version-0 record with field 7 nonzero and field 9
+empty sets sem `0x7DCDED3D`, skips field 6 entirely and consumes no fields
+22–27. With instance 42, a nonempty field 1 of `42` returns false while
+retaining the enclosing Read's `0xFF6F9546=42`. Writing a set containing
+only field 12 equal to `0xFFFFFFFF` emits `-1,` at position 12 and empty
+tokens at the other positions; a stream refusing that write still gets a
+true writer result. Copying a set with scalar field 12=512 yields independent
+scalar storage: changing the copy's field 12 to 256 leaves the original at
+512, while its key remains the copied type/group/instance.
 See [audio.md §10](audio.md#10-sound-data) for resource-factory selection.
 
 ## 6. `cFreshPlayer` and `cFreshCellPlayer`

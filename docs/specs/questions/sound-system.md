@@ -34,14 +34,6 @@ conversion failure, duplicate keys and aggregate success on partial failure.
 Start at EnumDefaultEntries 0x0093756A and the helper inventory in the spec.
 
 <!-- from: re-sound-hit5 (2026-10-23) -->
-- **SS5 — Track resource byte/text formats and private copies:** [unsettled]
-
-For §5.2, settle TKDT legacy field order, escaping/version handling, serializer
-format, read failure, assignment/private-copy ownership and which constructor
-installs the alternate tables. Start at 0x00940E5C, 0x00941930, 0x00939D62,
-0x00939FFC. Do not implement a decoder from the TKDT prefix alone.
-
-<!-- from: re-sound-hit5 (2026-10-23) -->
 - **SS6 — Adaptive score selection and full lifecycle:** [unsettled]
 
 For §6.1, settle Init overload signatures, dimension limits, cell add/subtract
