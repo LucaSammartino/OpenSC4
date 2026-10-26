@@ -642,6 +642,16 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
          started; verdict, then TerminateProcess
        AUTOTEST VERDICT: clean (…, julian=2451911, date=2001-01-01, real_seconds=29.312, days_per_second=12.48, …)
        ```
+   - **Fixed scheduler** (`sim_fixed_step = 1`, env `FC4_SIM_FIXED_STEP`; **off by default**):
+     golden tooling uses our simulator with every other subsystem original (`enable = simulator`,
+     `disable = all`, `pacing = original`, all shadows/compares off). The scheduler clock advances by
+     one virtual millisecond per agent delivery; a frame has a fixed 64-delivery ceiling, independent
+     of real time, speed, `sim_turbo_frame_ms` or the frame budget. Each new day ends the frame so
+     observer actions and deferred saves get a tick before another day can open. Empty/paused
+     frames stop after 4096 scheduler clock reads. This implies turbo's ready day gate, including
+     before ConnectionsReady; use `popup_dialogs = 0`. It does **not** change the original agents'
+     own wall-time slices, RNG seeds or framework animation ticks. Measure residual variance;
+     this switch alone does not promise deterministic original subsystems. No ABI/save change.
    - **Turbo clock** (`sim_turbo = 1`, env `FC4_SIM_TURBO`; off by default; `plugin/FC4Turbo.h`; a *tooling
      deviation* from simulator.md §5, our simulator only): days are no longer paced by msPerDay. The day gate's
      `ready` (§5.2 step 3) is always true, so a day opens as soon as its agents have finished the previous one;
@@ -708,6 +718,8 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
      | `mark <text>` | a log line |
+     | `funds amount` | sets the treasury to 0..999999999 whole simoleons through the city's budget `SetTotalFunds`; logs before/after; only an explicit script action changes funds |
+     | `establish <name>` | names and establishes an unfounded city through `cISC4City::SetCityName` / `SetEstablished(true)`; an already established city is unchanged; put this first, dated at or before the loaded date, to bootstrap an empty tile at a framework tick without `SimNewDay` |
      | `disaster fire\|riot x z`, `disaster fire\|riot auto`, `disaster survey` | the disaster layer's manager (city slot 72, layer slot 7, `0x621CDA33` fire / `0xCA380B06` riot) `AttemptDisasterStart(x, z)` (manager slot 6; disasters.md §3.1, §5.5, §6.2): the original's own start path, also with the disasters shadow; `auto` takes the survey's candidates in order (a fire: until the fire count rises; a riot: the first); `survey` logs the candidate cells: buildings on a lot away from the edge with flammability above 0 and fire coverage 0, and road cells with police coverage at most 64 (no call into the layer); `-> … AttemptDisasterStart(x, z) -> instance … fires a->b active=… ongoing=…` |
      | `save [fast]` | `cISC4App::SaveCity(fast)` (`docs/abi/vtables.tsv` `cSC4App::vftable_3` slot 16, pop 4, eax-or-void; foundations.md §3.7): the current city saved in place, a full save unless `fast`, through the same app reference and exception guard as the save autotest; `-> ok=<what SaveCity returned> (SaveCity(full\|fast) in N ms)`; no city: `ok=0 (skipped: no city)` |
      | `terrain x0 z0 x1 z1 h [kind]` | `cISTETerrain::SetAltitude(SC4Rect(x0, z0, x1, z1), h, true, kind)` (city slot 84, terrain slot 49; terrain.md §6): every vertex of the inclusive rectangle set to `h` metres (decimal, 0..5000), its water reset, the redisplay posted with `kind` (0..6, default 1; §8.2); a rectangle past the city's vertices is refused (`skipped: …`; the original does not check it); `-> SetAltitude(x0,z0..x1,z1, h, true, kind): vertex (x0,z0) before -> after`; with `terrain_shadow = 1` the shadow mirrors the call (below) |
@@ -725,6 +737,13 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      The explicit diagnostic action `portprops x z state` switches native spatial props with property `0xC98204B8`
      on the existing lot at (x,z) to state 0 or 1. It logs filter counts, setter calls and before/after states,
      and calls no port-developer method.
+
+     `script_save_grace_ms = 0` is **off by default**. An explicit positive value
+     (clamped to 10000..120000 ms) raises the watchdog's stall threshold only while
+     a scripted full `SaveCity` executes. Golden runs request 60000 ms because the
+     original full save can exceed autotest's ten-second stall limit. Fast saves
+     and all other activity keep the ordinary watchdog rules; a full save exceeding
+     the grace still fails. No simulation steps or saved fields are changed.
 
      `save_as <name>` is not available (a parse error that says so). The interface exists
      (`SaveCity(cIGZString const& path, bool fast)`, slot 15, pop 8), but what saving under another path does is
@@ -2527,3 +2546,101 @@ The `lotunit shadow`, `lotbasetexture shadow`, and `lotwall shadow` lines report
 discovery completeness, capture/exact counts, failures and successful empty
 inventories separately. Full record comparisons preserve reference identities,
 saved texture frames and unnamed bytes; wall-mask growth on Read is a mismatch.
+
+`reach = on` enables a native entry census (default off). `reach_cap = 32`
+limits counted entries per function per window; `reach_window = month` uses
+the observer's calendar messages, including the initial partial month.
+`reach_contracts` selects the ABI `functions.tsv` (default: the build source
+tree's `docs/abi/functions.tsv`). Missing/invalid contracts disable tracing.
+`reach_output` selects the output TSV; harness requests should use the absolute
+worktree `build-runs/game-results/<label>.reach.tsv` path. The default is the
+plugin log path plus `.reach.tsv`. No executable file is opened.
+
+Entries are snapshotted before subsystem entry patches and armed after the
+city-load hooks and probes. Changed entries, preexisting jumps/breakpoints,
+trap-sensitive first instructions, and exception/loader runtime names are
+skipped with reasons. Tracing ends before city shutdown restores other hooks.
+Monthly constructed shadow passes and deferred load probes (overlay, queued
+DBPF and observe snapshot) pause the census process-wide, avoiding
+unbounded traps on fixture-heavy getters. Scripted game actions remain counted.
+`reach_include_probes = 1` disables these pauses for call-count calibration
+(default 0). Calls on other threads during excluded passes are also omitted.
+Consequently this is
+a census of the running city, excluding load/shutdown and monthly fixtures.
+At shutdown the log reports one `reach window N date=YYYY-MM-DD new=N total=N`
+line per window, including empty windows; `new` counts first-seen functions
+and `total` is cumulative. The initial window uses the city-load date.
+The log reports `reach summary functions=... armed=... reached=... skipped=...
+windows=... traps=...`, followed by ignored/aborted/slot-exhaustion/save counters.
+`traps` includes breakpoint and single-step exceptions.
+
+The breakpoint is absent while its first instruction executes. Simultaneous
+calls to the same entry can pass during that interval, so counts are lower
+bounds, not complete call totals for concurrent functions. The synthetic DLL
+test measures this loss separately from exact serialized call-count controls.
+Executable pages stay writable and the VEH's DLL stays pinned until process
+exit so delayed exceptions remain serviceable. This diagnostic is opt-in.
+
+## S3 in-place oracle experiment (WIP)
+
+All switches default off. `inplace = all` or a comma-separated list of names from
+`FC4Inplace.cpp` selects 20 view-utility functions. Natural calls sample the first
+50 and then one in 20. `inplace_fixture = 1` additionally runs labelled,
+constructed inputs at city load. `inplace_mutate = <names>` changes one result
+word on the first exact sample and logs its detection through the replay
+comparator. `inplace summary` separates natural and fixture counts.
+
+The initial typed wrappers faulted in inplace26-fixture-1. The state bridge now
+preserves incoming and outgoing integer registers, flags, x87/SSE state and
+control modes, including nested entries. Seven synthetic machine-state cases
+and a completed mutation fixture cover that correction. The experiment still
+has outside-change signals, refused aliases and unsupported entry encodings.
+Final measured result: INCONCLUSIVE. Both corrected runs are clean; all 18,278
+comparisons are exact, 33/33 mutations are detected, and 14/20 functions qualify
+without outside signals or refusals. Measured throughput misses 11 KB/hour.
+See `tests/spike-evidence/spike-inplace26/` for measured values and rejections.
+Capture observes net changes in containing writable private committed regions
+(64 MiB cap). It misses undone writes, unrelated allocations and image/global
+storage. Concurrent neighbour changes have unknown attribution. Unsupported or
+occupied entries fail closed. Do not enable this experiment in normal runs.
+
+### Function compare harness (run 7)
+
+The S3 facility above is now registry driven: `plugin/compare/<Class>.tsv`
+selects native-layout Rust adapters without per-function plugin C++ changes.
+Use `compare = <names|class:Class|all>` (`inplace` remains an alias). Everything
+is off without that selection. Per-row compare/record/replace modes, bounded
+value-only corpus/case exports and nearby-input replay are documented as a
+stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
+Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).
+
+### Construction quit experiments
+
+`autotest_quit_post = 1` (env `FC4_AUTOTEST_QUIT_POST`, default off) makes
+`autotest_end = quit` post the application's native `0xC7AA61C6` command to
+its legacy message target. The main loop delivers it to the game's quit
+handler after the observer's tick. The verdict still requires
+`PostSystemServiceShutdown`; a missing service/target is a failed run, never
+a clean termination. Native target-post has no Boolean result (00930273).
+
+`script_port_probe = 1` logs the building pointer/type after the port action.
+`script_port_instant = 1` disables its construction animation. Both default
+off and affect only scripted port actions; they are diagnostic controls.
+
+The `findings` scenario `quit-construction28` preserves a native construction
+shutdown fault at `0x005D0F94`: both direct and posted quit fault after its
+one animated airport action, including after a pause or full save. Disabling
+the animation avoids that incomplete object and exits cleanly; it is a
+separate control, not a correction to the finding. The suite retains
+`clean-exit-crash`; it does not enable either diagnostic switch by default.
+
+### Formats replacement
+
+`enable = formats` is off by default. It selects the existing FC4 exemplar and
+cohort resource factories (data-formats section 8.1), including their FC4
+property holders and property values backed by `fc4-formats`. The `exemplars`
+key keeps its existing behavior; selecting both installs the factories once.
+Packed-file segments remain original and are the next replacement step.
+`formats_shadow = 1` checks the replacement against the formats crate and labels
+the comparison as a replacement consistency check. The install-time exemplar
+contract fixture also compares the retained original factories with ours.

@@ -9311,6 +9311,8 @@ bool fc4_netlot_get_state(const fc4_netlot* l, fc4_netlot_state* out);
  * effect props (IID 0x09820792) come back through resolve_ref. */
 bool fc4_netlot_write(const fc4_netlot* l, const fc4_ostream* out);
 bool fc4_netlot_read(fc4_netlot* l, const fc4_istream* in);
+/* Slot 13: select by exact host identity rather than the non-unique saved ID. */
+bool fc4_netlot_set_next_configuration_token(fc4_netlot* l, uint64_t token);
 
 /* ---- network rules (docs/specs/network-rules.md; engine/capi/src/network_rules.rs) ----
  * The rule database (the tile rule files with #Transmogrify, RUL0 intersection
@@ -13137,6 +13139,39 @@ bool fc4_lot_configuration_load(const fc4_lot_configuration* config,
 bool fc4_lot_configuration_snapshot(const fc4_lot_configuration* config,
     fc4_lot_configuration_fields* out,
     fc4_lotdev_cfg_object_callback visit, void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
+/* MySim fronts: per-object access before advisor Init/map insertion (mysims §6–7). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_adv_mysim_get_state(const fc4_adv_obj* obj, fc4_mysim_state* out);
+size_t fc4_adv_mysim_text(const fc4_adv_obj* obj, uint32_t which, char* out, size_t capacity);
+bool fc4_adv_mysim_move_in(const fc4_adv_obj* obj, uint8_t slot,
+    const uint8_t* name, size_t name_len, bool male, uint8_t sign,
+    const uint8_t* bio, size_t bio_len, uint32_t bitmap,
+    const uint8_t* path, size_t path_len);
+bool fc4_adv_mysim_notify(const fc4_adv_obj* obj, uint32_t slot,
+    uint64_t building, uint32_t data, float x, float z);
+bool fc4_mysim_set_dispatch(fc4_advisors* system, int32_t id, uint64_t dispatch);
+#ifdef __cplusplus
+}
+#endif
+
+/* Network lot live identity projections; legacy fc4_netlot_lot stays 16 bytes.
+ * Configuration tokens identify the selected object even if saved IDs collide.
+ * Getter outputs are optional, untouched on false; token 0 is unresolved.
+ * Iterator tokens and records come from the same snapshot; false stops it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef bool (*fc4_netlot_configuration_visitor)(void*, int32_t, int32_t, const fc4_netlot_lot*, uint64_t);
+bool fc4_netlot_get_lot_with_configuration(const fc4_netlot* l, int32_t x, int32_t z,
+                                         fc4_netlot_lot* out, uint64_t* configuration);
+bool fc4_netlot_iterate_lots_with_configuration(const fc4_netlot* l,
+                                              fc4_netlot_configuration_visitor cb, void* ctx);
 #ifdef __cplusplus
 }
 #endif

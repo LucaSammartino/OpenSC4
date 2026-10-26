@@ -1,5 +1,5 @@
 //! Power-pole state, records, connection cleanup and published geometry (§4).
-//! Complete wire/model/render algorithms remain explicitly open in NO33/NO43.
+//! Native model/draw interfaces are supplied by the plugin host.
 
 use crate::stream::ResKey;
 use crate::{automata::OccupantBase, stream::RefValue};
@@ -34,6 +34,13 @@ pub struct PoleConnection {
     pub flags: [u8; 2],
     pub words: [u32; 2],
     pub vertices: [Vec<Vec<[f32; 3]>>; 2],
+}
+
+/// DrawPowerlines output (4.7.5): xyz+uv only, DrawPrims(6,2,4).
+#[derive(Clone, Debug, PartialEq)]
+pub struct WireQuad {
+    pub texture: u32,
+    pub vertices: [[f32; 5]; 4],
 }
 
 impl Default for PoleConnection {
@@ -129,6 +136,7 @@ pub enum PoleUnsupported {
 
 /// External occupant manager, effects and reciprocal pole calls only.
 pub trait PoleHost: References {
+    fn cell_size(&mut self) -> [f32; 2];
     fn insert_line(&mut self, line: &RefValue, argument: u32);
     fn remove_line(&mut self, line: &RefValue, destroy: bool, argument: u32);
     fn reciprocal_remove(&mut self, other: &RefValue, this: &RefValue, quiet: bool);
@@ -137,8 +145,8 @@ pub trait PoleHost: References {
     fn create_effect(&mut self, name: &str) -> RefValue;
     fn place_effect(&mut self, effect: &RefValue, position: [f32; 3], rotation: [f32; 9], scale: f32);
     fn start_effect(&mut self, effect: &RefValue);
-    fn stop_effect(&mut self, effect: &RefValue);
-    fn finish_effect(&mut self, effect: &RefValue);
+    fn effect_running(&mut self, effect: &RefValue) -> bool;
+    fn stop_effect(&mut self, effect: &RefValue, immediate: bool);
     fn subscription(&mut self, message: u32, subscribe: bool);
     fn occupant_shutdown(&mut self, base: &mut OccupantBase);
 }
@@ -314,6 +322,53 @@ impl PowerPole {
         self.fields.cell
     }
 
+    /// SetPosition's reciprocal and products stay extended until conversion (4.7).
+    pub fn position_cell(position: [f32; 3], terrain_width: f32) -> (i32, i32) {
+        let reciprocal = 1.0 / f64::from(terrain_width);
+        (
+            (f64::from(position[0]) * reciprocal) as i32,
+            (f64::from(position[2]) * reciprocal) as i32,
+        )
+    }
+
+    /// Terrain inputs are obtained by the host at `position_cell`. Moving a pole
+    /// does not invalidate its cached bounds, refresh wires or move its own transform.
+    pub fn set_position(
+        &mut self,
+        position: [f32; 3],
+        terrain_width: f32,
+        corners: Option<[f32; 4]>,
+        diagonal: bool,
+        rotation: usize,
+        host: &mut impl PoleHost,
+    ) -> Result<(), PoleUnsupported> {
+        self.fields.position = position;
+        self.fields.cell = Self::position_cell(position, terrain_width);
+        self.fields.model_y = match corners {
+            Some(corners) => {
+                let mut lowest = corners[0];
+                for corner in &corners[1..] {
+                    if *corner < lowest {
+                        lowest = *corner;
+                    }
+                }
+                lowest
+            }
+            None => position[1], // 4.7's off-map choice, instead of uninitialized corners.
+        };
+        self.rebuild_geometry(diagonal, rotation)?;
+        if !matches!(self.effect, RefValue::Null) {
+            host.place_effect(&self.effect, position, super::xform::IDENTITY_MATRIX, 1.0);
+        }
+        Ok(())
+    }
+
+    pub fn rebuild_geometry(&mut self, diagonal: bool, rotation: usize) -> Result<(), PoleUnsupported> {
+        self.create_floor(diagonal)?;
+        self.create_walls(rotation);
+        Ok(())
+    }
+
     pub fn is_distressed(&self) -> bool {
         self.fields.distressed != 0
     }
@@ -460,8 +515,29 @@ impl PowerPole {
         if record.flags[1] == 0 && !matches!(record.pole, RefValue::Null) {
             return Ok(host.lines_to(&record.pole, this, out));
         }
-        // The precise cell walk remains explicitly open in §4.7.1/NO43.
-        Err(PoleUnsupported::CellWalkNO33NO43)
+        let [width, depth] = host.cell_size();
+        let mut point = [self.fields.position[0] / width, self.fields.position[2] / depth];
+        let delta = [record.words[0] as f32 - point[0], record.words[1] as f32 - point[1]];
+        let [a, b] = delta.map(f32::abs);
+        let count = a.max(b).trunc() as usize + 1;
+        let mut step = if a > b {
+            [1.0, b / a]
+        } else {
+            [if b == 0.0 { 0.0 } else { a / b }, 1.0]
+        };
+        for (step, delta) in step.iter_mut().zip(delta) {
+            if delta < 0.0 {
+                *step = -*step;
+            }
+        }
+        out.clear();
+        for _ in 0..count {
+            out.push((point[0] as i32, point[1] as i32));
+            for (point, step) in point.iter_mut().zip(step) {
+                *point += step;
+            }
+        }
+        Ok(true)
     }
     pub fn line_cells_to(
         &self,
@@ -486,13 +562,14 @@ impl PowerPole {
                 }
             }
         } else {
-            self.stop_distress_effect(host);
+            self.stop_distress_effect(false, host);
         }
     }
-    fn stop_distress_effect(&mut self, host: &mut impl PoleHost) {
+    fn stop_distress_effect(&mut self, immediate: bool, host: &mut impl PoleHost) {
         if !matches!(self.effect, RefValue::Null) {
-            host.stop_effect(&self.effect);
-            host.finish_effect(&self.effect);
+            if immediate || host.effect_running(&self.effect) {
+                host.stop_effect(&self.effect, immediate);
+            }
             clear_ref(&mut self.effect, host);
         }
     }
@@ -514,23 +591,28 @@ impl PowerPole {
             host.subscription(0x99EF_1142, false);
             self.subscribed = false;
         }
-        self.stop_distress_effect(host);
+        self.stop_distress_effect(true, host);
         host.occupant_shutdown(&mut self.base);
     }
     pub fn create_floor(&mut self, diagonal: bool) -> Result<(), PoleUnsupported> {
-        if diagonal {
-            return Err(PoleUnsupported::DiagonalFloorNO43);
-        }
         self.geometry[0].clear();
         for (i, (x, z)) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, 1.0), (1.0, -1.0)]
             .into_iter()
             .enumerate()
         {
+            let (x, z) = (x * 5.0, z * 5.0);
+            let (x, z) = if diagonal {
+                let c = f64::from(f32::from_bits(0x3F35_0554));
+                let s = f64::from(f32::from_bits(0x3F35_0493));
+                ((-s * z + c * x) as f32, s * x + c * z)
+            } else {
+                (x as f32, z)
+            };
             self.geometry[0].push(Vertex {
                 pos: [
-                    x * 10.0 * 0.5 + self.fields.position[0],
+                    x + self.fields.position[0],
                     self.fields.position[1],
-                    z * 10.0 * 0.5 + self.fields.position[2],
+                    (z + f64::from(self.fields.position[2])) as f32,
                 ],
                 color: u32::MAX,
                 u: [0.0, 0.0, 1.0, 1.0][i],
@@ -563,6 +645,74 @@ impl PowerPole {
         for (i, (a, b)) in pairs.into_iter().enumerate() {
             self.geometry[i + 1] = Self::wall_quad(self.geometry[0][a], self.geometry[0][b], self.fields.model_y);
         }
+    }
+
+    pub fn wire_quads(&self, width: f32) -> Vec<WireQuad> {
+        let mut out = Vec::new();
+        if width <= 0.0 {
+            return out;
+        }
+        let width = f64::from(width);
+        for record in &self.fields.connections {
+            if record.flags[1] == 0 {
+                continue;
+            }
+            for curve in &record.vertices[0] {
+                for pair in curve.windows(2) {
+                    let [a, b] = [pair[0], pair[1]];
+                    let dx = f64::from(b[0]) - f64::from(a[0]);
+                    let dz = f64::from(b[2]) - f64::from(a[2]);
+                    let inverse = 1.0 / (dx * dx + dz * dz).sqrt();
+                    let nx = f64::from((inverse * dx) as f32);
+                    let nz = f64::from((inverse * dz) as f32);
+                    let dx = f64::from(dx as f32);
+                    let dz = f64::from(dz as f32);
+                    let v = ((dx * dx + dz * dz).sqrt() * 0.125) as f32;
+                    out.push(WireQuad {
+                        texture: 0xAA9D_A78E,
+                        vertices: [
+                            (a, -1.0, 0.0, 0.0),
+                            (a, 1.0, 1.0, 0.0),
+                            (b, 1.0, 1.0, v),
+                            (b, -1.0, 0.0, v),
+                        ]
+                        .map(|(p, sign, u, v)| {
+                            [
+                                (f64::from(p[0]) + sign * width * nz) as f32,
+                                p[1],
+                                (f64::from(p[2]) - sign * width * nx) as f32,
+                                u,
+                                v,
+                            ]
+                        }),
+                    });
+                }
+            }
+            for curve in &record.vertices[1] {
+                for pair in curve.windows(2) {
+                    let p = pair[0];
+                    out.push(WireQuad {
+                        texture: 0xC9AF_0FCD,
+                        vertices: [
+                            (-1.0, -1.0, 0.0, 0.0),
+                            (-1.0, 1.0, 1.0, 0.0),
+                            (1.0, 1.0, 1.0, 1.0),
+                            (1.0, -1.0, 0.0, 1.0),
+                        ]
+                        .map(|(x, z, u, v)| {
+                            [
+                                (f64::from(p[0]) + x * width * 4.0) as f32,
+                                p[1],
+                                (f64::from(p[2]) + z * width * 4.0) as f32,
+                                u,
+                                v,
+                            ]
+                        }),
+                    });
+                }
+            }
+        }
+        out
     }
 
     pub fn write(&self, tables: &AttachmentTables, out: &mut dyn OutStream) -> Result<bool, PoleUnsupported> {

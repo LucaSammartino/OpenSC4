@@ -1,0 +1,10 @@
+label = inplace26-r4-record-2
+seconds = 180
+end_date = 2026-04-01
+turbo = 1
+[ini]
+compare = class:SC4ViewUtilities
+compare_mode = record
+compare_record_limit = 100
+popup_dialogs = 0
+autotest_end = quit

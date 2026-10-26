@@ -1,8 +1,8 @@
 # Lane providers: Claude and Codex
 
-The coordinator can select either provider explicitly. The shared launch/refill scripts own the worktree,
-subsystem reservation, live-worker cap, three-glue cap, round count and provider pause. The merge train and
-coverage pipeline are unchanged. A provider change never grants another round or clears a parked lane.
+Provider transport reference. [coordinating.md](coordinating.md) owns launch/landing procedures;
+the [prompt](../../.claude/workflows/fc4-lane.js) owns lane rules. Shared launch/refill scripts enforce worktree,
+subsystem, worker, three-glue and round caps. Changing providers never resets limits or parking.
 
 ## Run commands
 
@@ -25,8 +25,7 @@ lock for manual state edits.
 
 An explicit `provider` field in a queued spec selects that backend. Otherwise the refiller's `--provider`
 is used; without either, the state provider defaults to Claude. Individual launch `--provider` wins over
-the spec. No automatic account or provider failover occurs. The old run4 launcher/refiller can be thin
-compatibility wrappers around these tracked scripts.
+the spec. No automatic provider failover occurs.
 
 ## Authentication and models
 
@@ -106,30 +105,16 @@ Claude transcript into Codex or vice versa: committed state, the lane report and
 Merge only reviewed ready work, regenerate coverage after landing, and remove only ancestor-proved landed
 nonparked worktrees. A guard denial still ends that lane's work; do not route around it with another provider.
 
-## Validation (2026-10-22)
+## Validation
 
-120 tools tests pass, including unchanged Claude Workflow tests and new cross-provider policy tests:
-STOP/handoff allow-list, context/cache accounting, watchdog persistence across commits/provider changes,
-mixed-provider parking, round/glue/disk/subsystem caps, subscription-only authentication, stable prompt
-prefixes, and Claude's saved Workflow invocation. A real Codex CLI0.163.0 subscription probe, using the
-configured model, ran the identity handshake and one allowed command; its third call was denied at the
-two-call watchdog and returned blocked. No forbidden command ran. Probe evidence is in the coordinator's
-ignored `build-runs/codex-adapter-canary/real4-*` files. Scratch probes consume provider usage but do not
-count as SC4 implementation lane rounds.
+Run `python -m pytest tools/tests -q` for provider/guard changes. Hook/transcript changes also require a real
+watchdog-denial probe and a detached-commit/publication probe before use. Scratch probes consume provider usage
+but do not count as implementation lane rounds. Keep evidence under `build-runs/codex-adapter-canary/`.
 
 References: [Codex noninteractive mode](https://learn.chatgpt.com/docs/non-interactive-mode),
 [subscription authentication](https://learn.chatgpt.com/docs/auth), and
 [hook protocol and limitations](https://learn.chatgpt.com/docs/hooks).
 
-### Git transport repair validation (2026-10-22)
-
-The first project rounds exposed Git index.lock permission failures that the earlier read-only guard probe did
-not cover. Their edits and original results were preserved; coordinator recovery commits use exact reviewed
-files and do not consume another lane round. The 120-test suite now also covers detached commits, unchanged
-main, isolated permission roots, branch identity, concurrent ref conflicts and idempotent publication. A real
-subscription CLI probe committed a new file on detached HEAD and published only its fixture lane branch, with
-two registered guard calls. A native sandbox probe on an existing worktree allowed its own metadata write and
-denied opening shared config and main's ref for writes. No ACL removal or sandbox bypass was used. Evidence:
-build-runs/codex-adapter-canary/git-live2-* and existing-worktree-permissions.json. The adapter requests disabled Git auto-maintenance in child shell settings. The live CLI still emitted a
-non-fatal packed-refs.lock denial; detached commits and checked publication passed. Shared refs remain protected,
-and the actual committed HEAD and ancestry determine publication success.
+For transport failures, preserve edits and original results. Coordinator recovery commits contain only reviewed
+files and do not consume another lane round. Verify publication from actual HEAD and ancestry; shared refs stay
+protected. Keep Git auto-maintenance disabled in child shells.

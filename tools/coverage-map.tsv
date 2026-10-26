@@ -118,8 +118,8 @@ cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port
 cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	ports
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	propdev
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
-cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	-	nettool
-cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	core/src/network_tools	-	-
+cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	nettool_plan_shadow	nettool
+cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	core/src/network_tools	powerline_plan_shadow	-
 cSC4UndergroundNetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4PipeTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4SubwayTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
@@ -151,10 +151,10 @@ cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	ad
 cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
+cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	mysims
 cSC4MySimPool	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
+cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	mysims
+cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	mysims
 cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 # lotrec_shadow (glue-simgrid-lotrec5, counted from train176) round-trips every master lot record through core/src/lot_records at load and monthly; units, occupants and unspecified props are excluded, so only cSC4Lot is credited (record-only, run 5)
@@ -268,7 +268,7 @@ cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	animation-tick.md	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	regionalcity
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4WriteCityRegionViewThumbnail	region	region	regional-city-records.md	-	-	-
 fn:SC4ReadCityRegionViewThumbnails	region	region	regional-city-records.md	-	-	-
@@ -301,7 +301,7 @@ cSTEEdgeReconcileInformNoMismatch	region	region	sim-misc.md, modal-dialogs.md	-	
 cSTEEdgeReconcileInformDamage	region	region	foundations.md, sim-misc.md	-	-	-
 cSTEEdgeReconcile*	region	region	-	-	-	-
 # ---- data formats and scripting (framework)
-cGZDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
+cGZDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	dbpf_bounds_shadow	-
 cGZDBSDFRecord	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZDBSerialRecordAsIGZFile	persistence and resources	framework	record-as-file.md	-	-	-
@@ -309,11 +309,11 @@ cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	fo
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
 cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
 cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
-cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 cSCPropertyHelp	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cSCProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+cSCProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 # the exemplar text form (data-formats.md §4.3 and EX32: InterpretEntry 0x0067DFD0 reads, WriteEntry and
 # RemoveUnnecessaryFloatingPointDigits 0x0067C2B0 write; called from cSCResExemplarFactory / CohortFactory), the exemplar
 # reader and the resource property object of exemplars (cSCResProperty, created by the exemplar factories)
@@ -321,7 +321,7 @@ fn:InterpretEntry	data formats (DBPF, exemplars)	framework	data-formats.md	forma
 fn:WriteEntry	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 fn:RemoveUnnecessaryFloatingPointDigits	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 (anonymous_namespace)::cExemplarReader	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
-cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 cRZVariant	foundations	framework	foundations.md	core/src/variant.rs	variant_shadow	-
 # the two generator classes of foundations.md §6.1, specified operation by operation (cRZRandom's lcg / mul states and
 # cRZRandomSuper's reload), and the session seeding of §6.3 that core/src/seeding.rs derives from the host seed with a

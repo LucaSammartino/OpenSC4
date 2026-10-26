@@ -1,0 +1,5 @@
+# Candidate: requires clear cells in the isolated slot copy.
+2026-01-28 mark trigger27 power line placement begins
+2026-01-28 network 40 16 56 16 5
+2026-01-28 network 48 12 48 24 5
+2026-02-02 digest

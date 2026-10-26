@@ -322,8 +322,32 @@ reference, owned by the caller). A null occupant manager gives false.
 cell rectangle (lot slot 14), usage 2, and run occupant manager slot 40 on it; when that returns false, return
 false. Convert cell (x1, z1) and cell (x2 + 1, z2 + 1) to world positions (city slot 96): `(wx1, wz1)`,
 `(wx2, wz2)`. Then walk the **whole list** (including elements that were there before the call) and remove and
-release every element whose position (occupant slot 8) is not inside `wx1 ≤ px < wx2` and `wz1 ≤ pz < wz2`
-(a NaN coordinate fails). True.
+release every element whose position (occupant slot 8) is not inside `wx1 ≤ px ≤ wx2` and `wz1 ≤ pz ≤ wz2`
+(a NaN X/Z coordinate or bound fails). True.
+
+**Closed world bounds (PL24).** Both upper bounds are inclusive, just like the lower bounds. These are
+the binary32 world coordinates returned by the two city slot-96 calls, not bounds recomputed from cell
+indices by this position pass (`0x004A32D9`, `0x004A32F9`). The pass compares the binary32 X and Z values
+returned by occupant slot 8 directly against those bounds, with no tolerance, rounding adjustment or
+clamping. It tests lower X, lower Z, upper X, then upper Z, stopping at the first rejection. Y is ignored.
+The result of comparing a coordinate with its corresponding bound has these effects:
+
+| Coordinate versus bound | Lower-bound test | Upper-bound test |
+|---|---|---|
+| Less | Remove and release | Keep testing |
+| Equal | Keep testing | Keep testing |
+| Greater | Keep testing | Remove and release |
+| Unordered (either operand is NaN) | Remove and release | Remove and release |
+
+An element survives only if all four tests pass. Signed zeros compare equal; infinities follow ordinary
+ordered comparisons. A NaN Y alone does not remove an element. Unordered results reject on both lower
+tests (`0x004A3316`–`0x004A3332`) and both upper tests (`0x004A3334`–`0x004A3350`); the upper tests
+distinguish equality from greater-than and unordered, retaining equality on **both** axes. Rejected
+elements are released once and erased; survivors retain their original list order
+(`0x004A3352`–`0x004A3372`). These rules also apply to elements already in the caller list. This pass
+does not inspect `GetPropType`, so a prop type ID of zero has the same boundary rule. The preceding
+spatial query and usage filter still determine which new candidates reach the pass; inclusion of a
+boundary position here does not itself discover an occupant absent from that candidate list.
 
 **Cell overload and membership (PL21).** Slot 23 (`0x004A1FD0`) asks the lot manager for the lot at
 `(x, z)` with its third argument zero, then passes the **caller's list** and that lot to slot 24. It does
@@ -932,10 +956,34 @@ chooser (slots 5, 7, 22, 23) and the lot configuration filters.
    Slot 9(vec = [7], F) → returns 2, vec = [A, B]. Slot 9(vec = [7], A) → returns 0, vec = [A]. Slot 9(vec = [7],
    unknown) → 0, vec = [7]. Slot 10(A, F) true; slot 10(A, A) true; slot 10(B, G) false. Slot 11(A) true, slot
    11(F) true.
-4. **GetLotProps boundary** (16 m cells). A lot on cells (10, 20)–(11, 21): world box x ∈ [160, 192),
-   z ∈ [320, 352). Lot-usage props at (160, 320), (191.9, 351.9), (192, 330) and (175, 319.9): the first two
-   stay, the last two are removed and released. A prop the caller put in the list beforehand at (0, 0) is also
-   removed. Result true.
+4. **GetLotProps boundary (PL24).** Use a valid lot on inclusive cells (10, 20)–(11, 21), a nonnull
+   occupant manager and successful slot 40. The two city slot-96 calls receive (10, 20) and (12, 22) and
+   return (160, 320) and (192, 352), respectively: the final position box is x ∈ [160, 192], z ∈ [320, 352].
+   For each row, start with an empty caller list and have slot 40 supply that single usage-2 prop. The
+   table gives the native slot-24 result after its position pass, not a claim about spatial discovery of
+   a prop placed outside the grid query. Coordinates are (X, Z); Y may be any finite value.
+
+   | Fixture | Prop position | Native query returns prop? |
+   |---|---|---|
+   | PL24-L | (160, 320), exactly both lower bounds | Yes |
+   | PL24-I | (191.9999847412109375, 351.999969482421875), one binary32 step inside each upper bound | Yes |
+   | PL24-X | (192, 330), exactly upper X | Yes |
+   | PL24-Z | (175, 352), exactly upper Z | Yes |
+   | PL24-C | (192, 352), exactly both upper bounds | Yes |
+   | PL24-OX | (192.0000152587890625, 330), one binary32 step beyond upper X | No; released and erased |
+   | PL24-OZ | (175, 352.000030517578125), one binary32 step beyond upper Z | No; released and erased |
+   | PL24-B | (175, 319.9), below lower Z | No; released and erased |
+   | PL24-NX | (quiet NaN, 330) | No; released and erased |
+   | PL24-NZ | (175, quiet NaN) | No; released and erased |
+
+   Every row returns true from the query, including rows whose resulting list is empty. PL24-I uses
+   X bits `0x433FFFFF` and Z bits `0x43AFFFFF`; PL24-OX uses X bits `0x43400001`, PL24-OZ Z bits
+   `0x43B00001`. Repeat PL24-X and PL24-Z with `GetPropType=0`: the prop is still returned. With a
+   finite interior position (175, 330), replacing any one of the four world bounds with a quiet NaN
+   removes the prop; replacing Y alone with a quiet NaN keeps it. A caller-supplied prop at (0, 0)
+   is also removed and released, whereas a caller-supplied PL24-X or PL24-Z survives. With slot 40
+   supplying all table rows in table order, the surviving order is [PL24-L, PL24-I, PL24-X, PL24-Z,
+   PL24-C]. These are instruction-derived conformance expectations (§A7.2), not a new game run.
 5. **Street props.** Slot 31(list, 5, 5) with one street prop on cell (5, 5): the list has it and the result is
    false.
 6. **Building props.** Slot 36(B, P1), slot 36(B, P1), slot 36(B, P2): B's property `0xA8322B7F` holds [P1, P2];

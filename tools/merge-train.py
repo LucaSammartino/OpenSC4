@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """FreeCity4 merge train: the single owner of `main`.
 
-Why this exists (docs/merge-train.md "Why"; the original plan is in docs/history/handoff-2026-10.md): each lane
+Why this exists (docs/merge-train.md "Why"): each lane
 used to take a shared merge lock, merge main, re-gate and renumber `FC4_ABI_VERSION` / the HANDOFF rows / the
 manual-checks run numbers itself. N waiting lanes therefore cost about N^2 gates, nearly every merge conflicted on the same five files, and about 25 agents polled
 the lock so docs-only lanes waited hours.
@@ -36,6 +36,7 @@ worktree.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -65,6 +66,10 @@ DOCS_KINDS = ("docs",)
 # The one build/test implementation, shared with the lanes: every verdict is parsed from the tools' output.
 sys.path.insert(0, str(REPO / ".claude" / "lane-bin"))
 import fc4verify  # noqa: E402
+
+_credit_spec = importlib.util.spec_from_file_location("train_creditcheck", REPO / "tools/creditcheck.py")
+creditcheck = importlib.util.module_from_spec(_credit_spec)
+_credit_spec.loader.exec_module(creditcheck)
 
 VERSION_RE_C = re.compile(r"^(\s*#define\s+FC4_ABI_VERSION\s+)(\d+)(u?)\s*$", re.M)
 VERSION_RE_RS = re.compile(r"^(\s*pub const FC4_ABI_VERSION: u32 = )(\d+)(;.*)$", re.M)
@@ -204,6 +209,14 @@ def describe_lane(rec):
                 problems.append(f"worktree dirty ({len(dirty.splitlines())} paths)")
         ahead = git(["rev-list", "--count", f"main..{branch}"], check=False).stdout.strip()
         rec["_ahead"] = ahead or "?"
+    credit = rec.get("credit")
+    if not credit or "refusals" not in credit or "deltas" not in credit:
+        problems.append("coverage credit missing (enqueue again)")
+    else:
+        for refusal in credit["refusals"]:
+            problems.append(f"credit {refusal['row']}: {refusal['reason']}")
+        if not credit["refusals"] and credit.get("tip") != rec.get("tip"):
+            problems.append("coverage credit is for a different tip (enqueue again)")
     rec["_problems"] = problems
     rec["_ready"] = rec.get("state") == "ready" and not problems
     return rec
@@ -238,7 +251,28 @@ def cmd_status(_args):
     return 0
 
 
+def lane_credit(wt, runs, logs=()):
+    if wt is None:
+        return {"rows_flipped": [], "deltas": {},
+                "refusals": [{"row": "<inputs>", "reason": "lane worktree missing"}]}
+    paths = list(logs)
+    if not paths:
+        for run in runs:
+            candidates = [root / "build-runs" / rel / f"{run}.log"
+                          for root in (wt, MAIN) for rel in ("game-results", "")]
+            paths.append(next((p for p in candidates if p.is_file()), candidates[0]))
+    return creditcheck.checked_credit(wt, paths)
+
+
 def cmd_enqueue(args):
+    wt = lane_worktree(args.lane)
+    # A lane worktree's own queue file wins in read_queue(), so the checked entry replaces it there; the lane's
+    # touches and summary carry over.
+    out = (wt / "build-runs" / "merge-queue" if wt is not None else QUEUE_DIRS[0]) / f"{args.lane}.json"
+    try:
+        prev = json.loads(out.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        prev = {}
     rec = {
         "lane": args.lane,
         "branch": args.branch,
@@ -246,14 +280,24 @@ def cmd_enqueue(args):
         "kind": args.kind,
         "abi": bool(args.abi),
         "game_runs": [x for x in (args.game_runs or "").split(",") if x],
-        "summary": args.summary or "",
+        "summary": args.summary or prev.get("summary", ""),
         "state": "ready",
     }
-    out = QUEUE_DIRS[0] / f"{args.lane}.json"
-    QUEUE_DIRS[0].mkdir(parents=True, exist_ok=True)
+    if prev.get("touches"):
+        rec["touches"] = prev["touches"]
+    rec["credit"] = lane_credit(wt, rec["game_runs"], getattr(args, "log", ()))
+    if rec["credit"]["refusals"]:
+        rec["state"] = "wip"
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rec, indent=2) + "\n", encoding="utf-8")
+    stale = QUEUE_DIRS[0] / f"{args.lane}.json"
+    if stale != out and stale.is_file():
+        stale.unlink()
     log(f"enqueued {args.lane} -> {out}")
-    return 0
+    print("  claimed coverage: " + creditcheck.delta_text(rec["credit"]))
+    for refusal in rec["credit"]["refusals"]:
+        print(f"  REFUSED {refusal['row']}: {refusal['reason']}")
+    return 2 if rec["credit"]["refusals"] else 0
 
 
 def pick_batch(size, lanes=None):
@@ -275,6 +319,12 @@ def cmd_plan(args):
     print(f"batch of {len(batch)} (of {len(recs)} queued):")
     for r in batch:
         print(f"  {r['lane']:<18} {r['kind']:<7} abi={r['abi']}  branch={r['branch']}  tip={r['tip'][:10]}")
+        print("    claimed coverage: " + creditcheck.delta_text(r["credit"]))
+    for r in recs:
+        if not r["_ready"]:
+            print(f"  {r['lane']}: not ready: {'; '.join(r['_problems']) or r.get('state', '')}")
+            if r.get("credit"):
+                print("    claimed coverage: " + creditcheck.delta_text(r["credit"]))
     if not batch:
         print("nothing ready")
     engine = [r for r in batch if r["kind"] not in DOCS_KINDS]
@@ -1188,7 +1238,9 @@ def run_regress(wt, tag, dll, replace=None, shadows=None, shadow_split=1):
     log(f"regress {tag}: submitting to the game queue (about 10-20 min)")
     command = [
         "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(REPO / "tools" / "regress.ps1"),
-        "-Tag", tag, "-Dll", str(dll), "-Queue", "-Turbo", "-TurboTimeout", "1800", "-QueueWait", "5400",
+        # The shadows run takes 16-31 min when the queue is busy; 2700 s (request timeout 2850 s) keeps a loaded
+        # queue from failing a batch on the timeout alone (1800 s did at 31 min in train255).
+        "-Tag", tag, "-Dll", str(dll), "-Queue", "-Turbo", "-TurboTimeout", "2700", "-QueueWait", "5400",
         "-ShadowSplit", str(shadow_split),
     ]
     if replace is not None:
@@ -1447,6 +1499,8 @@ def cmd_land(args):
         if not args.force:
             die("regress did not pass for this head; use bisect, or land with --force")
         log(f"landing without a passing regress for {head[:10]} (--force)")
+    # Measure before moving main. A missing metric must not turn into a fabricated zero delta.
+    coverage_before = creditcheck.measure_current(MAIN)
     log(f"landing {cur['id']} ({head[:10]}) onto main")
     # fast-forward main to the integration branch
     p = git(["merge", "--ff-only", head], check=False)
@@ -1456,6 +1510,13 @@ def cmd_land(args):
              f"Merge merge-train batch {cur['id']}: {', '.join(cur['lanes'])}\n\n"
              "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n", head])
     main_sha = git(["rev-parse", "HEAD"]).stdout.strip()
+    coverage_after = creditcheck.measure_current(MAIN)
+    coverage_delta = creditcheck.compare(coverage_before, coverage_after)
+    print("measured coverage before: " + ", ".join(
+        f"{s} {coverage_before['totals'][s]} B" for s in creditcheck.STAT))
+    print("measured coverage after:  " + ", ".join(
+        f"{s} {coverage_after['totals'][s]} B" for s in creditcheck.STAT))
+    print("measured coverage delta:  " + creditcheck.delta_text(coverage_delta))
     write_notices(cur, main_sha)
     st.setdefault("history", []).append({**cur, "main": main_sha, "landed_at": time.strftime("%Y-%m-%d %H:%M:%S")})
     st["current"] = None
@@ -1594,6 +1655,8 @@ def main():
     p.add_argument("--abi", action="store_true")
     p.add_argument("--game-runs", default="")
     p.add_argument("--summary", default="")
+    p.add_argument("--log", type=Path, action="append", default=[],
+                   help="lane game log for coverage credit (repeatable; defaults to --game-runs logs)")
     p = sub.add_parser("merge-batch")
     p.add_argument("--size", type=int, default=8)
     p.add_argument("--lanes", default=None, help="comma-separated: batch exactly these queued lanes")

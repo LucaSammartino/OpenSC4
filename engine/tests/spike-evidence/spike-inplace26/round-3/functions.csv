@@ -1,0 +1,11 @@
+name,va,pop,args,body_bytes,body_status
+language-from-system,00924038,4,1,0,unpublished
+system-from-language,00923e3e,4,1,0,unpublished
+language-alias,00924aef,4,1,0,unpublished
+primary-language,009250d5,4,1,0,unpublished
+default-country,0092525a,4,1,0,unpublished
+system-country,009253d7,0,0,0,unpublished
+lighting-vertices,007d7bf0,24,6,0,unpublished
+lighting-global,007d6b20,4,1,0,unpublished
+lighting-shadow,007d6b50,4,1,0,unpublished
+lighting-night,007d6680,0,0,0,unpublished

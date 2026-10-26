@@ -1,0 +1,10 @@
+label = inplace26-r3-fixture-1
+seconds = 180
+end_date = 2026-04-01
+turbo = 1
+[ini]
+inplace = language-from-system,system-from-language,language-alias,primary-language,default-country,system-country,lighting-vertices,lighting-global,lighting-shadow,lighting-night
+inplace_fixture = 1
+inplace_mutate = language-from-system,system-from-language,language-alias,primary-language,default-country,system-country,lighting-vertices,lighting-global,lighting-shadow,lighting-night
+popup_dialogs = 0
+autotest_end = quit

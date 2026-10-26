@@ -549,8 +549,8 @@ impl PropManager {
         let mut kept = Vec::with_capacity(list.len());
         for occ in std::mem::take(list) {
             let p = h.position(occ);
-            // A NaN coordinate fails every comparison.
-            if wx1 <= p[0] && p[0] < wx2 && wz1 <= p[2] && p[2] < wz2 {
+            // §A7.2 / PL24: closed binary32 bounds; unordered X/Z or bounds reject.
+            if wx1 <= p[0] && wz1 <= p[2] && p[0] <= wx2 && p[2] <= wz2 {
                 kept.push(occ);
             } else {
                 h.release(occ);

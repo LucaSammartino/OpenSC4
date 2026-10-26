@@ -302,7 +302,7 @@ generated index: the questions live one file per spec, so read only the file for
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | intro-video | 2 | 0 | IV3 | questions/intro-video.md |
 | landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
-| landvalue | 3 | 8 | LV10 | questions/landvalue.md |
+| landvalue | 2 | 10 | LV11 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 13 | LC16 | questions/legacy-control.md |
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
@@ -326,13 +326,13 @@ generated index: the questions live one file per spec, so read only the file for
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 8 | NG9 | questions/network-geometry.md |
-| network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 17 | 29 | NO46 | questions/network-occupants.md |
+| network-manager | 0 | 16 | NM17 | questions/network-manager.md |
+| network-occupants | 17 | 30 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
-| network-tools | 16 | 14 | NT37 | questions/network-tools.md |
+| network-tools | 16 | 15 | NT37 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
 | network-type-info | 4 | 0 | TI5 | questions/network-type-info.md |
 | news-ticker | 4 | 0 | NTK5 | questions/news-ticker.md |
@@ -341,7 +341,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 10 | OV16 | questions/overlay-manager.md |
+| overlay-manager | 5 | 11 | OV17 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 6 | 7 | PT14 | questions/particles.md |
@@ -355,7 +355,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
-| prop-lotconfig | 8 | 10 | PL25 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 12 | PL25 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | radio | 4 | 0 | RA5 | questions/radio.md |
@@ -364,7 +364,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
-| regional-city | 8 | 0 | RY9 | questions/regional-city.md |
+| regional-city | 8 | 1 | RY10 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 2 | 2 | RND5 | questions/render3d.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **659** | **1583** | | |
+| **total** | **657** | **1594** | | |

@@ -1,80 +1,31 @@
 # The merge train
 
-**One agent owns `main`.** Lanes never take a merge lock, never merge `main`, and never bump `FC4_ABI_VERSION`.
-This replaced the old `build-runs/main-merge.lock` protocol on 2026-10-16; the tool is
-[`tools/merge-train.py`](../tools/merge-train.py).
+The coordinator owns `main`; [`tools/merge-train.py`](../tools/merge-train.py) lands queued batches.
+Operator commands, conflict handling and gate recovery belong to
+[coordinating.md](ops/coordinating.md#landing-work-the-merge-train).
 
-## Why
-
-Measured on 2026-10-16, the merge of each lane was slow, not git:
-
-- each lane ran its own gate and regress (cargo, ctest, two game runs to 2032: 20-40 min on a loaded machine);
-- every merge into `main` forced each waiting lane to merge `main` again and re-gate — `cores14c` lost the lock 12
-  times and re-merged 11 times, so N waiting lanes cost about N² gates;
-- nearly every lane edited the same lines, so every merge conflicted and needed an agent: the `FC4_ABI_VERSION`
-  number, the `HANDOFF.md` §0 rows (now the generated `docs/lanes/INDEX.md`), the run numbers in
-  `manual-checks.md`, `QUESTIONS.md` sections and `abi_entries.inc`;
-- about 25 agents polled the lock, and the fastest poller won, so docs-only lanes waited about two hours.
-
-## What a lane does now
-
-A lane works and iterates on its own branch (its own gate and game runs, which are **not** the merge regress), writes
-`docs/lanes/<lane>.md` and its `docs/runs/<tag>.md` files, writes `build-runs/merge-queue/<lane>.json` in its own
-worktree and **stops**. It never bumps `FC4_ABI_VERSION`; it sets `"abi": true` instead. The file formats and the
-queue keys are in [docs/lanes/README.md](lanes/README.md) "How a lane lands". The train scans
-`.claude/worktrees/*/build-runs/merge-queue/*.json` as well as the main checkout's, so a lane needs no write access to
-the main checkout. A notice lands in `build-runs/merge-notices/<lane>.md` when the lane is on `main`.
+Lanes follow the [prompt](../.claude/workflows/fc4-lane.js) and [queue contract](lanes/README.md#how-a-lane-lands).
 
 ## What the train does
-
-```
-python tools/merge-train.py status              # what is queued, and which entries are not actually ready
-python tools/merge-train.py plan --size K       # what the next batch would be
-python tools/merge-train.py run --size K        # merge-batch -> gate -> regress
-python tools/merge-train.py land                # put a green batch on main
-python tools/merge-train.py bisect              # isolate a failing lane
-python tools/merge-train.py fail --lane <lane>  # send the culprit back to its lane
-```
-
-The coordinator's step-by-step commands and operator notes are in [docs/ops/coordinating.md](ops/coordinating.md)
-"Landing work: the merge train".
 
 1. **Batch (up to K lanes), oldest first.** Docs-only lanes go first: they never need a regress.
 2. **Merge them one after another onto `integration/<n>`, cut from `main`.** Conflicts are resolved once for the
    whole batch, not per lane.
 3. **Gate and regress once for the batch** (skipped when `engine/`, `tools/`, `tests/` and `.claude/lane-bin/` are
-   all unchanged — docs-only movement on `main` never re-gates). The gate is `.claude/lane-bin/fc4verify.py gate` on
-   the merged tree: clippy `-D warnings`, the CMake build, the full ctest (cargo_test included), each judged by
-   parsing its output. Its record, `build-runs/gate-train<n>.json`, names the head it built; the regress only takes
-   the DLL that record names.
-4. **On a pass**, `main` fast-forwards to the integration branch and each lane gets a merged notice. `land` judges
-   the gate record again (head, clean tree, every step log re-parsed) and refuses without one; the state file's
-   `gate.ok` is not consulted and there is no override. It also refuses when `main` changed build files since the
-   batch was cut (the merged tree would not be the gated one).
-5. **On a fail**, the batch is split in halves and the halves are gated one after the other in the integration
-   worktree (about log₂ K extra gates) until one culprit lane is isolated. The culprit goes back to its lane with
-   the failure; the rest land as a new batch (`merge-batch --lanes ...`, then `gate`).
+   all unchanged). Changes to `docs/abi/interfaces.tsv` also require a gate: it generates a conformance test.
+   Gate records identify the exact head, clean tree, parsed step logs and DLL hash.
+4. **Pass:** `land` rechecks that record and fast-forwards `main`. It refuses if build files changed on `main`
+   since the batch was cut. There is no manual gate override.
+5. **Fail:** bisect by gating halves sequentially in the integration worktree. Send the culprit back with `fail`;
+   merge and gate the remaining lanes as a new batch.
 
 The long-lived integration worktree is `.claude/worktrees/train-integration` (branch `train-integration`); it is
 re-pointed at `integration/<n>` for every batch and keeps its cargo/CMake caches.
 
-## Conflict hotspots the train resolves
-
-| File | Resolution |
-|---|---|
-| `engine/capi/include/fc4.h`, `engine/capi/src/lib.rs` | the version constant takes the higher of the two numbers; every other hunk is a normal merge. After this wave, lanes no longer touch it. |
-| `engine/tests/abi_entries.inc` | taken and regenerated by `engine/tests/gen_abi_entries.py` (and generated at build time by CMake). |
-| `docs/HANDOFF.md`, `docs/lanes/INDEX.md` | ours (the integration side) taken, then the generated regions rebuilt by `tools/gen_handoff_tables.py` from `docs/lanes/` and `docs/runs/` (a union would paste a lane's stale pre-2026-10-20 HANDOFF back in). |
-| `docs/manual-checks.md` | unioned, then its generated run table rebuilt by `tools/gen_handoff_tables.py`. |
-| `docs/specs/QUESTIONS.md` | generated index: take either side and regenerate with `python tools/questions.py index` (the train does this in its regenerate step). |
-| `docs/specs/questions/<spec>.md` | one file per spec, append-at-end, so it normally merges cleanly. If it conflicts with both sides only appending, the union keeps both appends. |
-| anything else | left conflicted and reported; the operator resolves it. |
-
 ## ABI version
 
-`tools/bump_abi.py --batch <id> --lanes a,b,c` increments `FC4_ABI_VERSION` once per batch and appends one `fc4.h`
-history line naming every lane in the batch. It records what it did in `build-runs/abi-batches.json` so a batch is
-never bumped twice. `merge-train.py` calls it (and falls back to a built-in bump if the script is missing).
+The train calls `tools/bump_abi.py --batch <id> --lanes a,b,c` once per ABI batch (built-in fallback if absent).
+It records the bump in `build-runs/abi-batches.json` and appends a `fc4.h` history line naming the lanes.
 
 ## State
 
@@ -83,10 +34,3 @@ Notices are `build-runs/merge-notices/<lane>.md` and `build-runs/merge-notices/t
 `build-runs/gate-train<n>.out` (summary) with the record `build-runs/gate-train<n>.json` and the step logs in
 `build-runs/gate-logs/train<n>/`, regress output `build-runs/regress-train<n>.out` (both UTF-8 — the PowerShell
 `*>` files elsewhere in `build-runs/` are UTF-16 and need `tr -d '\0'`).
-
-## Measuring
-
-Coverage numbers come from `python tools/coverage.py` ([docs/coverage-report.md](coverage-report.md)), never from an
-estimate. Tokens per lane and per coverage point come from `python tools/lanes.py ledger`
-([docs/token-ledger.md](token-ledger.md)), dollars per point from `tools/spend.py`
-([docs/ops/efficiency-log.md](ops/efficiency-log.md)). A lane does not record them itself.

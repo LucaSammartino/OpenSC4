@@ -5,7 +5,7 @@
   "network-geometry 9.1",
   "18.7"
  ],
- "description": "Init(0, 1000); fixed a = 0, c = 30; b with initial height 0; slope(a, b, 11.2033) and slope(b, c, 11.2033): Solve fails (|c - a| = 30 > 22.4066). With c = 20: b's range is [r24(20 - 11.2033), 11.2033] and b = 8.7967 (the initial 0 clamped). The fixed vertices are picked first (width 0), then b.",
+ "description": "Init(0, 1000); fixed a = 0, c = 30; b with initial height 0; slope(a, b, 11.2033) and slope(b, c, 11.2033): Solve fails (|c - a| = 30 > 22.4066). With c = 20: b's range is [r24(20 - 11.2033), 11.2033] and b = 8.7967 (the initial 0 clamped). Ordered singleton visits queue a then c, so the pending stack picks c then a before the hash pick of b (NT36).",
  "steps": [
   {
    "op": "ng_sat",
@@ -152,12 +152,12 @@
    "call": "solution",
    "expect": [
     [
-     1,
-     0.0
-    ],
-    [
      3,
      20.0
+    ],
+    [
+     1,
+     0.0
     ],
     [
      2,

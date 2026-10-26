@@ -116,6 +116,7 @@
 #include "FC4ExemplarFactory.h"   // the glue-exemplars4 lane
 #include "FC4Span565Bridge.h"     // the glue-span565-impl4 lane
 #include "FC4Span1555Shadow.h"    // the glue-span1555-impl4 lane: span1555
+#include "FC4Inplace.h"
 #include "FC4OrdinanceShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -129,6 +130,7 @@
 #include "cFC4AdvisorSystem.h"
 #include "cFC4MySim.h"
 #include "cFC4MySimDispatch.h"
+#include "cFC4RegionalCity.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -463,6 +465,11 @@ const ClassEntry kNetworkManagerClasses[] = {
 const ClassEntry kNetworkLotClasses[] = {
     {kFC4_CLSID_cSC4NetworkLotManager, "cSC4NetworkLotManager", &CreateFC4NetworkLotManager},
 };
+const ClassEntry kNetworkLotObjectClasses[] = {
+    // Internal objects from network-manager.md sections 2.3/2.4; created by this manager in live use.
+    {kFC4_CLSID_cFC4NetworkLot, "cSC4NetworkLot", &CreateFC4NetworkLot},
+    {kFC4_CLSID_cFC4NetworkLotConfiguration, "cSC4NetworkLotConfiguration", &CreateFC4NetworkLotConfiguration},
+};
 // docs/specs/network-tools.md §1: the network tools (glue29). The tool
 // classes have no GZCOM class ID of their own (question NM11: the manager's
 // factory builds them directly), so the replacement is registered as one
@@ -551,6 +558,11 @@ const ClassEntry kNetOccClasses[] = {
     {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
 };
 
+// regional-city.md section 1: opt-in factory replacement.
+const ClassEntry kRegionalCityClasses[] = {
+    {0x6A037C24, "cSC4RegionalCity", &CreateFC4RegionalCity},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -632,6 +644,13 @@ const Subsystem kSubsystems[] = {
     // network-rules.md section 2.4.3: the rule owners have no factory/IID.
     // Select the existing manager/tool hosts below, never invent class IDs.
     {"netrules", nullptr, nullptr, 0, false},
+    {"regionalcity", nullptr, kRegionalCityClasses, sizeof(kRegionalCityClasses) / sizeof(kRegionalCityClasses[0]), false},
+    // Manager-created lot/configuration views; use with netlot for live replacement.
+    {"netlotobj", nullptr, kNetworkLotObjectClasses,
+        sizeof(kNetworkLotObjectClasses) / sizeof(kNetworkLotObjectClasses[0]), false},
+    // data-formats section 8.1: use the FC4 exemplar/cohort factories and their
+    // property holders. Packed-file segments remain a separate replacement.
+    {"formats", nullptr, nullptr, 0, false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -837,7 +856,11 @@ void Resolve() {
     // The data-formats shadow (FC4FormatsShadow.h; glue-formats4): core DBPF/exemplar readers vs the game.
     FormatsShadowStartup();
     // The exemplar/cohort factory replacement (FC4ExemplarFactory.h; glue-exemplars4).
-    ExemplarFactorySetEnabled(enabledKey("exemplars"));
+    ExemplarFactorySetEnabled(enabledKey("exemplars") || enabledKey("formats"));
+    if (enabledKey("formats")) {
+        Log("formats: FC4 exemplar/cohort resource factories selected (data-formats 8.1); "
+            "FC4 property holders and resource properties; packed-file segments remain original");
+    }
     Span565SetEnabled(enabledKey("span565"));  // the glue-span565-impl4 lane (FC4Span565Bridge.h)
     if (enabledKey("overlays")) {
         Log("overlays: FC4 owner factory registered; native manager interception=0 (SPEC-GAP)");
@@ -859,6 +882,7 @@ void Resolve() {
     OrdinanceShadowStartup(enabledKey("simulator"), enabledKey("ordinance"));
     ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
     LegacyCtlShadowStartup();
+    InplaceStartup();
 }
 
 }  // namespace

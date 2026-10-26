@@ -20,7 +20,12 @@ fn store(words: &mut [u32], at: usize, v: Vec3) {
 /// Snapshot references 284 words; input and output reference 32 words each.
 /// All three ranges are initialized and disjoint.
 #[no_mangle]
-unsafe extern "C" fn fc4_viewutil_shadow_cached(op: u32, snapshot: *const u32, input: *const u32, output: *mut u32) {
+pub(crate) unsafe extern "C" fn fc4_viewutil_shadow_cached(
+    op: u32,
+    snapshot: *const u32,
+    input: *const u32,
+    output: *mut u32,
+) {
     // SAFETY: fixed-size private transport contract above.
     let words = unsafe { std::slice::from_raw_parts(snapshot, 0x470 / 4) };
     // SAFETY: fixed-size private transport contract above.
@@ -105,7 +110,7 @@ unsafe extern "C" fn fc4_viewutil_shadow_cached(op: u32, snapshot: *const u32, i
 /// # Safety
 /// Input and output each reference 32 initialized words, in disjoint storage.
 #[no_mangle]
-unsafe extern "C" fn fc4_viewutil_shadow_local(op: u32, input: *const u32, output: *mut u32) {
+pub(crate) unsafe extern "C" fn fc4_viewutil_shadow_local(op: u32, input: *const u32, output: *mut u32) {
     // SAFETY: fixed-size private plugin transport contract above.
     let input = unsafe { std::slice::from_raw_parts(input, 32) };
     // SAFETY: fixed-size private plugin transport contract above.

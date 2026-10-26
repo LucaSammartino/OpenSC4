@@ -1,0 +1,6 @@
+2026-10-25 09:25:08.906 [pid 9792 tid 26008] nettool plan shadow julian=2461073: mismatches=0 unavailable=0 vectors=12 scope=clear-land-draft-status-cost origin=(38,2) fields=return,ordered-cells,failure,valid,straight,total,cost exact=2/2
+2026-10-25 09:25:08.906 [pid 9792 tid 26008] powerline plan shadow julian=2461073: mismatches=0 unavailable=0 vectors=6 scope=clear-land-draft-status-cost origin=(38,2) fields=return,ordered-cells,failure,valid,straight,total,cost exact=2/2
+2026-10-25 09:26:22.081 [pid 9792 tid 26008] dbpf_bounds shadow 2026-01-27: 447304/447304 clean, records=111826 compressed=88769 empty=0 mismatches=0
+2026-10-25 09:24:56.521 [pid 9792 tid 26008] formats shadow: SimCity_1.dat: 8957 exemplar entries, 8957 compared, 8957 exact, 0 differ, 0 rejected by the core, 0 not loaded by the game, 148756 properties compared
+2026-10-25 09:24:56.530 [pid 9792 tid 26008] formats shadow: total: 9 files (1 unreadable), 8957 exemplar entries, 8957 compared, 8957 exact, 0 differ, 0 rejected by the core, 0 not loaded by the game, 148756 properties compared, 1203 ms; EXACT
+2026-10-25 09:24:58.994 [pid 9792 tid 26008] formats shadow: store total: 0 not loaded by the game, failures 0 agree / 0 loaded by the game, 2469 ms; EXACT

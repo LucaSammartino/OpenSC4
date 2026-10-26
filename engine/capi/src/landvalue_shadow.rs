@@ -514,6 +514,10 @@ fn same_f32(a: f32, b: f32) -> bool {
     a.to_bits() == b.to_bits()
 }
 
+#[cfg(test)]
+#[path = "landvalue_recording_tests.rs"]
+mod recording_tests;
+
 fn mark(same: bool) -> &'static str {
     if same {
         ""

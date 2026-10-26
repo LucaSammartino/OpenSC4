@@ -514,13 +514,13 @@ impl ConnectionHost for Services {
     fn drive_side(&self) -> bool {
         true
     }
-    fn other_city_established(&mut self, _: &NeighborConnection) -> bool {
+    fn other_city_established(&mut self, _: &Rc<NeighborConnection>) -> bool {
         true
     }
     fn adjacent_connections(&mut self) -> Vec<IncomingCity> {
         std::mem::take(&mut self.incoming)
     }
-    fn points_to_this_city(&mut self, _: &NeighborConnection) -> bool {
+    fn points_to_this_city(&mut self, _: &Rc<NeighborConnection>) -> bool {
         true
     }
     fn network_exists(&mut self, _: u32) -> bool {
@@ -836,10 +836,10 @@ fn preferences_and_setup_city_order() {
 fn non_serializable_element_counts_are_not_adjusted() {
     struct Missing;
     impl RecordElements for Missing {
-        fn connection(&mut self, _: &NeighborConnection, _: &mut dyn OutStream) -> Option<bool> {
+        fn connection(&mut self, _: &Rc<NeighborConnection>, _: &mut dyn OutStream) -> Option<bool> {
             None
         }
-        fn deal(&mut self, _: &NeighborDeal, _: &mut dyn OutStream) -> Option<bool> {
+        fn deal(&mut self, _: &Rc<NeighborDeal>, _: &mut dyn OutStream) -> Option<bool> {
             None
         }
     }

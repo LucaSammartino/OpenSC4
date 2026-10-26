@@ -55,6 +55,17 @@ impl ViewUtilities {
         for (i, corner) in out.view.corners.iter_mut().enumerate() {
             *corner = v(0xa8 + i * 12);
         }
+        // SPEC-GAP: ground-line word order is unpublished; derive §3.2 lines from cached corners.
+        out.view.ground_lines = [
+            GroundLine {
+                origin: out.view.corners[3],
+                direction: out.view.corners[7] - out.view.corners[3],
+            },
+            GroundLine {
+                origin: out.view.corners[0],
+                direction: out.view.corners[4] - out.view.corners[0],
+            },
+        ];
         for (i, plane) in out.view.planes.iter_mut().enumerate() {
             *plane = Plane {
                 normal: v(0x160 + i * 16),
@@ -87,5 +98,27 @@ mod tests {
             8.0
         );
         assert!(ViewUtilities::from_native_cached_words(&words[..10]).is_none());
+    }
+
+    #[test]
+    fn cached_box_predicate_uses_the_corner_ground_lines() {
+        let mut words = [0; 0x470 / 4];
+        // A at x=-1 points toward -z; B at x=1 points toward -z.
+        // Inside corners satisfy A<0 and B>0, with permissive vertical planes.
+        for (corner, x, z) in [(3, -1.0_f32, 0.0_f32), (7, -1.0, -1.0), (0, 1.0, 0.0), (4, 1.0, -1.0)] {
+            words[(0xa8 + corner * 12) / 4] = x.to_bits();
+            words[(0xb0 + corner * 12) / 4] = z.to_bits();
+        }
+        words[0x18c / 4] = 1.0_f32.to_bits();
+        words[0x19c / 4] = 1.0_f32.to_bits();
+        let view = ViewUtilities::from_native_cached_words(&words).unwrap();
+        assert!(view.is_bounding_box_in_view_frustum(Aabb {
+            min: Vec3::new(-0.5, -100.0, -100.0),
+            max: Vec3::new(0.5, 100.0, 100.0),
+        }));
+        assert!(!view.is_bounding_box_in_view_frustum(Aabb {
+            min: Vec3::new(2.0, 0.0, 0.0),
+            max: Vec3::new(3.0, 1.0, 1.0),
+        }));
     }
 }

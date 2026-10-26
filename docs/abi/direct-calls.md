@@ -307,3 +307,24 @@ cSC4TutorialUIWinProc::vftable	00a8638c	9	+0x24	00442320	cSC4TutorialUIWinProc::
 cSC4TutorialUIWinProc::vftable	00a8638c	10	+0x28	00441c50	cSC4TutorialUIWinProc::FilterLeftMouseClick	12	3	al	high	this=base; two borrowed pointers to32-bit coordinate values then int32 stage;00441c83-00441ca8;00441d94-00441da5
 cSC4TutorialUIWinProc::vftable	00a8638c	11	+0x2c	00443b40	cSC4TutorialUIWinProc::ResetTutorialNumAndIndex	8	2	eax	high	this=base; GUID:uint32,relativeIndex:int32 by value; signed relative index or -1;00443bb7-00443bcc
 ```
+
+## Power pole occupant and power line tool entries (NO44, re-no28, 2026-10-26)
+
+Native entries the replacement power pole and the native power-line tool cross (see `docs/specs/network-occupants.md`
+section 4.6.3 and the NO44 answer in `docs/specs/questions/answered/network-occupants.md`). These are native call
+contracts, not new C exports. Every function is `__thiscall` and takes the concrete **base** of the primary pole object
+(or, for `CreatePowerPole`, the native tool base) in ECX; none of them is reachable through a `cISC4Occupant*`. The two
+`GetLineCells*` entries return in AL only; the other pole entries leave no result for their callers (EAX is not
+consumed), except `GetAttachmentPoints`, which returns AL = 1 (`mov al, 1` immediately before its only `ret 8`).
+Bytes were checked against the supported-game executable by the architect.
+
+```tsv
+method	address	convention	this	arguments	callee_pop	return	ownership	evidence
+cSC4PowerPoleOccupant::FUN_00649910	00649910	__thiscall	concrete primary pole base	other:non-null primary pole base; flag:bool low byte in a 4-byte slot	8	none; caller reads no result	no ownership transfer	callers 0064f4f3,0064f511,006518e6,00651a2e; body 00649916-006499a4; network-occupants 4.6.3
+cSC4PowerPoleOccupant::AddConnection	0064e3e0	__thiscall	concrete primary pole base	other:nullable primary pole base; wires:nullable pointer to a 12-byte native wire-vector header (item stride 16, line primary pointer at item+8)	8	none; caller reads no result	caller keeps the input container and its references; the owner retains `other` once and each line once	body 0064e3e9-0064e47f,0064e804-0064e91c; network-occupants 4.6.3
+cSC4PowerPoleOccupant::GetLineCells	0064be50	__thiscall	primary pole (primary slot 5)	index:signed int32; out:writable native cell-vector header (begin,end,capacity; cell stride 8)	8	AL only (bool); upper EAX unspecified	caller owns the game-allocated output buffer; failure preserves the output, success replaces its logical content	body 0064be58-0064beed,0064bfb2-0064bfc8; network-occupants 4.6.3
+cSC4PowerPoleOccupant::GetLineCellsTo	00649dd0	__thiscall	primary pole (primary slot 16)	other:primary pole base; out:writable native cell-vector header	8	AL only (bool); upper EAX unspecified	the first exact pointer match dispatches slot 5; no match preserves the output	body 00649dd0-00649e43; network-occupants 4.6.3
+cSC4PowerLineTool::CreatePowerPole	00650140	__thiscall	native power-line tool base	info:pointer to a 48-byte pole-info record	4	none; caller reads no result	the factory is bypassed; fixed pole views at occupant+8 and exemplar+24h; kind dword at tool+b8h	body 00650140-00650241; network-occupants 4.6.3
+cSC4PowerPoleOccupant::GetAttachmentPoints	00649ba0	__thiscall	concrete primary pole base	orientation:low byte of a 4-byte slot; out:caller-owned buffer of four xyz float triplets (48 bytes)	8	AL = 1 (always true); callers consume only the output buffer	reads base+e4h, base+a0h, base+a4h, base+a8h; no ownership transfer	body 00649bb7-00649cf8; network-occupants 4.6.3
+cSC4PowerPoleOccupant::RebuildWires	0064d510	__thiscall	concrete primary pole base	other:primary pole base	4	none; caller reads no result	a native exemplar update enters both endpoint bases directly	body 0064d51a-0064d58b,0064d685-0064d695; network-occupants 4.6.3
+```
