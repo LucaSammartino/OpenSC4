@@ -50,7 +50,7 @@ All values are little-endian (foundations §2).
 
 | Name | Bytes |
 |---|---|
-| `u8`, `u16`, `s16`, `u32`, `s32`, `f32` | as named |
+| `u8`, `s8`, `u16`, `s16`, `u32`, `s32`, `f32` | as named; `s8` is a signed one-byte integer |
 | `bool` | one byte, 0 or 1 |
 | `vec3` | three `f32`: x, y, z |
 | `ref` | `u32` object ID; when non-zero, followed by `u32` class ID (foundations §3.4). 0 is null and has no class. |
@@ -805,11 +805,18 @@ Derived dispatchers layered on the base: `cSC4TrafficAutomaton::DoStateTick` `0x
 |---|---|---|
 | pedestrian | `0x896E75AF` | `u16` 5, traffic record, `bool`, `vec3`, `f32`, `u32` (Write `0x00544650`, Read `0x005446C0`) |
 | vehicle | `0x896E714A` | `u16` 2, traffic record, `u32` n + n × (`u32`, `s32`, `s32`) path entries, `u32` 0, `vec3`, `vec3` (−1, −2, −3), `f32` (Write `0x0055F640`, Read `0x0055BCF0`) |
+| carjacked vehicle | `0xCBB32B0A` | `u16` 1, complete vehicle record; no tail (§6.4.1; Write `0x0053CE00`, Read `0x00524490`) |
+| mayor's limo | `0x4C0DD224` | `u16` 1, complete vehicle record; no tail (§6.4.1; same Write/Read as carjacked vehicle) |
+| tank | `0xEBE0DCAD` | `u16` 2, complete vehicle record, `s8` first auxiliary model index, `s8` second auxiliary model index (§6.4.3; Write `0x0054AA30`, Read `0x0054A8E0`) |
 | emergency vehicle | (`0x896E714A`, see §12) | `u16` 2, vehicle record, `vec3`, `ref` occupant (`0x26BB767E`), `u8`, `u16`, `u32` (Write `0x0052FA60`, Read `0x0052FAE0`) |
+| ambulance | `0x6C1ACDE1` | `u16` 1, complete emergency record; no tail (§6.4.2; Write `0x00504BF0`, Read `0x00504C10`) |
+| fire truck | `0xAA222B83` | `u16` 2, complete emergency record, `ref` crew automaton (`0xA9B40F05`) (§6.4.2; Write `0x00532EE0`, Read `0x00532F20`) |
 | patrol car | `0x4A222B98` | `u16` 2, emergency record, `ref` automaton (`0xA9B40F05`) (Write `0x00543DB0`, Read `0x00543DF0`) |
 | trailer vehicle | `0x4A5B69ED` | `u16` 2, vehicle record, `u32` n + n × `ref` vehicle (read checks IID **`0x896E714A`**, AM10), `u32` m + m × `u32`, `vec3`, `ref` network occupant (`0xA821EF94`), `u32` (Write `0x005562A0`, Read `0x00556C30`) |
+| mass-transit train | `0x4C22AE53` | `u16` 1, complete Train record, including its TrainCar wrapper and train tail; no additional tail (§6.4.4; Write `0x0053CB30`, Read `0x0053CB50`) |
 
-Each Read in this table requires its leading `u16` to equal the version shown, exactly (AM2, §4.1).
+Except Tank (§6.4.3), each Read in this table requires its leading `u16` to equal the version shown,
+exactly (AM2, §4.1). Nested records retain their own version words.
 
 **The trailer's vehicle refs (AM10).** The trailer reads them with IID `0x896E714A` (`0x00556C8B`). That is the
 vehicle's class ID, which the vehicle's `QueryInterface` (`0x0055B660`, test at `0x0055B665`) also answers as an
@@ -848,6 +855,192 @@ record, then the `vec3`.
   loaded one moves to it instead, so it is the position the aircraft was placed at.
 - Aircraft and watercraft carry no traffic record (§6.3). Their own state types (50–58 and 70–78, §6.2) all use
   the default record, except `CHASE` (52).
+
+#### 6.4.1 Carjacked vehicle and mayor's limo records (AT29; branch AT24)
+
+Both concrete classes use the same folded writer and reader, selected by their serializable tables
+`0x00A9786C` and `0x00A9993C`. Each record is exactly **`u16 1`; complete Vehicle record** from the table
+above, with no class-specific trailing fields. Their class IDs remain distinct in the object store's
+reference/class framing; neither class ID is an extra scalar inside this record.
+
+For these sections, **V** denotes that complete Vehicle record, including its `u16 2`, the complete
+Traffic record (§6.3, `u16 2`), the Automaton record (§6.1, current `u16 8`) and Occupant record
+([lot-records.md](lot-records.md) §2.3, `u16 4`), then the Vehicle path count/entries, zero dword, two
+vectors and final float. The inherited readers require Vehicle 2, Traffic 2 and Occupant 4; Automaton
+accepts unsigned versions at most 8 under §6.1's version-dependent field rules. No wrapper removes a
+nested version or changes any inherited reference IID. In particular the inherited controller,
+leader, callback and network references request `0x6A1857F8`, `0xA9B40F05`, `0x452294AA` and
+`0xA821EF94`, respectively (§§6.1–6.3). The traffic leader is another `0xA9B40F05` reference.
+
+The outer reader accepts **exactly 1**. A different word returns false after two bytes, without entering
+Vehicle. For version 1, Read returns Vehicle Read's Boolean result; Write emits 1 and returns Vehicle
+Write's result. Neither adds a reference operation, tail read or final stream-error test. Inherited
+failure does not rewind bytes already consumed or undo inherited object changes. Evidence: outer
+write/call `0x0053CE0A–0x0053CE14`; read/check/call `0x005244A1–0x005244B6`.
+
+**Worked cases.** Take a valid current V of length L whose inherited reference resolutions succeed.
+For each of the two class IDs separately, Write must produce length **L+2**, with version-word prefix
+`1, 2, 2, 8, 4`. Read consumes L+2 bytes, returns the inherited success and leaves a following sentinel
+untouched. Changing just the outer word to 0 or 2 consumes two bytes and returns false. Keeping outer
+1 but changing V's version to 3 consumes four bytes and returns false; no implicit retry as plain
+Vehicle is performed. The distinct class identities must survive a re-save despite the shared methods.
+
+#### 6.4.2 Ambulance and fire-truck records, including Emergency Read (AT30/AT33; branch AT25/AT28)
+
+Let **E** be the complete Emergency record. Its exact order, following the scalar/ref encodings of §1,
+is:
+
+| Order | Field |
+|---|---|
+| 0 | `u16 2`, Emergency's own version |
+| 1 | complete V, including Vehicle's own `u16 2` |
+| 2 | `vec3` dispatch target |
+| 3 | `ref` home/station occupant; reader requests IID `0x26BB767E` |
+| 4 | `u8` re-path attempts |
+| 5 | `u16` call number |
+| 6 | `u32` dispatch state |
+
+Emergency accepts **exactly 2**, then invokes Vehicle Read. An outer mismatch returns false without
+entering Vehicle; Vehicle failure returns false without reading Emergency's tail. On Vehicle success,
+the target, occupant reference, byte, word and dword are read in that order. The home/station output
+member is passed directly to the shared reference reader; Emergency adds no explicit old-reference
+release here. It restores the dispatch-state scalar directly, without invoking SetDispatchState or
+its siren/crew side effects. Its final Boolean remains Vehicle's result: neither individual tail
+getter/helper results nor a fresh stream-error check replace it. Its writer similarly writes the tail
+only after Vehicle Write succeeds and returns that inherited result. These statements describe normal
+returns; they do not suppress a framework exception.
+
+Evidence: Emergency version, nested Vehicle and tail writes `0x0052FA6B–0x0052FAC9`; read version,
+nested call and tail `0x0052FAF2–0x0052FB6A`. The byte's re-path use is at `0x0052FE72`; GetCallNumber
+reads the word at `0x00505030`; SetDispatchState stores the dword at `0x0052FF8B`.
+
+**Ambulance (`0x6C1ACDE1`).** The whole record is **`u16 1`; E**, with no Ambulance tail or additional
+reference IID. Its outer reader requires exactly 1 and returns false after two bytes on mismatch;
+otherwise Read/Write return the result of Emergency Read/Write. Evidence: `0x00504BFA–0x00504C04`,
+`0x00504C21–0x00504C36`.
+
+**Fire truck (`0xAA222B83`).** The whole record is **`u16 2`; E; `ref` crew automaton**. The outer reader
+requires exactly 2. It calls Emergency Read and reads the crew only if that returned true. The crew
+reference requests **IID `0xA9B40F05`**, not a fire-crew class ID or an occupant IID. It is a single
+reference, not an inline crew record or a count/list. The writer emits this reference only after
+Emergency Write succeeds. Both methods preserve the inherited Boolean result; the reference helper's
+return and a fresh stream-error test are not used to replace it.
+
+On Read the crew is first resolved into a null-initialized temporary. If that output differs from the
+old crew, the routine explicitly AddRefs a non-null new crew, stores it and Releases a non-null old
+crew, in that order. An identical output leaves the member and counts alone. Null therefore clears an
+old crew without itself making FireTruck Read false. This is the wrapper's explicit ownership work,
+in addition to whatever the shared reference loader does. Evidence: write `0x00532EEB–0x00532F12`;
+read check/delegation `0x00532F32–0x00532F52`, IID and assignment `0x00532F55–0x00532F99`, retained
+result `0x00532F9D`.
+
+These concrete classes' distinct class IDs select their own wrappers. The standalone Emergency
+class-ID collision in §12 quirk 3 does **not** shift the record nesting when an Ambulance or FireTruck
+is loaded. Their common current version prefix down to Occupant is `1, 2, 2, 2, 8, 4` for Ambulance,
+or `2, 2, 2, 2, 8, 4` for FireTruck. PatrolCar's similar framing is not the evidence for FireTruck.
+
+**Worked Ambulance case.** Use successful V of length L, target `(1,2,3)`, null station, attempts 2,
+call number `0x1234` and dispatch state 3. E's tail is 12 vector bytes, 4 null-reference bytes, then
+`02`, `34 12`, `03 00 00 00`: **23 bytes**. Thus E is L+25 bytes and Ambulance is **L+27** bytes.
+Read restores all five tail values without running dispatch-state transitions. Outer Ambulance 2
+rejects after two bytes; outer 1 followed by Emergency 1 rejects after four, with no Vehicle read.
+
+**Worked FireTruck case.** Use that same E and a crew reference with object ID 37 and class
+`0x4A222E4D` (SimFireCrew), whose resolved object C answers `0xA9B40F05`. Its reference occupies
+eight bytes, so the whole FireTruck record is **L+35** bytes; with a null crew it is **L+31**.
+Starting with old crew X distinct from C, expect the wrapper's AddRef(C), store C, Release(X), after
+the helper resolves C. Loading a null crew instead clears X and still returns true if E returned
+true. If Emergency's version is wrong, only the first four bytes are consumed, false is returned
+and the existing crew is untouched. No crew tail is read or written after inherited failure.
+
+#### 6.4.3 Tank record framing and saved model indices (AT31; branch AT26)
+
+Tank (`0xEBE0DCAD`) writes **`u16 2`; V; `s8` first auxiliary model index; `s8` second auxiliary model
+index**. This corrects the earlier "Vehicle plus two dwords" wording in [vehicles.md](vehicles.md)
+§§1, 6. The tail is **two bytes total**, not eight; the leading wrapper is another two bytes.
+There are no Tank-specific serializable references or extra IIDs.
+
+The indices refer to the inherited model-instance list, not yaw, barrel elevation, power, raw model
+pointers or resource keys. At the serialization interface R, the list occupies `R+0x108/+0x10C`,
+the two live auxiliary handles are `R+0x354/+0x358` and Read stores the two saved bytes at
+`R+0x350/+0x351`. R is primary P+8: these are respectively P's list `+0x110/+0x114`, handles
+`+0x35C/+0x360` and saved bytes `+0x358/+0x359`. Init requests model part 1 for the first handle and
+part 2 for the second, or rebinds the saved indices into the loaded list (`0x0054C8AC–0x0054C9A0`).
+The primary-view `+0x350/+0x354` elevation/power fields in vehicles.md §12.13 are different fields.
+
+Write computes each index afresh by scanning the model-instance list in order for pointer equality
+with its corresponding handle. The initial value is −1 (`FF`). Every match replaces the value with
+the low eight bits of that zero-based position, so the **last match wins**; an absent handle remains
+`FF`. It writes first-handle index before second-handle index. The signed byte interpretation matters
+to subsequent Init; Read itself performs no range or uniqueness validation. Evidence: initial index
+bytes and scan `0x0054AA57–0x0054AAA7`, byte writes `0x0054AAB3–0x0054AAC8`. Stream slot `+0x10`
+is signed-byte input/output (`0x00AA2280`/`0x00AA2310`), not the dword slot `+0x24`.
+
+Read accepts unsigned outer versions **0, 1 or 2**, rejecting values greater than 2 after two bytes.
+It then calls Vehicle Read. Only when Vehicle returns true **and** Tank version is 2 does it read
+the two index bytes. For versions 0/1 there is no Tank tail and existing saved-index bytes remain
+unchanged. Following any accepted Tank version, its final result is **true iff the stream's GetError
+is zero**, even if Vehicle Read returned false. There is no rewind or rollback. In contrast, Write
+returns Vehicle Write's Boolean and writes the two bytes only when that result is true; it does not
+replace that Boolean after tail errors. Evidence: wrapper write `0x0054AA3E–0x0054AA55`; unsigned
+version/read gating `0x0054A8F4–0x0054A930`; final GetError/result `0x0054A933–0x0054A940`.
+
+**Worked cases.** With model list `[body, A, B, A]`, first handle A and second B, successful Write is
+`u16 2`, V of length L, then **`03 02`**, total **L+4** bytes. With neither handle in the list, its
+tail is `FF FF`. A historical version-1 record ends immediately after V (L+2 bytes); loading it into
+an object with saved bytes 7 and 9 leaves those bytes 7 and 9. To distinguish the failure quirk, feed
+`02 00 03 00 AA BB`: Tank 2 accepts, Vehicle rejects version 3, neither index is read, and a stream
+whose successful word reads leave GetError=0 makes Tank return **true after four bytes**, leaving
+`AA BB`. Changing Tank's first word to 3 instead returns false after two bytes. A real stream error
+after an accepted Tank version makes the final result false.
+
+#### 6.4.4 Mass-transit train record and failures (AT32; branch AT27)
+
+MassTransitTrain (`0x4C22AE53`) is **`u16 1`; complete Train record**, without a further derived tail.
+Expanded through the train-specific fields, its exact order is:
+
+| Order | Field |
+|---|---|
+| 0 | `u16 1`, MassTransitTrain's own version |
+| 1 | `u16 2`, Train version |
+| 2 | `u16 2`, TrainCar version |
+| 3 | complete V, including its own Vehicle and Traffic versions |
+| 4 | `u32` car-reference count, then that many `ref`s requesting IID `0x4A416254` |
+| 5 | raw `u32` field at the train serialization view `+0x2C0` |
+| 6 | `vec3` at that view `+0x2D4` |
+| 7 | independent network-occupant `ref`, requesting IID `0xA821EF94` |
+| 8 | raw `u32` field at that view `+0x2E4` |
+
+The raw dwords round-trip bit-for-bit. The network reference in field 7 is additional to the traffic
+network reference inside V. All other inherited reference IIDs are those in §6.4.1. The current
+version-word prefix down to Occupant is **`1, 2, 2, 2, 2, 8, 4`**. See
+[vehicles.md](vehicles.md) §12.1 for the inherited Train/TrainCar contract.
+
+MassTransitTrain accepts **exactly 1**; Train and TrainCar each require **exactly 2**. An outer
+mismatch returns false after two bytes without calling Train. A matching outer version delegates
+Read/Write and returns Train's result, without another stream-error test or tail operation. Train
+rejects a bad Train or TrainCar version before entering the next layer; Vehicle failure prevents all
+train-tail reads/writes. Nothing rewinds a consumed version or undoes earlier changes.
+
+After successful Vehicle Read, Train consumes every declared car reference, appending each non-null
+resolved car in order and skipping nulls. It does not clear a pre-existing car list. It then reads
+the first raw dword and vector, releases its old trailing network reference, resolves its replacement
+and reads the last dword. Null cars or a null trailing network reference do not introduce a separate
+false result. The train-tail getter/helper results do not replace the nested Vehicle Boolean on
+normal return; the derived wrapper adds no such check either. Framework exceptions remain possible.
+Evidence: outer writes `0x0053CB3A–0x0053CB44`, read/check/call `0x0053CB61–0x0053CB76`; Train writes
+`0x0055793B–0x005579D1`, version checks `0x0055AAE5–0x0055AB32`, car IID/append
+`0x0055AB57–0x0055ABB0`, trailing fields and retained result `0x0055ABB2–0x0055AC0A`.
+
+**Worked case.** Use V of length L, three car references `[A, null, B]` with non-null eight-byte refs
+to TrainCar objects, first raw dword `0x11223344`, vector `(1,2,3)`, null trailing network reference
+and final raw dword `0x55667788`. The whole record is **L+54** bytes: six wrapper bytes before V,
+four count bytes, 20 car-reference bytes, 4+12+4+4 tail bytes. Starting with car list `[X]`, successful
+Read leaves `[X,A,B]`, releases an old trailing network object and stores null, and preserves both
+raw dwords. With no cars and null trailing network, length is L+34 instead. Prefix versions
+`2`, `1,3`, `1,2,3`, or `1,2,2,3` reject after 2, 4, 6 or 8 bytes respectively, without reading the
+train tail. A reader treating this as plain Train would fail on its first word; omitting either
+TrainCar's wrapper or the train tail is not an equivalent encoding.
 
 §6.5 and §6.6 below are **behaviour, not records**: what each state type does per frame. They sit under §6
 because they belong with the state types; nothing in them is saved.

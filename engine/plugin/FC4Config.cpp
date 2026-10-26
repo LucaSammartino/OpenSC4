@@ -288,6 +288,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_turbo_wait_days", "close_dialogs",
                                   "sim_fixed_step",  // golden harness; default off
                                   "script_save_grace_ms",  // golden full-save allowance; default off
+                                  "autotest_stall_grace_ms",  // suite city-size allowance; default off
                                   "autotest_quit_post", "script_port_instant", "script_port_probe",  // off
                                   "tract_shadow", "tract_seed", "tract_grow_log",
                                   // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
@@ -442,11 +443,12 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Native entry census; opt-in only.
                                   "reach", "reach_cap", "reach_window", "reach_include_probes",
                                   "reach_contracts", "reach_output", "reach_diagnostics", "reach_lifecycle",
-                                  "reach_contracts", "reach_output", "reach_diagnostics",
                                   // Explicit DX7 shadow selection before city resources, default off.
                                   "gdriver_shadow_select",
                                   // Opt-in scenario drivers and pre-application reach window.
                                   "ui_command_catalog", "reach_startup",
+                                  // Sampled land-value input-change diagnostics (not native Step capture).
+                                  "landvalue_shadow_inputs",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

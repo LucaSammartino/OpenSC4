@@ -88,6 +88,8 @@ enum class Direct : unsigned {
     // texture-bindings.md §2: bare counted bindings, not cIGZUnknowns.
     TextureBindingAddRef,   // thiscall (), pop 0, void (functions.tsv)
     TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
+    // network-occupants.md §4.6.3: concrete *native* primary pole only.
+    PoleAttachmentPoints,  // thiscall (orientation low byte, xyz[4]), pop 8, AL
     Count
 };
 

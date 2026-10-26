@@ -46,6 +46,7 @@ pub mod extras;
 pub mod grading;
 pub mod params;
 pub mod passes;
+mod plane;
 pub mod satisfier;
 pub mod smoothing;
 
@@ -154,8 +155,8 @@ pub trait GeometryHost {
     fn existing_piece(&self, _x: i32, _z: i32) -> Option<ExistingPiece> {
         None
     }
-    /// §3.3 step 3: the cell holds an auto-connect occupant (slots 65 and
-    /// 67) or, for road, a cell info with edge bits.
+    /// §3.3.1: slot 65 accepts an occupant of this underground layer, or
+    /// a connection whose slot 38 names that layer. Slot 67 is not consulted.
     fn extends_diagonal_end(&self, _x: i32, _z: i32, _type_id: u32) -> bool {
         false
     }
@@ -265,22 +266,64 @@ pub fn draw_network_line(
     let (c, s) = drag::compute_dragged_rows(start, seg.end, &seg, w1, w2);
     run.cells = c;
     run.steps = s;
-    // §3.3 step 3: [inferred] "whose end is diagonal" is read as the end
-    // direction (always diagonal), so the next cell is the last cell plus
-    // the end direction's offset (Q NG9).
+    // §3.3.1 (NG8): slot 64 admits pipe/subway only. Test the start before
+    // the finish, using step displacements and the updated vector at finish.
     let n = run.steps.len() as u32;
-    if w1 == 1 && (n >= 3 || (n == 2 && seg.straight_count == n)) {
-        if let Some(&(x, z)) = run.cells.last() {
-            let (dx, dz) = direction_offset(seg.end_direction);
-            if host.extends_diagonal_end(x + dx, z + dz, info.type_id) {
-                let i = run.cells.len() as u32;
-                run.cells.push((x + dx, z + dz));
-                run.steps.push(Step {
-                    first: i,
-                    last: i,
-                    kind: StepKind::Regular,
-                });
+    if w1 == 1 && params::is_underground(info.type_id) && (n >= 3 || (n == 2 && seg.straight_count == n)) {
+        let kind = run.steps[0].kind;
+        let mut rows: Vec<Vec<(i32, i32)>> = run
+            .steps
+            .iter()
+            .map(|s| run.cells[s.first as usize..=s.last as usize].to_vec())
+            .collect();
+        for start_end in [true, false] {
+            let count = rows.len();
+            let terminal = if start_end { 0 } else { count - 1 };
+            let adjacent = if start_end { 1 } else { count - 2 };
+            let (a, b) = if run.straight_count as usize == count {
+                (terminal, adjacent)
+            } else if start_end {
+                (1, 2)
+            } else {
+                (count - 2, count - 3)
+            };
+            let delta = (rows[a][0].0 - rows[b][0].0, rows[a][0].1 - rows[b][0].1);
+            let first = rows[terminal][0];
+            let candidate = (first.0 + delta.0, first.1 + delta.1);
+            if candidate.0 as u32 >= cells.0
+                || candidate.1 as u32 >= cells.1
+                || !host.extends_diagonal_end(candidate.0, candidate.1, info.type_id)
+            {
+                continue;
             }
+            let singleton = run.straight_count == 0 && rows[terminal].len() == 1;
+            let source = if singleton { adjacent } else { terminal };
+            let translated = rows[source].iter().map(|&(x, z)| (x + delta.0, z + delta.1)).collect();
+            if singleton {
+                rows[terminal][0] = candidate;
+            }
+            rows.insert(
+                if start_end {
+                    usize::from(singleton)
+                } else {
+                    count - usize::from(singleton)
+                },
+                translated,
+            );
+            if run.straight_count != 0 {
+                run.straight_count += 1;
+            }
+        }
+        run.cells.clear();
+        run.steps.clear();
+        for row in rows {
+            let first = run.cells.len() as u32;
+            run.cells.extend(row);
+            run.steps.push(Step {
+                first,
+                last: run.cells.len() as u32 - 1,
+                kind,
+            });
         }
     }
     run.dragged_count = run.steps.len() as u32;
@@ -414,6 +457,7 @@ impl NetworkGeometry {
         let info = self.info(self.run.type_id);
         self.smoothing =
             smoothing::compute_initial_smoothing_set(&self.run, &self.solved, &self.cells, level, t.cells());
+        plane::apply(self, t, host);
         smoothing::smoothen_network(
             &mut self.network,
             &self.smoothing,

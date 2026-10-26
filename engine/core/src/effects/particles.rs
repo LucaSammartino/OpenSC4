@@ -246,13 +246,28 @@ pub struct ParticleSimulator {
 }
 
 impl ParticleSimulator {
-    /// No guessed service identities or native transform algorithm (PT13).
-    pub fn init_native_services(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported::PT13)
+    pub fn init_native_services(
+        &mut self,
+        state: &mut super::particle_owners::ordinary::NativeServices,
+        shared: u64,
+        foreign: &mut impl super::particle_owners::ordinary::TerrainServices,
+    ) {
+        state.init(shared, foreign);
+        if let Some(motion) = &mut self.motion {
+            motion.city_extent = Some(state.extent);
+        }
     }
     /// Component main slot 4 is distinct from the draw-associated update.
     pub fn component_update(&mut self, _dt: f32) {}
     pub fn set_float_parameter(&mut self, id: u32, values: &[f32]) -> Result<(), Unsupported> {
+        if let Some(motion) = &mut self.motion {
+            if let Some(result) = motion.set_float(id, values) {
+                return match result? {
+                    true => Ok(()),
+                    false => Err(Unsupported::PT13),
+                };
+            }
+        }
         match id {
             2 => self.desc.scales[1] = values[0],
             0x102 => self.desc.scales[2] = values[0],
@@ -449,9 +464,22 @@ impl ParticleSimulator {
             particle.life = particle.age;
         }
     }
-    /// Names are uncomposed PT2 event requests, not fabricated effect lookups.
+    /// Suffix requests can be consumed directly or fired through §8.3's directory.
     pub fn take_events(&mut self) -> Vec<(Vec<u8>, [f32; 3])> {
         std::mem::take(&mut self.events)
+    }
+    pub fn fire_events(&mut self, directory: &mut impl super::particle_owners::ordinary::EventDirectory) {
+        if let Some(motion) = &self.motion {
+            let name = motion
+                .description
+                .value
+                .strings
+                .get(&0x160)
+                .map_or(&[][..], Vec::as_slice);
+            for (suffix, position) in std::mem::take(&mut self.events) {
+                super::particle_owners::ordinary::fire_event(name, &suffix, position, directory);
+            }
+        }
     }
     pub fn draw_slot(&self, context_present: bool, model_present: bool) -> u8 {
         if !context_present || self.live.is_empty() {
