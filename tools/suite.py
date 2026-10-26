@@ -4,7 +4,7 @@ Examples: python tools/suite.py run --set smoke --profile shadows --tag smoke1
           python tools/suite.py report smoke1 [--against smoke2]
 The queue must include this checkout in its roots. Requests opt into isolated
 parallel slots. No file in Documents is written by this tool.
-An exception after the target date and an accepted RequestQuit is reported as
+An exception after the target date and an accepted quit request is reported as
 clean-exit-crash, with its address; it still does not pass successful(). Earlier
 exceptions, missing quit evidence and harness errors retain their verdicts.
 """
@@ -310,6 +310,7 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     verdict_at = None
     end_line = None
     quit_line = None
+    quit_dispatch_failed = False
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
         try:
@@ -334,8 +335,12 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         if reached and reached[1] == end:
             result['end_reached'] = '1'
             end_line = line_no
-        if end_line and re.match(r'autotest: cISC4App::RequestQuit\([^)]*\) -> 1\b', body):
+        if end_line and re.match(
+                r'autotest: (?:cISC4App::RequestQuit\([^)]*\)|'
+                r'native quit command 0xC7AA61C6 queued) -> 1\b', body):
             quit_line = line_no
+        if re.match(r'autotest: native quit command 0xC7AA61C6 queued -> 0\b', body):
+            quit_dispatch_failed = True
         if body.startswith('first-chance exception '):
             address = re.search(r'\bat (0x[0-9a-fA-F]+)\b', body)
             if address:
@@ -427,6 +432,9 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         result['verdict'] = harness_verdict[1]
         result['invalid_reason'] = 'harness verdict overrides plugin verdict'
     result['raw_verdict'] = result['verdict']
+    if quit_dispatch_failed and result['verdict'] == 'clean':
+        result['verdict'] = 'harness-error'
+        result['invalid_reason'] = 'native quit command could not be queued; shutdown untested'
     if only_load:
         result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
     elif speed and float(speed[1]) == 0:

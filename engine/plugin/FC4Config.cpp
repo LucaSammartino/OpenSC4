@@ -289,6 +289,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_fixed_step",  // golden harness; default off
                                   "script_save_grace_ms",  // golden full-save allowance; default off
                                   "autotest_stall_grace_ms",  // suite city-size allowance; default off
+                                  "autotest_quit_post", "script_port_instant", "script_port_probe",  // off
                                   "tract_shadow", "tract_seed", "tract_grow_log",
                                   // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
                                   "commercial_shadow", "commercial_shadow_cells", "civic_shadow", "civic_seed",

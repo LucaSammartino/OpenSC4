@@ -219,7 +219,9 @@ public:
     // 5: the server AddRefs and keeps the target (not QueryInterface'd).
     virtual bool AddNotification(cIGZMessageTarget* target, uint32_t type) = 0;
     virtual bool RemoveNotification(cIGZMessageTarget* target, uint32_t type) = 0;  // 6
-    virtual bool GeneralMessagePostToTarget(const cGZMessage& msg, cIGZMessageTarget* target) = 0;  // 7
+    // 00930273 enqueues a copied message/target, then unlocks; it defines no
+    // Boolean result. Do not treat the unlock's return register as success.
+    virtual void GeneralMessagePostToTarget(const cGZMessage& msg, cIGZMessageTarget* target) = 0;  // 7
     virtual bool CancelGeneralMessagePostsToTarget(cIGZMessageTarget* target) = 0;  // 8
     virtual bool OnTick(uint32_t unknown) = 0;                                      // 9
     virtual uint32_t GetMessageQueueSize() = 0;                                     // 10

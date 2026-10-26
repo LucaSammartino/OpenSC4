@@ -35,6 +35,10 @@
 // warnings of the Shutdown path) is written at PostSystemServiceShutdown. A
 // quit that has not got there in 90 s is "stalled"; a process still alive 30 s
 // after the verdict is terminated.
+// `autotest_quit_post = 1` (FC4_AUTOTEST_QUIT_POST; default off) posts the
+// application's native quit command instead of calling RequestQuit inside
+// the observer's tick. The main loop owns delivery; the same shutdown hook
+// and quit timeout still determine the verdict.
 // `autotest_unpause = 1|2` makes the observer run the loaded city at that
 // speed, unpaused, so month-start code runs too.
 // `autotest_save_after_months = N` (the observer, FC4Observer.h): after N
