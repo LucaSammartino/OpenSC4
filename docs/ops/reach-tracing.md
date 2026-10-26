@@ -13,9 +13,17 @@ calendar-based scenario shortening. Post-city-shutdown writes a checkpoint
 without stopping; `PreAppShutdown` stops before plugin hooks are restored.
 No settings or city state change merely by enabling this tracing option.
 
-`python tools/suite.py run --set reach29 --profile shadows --reach --slots 4
---extra "reach_lifecycle = 1" --extra "reach_cap = 1" --tag TAG` runs the four
-load/save, empty-development and Lua-view scenarios in isolated queue slots.
+First generate a reduced roster with `python tools/suite_reach_gaps.py
+--baseline build-runs/suite/BEFORE --out build-runs/gaps
+--contracts build-runs/exact-contracts.tsv`. Lifecycle tracing of the complete
+roster is unqualified: reach29-r1 had three corrupt runs and one clean run.
+Use the generated roster explicitly as `reach_contracts = <absolute path>`;
+it retains reached and unreached implemented functions under baseline-exact
+keys. It changes the instrumentation footprint, never the coverage weights.
+`python tools/suite.py run --set reach29 --profile shadows --slots 4
+--extra "reach = 1" --extra "reach_lifecycle = 1" --extra "reach_cap = 1"
+--extra "reach_contracts = <absolute path>" --tag TAG` runs the four load/save,
+empty-development and Lua-view scenarios in isolated queue slots.
 `python tools/suite_reach_gaps.py --baseline build-runs/suite/BEFORE
 --after build-runs/suite/NEW --out build-runs/reach-delta` ranks exact-shadow
 gaps and reports per-owner executed/verified gains and first mismatch lines.

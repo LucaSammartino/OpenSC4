@@ -63,6 +63,10 @@ class ReachGapTests(unittest.TestCase):
         owners, functions, _ = gaps.measure(self.data, evidence(exact=(), bad=['foo']))
         self.assertEqual((owners, functions), ([], []))
 
+    def test_lifecycle_roster_keeps_reached_and_unreached_exact_owners(self):
+        self.assertEqual(gaps.contract_addresses(self.data, evidence([1]), {}), {1, 2})
+        self.assertEqual(gaps.contract_addresses(self.data, evidence(exact=(), bad=['foo']), {}), set())
+
 
 if __name__ == '__main__':
     unittest.main()

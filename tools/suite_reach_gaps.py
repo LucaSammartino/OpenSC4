@@ -6,6 +6,7 @@ This uses suite_coverage's conservative, whole-census shadow verdicts.
 """
 import argparse
 from collections import defaultdict
+import csv
 import json
 from pathlib import Path
 
@@ -66,11 +67,32 @@ def load_directory(directory):
     return suite_coverage.load(directory.parent.parent.parent, directory.name)
 
 
+def contract_addresses(data, baseline, aliases):
+    """Bound a lifecycle trace to implemented owners with baseline-exact shadows.
+
+    This changes instrumentation footprint only; byte weights and credit still
+    come from coverage.load_report_data and the raw positive entry counters.
+    """
+    return {address for address, _, index, _ in data['game']
+            if index is not None and data['rows'][index]['implemented']
+            and shadow_key(data['rows'][index], aliases) in baseline['exact']}
+
+
+def write_contracts(source, destination, addresses):
+    with source.open(encoding='utf-8-sig', newline='') as stream:
+        reader = csv.DictReader(stream, delimiter='\t')
+        columns = reader.fieldnames
+        rows = [row for row in reader if int(row['address'], 16) in addresses]
+    suite_coverage.sibling('suite').write_tsv(destination, columns, rows)
+    return len(rows)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True)
     parser.add_argument('--after', type=Path)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--contracts', type=Path, help='write a reduced exact-owner entry roster for lifecycle runs')
     args = parser.parse_args(argv)
     coverage = suite_coverage.sibling('coverage')
     data = coverage.load_report_data()
@@ -78,6 +100,11 @@ def main(argv=None):
     after = load_directory(args.after) if args.after else None
     owners, gaps, metrics = measure(data, baseline, after, coverage.SHADOW_LABEL_ALIAS)
     args.out.mkdir(parents=True, exist_ok=True)
+    if args.contracts:
+        roster = Path(__file__).resolve().parents[1] / 'docs/abi/functions.tsv'
+        count = write_contracts(roster, args.contracts,
+                                contract_addresses(data, baseline, coverage.SHADOW_LABEL_ALIAS))
+        print(f'exact-owner contracts: {count}; {args.contracts}')
     writer = suite_coverage.sibling('suite').write_tsv
     writer(args.out / 'owners.tsv', ['owner', 'key', 'implemented_bytes', 'gap_bytes', 'gap_functions',
                                    'newly_executed_bytes', 'newly_verified_bytes', 'verdict'], owners)
