@@ -601,7 +601,7 @@ fade to zero. Already-stopping state is preserved. Other states become idle.
 With an external controller the call uses StopCellExternal instead
 (`0x00945D1A`, `0x00945C20`). Update polls the source/controller and can
 return a finished cell to idle (`0x009459BF`). The complete external-controller
-protocol and special loop/countdown branch remain SS7.
+protocol and special loop/countdown branch are specified in §6.2.2 below.
 
 *[compat]* UpdateScaledVol `0x00945820` uses signed integer arithmetic,
 not a single floating-point product. Let `C` be cell word `+0x24`, `A`
@@ -752,7 +752,7 @@ and AsIGZSnd3DListenerEx at 10. Init `0x00967FE4`, Shutdown `0x009683EF`,
 DataDirectory `0x0096C061`, GetTestMode `0x00968352` and extension helpers
 `0x009676D2`, `0x00967ACB`, `0x0096818B`, `0x009686B6`, `0x009689E9`
 complete the named lifecycle/configuration inventory. Numeric listener
-conversion and the unlisted tail/folded entries remain SS8.
+conversion and the tail/folded entries are specified in §§7.1.1–7.1.2 below.
 
 *[compat]* DoEvent(existing event) offers it to registered handlers in
 list order and stops at the first true result; it returns false when none
