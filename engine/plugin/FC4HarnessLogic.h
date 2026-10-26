@@ -237,6 +237,7 @@ enum class ScriptOp {
     UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl,
     BudgetWindow, // budgetwindow: open the native budget UI; explicit script opt-in only
     GZFrameworkProbe // gzfwprobe: register, parse, dispatch and unregister an isolated command
+    Span565Probe // span565probe: explicit public software-buffer workload
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -291,6 +292,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::UiWait: return "uiwait";
         case ScriptOp::UiControl: return "uicontrol";
         case ScriptOp::BudgetWindow: return "budgetwindow";
+        case ScriptOp::Span565Probe: return "span565probe";
     }
     return "?";
 }
@@ -561,6 +563,9 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         }
     } else if (name == "gdriverprobe") {
         a.op = ScriptOp::GDriverProbe;
+        if (!wantArgs(0, "none")) return false;
+    } else if (name == "span565probe") {
+        a.op = ScriptOp::Span565Probe;
         if (!wantArgs(0, "none")) return false;
     } else if (name == "pause" || name == "resume" || name == "digest") {
         a.op = name == "pause" ? ScriptOp::Pause : name == "resume" ? ScriptOp::Resume : ScriptOp::Digest;
