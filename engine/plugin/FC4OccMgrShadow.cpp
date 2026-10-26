@@ -1802,15 +1802,22 @@ uint32_t __fastcall ObserveMessagePost(void* self, void* edx, cIGZMessage2* msg,
         Lock lock;
         if (g_fol.core) {
             ++g_follow.externalMoves;
-            if (g_follow.externalMoves <= 4) {
-                void* p = nullptr;
-                if (msg->QueryInterface(GZIID_cIGZMessage2Standard, &p) && p) {
-                    auto* s = static_cast<cIGZMessage2Standard*>(p);
-                    FC4_ACQUIRED(s, "QueryInterface");
+            void* p = nullptr;
+            if (msg->QueryInterface(GZIID_cIGZMessage2Standard, &p) && p) {
+                auto* s = static_cast<cIGZMessage2Standard*>(p);
+                FC4_ACQUIRED(s, "QueryInterface");
+                // This is an input to the shared queue, not output of a
+                // manager call. Preserve its position among the independently
+                // predicted manager posts (foundations §5.1). Fulham's first
+                // divergent delivered Move was captured here, outside every
+                // manager call; replaying Move on the core would invent one.
+                g_follow.coreMsgs.push_back(MsgRec{kMsgMoved, Canonical(static_cast<cIGZUnknown*>(s->GetVoid1())),
+                                                   static_cast<uint32_t>(s->GetData4())});
+                if (g_follow.externalMoves <= 4) {
                     Log("occmgr shadow native post: external move of %p d4=%u priority=%u thread=%u",
                         s->GetVoid1(), unsigned(s->GetData4()), priority, unsigned(GetCurrentThreadId()));
-                    FC4_RELEASE(s);
                 }
+                FC4_RELEASE(s);
             }
         }
     }
