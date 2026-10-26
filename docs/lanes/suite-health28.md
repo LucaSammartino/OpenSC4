@@ -1,17 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| suite-health28: scenario harness health; tools | Codex / suite-health28 / detached HEAD, reserved branch suite-health28 | WIP round 5; code 618f7e2c0, 6fb072ff7; pytest 536 PASS; ABI unchanged; questions none | 1. Drain the existing census owner. 2. Refresh coverage and validate tier1. 3. Enqueue tools after qbuild all. |
+| suite-health28: scenario harness health; tools | Codex / suite-health28 / detached HEAD; reserved branch suite-health28 | READY to land tooling; code 4d4097239, 828f60d86, 02c881ea2; pytest 542, cargo 7889, clippy 0 diagnostics, CTest 124/124 PASS; census 175/179 complete; shadows 279185/285410 exact; ABI unchanged; questions none; tier1 qualification FAILED | 1. Resolve registered tier faults and remaining harness causes. 2. Remeasure and qualify tier1; it remains unmarked. |
 
-Round 5 starts from the round 4 checkpoint; architect resumed sh28-census3 with six slots.
-Live owner confirmed via native command-line query: PID 27572, suite.py resume sh28-census3 --slots 6; no second orchestrator.
-Acceptance 1 progress: suite_triage/audit wrote causes.tsv for all missing/invalid rows plus known quit faults; final harvest waits for the owner.
-Latest queue snapshot: 164/179 returned; active owner still submitting original rows; no resubmissions.
-Acceptance 2 checkpoint: clean and complete reach/shadow evidence 156/179 = 87.15% (target 80%); strict actions 92/179 = 51.40%; not final.
-Acceptance 3 snapshot: coverage.py --suite sh28-census3 PASS; suite-verified 0 bytes (0.0%); suite-exercised 1,545,277 (27.7%); suite-replaced 0.
-Acceptance 4 pending: candidate estimate 95.24% union / 584s on six slots; one merged-source clean run <=900s required before tier1 marking.
-Acceptance 5: main through train268 merged at 76eceff28; full corrected pytest 536 PASS; qbuild quick PASS (178/178); qbuild all pending.
-Real commands: python -m pytest tools/tests -q printed 536 passed in 483.11s; initial attempt 535 PASS/1 PowerShell timeout, retained separately.
-Harness causes: Souther Bay dialog-held; Magnolia unestablished; Port of Shiganshina window-exhausted. No invented exception addresses.
-Parser now accepts only the known null access at SimCity 4.exe+0x1D0F94 after accepted quit; raw verdict/address retained in causes.tsv.
-Shared queue only; parallel=1; at most eight owned outstanding requests; Documents regions read-only.
-Next: drain PID 27572, run build-runs/health28_acceptance.py --tier (refuses a live owner), refresh coverage and final gate.
+Final round 2026-10-26: finished the existing census and its planned tier measurement; both owners drained.
+Census acceptance PASS: sh28-census3 returned 179/179; clean with complete reach/shadows 175/179 = 97.77% (target 80%); 178 reach traces.
+Qualification is narrow: 17 clean rows include the known post-quit null read at SimCity 4.exe+0x1D0F94; raw verdicts/exceptions remain in causes.tsv.
+Strict actions: 93/179 = 51.96%; 23070 accepted / 8794 failed actions; the strict 80% gate is NOT met.
+Cause acceptance: build-runs/suite/sh28-census3/{causes,cause_groups,evidence_gaps}.tsv group all failures and qualified quit faults with raw evidence.
+Remaining census harness causes: Souther Bay dialog-held; Magnolia unestablished; Port of Shiganshina window-exhausted; owner27-effects emergency calendar stall (6586.48s).
+Retained prior harness fixes: size-scaled limits, save grace, dialog closing, isolated load paths, fixture repairs, and evidence-preserving verdict parsing.
+Finding rows: three tier crashes at FreeCity4.dll+0xEDC7D8 reading 0x00005001; Jinae load AV at SimCity 4.exe+0x193CE1; emergency pause and churn calendar stall; not minimized.
+Tier selection estimate: eight scenarios, 95.37% census union, 649s on six slots; this estimate did not qualify the set.
+Real tier acceptance FAILED: sh28-tier1-r5 returned 8/8; 3 clean/complete, 1 corrupt, 3 exited, 1 stalled; only 3 reach traces.
+Measured tier: 1322179/1546094 census-union implemented bytes = 85.52% (target 95%); six-slot wall 2333.297s (limit 900s).
+tier1 remains unmarked; build-runs/suite/sh28-tier1-r5/{health.json,causes.tsv,finding_candidates.tsv,coverage-report.md} retain the failed measurement.
+python tools/coverage.py --suite sh28-census3 printed exercised 1546094 bytes (27.7%), verified 329798 (5.9%), replaced 0; docs/coverage-report.md refreshed.
+python tools/coverage.py --suite sh28-tier1-r5 --out build-runs/suite/sh28-tier1-r5/coverage-report.md printed exercised 1322999 (23.7%), verified 412296 (7.4%), replaced 0.
+Shadows are not all exact: census 279185/285410; tier 9213/9774.
+Final tooling gate: python -m pytest tools/tests -q printed 542 passed in 128.88s (0:02:08), exit 0; earlier round outputs remain separate.
+One final python <MAIN>/.claude/lane-bin/qbuild.py --wt <WT> all printed cargo 7889 PASS, clippy 0 diagnostics, build 50/50 edges, CTest 124/124, qbuild PASS.
+Real fixture parse printed: suite.tsv: 180 valid rows; 13 findings; 0 marked tier1. No saves or third-party DLLs committed.
+Shared queue only, parallel=1, at most six owned requests outstanding this round; Documents regions remained read-only.
+Missing: repair the four remaining harness causes and qualify a clean 95%/900s tier; tooling is ready to land with those limits recorded.
+Next: coordinator lands tools, assigns the registered engine/load findings, then remeasures tier1 after fixes.
