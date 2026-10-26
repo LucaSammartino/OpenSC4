@@ -1823,6 +1823,15 @@ pub unsafe extern "C" fn fc4_advisors_push_event(
     with_h(p, false, |h| h.sys.push_event(event_id, s))
 }
 
+/// Same-boundary shadow import of the unsaved scheduler field (mysims §3.1.1).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_advisors_shadow_last_day(p: *mut fc4_advisors, last_day: i32) -> bool {
+    with_h(p, false, |h| {
+        h.sys.with_state(|s| s.last_day = last_day);
+        true
+    })
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn fc4_advisors_get_state(p: *const fc4_advisors, out: *mut fc4_advisors_state) -> bool {
     let Some(o) = out.as_mut() else { return false };
