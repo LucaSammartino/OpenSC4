@@ -3,6 +3,7 @@
 #include "fc4.h"
 #include <windows.h>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <map>
@@ -13,6 +14,11 @@ namespace fc4 {
 // must identify 1.1.641, relocate the declared ordinary vtable, and protect
 // the prop's lifetime. Never apply this layout to an undeclared custom prop.
 struct PropEffectSnapshot {
+    static uint32_t Word(float value) {
+        uint32_t result;
+        std::memcpy(&result, &value, sizeof(result));
+        return result;
+    }
     template<class T> static T At(const void* p, size_t offset) {
         T result;
         std::memcpy(&result, static_cast<const uint8_t*>(p) + offset, sizeof(result));
@@ -68,16 +74,35 @@ public:
         uint32_t slot = 0, date = 0;
         std::array<uint32_t, 4> args{};
         fc4_prop_effect_state before{}, after{};
+        std::array<uint8_t,2> timeBefore{}, timeAfter{};
         PropEffectRandom randomBefore, randomAfter;
         bool available = false;
         const char* Difference(fc4_prop_effect_result& effects, fc4_prop_effect_state* output = nullptr) const {
             if (!available) return "unavailable";
             auto expected = before;
             auto random = randomBefore;
-            if (!fc4_prop_developer_shadow_effect(&expected, slot, args.data(), date,
+            auto time = timeBefore;
+            if (slot == 13) {
+                // Compare stored bytes through the existing independent core
+                // prop implementation. This does not certify clock effects.
+                fc4_prop_occupant_host host{};
+                host.struct_size = sizeof(host);
+                auto* core = fc4_prop_occupant_create(&host, nullptr);
+                if (!core) return "time-input";
+                float start, end;
+                std::memcpy(&start, &args[0], sizeof(start));
+                std::memcpy(&end, &args[1], sizeof(end));
+                fc4_prop_occupant_set_time_of_day_range(core, start, end);
+                fc4_prop_occupant_get_time_of_day_range(core, &start, &end);
+                fc4_prop_occupant_destroy(core);
+                time = {static_cast<uint8_t>(std::lround(start * 10.f)),
+                        static_cast<uint8_t>(std::lround(end * 10.f))};
+                effects = {};
+            } else if (!fc4_prop_developer_shadow_effect(&expected, slot, args.data(), date,
                 random.words.data(), &random.index, &effects)) return "semantic-input";
             if (output) *output = expected;
             if (std::memcmp(&expected, &after, sizeof(expected)) != 0) return "semantic-output";
+            if (time != timeAfter) return "time-output";
             return random == randomAfter ? nullptr : "random-output";
         }
         bool Check(fc4_prop_effect_result& effects) const { return Difference(effects) == nullptr; }
@@ -102,7 +127,8 @@ public:
         table_ = ordinary; random_ = random; now_ = now; tick_ = tick;
         valid_ = true; recording_ = true; depth_ = 0; events_.clear();
         const std::pair<size_t, void*> callbacks[] = {
-            {11, reinterpret_cast<void*>(&State)}, {15, reinterpret_cast<void*>(&Range)},
+            {11, reinterpret_cast<void*>(&State)}, {13, reinterpret_cast<void*>(&Time)},
+            {15, reinterpret_cast<void*>(&Range)},
             {16, reinterpret_cast<void*>(&Tick)}, {17, reinterpret_cast<void*>(&Chance)},
             {21, reinterpret_cast<void*>(&Timer)}
         };
@@ -170,6 +196,8 @@ private:
         e.prop = reinterpret_cast<uintptr_t>(self); e.slot = slot; e.args = args;
         e.date = slot == 16 ? trace->tick_(date) : slot == 15 ? trace->now_(nullptr) : 0;
         e.available = PropEffectSnapshot::Capture(self, trace->table_, e.before) && e.randomBefore.Capture(trace->random_);
+        if (e.available) e.timeBefore = {PropEffectSnapshot::At<uint8_t>(self, 0x5e),
+                                         PropEffectSnapshot::At<uint8_t>(self, 0x5f)};
         trace->events_.push_back(e);
         ++trace->depth_;
         invoke(original);
@@ -177,6 +205,8 @@ private:
         auto& result = trace->events_[i];
         result.available = PropEffectSnapshot::Capture(self, trace->table_, result.after) &&
             result.randomAfter.Capture(trace->random_) && result.available;
+        if (result.available) result.timeAfter = {PropEffectSnapshot::At<uint8_t>(self, 0x5e),
+                                                  PropEffectSnapshot::At<uint8_t>(self, 0x5f)};
     }
     static void __fastcall State(void* p, void* edx, uint32_t state) {
         Call(p, 11, {state,0,0,0}, nullptr, [&](void* f) {
@@ -186,6 +216,11 @@ private:
     static void __fastcall Chance(void* p, void* edx, uint8_t chance) {
         Call(p, 17, {chance,0,0,0}, nullptr, [&](void* f) {
             reinterpret_cast<void (__fastcall*)(void*,void*,uint8_t)>(f)(p,edx,chance);
+        });
+    }
+    static void __fastcall Time(void* p, void* edx, float start, float end) {
+        Call(p, 13, {PropEffectSnapshot::Word(start),PropEffectSnapshot::Word(end),0,0}, nullptr, [&](void* f) {
+            reinterpret_cast<void (__fastcall*)(void*,void*,float,float)>(f)(p,edx,start,end);
         });
     }
     static void __fastcall Timer(void* p, void* edx, uint32_t mask, bool on) {

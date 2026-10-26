@@ -313,6 +313,10 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.host.set_random_chance = [](void*, uint64_t p, uint8_t v) {
         if (g_effectReplay) g_effectReplay->Call(p, 17, {v,0,0,0});
     };
+    b.host.set_time_of_day_range = [](void*, uint64_t p, float start, float end) {
+        if (g_effectReplay) g_effectReplay->Call(p, 13,
+            {PropEffectSnapshot::Word(start),PropEffectSnapshot::Word(end),0,0});
+    };
     b.host.set_prop_timer = [](void*, uint64_t p, uint32_t mask, bool on) {
         if (g_effectReplay) g_effectReplay->Call(p, 21, {mask,on?1u:0u,0,0});
     };
@@ -502,6 +506,7 @@ struct MonthStats {
     uint32_t selectorEvents = 0, selectorZero = 0;
     uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
     uint32_t operationsEligible = 0, operationsExact = 0, operationsIncomplete = 0;
+    uint32_t operationRecords = 0;
     uint32_t nights = 0, nightExact = 0, nightDraws = 0;
     uint32_t creationTags = 0, creationTagsMatched = 0;
     uint32_t creationSpans = 0, creationSpansMatched = 0;
@@ -736,12 +741,16 @@ void StepAfter(void* ctx) {
         bool eligible;
         ~Result() {
             if (eligible) ++g_month.operationsEligible;
-            if (eligible && g_month.d.mismatches == before) {
-                WriteCapture cap;
-                CoreBox native;
-                if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(step.orig))) ||
-                    !ReadInto(native, cap, step.orig)) g_month.d.Add("operation record unavailable");
-                else CompareCores(g_run.core, native.core, g_month.d);
+            // Check the saved projection even when another output failed or
+            // remains incomplete. Creation/dated effects must not hide owner
+            // list/map or scanner differences until the end of the month.
+            WriteCapture cap;
+            CoreBox native;
+            if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(step.orig))) ||
+                !ReadInto(native, cap, step.orig)) g_month.d.Add("operation record unavailable");
+            else {
+                ++g_month.operationRecords;
+                CompareCores(g_run.core, native.core, g_month.d);
             }
             if (eligible && g_month.d.mismatches == before) ++g_month.operationsExact;
             else {
@@ -1269,6 +1278,7 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " operations-eligible=" + std::to_string(g_month.operationsEligible) +
                              " full-operations-exact=0" +
                              " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
+                             " operation-records=" + std::to_string(g_month.operationRecords) +
                              " night-callbacks=" + std::to_string(g_month.nights) +
                              " night-exact=" + std::to_string(g_month.nightExact) +
                              " night-draws=" + std::to_string(g_month.nightDraws) +

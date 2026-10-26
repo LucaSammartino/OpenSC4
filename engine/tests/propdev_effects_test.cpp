@@ -13,6 +13,12 @@ void __fastcall State(void* p, void*, uint32_t state) {
     ++calls; Put<uint8_t>(p,0x63,static_cast<uint8_t>(state));
 }
 void __fastcall Chance(void* p, void*, uint8_t chance) { ++calls; Put(p,0x62,chance); }
+void __fastcall Time(void* p, void*, float start, float end) {
+    ++calls;
+    if (start == 18.25f && end == 8.75f) {
+        Put<uint8_t>(p,0x5e,182); Put<uint8_t>(p,0x5f,87);
+    }
+}
 void __fastcall Timer(void* p, void*, uint32_t mask, bool on) {
     ++calls;
     const uint8_t before = Snapshot::At<uint8_t>(p,0x60);
@@ -45,6 +51,7 @@ int main() {
     static_assert(sizeof(void*)==4,"PV18 native fixture is x86");
     void* table[22]{};
     table[11]=reinterpret_cast<void*>(&State); table[15]=reinterpret_cast<void*>(&Range);
+    table[13]=reinterpret_cast<void*>(&Time);
     table[16]=reinterpret_cast<void*>(&Tick); table[17]=reinterpret_cast<void*>(&Chance);
     table[21]=reinterpret_cast<void*>(&Timer);
     std::array<uint8_t,0x70> prop{};
@@ -86,20 +93,22 @@ int main() {
     reinterpret_cast<void (__fastcall*)(void*,void*,uint32_t)>(table[11])(prop.data(),nullptr,256);
     reinterpret_cast<void (__fastcall*)(void*,void*,uint32_t,uint32_t,uint8_t,uint8_t)>(table[15])
         (prop.data(),nullptr,0,0,0,0);
+    reinterpret_cast<void (__fastcall*)(void*,void*,float,float)>(table[13])(prop.data(),nullptr,18.25f,8.75f);
     const auto delayedChance = reinterpret_cast<void (__fastcall*)(void*,void*,uint8_t)>(table[17]);
     trace.Finish();
-    if (!trace.Valid() || calls!=6 || trace.Events().size()!=4 || table[16]!=reinterpret_cast<void*>(&Tick)) return 6;
+    if (!trace.Valid() || calls!=7 || trace.Events().size()!=5 || table[16]!=reinterpret_cast<void*>(&Tick)) return 6;
     // Another thread can have loaded a wrapper before restoration. The
     // retained dispatch must still forward it once without recording it.
     delayedChance(prop.data(),nullptr,100);
-    if (calls!=7 || trace.Events().size()!=4) return 14;
+    if (calls!=8 || trace.Events().size()!=5) return 14;
     fc4::PropEffectReplay replay(trace);
     const uint64_t token=reinterpret_cast<uintptr_t>(prop.data());
     replay.Call(token,16,{},100);
     replay.Call(token,21,{4,1,0,0});
     replay.Call(token,11,{256,0,0,0});
     replay.Call(token,15,{},100);
-    if (!replay.Complete() || replay.Matched()!=4 || replay.Draws()!=1 || replay.Changes()!=2) return 7;
+    replay.Call(token,13,{Snapshot::Word(18.25f),Snapshot::Word(8.75f),0,0});
+    if (!replay.Complete() || replay.Matched()!=5 || replay.Draws()!=1 || replay.Changes()!=2) return 7;
     if (trace.Events()[3].after.present || trace.Events()[3].after.timer!=15) return 8;
     auto changed=trace.Events()[1];
     changed.randomAfter.index=623;
@@ -110,6 +119,9 @@ int main() {
     if (changed.Check(effect)) return 15;
     changed.available=false;
     if (changed.Check(effect)) return 16;
+    changed=trace.Events()[4];
+    changed.timeAfter[1]=88;
+    if (changed.Check(effect)) return 17;
     fc4::PropEffectReplay missing(trace), wrong(trace);
     if (missing.Complete()) return 10;
     wrong.Call(token,16,{},99);
