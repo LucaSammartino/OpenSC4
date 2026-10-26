@@ -13179,4 +13179,28 @@ bool fc4_netlot_iterate_lots_with_configuration(const fc4_netlot* l,
 }
 #endif
 
+/* PV18 prop-developer observer transport: operates only on independent copies.
+ * slots 11/15/16/17/21, four argument words, current date, 624 MT words/index.
+ * False leaves every output unchanged. Null range is distinct from a zero range.
+ * This checks semantic effects/RNG, not model calls or queued-message lifetime. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_prop_effect_state {
+    uint32_t present, interval, duration, start_day, end_day, timer, chance, state;
+} fc4_prop_effect_state;
+typedef struct fc4_prop_effect_result {
+    uint32_t state_called, state_changed, requested_state;
+    uint32_t timer_called, timer_mask, timer_on, random_drawn, random_value;
+} fc4_prop_effect_result;
+bool fc4_prop_developer_shadow_effect(fc4_prop_effect_state* state, uint32_t slot,
+                                     const uint32_t* args, uint32_t date,
+                                     uint32_t* words, uint32_t* index,
+                                     fc4_prop_effect_result* result);
+#ifdef __cplusplus
+}
+static_assert(sizeof(fc4_prop_effect_state) == 32, "fc4_prop_effect_state layout");
+static_assert(sizeof(fc4_prop_effect_result) == 32, "fc4_prop_effect_result layout");
+#endif
+
 #endif /* FC4_H */

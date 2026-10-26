@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include "FC4PropDevEffects.h"
 #include <windows.h>
 #include <cstdint>
 #include <map>
@@ -79,7 +80,13 @@ private:
         trace->events_.push_back({reinterpret_cast<uintptr_t>(lot),network,index,id,trace->depth_,
                                   trace->count_(),0,0});
         ++trace->depth_;
-        void* result=original(self,edx,lot,index,id); // native call exactly once
+        void* result=nullptr;
+        {
+            // Service internals are delegated. Its actual insertion handler
+            // resumes developer-effect capture at its own nested boundary.
+            PropEffectTrace::Recording delegated(false);
+            result=original(self,edx,lot,index,id); // native call exactly once
+        }
         --trace->depth_;
         auto& event=trace->events_[slot];
         event.nestedEnd=trace->count_();

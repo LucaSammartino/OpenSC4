@@ -121,6 +121,7 @@ bool g_pendingUncertain = false;
 uint32_t g_messageRemovals = 0;
 PropSelectorReplay* g_selectorReplay = nullptr;
 PropCreationTrace* g_creationTrace = nullptr;
+PropEffectReplay* g_effectReplay = nullptr;
 size_t g_creationCursor = 0;
 bool g_creationValid = true;
 struct CreationTagOutput {
@@ -293,6 +294,21 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.host.set_prop_requester = &CompareRequesterTag;
     PropBlockSnapshot::Bind(b.host);
     PropRegistrationInput::Bind(b.host);
+    b.host.set_prop_state = [](void*, uint64_t p, uint32_t v) {
+        if (g_effectReplay) g_effectReplay->Call(p, 11, {v,0,0,0});
+    };
+    b.host.set_random_chance = [](void*, uint64_t p, uint8_t v) {
+        if (g_effectReplay) g_effectReplay->Call(p, 17, {v,0,0,0});
+    };
+    b.host.set_prop_timer = [](void*, uint64_t p, uint32_t mask, bool on) {
+        if (g_effectReplay) g_effectReplay->Call(p, 21, {mask,on?1u:0u,0,0});
+    };
+    b.host.set_date_calendar_range = [](void* u, uint64_t p, uint32_t i, uint32_t l, uint8_t m, uint8_t d) {
+        if (g_effectReplay) g_effectReplay->Call(p, 15, {i,l,m,d}, RunHost().sim_date(u));
+    };
+    b.host.tick_date = [](void*, uint64_t p, uint32_t date) {
+        if (g_effectReplay) g_effectReplay->Call(p, 16, {}, date);
+    };
     b.core = fc4_prop_developer_create(&b.host, kShadowSeed, TokenOf(orig));
     if (b.core == nullptr) {
         b.ctx.reset();
@@ -475,6 +491,7 @@ struct MonthStats {
     uint32_t operationsEligible = 0, operationsExact = 0, operationsIncomplete = 0;
     uint32_t nights = 0, nightExact = 0, nightDraws = 0;
     uint32_t creationTags = 0, creationTagsMatched = 0;
+    uint32_t effectCalls = 0, effectMatched = 0, effectDraws = 0, effectChanges = 0;
     Diff d;
 };
 MonthStats g_month;
@@ -577,6 +594,7 @@ struct Step {
     fc4_prop_message message{};
     PropBlockSnapshot inputs;
     const PropSelectorTrace* trace = nullptr;
+    const PropEffectTrace* effects = nullptr;
     bool nativeFinished = false;
 };
 
@@ -616,13 +634,16 @@ void StepAfter(void* ctx) {
     if (!s.ran) return;
     const uint32_t mismatchesBefore = g_month.d.mismatches;
     PropSelectorReplay replay(s.trace->Events());
+    PropEffectReplay effects(*s.effects);
     g_selectorReplay = &replay;
+    g_effectReplay = &effects;
     if (s.block) PropBlockSnapshot::active = &s.inputs;
     g_inStep = true;
     const bool oursFinished = fc4_prop_developer_do_message(g_run.core, &s.message);
     g_inStep = false;
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
+    g_effectReplay = nullptr;
     const bool complete = s.trace->Valid() && replay.Complete();
     g_month.selectorMatched += U(replay.Matched());
     if (complete) ++g_month.replayComplete; else {
@@ -646,6 +667,31 @@ void StepAfter(void* ctx) {
         }
     }
     if (!s.inputs.valid) g_month.d.Add("frozen block input missing");
+    g_month.effectCalls += U(s.effects->Events().size());
+    g_month.effectMatched += U(effects.Matched());
+    g_month.effectDraws += U(effects.Draws());
+    g_month.effectChanges += U(effects.Changes());
+    if (!effects.Complete()) {
+        g_month.d.Add("prop effect transcript/semantics/RNG differ: consumed=%u matched=%u native=%u",
+            U(effects.Consumed()), U(effects.Matched()), U(s.effects->Events().size()));
+        static std::map<std::string,uint32_t> diagnosedEffects;
+        if (diagnosedEffects[effects.Failure()]++ < 8) {
+            Log("propdev effect invalid: reason=%s type=%08x consumed=%u matched=%u native=%u",
+                effects.Failure(), s.type, U(effects.Consumed()), U(effects.Matched()), U(s.effects->Events().size()));
+            if (const auto* e = effects.Expected()) {
+                fc4_prop_effect_state expected{};
+                fc4_prop_effect_result result{};
+                e->Difference(result, &expected);
+                Log("propdev effect values: prop=%p slot=%u args=%u,%u,%u,%u date=%u "
+                    "native/expected range=%u/%u I=%u/%u L=%u/%u S=%u/%u E=%u/%u timer=%u/%u chance=%u/%u state=%u/%u",
+                    FromToken(e->prop), e->slot, e->args[0], e->args[1], e->args[2], e->args[3], e->date,
+                    e->after.present, expected.present, e->after.interval, expected.interval,
+                    e->after.duration, expected.duration, e->after.start_day, expected.start_day,
+                    e->after.end_day, expected.end_day, e->after.timer, expected.timer,
+                    e->after.chance, expected.chance, e->after.state, expected.state);
+            }
+        }
+    }
     if (!g_creationTrace || !g_creationTrace->Valid() || !g_creationValid ||
         g_creationCursor != g_creationTrace->Events().size()) {
         g_uncertain = true;
@@ -782,6 +828,7 @@ bool __fastcall NativeNightMessage(void* self, void* edx, cIGZMessage2* msg) {
         return original(self, edx, msg);
     ++g_methodCalls;
     if (type == 0x99EF1142) {
+        PropEffectTrace::Recording registrationEffects(true);
         // The notification observer runs after the developer, too late to
         // sample registration state (PV18). Freeze at the genuine callback.
         fc4_prop_message message{};
@@ -1072,12 +1119,20 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     }
     PropSelectorTrace trace;
     PropCreationTrace creations;
+    PropEffectTrace effects;
     cISC4City* city = propcity::AppCity();
     const bool creationRecording = city && creations.Begin(city->GetLotDeveloper(), city->GetNetworkLotManager(),
         [](void* context,void* result) -> uint64_t {
             return PropToken(static_cast<Step*>(context)->pool, static_cast<cISC4Occupant*>(result));
         }, &s, []() -> size_t { return g_nested.size(); });
     const auto* version = compat::IdentifiedVersion();
+    const bool effectRecording = version && effects.Begin(
+        reinterpret_cast<void**>(version->imageBase + (0x00AA4900u - 0x00400000u)),
+        reinterpret_cast<const void*>(version->imageBase + (0x00B231B0u - 0x00400000u)),
+        [](const void*) -> uint32_t { return RunHost().sim_date(g_run.ctx.get()); },
+        [](const void* date) -> uint32_t {
+            return date ? static_cast<cFC4IGZDate*>(const_cast<void*>(date))->DayNumber() : 0;
+        });
     const bool recording = version && trace.Begin(requesters, version->imageBase);
     g_nested.clear();
     g_registrationInputs.clear();
@@ -1087,6 +1142,7 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     g_nativeOperation = false;
     trace.Finish();
     creations.Finish();
+    effects.Finish();
     // PV17: service insertion precedes requester tagging. Compare the final
     // native tag projection to the independent developer's requested writes;
     // never supply that final tag as a replay input. This does not certify
@@ -1105,8 +1161,10 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     g_creationCursor = 0;
     g_creationValid = creationRecording;
     s.trace = &trace;
+    s.effects = &effects;
     s.nativeFinished = *finished;
     if (!recording || !trace.Valid()) g_month.d.Add("selector transcript capture unavailable");
+    if (!effectRecording || !effects.Valid()) g_month.d.Add("prop effect capture unavailable");
     g_month.selectorEvents += U(trace.Events().size());
     for (const auto& event : trace.Events()) if (event.result == 0) ++g_month.selectorZero;
     if (!SehGuard("propdev shadow (after the step)", &StepAfter, &s)) {
@@ -1116,6 +1174,7 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     s.pool.Drain();
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
+    g_effectReplay = nullptr;
     g_creationTrace = nullptr;
     static bool loggedIncomplete = false;
     if (s.incomplete != nullptr && !loggedIncomplete) {
@@ -1175,6 +1234,10 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " night-draws=" + std::to_string(g_month.nightDraws) +
                              " creation-tags=" + std::to_string(g_month.creationTags) +
                              " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
+                             " effect-calls=" + std::to_string(g_month.effectCalls) +
+                             " effect-matched=" + std::to_string(g_month.effectMatched) +
+                             " effect-draws=" + std::to_string(g_month.effectDraws) +
+                             " effect-state-changes=" + std::to_string(g_month.effectChanges) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
     MethodLine(date);

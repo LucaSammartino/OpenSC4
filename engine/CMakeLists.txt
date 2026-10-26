@@ -1429,3 +1429,13 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
         PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+# PV18 ordinary prop effects: semantic snapshots and genuine-call transcripts.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_effects_test tests/propdev_effects_test.cpp)
+    target_include_directories(fc4_propdev_effects_test PRIVATE plugin)
+    target_compile_definitions(fc4_propdev_effects_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(fc4_propdev_effects_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_propdev_effects_test PRIVATE fc4_capi)
+    add_test(NAME propdev_effects_test COMMAND fc4_propdev_effects_test)
+endif()
