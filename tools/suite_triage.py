@@ -42,11 +42,16 @@ def diagnose(text, verdict_text, end, *, only_load=False):
             i, line = progress[-1]
             point = f'line {i}: {line}'
     verdict = result['verdict']
+    held = next((line for line in verdict_text.splitlines()
+                 if line.startswith('held: the city was held by a dialog ')), '')
     if not text and 'lua_script must name an existing repo-relative .lua file' in verdict_text:
         cause = 'launcher-lua-checkout'
         point = 'launcher rejected the staged Lua path before starting the game'
     elif verdict == 'no-load' and 'autotest: clock started;' in text:
         cause = 'launcher-load-detection'
+    elif verdict == 'invalid' and result['end_reached'] != '1' and held:
+        cause = 'dialog-held'
+        point = held
     elif verdict == 'invalid' and 'days_per_second=0.00' in raw and 'date=2000-01-01' in raw:
         cause = 'unestablished-city'
     elif verdict == 'invalid' and result['invalid_reason'] == 'end date not reached':
@@ -72,7 +77,7 @@ def diagnose(text, verdict_text, end, *, only_load=False):
                   or ('full-save watchdog grace' in saving and 'SaveCity(' not in saving)):
         cause = 'save-watchdog'
     owner = ('harness' if cause in ('launcher-lua-checkout', 'launcher-load-detection',
-              'unestablished-city', 'window-exhausted', 'save-watchdog', 'rejected',
+              'unestablished-city', 'window-exhausted', 'dialog-held', 'save-watchdog', 'rejected',
               'no-load', 'queue-timeout', 'not-submitted', 'missing') else
              'none' if verdict == 'clean' else 'game-or-engine')
     return dict(verdict=verdict, cause=cause, verdict_line=raw, address=address,

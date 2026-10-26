@@ -1,5 +1,9 @@
-import suite_triage
 import json
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import suite_triage
 
 
 def test_no_load_after_clock_is_a_launcher_failure():
@@ -55,6 +59,27 @@ def test_save_stall_is_a_harness_cause_with_tail_and_watchdog():
     assert row['address'] == '0x00412345'
     assert '11000 ms' in row['watchdog']
     assert 'context:' in row['last_lines']
+
+
+def test_dialog_hold_explains_an_exhausted_window_without_an_exception():
+    held = ('held: the city was held by a dialog (hidden 2) since game date '
+            '2049-04-14, for 671 s')
+    line = 'AUTOTEST VERDICT: clean (date=2049-04-14, days_per_second=0.04)'
+    row = suite_triage.diagnose(line, 'verdict: clean\nline: ' + line + '\n' + held,
+                               '2049-07-14')
+    assert row['verdict'] == 'invalid'
+    assert row['cause'] == 'dialog-held'
+    assert row['owner'] == 'harness'
+    assert row['first_exception_or_stall'] == held
+    assert row['address'] == '-'
+
+
+def test_a_recovered_dialog_hold_does_not_invalidate_a_completed_run():
+    row = suite_triage.diagnose('AUTOTEST VERDICT: clean (date=2049-07-14, days_per_second=0.4)',
+                               'verdict: clean\nheld: the city was held by a dialog '
+                               '(hidden 2) since game date 2049-04-14, for 6 s\n', '2049-07-14')
+    assert row['cause'] == 'clean'
+    assert row['end_reached'] == '1'
 
 
 def test_causes_includes_missing_rows_without_inventing_exceptions(tmp_path):
