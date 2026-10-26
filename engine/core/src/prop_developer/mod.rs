@@ -439,6 +439,9 @@ pub trait PropHost {
     fn time_of_day_range(&self, prop: u64) -> (f32, f32);
     /// `SetSimulatorDateRange(date, duration, flag, 0)`.
     fn set_date_range(&self, prop: u64, date: u32, duration: u32, flag: u8);
+    fn set_date_calendar_range(&self, prop: u64, date: u32, duration: u32, month: u8, _day: u8) {
+        self.set_date_range(prop, date, duration, month);
+    }
     fn tick_date(&self, prop: u64, date: u32);
     fn prop_position(&self, prop: u64) -> [f32; 3];
     /// `SetPosition` and the occupant manager's notification (flag 1).
@@ -1508,8 +1511,13 @@ impl PropDeveloper {
                 None => h.set_prop_timer(prop, TIMER_DATE, true),
                 Some(date) => {
                     let duration = u32_prop(&props, PROP_DATE_DURATION).unwrap_or(1);
-                    let flag = u8_prop(&props, PROP_DATE_FLAG).unwrap_or(0);
-                    h.set_date_range(prop, date, duration, flag);
+                    let calendar = props.get(PROP_DATE_FLAG).map(|v| v.items()).unwrap_or_default();
+                    let (month, day) = if calendar.len() >= 2 {
+                        (calendar[0].as_i64() as u8, calendar[1].as_i64() as u8)
+                    } else {
+                        (0, 0)
+                    };
+                    h.set_date_calendar_range(prop, date, duration, month, day);
                     self.host.hold(p.token);
                     self.dated.borrow_mut().push(p);
                 }

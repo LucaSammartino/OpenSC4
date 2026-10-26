@@ -150,6 +150,8 @@ pub struct fc4_prop_host {
     pub lighting_is_night: Option<unsafe extern "C" fn(U) -> bool>,
     /// Terrain altitude and water level at a position.
     pub terrain_heights: Option<unsafe extern "C" fn(U, f32, f32, *mut f32, *mut f32)>,
+    /// PV18 calendar pair; appended so legacy hosts retain their table layout.
+    pub set_date_calendar_range: Option<unsafe extern "C" fn(U, u64, u32, u32, u8, u8)>,
 }
 
 /// A message for [`fc4_prop_developer_do_message`].
@@ -236,7 +238,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_prop_message>() == 32);
     assert!(std::mem::size_of::<fc4_prop_state>() == 104);
     assert!(std::mem::size_of::<fc4_prop_block>() == 52);
-    assert!(std::mem::size_of::<fc4_prop_host>() == if cfg!(target_pointer_width = "32") { 272 } else { 544 });
+    assert!(std::mem::size_of::<fc4_prop_host>() == if cfg!(target_pointer_width = "32") { 276 } else { 552 });
 };
 
 // ---- host adapter -----------------------------------------------------------------------------------
@@ -449,6 +451,13 @@ impl PropHost for CHost {
     fn set_date_range(&self, prop: u64, date: u32, duration: u32, flag: u8) {
         cb!(self, set_date_range, (), prop, date, duration, flag)
     }
+    fn set_date_calendar_range(&self, prop: u64, date: u32, duration: u32, month: u8, day: u8) {
+        if self.h.set_date_calendar_range.is_some() {
+            cb!(self, set_date_calendar_range, (), prop, date, duration, month, day)
+        } else {
+            self.set_date_range(prop, date, duration, month);
+        }
+    }
     fn tick_date(&self, prop: u64, date: u32) {
         cb!(self, tick_date, (), prop, date)
     }
@@ -568,14 +577,24 @@ pub unsafe extern "C" fn fc4_prop_developer_create(
     session_seed: u32,
     token: u64,
 ) -> *mut fc4_prop_developer {
-    guard(std::ptr::null_mut(), || match host.as_ref() {
-        Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_prop_host>() => {
-            let c = Rc::new(CHost { h: *h });
+    guard(std::ptr::null_mut(), || {
+        if host.is_null() {
+            return std::ptr::null_mut();
+        }
+        // Read only the advertised prefix: a legacy allocation has no extension.
+        let size = std::ptr::addr_of!((*host).struct_size).read() as usize;
+        let full = std::mem::size_of::<fc4_prop_host>();
+        let legacy = full - std::mem::size_of::<usize>();
+        if size == legacy || size >= full {
+            let mut h: fc4_prop_host = std::mem::zeroed();
+            std::ptr::copy_nonoverlapping(host.cast::<u8>(), (&mut h as *mut fc4_prop_host).cast(), size.min(full));
+            let c = Rc::new(CHost { h });
             let wealth = wealth_rng(session_seed);
             let sim = PropDeveloper::new(c, Box::new(member_generator(session_seed)), wealth, token);
             Box::into_raw(Box::new(Handle { sim })) as *mut fc4_prop_developer
+        } else {
+            std::ptr::null_mut()
         }
-        _ => std::ptr::null_mut(),
     })
 }
 
@@ -961,6 +980,37 @@ pub unsafe extern "C" fn fc4_prop_developer_read(p: *mut fc4_prop_developer, inp
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+
+    #[test]
+    fn calendar_extension_and_legacy_prefix() {
+        unsafe extern "C" fn calendar(u: U, _: u64, _: u32, _: u32, month: u8, day: u8) {
+            *(u as *mut (u8, u8)) = (month, day);
+        }
+        unsafe {
+            let mut seen = (0u8, 0u8);
+            let mut host: fc4_prop_host = std::mem::zeroed();
+            host.struct_size = std::mem::size_of::<fc4_prop_host>() as u32;
+            host.user = (&mut seen as *mut (u8, u8)).cast();
+            host.set_date_calendar_range = Some(calendar);
+            let p = fc4_prop_developer_create(&host, 7, 0);
+            assert!(!p.is_null());
+            CHost { h: host }.set_date_calendar_range(1, 10, 0, 3, 15);
+            assert_eq!(seen, (3, 15));
+            fc4_prop_developer_destroy(p);
+            // A genuinely shorter allocation, not a full table advertising less.
+            let n = std::mem::size_of::<fc4_prop_host>() - std::mem::size_of::<usize>();
+            let mut prefix = vec![0usize; n / std::mem::size_of::<usize>()];
+            std::ptr::copy_nonoverlapping(
+                (&host as *const fc4_prop_host).cast::<u8>(),
+                prefix.as_mut_ptr().cast(),
+                n,
+            );
+            *prefix.as_mut_ptr().cast::<u32>() = n as u32;
+            let legacy = fc4_prop_developer_create(prefix.as_ptr().cast(), 7, 0);
+            assert!(!legacy.is_null());
+            fc4_prop_developer_destroy(legacy);
+        }
+    }
 
     #[test]
     fn night_crt_copy_preserves_lists_and_does_not_retain_caller_storage() {

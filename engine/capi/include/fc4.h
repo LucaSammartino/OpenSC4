@@ -7489,6 +7489,9 @@ typedef struct fc4_prop_host {
     uint32_t (*visual_time_mode)(void* user);
     bool (*lighting_is_night)(void* user);
     void (*terrain_heights)(void* user, float x, float z, float* altitude, float* water);
+    /* Optional PV18 extension. A legacy-sized table uses set_date_range above. */
+    void (*set_date_calendar_range)(void* user, uint64_t prop, uint32_t interval,
+                                    uint32_t duration, uint8_t month, uint8_t day);
 } fc4_prop_host;
 
 typedef struct fc4_prop_message {
