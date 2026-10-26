@@ -1,5 +1,5 @@
 //! Pylon-owned state, records and placement (network-occupants §§6.1–6.3).
-//! NO36 explicitly leaves texture/model composition and drawing unsettled.
+//! NO36 composition, billboard, drawing and message rules are in `composition`.
 
 use super::{identity::OCCUPANT_TYPE_PYLON, xform::Xform};
 use crate::automata::OccupantBase;

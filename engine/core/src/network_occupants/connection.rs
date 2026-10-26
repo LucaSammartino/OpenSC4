@@ -1,5 +1,5 @@
 //! Underground connection owner (§3.6/3.6.1; underground-occupants §4).
-//! Descriptor geometry, bounds, drawing and full messages remain UG5/NO40.
+//! Settled UG5/NO40 owner work is in `pipeline`; NO40-C remains a runtime observation.
 use super::{
     pylon::{clear_ref, same_ref, References, RenderStateArgs},
     record::Vertex,

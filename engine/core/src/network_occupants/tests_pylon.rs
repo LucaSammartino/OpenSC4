@@ -443,10 +443,7 @@ fn pylon_position_visibility_and_model_refresh_conformance_42() {
     assert!(h.log.is_empty());
     p.record.transform.counter = 255;
     p.record.transform.mask = 0x80;
-    assert_eq!(
-        p.set_position(Some([4.0, 5.0, 6.0]), &mut h),
-        Ok(())
-    );
+    assert_eq!(p.set_position(Some([4.0, 5.0, 6.0]), &mut h), Ok(()));
     assert_eq!((p.record.transform.counter, p.record.transform.mask), (1, 0x85));
     assert_eq!(
         h.log,
@@ -643,10 +640,7 @@ fn pylon_texture_replacement_conformance_48() {
     assert_eq!(h.log, ["release33", "texture7ab50e44/1abe787d/0"]);
     p.set_dispatch_state(0);
     p.set_dispatch_type(4);
-    assert_eq!(
-        p.rebuild_current_texture(&mut h),
-        Ok(false)
-    );
+    assert_eq!(p.rebuild_current_texture(&mut h), Ok(false));
     p.set_dispatch_type(0);
     for state in [-1, 7] {
         p.set_dispatch_state(state);

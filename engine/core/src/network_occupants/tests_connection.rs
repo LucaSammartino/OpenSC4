@@ -54,10 +54,7 @@ fn connection_unattached_builders_conformance_49() {
     }
     c.record.walls[5] = vec![Vertex::default()];
     c.record.walls[6] = vec![Vertex::default(); 2];
-    assert_eq!(
-        c.create_floor(&mut h),
-        Ok(())
-    );
+    assert_eq!(c.create_floor(&mut h), Ok(()));
     assert!(c.record.model_state);
     let expected = c.surface.map(|mut v| {
         v.color |= 0x00FF_FFFF;
@@ -246,11 +243,22 @@ impl ConnectionHost for ConnHost {
     }
     fn remove_self(&mut self, destroy: bool, arg: u32) {
         assert_eq!(arg, 0);
-        self.h.log.push(if destroy { "remove-self" } else { "remove-self-without-destroy" }.into());
+        self.h.log.push(
+            if destroy {
+                "remove-self"
+            } else {
+                "remove-self-without-destroy"
+            }
+            .into(),
+        );
     }
     fn query_interface(&mut self, _: &RefValue, iid: u32) -> RefValue {
         self.h.log.push(format!("qi{iid:x}"));
-        if self.query_fail { RefValue::Null } else { reference(300) }
+        if self.query_fail {
+            RefValue::Null
+        } else {
+            reference(300)
+        }
     }
     fn model_instance(&mut self) -> RefValue {
         reference(999)
@@ -335,10 +343,7 @@ fn connection_creation_search_order_fresh_loaded_and_own_hit_conformance_10_11()
         c.record.linked = reference(82);
         let mut s = ConnectionStatics::default();
         let mut h = ConnHost::default();
-        assert_eq!(
-            c.create(ConnectionKind::Pipe, &mut s, &mut h),
-            Ok(())
-        );
+        assert_eq!(c.create(ConnectionKind::Pipe, &mut s, &mut h), Ok(()));
         let expected = [
             (10, 20),
             (9, 20),
@@ -508,10 +513,7 @@ fn connection_linked_refs_refresh_messages_query_and_shutdown() {
     c.set_linked_occupant(RefValue::Null, &mut h);
     c.set_linked_occupant(RefValue::Null, &mut h);
     assert_eq!(h.h.log, ["release1", "add2", "release2", "remove-self"]);
-    assert_eq!(
-        c.model_state_changed(&mut h),
-        Ok(())
-    );
+    assert_eq!(c.model_state_changed(&mut h), Ok(()));
     assert_eq!(c.model_state_changed(&mut h), Ok(()));
     c.record.attached = reference(3);
     h.h.log.clear();
