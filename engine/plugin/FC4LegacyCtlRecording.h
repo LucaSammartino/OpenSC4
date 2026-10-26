@@ -137,6 +137,7 @@ inline Words Parameter(cIGZVariant* v,uint32_t key) {
     if(kind==0x800e) { cRZBaseString s; if(v->GetValString(s)) return S(&s); }
     if(kind==0x8000) {
         uint32_t data[3]{},n=sizeof(data);
+        // [abi-ret] cIGZVariant::GetValVoid uses the SDK bool result and byte-count out parameter.
         if(v->GetValVoid(data,n)) {
             if(n==8) return {7,data[0],data[1]};
             if(n==12) return {9,data[0],data[1],data[2]};
@@ -145,6 +146,7 @@ inline Words Parameter(cIGZVariant* v,uint32_t key) {
     if(kind==0x10 && key==0xbaca6879) {
         // variant-storage §6: slot59 is borrowed; never Release it.
         auto* list=static_cast<cIGZUnknownList*>(v->GetValUnknown());
+        // [abi-ret] cIGZUnknownList::GetSize is the SDK uint32_t count, not cISC4Lot::GetSize.
         if(list && list->GetSize()==8) {
             Words w{10};
             for(uint32_t i=0;i<8;++i) {
@@ -235,7 +237,11 @@ inline void ObserveInterface(void* object,uint32_t iid) {
     case 0xa13351b8:
         ok=Patch(object,0x1c,reinterpret_cast<void*>(&Zero<0x1c,8>)) && Patch(object,0x10,reinterpret_cast<void*>(&Two<0x10,8,3>)) &&
             Patch(object,0x28,reinterpret_cast<void*>(&One<0x28,8,2>)) && Patch(object,0x2c,reinterpret_cast<void*>(&One<0x2c,8,2>));break;
-    case 0x5386d516: ok=Patch(object,0x1c,reinterpret_cast<void*>(&One<0x1c,8,2>));break;
+    case 0x5386d516:
+        ok=Patch(object,0x1c,reinterpret_cast<void*>(&One<0x1c,8,2>));
+        // Only DoExceptions' slot7 is captured; the Gen interpreter has more effects.
+        if(active) active->exhaustive=false;
+        break;
     case 0x9a4527cb: break; // owner's GetControl wrapper records the borrowed result
     default: ok=false;break;
     }
