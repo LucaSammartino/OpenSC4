@@ -6,6 +6,8 @@ use crate::automata::OccupantBase;
 use crate::stream::{InStream, OutStream, RefValue};
 
 pub const PYLON_RECORD_VERSION: u16 = 5;
+mod composition;
+pub use composition::{BillboardVertex, BitmapHost, BitmapInfo, PylonDrawHost, PylonModelHost};
 pub const PYLON_MESSAGES: [u32; 3] = [0xA6B7_9602, 0x06CD_B65B, 0x26D3_1EC1];
 pub const PYLON_TICK: u32 = 0x80;
 pub const ANIMATION_TICK_MANAGER_CLASS: u32 = 0x86F9_FB4D;
@@ -179,7 +181,6 @@ pub struct PylonGlobals {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PylonUnsupported {
-    ModelCompositionDrawMessagesNO36,
     /// The spec explicitly supplies no resource contract outside state 0..=6.
     TextureStateOutsideTable,
 }
@@ -192,7 +193,7 @@ pub trait PylonPickHost {
 }
 
 /// Resource primitives; a returned binding carries its acquired reference.
-pub trait PylonTextureHost: PylonHost {
+pub trait PylonTextureHost: PylonHost + BitmapHost {
     fn request_texture_binding(&mut self, key: [u32; 3]) -> RefValue;
     fn binding_texture_id(&mut self, binding: &RefValue) -> u32;
 }
@@ -208,6 +209,10 @@ pub struct Pylon {
     pub texture_binding: RefValue,
     pub texture: u32,
     pub mysim_texture: RefValue,
+    pub label_texture: u32,
+    pub main_vertices: [BillboardVertex; 4],
+    pub label_vertices: [BillboardVertex; 4],
+    pub model_category: u32,
 }
 
 // RefValue has no Default: native construction initializes held pointers null.
@@ -229,6 +234,11 @@ impl Pylon {
             texture_binding: RefValue::Null,
             texture: 0,
             mysim_texture: RefValue::Null,
+            label_texture: 0,
+            // SPEC-GAP: constructor vertex bytes are unspecified; portable storage starts zeroed.
+            main_vertices: [BillboardVertex::default(); 4],
+            label_vertices: [BillboardVertex::default(); 4],
+            model_category: 3,
         }
     }
 
@@ -454,7 +464,7 @@ impl Pylon {
         }
         let kind = self.dispatch_type();
         if kind == 4 {
-            return Err(PylonUnsupported::ModelCompositionDrawMessagesNO36);
+            return self.compose_mysim(host);
         }
         let instance = if matches!(kind, 0 | 1 | 5 | 6) {
             let offsets = [0, 0x10, 0x20, 0x30, 0x40, 0x50, 0x20];
@@ -478,13 +488,10 @@ impl Pylon {
         // Deliberately retain the old raw ID if the replacement failed.
         Ok(self.texture != 0)
     }
-    pub fn rebuild_model(&mut self) -> Result<(), PylonUnsupported> {
-        Err(PylonUnsupported::ModelCompositionDrawMessagesNO36)
-    }
     pub fn set_position(
         &mut self,
         position: Option<[f32; 3]>,
-        host: &mut impl PylonHost,
+        host: &mut impl PylonModelHost,
     ) -> Result<(), PylonUnsupported> {
         let Some(position) = position else {
             return Ok(());
@@ -494,7 +501,7 @@ impl Pylon {
         self.record.transform.translation = position;
         self.record.transform.counter = self.record.transform.counter.wrapping_add(1);
         self.record.transform.mask |= 1;
-        let result = self.rebuild_model();
+        let result = self.rebuild_model(host);
         self.place_in_manager(true, host);
         self.place_in_renderer(true, host);
         result

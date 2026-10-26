@@ -11,6 +11,8 @@ use crate::{
 };
 
 pub const CONNECTION_RECORD_VERSION: u16 = 2;
+mod pipeline;
+pub use pipeline::{ConnectionDescriptor, ConnectionDrawHost, ConnectionGeometryHost, ConnectionMessage};
 pub const CONNECTION_MESSAGES: [u32; 4] = [0x8B87_A974, 0x8B87_A975, 0x8B8B_2CEE, 0xA6B7_9602];
 pub const CONNECTION_RENDER_STATES: [RenderStateArgs; 3] = [
     RenderStateArgs([1, 1, 1, 0, 0, 1, 0, 3, -1, -1, -1], -1.0, [1, -1]),
@@ -202,7 +204,6 @@ pub trait ConnectionHost: ConnectionRecordHost {
     fn message(&mut self, id: u32, subscribe: bool);
     /// Three bindings in the shutdown order, indexed 0..3; no native offsets
     /// are inferred from the saved-word/list offsets.
-    fn clear_texture_binding(&mut self, slot: u32);
     fn position_to_cell(&mut self, position: [f32; 3]) -> (i32, i32);
     fn cell_origin(&mut self, cell: (i32, i32)) -> [f32; 2];
     fn cell_extents(&mut self) -> [f32; 2];
@@ -222,6 +223,7 @@ pub trait ConnectionHost: ConnectionRecordHost {
     /// Borrowed adjusted model-instance interface, not the primary occupant.
     fn model_instance(&mut self) -> RefValue;
     fn post_occupant_message(&mut self, message: u32, value: u32);
+    fn model_bounds_changed(&mut self, bounds: [[f32; 3]; 2], argument: u32);
 }
 
 #[derive(Clone, Debug)]
@@ -263,7 +265,8 @@ impl ConnectionStatics {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConnectionUnsupported {
-    GeometryBoundsDrawTransformMessagesUG5NO40,
+    /// §3.6.6: yaw words, attached ceiling side and bounded descriptor/shade inputs.
+    RuntimeObservationNO40C,
 }
 
 pub trait ConnectionTextureHost: References {
@@ -298,11 +301,15 @@ pub struct UndergroundConnection {
     pub surface: [Vertex; 4],
     pub matrices: [[f32; 16]; 2],
     pub bottom_y: f32,
+    pub cached_bounds: [[f32; 3]; 2],
+    /// Face, cap, custom-piece bindings; each acquisition is owned once.
+    pub bindings: [RefValue; 3],
+    pub meshes: [RefValue; 2],
 }
 impl UndergroundConnection {
     /// §3.6.2: clear the floor even for an attached occupant; only an
     /// unattached floor consumes ModelStateChanged's latch.
-    pub fn create_floor(&mut self) -> Result<(), ConnectionUnsupported> {
+    pub fn create_floor(&mut self, host: &mut impl ConnectionHost) -> Result<(), ConnectionUnsupported> {
         self.record.walls[4].clear();
         if !matches!(self.record.attached, RefValue::Null) {
             return Ok(());
@@ -311,9 +318,9 @@ impl UndergroundConnection {
             v.color |= 0x00FF_FFFF;
             v
         }));
-        self.model_state_changed()
+        self.model_state_changed(host)
     }
-    pub fn create_walls(&mut self) -> Result<(), ConnectionUnsupported> {
+    pub fn create_walls(&mut self, host: &mut impl ConnectionHost) -> Result<(), ConnectionUnsupported> {
         for wall in &mut self.record.walls[..4] {
             wall.clear();
         }
@@ -329,7 +336,7 @@ impl UndergroundConnection {
             );
             self.record.saved_68 += 1;
         }
-        self.model_state_changed()
+        self.model_state_changed(host)
     }
     pub fn add_wall_quad(out: &mut Vec<Vertex>, surface: [Vertex; 2], heights: [f32; 2]) {
         let [a, b] = surface;
@@ -448,12 +455,11 @@ impl UndergroundConnection {
         if !matches!(r.attached, RefValue::Null) {
             host.refresh(&r.attached, true);
         }
-        // ComputeBox is still explicitly unspecified in UG5/NO40. Continue
-        // subscriptions, but expose that the creation geometry is incomplete.
+        self.cached_bounds = self.compute_box();
         for id in CONNECTION_MESSAGES {
             host.message(id, true);
         }
-        Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
+        Ok(())
     }
     pub fn set_linked_occupant(&mut self, value: RefValue, host: &mut impl ConnectionHost) {
         if same_ref(&self.record.linked, &value) {
@@ -476,14 +482,16 @@ impl UndergroundConnection {
             host.refresh(&self.record.attached, true);
         }
     }
-    pub fn model_state_changed(&mut self) -> Result<(), ConnectionUnsupported> {
+    pub fn model_state_changed(&mut self, host: &mut impl ConnectionHost) -> Result<(), ConnectionUnsupported> {
         if self.record.model_state {
             return Ok(());
         }
         self.record.model_state = true;
-        // Must compute bounds before renderer notification. Do not counterfeit
-        // that owner computation with a foreign result callback (UG5/NO40).
-        Err(ConnectionUnsupported::GeometryBoundsDrawTransformMessagesUG5NO40)
+        self.cached_bounds = self.compute_box();
+        if self.record.base.flags & 1 != 0 {
+            host.model_bounds_changed(self.cached_bounds, 3);
+        }
+        Ok(())
     }
     pub fn set_position(&mut self, position: [f32; 3]) {
         self.record.position = position;
@@ -522,8 +530,8 @@ impl UndergroundConnection {
         }
     }
     pub fn shutdown(&mut self, host: &mut impl ConnectionHost) {
-        for slot in 0..3 {
-            host.clear_texture_binding(slot);
+        for binding in &mut self.bindings {
+            clear_ref(binding, host);
         }
         for wall in &mut self.record.walls {
             wall.clear();
