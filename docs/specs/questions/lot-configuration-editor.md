@@ -4,24 +4,6 @@ LE3/LE4/LE5/LE7 are archived with measured partial answers. LE9–LE18 replace
 their unresolved scope; retiring the broad entries does not close the owner.
 LE6/LE8 remain answered and are not reopened.
 
-<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3/LE5 -->
-**LE9 — Hit-test coordinate conversion and fallback geometry**
-
-Resolve 0x00483DC0 numeric conversion, invalid/overflow inputs, and
-inside/grid/resize fallback after the established selected/forward/popup
-priority. Include edge boundary examples and masked-x87 invalid behavior;
-do not extrapolate finite-only comparison rules.
-
-<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3 -->
-**LE10 — Rectangle conversions and invalid integer results**
-
-Resolve 0x0047B310 and 0x0047B390 coordinate/rectangle widths, conversion
-order and invalid/overflow results, including the shared _ftol2 dependency
-used by pixel fence paths. §25 closes both movement overloads, payload
-request/copy extent and water/terrain modes; §9.5–§9.6 closes finite fence
-toggles and bounds-mover comparisons. No deterministic heap-corruption
-outcome is promised for the §25.1 overrun.
-
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
 **LE11 — Retaining-wall and foundation selector bodies**
 

@@ -1187,6 +1187,118 @@ bodies are exactly `0x00478360` (64 bytes), `0x00604920` (169),
 No ownership reassignment or byte restoration follows from the callers alone.
 No fourth lane round is requested by this stopping inventory.
 
+## 27. Hit-test conversion and fallback geometry (LE9) *[compat]*
+
+This section completes §17.1; its selected/forward/popup priority remains in
+force. All pixel coordinates and rectangle members below are signed 32-bit
+integers. Let `s` be binary32 editor field `+0x1AC`, and let T denote the
+low-32-bit integer conversion in §28. Do not replace these integer containment
+tests with floating-point comparisons or reject NaNs before conversion.
+
+The selected-object shortcut obtains its rectangle from `0x0047B310` (§28).
+The forward object scan has a different arithmetic path: left is T of min-x
+times the x87 reciprocal of s; top is T of min-z times that reciprocal **after
+a binary32 store**; right and bottom use a newly computed x87 reciprocal
+without that store. The four object fields are binary32 at `+0x18`, `+0x1C`,
+`+0x10`, `+0x14` respectively. The products are not stored as binary32 before
+T (`0x00483E60..0x00483EC3`). Every comparison is signed and inclusive. There
+is no sorting of reversed bounds and no type/height/visibility filter.
+
+When there are no object candidates, obtain lot rectangle `(L,Tp,R,B)` from
+`0x0047B390`. The following order applies; every fallback leaves the output
+record pointer null (`0x00484181..0x004842A9`):
+
+1. For i from zero through unsigned lot-width byte inclusive, convert
+   `(16*i) * binary32(1/s)` with T. Return **3** if x is inclusively within
+   converted-coordinate minus 3 through plus 3 and y is at most B.
+2. Otherwise scan j from zero through unsigned depth byte inclusive in the
+   same manner. Return **3** if y is within inclusive ±3 and x is at most R.
+   Neither scan checks the other coordinate's lower bound.
+3. Recompute the lot rectangle. Return **2** in either inclusive rectangle
+   `(R,Tp,R+6,B+6)` or `(L,B,R+6,B+6)`: right and bottom resize strips,
+   extending outwards rather than centred on the edge.
+4. Return **1** for inclusive containment in `(L,Tp,R,B)`; otherwise **0**.
+
+The ±3 and +6 operations wrap in 32 bits before signed comparisons. They do
+not saturate. Object hits take precedence over all these strips; grid hits
+take precedence over resize hits, including on the right/bottom boundary.
+Popup cancellation still returns zero immediately, as in §17.1.
+
+Worked cases (no objects, width=2, depth=1, s=0.5, hence rectangle
+`(0,0,64,32)`): `(16,16)` returns 1; `(3,-100)` returns 3; `(4,-100)` returns
+0; `(-100,3)` returns 3. `(65,20)` returns 3 because it is within three pixels
+of the last vertical line; `(68,20)` and `(70,38)` return 2; `(71,38)` returns
+0. `(64,32)` returns 3. With zero dimensions and s=0.5, the line at zero
+still exists; `(0,-1)` returns 3 and `(4,4)` returns 2.
+
+With masked x87 invalid and all four object bounds NaN, each converted member
+is zero (§28): that object can hit `(0,0)`. It does not disappear under the
+unordered rules of the bounds mover. With s=NaN and no objects, the converted
+lot/grid coordinates are zero; `(0,-100)` returns 3. These conditional cases
+require masked exceptions, not an assumption about finite inputs.
+
+Closure mapping: DoHitTest `0x00483DC0` (the LE3/LE5 hit geometry row), together
+with the rectangle-helper dependencies in §28. No engine source was consulted.
+
+## 28. Rectangle widths and integer conversion (LE10) *[compat]*
+
+`0x0047B310` writes exactly four signed 32-bit members, in left/top/right/bottom
+order, to its caller's 16-byte rectangle. It divides each binary32 object bound
+at offsets `+0x18`, `+0x1C`, `+0x10`, `+0x14` by binary32 s separately in x87,
+then immediately applies T. No float-result spill, reciprocal substitution,
+origin addition, min/max repair or clipping occurs (`0x0047B317..0x0047B377`).
+
+`0x0047B390` also writes 16 bytes. It zero-extends the two lot-dimension bytes
+at `+0x20/+0x21`, shifts each left four bits, and converts those integers to
+x87. Depth is stored as binary32 (exact for all byte dimensions), while width
+stays in x87. It converts, in order, `0/s`, `0/s`, `(16*width)/s`,
+`(16*depth)/s`, with no result spills before T. Thus a normal positive scale
+gives origin zero; it is not a client-window rectangle and adds no border.
+Zero/negative/NaN scales have no validation (`0x0047B396..0x0047B407`).
+
+### 28.1 Shared conversion T and exceptional inputs
+
+The actual helper `_ftol2` at `0x009EEF04` uses an x87 **signed 64-bit** integer
+conversion and returns its result in two 32-bit words; these geometry callers
+use only the low word, interpreted as signed when compared. For ordinary
+in-range inputs it truncates towards zero, including negative fractions.
+A result outside signed 32-bit range therefore wraps rather than saturates:
+`2147483648` becomes `-2147483648`; `4294967296` becomes zero.
+
+For reproducing the extreme boundary, the helper first rounds a duplicate
+of its input to signed 64 bits under the current x87 rounding control. It
+then corrects a rounded result by one towards zero if required. There is a
+special path when the low word is zero and the high word has no bits except
+possibly its sign bit: it returns those words without correction. This
+includes zero and the signed-64 indefinite value. It does not load a new
+control word (`0x009EEF0D..0x009EEF78`).
+
+With x87 invalid masked, NaN, either infinity, or a conversion outside signed
+64-bit range produces indefinite `0x8000000000000000`; this special path
+leaves the **low word zero**, not `0x80000000`. Invalid status is not cleared.
+Consequently both rectangle helpers write zero for each such result. With
+invalid unmasked there is no promised normal return; observing the application's
+exception handler/control word is only needed to select between this masked
+case and a trap, not to determine either helper's instruction-level behavior.
+Divide-by-zero and invalid in the preceding floating operations are likewise
+subject to the caller's x87 masks.
+
+Pixel ToggleFence uses the same T for grid lines, then uses its low byte for
+the other endpoint (§9.5). Under masked invalid, a NaN scale converts every
+grid line to zero; a click at x=0 chooses vertical line i=0, its segment index
+also converts to zero, and the toggled bytes are `(0,0,0,1)`. There is no
+implicit invalid-input no-op. Endpoint increments still wrap within a byte.
+
+Worked rectangle cases: s=0.5 and bounds `(-0.75,-0.25,1.25,2.75)` yield
+`(-1,0,2,5)`. With s=1 and all four bounds equal to `2147483648`, the rectangle
+has four `-2147483648` members; with all four infinite and exceptions masked,
+it has four zero members. Width=2, depth=3 and s=0.5 yield `(0,0,64,96)`;
+negative s gives negative right/bottom without normalization. Zero dimensions
+and nonzero finite s give `(0,0,0,0)`.
+
+Closure mapping: `0x0047B310`, `0x0047B390`, and the invalid-conversion
+dependency of pixel ToggleFence `0x00484700` (LE3/LE5 geometry rows).
+
 ## 19. Window-owner integration and slot inventory *[compat]*
 
 Added 2026-10-23, re-lotcfg-editor5. Sections 1–18 and the

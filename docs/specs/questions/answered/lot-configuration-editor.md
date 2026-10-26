@@ -1,5 +1,27 @@
 # Native lot configuration editor answered questions
 
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3/LE5 -->
+**LE9 — Hit-test coordinate conversion and fallback geometry**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §27 supplies exact reciprocal spills, integer hit tests, grid-before-resize fallback and unbounded negative-side strips; masked-invalid objects may hit zero. Worked cases and DoHitTest closure mapping are in the section.
+
+Resolve 0x00483DC0 numeric conversion, invalid/overflow inputs, and
+inside/grid/resize fallback after the established selected/forward/popup
+priority. Include edge boundary examples and masked-x87 invalid behavior;
+do not extrapolate finite-only comparison rules.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3 -->
+**LE10 — Rectangle conversions and invalid integer results**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §28 supplies four signed-32 rectangle members and division order; _ftol2 uses signed-64 intermediate/low-32 return, so masked invalid yields zero. Pixel fence consequences and helper closure mapping are included.
+
+Resolve 0x0047B310 and 0x0047B390 coordinate/rectangle widths, conversion
+order and invalid/overflow results, including the shared _ftol2 dependency
+used by pixel fence paths. §25 closes both movement overloads, payload
+request/copy extent and water/terrain modes; §9.5–§9.6 closes finite fence
+toggles and bounds-mover comparisons. No deterministic heap-corruption
+outcome is promised for the §25.1 overrun.
+
 **LE3 — Complete object geometry, fences and numeric edge cases**
 
 **ANSWERED 2026-10-24 (re-lotcfg-editor-le10):** DIFFERS — §25.1–§25.2 resolves physical type-7 request/copy extent, water/terrain mode commands and both movement overloads; LER01–05. Remaining hit/conversion geometry is LE9–LE10. No deterministic adjacent-heap outcome is asserted.
