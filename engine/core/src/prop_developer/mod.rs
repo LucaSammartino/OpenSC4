@@ -70,6 +70,8 @@ use crate::stl::StlHashMap;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::variant::Elem;
 
+pub mod effects;
+
 /// Class and interface IDs (§1).
 pub const CLSID_PROP_DEVELOPER: u32 = 0x89C4_8F47;
 pub const IID_PROP_DEVELOPER: u32 = 0xE9A1_F4B6;
