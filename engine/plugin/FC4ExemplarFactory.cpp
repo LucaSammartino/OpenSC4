@@ -74,6 +74,29 @@ constexpr size_t kMaxDepth = 32;
 std::atomic<bool> g_enabled{false};
 std::atomic<bool> g_active{false};
 
+// Parent loads can recursively contribute raw/parse/build time while the
+// outer read waits in its parent stage.
+std::atomic<uint64_t> g_readTicks[4]{};
+uint64_t ReadClock() {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return static_cast<uint64_t>(t.QuadPart);
+}
+class ReadTimer {
+public:
+    ReadTimer() : start_(ReadClock()) {}
+    ~ReadTimer() { g_readTicks[stage_] += ReadClock() - start_; }
+    void Stage(unsigned stage) {
+        const uint64_t now = ReadClock();
+        g_readTicks[stage_] += now - start_;
+        start_ = now;
+        stage_ = stage;
+    }
+private:
+    uint64_t start_;
+    unsigned stage_ = 0;
+};
+
 struct Counters {
     std::atomic<uint32_t> reads{0}, readFails{0}, parentFails{0}, cycleFails{0}, resourceProps{0}, emptyProps{0};
     std::atomic<uint32_t> created{0}, lists{0}, listFails{0}, unsupported{0}, msgAdds{0};
@@ -995,6 +1018,7 @@ struct LoadingScope {
 
 bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     ++g_count.reads;
+    ReadTimer timer;
     cGZPersistResourceKey rkey;
     record.GetKey(rkey);
     // §4.1: the type the record is stored under must be ours (the core
@@ -1002,7 +1026,9 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     const uint32_t size = record.GetSize();
     std::vector<uint8_t> bytes(size);
     if (size > 0 && !record.GetFieldVoid(bytes.data(), size)) return false;
+    timer.Stage(1);
     fc4_exrec* rec = fc4_exrec_parse(rkey.type, bytes.data(), bytes.size());
+    timer.Stage(2);
     if (rec == nullptr) return false;
     struct Free {
         fc4_exrec* r;
@@ -1042,6 +1068,7 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     }
     // §4.2: properties in record order; a later one with the same ID
     // replaces the earlier (§4.5); each add updates the effective list.
+    timer.Stage(3);
     const size_t n = fc4_exrec_count(rec);
     for (size_t i = 0; i < n; ++i) {
         uint32_t id = 0, key3[3] = {0, 0, 0};
@@ -1823,6 +1850,12 @@ void ExemplarFactoryInstall() {
 void ExemplarFactoryRestore() {
     if (!g_active) return;
     cIGZPersistResourceManagerPtr rm;
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    const double ms = 1000.0 / static_cast<double>(frequency.QuadPart);
+    Log("formats factory read time: raw=%.3f parse=%.3f parent=%.3f build=%.3f ms",
+        g_readTicks[0].load() * ms, g_readTicks[1].load() * ms,
+        g_readTicks[2].load() * ms, g_readTicks[3].load() * ms);
     Log("exemplars: summary reads=%u failed=%u parent_failed=%u cycle_or_depth=%u created=%u empty=%u "
         "resource_props=%u property_lists=%u list_failed=%u message_adds=%u unsupported=%u",
         g_count.reads.load(), g_count.readFails.load(), g_count.parentFails.load(), g_count.cycleFails.load(),
