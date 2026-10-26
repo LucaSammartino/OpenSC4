@@ -101,8 +101,9 @@ Without a readback surface the result remains false. This measures a rendering s
 it is independent of `kForceSoftwareDriver`, which is checked later for flag 0. The manager invokes the
 probe on each gather, even when that render property forces software.
 
-The OS/version provider supplies CPU features, CPU MHz, screen dimensions/BPP, memory, and the first six
-strings. For memory the native version helper first truncates each unsigned byte count to MiB, then rounds
+The OS/version provider supplies CPU features, CPU MHz, memory, and the first six strings (§2.5).
+Screen dimensions/BPP instead come from GS slot 10 (`+0x28`), which fills three unsigned dwords in
+width, height, BPP order (`0x007CF8BF–0x007CF928`). For memory the native version helper first truncates each unsigned byte count to MiB, then rounds
 that integer **up to a multiple of four** with 32-bit wrapping arithmetic: subtract one, OR with 3, add one
 (`0x0089159C–0x008915B9`). Zero maps to zero. Video and texture memory instead use GS slot 23 (`+0x5C`),
 with arguments 2 and 0 respectively; each unsigned byte count is shifted right 20 with **no** four-MiB
@@ -265,6 +266,140 @@ the request, then 0 after restoration: set bit 5. Without a store it is 0, 0, 0:
 existing enabled store it is 1, 1, 1: set bit 5 and preserve enabledness. A freshly constructed,
 uninitialized renderer facade observes these same shared-state cases. None of these tests reads a
 private global, calls the private presence helper, or changes the stored presence itself.
+
+### 2.5 Version/OS acquisition and string bytes (GR9)
+
+**There is no version/OS service IID or getter slot used here.** Gather constructs a local
+`cRZVersion`, invokes its methods directly, and destroys it; its one-entry virtual table is a
+destructor, not a measurement interface (`0x007CF804–0x007CF877`, `0x008915C1–0x008915EB`,
+table `0x00AC51FC`). A native provider must independently acquire these inputs through the Windows
+APIs/CPU operations below. It must not resolve and call the original private helper addresses. These
+OS APIs are the acquisition boundary; inventing a game service ID for them would not be compatible.
+Use the **game executable's** path and resources, never the replacement DLL's version resources.
+
+The first six string fields are byte strings. Keep returned ANSI bytes, case, punctuation and spaces;
+do not introduce labels, trim, localize, or substitute a host-formatted version number. The actual
+gather order is indices **0, 1, 2, 3, 5, 4**, followed by CPU features and numeric inputs
+(`0x007CF812–0x007CF877`).
+
+| Index / name | Independent acquisition and formatting | Evidence |
+|---|---|---|
+| 0 `userName` | `GetUserNameA`, 512-byte buffer and input size 512. On success copy the returned NUL-terminated bytes. With failure and the null fallback argument used by gather, assign the single byte **`?`**. | `0x008919B1–0x00891A44`; fallback literal `0x00AA1B6C` |
+| 1 `appName` | Current executable's version-resource **`FileDescription`** string, selected as below; no application-title getter or added text. | `0x0089174C–0x008917F6` |
+| 2 `version` | Same resource selection, **`FileVersion`** string verbatim. This is not the fixed numeric file version reformatted with dots. | `0x008917F7–0x008918A1` |
+| 3 `osVersion` | Call **`GetVersion`**. Major is the low byte, minor is the next byte. If bit 31 is clear, format `Windows NT %u.%u`; otherwise format `Windows %u.%u`. Both values are unsigned decimal without padding. Ignore build/service-pack/high-word data. Preserve any OS compatibility version returned to the game process; do not replace it with an unvirtualized OS version. | `0x0089151D–0x00891551` |
+| 4 `computerName` | `GetComputerNameA`, 512-byte buffer and input size 512. On success copy the returned NUL-terminated bytes. On failure with gather's null fallback, assign **`localhost`**. | `0x00891A45–0x00891AD8` |
+| 5 `CPU` | CPUID leaf 0 vendor bytes, in register order **EBX, EDX, ECX**, little-endian bytes from each, followed by a NUL. This is the 12-byte vendor identifier, not the processor brand/model string. If CPUID is unavailable, the outer version method clears this field to empty even though its lower-level helper writes `Unknown` before returning failure. | `0x0089194D–0x008919B0`, `0x00892BC0–0x00892C44`, particularly `0x00892C03–0x00892C0B` |
+
+**Resource selection.** Obtain the current executable module path. The original path helper tries
+`GetModuleFileNameW` for module null with capacity 260, falling back to `GetModuleFileNameA`; it
+converts the path to the version helper's string encoding and then to ANSI for version APIs
+(`0x00912467–0x00912512`). Load with `GetFileVersionInfoSizeA` and `GetFileVersionInfoA`. Query
+`\VarFileInfo\Translation` with `VerQueryValueA`; use its **first** pair of 16-bit language and code-page
+values, in that order. Form the lookup path `\StringFileInfo\%04lx%04lx\FileDescription` or
+`\StringFileInfo\%04lx%04lx\FileVersion`: lowercase hexadecimal, minimum four digits per value,
+no separators between them. Query with `VerQueryValueA` and copy the returned NUL-terminated string,
+without using the returned length to keep an extra terminal NUL. There is no language search, preferred
+locale, fixed-info formatting fallback, or fallback to another translation pair
+(`0x00891610–0x008916AA`, `0x00891771–0x008917D5`, `0x0089181C–0x00891880`).
+
+If the resource is unavailable because the initial size query returned zero, these two methods return
+false **without overwriting** their destination fields. If the loaded resource has the translation
+data but an individual string query fails, that destination is cleared to empty
+(`0x00891759–0x00891770`, `0x008917E0–0x008917F1`; corresponding FileVersion branches).
+Gather ignores these return values. On a new manager unchanged fields are empty; on regather they may
+retain their previous strings. This describes the ordinary missing-resource/string cases, not the
+unchecked allocation/partial-load failure paths still bounded by GR6.
+
+**Other OS measurements.** CPU flag bits are CPUID leaf 1 **EDX**, not ECX: bit 23 for MMX and bit 0
+for FPU (`0x00892D06–0x00892D17`). Without CPUID the feature mask is zero. Physical memory comes from
+**`GlobalMemoryStatus`**, with a 32-byte `MEMORYSTATUS` whose length is set to 32: use the unsigned
+32-bit total-physical and available-physical fields (`0x0089157F–0x008915A7`). Apply §2.1's MiB truncation
+and four-MiB rounding independently. Do not silently replace these API results with 64-bit
+`GlobalMemoryStatusEx` values. Screen values use the GS getter in §2.1; no desktop-resolution query is
+part of `cRZVersion` acquisition.
+
+**CPU MHz on the game's CPUID/RDTSC host profile.** There is no interface CPU-speed getter either.
+The native gather asks its local helper for a measurement with parameter zero, which selects the TSC
+path when CPUID EDX bit 4 is set (`0x00891552–0x00891570`, `0x00892F5E–0x00892F72`). An independent
+provider can make that same measurement with `QueryPerformanceFrequency`, `QueryPerformanceCounter`
+and RDTSC. For each of three trials, save the current thread priority, compute the signed-64 integer
+quotient frequency/20, set priority to 15, and `Sleep(0)`. Read counters Q0 and Q1, then TSC C0. Repeatedly
+read the performance counter until its value Q2 is at least Q1 + frequency/20, or the counter call fails;
+then read TSC C1 and restore the saved priority. Subtract half of (Q1−Q0), arithmetic-shifted right by
+one, from (Q2−Q1), clamping a negative corrected duration to zero. With nonzero duration T, calculate
+**((C1−C0) × frequency) / (T × 1,000,000)** and truncate toward zero to the result dword. Zero duration
+leaves the trial's initially zero result unchanged. Sort the three unsigned trial results and select
+the **middle** one. Failure of `QueryPerformanceFrequency` leaves zero. The native x87 calculation
+loads signed 64-bit differences/frequency, multiplies the numerator, multiplies the denominator by the
+binary64 constant 1,000,000, then divides and converts with `_ftol2`; do not round to the nearest MHz
+(`0x00893060–0x00893274`, especially `0x00893184–0x0089322B`, `0x00893763–0x00893770`). Finally apply
+the unsigned-dword-to-binary32 conversion from §2.1. This timing measurement is subject to scheduling;
+a nominal CPU-frequency registry value is not the same observation.
+The worked timing path assumes successful counter reads; failure of an individual counter read is
+unchecked native failure behavior within GR6, not a guaranteed zero-MHz result.
+
+**Legacy non-TSC acquisition.** When feature bit 4 is clear, gather's zero measurement parameter
+selects the instruction-loop estimator instead (`0x00892FB3–0x0089300A`). Its calibration family is
+CPUID leaf 1 EAX bits 8–11, ignoring extended-family bits, clamped to 11. Without CPUID, the original
+tests whether EFLAGS bit 18 (AC) can change and restores the saved flags: unchanged selects family 3,
+changed selects family 4 (`0x00892B50–0x00892BB0`, `0x00892D60–0x00892DA5`,
+`0x00892E6A–0x00892E86`). The table at `0x00AC53CC` supplies a calibration multiplier: family 3 =
+115, family 4 = 47, family 5 = 43, families 6–11 = 38 (entries 0–2 are zero). Multiply it by 4000
+to obtain U.
+
+With a successful `QueryPerformanceFrequency`, run ten trials. Between two performance-counter
+reads, perform **4000 repetitions of a 32-bit bit-scan-forward of `0x80000000`**, with the loop counter
+decremented as a 16-bit quantity; the scan result is 31 and the input remains unchanged. This measures
+that instruction loop, not a host-language search or a nominal-frequency API. Keep the smallest
+**unsigned low-dword counter difference** D. All subsequent arithmetic is unsigned 32-bit: multiply D
+by 100,000 with wrapping, divide by the integer quotient (low dword of frequency)/10, and call that
+quotient M. Increment M if M modulo the low frequency dword is **strictly greater** than that frequency
+shifted right one. Divide U by M and increment the result if U modulo M is **strictly greater** than
+M shifted right one. That final integer is the CPU MHz result. A failed frequency query leaves zero;
+zero divisors and the obsolete family-0–2 failure paths are not native recoverable-success contracts
+(`0x00893280–0x008933B3`, especially `0x008932DE–0x008932EC`, `0x00893317–0x0089338F`).
+GR6's unchecked-failure boundary and GR7's floating-point profile remain unchanged.
+
+**Worked OS/string case.** Supply user bytes `Player`, computer bytes `SC4BOX`, CPUID vendor registers
+EBX=`0x68747541`, EDX=`0x69746E65`, ECX=`0x444D4163`, and GetVersion result `0x00000206`.
+Give the executable a first translation pair (language `0x0409`, code page `0x04E4`), with
+`FileDescription` = `SimCity 4` and `FileVersion` = `1.1.641.0 ` (one trailing space). The lookup prefix
+is `\StringFileInfo\040904e4\`; even if a second pair has different strings, fields 0–5 must be
+**`Player`, `SimCity 4`, `1.1.641.0 `, `Windows NT 6.2`, `SC4BOX`, `AuthenticAMD`**. In particular keep
+the version's trailing space. Changing GetVersion to `0x80000A04` yields `Windows 4.10`. Failed user/
+computer queries produce `?`/`localhost`; unavailable CPUID makes `CPU` empty, not `Unknown`.
+
+For a numeric fixture, total/available physical byte counts `0x065FFFFF`/`0x06100000` become 101/97
+whole MiB and then **104/100** MiB. With CPUID EDX=`0x00800011`, MMX and FPU are both set. With a
+performance-counter frequency of 1,000,000, Q1−Q0=2 and Q2−Q1=50,001, the corrected duration is
+50,000. Three TSC differences of 120,000,000, 125,000,000 and 130,000,000 produce 2400, 2500 and 2600
+MHz; the median provider output is **2500**, stored as binary32 2500. These are supplied OS/CPU
+measurements for conformance, not a measured performance claim for any actual machine.
+For a legacy family-6 fixture with frequency 1,000,000 and minimum trial difference 100, U=152,000,
+M=100, and the final result is **1520 MHz**. Both remainder comparisons leave that value unchanged.
+
+### 2.6 Optional sound acquisition (GR9)
+
+Ask framework slot 5 (`+0x14`) for **service ID `0xE9D27715`, IID `0x49D28666`**, with an initially null
+output pointer. With an interface, call **slot 25 (`+0x64`) once**, passing writable `cIGZString`
+references for **soundDriverName first, soundCardName second**. These are the game's foreign string
+interfaces, not two raw character buffers or two getters returning `char*`. Ignore the method's return
+value and retain the bytes it assigned; the manager adds no prefix, separator, newline, version number
+or case conversion. Release the acquired sound interface. If acquisition yields no interface, assign
+the exact bytes **`Unknown`** to both fields (`0x007CFD0F–0x007CFDF7`). Do not replace successful empty
+strings with that absence fallback.
+
+The service's method is `0x00874F7C`, table `0x00AC2920` slot 25, and its QI accepts IID `0x49D28666`
+(`0x008749C4`). That method performs the device choice itself and delegates to its slot 24 (`+0x60`,
+the two output strings followed by a device index); providers must use **slot 25**, not guess a device
+index. No sound-driver enumeration, OS default-device guess, or manager callback is needed.
+
+**Worked sound case.** If the service method assigns `driver-x` to the first reference and `Card X`
+to the second, fields 13 and 14 become exactly `driver-x` and `Card X`. If it instead assigns two empty
+strings, both remain empty. An absent service produces `Unknown`, `Unknown` and no slot-25 call.
+An interface fixture can distinguish the two output references and verify exactly one call and its
+matching Release independently of the sound hardware installed on the test machine.
 
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
