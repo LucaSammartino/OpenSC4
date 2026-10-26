@@ -303,15 +303,22 @@ void CheckBindingAdapter(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
     drawing.nativeTextures = true;
     auto frame = drawing.Frame();
     CHECK(owner->DrawFrame(&frame));
-    CHECK(!drawing.textures.empty() && drawing.textures.back().source == reinterpret_cast<uintptr_t>(&source));
+    const auto sourceTexture = std::find_if(drawing.textures.begin(), drawing.textures.end(), [&](const auto& t) {
+        return t.source == reinterpret_cast<uintptr_t>(&source);
+    });
+    CHECK(sourceTexture != drawing.textures.end());
+    const auto sourceIndex = size_t(std::distance(drawing.textures.begin(), sourceTexture));
+    const auto texturesPerFrame = drawing.textures.size();
     CHECK(drawing.driverTextures.size() == drawing.textures.size());
-    CHECK(drawing.driverTextures.back() == 0xF1234567 && source.textures == 1 && source.refs == 2);
-    CHECK(drawing.driverTextures.front() == factory.handles[0]);
+    CHECK(source.textures == 1 && source.refs == 2);
+    if (sourceIndex < drawing.driverTextures.size()) CHECK(drawing.driverTextures[sourceIndex] == 0xF1234567);
+    CHECK(std::find(drawing.driverTextures.begin(), drawing.driverTextures.end(), factory.handles[0]) != drawing.driverTextures.end());
     // A source handle can change or become zero; resolve it anew without
     // rejecting zero, changing reference counts or consuming a stage argument.
     source.handle = 0;
     CHECK(owner->DrawFrame(&frame));
-    CHECK(drawing.driverTextures.back() == 0 && source.textures == 2 && source.refs == 2);
+    CHECK(source.textures == 2 && source.refs == 2);
+    if (sourceIndex < texturesPerFrame) CHECK(drawing.driverTextures[texturesPerFrame + sourceIndex] == 0);
     CHECK(std::all_of(drawing.driverStages.begin(), drawing.driverStages.end(), [](uint32_t s) { return s == 0; }));
     Drawing::Bind(reinterpret_cast<uintptr_t>(&drawing), 1,
         reinterpret_cast<uintptr_t>(&factory.binding), reinterpret_cast<uintptr_t>(&source));
@@ -319,7 +326,11 @@ void CheckBindingAdapter(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
     CHECK(source.textures == 2); // a present binding bypasses the source
     // Width 64, retained aspect 128/512: cells (6,7)..(10,9), then vertex maxima +1.
     const int32_t vertices[4] = {6, 7, 11, 10};
-    CHECK(!drawing.rectangles.empty() && std::equal(vertices, vertices + 4, drawing.rectangles.back().vertices));
+    // A freed overlay ID may be reused ahead of the remaining bindings. Match
+    // the rectangle to the source submission rather than assuming it is last.
+    CHECK(sourceIndex < drawing.rectangles.size());
+    if (sourceIndex < drawing.rectangles.size())
+        CHECK(std::equal(vertices, vertices + 4, drawing.rectangles[sourceIndex].vertices));
     native->Erase(sourceID);
     CHECK(source.refs == 2); // queued indirect handle retains its overlay
     CHECK(factory.acquisitions == 5);
