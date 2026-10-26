@@ -368,8 +368,15 @@ fn shadow_scheduler_import_does_not_replay_old_startup_month() {
         f.game.day.set(day);
         let before = f.advisor(1).month_counter;
         assert!(fc4_advisors_shadow_last_day(f.p, day));
-        for msg_type in [fc4_core::advisors::msg::POST_CITY_INIT, fc4_core::advisors::msg::CITY_ESTABLISHED, fc4_core::advisors::msg::TICKER] {
-            let m = fc4_adv_message { msg_type, ..Default::default() };
+        for msg_type in [
+            fc4_core::advisors::msg::POST_CITY_INIT,
+            fc4_core::advisors::msg::CITY_ESTABLISHED,
+            fc4_core::advisors::msg::TICKER,
+        ] {
+            let m = fc4_adv_message {
+                msg_type,
+                ..Default::default()
+            };
             assert!(fc4_advisors_do_message(f.p, &m));
         }
         assert_eq!(f.advisor(1).month_counter, before);

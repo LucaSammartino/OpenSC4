@@ -12,6 +12,14 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4AuraShadow.h"
+#include "FC4BoundarySlot.h"
+#include "FC4NativeBoundary.h"
+#include "cISC4Occupant.h"
+#include "cISC4LotManager.h"
+#include "cISCProperty.h"
+#include "cISCPropertyHolder.h"
+#include "cIGZVariant.h"
+#include "cS3DVector3.h"
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
@@ -386,6 +394,7 @@ void DropShadow() {
 // A fresh shadow core when the city, the original or the cell setting
 // changed (or `fresh`: a city load). g_game.city must be set (the core reads
 // the cell widths at creation).
+fc4_aura_host BoundaryHost(fc4_aura_host host);
 bool EnsureShadow(cISC4City* city, const void* sim, bool fresh) {
     if (!fresh && g_shadow != nullptr && g_shadowCity == city && g_shadowSim == sim && g_shadowCells == g_cells) {
         return true;
@@ -393,7 +402,7 @@ bool EnsureShadow(cISC4City* city, const void* sim, bool fresh) {
     DropShadow();
     const int32_t cx = static_cast<int32_t>(city->CellCountX());  // slot 93
     const int32_t cz = static_cast<int32_t>(city->CellCountZ());  // slot 94
-    const fc4_aura_host host = AuraReadOnlyHost(&g_game, &g_gridCtx);  // copied by the core
+    const fc4_aura_host host = BoundaryHost(AuraReadOnlyHost(&g_game, &g_gridCtx));
     g_shadow = fc4_aura_shadow_create(&host, cx, cz, static_cast<uint32_t>(g_cells));
     if (g_shadow == nullptr) {
         if (g_shadowFailedFor != sim) {
@@ -510,10 +519,11 @@ bool Guarded(cISC4City* city, const char* what, void (*fn)(void*), Call* c) {
     return clean;
 }
 
-// ---- occupant messages (§5.2: posted, delivered to ours when the original gets them) -----------------
+#include "FC4AuraBoundary.h"
+
+// Test-seam occupant deliveries; runtime cones follow the original helper.
 
 intptr_t OnOccupant(cIGZMessage2* msg) {
-    // SPEC-GAP: Same-recipient occupant input capture for Lua cone differences needs AU-GC29-1.
     if (msg == nullptr || g_shadow == nullptr || !g_followed) return 0;
     const uint32_t type = msg->GetType();
     if (type != kMsgOccupantInserted && type != kMsgOccupantRemoved) return 0;
@@ -589,7 +599,6 @@ void Listen() {
 
 intptr_t Deliver(cISC4City* city, cISC4AuraSimulator* sim, cIGZMessageTarget2* target, cIGZMessage2* msg,
                  uint32_t type, int64_t data1, bool* finished) {
-    Listen();
     RawRead before;
     if (!ReadOriginal(sim, &before)) {
         g_followed = false;
@@ -693,6 +702,11 @@ void AuraShadowCityLoaded(cISC4City* city) {
     Call c;
     c.sim = sim;
     if (Guarded(city, "aura shadow (city load)", &CallBaseline, &c)) g_lastResult = c.result;
+    if (!g_testMode) {
+        // aura.md §14.3.1 and functions.tsv: void thiscall, two stack words.
+        const bool hooked = g_coneBoundary.Install(0x0068ECF0, reinterpret_cast<void*>(&ConeDelivery));
+        Log("aura boundary: original helper capture %s", hooked ? "installed" : "FAILED");
+    }
 }
 
 void AuraShadowCycle(cISC4City*, int32_t) {
