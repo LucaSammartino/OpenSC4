@@ -40,9 +40,11 @@ fn derived_owner_records_replay_full_payload_and_release_every_acquisition() {
         token: 17,
         class_id: PEDESTRIAN,
     };
-    let mut base = AutomatonBase::default();
-    base.leader = leader.clone();
-    base.tail = 0x1234_5678;
+    let mut base = AutomatonBase {
+        leader: leader.clone(),
+        tail: 0x1234_5678,
+        ..AutomatonBase::default()
+    };
     base.vectors[0] = [12.5, -7.0, 42.0];
     let mut aircraft = AircraftPlacementRecord::default();
     aircraft.aircraft.base = base.clone();
