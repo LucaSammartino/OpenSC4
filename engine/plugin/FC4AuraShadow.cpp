@@ -599,6 +599,10 @@ void Listen() {
 
 intptr_t Deliver(cISC4City* city, cISC4AuraSimulator* sim, cIGZMessageTarget2* target, cIGZMessage2* msg,
                  uint32_t type, int64_t data1, bool* finished) {
+    if (!g_testMode && !g_coneBoundary.original) {
+        const bool hooked = g_coneBoundary.Install(0x0068ECF0, reinterpret_cast<void*>(&ConeDelivery));
+        Log("aura boundary: helper capture retry %s (%s)", hooked ? "installed" : "FAILED", g_coneBoundary.failure);
+    }
     RawRead before;
     if (!ReadOriginal(sim, &before)) {
         g_followed = false;
@@ -663,6 +667,12 @@ void AuraShadowStartup(bool simulatorReplaced, bool auraReplaced) {
     g_auraReplaced = auraReplaced;
     ReadSettings();
     if (!g_enabled) return;  // off by default: not a word in the log
+    if (Active()) {
+        // Install before the city's worker threads start. A failed thread
+        // snapshot is retried at attachment and subsequent agent boundaries.
+        const bool hooked = g_coneBoundary.Install(0x0068ECF0, reinterpret_cast<void*>(&ConeDelivery));
+        Log("aura boundary: startup helper capture %s (%s)", hooked ? "installed" : "FAILED", g_coneBoundary.failure);
+    }
     const char* src = "";
     Setting("aura_shadow", "FC4_AURA_SHADOW", &src);
     if (auraReplaced) {
@@ -705,7 +715,7 @@ void AuraShadowCityLoaded(cISC4City* city) {
     if (!g_testMode) {
         // aura.md §14.3.1 and functions.tsv: void thiscall, two stack words.
         const bool hooked = g_coneBoundary.Install(0x0068ECF0, reinterpret_cast<void*>(&ConeDelivery));
-        Log("aura boundary: original helper capture %s", hooked ? "installed" : "FAILED");
+        Log("aura boundary: original helper capture %s (%s)", hooked ? "installed" : "FAILED", g_coneBoundary.failure);
     }
 }
 
