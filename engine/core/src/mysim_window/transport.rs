@@ -24,9 +24,9 @@ pub trait TransportHost {
     fn run_transport_dialog(&mut self, dialog: Handle);
     fn release_transport_dialog(&mut self, dialog: Handle);
     fn post(&mut self, message: u32);
-    /// Each returns the created tool reference to the caller, who must release it.
-    fn create_change_house_tool(&mut self, sim: Sim) -> Option<Handle>;
-    fn create_change_job_tool(&mut self, sim: Sim) -> Option<Handle>;
+    /// Simulator commands; this window does not receive a tool reference.
+    fn create_change_house_tool(&mut self, sim: Sim);
+    fn create_change_job_tool(&mut self, sim: Sim);
 }
 
 pub fn vehicle_icons(sim: Sim, host: &mut impl TransportHost) -> Vec<Vehicle> {
@@ -66,12 +66,15 @@ impl MySimWindow {
         // SPEC-GAP: MW3 omits property-to-widget layout; MW2 omits choice effects.
         Err(Unsupported::TransportChoice)
     }
-    pub fn create_change_house_tool(&self, host: &mut impl TransportHost) -> Result<Option<Handle>> {
+    pub fn create_change_house_tool(&self, host: &mut impl TransportHost) -> Result<()> {
         let sim = self.selected_sim().ok_or(Unsupported::Precondition("selected Sim"))?;
-        Ok(host.create_change_house_tool(sim))
+        // SPEC-GAP: §1.6 does not specify a return channel; creation is a command.
+        host.create_change_house_tool(sim);
+        Ok(())
     }
-    pub fn create_change_job_tool(&self, host: &mut impl TransportHost) -> Result<Option<Handle>> {
+    pub fn create_change_job_tool(&self, host: &mut impl TransportHost) -> Result<()> {
         let sim = self.selected_sim().ok_or(Unsupported::Precondition("selected Sim"))?;
-        Ok(host.create_change_job_tool(sim))
+        host.create_change_job_tool(sim);
+        Ok(())
     }
 }

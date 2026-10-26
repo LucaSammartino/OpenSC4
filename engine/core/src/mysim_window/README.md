@@ -10,6 +10,7 @@ Closure table:
 | Spec section | Code item | Worked-case test / boundary |
 |---|---|---|
 | 0 Summary | `MySimWindow` | `three_sims_main_add_buttons_and_balanced_lifecycle` |
+| 1 MySim window | `MySimWindow`, message and transport modules | six window tests below; open MW1/MW2/MW3 remain explicit Unsupported boundaries |
 | 1.1 Life cycle | `init`, `shutdown`, `show`, `hide` | `three_sims_main_add_buttons_and_balanced_lifecycle` |
 | 1.2 Panels | `panels`, `set_main_window`, `set_mode_window`, `set_dialog_state` | `occupied_slot_mode_boot_and_stat_boundary`; open MW2: `Unsupported::StatisticsLayout` |
 | 1.3 Sims | `get_current_sims`, `set_current_sim`, `add_sim`, `boot_sim` | three-Sim case; `empty_slot_dialog_disables_panels_and_releases_created_reference`; open MW3: `Unsupported::TransportButtonImage` |

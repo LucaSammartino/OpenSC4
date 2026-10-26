@@ -10,6 +10,7 @@ portrait and callout operations target existing widgets through traits.
 | 1 Tools | owner constructors, `SimView` | `badge_failure_is_success_and_default_owner_kinds_are_distinct` |
 | 1.1 Building fields | `BuildingTool` | `building_lifecycle_badges_wealth_and_interface_ownership` |
 | 1.2 Shared slots | `on_key_down`, `on_mouse_exit`, `destroy` | `building_lifecycle_badges_wealth_and_interface_ownership` |
+| 2 Starting/stopping | `init`, `shutdown`, `on_key_down` | `building_lifecycle_badges_wealth_and_interface_ownership`; badge failure case |
 | 2.1 Init | `BuildingTool::init` | `building_lifecycle_badges_wealth_and_interface_ownership`; badge failure case |
 | 2.2 Ending | `on_key_down` | Esc ends; other keys return false in lifecycle test |
 | 2.3 Shutdown | `shutdown`, `restore_highlight` | lifecycle test: no over-release; all held references reach zero |

@@ -298,13 +298,13 @@ impl transport::TransportHost for TransportFake {
     fn post(&mut self, message: u32) {
         self.calls.push(format!("post:{message:x}"));
     }
-    fn create_change_house_tool(&mut self, sim: Sim) -> Option<Handle> {
+    fn create_change_house_tool(&mut self, sim: Sim) {
         assert_eq!(sim, 1);
-        Some(701)
+        self.calls.push("change-house".into());
     }
-    fn create_change_job_tool(&mut self, sim: Sim) -> Option<Handle> {
+    fn create_change_job_tool(&mut self, sim: Sim) {
         assert_eq!(sim, 1);
-        Some(702)
+        self.calls.push("change-job".into());
     }
 }
 
@@ -343,7 +343,8 @@ fn transport_resource_enumeration_posts_pause_and_created_dialog_cleanup() {
     transport::select_car(&mut transport);
     transport::select_pedestrian(&mut transport);
     assert_eq!(&transport.calls[3..], ["post:ac08746e", "post:ac08746f"]);
-    assert_eq!(owner.create_change_house_tool(&mut transport), Ok(Some(701)));
-    assert_eq!(owner.create_change_job_tool(&mut transport), Ok(Some(702)));
+    assert_eq!(owner.create_change_house_tool(&mut transport), Ok(()));
+    assert_eq!(owner.create_change_job_tool(&mut transport), Ok(()));
+    assert_eq!(&transport.calls[5..], ["change-house", "change-job"]);
     owner.shutdown(&mut windows, &mut host);
 }
