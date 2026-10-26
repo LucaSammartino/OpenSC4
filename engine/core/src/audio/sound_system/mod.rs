@@ -17,6 +17,16 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Unsupported(pub &'static str);
 
+/// Original unchecked dereferences are explicit failure boundaries in safe Rust,
+/// never ordinary Boolean failure or a successful no-op.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NativeFault {
+    MissingSoundSystem,
+    MissingPropertyCache,
+    NullConstructionIdentity,
+    NullSound,
+}
+
 pub type Properties = BTreeMap<u32, i32>;
 
 /// Foreign sound interface. References are acquired by cloning an Arc and
@@ -48,3 +58,6 @@ pub trait Scheduler {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod closure_tests;
