@@ -442,6 +442,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Native entry census; opt-in only.
                                   "reach", "reach_cap", "reach_window", "reach_include_probes",
                                   "reach_contracts", "reach_output", "reach_diagnostics", "reach_lifecycle",
+                                  "reach_contracts", "reach_output", "reach_diagnostics",
+                                  // Explicit DX7 shadow selection before city resources, default off.
+                                  "gdriver_shadow_select",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
