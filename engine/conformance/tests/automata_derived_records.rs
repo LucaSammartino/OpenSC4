@@ -255,8 +255,10 @@ fn at30_at33_ambulance_and_fire_truck_layout_iids_and_changed_crew() {
     let truncated = &e[..e.len() - 1];
     let mut tokens = Tokens;
     let mut inp = input(truncated, &mut tokens);
-    let mut emergency = EmergencyRecord::default();
-    emergency.u = 77;
+    let mut emergency = EmergencyRecord {
+        u: 77,
+        ..EmergencyRecord::default()
+    };
     assert!(emergency.read_into(&mut inp));
     assert_ne!(inp.error(), 0);
     assert_eq!(emergency.u, 77);
