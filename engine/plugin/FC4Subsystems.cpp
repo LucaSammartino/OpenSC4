@@ -12,7 +12,6 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Subsystems.h"
-#include "FC4GZFramework.h"
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "cFC4PowerLineOccupant.h"
@@ -155,6 +154,7 @@ FC4_DISASTER_FACTORY_DECL(Toxic)
 #undef FC4_DISASTER_FACTORY_DECL
 
 #include "FC4OverlayOwner.h"
+#include "FC4GZFramework.h"
 
 namespace fc4 {
 namespace {

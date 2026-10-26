@@ -12,7 +12,6 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4TestSeam.h"
-#include "FC4GZFramework.h"
 #include "cFC4LotConfiguration.h"
 #include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
@@ -75,6 +74,7 @@
 
 #include <cstring>
 #include <vector>
+#include "FC4GZFramework.h"
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {

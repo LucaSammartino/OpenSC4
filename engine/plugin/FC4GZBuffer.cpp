@@ -3,6 +3,7 @@
 #include "FC4GZFramework.h"
 #include "FC4Log.h"
 #include "cIGZUnknown.h"
+#include <atomic>
 #include <cstdint>
 #include <new>
 
@@ -68,7 +69,11 @@ class Buffer final : public BufferPrimary, public BufferFace {
     }
     bool Gap(uint32_t slot) {
         // SPEC-GAP: GZF6 operations outside the covered bridge refuse work.
-        fc4::Log("gzfw buffer: unsupported slot=%u gap=GZF6", slot);
+        // Unsupported cache calls can occur every frame before city load.
+        static std::atomic<uint64_t> reported{0};
+        const uint64_t bit=uint64_t{1}<<slot;
+        if (!(reported.fetch_or(bit)&bit))
+            fc4::Log("gzfw buffer: unsupported slot=%u gap=GZF6 (first call)", slot);
         return false;
     }
 public:
