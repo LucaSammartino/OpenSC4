@@ -285,6 +285,14 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
                 occ->GetBoundingBox(&mn, &mx);
                 CHECK(mn.fX == 32.0f && mn.fZ == 64.0f && mx.fX == 48.0f && mx.fZ == 80.0f);
                 CHECK(mx.fY == 72.0f);
+                CHECK(mn.fY == p.fY); // Off-map/no-city floor-height choice (4.7).
+                // A zoom context rebuilds faces without changing the position.
+                uint32_t context[7]{};
+                context[5] = 2; context[6] = 3; // +14 zoom, +18 rotation.
+                CHECK(pole->ChangeZoomLevel(context));
+                cS3DVector3 after;
+                CHECK(occ->GetPosition(&after));
+                CHECK(after.fX == p.fX && after.fY == p.fY && after.fZ == p.fZ);
                 occ->SetRemovalFlags(2); CHECK(!occ->CanRemove(2) && occ->CanRemove(1));
                 occ->UnsetRemovalFlags(2); CHECK(occ->CanRemove(2));
                 CHECK(!occ->IsInitialized());
