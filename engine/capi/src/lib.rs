@@ -1214,3 +1214,5 @@ mod draw_stream;
 mod gzfw_owner;
 // Native simulation invocation context; private, no C ABI exports.
 mod invocation;
+// Private View3D method differential; no public C ABI exports.
+mod view3d_shadow;

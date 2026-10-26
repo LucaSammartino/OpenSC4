@@ -453,6 +453,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "landvalue_shadow_inputs",
                                   // GZ command stream comparison, independently default off.
                                   "gzfw_trace",
+                                  // View3D invocation-method differential, default off.
+                                  "view3d_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
