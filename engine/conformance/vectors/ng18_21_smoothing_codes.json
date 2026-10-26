@@ -4,10 +4,11 @@
  "spec": [
   "network-geometry 9.4",
   "9.6",
+  "9.8",
   "14",
   "18.21"
  ],
- "description": "A road (10, 10) -> (20, 10) up a ramp rising 30 m per cell (vertex altitude 300 + 30x). Between two immovable pieces at (10, 10) and (20, 10) held at the terrain, the run must climb 300 m over 9 cells within the 11.2033 slope: the height solve fails at every level (0 to 3) -> 0xF0000006. Without them, level 0 fails (every corner is on the boundary, held at the terrain). Ordered propagation to closure before the first hash pick (NT36) lets level 1 select a supportable profile and place all eleven cells.",
+ "description": "A road (10, 10) -> (20, 10) up a ramp rising 30 m per cell (vertex altitude 300 + 30x). Between immovable end pieces the slope constraints fail at every level. Without them, section 9.8 still applies the terrain-anchored plane with 35 m windows. Those windows cannot absorb the ramp's excess over the 11.2033 m-per-cell slope limit, so every smoothing level fails and placement reports 0xF0000006.",
  "steps": [
   {
    "op": "ng_city",
@@ -101,11 +102,17 @@
   {
    "op": "ng_smoothen",
    "level": 1,
-   "expect": true
+   "expect": false
   },
   {
-   "op": "ng_support",
-   "expect": true
+   "op": "ng_smoothen",
+   "level": 2,
+   "expect": false
+  },
+  {
+   "op": "ng_smoothen",
+   "level": 3,
+   "expect": false
   },
   {
    "op": "ng_draw",
@@ -122,14 +129,14 @@
   },
   {
    "op": "ng_place",
-   "expect": 11
+   "expect": 0
   },
   {
    "op": "ng_expect",
    "state": {
-    "failure": 0,
-    "valid": 11,
-    "level": 1
+    "failure": 4026531846,
+    "valid": 0,
+    "level": null
    }
   }
  ]

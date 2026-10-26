@@ -321,6 +321,16 @@ enum : uint32_t {
     kFC4SeamNetOccPoleFactory = 0x4E4F0001,
     kFC4SeamNetworkLotOwnership = 77,  // a,b = unknown prefixes of fake network occupants
     kFC4SeamNetworkCrewOwnership = 78,  // specified slot-5 shutdown and reentrant unregister
+    kFC4SeamNetOccPoleLink = 0x4E4F0002, // a = FC4NetOccPoleLinkTest*, b = null
+};
+
+class cIGZUnknown;
+struct FC4NetOccPoleLinkTest {
+    uint32_t operation; // 0 enable, 1 add, 2 refresh, 3 attachment points, 4 remove
+    cIGZUnknown* first;
+    cIGZUnknown* second;
+    void* buffer;       // native wire header for add, xyz[4] for attachment points
+    uint32_t value;     // enable/quiet or attachment orientation
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

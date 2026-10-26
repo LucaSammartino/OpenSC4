@@ -340,3 +340,31 @@
   including crossings from native neighbours. The outside tool does not itself walk connection storage,
   so complete interposition can avoid that layout, while returned buffers must obey the native ABI.
   Power-line-tool §5 now records the draft generated-link skip and literal second undo call (B,B,true).
+
+<!-- from: netocc-cities29 (2026-10-26); answered/narrowed by re-nm30 -->
+
+- ~~**NO46 — prebuilt v4 record envelope (extends NO4, §2.8):** please specify the ordered stream fields,
+  including the placement of the subclass/base version words, field widths, reference IIDs and any Read→Write
+  canonicalization, for `cSC4NetworkOccupantWithPreBuiltModel` (`0x49C1A034`). Opaque field semantics are sufficient
+  if they are simply retained. The current shadow sends this class through the plain network v8 codec and fails
+  parsing; §2.8 states a distinct v4 record but does not give its stream layout. This blocks the census's 72
+  prebuilt-containing scenarios, rather than a capture tolerance or timing issue. Fresh baseline evidence:
+  `build-runs/suite/netocc-cities29-before4/lua-lots-grown.log` has class `49C1A034`, capture=1/status=2,
+  and 424 load mismatches; `paradis-port-of-shiganshina.log` has the same failure and 755 load mismatches.
+  The cited runs later stalled and are not acceptance runs; their completed load comparisons establish the
+  codec failure. No prebuilt records have been excluded or normalized past this unsupported envelope.
+  `C:/Users/tlori/FreeCity4/build-runs/game-results/netocc-cities29-probe4-paradis.log` confirms captured
+  versions 4/4/2 for prebuilt `49C1A034`, bridge `49CC1BCD` and tunnel `8A4BD52B`, all status 2. Please include
+  the inherited envelope for the bridge and tunnel as well. This run is corrupt during load (not acceptance);
+  its completed load sample has 755 netocc mismatches and an exact initial netmgr record.~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — §2.8.1 gives the full ordered prebuilt v4 envelope (outer u16 before base v8), v3 discarded words, exact field widths/primary offsets and raw-u32 optional gate. Bridge inherits that envelope without another version; tunnel wraps it in v2 and a byte plus segment object reference, with write/read IIDs and release rules. Base Read→Write canonicalization and worked gate/legacy/null/present-pair cases are specified. NO4 remains open only for opaque field meanings.
+
+- ~~**NO47 — empty-city shadow sample (census accounting, for the coordinator):** the supplied census's
+  `lua-lots-empty.shadows.txt` load line has `records=0 bytes=0` and every class count zero. The existing
+  shadow deliberately adds one mismatch when no network occupant record exists, to avoid giving owner
+  credit to an empty sample; its later two samples are exact. This is distinct from NO46's parse failure.
+  For the requested "exact in every scenario" metric, how should this proven empty original capture be
+  represented while preserving the rule that absent owners receive no verification credit? No codec
+  output differs in this sample. The lane retains the existing failing sample rather than dropping it,
+  changing its count to zero, or claiming that an unexercised class was verified.~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — §13 separates equality from exercised-owner credit: preserve the empty load as equal/unexercised with records=0, bytes=0, all class counts zero, zero differing records and no owner credit. Keep later samples separate. Report the historical deliberate mismatch sentinel as accounting policy, not a codec difference; all-scenario equality must disclose unexercised samples and cannot imply all owners were verified. No new acceptance run is claimed.

@@ -17,7 +17,9 @@ instead of the touched ones), --cxx-tests (quick: also run cxxtest), --no-cache,
 
 Compiler cache: when sccache is installed (`cargo install sccache --version 0.18.0 --locked`) the C++ compiler
 (through CMake's FC4_COMPILER_CACHE) and rustc (RUSTC_WRAPPER) go through it. Each worktree gets its own sccache
-server port with SCCACHE_BASEDIRS set to the worktree root, so C++ objects hit across worktrees; all servers share
+server port and no SCCACHE_BASEDIRS, so objects hit only within their own worktree (a cross-worktree hit replays
+the other worktree's /showIncludes, ninja records its headers, and a later header change never rebuilds the object:
+train278 gate #1 passed a stale capi_smoke, 2026-10-26); all servers share
 one on-disk cache (%LOCALAPPDATA%\\fc4\\sccache, 20G). Rust hits only within a worktree (sccache hashes rustc's
 working directory), e.g. between `cargo test` and ctest's cargo_test. Cargo always runs with CARGO_INCREMENTAL=0
 and no debug info (disk is shared; incremental builds are not cacheable), matching the CMake build's cargo env.
@@ -293,13 +295,13 @@ def sccache_exe():
 
 
 def cache_env(wt):
-    """sccache settings for this worktree: its own server (port from the path) whose base dir is the worktree."""
+    """sccache settings for this worktree: its own server (port from the path); no base dir, see the module doc."""
     exe = sccache_exe()
     if not exe:
         return {}
     root = str(Path(wt).resolve())
     port = 4300 + zlib.crc32(root.lower().encode("utf-8")) % 600
-    return {"RUSTC_WRAPPER": exe, "SCCACHE_SERVER_PORT": str(port), "SCCACHE_BASEDIRS": root,
+    return {"RUSTC_WRAPPER": exe, "SCCACHE_SERVER_PORT": str(port),
             "SCCACHE_DIR": os.environ.get("SCCACHE_DIR") or str(LOCAL / "sccache"),
             "SCCACHE_CACHE_SIZE": os.environ.get("SCCACHE_CACHE_SIZE") or "20G",
             "SCCACHE_IGNORE_SERVER_IO_ERROR": "1", "SCCACHE_IDLE_TIMEOUT": "900"}

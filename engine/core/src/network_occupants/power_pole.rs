@@ -13,6 +13,11 @@ use super::{
 use super::{identity::OCCUPANT_TYPE_POWER_POLE, xform::Xform};
 use crate::stream::{InStream, OutStream};
 
+mod links;
+mod model;
+pub use links::PoleLinkHost;
+pub use model::{PoleDrawContext, PoleModelHost, PoleRenderHost, PoleTextures};
+
 /// Native pool allocation size, not the size of this portable Rust state.
 pub const POWER_POLE_POOL_OBJECT_SIZE: usize = 0x124;
 pub const PROP_POLE_MODEL: u32 = 0x2781_2821;
@@ -41,6 +46,11 @@ pub struct PoleConnection {
 pub struct WireQuad {
     pub texture: u32,
     pub vertices: [[f32; 5]; 4],
+}
+
+pub enum WireSubmission {
+    Bind(u32),
+    Quad(WireQuad),
 }
 
 impl Default for PoleConnection {
@@ -129,6 +139,7 @@ impl ConnectionPointTable {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PoleUnsupported {
     AttachmentInvariant,
+    CurveCountInvariant,
     DiagonalFloorNO43,
     CellWalkNO33NO43,
     ModelBoundsPickDrawNO33NO43,
@@ -432,8 +443,8 @@ impl PowerPole {
     pub fn is_preview(&self) -> bool {
         self.fields.field_118 != 0
     }
-    pub fn set_highlight(&mut self, highlight: u8) {
-        self.bytes_54_55[1] = highlight;
+    pub fn set_highlight(&mut self, highlight: u32) {
+        self.bytes_54_55[1] = highlight as u8;
         self.bytes_54_55[0] = (self.bytes_54_55[0] & !1) | u8::from(highlight != 0);
     }
     pub fn sort_value(&self) -> u32 {
@@ -488,6 +499,9 @@ impl PowerPole {
         self.stale = true;
     }
     pub fn remove_connection(&mut self, pole: &RefValue, quiet: bool, host: &mut impl PoleHost) {
+        if matches!(pole, RefValue::Null) {
+            return;
+        }
         if let Some(index) = self.fields.connections.iter().position(|r| same_ref(&r.pole, pole)) {
             self.remove_connection_record(index, quiet, host);
             self.fields.connections.remove(index);
@@ -648,6 +662,16 @@ impl PowerPole {
     }
 
     pub fn wire_quads(&self, width: f32) -> Vec<WireQuad> {
+        self.wire_submissions(width)
+            .into_iter()
+            .filter_map(|command| match command {
+                WireSubmission::Quad(quad) => Some(quad),
+                WireSubmission::Bind(_) => None,
+            })
+            .collect()
+    }
+
+    pub fn wire_submissions(&self, width: f32) -> Vec<WireSubmission> {
         let mut out = Vec::new();
         if width <= 0.0 {
             return out;
@@ -657,6 +681,7 @@ impl PowerPole {
             if record.flags[1] == 0 {
                 continue;
             }
+            out.push(WireSubmission::Bind(0xAA9D_A78E));
             for curve in &record.vertices[0] {
                 for pair in curve.windows(2) {
                     let [a, b] = [pair[0], pair[1]];
@@ -668,7 +693,7 @@ impl PowerPole {
                     let dx = f64::from(dx as f32);
                     let dz = f64::from(dz as f32);
                     let v = ((dx * dx + dz * dz).sqrt() * 0.125) as f32;
-                    out.push(WireQuad {
+                    out.push(WireSubmission::Quad(WireQuad {
                         texture: 0xAA9D_A78E,
                         vertices: [
                             (a, -1.0, 0.0, 0.0),
@@ -685,13 +710,16 @@ impl PowerPole {
                                 v,
                             ]
                         }),
-                    });
+                    }));
                 }
+            }
+            if !record.vertices[1].is_empty() {
+                out.push(WireSubmission::Bind(0xC9AF_0FCD));
             }
             for curve in &record.vertices[1] {
                 for pair in curve.windows(2) {
                     let p = pair[0];
-                    out.push(WireQuad {
+                    out.push(WireSubmission::Quad(WireQuad {
                         texture: 0xC9AF_0FCD,
                         vertices: [
                             (-1.0, -1.0, 0.0, 0.0),
@@ -708,7 +736,7 @@ impl PowerPole {
                                 v,
                             ]
                         }),
-                    });
+                    }));
                 }
             }
         }
