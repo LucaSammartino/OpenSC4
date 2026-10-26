@@ -58,6 +58,7 @@ also listed in the TSV's comment header. Reach remains a lower bound.
 | 005f5a52 | 005f5a50 | Adjustor thunk displacement |
 | 00656c64 | 00656c61 | Absolute global address |
 | 00682632 | 0068262f | Spinner stack-store displacement |
+| 00707865 | 00707864 | Tract Init absolute global address (00b43d94 becomes 00b43dcc when patched) |
 | 00736559 | 00736558 | Stack-test ModRM |
 | 00786f62 | 00786f60 | Budget UI stack-store SIB |
 

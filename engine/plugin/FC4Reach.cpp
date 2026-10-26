@@ -70,6 +70,7 @@ const char* NeverArm(uint32_t address, uintptr_t preferredBase) {
     case 0x005f5a52: return "not-entry:displacement-at-005f5a50";
     case 0x00656c64: return "not-entry:absolute-address-at-00656c61";
     case 0x00682632: return "not-entry:stack-displacement-at-0068262f";
+    case 0x00707865: return "not-entry:absolute-address-at-00707864";
     case 0x00736559: return "not-entry:ModRM-stack-test-at-00736558";
     case 0x00786f62: return "not-entry:SIB-stack-store-at-00786f60";
     default: return "";
