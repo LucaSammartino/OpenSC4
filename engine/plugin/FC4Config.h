@@ -685,6 +685,8 @@ std::string IniPath();
 // reach_contracts = path: functions.tsv (default source tree docs/abi/functions.tsv).
 // reach_output = path: census TSV (default log path + .reach.tsv). Harness runs
 // should give an absolute <worktree>/build-runs/game-results/<label>.reach.tsv.
+// reach_diagnostics = path (default off): dump this thread's last 32 entry/step
+// contexts on a foreign exception (at most 16 reports); investigation only.
 
 // inplace = names / all; inplace_mutate = names / all; inplace_fixture = 0 / 1:
 // S3 entry-hook observer, independent default-off switches (FC4Inplace.h).

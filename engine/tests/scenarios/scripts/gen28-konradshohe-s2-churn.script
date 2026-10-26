@@ -1,0 +1,451 @@
+# scenario_gen v5: seed=2 size=medium start=2026-01-28 months=24 mix=churn
+# Cells stay inside the tile. Native refusals are expected in edge/churn.
+# pause/resume, speed 0/2 and turbo off/on share a date to keep time advancing.
+# Disaster starts run on the final date: native emergency mode can stop new days.
+2026-01-28 establish FC4 generated 2
+2026-01-28 funds 150000000
+2026-01-28 mark seed=2 mix=churn size=medium begin
+2026-01-28 speed 2
+2026-01-28 resume
+2026-01-28 turbo on
+2026-01-28 mark seed=2 mix=churn month=0
+2026-01-30 zone 95 113 100 116 1
+2026-01-30 zone 95 113 100 116 0
+2026-01-30 dezone 95 113 100 116
+2026-01-30 network 108 113 95 113 0
+2026-01-30 network 100 124 100 113 3
+2026-01-30 terrain 95 113 100 116 300 0
+2026-01-30 disaster survey
+2026-01-30 save
+2026-01-30 speed 0
+2026-01-30 pause
+2026-01-30 resume
+2026-01-30 speed 2
+2026-01-30 turbo off
+2026-01-30 turbo on
+2026-01-30 clockmode 0
+2026-01-30 lightinghour 12
+2026-02-27 digest
+2026-02-28 mark seed=2 mix=churn month=1
+2026-03-01 zone 42 45 44 47 0
+2026-03-01 zone 42 45 44 47 5
+2026-03-01 dezone 42 45 44 47
+2026-03-01 network 52 45 42 45 1
+2026-03-01 network 44 45 44 55 4
+2026-03-01 terrain 42 45 44 47 270 1
+2026-03-01 disaster survey
+2026-03-01 save fast
+2026-03-01 speed 1
+2026-03-01 pause
+2026-03-01 resume
+2026-03-01 speed 2
+2026-03-01 turbo off
+2026-03-01 turbo on
+2026-03-01 clockmode 1
+2026-03-01 lightinghour 17
+2026-03-27 digest
+2026-03-28 mark seed=2 mix=churn month=2
+2026-03-30 zone 92 46 96 50 11
+2026-03-30 zone 92 46 96 50 11
+2026-03-30 dezone 92 46 96 50
+2026-03-30 network 104 46 92 46 2
+2026-03-30 network 96 58 96 46 5
+2026-03-30 terrain 92 46 96 50 270 2
+2026-03-30 disaster survey
+2026-03-30 save
+2026-03-30 speed 2
+2026-03-30 pause
+2026-03-30 resume
+2026-03-30 speed 2
+2026-03-30 turbo off
+2026-03-30 turbo on
+2026-03-30 clockmode 2
+2026-03-30 lightinghour 14
+2026-04-27 digest
+2026-04-28 mark seed=2 mix=churn month=3
+2026-04-30 zone 118 63 122 66 15
+2026-04-30 zone 118 63 122 66 11
+2026-04-30 dezone 118 63 122 66
+2026-04-30 network 127 63 118 63 3
+2026-04-30 network 122 74 122 63 6
+2026-04-30 terrain 118 63 122 66 300 3
+2026-04-30 disaster survey
+2026-04-30 save fast
+2026-04-30 speed 0
+2026-04-30 pause
+2026-04-30 resume
+2026-04-30 speed 2
+2026-04-30 turbo off
+2026-04-30 turbo on
+2026-04-30 clockmode 0
+2026-04-30 lightinghour 21
+2026-05-27 digest
+2026-05-28 mark seed=2 mix=churn month=4
+2026-05-30 zone 116 124 122 126 10
+2026-05-30 zone 116 124 122 126 5
+2026-05-30 dezone 116 124 122 126
+2026-05-30 network 127 124 116 124 4
+2026-05-30 network 122 127 122 124 7
+2026-05-30 terrain 116 124 122 126 300 4
+2026-05-30 disaster survey
+2026-05-30 save
+2026-05-30 speed 1
+2026-05-30 pause
+2026-05-30 resume
+2026-05-30 speed 2
+2026-05-30 turbo off
+2026-05-30 turbo on
+2026-05-30 clockmode 1
+2026-05-30 lightinghour 13
+2026-06-27 digest
+2026-06-28 mark seed=2 mix=churn month=5
+2026-06-30 zone 104 79 110 81 15
+2026-06-30 zone 104 79 110 81 11
+2026-06-30 dezone 104 79 110 81
+2026-06-30 network 104 79 118 79 5
+2026-06-30 network 110 89 110 79 8
+2026-06-30 terrain 104 79 110 81 250 5
+2026-06-30 disaster survey
+2026-06-30 save fast
+2026-06-30 speed 2
+2026-06-30 pause
+2026-06-30 resume
+2026-06-30 speed 2
+2026-06-30 turbo off
+2026-06-30 turbo on
+2026-06-30 clockmode 2
+2026-06-30 lightinghour 11
+2026-07-27 digest
+2026-07-28 mark seed=2 mix=churn month=6
+2026-07-30 zone 27 15 32 21 1
+2026-07-30 zone 27 15 32 21 8
+2026-07-30 dezone 27 15 32 21
+2026-07-30 network 27 15 40 15 6
+2026-07-30 network 32 15 32 29 9
+2026-07-30 terrain 27 15 32 21 270 6
+2026-07-30 disaster survey
+2026-07-30 save
+2026-07-30 speed 0
+2026-07-30 pause
+2026-07-30 resume
+2026-07-30 speed 2
+2026-07-30 turbo off
+2026-07-30 turbo on
+2026-07-30 clockmode 0
+2026-07-30 lightinghour 14
+2026-08-27 digest
+2026-08-28 mark seed=2 mix=churn month=7
+2026-08-28 zone 53 15 57 21 1
+2026-08-28 zone 53 15 57 21 1
+2026-08-28 dezone 53 15 57 21
+2026-08-28 network 65 15 53 15 7
+2026-08-28 network 57 29 57 15 10
+2026-08-28 terrain 53 15 57 21 270 0
+2026-08-28 disaster survey
+2026-08-28 save fast
+2026-08-28 speed 1
+2026-08-28 pause
+2026-08-28 resume
+2026-08-28 speed 2
+2026-08-28 turbo off
+2026-08-28 turbo on
+2026-08-28 clockmode 1
+2026-08-28 lightinghour 14
+2026-09-27 digest
+2026-09-28 mark seed=2 mix=churn month=8
+2026-09-30 zone 6 21 7 22 0
+2026-09-30 zone 6 21 7 22 1
+2026-09-30 dezone 6 21 7 22
+2026-09-30 network 6 21 15 21 8
+2026-09-30 network 7 30 7 21 11
+2026-09-30 terrain 6 21 7 22 300 1
+2026-09-30 disaster survey
+2026-09-30 save
+2026-09-30 speed 2
+2026-09-30 pause
+2026-09-30 resume
+2026-09-30 speed 2
+2026-09-30 turbo off
+2026-09-30 turbo on
+2026-09-30 clockmode 2
+2026-09-30 lightinghour 12
+2026-10-27 digest
+2026-10-28 mark seed=2 mix=churn month=9
+2026-10-28 zone 47 0 51 5 1
+2026-10-28 zone 47 0 51 5 7
+2026-10-28 dezone 47 0 51 5
+2026-10-28 network 47 0 59 0 9
+2026-10-28 network 51 0 51 13 12
+2026-10-28 terrain 47 0 51 5 250 2
+2026-10-28 disaster survey
+2026-10-28 save fast
+2026-10-28 speed 0
+2026-10-28 pause
+2026-10-28 resume
+2026-10-28 speed 2
+2026-10-28 turbo off
+2026-10-28 turbo on
+2026-10-28 clockmode 0
+2026-10-28 lightinghour 20
+2026-11-27 digest
+2026-11-28 mark seed=2 mix=churn month=10
+2026-11-30 zone 28 73 31 77 0
+2026-11-30 zone 28 73 31 77 9
+2026-11-30 dezone 28 73 31 77
+2026-11-30 network 39 73 28 73 10
+2026-11-30 network 31 73 31 85 0
+2026-11-30 terrain 28 73 31 77 300 3
+2026-11-30 disaster survey
+2026-11-30 save
+2026-11-30 speed 1
+2026-11-30 pause
+2026-11-30 resume
+2026-11-30 speed 2
+2026-11-30 turbo off
+2026-11-30 turbo on
+2026-11-30 clockmode 1
+2026-11-30 lightinghour 22
+2026-12-27 digest
+2026-12-28 mark seed=2 mix=churn month=11
+2026-12-30 zone 39 121 41 122 10
+2026-12-30 zone 39 121 41 122 3
+2026-12-30 dezone 39 121 41 122
+2026-12-30 network 39 121 49 121 11
+2026-12-30 network 41 127 41 121 1
+2026-12-30 terrain 39 121 41 122 270 4
+2026-12-30 disaster survey
+2026-12-30 save fast
+2026-12-30 speed 2
+2026-12-30 pause
+2026-12-30 resume
+2026-12-30 speed 2
+2026-12-30 turbo off
+2026-12-30 turbo on
+2026-12-30 clockmode 2
+2026-12-30 lightinghour 3
+2027-01-27 digest
+2027-01-28 mark seed=2 mix=churn month=12
+2027-01-30 zone 100 124 105 127 4
+2027-01-30 zone 100 124 105 127 10
+2027-01-30 dezone 100 124 105 127
+2027-01-30 network 113 124 100 124 12
+2027-01-30 network 105 127 105 124 2
+2027-01-30 terrain 100 124 105 127 450 5
+2027-01-30 disaster survey
+2027-01-30 save
+2027-01-30 speed 0
+2027-01-30 pause
+2027-01-30 resume
+2027-01-30 speed 2
+2027-01-30 turbo off
+2027-01-30 turbo on
+2027-01-30 clockmode 0
+2027-01-30 lightinghour 8
+2027-02-27 digest
+2027-02-28 mark seed=2 mix=churn month=13
+2027-02-28 zone 35 14 38 15 4
+2027-02-28 zone 35 14 38 15 5
+2027-02-28 dezone 35 14 38 15
+2027-02-28 network 35 14 46 14 0
+2027-02-28 network 38 14 38 23 3
+2027-02-28 terrain 35 14 38 15 450 6
+2027-02-28 disaster survey
+2027-02-28 save fast
+2027-02-28 speed 1
+2027-02-28 pause
+2027-02-28 resume
+2027-02-28 speed 2
+2027-02-28 turbo off
+2027-02-28 turbo on
+2027-02-28 clockmode 1
+2027-02-28 lightinghour 9
+2027-03-27 digest
+2027-03-28 mark seed=2 mix=churn month=14
+2027-03-28 zone 8 63 10 69 14
+2027-03-28 zone 8 63 10 69 2
+2027-03-28 dezone 8 63 10 69
+2027-03-28 network 18 63 8 63 1
+2027-03-28 network 10 63 10 77 4
+2027-03-28 terrain 8 63 10 69 270 0
+2027-03-28 disaster survey
+2027-03-28 save
+2027-03-28 speed 2
+2027-03-28 pause
+2027-03-28 resume
+2027-03-28 speed 2
+2027-03-28 turbo off
+2027-03-28 turbo on
+2027-03-28 clockmode 2
+2027-03-28 lightinghour 9
+2027-04-27 digest
+2027-04-28 mark seed=2 mix=churn month=15
+2027-04-30 zone 92 65 98 69 8
+2027-04-30 zone 92 65 98 69 0
+2027-04-30 dezone 92 65 98 69
+2027-04-30 network 92 65 106 65 2
+2027-04-30 network 98 65 98 77 5
+2027-04-30 terrain 92 65 98 69 450 1
+2027-04-30 disaster survey
+2027-04-30 save fast
+2027-04-30 speed 0
+2027-04-30 pause
+2027-04-30 resume
+2027-04-30 speed 2
+2027-04-30 turbo off
+2027-04-30 turbo on
+2027-04-30 clockmode 0
+2027-04-30 lightinghour 4
+2027-05-27 digest
+2027-05-28 mark seed=2 mix=churn month=16
+2027-05-28 zone 28 22 30 23 3
+2027-05-28 zone 28 22 30 23 0
+2027-05-28 dezone 28 22 30 23
+2027-05-28 network 28 22 38 22 3
+2027-05-28 network 30 22 30 31 6
+2027-05-28 terrain 28 22 30 23 250 2
+2027-05-28 disaster survey
+2027-05-28 save
+2027-05-28 speed 1
+2027-05-28 pause
+2027-05-28 resume
+2027-05-28 speed 2
+2027-05-28 turbo off
+2027-05-28 turbo on
+2027-05-28 clockmode 1
+2027-05-28 lightinghour 22
+2027-06-27 digest
+2027-06-28 mark seed=2 mix=churn month=17
+2027-06-28 zone 118 116 121 121 12
+2027-06-28 zone 118 116 121 121 6
+2027-06-28 dezone 118 116 121 121
+2027-06-28 network 118 116 127 116 4
+2027-06-28 network 121 127 121 116 7
+2027-06-28 terrain 118 116 121 121 450 3
+2027-06-28 disaster survey
+2027-06-28 save fast
+2027-06-28 speed 2
+2027-06-28 pause
+2027-06-28 resume
+2027-06-28 speed 2
+2027-06-28 turbo off
+2027-06-28 turbo on
+2027-06-28 clockmode 2
+2027-06-28 lightinghour 9
+2027-07-27 digest
+2027-07-28 mark seed=2 mix=churn month=18
+2027-07-28 zone 13 107 18 112 5
+2027-07-28 zone 13 107 18 112 3
+2027-07-28 dezone 13 107 18 112
+2027-07-28 network 26 107 13 107 5
+2027-07-28 network 18 120 18 107 8
+2027-07-28 terrain 13 107 18 112 250 4
+2027-07-28 disaster survey
+2027-07-28 save
+2027-07-28 speed 0
+2027-07-28 pause
+2027-07-28 resume
+2027-07-28 speed 2
+2027-07-28 turbo off
+2027-07-28 turbo on
+2027-07-28 clockmode 0
+2027-07-28 lightinghour 10
+2027-08-27 digest
+2027-08-28 mark seed=2 mix=churn month=19
+2027-08-28 zone 93 74 99 77 9
+2027-08-28 zone 93 74 99 77 0
+2027-08-28 dezone 93 74 99 77
+2027-08-28 network 107 74 93 74 6
+2027-08-28 network 99 74 99 85 9
+2027-08-28 terrain 93 74 99 77 250 5
+2027-08-28 disaster survey
+2027-08-28 save fast
+2027-08-28 speed 1
+2027-08-28 pause
+2027-08-28 resume
+2027-08-28 speed 2
+2027-08-28 turbo off
+2027-08-28 turbo on
+2027-08-28 clockmode 1
+2027-08-28 lightinghour 4
+2027-09-27 digest
+2027-09-28 mark seed=2 mix=churn month=20
+2027-09-28 zone 4 115 5 119 15
+2027-09-28 zone 4 115 5 119 14
+2027-09-28 dezone 4 115 5 119
+2027-09-28 network 4 115 13 115 7
+2027-09-28 network 5 115 5 127 10
+2027-09-28 terrain 4 115 5 119 250 6
+2027-09-28 disaster survey
+2027-09-28 save
+2027-09-28 speed 2
+2027-09-28 pause
+2027-09-28 resume
+2027-09-28 speed 2
+2027-09-28 turbo off
+2027-09-28 turbo on
+2027-09-28 clockmode 2
+2027-09-28 lightinghour 5
+2027-10-27 digest
+2027-10-28 mark seed=2 mix=churn month=21
+2027-10-28 zone 95 78 101 79 7
+2027-10-28 zone 95 78 101 79 15
+2027-10-28 dezone 95 78 101 79
+2027-10-28 network 95 78 109 78 8
+2027-10-28 network 101 78 101 87 11
+2027-10-28 terrain 95 78 101 79 300 0
+2027-10-28 disaster survey
+2027-10-28 save fast
+2027-10-28 speed 0
+2027-10-28 pause
+2027-10-28 resume
+2027-10-28 speed 2
+2027-10-28 turbo off
+2027-10-28 turbo on
+2027-10-28 clockmode 0
+2027-10-28 lightinghour 9
+2027-11-27 digest
+2027-11-28 mark seed=2 mix=churn month=22
+2027-11-30 zone 118 35 121 39 3
+2027-11-30 zone 118 35 121 39 8
+2027-11-30 dezone 118 35 121 39
+2027-11-30 network 118 35 127 35 9
+2027-11-30 network 121 35 121 47 12
+2027-11-30 terrain 118 35 121 39 250 1
+2027-11-30 disaster survey
+2027-11-30 save
+2027-11-30 speed 1
+2027-11-30 pause
+2027-11-30 resume
+2027-11-30 speed 2
+2027-11-30 turbo off
+2027-11-30 turbo on
+2027-11-30 clockmode 1
+2027-11-30 lightinghour 17
+2027-12-27 digest
+2027-12-28 mark seed=2 mix=churn month=23
+2027-12-29 zone 100 54 106 55 0
+2027-12-29 zone 100 54 106 55 15
+2027-12-29 dezone 100 54 106 55
+2027-12-29 network 100 54 114 54 10
+2027-12-29 network 106 63 106 54 0
+2027-12-29 terrain 100 54 106 55 300 2
+2027-12-29 disaster survey
+2027-12-29 save fast
+2027-12-29 speed 2
+2027-12-29 pause
+2027-12-29 resume
+2027-12-29 speed 2
+2027-12-29 turbo off
+2027-12-29 turbo on
+2027-12-29 clockmode 2
+2027-12-29 lightinghour 10
+2028-01-27 digest
+2028-01-28 disaster survey
+2028-01-28 disaster fire 117 36
+2028-01-28 disaster survey
+2028-01-28 disaster fire auto
+2028-01-28 disaster survey
+2028-01-28 disaster riot 95 68
+2028-01-28 disaster survey
+2028-01-28 disaster riot auto
+2028-01-28 mark seed=2 mix=churn complete

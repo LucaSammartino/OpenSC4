@@ -27,5 +27,12 @@
   {"address":"00442340","convention":"thiscall","pop":4,"args":1,"ret":"void"},
   {"address":"00442320","convention":"thiscall","pop":0,"args":0,"ret":"eax"},
   {"address":"00441c50","convention":"thiscall","pop":12,"args":3,"ret":"al"},
-  {"address":"00443b40","convention":"thiscall","pop":8,"args":2,"ret":"eax"}
+  {"address":"00443b40","convention":"thiscall","pop":8,"args":2,"ret":"eax"},
+  {"address":"00649910","convention":"thiscall","pop":8,"args":2,"ret":"void","note":"NO44 re-no28"},
+  {"address":"0064e3e0","convention":"thiscall","pop":8,"args":2,"ret":"void","note":"NO44 re-no28"},
+  {"address":"0064be50","convention":"thiscall","pop":8,"args":2,"ret":"al","note":"NO44 re-no28"},
+  {"address":"00649dd0","convention":"thiscall","pop":8,"args":2,"ret":"al","note":"NO44 re-no28"},
+  {"address":"00650140","convention":"thiscall","pop":4,"args":1,"ret":"void","note":"NO44 re-no28"},
+  {"address":"00649ba0","convention":"thiscall","pop":8,"args":2,"ret":"al","note":"NO44 re-no28"},
+  {"address":"0064d510","convention":"thiscall","pop":4,"args":1,"ret":"void","note":"NO44 re-no28"}
 ]

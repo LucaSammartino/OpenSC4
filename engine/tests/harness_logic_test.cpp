@@ -129,6 +129,29 @@ bool ErrorIs(const std::string& line, const std::string& message) {
 
 void ScriptParseTests() {
     using namespace fc4::harness;
+    {
+        const auto p = One("2000-01-01 funds 999999999\n2000-01-01 establish FC4 small tile # comment");
+        CHECK(p.errors.empty() && p.actions.size() == 2);
+        CHECK(p.actions[0].op == ScriptOp::Funds && p.actions[0].funds == 999999999);
+        CHECK(p.actions[1].op == ScriptOp::Establish && p.actions[1].text == "FC4 small tile");
+        CHECK(One("2000-01-01 funds 0").errors.empty());
+        CHECK(One("2000-01-01 funds 1000000000").errors.size() == 1);
+        CHECK(One("2000-01-01 funds -1").errors.size() == 1);
+        CHECK(One("2000-01-01 funds 1.5").errors.size() == 1);
+        CHECK(One("2000-01-01 funds 1 extra").errors.size() == 1);
+        CHECK(One("2000-01-01 establish").errors.size() == 1);
+        CHECK(One("2000-01-01 establish " + std::string(81, 'a')).errors.size() == 1);
+        ScriptSchedule schedule;
+        schedule.Load(One("2000-01-01 establish Test\n2000-01-01 funds 123\n2000-01-02 digest").actions);
+        const auto day = JulianFromCivil(2000, 1, 1);
+        CHECK(!schedule.BootstrapDue(day - 1) && schedule.BootstrapDue(day));
+        CHECK(schedule.Due(day).size() == 2);
+        CHECK(!schedule.BootstrapDue(day + 1) && schedule.Remaining() == 1);
+        schedule.Load(One("2000-01-01 funds 123\n2000-01-01 establish Test").actions);
+        CHECK(!schedule.BootstrapDue(day));
+        CHECK(ScriptOpName(ScriptOp::Funds) == std::string("funds"));
+        CHECK(ScriptOpName(ScriptOp::Establish) == std::string("establish"));
+    }
     // Good lines.
     {
         const ParsedScript p = One("2000-01-05 zone 10 11 12 13 1");
@@ -268,7 +291,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
-                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour)"));
+                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));

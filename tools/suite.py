@@ -88,7 +88,9 @@ def script_file(root, value):
 def profile_ini(root, profile):
     """Read the house profiles rather than maintaining another replacement list."""
     if profile == 'plain':
-        return {}
+        # Simulator and budget are on by default in the plugin. Also override
+        # FC4_ENABLE so a native control cannot inherit opt-in replacements.
+        return {'disable': 'simulator,budget', 'enable': 'none'}
     source = (root / 'tools/regress.ps1').read_text(encoding='utf-8-sig')
     if profile == 'replace':
         match = re.search(r'\[string\]\$Replace\s*=\s*"([^"]+)"', source)
@@ -190,6 +192,13 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                     ini['script'] = setup_copy.relative_to(root).as_posix()
             else:
                 ini['script'] = script.relative_to(root).as_posix()
+        if ini.get('script'):
+            # Inspect the staged dated script (also a Lua setup companion).
+            # Native full SaveCity can exceed the ordinary ten-second watchdog;
+            # the plugin applies this bounded opt-in only inside full saves.
+            dated = (root / ini['script']).read_text(encoding='utf-8-sig')
+            if re.search(r'(?m)^\s*\d{4}-\d\d-\d\d\s+save(?:\s|$)', dated):
+                ini['script_save_grace_ms'] = '60000'
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
@@ -651,7 +660,7 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'all'], default='tier1')
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)

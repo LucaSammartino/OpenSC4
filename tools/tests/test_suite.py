@@ -172,7 +172,8 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertIn('terrain', replace)
         self.assertIn('netrules', replace)
         self.assertNotIn('enable', shadows)
-        self.assertEqual(suite.profile_ini(ROOT, 'plain'), {})
+        self.assertEqual(suite.profile_ini(ROOT, 'plain'),
+                         {'disable': 'simulator,budget', 'enable': 'none'})
         for value in ('x = 1\ncity = Other', 'region = Other', 'dll = evil.dll', '[ini]', 'script = other'):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])
@@ -235,18 +236,38 @@ class SuiteParsingTests(unittest.TestCase):
 
 
 class SuiteQueueTests(unittest.TestCase):
+    def test_dated_saves_opt_into_bounded_grace_with_explicit_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            script = root / row['script']
+            for tag, action, expected in (
+                    ('full', '2000-01-01 save # full save', True),
+                    ('fast', '2000-01-01 save fast', True),
+                    ('none', '# 2000-01-01 save\n2000-01-01 mark save', False)):
+                script.write_text(action + '\n', encoding='utf-8')
+                _, manifest = suite.make_batch(root, [row], 'plain', str(root), tag)
+                body = manifest['requests'][0]['request']
+                self.assertEqual('\nscript_save_grace_ms = 60000\n' in body, expected)
+                self.assertIn('[ini]\n', body.split('script_save_grace_ms')[0])
+            script.write_text('2000-01-01 save\n', encoding='utf-8')
+            _, manifest = suite.make_batch(root, [row], 'plain', str(root), 'override',
+                                           ['script_save_grace_ms=0'])
+            self.assertIn('\nscript_save_grace_ms = 0\n', manifest['requests'][0]['request'])
+
     def test_lua_can_stage_a_dated_terrain_companion_without_replacing_lua_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             row = checkout(root)
             row['script'] = 'probe.lua'
             (root / 'probe.lua').write_text('-- Lua fixture\n')
-            setup = '2000-01-01 terrain 0 0 256 256 280 1\n'
+            setup = '2000-01-01 terrain 0 0 256 256 280 1\n2000-01-01 save\n'
             (root / 'probe.script').write_text(setup)
             directory, manifest = suite.make_batch(root, [row], 'plain', str(root), 'companion')
             body = manifest['requests'][0]['request']
             self.assertIn('lua_script = build-runs/suite/companion/scripts/case.one.lua', body)
             self.assertIn('\nscript = build-runs/suite/companion/scripts/case.one.script', body)
+            self.assertIn('\nscript_save_grace_ms = 60000\n', body)
             self.assertEqual((directory / 'scripts/case.one.script').read_text(), setup)
 
     def test_lua_request_and_harvested_command_evidence_round_trip(self):

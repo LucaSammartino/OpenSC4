@@ -144,6 +144,9 @@ struct PoleFixture {
     quote: Option<i64>,
     max_distance: Option<f32>,
     exemplar: bool,
+    effect_fail: bool,
+    effect_idle: bool,
+    cell_size: Option<[f32; 2]>,
 }
 impl References for PoleFixture {
     fn add_ref(&mut self, v: &RefValue) {
@@ -199,6 +202,9 @@ impl PoleRecordHost for PoleFixture {
     }
 }
 impl PoleHost for PoleFixture {
+    fn cell_size(&mut self) -> [f32; 2] {
+        self.cell_size.unwrap_or([16.0, 16.0])
+    }
     fn insert_line(&mut self, line: &RefValue, arg: u32) {
         assert_eq!(arg, 0);
         self.log.push(format!("insert{}", token(line)));
@@ -224,7 +230,11 @@ impl PoleHost for PoleFixture {
     fn create_effect(&mut self, name: &str) -> RefValue {
         assert_eq!(name, "powerpolezap");
         self.log.push("effect".into());
-        reference(55)
+        if self.effect_fail {
+            RefValue::Null
+        } else {
+            reference(55)
+        }
     }
     fn place_effect(&mut self, _: &RefValue, position: [f32; 3], rotation: [f32; 9], scale: f32) {
         assert_eq!(rotation, super::xform::IDENTITY_MATRIX);
@@ -234,11 +244,12 @@ impl PoleHost for PoleFixture {
     fn start_effect(&mut self, _: &RefValue) {
         self.log.push("start".into());
     }
-    fn stop_effect(&mut self, _: &RefValue) {
-        self.log.push("stop".into());
+    fn effect_running(&mut self, _: &RefValue) -> bool {
+        self.log.push("running".into());
+        !self.effect_idle
     }
-    fn finish_effect(&mut self, _: &RefValue) {
-        self.log.push("finish".into());
+    fn stop_effect(&mut self, _: &RefValue, immediate: bool) {
+        self.log.push(format!("stop{immediate}"));
     }
     fn subscription(&mut self, message: u32, subscribe: bool) {
         assert_eq!(message, 0x99EF_1142);
@@ -311,7 +322,8 @@ fn pole_constructor_shared_tables_and_geometry_conformance_43_44() {
     let mut a = a;
     a.pos[1] = -12.0;
     assert_eq!(PowerPole::wall_quad(a, b, 4.0)[1].v, -1.0);
-    assert_eq!(p.create_floor(true), Err(PoleUnsupported::DiagonalFloorNO43));
+    p.create_floor(true).unwrap();
+    assert_eq!(p.geometry[0].len(), 4);
 }
 
 #[test]
@@ -475,7 +487,14 @@ fn pole_connections_effects_messages_and_model_attributes_conformance_38_39() {
     p.set_distressed(false, &mut h);
     assert_eq!(
         h.log,
-        ["effect", "place[0.0, 0.0, 0.0]", "start", "stop", "finish", "release55"]
+        [
+            "effect",
+            "place[0.0, 0.0, 0.0]",
+            "start",
+            "running",
+            "stopfalse",
+            "release55"
+        ]
     );
     p.set_preview(true);
     assert!(p.is_preview());
@@ -546,4 +565,212 @@ fn pole_legacy_v4_future_versions_and_raw_bool_read() {
             assert_eq!(back.fields.transform.counter, 77);
         }
     }
+}
+
+#[test]
+fn pole_cell_walk_conformance_65() {
+    let mut p = PowerPole::fresh();
+    p.fields.connections.push(PoleConnection {
+        flags: [0, 1],
+        words: [4, 2],
+        ..Default::default()
+    });
+    let mut h = PoleFixture::default();
+    let mut out = vec![(99, 99)];
+    assert_eq!(p.line_cells(0, &reference(9), &mut out, &mut h), Ok(true));
+    assert_eq!(out, [(0, 0), (1, 0), (2, 1), (3, 1), (4, 2)]);
+    p.fields.position = [-4.0, 0.0, -4.0];
+    p.fields.connections[0].words = [2, 1];
+    p.line_cells(0, &reference(9), &mut out, &mut h).unwrap();
+    assert_eq!(out, [(0, 0), (0, 0), (1, 0)]);
+    p.fields.position = [32.0, 0.0, 16.0];
+    p.line_cells(0, &reference(9), &mut out, &mut h).unwrap();
+    assert_eq!(out, [(2, 1)]);
+    h.cell_size = Some([8.0, 32.0]);
+    p.fields.position = [8.0, 50.0, 64.0];
+    p.fields.cell = (100, 100); // The saved cell is not the start of this walk.
+    p.fields.connections[0].words = [3, 3];
+    p.line_cells(0, &reference(9), &mut out, &mut h).unwrap();
+    assert_eq!(out, [(1, 2), (2, 2), (3, 3)]);
+    assert_eq!(p.line_cells(99, &reference(9), &mut out, &mut h), Ok(false));
+    assert_eq!(
+        p.line_cells_to(&reference(90), &reference(9), &mut out, &mut h),
+        Ok(false)
+    );
+    assert_eq!(out, [(1, 2), (2, 2), (3, 3)]);
+    // Null destination follows the local path even when not owning.
+    p.fields.connections[0].flags[1] = 0;
+    p.line_cells(0, &reference(9), &mut out, &mut h).unwrap();
+    assert_eq!(out, [(1, 2), (2, 2), (3, 3)]);
+}
+
+#[test]
+fn pole_diagonal_floor_conformance_66() {
+    let mut p = PowerPole::fresh();
+    for (position, expected) in [
+        (
+            [0.0, 20.0, 0.0],
+            [
+                [0xB8714000, 0xC0E24630],
+                [0xC0E24630, 0x38714000],
+                [0x38714000, 0x40E24630],
+                [0x40E24630, 0xB8714000],
+            ],
+        ),
+        (
+            [100.0, 20.0, 100.0],
+            [
+                [0x42C7FFF8, 0x42B9DB9D],
+                [0x42B9DB9D, 0x42C80008],
+                [0x42C80008, 0x42D62463],
+                [0x42D62463, 0x42C7FFF8],
+            ],
+        ),
+    ] {
+        p.fields.position = position;
+        p.create_floor(true).unwrap();
+        for (v, bits) in p.geometry[0].iter().zip(expected) {
+            assert_eq!([v.pos[0].to_bits(), v.pos[2].to_bits()], bits);
+            assert_eq!(v.pos[1], 20.0);
+        }
+    }
+    p.fields.position = [0.0, 20.0, f32::from_bits(0x40E24630)];
+    p.create_floor(true).unwrap();
+    assert_eq!(p.geometry[0][0].pos[2].to_bits(), 0xB4400000);
+}
+
+#[test]
+fn pole_wire_quads_conformance_69() {
+    let mut p = PowerPole::fresh();
+    let c = PoleConnection {
+        flags: [0, 1],
+        vertices: [
+            vec![vec![[0.0, 10.0, 0.0], [8.0, 12.0, 0.0]], vec![], vec![[99.0; 3]]],
+            vec![vec![[0.0, 10.0, 0.0], [8.0, 12.0, 0.0], [16.0, 14.0, 0.0]]],
+        ],
+        ..Default::default()
+    };
+    let mut nonowner = c.clone();
+    nonowner.flags[1] = 0;
+    p.fields.connections = vec![nonowner, c];
+    let quads = p.wire_quads(1.0);
+    assert_eq!(quads.len(), 3);
+    assert_eq!(
+        quads[0],
+        WireQuad {
+            texture: 0xAA9D_A78E,
+            vertices: [
+                [0.0, 10.0, 1.0, 0.0, 0.0],
+                [0.0, 10.0, -1.0, 1.0, 0.0],
+                [8.0, 12.0, -1.0, 1.0, 1.0],
+                [8.0, 12.0, 1.0, 0.0, 1.0],
+            ]
+        }
+    );
+    assert_eq!(
+        quads[1],
+        WireQuad {
+            texture: 0xC9AF_0FCD,
+            vertices: [
+                [-4.0, 10.0, -4.0, 0.0, 0.0],
+                [-4.0, 10.0, 4.0, 1.0, 0.0],
+                [4.0, 10.0, 4.0, 1.0, 1.0],
+                [4.0, 10.0, -4.0, 0.0, 1.0],
+            ]
+        }
+    );
+    assert_eq!(quads[2].vertices[0], [4.0, 12.0, -4.0, 0.0, 0.0]);
+    assert!(p.wire_quads(0.0).is_empty());
+    assert!(p.wire_quads(-1.0).is_empty());
+    assert_eq!(p.wire_quads(f32::NAN).len(), 3);
+}
+
+#[test]
+fn pole_distress_retry_and_stop_modes_conformance_73() {
+    let mut p = PowerPole::fresh();
+    let mut h = PoleFixture {
+        effect_fail: true,
+        ..Default::default()
+    };
+    p.set_distressed(true, &mut h);
+    assert!(p.is_distressed());
+    assert!(matches!(p.effect, RefValue::Null));
+    assert_eq!(h.log, ["effect"]);
+    h.effect_fail = false;
+    h.log.clear();
+    p.set_distressed(true, &mut h);
+    p.set_distressed(true, &mut h);
+    assert_eq!(h.log, ["effect", "place[0.0, 0.0, 0.0]", "start"]);
+    h.effect_idle = true;
+    h.log.clear();
+    p.set_distressed(false, &mut h);
+    assert_eq!(h.log, ["running", "release55"]);
+    p.set_distressed(true, &mut h);
+    h.log.clear();
+    p.shutdown(&reference(9), &mut h);
+    assert_eq!(h.log, ["stoptrue", "release55", "shutdown"]);
+}
+
+#[test]
+fn pole_position_uses_terrain_and_preserves_transform_and_bounds_cache() {
+    // 4.7: moving the pole rebuilds faces and moves the effect, but neither
+    // dirties the cached occupant box nor synchronizes its own model transform.
+    let mut p = PowerPole::new(fields());
+    p.effect = reference(55);
+    p.stale = false;
+    p.fields.transform.translation = [91.0, 92.0, 93.0];
+    p.fields.transform.counter = 254;
+    let transform = p.fields.transform;
+    let wires = p.fields.connections[0].vertices.clone();
+    let mut h = PoleFixture::default();
+    p.set_position(
+        [39.5, 20.0, -20.5],
+        10.0,
+        Some([17.0, 8.0, f32::NAN, 9.0]),
+        false,
+        3,
+        &mut h,
+    )
+    .unwrap();
+    assert_eq!(p.get_cell(), (3, -2));
+    assert_eq!(p.fields.position, [39.5, 20.0, -20.5]);
+    assert_eq!(p.fields.model_y, 8.0);
+    assert_eq!(p.fields.transform, transform);
+    assert!(!p.stale);
+    assert_eq!(p.fields.connections[0].vertices, wires);
+    assert_eq!(h.log, ["place[39.5, 20.0, -20.5]"]);
+    assert_eq!(p.geometry[0][0].pos, [34.5, 20.0, -25.5]);
+    assert_eq!(
+        p.geometry[1][0],
+        PowerPole::wall_quad(p.geometry[0][3], p.geometry[0][0], 8.0)[0]
+    );
+    assert_eq!(p.geometry[1][1].pos[1], 8.0);
+    assert_eq!(p.geometry[2][1].pos[1], 8.0);
+}
+
+#[test]
+fn pole_position_corner_ties_nan_off_map_and_extended_reciprocal() {
+    let mut p = PowerPole::fresh();
+    let mut h = PoleFixture::default();
+    // A stored f32 reciprocal/product would give +/-10 instead of +/-9.
+    assert_eq!(PowerPole::position_cell([1.0, 0.0, -1.0], 0.1), (9, -9));
+    p.set_position(
+        [1.0, 12.0, 2.0],
+        16.0,
+        Some([-0.0, 0.0, f32::NAN, 3.0]),
+        true,
+        0,
+        &mut h,
+    )
+    .unwrap();
+    assert_eq!(p.fields.model_y.to_bits(), (-0.0f32).to_bits());
+    let nan = f32::from_bits(0x7FC0_1234);
+    p.set_position([1.0, 12.0, 2.0], 16.0, Some([nan, -9.0, 0.0, 1.0]), false, 1, &mut h)
+        .unwrap();
+    assert_eq!(p.fields.model_y.to_bits(), nan.to_bits());
+    p.set_position([-99.0, 12.0, -99.0], 16.0, None, false, 2, &mut h)
+        .unwrap();
+    assert_eq!(p.fields.model_y, 12.0);
+    assert!(h.log.is_empty()); // No effect means no host effect calls.
+    assert!(p.geometry.iter().all(|face| face.len() == 4));
 }

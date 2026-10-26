@@ -718,6 +718,8 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
      | `mark <text>` | a log line |
+     | `funds amount` | sets the treasury to 0..999999999 whole simoleons through the city's budget `SetTotalFunds`; logs before/after; only an explicit script action changes funds |
+     | `establish <name>` | names and establishes an unfounded city through `cISC4City::SetCityName` / `SetEstablished(true)`; an already established city is unchanged; put this first, dated at or before the loaded date, to bootstrap an empty tile at a framework tick without `SimNewDay` |
      | `disaster fire\|riot x z`, `disaster fire\|riot auto`, `disaster survey` | the disaster layer's manager (city slot 72, layer slot 7, `0x621CDA33` fire / `0xCA380B06` riot) `AttemptDisasterStart(x, z)` (manager slot 6; disasters.md §3.1, §5.5, §6.2): the original's own start path, also with the disasters shadow; `auto` takes the survey's candidates in order (a fire: until the fire count rises; a riot: the first); `survey` logs the candidate cells: buildings on a lot away from the edge with flammability above 0 and fire coverage 0, and road cells with police coverage at most 64 (no call into the layer); `-> … AttemptDisasterStart(x, z) -> instance … fires a->b active=… ongoing=…` |
      | `save [fast]` | `cISC4App::SaveCity(fast)` (`docs/abi/vtables.tsv` `cSC4App::vftable_3` slot 16, pop 4, eax-or-void; foundations.md §3.7): the current city saved in place, a full save unless `fast`, through the same app reference and exception guard as the save autotest; `-> ok=<what SaveCity returned> (SaveCity(full\|fast) in N ms)`; no city: `ok=0 (skipped: no city)` |
      | `terrain x0 z0 x1 z1 h [kind]` | `cISTETerrain::SetAltitude(SC4Rect(x0, z0, x1, z1), h, true, kind)` (city slot 84, terrain slot 49; terrain.md §6): every vertex of the inclusive rectangle set to `h` metres (decimal, 0..5000), its water reset, the redisplay posted with `kind` (0..6, default 1; §8.2); a rectangle past the city's vertices is refused (`skipped: …`; the original does not check it); `-> SetAltitude(x0,z0..x1,z1, h, true, kind): vertex (x0,z0) before -> after`; with `terrain_shadow = 1` the shadow mirrors the call (below) |
@@ -2611,3 +2613,14 @@ is off without that selection. Per-row compare/record/replace modes, bounded
 value-only corpus/case exports and nearby-input replay are documented as a
 stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
 Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).
+
+### Formats replacement
+
+`enable = formats` is off by default. It selects the existing FC4 exemplar and
+cohort resource factories (data-formats section 8.1), including their FC4
+property holders and property values backed by `fc4-formats`. The `exemplars`
+key keeps its existing behavior; selecting both installs the factories once.
+Packed-file segments remain original and are the next replacement step.
+`formats_shadow = 1` checks the replacement against the formats crate and labels
+the comparison as a replacement consistency check. The install-time exemplar
+contract fixture also compares the retained original factories with ours.
