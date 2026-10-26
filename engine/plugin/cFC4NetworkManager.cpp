@@ -171,13 +171,12 @@ void PostRefresh(void* u, uint64_t n) {
 
 void CrewShutdown(void*, uint64_t crew) {
     if (crew == 0) return;
-    // SPEC-GAP: crew creation/Init remain unspecified; registration accepts opaque existing crews.
-    // §7.12 and vtables.tsv: Shutdown is slot 5, with no stack arguments.
-    // Its return value is unspecified and ignored. Do not infer the unknown
-    // six-argument Init contract merely to declare the preceding slots.
+    // NM14: native tools directly allocate and Init crews (six scalar
+    // arguments, no CLSID). This registration bridge preserves that path.
+    // Shutdown is slot 5, no arguments, bool in AL; it unregisters last.
     void* object = fc4::FromToken(crew);
     auto** slots = *static_cast<void***>(object);
-    using ShutdownFn = void(__thiscall*)(void*);
+    using ShutdownFn = bool(__thiscall*)(void*);
     reinterpret_cast<ShutdownFn>(slots[5])(object);
     // Shutdown may unregister and destroy the crew; never touch it afterward.
     FC4_X87_CHECK("netmgr crew Shutdown");
@@ -571,9 +570,10 @@ intptr_t NetworkCrewOwnershipTest() {
         uint32_t Release() override { ++drops; return --refs; }
         virtual void Unused3() { ++unexpected; }
         virtual void Unused4() { ++unexpected; }
-        virtual void Shutdown() {
+        virtual bool Shutdown() {
             ++shutdowns;
             if (unregister) manager_.UnregisterConstructionCrew(reinterpret_cast<intptr_t>(this));  // abi: via cFC4ISC4NetworkManager
+            return true;
         }
         cFC4NetworkManager& manager_;
         uint32_t refs = 1, adds = 0, drops = 0, shutdowns = 0, unexpected = 0;
