@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{Commodity, ConnectionHandle, DealHandle, Lifecycle, PendingChange, RegionalCity};
+use super::{ConnectionHandle, DealHandle, Lifecycle, PendingChange, RegionalCity};
 use crate::neighbors::{flag, NeighborConnection, NeighborDeal};
 use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, ResKey};
 use std::collections::BTreeMap;
@@ -70,16 +70,15 @@ fn count(inp: &mut dyn InStream, max: u32) -> Result<u32, RecordError> {
         Ok(n)
     }
 }
-fn map_read(inp: &mut dyn InStream) -> Result<BTreeMap<u32, i32>, RecordError> {
-    // RY7: literal wire-map replacement, duplicate keys keep the last value.
-    let mut map = BTreeMap::new();
+fn map_read(inp: &mut dyn InStream, map: &mut BTreeMap<u32, i32>) -> Result<(), RecordError> {
+    // RY7: assign by key without erasing entries absent from this stream.
     for _ in 0..count(inp, 0x2000_0000)? {
         map.insert(
             inp.get_u32().ok_or(RecordError::Truncated)?,
             inp.get_i32().ok_or(RecordError::Truncated)?,
         );
     }
-    Ok(map)
+    Ok(())
 }
 fn map_write(out: &mut dyn OutStream, map: &BTreeMap<u32, i32>) {
     out.put_u32(map.len() as u32);
@@ -109,6 +108,17 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         default_difficulty: u8,
         elements: &mut impl RecordReader<C, D>,
     ) -> Result<Self, RecordError> {
+        let mut c = Self::with_handles(default_difficulty);
+        c.decode_record_into_with(inp, elements)?;
+        Ok(c)
+    }
+
+    /// RY7: the receiver keeps prior entries and earlier mutations on failure.
+    pub fn decode_record_into_with(
+        &mut self,
+        inp: &mut dyn InStream,
+        elements: &mut impl RecordReader<C, D>,
+    ) -> Result<(), RecordError> {
         macro_rules! get {
             ($f:ident) => {
                 inp.$f().ok_or(RecordError::Truncated)?
@@ -118,7 +128,7 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         if version >= 14 {
             return Err(RecordError::Version);
         }
-        let mut c = Self::with_handles(default_difficulty);
+        let c = self;
         c.position = (get!(get_i32), get!(get_i32));
         c.size = (get!(get_i32), get!(get_i32));
         c.population = get!(get_i32);
@@ -151,9 +161,9 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         c.unknown_strings[2] = get!(get_str);
         c.world = [get!(get_f32), get!(get_f32), get!(get_f32)];
         c.tutorial_id = get!(get_i32);
-        c.populations = map_read(inp)?;
-        c.extrapolated = map_read(inp)?;
-        c.potential = map_read(inp)?;
+        map_read(inp, &mut c.populations)?;
+        map_read(inp, &mut c.extrapolated)?;
+        map_read(inp, &mut c.potential)?;
         for i in 0..count(inp, 12)? {
             c.tax_rates[i as usize] = get!(get_f32);
         }
@@ -166,29 +176,18 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         }
         c.budget = get!(get_f64);
         c.income = get!(get_f64);
-        // RY7: decode the actual wire map rather than constructor-only entries.
-        c.commodities.clear();
         for _ in 0..count(inp, 0x100000)? {
             let t = get!(get_i32);
-            let produced = get!(get_f64);
-            let demanded = get!(get_f64);
-            let imported = get!(get_f64);
-            let exported = get!(get_f64);
-            let cost_per_unit = get!(get_f64);
-            c.commodities.insert(
-                t,
-                Commodity {
-                    produced,
-                    demanded,
-                    exported,
-                    imported,
-                    cost_per_unit,
-                },
-            );
+            let commodity = c.commodities.entry(t).or_default();
+            commodity.produced = get!(get_f64);
+            commodity.demanded = get!(get_f64);
+            commodity.imported = get!(get_f64);
+            commodity.exported = get!(get_f64);
+            commodity.cost_per_unit = get!(get_f64);
         }
         for list in [&mut c.other_deals, &mut c.local_deals] {
-            let n = get!(get_i32);
-            // Literal signed loop: negative deal counts have no iterations (RY7).
+            // RY7: nonzero/decrement loop, including the bits of a negative signed count.
+            let n = get!(get_u32);
             for _ in 0..n {
                 list.push(elements.deal(inp).ok_or(RecordError::Element)?);
             }
@@ -196,14 +195,17 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         if version >= 12 {
             for _ in 0..get!(get_u32) {
                 let t = get!(get_u32);
-                let mut points = Vec::new();
+                let points = c.points.entry(t).or_default();
                 for _ in 0..get!(get_u32) {
                     points.push([get!(get_f32), get!(get_f32), get!(get_f32)]);
                 }
-                c.points.insert(t, points);
             }
         }
-        Ok(c)
+        if inp.error() != 0 {
+            Err(RecordError::Truncated)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn write_record_with(&self, out: &mut dyn OutStream, elements: &mut impl RecordElements<C, D>) -> bool {
@@ -308,7 +310,20 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
         host: &mut impl Lifecycle,
         elements: &mut impl RecordReader<C, D>,
     ) -> Result<Self, RecordError> {
-        let mut c = Self::decode_record_with(inp, context.application_default_difficulty, elements)?;
+        let mut c = Self::with_handles(context.application_default_difficulty);
+        c.read_record_into_with(inp, context, host, elements)?;
+        Ok(c)
+    }
+
+    pub fn read_record_into_with(
+        &mut self,
+        inp: &mut dyn InStream,
+        context: &ReadContext<'_>,
+        host: &mut impl Lifecycle,
+        elements: &mut impl RecordReader<C, D>,
+    ) -> Result<(), RecordError> {
+        self.decode_record_into_with(inp, elements)?;
+        let c = self;
         if !c.established {
             c.difficulty = context.application_default_difficulty;
             c.city_name = context.default_city_name.to_vec();
@@ -325,7 +340,7 @@ impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
             d.set_flags(flag::SILENT, true);
         }
         c.init(host);
-        Ok(c)
+        Ok(())
     }
 }
 
@@ -335,8 +350,10 @@ pub trait Package {
     fn exists(&mut self, key: ResKey) -> bool;
     fn read(&mut self, key: ResKey) -> Option<Vec<u8>>;
     fn write(&mut self, key: ResKey, bytes: &[u8]) -> bool;
-    fn finish(&mut self) -> bool;
-    fn close(&mut self);
+    fn is_open(&mut self) -> bool;
+    fn close(&mut self) -> bool;
+    fn shutdown(&mut self);
+    fn release(&mut self);
 }
 pub fn read_package(
     package: &mut impl Package,
@@ -365,9 +382,9 @@ pub fn write_package(package: &mut impl Package, city: &RegionalCity) -> bool {
     out.put_u16(1);
     city.write_record(&mut out) && package.write(RECORD_KEY, out.bytes())
 }
-fn open(package: &mut impl Package, path: &[u8], update: bool) -> bool {
+fn open(package: &mut impl Package, path: &[u8], update: bool) -> Option<bool> {
     if !package.open(path, update) {
-        return false;
+        return None;
     }
     let version = match package.read(VERSION_KEY) {
         Some(b) => ByteReader::new(&b).get_u32().unwrap_or(0),
@@ -379,7 +396,15 @@ fn open(package: &mut impl Package, path: &[u8], update: bool) -> bool {
             }
         }
     };
-    (62..=65).contains(&version)
+    Some((62..=65).contains(&version))
+}
+fn finish(package: &mut impl Package) {
+    // RR9: this is IsOpen, not Commit; cleanup never replaces the stream result.
+    if package.is_open() {
+        package.close();
+        package.shutdown();
+        package.release();
+    }
 }
 pub fn read_path(
     package: &mut impl Package,
@@ -388,24 +413,18 @@ pub fn read_path(
     context: &ReadContext<'_>,
     host: &mut impl Lifecycle,
 ) -> bool {
-    if !open(package, path, false) {
+    let Some(allowed) = open(package, path, false) else {
         return false;
-    }
-    let result = read_package(package, out, context, host);
-    if !package.finish() {
-        return false;
-    }
-    package.close();
+    };
+    let result = allowed && read_package(package, out, context, host);
+    finish(package);
     result
 }
 pub fn write_path(package: &mut impl Package, path: &[u8], city: &RegionalCity) -> bool {
-    if !open(package, path, true) {
+    let Some(allowed) = open(package, path, true) else {
         return false;
-    }
-    let result = write_package(package, city);
-    if !package.finish() {
-        return false;
-    }
-    package.close();
+    };
+    let result = allowed && write_package(package, city);
+    finish(package);
     result
 }

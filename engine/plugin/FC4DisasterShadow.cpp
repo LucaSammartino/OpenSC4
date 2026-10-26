@@ -1796,6 +1796,18 @@ void DisastersShadowDetach() {
 std::string DisasterScriptAction(cISC4City* city, int32_t kind, int32_t x, int32_t z) {
     if (city == nullptr) return "skipped: no city";
     char b[512];
+    if (kind == harness::kDisasterVolcano) {
+        // disasters.md sections 1 and 10: volcano takes world metres, while
+        // the scenario grammar supplies cells. The manager owns the instance.
+        auto* layer = city->GetDisasterLayer();
+        auto* manager = layer ? layer->GetDisasterManager(0xC4C90997) : nullptr;
+        if (!manager) return "skipped: no volcano manager";
+        auto* instance = manager->AttemptDisasterStart(x * 16 + 8, z * 16 + 8);
+        std::snprintf(b, sizeof(b), "volcano cell=%d,%d world=%d,%d instance=%p active=%d ongoing=%d",
+                      x, z, x * 16 + 8, z * 16 + 8, static_cast<void*>(instance),
+                      manager->GetActiveInstanceCount(), layer->IsADisasterOngoing());
+        return b;
+    }
     if (kind == harness::kDisasterSurvey) {
         std::string text = "fire candidates (uncovered, flammable):";
         for (const Candidate& c : FireCandidates(city, 6)) {
