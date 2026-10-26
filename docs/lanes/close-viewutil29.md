@@ -20,3 +20,4 @@ Corrected DLL SHA256 125B272B1D7700C0D9B95033B682D0AF5C17063FD7D88DB6E49F6FD8EE4
 House profile short check: close-viewutil29-house-r4b clean, ref_warnings=0, end 2026-04-20. Verdict/log: MAIN/build-runs/game-results/close-viewutil29-house-r4b.{verdict,log}. STOP blocked shadow-total and per-method parsing; exactness is not claimed.
 gen27-konradshohe-s1-default was NOT submitted this round: STOP rejected the call before request creation. Earlier r2b is old-source evidence only.
 Next: parse corrected house log (all 50 method lines, destructor and cumulative counts); resolve VU12/VU17/VU18; supply isolated camera/provider comparisons for the remaining wrappers; run corrected-source gen27 and full house profile, then create an engine queue entry only when all criteria pass.
+Resume check: Git status is clean; the lane guard still rejects work under the same coordinator STOP. No additional validation ran and no game request or merge-queue entry was created.
