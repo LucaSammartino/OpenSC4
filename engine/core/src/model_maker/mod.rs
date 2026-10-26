@@ -8,7 +8,9 @@
 use std::collections::BTreeMap;
 
 mod geometry;
+mod lifecycle;
 mod terrain_hiding;
+pub use lifecycle::{LifecycleHost, INIT_MESSAGES};
 pub use terrain_hiding::{TerrainHost, TerrainOccupant};
 pub mod persistence;
 pub use geometry::{
