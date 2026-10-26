@@ -1,0 +1,6 @@
+name	address	class	convention	this	stack_arg_dwords	callee_pop	ret	windows	rust_entry	mode
+cfgrules-init	007d1890	cSC4ConfigRuleManager	thiscall	ecx	1	4	void	arg0+0/4/r/-	cfgrules-init	record
+cfgrules-evaluate	007d18e0	cSC4ConfigRuleManager	thiscall	ecx	0	0	void	-	cfgrules-evaluate	record
+cfgrules-log	007d0420	cSC4ConfigRuleManager	thiscall	ecx	1	4	al	arg0+0/4/r/-	cfgrules-log	record
+cfgrules-apply	007ce870	cSC4ConfigRuleManager	thiscall	ecx	2	8	void	-	cfgrules-apply	record
+cfgrules-auto	007ce8d0	cSC4ConfigRuleManager	thiscall	ecx	1	4	eax	-	cfgrules-auto	record

@@ -1430,6 +1430,16 @@ if(TARGET fc4_plugin_load_test)
         PROPERTIES RUN_SERIAL TRUE)
 endif()
 
+# Same-invocation UI draw/message transcripts, shared by window shadows.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4MapViewDrawStream.cpp plugin/FC4MapViewDrawStream.h plugin/FC4MapViewDrawBoundary.h plugin/FC4MapViewUIBoundary.h)
+    target_sources(FreeCity4 PRIVATE plugin/FC4DrawStream.h plugin/FC4DrawStreamCapture.cpp plugin/FC4DrawStreamCapture.h)
+    add_executable(fc4_draw_stream_test tests/draw_stream_test.cpp plugin/FC4DrawStreamCapture.cpp)
+    target_include_directories(fc4_draw_stream_test PRIVATE plugin)
+    target_compile_definitions(fc4_draw_stream_test PRIVATE FC4_DRAW_STREAM_TEST)
+    target_compile_options(fc4_draw_stream_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME draw_stream_oracle COMMAND fc4_draw_stream_test)
+endif()
 # Public DX7 slot/arity checks and bounded native transcript forwarding.
 if(TARGET FreeCity4)
     add_executable(fc4_gdriver_trace_test tests/gdriver_trace_test.cpp)
@@ -1491,5 +1501,28 @@ if(TARGET FreeCity4)
             COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effectsres-${mode})
         set_tests_properties(plugin_effects_resource_registration_${mode}_test
             PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
+    endforeach()
+endif()
+
+# Native graphics-rule provider; the transport remains private to the static link.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4ConfigRules.cpp plugin/cFC4ConfigRules.h
+        plugin/FC4ConfigRulesSystem.cpp plugin/FC4ConfigRulesSystem.h plugin/FC4ConfigRulesAcquisition.h
+        plugin/FC4ConfigRulesTrace.cpp plugin/FC4ConfigRulesTrace.h)
+    target_link_libraries(FreeCity4 PRIVATE version advapi32)
+    add_executable(fc4_cfgrules_acquisition_test tests/cfgrules_acquisition_test.cpp)
+    target_include_directories(fc4_cfgrules_acquisition_test PRIVATE plugin)
+    target_compile_options(fc4_cfgrules_acquisition_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME cfgrules_acquisition COMMAND fc4_cfgrules_acquisition_test)
+    add_executable(fc4_cfgrules_snapshot_test tests/cfgrules_snapshot_test.cpp)
+    target_include_directories(fc4_cfgrules_snapshot_test PRIVATE plugin "${FC4_GZCOM_DIR}/include")
+    target_compile_options(fc4_cfgrules_snapshot_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME cfgrules_snapshot COMMAND fc4_cfgrules_snapshot_test)
+endif()
+if(TARGET fc4_plugin_load_test)
+    foreach(mode default enabled disabled)
+        add_test(NAME plugin_cfgrules_${mode}
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --cfgrules-${mode})
+        set_tests_properties(plugin_cfgrules_${mode} PROPERTIES RUN_SERIAL TRUE)
     endforeach()
 endif()

@@ -5,6 +5,8 @@ use super::*;
 mod closure;
 #[path = "file_browser/closure_tests.rs"]
 mod file_browser_closure;
+#[path = "file_browser/resource_tests.rs"]
+mod file_browser_resources;
 #[path = "settled_tests.rs"]
 mod settled;
 
@@ -25,6 +27,11 @@ struct Recording {
     fb_fills: Vec<Rect>,
     fb_factory: Option<(bool, Option<Handle>)>,
     fb_no_strip: bool,
+    fb_buffer_factory: Option<Handle>,
+    fb_buffer_formats: Vec<(Handle, i32, i32, [u32; 2])>,
+    fb_copies: Vec<(Handle, Handle, Rect, Rect)>,
+    fb_resource_draws: Vec<Draw>,
+    fb_keys: Vec<u32>,
     fb_matches: Vec<(Vec<u8>, Vec<u8>, u32)>,
     tree_area: Option<Rect>,
     tree_thickness: [u32; 2],
@@ -637,16 +644,17 @@ impl file_browser::IconIo for Recording {
     fn factory_buffer(&mut self, component: u32, iid: u32) -> Option<Handle> {
         assert_eq!((component, iid), (0xc470_d325, 0x2073_2180));
         self.icon_calls.push("factory");
-        None
+        self.fb_buffer_factory
     }
     fn graphics_buffer(&mut self) -> Option<Handle> {
         self.icon_calls.push("graphics");
-        Some(700)
+        (!self.no_graphics).then_some(700)
     }
-    fn init_buffer(&mut self, _: Handle, width: i32, height: i32, format: [u32; 2]) -> bool {
+    fn init_buffer(&mut self, buffer: Handle, width: i32, height: i32, format: [u32; 2]) -> bool {
         assert_eq!(format, [3, 16]);
         assert!(matches!((width, height), (18, 17) | (84, 22) | (64, 15)));
         self.icon_calls.push("init");
+        self.fb_buffer_formats.push((buffer, width, height, format));
         self.buffer_ok
     }
     fn icon_strip(&mut self, id: u32) -> Option<Handle> {
@@ -658,8 +666,8 @@ impl file_browser::IconIo for Recording {
         self.icon_calls.push("lock");
         self.fb_locks.pop_front().unwrap_or(self.lock_ok)
     }
-    fn copy_buffer(&mut self, _: Handle, _: Handle, from: Rect, to: Rect) {
-        assert_eq!((from, to), ([36, 0, 54, 17], [0, 0, 18, 17]));
+    fn copy_buffer(&mut self, destination: Handle, source: Handle, from: Rect, to: Rect) {
+        self.fb_copies.push((destination, source, from, to));
         self.icon_calls.push("copy");
     }
     fn unlock_buffer(&mut self, _: Handle) {
@@ -668,18 +676,26 @@ impl file_browser::IconIo for Recording {
     fn convert_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
         self.fb_rgb.push(rgb);
         self.icon_calls.push("rgb");
-        0x1234
+        0xa500_0000 | u32::from_be_bytes([0, rgb[0], rgb[1], rgb[2]])
     }
     fn set_color_key(&mut self, _: Handle, color: u32) {
-        assert_eq!(color, 0x1234);
+        self.fb_keys.push(color);
         self.icon_calls.push("key");
     }
-    fn fill_buffer(&mut self, _: Handle, area: Rect, _: u32) {
+    fn fill_buffer(&mut self, _: Handle, area: Rect, color: u32) {
         self.fb_fills.push(area);
+        self.fb_resource_draws.push(Draw::Fill { rect: area, color });
+        self.icon_calls.push("fill");
     }
-    fn line_buffer(&mut self, _: Handle, from: [i32; 2], to: [i32; 2], _: u32, option: u32) {
+    fn line_buffer(&mut self, _: Handle, from: [i32; 2], to: [i32; 2], color: u32, option: u32) {
         assert_eq!(option, 1);
         self.fb_lines.push((from, to));
+        self.fb_resource_draws.push(Draw::Line {
+            points: [from[0], from[1], to[0], to[1]],
+            color,
+            style: option,
+        });
+        self.icon_calls.push("line");
     }
 }
 
@@ -739,6 +755,7 @@ fn fb_c20_c21_c25_c26_icon_loader_failure_and_ownership() {
         f.icon_calls,
         ["factory", "graphics", "init", "lock", "copy", "unlock", "rgb", "key"]
     );
+    assert_eq!(f.fb_copies, [(700, 701, [36, 0, 54, 17], [0, 0, 18, 17])]);
 }
 
 #[test]

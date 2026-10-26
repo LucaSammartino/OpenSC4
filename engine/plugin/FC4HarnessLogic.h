@@ -235,6 +235,7 @@ enum class ScriptOp {
     Establish,    // establish <name>: name and found an unfounded city
     GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
     UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl,
+    BudgetWindow, // budgetwindow: open the native budget UI; explicit script opt-in only
     Span565Probe // span565probe: explicit public software-buffer workload
 };
 
@@ -288,6 +289,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::UiText: return "uitext";
         case ScriptOp::UiWait: return "uiwait";
         case ScriptOp::UiControl: return "uicontrol";
+        case ScriptOp::BudgetWindow: return "budgetwindow";
         case ScriptOp::Span565Probe: return "span565probe";
     }
     return "?";
@@ -541,6 +543,9 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             *error = "funds '" + tok[2] + "' is not 0..999999999";
             return false;
         }
+    } else if (name == "budgetwindow") {
+        a.op = ScriptOp::BudgetWindow;
+        if (!wantArgs(0, "no arguments")) return false;
     } else if (name == "establish") {
         a.op = ScriptOp::Establish;
         if (a.text.empty() || a.text.size() > 80 || a.text.find_first_of("\t\r\n") != std::string::npos) {
@@ -740,7 +745,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)";
+                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, budgetwindow)";
         return false;
     }
     *out = a;

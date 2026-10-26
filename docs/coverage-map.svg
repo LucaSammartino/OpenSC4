@@ -35,7 +35,7 @@
 <text x="560.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">0%</text>
 <text x="990.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">50%</text>
 <text x="1420.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">100%</text>
-<text x="16" y="282" font-size="13" fill="#5b6560">The map below: one box per class of the original, area = its bytes, grouped by area and subsystem. main b646cbf18, regress-train282.out, suite sh28-census3.</text>
+<text x="16" y="282" font-size="13" fill="#5b6560">The map below: one box per class of the original, area = its bytes, grouped by area and subsystem. main 3fe040c80, regress-train283.out, suite sh28-census3.</text>
 <rect x="18.0" y="322.0" width="74.9" height="114.3" fill="#e8b04a"/>
 <rect x="18.0" y="322.0" width="74.9" height="114.3" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="18.0" y="436.3" width="74.9" height="107.4" fill="#9cc3e4"/>

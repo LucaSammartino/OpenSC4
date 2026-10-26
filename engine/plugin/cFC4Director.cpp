@@ -41,6 +41,7 @@
 #include "FC4LandValueShadow.h"
 #include "FC4Log.h"
 #include "FC4Reach.h"
+#include "FC4DrawStreamCapture.h"
 #include "FC4Observer.h"
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
@@ -151,6 +152,7 @@ public:
                  fc4::ModulePath(), fc4::LogLevel());
         fc4::ReachPrepare();  // snapshot entries before subsystem hooks
         fc4::ReachStartupStart(); // opt-in; observe framework/application startup
+        fc4::DrawStreamStartup();
         // Register the classes of every enabled subsystem (FC4Subsystems.cpp).
         size_t n = 0;
         const fc4::Subsystem* subsystems = fc4::Subsystems(&n);

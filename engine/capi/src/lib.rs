@@ -1207,3 +1207,6 @@ mod regionalcity_owner;
 
 // Private graphics-rule owner transport; native acquisition requires GR9.
 mod cfgrules_owner;
+
+// Private UI oracle replay transport; linked statically into the plugin.
+mod draw_stream;
