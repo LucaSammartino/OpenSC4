@@ -485,7 +485,9 @@ std::string RunBudgetWindow(cISC4City* city) {
     // slot 24 takes no arguments (docs/abi/interfaces.tsv; budget.md method inventory).
     auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
     if (!budget) return "ok=0 (skipped: no city budget)";
-    return budget->ShowBudgetWindow() ? "ok=1 (ShowBudgetWindow)" : "ok=0 (ShowBudgetWindow)";
+    // SPEC-GAP: budget.md specifies a replacement return, not a native return channel.
+    budget->ShowBudgetWindow();
+    return "ok=1 (ShowBudgetWindow requested)";
 }
 
 std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
