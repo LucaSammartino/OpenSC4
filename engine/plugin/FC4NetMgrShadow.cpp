@@ -256,6 +256,8 @@ std::map<uint64_t, bool> g_terrainAfter;
 std::vector<std::vector<uint64_t>> g_ourSeeds;
 bool g_replayDiffLogged = false;
 unsigned g_nativeLotDepth = 0;
+bool g_nativeMgrHook = false;
+unsigned g_nativeMgrDepth = 0;
 
 // The captures (reused).
 WriteCapture g_origMgr, g_origLot, g_ourMgr, g_ourLot;
@@ -1395,6 +1397,39 @@ void CallMessage(void* p) {
     }
 }
 
+bool __fastcall ObserveManagerMessage(void* self, void*, cIGZMessage2* msg) {
+    const auto original = reinterpret_cast<bool(__thiscall*)(void*, cIGZMessage2*)>(nmtrace::Original(self, 3));
+    const bool terrain = msg && (msg->GetType() == 0x278E6003 || msg->GetType() == 0x6A3B0AFD);
+    const bool capture = terrain && g_mgr && g_city && g_nativeMgrDepth == 0;
+    if (terrain && g_nativeMgrDepth != 0) PendingDiff("nested native manager terrain handler");
+    if (capture) {
+        void* p = nullptr;
+        if (msg->QueryInterface(GZIID_cIGZMessage2Standard, &p) && p) {
+            auto* s = static_cast<cIGZMessage2Standard*>(p);
+            FC4_ACQUIRED(s, "QueryInterface");
+            const uint32_t data[] = {static_cast<uint32_t>(s->GetData1()), static_cast<uint32_t>(s->GetData2()),
+                                     static_cast<uint32_t>(s->GetData3()), static_cast<uint32_t>(s->GetData4())};
+            nmtrace::Start(g_city, msg->GetType(), data);
+            FC4_RELEASE(s);
+        } else {
+            nmtrace::complete = false;
+            PendingDiff("native manager terrain message data unavailable");
+        }
+    }
+    ++g_nativeMgrDepth;
+    const bool result = original(self, msg);
+    --g_nativeMgrDepth;
+    if (capture) {
+        // §6.1/§7.6: compare at this interface call's return, before another
+        // message recipient can demolish lots or flush its queued networks (§7.3).
+        nmtrace::Stop();
+        for (uint64_t n : g_candidates) g_terrainAfter[n] = Placed(n);
+        Log("netmgr terrain trace handler return: msg=%08X complete=%u", msg->GetType(), nmtrace::complete ? 1u : 0u);
+        CheckTerrain();
+    }
+    return result;
+}
+
 // `late`: the call comes from the target subscribed after the original
 // network lot manager (netmgr_shadow_order = late).
 void OnMessage(cIGZMessage2* msg, bool late) {
@@ -1462,7 +1497,7 @@ void OnMessage(cIGZMessage2* msg, bool late) {
         g_ctx.held.clear();
     }
     g_inMessage = false;
-    if (!late && m.mgr && (m.type == 0x278E6003 || m.type == 0x6A3B0AFD)) {
+    if (!late && m.mgr && !g_nativeMgrHook && (m.type == 0x278E6003 || m.type == 0x6A3B0AFD)) {
         nmtrace::Start(g_city, m.type, m.d);
     }
     FC4_RELEASE(s);
@@ -1596,6 +1631,16 @@ void NetMgrShadowCityLoaded(cISC4City* city) {
     int32_t julian = 0;
     if (cFC4ISC4Simulator* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     RunOnce(city, julian, "load", true);
+    void* p = nullptr;
+    g_nativeMgrHook = false;
+    if (city->GetNetworkManager()->QueryInterface(kIID_cIGZMessageTarget2, &p) && p) {
+        auto* target = static_cast<cIGZMessageTarget2*>(p);
+        FC4_ACQUIRED(target, "QueryInterface");
+        g_nativeMgrHook = nmtrace::Install(target, 3, 0x00613950, reinterpret_cast<void*>(&ObserveManagerMessage),
+                                          nmtrace::lotPatches);
+        FC4_RELEASE(target);
+    }
+    if (!g_nativeMgrHook) PendingDiff("native manager handler boundary capture unavailable");
     auto* lots = city->GetNetworkLotManager();
     const bool setter = nmtrace::Install(lots, 13, 0x0060CB80, reinterpret_cast<void*>(&ObserveForced), nmtrace::lotPatches);
     const bool redevelop = nmtrace::Install(lots, 12, 0x0060D5E0, reinterpret_cast<void*>(&ObserveRedevelop), nmtrace::lotPatches);
@@ -1622,6 +1667,7 @@ void NetMgrShadowCityShutdown() {
     if (!g_enabled) return;
     nmtrace::Stop();
     nmtrace::Stop(nmtrace::lotPatches);
+    g_nativeMgrHook = false;
     LateSubscribe(false);
     Settle();
     if (g_city != nullptr || g_mgr != nullptr || g_lot != nullptr) {
