@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private graphics-rule transport. Hosts supply measurements and I/O, never rule results.
-//! Native acquisition is deliberately separate: see graphics-rules GR9.
+//! Native acquisition is separate: graphics-rules 2.3-2.6.
 use fc4_core::graphics_rules::{
     GraphicsRuleManager, InformationProvider, InitContext, LogContext, LogFile, LogStamp, Lowercase, MatchError,
     Measurements, Properties, PropertyValue, ScriptFiles,
@@ -301,7 +301,6 @@ pub unsafe extern "C" fn fc4_cfgrules_owner_init(
         if renderer.is_null() {
             return -1;
         }
-        // SPEC-GAP: GR9 has no interface-only native probe/backing-store acquisition recipe.
         // Refuse unavailable acquisition before retaining/replacing properties or parsing.
         let Some(mut provider) = s.host.provider() else {
             return -2;
