@@ -422,7 +422,7 @@ private:
         auto* city = app ? app->GetCity() : nullptr;
         auto* terrain = city ? city->GetTerrain() : nullptr; // borrowed
         // SPEC-GAP: an isolated factory without terrain uses a 16 m cell.
-        return terrain ? static_cast<float>(terrain->CellWidth()) : 16.0f;
+        return terrain ? reinterpret_cast<cFC4ISTETerrainCellWidth*>(terrain)->ReadCellWidth() : 16.0f;
     }
     static bool HostTerrainCorners(void*, int32_t x, int32_t z, float* out) {
         cISC4AppPtr app;

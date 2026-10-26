@@ -325,6 +325,10 @@ INTERFACES = [
     ("cISC4NetworkTool(PowerLine)", "cISC4NetworkTool", "cISC4NetworkTool.h", False),
     # The cohort chain behind an exemplar (data-formats §4.4): FC4Properties.cpp EffectiveProperties.
     ("cISCResExemplarCohort", "cISCResExemplarCohort", "cISCResExemplarCohort.h", True),
+    # Pole movement: validate the corrected x87 width getter on the terrain
+    # prefix. The SDK row stays for the other terrain calls; its uint32 getter
+    # remains unused (network-occupants 4.7; terrain slot 6).
+    ("vt:cSTETerrain::vftable", "cFC4ISTETerrainCellWidth", FC4, True),
 ]
 
 BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h",
