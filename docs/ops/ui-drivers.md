@@ -25,11 +25,22 @@ qualification requires target-method reach and a clean verdict with no reference
 warnings. `ui_command_catalog=1` logs registered IDs/names/parameters on the first
 command for diagnosis; it does not execute the catalogue.
 
+`uicontrol` refuses a control if it or any parent is hidden or disabled. A
+resource can contain overlapping hidden and visible buttons with different IDs.
+The budget panel must first be expanded with `aa3ac50e`; its visible education,
+utilities and ordinance rows are `aa3ac507`, `aa3ac508` and `aa3ac501`
+(budget-window.md section 2.1). Clicking the hidden `aa3ac4xx` counterparts does
+not exercise a sub-budget. Closing an already hidden panel is a refused action.
+
 The `ui29-candidates` suite group contains house-city, West Weburg and Bevopolis
 censuses. These are qualification candidates, excluded from `full` until clean
 game results and per-owner reach establish the actions they actually exercise.
-Map layers, individual sub-budgets, tree controls, web/HTTP, nation and volcano
-paths still need qualified scenarios. No coverage credit is claimed for them.
+Query mouse handlers, text insertion and sub-budget lifecycle have target-owner
+entry evidence. Cell projection has delivery evidence only; road placement and
+news content still need target-owner tracing. Map layers, tree controls,
+web/HTTP and volcano paths still need qualified scenarios. The registered
+`ViewWebBrowser` command refuses an empty parameter set (status 2); no web
+coverage follows from its registration. Candidate rows remain outside `full`.
 
 The installed accelerator resource `{A2E3D533,6A231EAA,6A9362EF}` supplies query
 `6a935cf3`, road `6a935dc0`, MySim `6a935ca8`, mayor `6a935ca4`, play/graphics/audio
