@@ -89,7 +89,7 @@ inline bool Recording() { return active && !suppressed; }
 inline void Record(Words call,Words result=None()) {
     if (Recording()) active->events.push_back({std::move(call),std::move(result)});
 }
-inline void ObserveUnknown(void*);
+inline void ObserveUnknown(void*,bool scoped=false);
 inline void ObserveWindow(void*);
 inline void ObserveInterface(void*,uint32_t);
 inline bool __fastcall Query(void* self,void*,uint32_t iid,void** out) {
@@ -107,9 +107,9 @@ template<bool Release> uint32_t __fastcall Ref(void* self,void*) {
     if(record) Record(Call(Release?4:3,self,0),Release?U(n):None());
     return n;
 }
-inline void ObserveUnknown(void* object) {
+inline void ObserveUnknown(void* object,bool scoped) {
     if (!object) return;
-    const bool ok=Patch(object,0,reinterpret_cast<void*>(&Query)) && Patch(object,4,reinterpret_cast<void*>(&Ref<false>)) && Patch(object,8,reinterpret_cast<void*>(&Ref<true>));
+    const bool ok=Patch(object,0,reinterpret_cast<void*>(&Query),scoped) && Patch(object,4,reinterpret_cast<void*>(&Ref<false>),scoped) && Patch(object,8,reinterpret_cast<void*>(&Ref<true>),scoped);
     if (!ok && active) active->exhaustive=false;
 }
 inline Words Parameter(cIGZVariant* v,uint32_t key) {
@@ -185,9 +185,15 @@ inline uint32_t __fastcall Fill(void* self,void*,uint32_t r,uint32_t g,uint32_t 
 }
 inline uint32_t __fastcall SetParam(void* self,void*,uint32_t key,cIGZVariant* value) {
     if(Recording()) {
-        // Payloads are compared, but temporary variant reference effects are not.
+        // The transfer returns an opaque temporary identity to the recording
+        // host, not the setter's (unspecified) EAX. Observe its subsequent
+        // caller-side Release; nested retention inside SetParameter stays quiet.
+        // Construction before this boundary is still unobserved: no full credit.
         active->allOutputs=false;
-        Record(Call(7,self,0x1c8,{U(key),Parameter(value,key)}));
+        const auto payload=Parameter(value,key);
+        const bool temporary=value && !payload.empty() && payload[0]!=0;
+        Record(Call(7,self,0x1c8,{U(key),payload}),temporary?H(value):None());
+        if(temporary) ObserveUnknown(value,true);
     }
     Quiet q;
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,cIGZVariant*)>(Original(self,0x1c8))(self,nullptr,key,value);
