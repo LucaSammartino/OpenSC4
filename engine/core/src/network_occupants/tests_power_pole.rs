@@ -710,3 +710,67 @@ fn pole_distress_retry_and_stop_modes_conformance_73() {
     p.shutdown(&reference(9), &mut h);
     assert_eq!(h.log, ["stoptrue", "release55", "shutdown"]);
 }
+
+#[test]
+fn pole_position_uses_terrain_and_preserves_transform_and_bounds_cache() {
+    // 4.7: moving the pole rebuilds faces and moves the effect, but neither
+    // dirties the cached occupant box nor synchronizes its own model transform.
+    let mut p = PowerPole::new(fields());
+    p.effect = reference(55);
+    p.stale = false;
+    p.fields.transform.translation = [91.0, 92.0, 93.0];
+    p.fields.transform.counter = 254;
+    let transform = p.fields.transform;
+    let wires = p.fields.connections[0].vertices.clone();
+    let mut h = PoleFixture::default();
+    p.set_position(
+        [39.5, 20.0, -20.5],
+        10.0,
+        Some([17.0, 8.0, f32::NAN, 9.0]),
+        false,
+        3,
+        &mut h,
+    )
+    .unwrap();
+    assert_eq!(p.get_cell(), (3, -2));
+    assert_eq!(p.fields.position, [39.5, 20.0, -20.5]);
+    assert_eq!(p.fields.model_y, 8.0);
+    assert_eq!(p.fields.transform, transform);
+    assert!(!p.stale);
+    assert_eq!(p.fields.connections[0].vertices, wires);
+    assert_eq!(h.log, ["place[39.5, 20.0, -20.5]"]);
+    assert_eq!(p.geometry[0][0].pos, [34.5, 20.0, -25.5]);
+    assert_eq!(
+        p.geometry[1][0],
+        PowerPole::wall_quad(p.geometry[0][3], p.geometry[0][0], 8.0)[0]
+    );
+    assert_eq!(p.geometry[1][1].pos[1], 8.0);
+    assert_eq!(p.geometry[2][1].pos[1], 8.0);
+}
+
+#[test]
+fn pole_position_corner_ties_nan_off_map_and_extended_reciprocal() {
+    let mut p = PowerPole::fresh();
+    let mut h = PoleFixture::default();
+    // A stored f32 reciprocal/product would give +/-10 instead of +/-9.
+    assert_eq!(PowerPole::position_cell([1.0, 0.0, -1.0], 0.1), (9, -9));
+    p.set_position(
+        [1.0, 12.0, 2.0],
+        16.0,
+        Some([-0.0, 0.0, f32::NAN, 3.0]),
+        true,
+        0,
+        &mut h,
+    )
+    .unwrap();
+    assert_eq!(p.fields.model_y.to_bits(), (-0.0f32).to_bits());
+    let nan = f32::from_bits(0x7FC0_1234);
+    p.set_position([1.0, 12.0, 2.0], 16.0, Some([nan, -9.0, 0.0, 1.0]), false, 1, &mut h)
+        .unwrap();
+    assert_eq!(p.fields.model_y.to_bits(), nan.to_bits());
+    p.set_position([-99.0, 12.0, -99.0], 16.0, None, false, 2, &mut h)
+        .unwrap();
+    assert_eq!(p.fields.model_y, 12.0);
+    assert!(h.log.is_empty()); // No effect means no host effect calls.
+    assert!(p.geometry.iter().all(|face| face.len() == 4));
+}

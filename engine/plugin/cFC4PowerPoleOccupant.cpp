@@ -22,6 +22,7 @@
 #include "cISC4City.h"
 #include "cISC4OccupantManager.h"
 #include "cISC4VisualEffect.h"
+#include "cISTETerrain.h"
 #include "cS3DVector3.h"
 #include <atomic>
 
@@ -79,6 +80,8 @@ struct PoleHostVt {
     void (*effectStart)(void*, uint64_t);
     bool (*effectRunning)(void*, uint64_t);
     void (*effectStop)(void*, uint64_t, bool);
+    float (*terrainWidth)(void*);
+    bool (*terrainCorners)(void*, int32_t, int32_t, float*);
 };
 struct PoleTuning {
     uint32_t present;
@@ -98,6 +101,8 @@ bool fc4_netpole_has_connection(const void*, uint64_t);
 void fc4_netpole_break_all(void*, uint64_t, bool, const PoleHostVt*);
 void fc4_netpole_remove_connection(void*, uint64_t, bool, const PoleHostVt*);
 void fc4_netpole_insert_lines(void*, const PoleHostVt*);
+bool fc4_netpole_set_position(void*, const float*, bool, uint32_t, const PoleHostVt*);
+bool fc4_netpole_rebuild_geometry(void*, bool, uint32_t);
 void fc4_netpole_set_distressed(void*, bool, const PoleHostVt*);
 void fc4_netpole_on_message(void*, uint32_t, bool, const PoleHostVt*);
 void fc4_netpole_shutdown(void*, uint64_t, const PoleHostVt*);
@@ -160,7 +165,7 @@ public:
     PowerPole() : holder_(static_cast<PoleInterface*>(this)), core_(fc4_netpole_create()) {
         vt_ = {this, &HostAddRef, &HostRelease, &HostInsertLine, &HostRemoveLine, &HostReciprocal, &HostPost,
                &HostSubscribe, &HostEffectCreate, &HostEffectPlace, &HostEffectStart, &HostEffectRunning,
-               &HostEffectStop};
+               &HostEffectStop, &HostTerrainWidth, &HostTerrainCorners};
     }
     ~PowerPole() {
         if (State().subscribed) Subscribe(0x99EF1142, false);
@@ -230,7 +235,14 @@ public:
         if (count) *count = 0;  // Model host (4.7.3) is not wired yet.
         return false;
     }
-    bool ChangeZoomLevel(void*) override { return true; }
+    bool ChangeZoomLevel(void* context) override {
+        if (!context) return false;
+        Lock g(lock_);
+        const auto* bytes = static_cast<const uint8_t*>(context);
+        std::memcpy(&viewRotation_, bytes + 0x18, sizeof(viewRotation_));
+        // SPEC-GAP: model and shared texture reloads still await the draw host.
+        return fc4_netpole_rebuild_geometry(core_, DiagonalModel(), GeometryRotation());
+    }
 
     // ---- cIGZMessageTarget2 (§4.3): the Insert of this pole inserts its lines ----
     bool DoMessage(cIGZMessage2* msg) override {
@@ -261,22 +273,20 @@ public:
         Lock g(lock_); const auto s = State(); *out = cS3DVector3(s.position[0], s.position[1], s.position[2]);
         return true;
     }
-    // SPEC-GAP: §4.7 needs the terrain's cell width and corner heights; the
-    // cell uses the 16 m city cell and the floor height is not rebuilt.
     bool SetPosition(const cS3DVector3* p) override {
         if (!p) return false;
-        Lock g(lock_); auto s = State();
-        s.position[0] = p->fX; s.position[1] = p->fY; s.position[2] = p->fZ;
-        s.cell[0] = static_cast<int32_t>(p->fX * 0.0625f); s.cell[1] = static_cast<int32_t>(p->fZ * 0.0625f);
-        Put(s);
-        if (effect_) HostEffectPlace(this, Tok(effect_), s.position);
-        return true;
+        Lock g(lock_);
+        const float position[3] = {p->fX, p->fY, p->fZ};
+        // SPEC-GAP: the delegate model-position call awaits the model host.
+        return fc4_netpole_set_position(core_, position, DiagonalModel(), GeometryRotation(), &vt_);
     }
-    // §4.7.2: the cells of the pole and of its wired records. The cell size
-    // is the city's 16 m (the native statics come from city slots 91, 92).
+    // §4.7.2: the cells of the pole and of its wired records (city slots 91/92).
     cS3DVector3* GetBoundingBox(cS3DVector3* a, cS3DVector3* b) override {
         Lock g(lock_);
-        const float cell[2] = {16.0f, 16.0f};
+        cISC4AppPtr app;
+        auto* city = app ? app->GetCity() : nullptr;
+        // SPEC-GAP: an isolated factory without a city uses 16 m cells.
+        const float cell[2] = {city ? city->CellWidthX() : 16.0f, city ? city->CellWidthZ() : 16.0f};
         float box[6]{};
         fc4_netpole_bbox(core_, cell, box);
         if (a) *a = cS3DVector3(box[0], box[1], box[2]);
@@ -338,6 +348,15 @@ private:
     using Lock = std::lock_guard<std::recursive_mutex>;
     PoleState State() { PoleState s{}; fc4_netpole_state(core_, &s, false); return s; }
     void Put(PoleState& s) { fc4_netpole_state(core_, &s, true); }
+    bool DiagonalModel() {
+        std::vector<uint32_t> key;
+        return fc4::props::GetU32s(holder_.AsSdk(), 0x27812821, key) && key.size() >= 3 &&
+               ((key[2] >> 16) == 0x0503 || (key[2] >> 16) == 0x0504);
+    }
+    uint32_t GeometryRotation() const {
+        // SPEC-GAP: before the first view context, build walls for rotation 0.
+        return viewRotation_ >= 0 && viewRotation_ < 4 ? static_cast<uint32_t>(viewRotation_) : 0;
+    }
     void Subscribe(uint32_t type, bool on) {
         cIGZMessageServer2Ptr ms;
         if (!ms) return;
@@ -398,6 +417,22 @@ private:
     static void HostEffectStart(void*, uint64_t t) { Effect(t)->Start(0); }
     static bool HostEffectRunning(void*, uint64_t t) { return Effect(t)->IsStarted(); }
     static void HostEffectStop(void*, uint64_t t, bool immediate) { Effect(t)->Stop(immediate ? 1u : 0u); }
+    static float HostTerrainWidth(void*) {
+        cISC4AppPtr app;
+        auto* city = app ? app->GetCity() : nullptr;
+        auto* terrain = city ? city->GetTerrain() : nullptr; // borrowed
+        // SPEC-GAP: an isolated factory without terrain uses a 16 m cell.
+        return terrain ? static_cast<float>(terrain->CellWidth()) : 16.0f;
+    }
+    static bool HostTerrainCorners(void*, int32_t x, int32_t z, float* out) {
+        cISC4AppPtr app;
+        auto* city = app ? app->GetCity() : nullptr;
+        auto* terrain = city ? city->GetTerrain() : nullptr; // borrowed
+        if (!terrain || x < 0 || z < 0 || static_cast<uint32_t>(x) >= terrain->CellCountX() ||
+            static_cast<uint32_t>(z) >= terrain->CellCountZ()) return false;
+        terrain->GetCellCornerAltitudes(static_cast<uint32_t>(x), static_cast<uint32_t>(z), out);
+        return true;
+    }
 
     std::atomic<uint32_t> refs_{0};
     std::recursive_mutex lock_;
@@ -406,6 +441,7 @@ private:
     void* core_;
     PoleHostVt vt_{};
     cIGZUnknown* effect_ = nullptr;
+    int32_t viewRotation_ = -1;
 };
 
 PowerPole* FromPole(cIGZUnknown* pole) {

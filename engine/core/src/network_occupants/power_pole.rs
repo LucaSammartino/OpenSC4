@@ -322,6 +322,53 @@ impl PowerPole {
         self.fields.cell
     }
 
+    /// SetPosition's reciprocal and products stay extended until conversion (4.7).
+    pub fn position_cell(position: [f32; 3], terrain_width: f32) -> (i32, i32) {
+        let reciprocal = 1.0 / f64::from(terrain_width);
+        (
+            (f64::from(position[0]) * reciprocal) as i32,
+            (f64::from(position[2]) * reciprocal) as i32,
+        )
+    }
+
+    /// Terrain inputs are obtained by the host at `position_cell`. Moving a pole
+    /// does not invalidate its cached bounds, refresh wires or move its own transform.
+    pub fn set_position(
+        &mut self,
+        position: [f32; 3],
+        terrain_width: f32,
+        corners: Option<[f32; 4]>,
+        diagonal: bool,
+        rotation: usize,
+        host: &mut impl PoleHost,
+    ) -> Result<(), PoleUnsupported> {
+        self.fields.position = position;
+        self.fields.cell = Self::position_cell(position, terrain_width);
+        self.fields.model_y = match corners {
+            Some(corners) => {
+                let mut lowest = corners[0];
+                for corner in &corners[1..] {
+                    if *corner < lowest {
+                        lowest = *corner;
+                    }
+                }
+                lowest
+            }
+            None => position[1], // 4.7's off-map choice, instead of uninitialized corners.
+        };
+        self.rebuild_geometry(diagonal, rotation)?;
+        if !matches!(self.effect, RefValue::Null) {
+            host.place_effect(&self.effect, position, super::xform::IDENTITY_MATRIX, 1.0);
+        }
+        Ok(())
+    }
+
+    pub fn rebuild_geometry(&mut self, diagonal: bool, rotation: usize) -> Result<(), PoleUnsupported> {
+        self.create_floor(diagonal)?;
+        self.create_walls(rotation);
+        Ok(())
+    }
+
     pub fn is_distressed(&self) -> bool {
         self.fields.distressed != 0
     }

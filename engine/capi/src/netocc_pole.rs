@@ -55,6 +55,8 @@ pub struct PoleHostVt {
     effect_start: Option<unsafe extern "C" fn(*mut c_void, u64)>,
     effect_running: Option<unsafe extern "C" fn(*mut c_void, u64) -> bool>,
     effect_stop: Option<unsafe extern "C" fn(*mut c_void, u64, bool)>,
+    terrain_width: Option<unsafe extern "C" fn(*mut c_void) -> f32>,
+    terrain_corners: Option<unsafe extern "C" fn(*mut c_void, i32, i32, *mut f32) -> bool>,
 }
 
 /// The control exemplar's values (§4.3), read once by the plugin. `present`
@@ -317,10 +319,7 @@ pub unsafe extern "C" fn fc4_netpole_state(p: *mut PowerPole, s: *mut PoleState,
             p.set_preview(s.preview != 0);
             p.subscribed = s.subscribed != 0;
             p.wire_exemplar_index = s.kind;
-            if p.fields.position != s.position {
-                p.fields.position = s.position;
-                p.stale = true;
-            }
+            p.fields.position = s.position;
             p.fields.cell = (s.cell[0], s.cell[1]);
             let key = ResKey {
                 type_id: s.parent[0],
@@ -410,6 +409,48 @@ pub unsafe extern "C" fn fc4_netpole_insert_lines(p: *mut PowerPole, vt: *const 
         if let (Some(p), Some(mut h)) = (p.as_mut(), host(vt)) {
             p.insert_lines(&mut h);
         }
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_set_position(
+    p: *mut PowerPole,
+    position: *const [f32; 3],
+    diagonal: bool,
+    rotation: u32,
+    vt: *const PoleHostVt,
+) -> bool {
+    guard(false, || {
+        let (Some(p), Some(position), Some(mut h)) = (p.as_mut(), position.as_ref(), host(vt)) else {
+            return false;
+        };
+        if rotation >= 4 {
+            return false;
+        }
+        // SPEC-GAP: an isolated factory without a city uses a 16 m terrain cell.
+        let width = h.vt.terrain_width.map_or(16.0, |f| f(h.vt.user));
+        let (x, z) = PowerPole::position_cell(*position, width);
+        let mut corners = [0.0; 4];
+        let has_corners =
+            h.vt.terrain_corners
+                .is_some_and(|f| f(h.vt.user, x, z, corners.as_mut_ptr()));
+        p.set_position(
+            *position,
+            width,
+            has_corners.then_some(corners),
+            diagonal,
+            rotation as usize,
+            &mut h,
+        )
+        .is_ok()
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_rebuild_geometry(p: *mut PowerPole, diagonal: bool, rotation: u32) -> bool {
+    guard(false, || {
+        let Some(p) = p.as_mut() else { return false };
+        rotation < 4 && p.rebuild_geometry(diagonal, rotation as usize).is_ok()
     })
 }
 
@@ -670,6 +711,57 @@ mod tests {
             effect_start: None,
             effect_running: None,
             effect_stop: None,
+            terrain_width: None,
+            terrain_corners: None,
+        }
+    }
+
+    unsafe extern "C" fn terrain_width(_: *mut c_void) -> f32 {
+        10.0
+    }
+    unsafe extern "C" fn terrain_corners(u: *mut c_void, x: i32, z: i32, out: *mut f32) -> bool {
+        (*(u as *const RefCell<Log>))
+            .borrow_mut()
+            .effects
+            .push(format!("corners{x},{z}"));
+        if x < 0 || z < 0 {
+            return false;
+        }
+        std::slice::from_raw_parts_mut(out, 4).copy_from_slice(&[5.0, 2.0, 8.0, 3.0]);
+        true
+    }
+
+    #[test]
+    fn position_queries_actual_terrain_cell_and_rebuilds_faces() {
+        let log = RefCell::new(Log::default());
+        let mut v = vt(&log);
+        v.terrain_width = Some(terrain_width);
+        v.terrain_corners = Some(terrain_corners);
+        v.effect_place = Some(effect_place);
+        unsafe {
+            let p = fc4_netpole_create();
+            (*p).effect = host_ref(0x70, 0);
+            (*p).stale = false;
+            assert!(fc4_netpole_set_position(p, &[35.0, 20.0, 45.0], false, 2, &v));
+            assert_eq!((*p).fields.cell, (3, 4));
+            assert_eq!((*p).fields.model_y, 2.0);
+            assert!(!(*p).stale);
+            assert_eq!(log.borrow().effects, ["corners3,4", "place[35.0, 20.0, 45.0]"]);
+            assert_eq!((*p).geometry[0][0].pos, [30.0, 20.0, 40.0]);
+            assert_eq!((*p).geometry[1][1].pos[1], 2.0);
+            log.borrow_mut().effects.clear();
+            assert!(fc4_netpole_rebuild_geometry(p, true, 3));
+            assert!(log.borrow().effects.is_empty()); // Zoom rebuilds do not move the effect.
+            assert_eq!((*p).geometry[0].len(), 4);
+            let position = (*p).fields.position;
+            assert!(!fc4_netpole_set_position(p, &[1.0; 3], false, 4, &v));
+            assert_eq!((*p).fields.position, position);
+            assert!(!fc4_netpole_set_position(p, std::ptr::null(), false, 0, &v));
+            assert!(!fc4_netpole_rebuild_geometry(p, false, 4));
+            assert!(fc4_netpole_set_position(p, &[-1.0, 9.0, -10.0], false, 0, &v));
+            assert_eq!((*p).fields.model_y, 9.0); // Off-map choice.
+            fc4_netpole_destroy(p, &v);
+            assert_eq!(log.borrow().refs, [(0x70, -1)]);
         }
     }
 
