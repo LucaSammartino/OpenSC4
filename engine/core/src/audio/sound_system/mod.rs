@@ -110,4 +110,4 @@ mod closure_tests;
 mod tests;
 
 #[cfg(test)]
-mod closure_tests;
+mod closure_tests_hit;
