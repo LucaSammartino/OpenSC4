@@ -12,6 +12,8 @@ mod grid;
 pub use grid::*;
 mod dirty;
 pub use dirty::*;
+mod backing;
+pub use backing::*;
 
 pub const CLASS_ID: u32 = 0xE9C6_22D8;
 
@@ -71,6 +73,7 @@ pub struct Render3d {
     picture: Option<Handle>,
     ui_matrix: [f32; 16],
     dirty: DirtyQueue,
+    grid: Option<QuadGrid>,
     state: State,
 }
 
@@ -89,6 +92,7 @@ impl Render3d {
             picture: None,
             ui_matrix: [0.0; 16],
             dirty: DirtyQueue::default(),
+            grid: None,
             state: State::default(),
         }
     }
@@ -181,6 +185,8 @@ impl Render3d {
     }
 }
 
+#[cfg(test)]
+mod backing_tests;
 #[cfg(test)]
 mod dirty_tests;
 #[cfg(test)]

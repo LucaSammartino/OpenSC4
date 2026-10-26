@@ -167,7 +167,12 @@ impl QuadGrid {
     }
 
     pub fn cells_for_rect(&self, rect: ContainerRect) -> Rect {
-        let cell = |value: f32| (value * self.scale - 0.5).round_ties_even() as i32;
+        let cell = |value: f32| {
+            let value = value * self.scale - 0.5;
+            let rounded = value.round();
+            let odd_half = (value - value.trunc()).abs() == 0.5 && (rounded as i32) & 1 != 0;
+            (if odd_half { rounded - value.signum() } else { rounded }) as i32
+        };
         Rect::new(cell(rect.left), cell(rect.top), cell(rect.right), cell(rect.bottom))
     }
 
@@ -288,5 +293,20 @@ impl QuadGrid {
     pub fn remove_all_elements(&mut self) {
         self.quadrants.clear();
         self.elements.clear();
+    }
+
+    pub fn reevaluate_backing_store_flags(&mut self, zoom: i32, limits: BackingLimits) {
+        for element in self.elements.values_mut() {
+            if element.should_go_into_backing_store(zoom, limits) {
+                element.flags |= 8;
+            } else {
+                element.flags &= !8;
+            }
+        }
+        for y in 0..self.side {
+            for x in 0..self.side {
+                self.quadrants.entry((y, x)).or_default().flags |= 1;
+            }
+        }
     }
 }

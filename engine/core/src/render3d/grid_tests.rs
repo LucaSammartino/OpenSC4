@@ -18,6 +18,10 @@ fn grid_case_13_ties_to_even_and_scale() {
             Rect::new(2, 2, 2, 2)
         );
     }
+    assert_eq!(
+        QuadGrid::for_map_scale(1).cells_for_rect(ContainerRect::new(0.0, -32.0, 32.0, -64.0)),
+        Rect::new(0, -2, 0, -2)
+    );
 }
 
 #[test]

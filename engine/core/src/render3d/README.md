@@ -17,7 +17,7 @@ The table records whole-section closure, including explicit open boundaries.
 | 9 Lifecycle | — | Init/Shutdown guard and property tuples | Pending |
 | 10 Screen shake | `start_screen_shake_overload`, `Unsupported::Rnd4ShakeOverload` | `rnd4_overload_fails_without_starting_a_shake` | Unsupported overload: RND4 open; other shake methods pending |
 | 11 View objects, visibility, picking | — | Section 11 worked cases | Pending |
-| 12 Backing store | — | Section 12 worked cases | Pending |
+| 12 Backing store | `BackingStore`, `BackingServices`, `save_backing_store`, `restore_backing_store`, `reevaluate_backing_store_object_flags` | `backing_tests`: B1–B4, four probe failure points, reevaluation | Complete |
 | 13 Updates, clearing, driver | — | Case 16 and section 13 cases | Pending |
 | 14 Container rectangles, grid rebuild | — | Section 14 worked cases | Pending |
 | 15 Toggles, lifecycle remainder, helpers | — | Section 15 worked cases | Pending |
