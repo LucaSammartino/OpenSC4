@@ -3,8 +3,8 @@
 // inherited occupant slots (FC4OccupantAdapter.h). The state, the v5 record,
 // connections, StaticInit and the attachment tables live in the core
 // (engine/capi/src/netocc_pole.rs over core/src/network_occupants/power_pole.rs).
-// The native tool bridge and cell-vector ABI remain open (NO44). Model/Draw
-// glue is still unwired; keep the live pole factory native until both are safe.
+// Direct-call adapters and cell vectors follow §4.6.3. Native construction and
+// mixed-endpoint interposition plus Model/Draw still gate the live pole factory.
 #include "cFC4PowerPoleOccupant.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
@@ -84,6 +84,9 @@ struct PoleHostVt {
     float (*terrainWidth)(void*);
     bool (*terrainCorners)(void*, int32_t, int32_t, float*);
     void (*cellSize)(void*, float*);
+    void (*poleCell)(void*, uint64_t, int32_t*);
+    bool (*attachmentPoints)(void*, uint64_t, uint32_t, float*);
+    bool (*isWater)(void*, int32_t, int32_t);
 };
 struct PoleTuning {
     uint32_t present;
@@ -103,6 +106,10 @@ int32_t fc4_netpole_cell_source(const void*, uint32_t, uint64_t*);
 bool fc4_netpole_local_cells(const void*, uint32_t, bool (*)(void*, const fc4::netpole::Cell*, uint32_t),
                              void*, const PoleHostVt*);
 bool fc4_netpole_has_connection(const void*, uint64_t);
+bool fc4_netpole_add_connection(void*, uint64_t, const uint64_t*, uint32_t, const PoleHostVt*);
+bool fc4_netpole_enable_connection(void*, uint64_t, bool, const PoleHostVt*);
+bool fc4_netpole_rebuild_wires(void*, uint64_t, const PoleHostVt*);
+bool fc4_netpole_attachment_points(const void*, uint32_t, float*);
 void fc4_netpole_break_all(void*, uint64_t, bool, const PoleHostVt*);
 void fc4_netpole_remove_connection(void*, uint64_t, bool, const PoleHostVt*);
 void fc4_netpole_insert_lines(void*, const PoleHostVt*);
@@ -170,7 +177,8 @@ public:
     PowerPole() : holder_(static_cast<PoleInterface*>(this)), core_(fc4_netpole_create()) {
         vt_ = {this, &HostAddRef, &HostRelease, &HostInsertLine, &HostRemoveLine, &HostReciprocal, &HostPost,
                &HostSubscribe, &HostEffectCreate, &HostEffectPlace, &HostEffectStart, &HostEffectRunning,
-               &HostEffectStop, &HostTerrainWidth, &HostTerrainCorners, &HostCellSize};
+               &HostEffectStop, &HostTerrainWidth, &HostTerrainCorners, &HostCellSize,
+               &HostPoleCell, &HostAttachmentPoints, &HostIsWater};
     }
     ~PowerPole() {
         if (State().subscribed) Subscribe(0x99EF1142, false);
@@ -344,6 +352,26 @@ public:
     void RemoveConnectionTo(uint64_t pole, bool quiet) {
         Lock g(lock_); fc4_netpole_remove_connection(core_, pole, quiet, &vt_);
     }
+    void EnableConnectionTo(uint64_t pole, bool enable) {
+        Lock g(lock_); fc4_netpole_enable_connection(core_, pole, enable, &vt_);
+    }
+    void AddConnectionTo(uint64_t pole, const fc4::netpole::WireVector* wires) {
+        Lock g(lock_);
+        std::vector<uint64_t> lines;
+        if (wires && wires->begin) {
+            for (auto* item = wires->begin; item != wires->end; ++item) lines.push_back(Tok(item->line));
+        }
+        if (!fc4_netpole_add_connection(core_, pole, lines.data(), static_cast<uint32_t>(lines.size()), &vt_))
+            fc4::Log("netocc: AddConnection unsupported attachment/curve invariant");
+    }
+    void RebuildWiresTo(uint64_t pole) {
+        Lock g(lock_);
+        if (!fc4_netpole_rebuild_wires(core_, pole, &vt_))
+            fc4::Log("netocc: RebuildWires unsupported attachment/curve invariant");
+    }
+    bool AttachmentPoints(uint32_t orientation, float* out) {
+        Lock g(lock_); return fc4_netpole_attachment_points(core_, orientation, out);
+    }
 
     // ---- FC4OccupantAdapter hooks ----
     std::recursive_mutex& OccLock() { return lock_; }
@@ -463,6 +491,17 @@ private:
         terrain->GetCellCornerAltitudes(static_cast<uint32_t>(x), static_cast<uint32_t>(z), out);
         return true;
     }
+    static void HostPoleCell(void*, uint64_t token, int32_t* out) {
+        reinterpret_cast<PoleInterface*>(Ptr(token))->GetCell(out[0], out[1]);
+    }
+    static bool HostAttachmentPoints(void*, uint64_t token, uint32_t orientation, float* out);
+    static bool HostIsWater(void*, int32_t x, int32_t z) {
+        cISC4AppPtr app;
+        auto* city = app ? app->GetCity() : nullptr;
+        auto* terrain = city ? city->GetTerrain() : nullptr; // borrowed
+        // SPEC-GAP: an isolated factory with no terrain reports dry cells.
+        return terrain && terrain->CellHasWater(static_cast<uint32_t>(x), static_cast<uint32_t>(z));
+    }
 
     std::atomic<uint32_t> refs_{0};
     std::recursive_mutex lock_;
@@ -480,6 +519,15 @@ PowerPole* FromPole(cIGZUnknown* pole) {
     auto* ours = static_cast<PowerPole*>(static_cast<PoleInterface*>(p));
     ours->Release();  // borrowed: the caller holds `pole`
     return ours;
+}
+
+bool PowerPole::HostAttachmentPoints(void*, uint64_t token, uint32_t orientation, float* out) {
+    auto* pole = Ptr(token);
+    if (auto* ours = FromPole(pole)) return ours->AttachmentPoints(orientation, out);
+    // Only a foreign primary reaches the concrete native body; never pass an FC4 base to it.
+    const auto address = fc4::compat::DirectCall(fc4::compat::Direct::PoleAttachmentPoints);
+    using Native = bool(__fastcall*)(void*, void*, uint32_t, float*);
+    return address && reinterpret_cast<Native>(address)(pole, nullptr, orientation, out);
 }
 
 // The other pole's RemoveConnection(this, quiet): ours through the core, the
@@ -504,6 +552,29 @@ cIGZUnknown* CreateFC4PowerPoleOccupant() {
     auto* p = new PowerPole;
     if (!p->Valid()) { delete p; return nullptr; }
     return static_cast<PoleInterface*>(p);
+}
+
+bool FC4NetOccEnablePoleConnection(cIGZUnknown* first, cIGZUnknown* second, bool enable) {
+    auto* ours = FromPole(first);
+    if (!ours) return false;
+    ours->EnableConnectionTo(Tok(second), enable);
+    return true;
+}
+bool FC4NetOccAddPoleConnection(cIGZUnknown* first, cIGZUnknown* second, const void* wires) {
+    auto* ours = FromPole(first);
+    if (!ours) return false;
+    ours->AddConnectionTo(Tok(second), static_cast<const fc4::netpole::WireVector*>(wires));
+    return true;
+}
+bool FC4NetOccRebuildPoleWires(cIGZUnknown* first, cIGZUnknown* second) {
+    auto* ours = FromPole(first);
+    if (!ours) return false;
+    ours->RebuildWiresTo(Tok(second));
+    return true;
+}
+bool FC4NetOccPoleAttachmentPoints(cIGZUnknown* pole, uint32_t orientation, float* out) {
+    auto* ours = FromPole(pole);
+    return ours && ours->AttachmentPoints(orientation, out);
 }
 
 bool FC4NetOccRemovePoleConnection(cIGZUnknown* first, cIGZUnknown* second, bool quiet) {

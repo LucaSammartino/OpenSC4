@@ -13,6 +13,9 @@ use super::{
 use super::{identity::OCCUPANT_TYPE_POWER_POLE, xform::Xform};
 use crate::stream::{InStream, OutStream};
 
+mod links;
+pub use links::PoleLinkHost;
+
 /// Native pool allocation size, not the size of this portable Rust state.
 pub const POWER_POLE_POOL_OBJECT_SIZE: usize = 0x124;
 pub const PROP_POLE_MODEL: u32 = 0x2781_2821;
@@ -129,6 +132,7 @@ impl ConnectionPointTable {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PoleUnsupported {
     AttachmentInvariant,
+    CurveCountInvariant,
     DiagonalFloorNO43,
     CellWalkNO33NO43,
     ModelBoundsPickDrawNO33NO43,
@@ -488,6 +492,9 @@ impl PowerPole {
         self.stale = true;
     }
     pub fn remove_connection(&mut self, pole: &RefValue, quiet: bool, host: &mut impl PoleHost) {
+        if matches!(pole, RefValue::Null) {
+            return;
+        }
         if let Some(index) = self.fields.connections.iter().position(|r| same_ref(&r.pole, pole)) {
             self.remove_connection_record(index, quiet, host);
             self.fields.connections.remove(index);

@@ -9,9 +9,10 @@ use crate::props::{fc4_props, props_ref};
 use crate::stream::{fc4_istream, fc4_ostream, istream_ok, ostream_ok, CIn, COut};
 use fc4_core::automata::OccupantBase;
 use fc4_core::network_occupants::power_pole::{
-    AttachmentTables, PoleHost, PoleRecordHost, PoleStaticHost, PoleStatics, PowerPole,
+    AttachmentTables, PoleHost, PoleLinkHost, PoleRecordHost, PoleStaticHost, PoleStatics, PoleUnsupported, PowerPole,
 };
 use fc4_core::network_occupants::pylon::{References, RenderStateArgs};
+use fc4_core::network_tools::power_line::CurveParams;
 use fc4_core::property::PropertyHolder;
 use fc4_core::stream::{RefValue, ResKey};
 use std::ffi::c_void;
@@ -58,6 +59,9 @@ pub struct PoleHostVt {
     terrain_width: Option<unsafe extern "C" fn(*mut c_void) -> f32>,
     terrain_corners: Option<unsafe extern "C" fn(*mut c_void, i32, i32, *mut f32) -> bool>,
     cell_size: Option<unsafe extern "C" fn(*mut c_void, *mut [f32; 2])>,
+    pole_cell: Option<unsafe extern "C" fn(*mut c_void, u64, *mut [i32; 2])>,
+    attachment_points: Option<unsafe extern "C" fn(*mut c_void, u64, u32, *mut [[f32; 3]; 4]) -> bool>,
+    is_water: Option<unsafe extern "C" fn(*mut c_void, i32, i32) -> bool>,
 }
 
 /// The control exemplar's values (§4.3), read once by the plugin. `present`
@@ -199,7 +203,7 @@ impl PoleHost for Host<'_> {
     fn occupant_shutdown(&mut self, base: &mut OccupantBase) {
         if base.status & 1 != 0 {
             base.status &= !1;
-            self.post_message(0x99EF_1141, 0);
+            PoleHost::post_message(self, 0x99EF_1141, 0);
         }
     }
 }
@@ -252,6 +256,52 @@ impl PoleRecordHost for Host<'_> {
         // §4.6 selects the table from the exemplar resource key's instance.
         base.holder.parent_key().map_or(0, |key| key.instance)
     }
+}
+
+impl PoleLinkHost for Host<'_> {
+    fn pole_cell(&mut self, pole: &RefValue) -> (i32, i32) {
+        let mut cell = [0; 2];
+        if let Some(f) = self.vt.pole_cell {
+            unsafe { f(self.vt.user, token(pole), &mut cell) }
+        }
+        (cell[0], cell[1])
+    }
+    fn attachment_points(&mut self, pole: &RefValue, orientation: u32) -> Result<[[f32; 3]; 4], PoleUnsupported> {
+        let mut points = [[0.0; 3]; 4];
+        match self.vt.attachment_points {
+            Some(f) if unsafe { f(self.vt.user, token(pole), orientation, &mut points) } => Ok(points),
+            _ => Err(PoleUnsupported::AttachmentInvariant),
+        }
+    }
+    fn cell_size(&mut self) -> [f32; 2] {
+        PoleHost::cell_size(self)
+    }
+    fn is_water(&mut self, cell: (i32, i32)) -> bool {
+        self.vt
+            .is_water
+            .is_some_and(|f| unsafe { f(self.vt.user, cell.0, cell.1) })
+    }
+    fn post_message(&mut self, message: u32, data: u32) {
+        PoleHost::post_message(self, message, data)
+    }
+}
+
+// Do not hold SHARED across foreign callbacks: another replacement endpoint can reenter it.
+fn link_inputs() -> (AttachmentTables, CurveParams) {
+    with_shared(|s| {
+        let p = &s.statics.control;
+        (
+            s.tables.clone(),
+            CurveParams {
+                maximum_displacement: p.v_e9a18d3f,
+                displacement_percent: p.v_49a1e8c4,
+                maximum_sag: p.v_89a18fc4,
+                sag_percent: p.v_e9a1e8d4,
+                sample_distance: p.v_49a195c0,
+                minimum_count: p.v_89a1e8fb,
+            },
+        )
+    })
 }
 
 unsafe fn host<'a>(vt: *const PoleHostVt) -> Option<Host<'a>> {
@@ -428,6 +478,88 @@ pub unsafe extern "C" fn fc4_netpole_has_connection(p: *const PowerPole, pole: u
     guard(false, || {
         p.as_ref()
             .is_some_and(|p| pole != 0 && p.fields.connections.iter().any(|c| token(&c.pole) == pole))
+    })
+}
+
+/// Primary endpoint pointers and copied line tokens; the caller retains its wire vector.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_add_connection(
+    p: *mut PowerPole,
+    other: u64,
+    wires: *const u64,
+    count: u32,
+    vt: *const PoleHostVt,
+) -> bool {
+    guard(false, || {
+        let (Some(p), Some(mut h)) = (p.as_mut(), host(vt)) else {
+            return false;
+        };
+        if (wires.is_null() && count != 0) || h.vt.pole_cell.is_none() {
+            return false;
+        }
+        let wires = if count == 0 {
+            &[]
+        } else {
+            std::slice::from_raw_parts(wires, count as usize)
+        };
+        let refs: Vec<_> = wires.iter().map(|&t| host_ref(t, 0xC9C0_5C5D)).collect();
+        let (tables, parameters) = link_inputs();
+        p.add_connection(&host_ref(other, 0x09C0_5C6A), &refs, &tables, parameters, &mut h)
+            .is_ok()
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_enable_connection(
+    p: *mut PowerPole,
+    other: u64,
+    enable: bool,
+    vt: *const PoleHostVt,
+) -> bool {
+    guard(false, || {
+        let (Some(p), Some(mut h)) = (p.as_mut(), host(vt)) else {
+            return false;
+        };
+        if other == 0 || h.vt.pole_cell.is_none() {
+            return false;
+        }
+        p.enable_connection(&host_ref(other, 0x09C0_5C6A), enable, &mut h);
+        true
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_rebuild_wires(p: *mut PowerPole, other: u64, vt: *const PoleHostVt) -> bool {
+    guard(false, || {
+        let (Some(p), Some(mut h)) = (p.as_mut(), host(vt)) else {
+            return false;
+        };
+        if h.vt.pole_cell.is_none() {
+            return false;
+        }
+        let (tables, parameters) = link_inputs();
+        p.rebuild_wires(&host_ref(other, 0x09C0_5C6A), &tables, parameters, &mut h)
+            .is_ok()
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_attachment_points(
+    p: *const PowerPole,
+    orientation: u32,
+    out: *mut [[f32; 3]; 4],
+) -> bool {
+    guard(false, || {
+        let (Some(p), Some(out)) = (p.as_ref(), out.as_mut()) else {
+            return false;
+        };
+        match with_shared(|s| p.attachment_points(orientation, &s.tables)) {
+            Ok(points) => {
+                *out = points;
+                true
+            }
+            Err(_) => false,
+        }
     })
 }
 
@@ -768,6 +900,9 @@ mod tests {
             terrain_width: None,
             terrain_corners: None,
             cell_size: None,
+            pole_cell: None,
+            attachment_points: None,
+            is_water: None,
         }
     }
 
@@ -775,6 +910,67 @@ mod tests {
         let out = &mut *user.cast::<Vec<[i32; 2]>>();
         *out = std::slice::from_raw_parts(cells, count as usize).to_vec();
         true
+    }
+
+    unsafe extern "C" fn endpoint_cell(_: *mut c_void, t: u64, out: *mut [i32; 2]) {
+        let p = &*(t as usize as *const PowerPole);
+        *out = [p.fields.cell.0, p.fields.cell.1];
+    }
+    unsafe extern "C" fn endpoint_points(_: *mut c_void, t: u64, r: u32, out: *mut [[f32; 3]; 4]) -> bool {
+        // Reenters the shared attachment table through a second replacement pole.
+        fc4_netpole_attachment_points(t as usize as *const PowerPole, r, out)
+    }
+
+    #[test]
+    fn connection_transport_reenters_other_endpoint_and_balances_duplicate_wire_refs() {
+        let log = RefCell::new(Log::default());
+        let mut v = vt(&log);
+        v.pole_cell = Some(endpoint_cell);
+        v.attachment_points = Some(endpoint_points);
+        unsafe {
+            let p = fc4_netpole_create();
+            let other = fc4_netpole_create();
+            (*p).select_connection_point_table(1);
+            (*other).select_connection_point_table(3);
+            (*other).fields.cell = (4, 0);
+            (*other).fields.position = [64.0, 0.0, 0.0];
+            let destination = other as usize as u64;
+            let wires = [0x81, 0x81];
+            assert!(fc4_netpole_add_connection(p, destination, wires.as_ptr(), 2, &v));
+            assert_eq!(fc4_netpole_connection_count(p), 1);
+            assert_eq!(fc4_netpole_connected_pole(p, 0), destination);
+            assert_eq!(log.borrow().refs, [(destination, 1), (0x81, 1), (0x81, 1)]);
+            let mut output_endpoint = 0;
+            assert!(fc4_netpole_enable_connection(p, destination, false, &v));
+            assert_eq!(fc4_netpole_cell_source(p, 0, &mut output_endpoint), 0);
+            assert!(fc4_netpole_enable_connection(p, destination, true, &v));
+            assert_eq!(fc4_netpole_cell_source(p, 0, &mut output_endpoint), 1);
+            assert!(fc4_netpole_rebuild_wires(p, destination, &v));
+            fc4_netpole_remove_connection(p, destination, true, &v);
+            assert_eq!(fc4_netpole_connection_count(p), 0);
+            assert_eq!(log.borrow().refs.iter().filter(|&&r| r == (destination, -1)).count(), 1);
+            assert_eq!(log.borrow().refs.iter().filter(|&&r| r == (0x81, -1)).count(), 2);
+            fc4_netpole_destroy(other, &v);
+            fc4_netpole_destroy(p, &v);
+        }
+    }
+
+    #[test]
+    fn connection_transport_rejects_missing_callbacks_and_preserves_invalid_attachment_output() {
+        let log = RefCell::new(Log::default());
+        let v = vt(&log);
+        unsafe {
+            let p = fc4_netpole_create();
+            assert!(!fc4_netpole_add_connection(p, 42, std::ptr::null(), 1, &v));
+            assert!(!fc4_netpole_enable_connection(p, 42, false, &v));
+            assert!(!fc4_netpole_rebuild_wires(p, 42, &v));
+            let mut points = [[99.0; 3]; 4];
+            assert!(!fc4_netpole_attachment_points(p, 0, &mut points));
+            assert_eq!(points, [[99.0; 3]; 4]);
+            assert_eq!(fc4_netpole_connection_count(p), 0);
+            assert!(log.borrow().refs.is_empty());
+            fc4_netpole_destroy(p, &v);
+        }
     }
 
     #[test]

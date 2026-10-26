@@ -82,6 +82,7 @@ const ExecutableVersion kVersions[] = {
             0x005EC370,  // the cSC43DPlaceableObject constructor (prop-occupant.md §6.1)
             0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
             0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
+            0x00649BA0,  // native pole GetAttachmentPoints (network-occupants.md §4.6.3)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
