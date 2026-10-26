@@ -2,6 +2,8 @@
 // The real DLL's default-off factory and portable owner lifecycle. This test
 // checks the corrected native IID too; it cannot prove terrain-view interception.
 #include "FC4OverlayOwner.h"
+#include "cIGZMessage2.h"
+#include "cIGZMessageTarget2.h"
 #include "cIGZCOMDirector.h"
 #include <windows.h>
 #include <algorithm>
@@ -18,13 +20,17 @@ int failures = 0;
 
 struct Resources {
     int refs = 0, bindings = 0, sources = 0, marks = 0, subscriptions = 0;
-    int quality = 2, projectionCalls = 0, imports = 0;
+    int quality = 2, debug = 0, selection = 1, settingsRead = 0, projectionCalls = 0, imports = 0;
     std::vector<uint32_t> slots;
     uint32_t lastKey[3] = {};
     static Resources& Of(uintptr_t p) { return *reinterpret_cast<Resources*>(p); }
     static void Retain(uintptr_t p) { ++Of(p).refs; }
     static void Release(uintptr_t p) { --Of(p).refs; }
-    static int32_t Setting(uintptr_t p, uint32_t n) { return n == 0 ? Of(p).quality : 0; }
+    static int32_t Setting(uintptr_t p, uint32_t n) {
+        auto& r = Of(p);
+        ++r.settingsRead;
+        return n == 0 ? r.quality : n == 1 ? r.debug : r.selection;
+    }
     static uint32_t Resource(uintptr_t p, uintptr_t object, uint32_t kind, FC4OverlayResource* out) {
         auto& r = Of(p);
         ++r.imports;
@@ -58,6 +64,19 @@ struct Resources {
         return {reinterpret_cast<uintptr_t>(this), Retain, Release, 64, 64, 16, Setting,
             Lookup, Resource, Free, KeyWord, Redisplay, Subscribe, Projection, nullptr, nullptr};
     }
+};
+
+class Message final : public cIGZMessage2 {
+public:
+    uint32_t type = 0, reads = 0, references = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++references; }
+    uint32_t Release() override { return --references; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { ++const_cast<Message*>(this)->reads; return type; }
+    void SetType(uint32_t value) override { type = value; }
+    bool operator==(const cIGZMessage2& other) const override { return type == other.GetType(); }
+    bool operator<(const cIGZMessage2& other) const override { return type < other.GetType(); }
 };
 
 class BindingFactory;
@@ -131,6 +150,28 @@ void CheckBindingAdapter(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
 }
 
 void CheckNative(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
+    auto* bytes = reinterpret_cast<uint8_t*>(native);
+    auto* draw = reinterpret_cast<FC4IOverlayDraw*>(bytes + 4);
+    auto* target = reinterpret_cast<cIGZMessageTarget2*>(bytes + 0x10);
+    for (cIGZUnknown* subobject : {static_cast<cIGZUnknown*>(native),
+                                  static_cast<cIGZUnknown*>(draw),
+                                  static_cast<cIGZUnknown*>(target),
+                                  static_cast<cIGZUnknown*>(owner)}) {
+        cIGZUnknown* identity = nullptr;
+        CHECK(subobject->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&identity)));
+        CHECK(reinterpret_cast<uint8_t*>(identity) == bytes + 8);
+        if (identity) identity->Release();
+        FC4INativeOverlay* primary = nullptr;
+        CHECK(subobject->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&primary)));
+        CHECK(primary == native);
+        if (primary) primary->Release();
+    }
+    // No native drawing adapter is installed: an unsupported context must not
+    // be touched or reported as a completed draw.
+    auto** drawTable = *reinterpret_cast<void***>(draw);
+    using Draw = bool (__thiscall*)(void*, void*);
+    CHECK(!reinterpret_cast<Draw>(drawTable[3])(draw, reinterpret_cast<void*>(1)));
+    CHECK(!target->DoMessage(nullptr));
     Resources resources;
     auto host = resources.Host();
     CHECK(owner->InitServices(&host, false, false));
@@ -191,6 +232,27 @@ void CheckNative(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
     const float box[6] = {0, 0, 0, 16, 0, 16};
     CHECK(native->AddModel(reinterpret_cast<void*>(2), 1, xz, pairs, box, xz) == UINT32_MAX);
     CHECK(resources.projectionCalls == 1 && resources.imports == imports);
+    Message message;
+    resources.quality = 0;
+    const auto reads = resources.settingsRead;
+    CHECK(target->DoMessage(&message));
+    CHECK(resources.settingsRead == reads && message.reads == 1 && message.references == 0);
+    CHECK(native->AddGroupShadow(123, xz, 32, 0, 0) != UINT32_MAX); // unrelated message preserves quality 2
+    const auto slots = resources.slots;
+    const auto marks = resources.marks, bindings = resources.bindings;
+    float before[9] = {}, after[9] = {};
+    native->ReadPlacement(binding, before);
+    message.SetType(0xC9F775BB);
+    CHECK(target->DoMessage(&message));
+    CHECK(resources.settingsRead == reads + 3 && message.reads == 2 && message.references == 0);
+    CHECK(resources.slots == slots && resources.marks == marks && resources.bindings == bindings);
+    CHECK(resources.refs == 1 && resources.subscriptions == 1);
+    native->ReadPlacement(binding, after);
+    CHECK(std::equal(before, before + 9, after));
+    const auto* invalid = reinterpret_cast<const float*>(1);
+    CHECK(native->AddKeyShadow(invalid, invalid, 1, 0, 0) == UINT32_MAX);
+    CHECK(native->AddModel(invalid, 1, invalid, const_cast<float*>(invalid), invalid, invalid) == UINT32_MAX);
+    CHECK(resources.projectionCalls == 1); // settings refresh neither projects nor dereferences disabled inputs
     native->Erase(source);
     CHECK(resources.sources == 1); // Remove retains payload until Shutdown/reuse.
     owner->Shutdown();
@@ -245,7 +307,7 @@ int main(int argc, char** argv) {
         CHECK(owner->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&native)) && native);
         cIGZUnknown* identity = nullptr;
         CHECK(native->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&identity)));
-        CHECK(identity == static_cast<cIGZUnknown*>(owner));
+        CHECK(reinterpret_cast<uint8_t*>(identity) == reinterpret_cast<uint8_t*>(native) + 8);
         if (identity) identity->Release();
         if (native) native->Release();
         FC4INativeOverlay* separate = nullptr;
@@ -254,7 +316,7 @@ int main(int argc, char** argv) {
         if (separate) CHECK(separate->Release() == 0);
         cIGZUnknown* unknown = nullptr;
         CHECK(owner->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&unknown)));
-        CHECK(unknown == static_cast<cIGZUnknown*>(owner));
+        CHECK(unknown == identity);
         if (unknown) CHECK(unknown->Release() == 1);
         CHECK(!owner->QueryInterface(kFC4_IID_OverlayOwner, nullptr));
         CHECK(!owner->IsInitialized());

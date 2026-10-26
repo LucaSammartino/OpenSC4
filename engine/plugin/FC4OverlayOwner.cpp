@@ -8,6 +8,8 @@
 #include "cIGZCOM.h"
 #include "cIGZString.h"
 #include "cIGZFrameWork.h"
+#include "cIGZMessage2.h"
+#include "cIGZMessageTarget2.h"
 #include <atomic>
 
 // Static-library transport only; no additions to fc4.h or DLL exports.
@@ -37,10 +39,21 @@ uint32_t fc4_overlay_native_add(void*, uint32_t, uintptr_t, const float*, float,
 uint32_t fc4_overlay_native_model(void*, uintptr_t, int32_t, const void*, float*, const float*, const void*);
 void fc4_overlay_native_scale(void*, uint32_t, float, float);
 size_t fc4_overlay_native_stats(const void*, char*, size_t);
+uint32_t fc4_overlay_native_message(void*, uint32_t);
 }
 
 namespace {
-class OverlayOwner final : public FC4IOverlayOwner, public FC4INativeOverlay {
+// The reference word occupies +0x0c; every subobject shares this lifetime.
+// No native member function or deleting destructor is called on this object.
+class OverlayLifetime : public cIGZUnknown {
+protected:
+    std::atomic<uint32_t> refs_{0};
+};
+static_assert(sizeof(OverlayLifetime) == 8, "x86 unknown/reference prefix");
+
+class OverlayOwner final : public FC4INativeOverlay, public FC4IOverlayDraw,
+                           public OverlayLifetime, public cIGZMessageTarget2,
+                           public FC4IOverlayOwner {
 public:
     OverlayOwner() : core_(fc4_overlay_owner_create()) {
         fc4::Log("overlays owner: FC4 factory constructed (portable input boundary)");
@@ -48,7 +61,9 @@ public:
     bool QueryInterface(uint32_t iid, void** out) override {
         if (!out) return false;
         *out = nullptr;
-        if (iid == GZIID_cIGZUnknown || iid == kFC4_IID_OverlayOwner)
+        if (iid == GZIID_cIGZUnknown)
+            *out = static_cast<OverlayLifetime*>(this);
+        else if (iid == kFC4_IID_OverlayOwner)
             *out = static_cast<FC4IOverlayOwner*>(this);
         else if (iid == kFC4_IID_NativeOverlay)
             *out = static_cast<FC4INativeOverlay*>(this);
@@ -61,6 +76,13 @@ public:
         const uint32_t n = --refs_;
         if (!n) delete this;
         return n;
+    }
+    bool Draw(void*) override {
+        // SPEC-GAP: native context/device and rectangle consumers have no installed adapter yet.
+        return false;
+    }
+    bool DoMessage(cIGZMessage2* message) override {
+        return message && fc4_overlay_native_message(core_, message->GetType()) != 0;
     }
     bool Init(uint32_t nx, uint32_t nz, float width, bool dynamic, bool water) override {
         return fc4_overlay_owner_init(core_, nx, nz, width, dynamic, water) != 0;
@@ -161,7 +183,6 @@ public:
 private:
     // §1.2: destruction and Shutdown are different protocols.
     ~OverlayOwner() { fc4_overlay_owner_destroy(core_); }
-    std::atomic<uint32_t> refs_{0};
     void* core_;
 };
 }
@@ -236,6 +257,23 @@ void OverlayOwnerGameCheck() {
     check(owner->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&native)) && native);
     if (native) {
         FC4_ACQUIRED(native, "QueryInterface");
+        auto* draw = reinterpret_cast<FC4IOverlayDraw*>(reinterpret_cast<uint8_t*>(native) + 4);
+        auto* target = reinterpret_cast<cIGZMessageTarget2*>(reinterpret_cast<uint8_t*>(native) + 0x10);
+        cIGZUnknown* identity = nullptr;
+        check(draw->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&identity)) && identity);
+        if (identity) {
+            FC4_ACQUIRED(identity, "QueryInterface");
+            check(reinterpret_cast<uint8_t*>(identity) == reinterpret_cast<uint8_t*>(native) + 8);
+            FC4_RELEASE(identity);
+        }
+        FC4INativeOverlay* primary = nullptr;
+        check(target->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&primary)) && primary);
+        if (primary) {
+            FC4_ACQUIRED(primary, "QueryInterface");
+            check(primary == native);
+            FC4_RELEASE(primary);
+        }
+        check(!draw->Draw(reinterpret_cast<void*>(1)) && !target->DoMessage(nullptr));
         check(native->GetAlpha(id) == 0.51f && native->Shown(id) && native->SelfLit(id));
         check(native->GetDrawMode(id) == 3);
         float output[3] = {};
@@ -291,7 +329,7 @@ void OverlayOwnerGameCheck() {
         FC4_RELEASE_CREATED(factory);
     }
     FC4_RELEASE_CREATED(owner);
-    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner-native-interface-live-bindings native_interception=0",
+    Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner-native-prefix-live-bindings native_interception=0",
         checks - differences, checks, differences);
 }
 }

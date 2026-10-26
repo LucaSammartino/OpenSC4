@@ -347,6 +347,16 @@ pub unsafe extern "C" fn fc4_overlay_native_scale(owner: *mut Owner, id: u32, si
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn fc4_overlay_native_message(owner: *mut Owner, message: u32) -> u32 {
+    let Some(owner) = owner.as_ref() else { return 0 };
+    let Ok(mut core) = owner.0.lock() else { return 0 };
+    // §5: the native handler returns true for unrelated messages as well.
+    // Use the retained view's raw settings, without touching record/index state.
+    let _ = core.on_message(message);
+    1
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn fc4_overlay_native_stats(owner: *const Owner, output: *mut u8, size: usize) -> usize {
     let Some(owner) = owner.as_ref() else { return 0 };
     let Ok(core) = owner.0.lock() else { return 0 };

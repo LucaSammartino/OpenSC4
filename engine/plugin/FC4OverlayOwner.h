@@ -3,8 +3,9 @@
 #include "cIGZUnknown.h"
 #include "FC4OverlayNative.h"
 
-// FC4-owned identities, NOT native cSTEOverlayManager identities. The native
-// interface is a separate subobject with the corrected native vtable.
+// FC4-owned factory/portable identities. The native interface is at object+0,
+// its draw interface at +4, canonical unknown at +8 and message target at +0x10.
+// This establishes subobject offsets, not the native arenas/member layout.
 constexpr uint32_t kFC4_CLSID_OverlayOwner = 0xFC401717;
 constexpr uint32_t kFC4_IID_OverlayOwner = 0xFC401718;
 

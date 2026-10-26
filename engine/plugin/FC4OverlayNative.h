@@ -37,6 +37,13 @@ public:
     virtual void Stats(cIGZString&) = 0;
 };
 
+// overlay-manager §1 and functions.tsv 0x00739490: the draw registry receives
+// manager+4, slot3 takes one context pointer and returns AL.
+class FC4IOverlayDraw : public cIGZUnknown {
+public:
+    virtual bool Draw(void* context) = 0;
+};
+
 // Private static-library service transport, not a public C ABI export.
 // Returned resources each transfer ONE acquired reference. kind: binding=0,
 // source=1. The resource callback acquires direct inputs; lookup owns its result.
