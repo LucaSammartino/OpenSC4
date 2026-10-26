@@ -133,7 +133,7 @@ impl BuildingTool {
             if host
                 .building_slot9(building)?
                 .partial_cmp(&1.0)
-                .is_none_or(|order| order.is_lt())
+                .map_or(true, |order| order.is_lt())
                 || host.building_slot11(building)? != 1
             {
                 return Ok(None);
@@ -157,7 +157,7 @@ impl BuildingTool {
             if host
                 .building_slot9(building)?
                 .partial_cmp(&1.0)
-                .is_none_or(|order| order.is_lt())
+                .map_or(true, |order| order.is_lt())
                 || host.building_slot11(building)? == 1
             {
                 return Ok(None);

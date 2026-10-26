@@ -431,7 +431,7 @@ impl Dispatch {
             0x09c8_b8ea => {
                 let was_this = old.is_some_and(|c| c.identity == self.identity);
                 let is_this = new.is_some_and(|c| c.identity == self.identity);
-                if was_this && !is_this && new.is_none_or(|c| c.id != 0x48e2_a1f8) {
+                if was_this && !is_this && new.map_or(true, |c| c.id != 0x48e2_a1f8) {
                     self.active = false;
                     host.clear_cursor_text(CURSOR_TEXT);
                     self.set_hover_pylon(None, host);
