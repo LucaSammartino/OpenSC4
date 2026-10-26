@@ -86,8 +86,13 @@ int main() {
     reinterpret_cast<void (__fastcall*)(void*,void*,uint32_t)>(table[11])(prop.data(),nullptr,256);
     reinterpret_cast<void (__fastcall*)(void*,void*,uint32_t,uint32_t,uint8_t,uint8_t)>(table[15])
         (prop.data(),nullptr,0,0,0,0);
+    const auto delayedChance = reinterpret_cast<void (__fastcall*)(void*,void*,uint8_t)>(table[17]);
     trace.Finish();
     if (!trace.Valid() || calls!=6 || trace.Events().size()!=4 || table[16]!=reinterpret_cast<void*>(&Tick)) return 6;
+    // Another thread can have loaded a wrapper before restoration. The
+    // retained dispatch must still forward it once without recording it.
+    delayedChance(prop.data(),nullptr,100);
+    if (calls!=7 || trace.Events().size()!=4) return 14;
     fc4::PropEffectReplay replay(trace);
     const uint64_t token=reinterpret_cast<uintptr_t>(prop.data());
     replay.Call(token,16,{},100);
@@ -100,6 +105,11 @@ int main() {
     changed.randomAfter.index=623;
     fc4_prop_effect_result effect{};
     if (changed.Check(effect)) return 9;
+    changed=trace.Events()[0];
+    changed.after.start_day=111;
+    if (changed.Check(effect)) return 15;
+    changed.available=false;
+    if (changed.Check(effect)) return 16;
     fc4::PropEffectReplay missing(trace), wrong(trace);
     if (missing.Complete()) return 10;
     wrong.Call(token,16,{},99);
