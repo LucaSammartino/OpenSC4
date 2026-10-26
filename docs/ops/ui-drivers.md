@@ -32,23 +32,30 @@ utilities and ordinance rows are `aa3ac507`, `aa3ac508` and `aa3ac501`
 (budget-window.md section 2.1). Clicking the hidden `aa3ac4xx` counterparts does
 not exercise a sub-budget. Closing an already hidden panel is a refused action.
 
-The `full,ui29` suite rows contain the house-city and West Weburg censuses plus
-the volcano observation. Final-DLL runs `reach-ui29-p13`, `p14` and `p12`
-respectively completed 50, 22 and 3 actions with clean verdicts and zero reference
-warnings. Their target entry evidence is:
+The `full,ui29` suite rows contain the house-city, West Weburg and Bevopolis
+censuses plus the volcano observation. Final-DLL runs `reach-ui29-p18`, `p22`,
+`p20` and `p23` respectively completed 50, 22, 27 and 3 actions with clean verdicts,
+zero reference warnings and 40/40 exact framework shadow samples. Their target
+entry evidence is:
 
 | Path | Entered methods |
 |---|---|
-| Query, text, budgets (p13) | Query OnMouseDownL/DescribeBuilding, TextEdit insertion, SubBudget lifecycle. |
-| Map layer (p13) | WinMapView ShowWindow, DisplayStandardUint8Grid and DisplayStandardSint16Grid. |
-| Road drag (p14) | NetworkTool OnMouseDownL/OnMouseUpL plus PlaceNetwork/PlaceNetworkOccupants; no saved-network assertion. |
-| Volcano (p12) | 26 of 28 traced cSTEVolcanoLava methods, 7,306 entered-function bytes. |
+| Query, text, budgets (p18) | Query OnMouseDownL/DescribeBuilding, TextEdit insertion, SubBudget lifecycle. |
+| Map layer (p18) | WinMapView ShowWindow, DisplayStandardUint8Grid and DisplayStandardSint16Grid. |
+| Road drag (p22) | NetworkTool OnMouseDownL/OnMouseUpL plus PlaceNetwork/PlaceNetworkOccupants; no saved-network assertion. |
+| News expansion (p20) | DoWinProcMessage entered; PurgeInactive (`00772ee0`) first entered in window 7 (2257-08), containing the news button at 2257-08-03; news-ticker.md section 3 assigns the purge to expansion. |
+| Volcano (p23) | 26 of 28 traced cSTEVolcanoLava methods, 7,306 entered-function bytes. |
 
-Periodic NewsTickerWinProc display also entered in p13; this does not isolate
-the news button as its cause. Bevopolis remains in `ui29-candidates`, outside
-`full`: p15 is clean with all 23 actions complete and its end date reached,
-but cell 63,63 at height 250 posts at client 478,198 without a query mouse-handler
-entry. Cell projection therefore still has delivery evidence only.
+Periodic NewsTickerWinProc display also entered in p18; p20 adds the separate
+expansion evidence above. The final Bevopolis script allows startup UI to settle
+and sends Escape before selecting query. Its cell 63,63 at height 0 posts at
+client 478,354 without a query mouse-handler entry, as did the earlier height-250
+candidate at 478,198. Cell projection therefore still has delivery evidence only;
+Bevopolis qualifies news input, not a query click at a cell or an accurate terrain
+intersection. No cell-targeting coverage gain is claimed.
+The final West Weburg run uses the suite's `[ini] close_dialogs = 1`: it closed
+two dialogs and completed. Earlier p19 stalled before its script without that
+setting; p21 was rejected before launch because the setting was outside `[ini]`.
 The registered `ViewWebBrowser` command refuses an empty parameter set (status
 2); no web coverage follows from its registration.
 
@@ -71,6 +78,12 @@ The attempted import-template driver was removed after corrupt run
 and UI29-HTTP in the corresponding spec question files block tree-template
 and public WWW LoadDocument drivers. No browser-launch command is qualified
 as web/HTTP coverage.
+
+Final reconciliation of UI29-TREE: ui-script-service.md section 3 specifies a
+control-set element ID as slot 4's third argument, with lookup after executing
+the resource. A null result alone does not establish factory failure. Safe
+cleanup and import-tree initialization remain open; the removed candidate is
+not reinstated. UI29-HTTP still lacks an ordered public call signature.
 
 The installed accelerator resource `{A2E3D533,6A231EAA,6A9362EF}` supplies query
 `6a935cf3`, road `6a935dc0`, MySim `6a935ca8`, mayor `6a935ca4`, play/graphics/audio
