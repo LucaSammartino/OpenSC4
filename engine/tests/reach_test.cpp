@@ -104,7 +104,7 @@ int main(int argc, char** argv) {
         // synthetic image, alongside a valid entry that must still be traced.
         constexpr uint32_t base = 0x400000;
         const uint32_t bad[] = {0x420036, 0x4f4442, 0x505553, 0x544547, 0x5c3a63,
-            0x5f5a52, 0x656c64, 0x682632, 0x736559, 0x786f62};
+            0x5f5a52, 0x656c64, 0x682632, 0x707865, 0x736559, 0x786f62};
         auto* image = static_cast<uint8_t*>(VirtualAlloc(nullptr, 0x400000,
             MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE));
         CHECK(image != nullptr);
@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
             for (auto address : bad)
                 CHECK(reinterpret_cast<int(__cdecl*)()>(image + address - base - 1)() == 7);
             const auto s = tracer.GetSummary();
-            CHECK(s.armed == 1 && s.skipped == 10 && s.reached == 1 && s.abortedSteps == 0);
+            CHECK(s.armed == 1 && s.skipped == 11 && s.reached == 1 && s.abortedSteps == 0);
             CHECK(tracer.Write("reach-never-arm.tsv"));
             std::ifstream input("reach-never-arm.tsv");
             std::string text((std::istreambuf_iterator<char>(input)), {});
@@ -133,8 +133,8 @@ int main(int argc, char** argv) {
                 ++exclusions;
                 ++position;
             }
-            CHECK(exclusions == 10);
-            std::printf("reach operand exclusions=10/10 relocated=1 valid-entry=1/1 header=10/10\n");
+            CHECK(exclusions == 11);
+            std::printf("reach operand exclusions=11/11 relocated=1 valid-entry=1/1 header=11/11\n");
         }
         VirtualFree(image, 0, MEM_RELEASE);
     }
@@ -273,6 +273,12 @@ int main(int argc, char** argv) {
         CHECK(s.wxBreakpoints == 7 && s.wxSteps == 7 && s.traps == 14 && s.abortedSteps == 0);
         CHECK(translatedBreakpoints == 7 && translatedSteps == 7);
         CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0xcc);
+        // A city-shutdown checkpoint must leave tracing live for subsequent
+        // teardown/another city. Writing evidence must not behave like Stop.
+        CHECK(tracer.Write("reach-lifecycle-checkpoint.tsv"));
+        CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0xcc);
+        CHECK(b(5) == 15);
+        CHECK(RowAt(tracer, fn[1]).entries == 1);
         tracer.Stop();
         CHECK(*reinterpret_cast<const uint8_t*>(fn[0]) == 0x90);
         CHECK(RemoveVectoredExceptionHandler(translator) != 0);

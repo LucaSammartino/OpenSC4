@@ -57,7 +57,7 @@ adjust `this` by four bytes (`0x007D0DA0`, `0x007D0DB0`).
 | 2 | `fullscreen` | current driver information record, byte `+0x20`, nonzero |
 | 3 | `MMX` | CPU feature bit 23 |
 | 4 | `FPU` | CPU feature bit 0 |
-| 5 | `backingStore` | a backing store exists (global `0x00B4E1E4` non-null, `0x007C2790`) |
+| 5 | `backingStore` | a backing store exists; interface acquisition is specified in §2.4 (native test `0x007C2790`) |
 | 6 | `forcedFSAA` | boolean result of the rendering probe `0x008D2320(currentDriver)` |
 
 **Numbers** (`atLeast` / `atMost`), as floats: 0 `cpuSpeed` (MHz, `0x00891552`), 1 `memory`, 2 `freeMemory` (MiB),
@@ -101,8 +101,9 @@ Without a readback surface the result remains false. This measures a rendering s
 it is independent of `kForceSoftwareDriver`, which is checked later for flag 0. The manager invokes the
 probe on each gather, even when that render property forces software.
 
-The OS/version provider supplies CPU features, CPU MHz, screen dimensions/BPP, memory, and the first six
-strings. For memory the native version helper first truncates each unsigned byte count to MiB, then rounds
+The OS/version provider supplies CPU features, CPU MHz, memory, and the first six strings (§2.5).
+Screen dimensions/BPP instead come from GS slot 10 (`+0x28`), which fills three unsigned dwords in
+width, height, BPP order (`0x007CF8BF–0x007CF928`). For memory the native version helper first truncates each unsigned byte count to MiB, then rounds
 that integer **up to a multiple of four** with 32-bit wrapping arithmetic: subtract one, OR with 3, add one
 (`0x0089159C–0x008915B9`). Zero maps to zero. Video and texture memory instead use GS slot 23 (`+0x5C`),
 with arguments 2 and 0 respectively; each unsigned byte count is shifted right 20 with **no** four-MiB
@@ -136,11 +137,275 @@ properties and failed mandatory provider acquisition therefore have no native re
 contract. They must not be described as a successful zero-filled gather or as a trigger for fallback.
 The optional sound-service absence still has the explicit `Unknown` behavior in §2.
 
+### 2.3 Native forced-FSAA acquisition (GR9)
+
+All slots below are **zero-based**, relative to the returned interface, with x86 byte offsets in
+parentheses. These are renderer calls the provider performs itself. The provider must not invoke
+`0x008D2320`, the native rule manager, or its logger to obtain the result.
+
+Use the current driver from §2.1. Fetch its mode record through slot 64 (`+0x100`); if byte `+0x30` is
+zero, return false immediately, with no rendering or readback. Otherwise consume the driver's pending
+error through slot 50 (`+0xC8`, `GetError`), ignoring the result. In DX7 this getter clears the error
+(`0x00882000–0x00882010`). Acquire graphics service `0xC416025C` from framework slot 5 (`+0x14`,
+service ID, IID, output-interface pointer), for IIDs `0x0073283C` (`cIGZGraphicSystem`) and `0xC47B747C`
+(the 3D graphics-system interface). The first is retained for the probe's lifetime; the second supplies
+slot 12 (`+0x30`, `SetUIRenderingMode`). The two IIDs can also be queried from the existing GS interface
+(`0x0098DEF0–0x0098DF2E`). Do not treat the small IID `0x0073283C` as a function address.
+
+Call `SetUIRenderingMode` once before drawing. The target is the **current driver's color/render
+buffer**, with the existing video mode and viewport. There is no offscreen-target creation, 64×64
+viewport change, or target switch in the probe. The 64×64 size below is the region copied for readback.
+The GS method establishes the normal UI matrices/states (`0x0098EA30`); invoking that exposed method
+also preserves its native viewport-dependent behavior. Set the driver's clear color to four binary32
+zeros using slot 12 (`+0x30`, `ClearColor`, R, G, B, A). Evidence for setup and the otherwise unused
+base-GS reference: `0x008D2359–0x008D23E0`.
+
+Build 64 white quads, row-major with row and column each 0 through 7, in one **4096-byte**, initially
+zeroed vertex array. Each vertex occupies 16 bytes: binary32 x, y, z at offsets 0, 4, 8 and four color
+bytes at offset 12. z remains positive zero; all four color bytes are `0xFF`. There are no RHW,
+normal, or texture-coordinate fields. For column c and row r, compute x = (c × 8.125 + 4) − 0.0625 and
+y = (r × 8.125 + 4) − 0.0625, then emit vertices in this order:
+
+| Vertex | x | y | z | Color bytes |
+|---|---|---|---|---|
+| 0 | x | y | 0 | FF FF FF FF |
+| 1 | x | y + 0.125 | 0 | FF FF FF FF |
+| 2 | x + 0.125 | y + 0.125 | 0 | FF FF FF FF |
+| 3 | x + 0.125 | y | 0 | FF FF FF FF |
+
+The instructions multiply, add, then subtract in that order, with binary32 constants `8.125`, `4`,
+`0.0625`, `0.125`; coordinates are stored as binary32 (`0x008D2400–0x008D249E`; constants at
+`0x00ACC150`, `0x00A8E17C`, `0x00A8E174`, `0x00A867A8`). All coordinates in this bounded grid are
+exactly representable, so these operations introduce no rounding ambiguity here.
+
+Perform **twenty** iterations, numbered 0 through 19. Each iteration rebuilds the same vertex contents
+and makes these driver calls in order (`0x008D24A4–0x008D256A`):
+
+| Order | Driver slot (offset) | Arguments, in interface order |
+|---|---|---|
+| 1 | 11 (`+0x2C`), `Clear` | mask `0x4000` (color buffer) |
+| 2–6 | 45 (`+0xB4`), `Disable` | separate calls for capability IDs **4, 3, 0, 1, 5**, in that order |
+| 7 | 5 (`+0x14`), `InterleavedArrays` | standard vertex-format ID **1**, stride **16**, vertex-array pointer |
+| 8 | 3 (`+0x0C`), `DrawArrays` | primitive ID **6** (quads), first vertex **0**, vertex count **256** |
+| 9, iteration 19 only | readback operation below | copy (0, 0, 64, 64) before this iteration's Flush |
+| 10 | 43 (`+0xAC`), `Flush` | no arguments |
+
+On iteration 19 query the **driver** for IID `0xE69BFE2A`. On that returned interface call slot 3
+(`+0x0C`, `CopyColorBuffer`) with **x=0, y=0, width=64, height=64, destination=null**. The fifth argument
+is an optional destination buffer, **not a pixel-format enum**. Retain its returned `cIGZBuffer` and
+release the queried readback interface immediately. The DX7 implementation is `0x00883950`, reached
+through the four-entry table at `0x00AC47DC`; the main driver's QI is the adjusting thunk at
+`0x00886440` (`0x00882A8E–0x00882AA5`). Call sites: `0x008D2518–0x008D2551`.
+
+With a null destination the DX7 method allocates through GS slot 3 (`+0x0C`, output buffer pointer) and
+initializes the result to the requested dimensions with **pixel-format ID 9, 32 bits per pixel**
+(`0x00883AE9–0x00883B58`; pixel-format construction `0x0044A490–0x0044A4A5`). It copies/converts the
+driver's color surface into that buffer. The provider need not lock a DirectDraw surface, interpret its
+pitch, or assume a 16-bit screen is a 16-bit readback. Read via the returned buffer's slot 21
+(`+0x54`, `GetPixel(x,y)`): the manager consumes its packed 32-bit color, summing the bytes at bits
+16–23, 8–15, and 0–7, and ignoring the high byte. Unsupported/failed color-buffer acquisition can
+return null; the probe's result then remains false. The original does not check for failure of the
+mandatory readback-interface QI; a provider that cannot acquire that interface must report unavailable,
+not fabricate a measured false result.
+
+After all twenty iterations, clear once more with mask `0x4000`, Flush once more, and call the 3D GS
+interface's `SetUIRenderingMode` once more. Only then inspect the saved readback. Sample y=4,12,…,60,
+and, within each row, x=4,12,…,60. Return true iff **more than one** of the 64 RGB sums is nonzero.
+There is no intensity threshold beyond nonzero. Release the readback buffer, then the two acquired GS
+references (`0x008D256C–0x008D25E8`, `0x008D2705–0x008D2782`).
+
+**State after the probe.** Native cleanup establishes **UI defaults**, not the caller's saved state.
+There is no push/pop, target restoration, previous-state capture, or image restoration. Clear color
+remains zero and the current color buffer has been cleared. The last bound vertex-array pointer is not
+explicitly unbound. The final UI setup, rather than a reversal of the five Disable calls, establishes
+the final render state. A provider must run this synchronously at the same graphics/UI boundary; using
+a different target or merely consulting an antialiasing preference is a different measurement.
+
+**Worked probe case.** Quad (0,0) spans 3.9375 through 4.0625 in both axes; quad (7,7) spans 60.8125
+through 60.9375. An interface fixture must observe 20 DrawArrays calls with format 1/stride 16, 21
+color clears and 21 Flush calls, one copy before the twentieth Flush, and two UI-setup calls. A saved
+readback containing `0xFF000000` at every sample except `0x00000001` at (4,4) yields one lit sample and
+**false**. Changing (12,4) to `0x00010000` yields two and **true**. Changing only alpha at (12,4) to
+`0xFF000000` leaves false. This is a discriminator for counting, not a claim about which pixels a
+particular GPU's forced-FSAA mode will illuminate. A software mode record returns false without any
+of these calls; a hardware run with a null returned buffer performs setup/draw/cleanup and returns false.
+
+### 2.4 Backing-store presence through renderer interfaces (GR9)
+
+Presence and enabledness are different. The native presence helper `0x007C2790` has **no vtable slot**;
+the exposed `cISC43DRender` getter, slot 56 (`+0xE0`, `GetBackingStoreEnabled`, `0x007C2750`), reads
+enabledness only. A disabled existing store must still set graphics-rule bit 5.
+
+An independent provider can measure presence using the paired public setter: save the getter's byte,
+call slot 57 (`+0xE4`, `SetBackingStoreEnabled`) with byte **1**, read slot 56, then restore the saved
+byte with slot 57. The intermediate getter is the presence result. The setter forces its argument to
+zero when no store exists, otherwise stores the supplied byte, and has no other side effects
+(`0x007C2760–0x007C2780`). Perform these calls synchronously without rendering, event dispatch, or a
+driver change between them. This is a reversible acquisition operation, not permission to leave
+backing-store use enabled.
+
+Obtain the actual view's renderer through `cISC4App::GetMainWindow()`, child-window ID `0x6104489A`,
+then `GetChildAs(0x9A47B417, 0xFA47B3F9, output view)`, then view slot 4 (`+0x10`, `GetRenderer`,
+`0x0043FD00`). This last pointer is borrowed; query IID **`0x681BD529`** to retain a
+`cISC43DRender` reference. See [view3d-window.md](view3d-window.md) for the view's interface boundary.
+The renderer QI returns its main interface for this IID (`0x007C1894–0x007C18DE`).
+
+There is also a route before a view exists: GZCOM slot 3 (`+0x0C`; class ID, IID, output pointer)
+with renderer class ID **`0xE9C622D8`**, IID **`0x681BD529`**, and output-interface pointer, as used at
+`0x007F4322–0x007F4336`. Use the resulting renderer **without Init**, solely for the getter/setter
+measurement, then Release it. Both methods access the shared renderer state and do not depend on that
+instance being initialized. Construction does not initialize or destroy the shared backing store;
+the factory only constructs the object (`0x007CB070–0x007CB08A`, `0x007C9B10–0x007C9F87`). Its
+destructor's Shutdown is inert while the instance remains uninitialized (`0x007CA038`,
+`0x007C7075–0x007C707C`). Consequently a missing view need not be guessed to mean absent backing
+store, and creating this uninitialized interface object does not allocate a backing store. Failure to
+obtain either renderer interface is unavailable acquisition, not a false presence measurement.
+
+**Worked backing-store cases.** With an existing store disabled, the getter sequence is 0, then 1 after
+the request, then 0 after restoration: set bit 5. Without a store it is 0, 0, 0: clear bit 5. With an
+existing enabled store it is 1, 1, 1: set bit 5 and preserve enabledness. A freshly constructed,
+uninitialized renderer facade observes these same shared-state cases. None of these tests reads a
+private global, calls the private presence helper, or changes the stored presence itself.
+
+### 2.5 Version/OS acquisition and string bytes (GR9)
+
+**There is no version/OS service IID or getter slot used here.** Gather constructs a local
+`cRZVersion`, invokes its methods directly, and destroys it; its one-entry virtual table is a
+destructor, not a measurement interface (`0x007CF804–0x007CF877`, `0x008915C1–0x008915EB`,
+table `0x00AC51FC`). A native provider must independently acquire these inputs through the Windows
+APIs/CPU operations below. It must not resolve and call the original private helper addresses. These
+OS APIs are the acquisition boundary; inventing a game service ID for them would not be compatible.
+Use the **game executable's** path and resources, never the replacement DLL's version resources.
+
+The first six string fields are byte strings. Keep returned ANSI bytes, case, punctuation and spaces;
+do not introduce labels, trim, localize, or substitute a host-formatted version number. The actual
+gather order is indices **0, 1, 2, 3, 5, 4**, followed by CPU features and numeric inputs
+(`0x007CF812–0x007CF877`).
+
+| Index / name | Independent acquisition and formatting | Evidence |
+|---|---|---|
+| 0 `userName` | `GetUserNameA`, 512-byte buffer and input size 512. On success copy the returned NUL-terminated bytes. With failure and the null fallback argument used by gather, assign the single byte **`?`**. | `0x008919B1–0x00891A44`; fallback literal `0x00AA1B6C` |
+| 1 `appName` | Current executable's version-resource **`FileDescription`** string, selected as below; no application-title getter or added text. | `0x0089174C–0x008917F6` |
+| 2 `version` | Same resource selection, **`FileVersion`** string verbatim. This is not the fixed numeric file version reformatted with dots. | `0x008917F7–0x008918A1` |
+| 3 `osVersion` | Call **`GetVersion`**. Major is the low byte, minor is the next byte. If bit 31 is clear, format `Windows NT %u.%u`; otherwise format `Windows %u.%u`. Both values are unsigned decimal without padding. Ignore build/service-pack/high-word data. Preserve any OS compatibility version returned to the game process; do not replace it with an unvirtualized OS version. | `0x0089151D–0x00891551` |
+| 4 `computerName` | `GetComputerNameA`, 512-byte buffer and input size 512. On success copy the returned NUL-terminated bytes. On failure with gather's null fallback, assign **`localhost`**. | `0x00891A45–0x00891AD8` |
+| 5 `CPU` | CPUID leaf 0 vendor bytes, in register order **EBX, EDX, ECX**, little-endian bytes from each, followed by a NUL. This is the 12-byte vendor identifier, not the processor brand/model string. If CPUID is unavailable, the outer version method clears this field to empty even though its lower-level helper writes `Unknown` before returning failure. | `0x0089194D–0x008919B0`, `0x00892BC0–0x00892C44`, particularly `0x00892C03–0x00892C0B` |
+
+**Resource selection.** Obtain the current executable module path. The original path helper tries
+`GetModuleFileNameW` for module null with capacity 260, falling back to `GetModuleFileNameA`; it
+converts the path to the version helper's string encoding and then to ANSI for version APIs
+(`0x00912467–0x00912512`). Load with `GetFileVersionInfoSizeA` and `GetFileVersionInfoA`. Query
+`\VarFileInfo\Translation` with `VerQueryValueA`; use its **first** pair of 16-bit language and code-page
+values, in that order. Form the lookup path `\StringFileInfo\%04lx%04lx\FileDescription` or
+`\StringFileInfo\%04lx%04lx\FileVersion`: lowercase hexadecimal, minimum four digits per value,
+no separators between them. Query with `VerQueryValueA` and copy the returned NUL-terminated string,
+without using the returned length to keep an extra terminal NUL. There is no language search, preferred
+locale, fixed-info formatting fallback, or fallback to another translation pair
+(`0x00891610–0x008916AA`, `0x00891771–0x008917D5`, `0x0089181C–0x00891880`).
+
+If the resource is unavailable because the initial size query returned zero, these two methods return
+false **without overwriting** their destination fields. If the loaded resource has the translation
+data but an individual string query fails, that destination is cleared to empty
+(`0x00891759–0x00891770`, `0x008917E0–0x008917F1`; corresponding FileVersion branches).
+Gather ignores these return values. On a new manager unchanged fields are empty; on regather they may
+retain their previous strings. This describes the ordinary missing-resource/string cases, not the
+unchecked allocation/partial-load failure paths still bounded by GR6.
+
+**Other OS measurements.** CPU flag bits are CPUID leaf 1 **EDX**, not ECX: bit 23 for MMX and bit 0
+for FPU (`0x00892D06–0x00892D17`). Without CPUID the feature mask is zero. Physical memory comes from
+**`GlobalMemoryStatus`**, with a 32-byte `MEMORYSTATUS` whose length is set to 32: use the unsigned
+32-bit total-physical and available-physical fields (`0x0089157F–0x008915A7`). Apply §2.1's MiB truncation
+and four-MiB rounding independently. Do not silently replace these API results with 64-bit
+`GlobalMemoryStatusEx` values. Screen values use the GS getter in §2.1; no desktop-resolution query is
+part of `cRZVersion` acquisition.
+
+**CPU MHz on the game's CPUID/RDTSC host profile.** There is no interface CPU-speed getter either.
+The native gather asks its local helper for a measurement with parameter zero, which selects the TSC
+path when CPUID EDX bit 4 is set (`0x00891552–0x00891570`, `0x00892F5E–0x00892F72`). An independent
+provider can make that same measurement with `QueryPerformanceFrequency`, `QueryPerformanceCounter`
+and RDTSC. For each of three trials, save the current thread priority, compute the signed-64 integer
+quotient frequency/20, set priority to 15, and `Sleep(0)`. Read counters Q0 and Q1, then TSC C0. Repeatedly
+read the performance counter until its value Q2 is at least Q1 + frequency/20, or the counter call fails;
+then read TSC C1 and restore the saved priority. Subtract half of (Q1−Q0), arithmetic-shifted right by
+one, from (Q2−Q1), clamping a negative corrected duration to zero. With nonzero duration T, calculate
+**((C1−C0) × frequency) / (T × 1,000,000)** and truncate toward zero to the result dword. Zero duration
+leaves the trial's initially zero result unchanged. Sort the three unsigned trial results and select
+the **middle** one. Failure of `QueryPerformanceFrequency` leaves zero. The native x87 calculation
+loads signed 64-bit differences/frequency, multiplies the numerator, multiplies the denominator by the
+binary64 constant 1,000,000, then divides and converts with `_ftol2`; do not round to the nearest MHz
+(`0x00893060–0x00893274`, especially `0x00893184–0x0089322B`, `0x00893763–0x00893770`). Finally apply
+the unsigned-dword-to-binary32 conversion from §2.1. This timing measurement is subject to scheduling;
+a nominal CPU-frequency registry value is not the same observation.
+The worked timing path assumes successful counter reads; failure of an individual counter read is
+unchecked native failure behavior within GR6, not a guaranteed zero-MHz result.
+
+**Legacy non-TSC acquisition.** When feature bit 4 is clear, gather's zero measurement parameter
+selects the instruction-loop estimator instead (`0x00892FB3–0x0089300A`). Its calibration family is
+CPUID leaf 1 EAX bits 8–11, ignoring extended-family bits, clamped to 11. Without CPUID, the original
+tests whether EFLAGS bit 18 (AC) can change and restores the saved flags: unchanged selects family 3,
+changed selects family 4 (`0x00892B50–0x00892BB0`, `0x00892D60–0x00892DA5`,
+`0x00892E6A–0x00892E86`). The table at `0x00AC53CC` supplies a calibration multiplier: family 3 =
+115, family 4 = 47, family 5 = 43, families 6–11 = 38 (entries 0–2 are zero). Multiply it by 4000
+to obtain U.
+
+With a successful `QueryPerformanceFrequency`, run ten trials. Between two performance-counter
+reads, perform **4000 repetitions of a 32-bit bit-scan-forward of `0x80000000`**, with the loop counter
+decremented as a 16-bit quantity; the scan result is 31 and the input remains unchanged. This measures
+that instruction loop, not a host-language search or a nominal-frequency API. Keep the smallest
+**unsigned low-dword counter difference** D. All subsequent arithmetic is unsigned 32-bit: multiply D
+by 100,000 with wrapping, divide by the integer quotient (low dword of frequency)/10, and call that
+quotient M. Increment M if M modulo the low frequency dword is **strictly greater** than that frequency
+shifted right one. Divide U by M and increment the result if U modulo M is **strictly greater** than
+M shifted right one. That final integer is the CPU MHz result. A failed frequency query leaves zero;
+zero divisors and the obsolete family-0–2 failure paths are not native recoverable-success contracts
+(`0x00893280–0x008933B3`, especially `0x008932DE–0x008932EC`, `0x00893317–0x0089338F`).
+GR6's unchecked-failure boundary and GR7's floating-point profile remain unchanged.
+
+**Worked OS/string case.** Supply user bytes `Player`, computer bytes `SC4BOX`, CPUID vendor registers
+EBX=`0x68747541`, EDX=`0x69746E65`, ECX=`0x444D4163`, and GetVersion result `0x00000206`.
+Give the executable a first translation pair (language `0x0409`, code page `0x04E4`), with
+`FileDescription` = `SimCity 4` and `FileVersion` = `1.1.641.0 ` (one trailing space). The lookup prefix
+is `\StringFileInfo\040904e4\`; even if a second pair has different strings, fields 0–5 must be
+**`Player`, `SimCity 4`, `1.1.641.0 `, `Windows NT 6.2`, `SC4BOX`, `AuthenticAMD`**. In particular keep
+the version's trailing space. Changing GetVersion to `0x80000A04` yields `Windows 4.10`. Failed user/
+computer queries produce `?`/`localhost`; unavailable CPUID makes `CPU` empty, not `Unknown`.
+
+For a numeric fixture, total/available physical byte counts `0x065FFFFF`/`0x06100000` become 101/97
+whole MiB and then **104/100** MiB. With CPUID EDX=`0x00800011`, MMX and FPU are both set. With a
+performance-counter frequency of 1,000,000, Q1−Q0=2 and Q2−Q1=50,001, the corrected duration is
+50,000. Three TSC differences of 120,000,000, 125,000,000 and 130,000,000 produce 2400, 2500 and 2600
+MHz; the median provider output is **2500**, stored as binary32 2500. These are supplied OS/CPU
+measurements for conformance, not a measured performance claim for any actual machine.
+For a legacy family-6 fixture with frequency 1,000,000 and minimum trial difference 100, U=152,000,
+M=100, and the final result is **1520 MHz**. Both remainder comparisons leave that value unchanged.
+
+### 2.6 Optional sound acquisition (GR9)
+
+Ask framework slot 5 (`+0x14`) for **service ID `0xE9D27715`, IID `0x49D28666`**, with an initially null
+output pointer. With an interface, call **slot 25 (`+0x64`) once**, passing writable `cIGZString`
+references for **soundDriverName first, soundCardName second**. These are the game's foreign string
+interfaces, not two raw character buffers or two getters returning `char*`. Ignore the method's return
+value and retain the bytes it assigned; the manager adds no prefix, separator, newline, version number
+or case conversion. Release the acquired sound interface. If acquisition yields no interface, assign
+the exact bytes **`Unknown`** to both fields (`0x007CFD0F–0x007CFDF7`). Do not replace successful empty
+strings with that absence fallback.
+
+The service's method is `0x00874F7C`, table `0x00AC2920` slot 25, and its QI accepts IID `0x49D28666`
+(`0x008749C4`). That method performs the device choice itself and delegates to its slot 24 (`+0x60`,
+the two output strings followed by a device index); providers must use **slot 25**, not guess a device
+index. No sound-driver enumeration, OS default-device guess, or manager callback is needed.
+
+**Worked sound case.** If the service method assigns `driver-x` to the first reference and `Card X`
+to the second, fields 13 and 14 become exactly `driver-x` and `Card X`. If it instead assigns two empty
+strings, both remain empty. An absent service produces `Unknown`, `Unknown` and no slot-25 call.
+An interface fixture can distinguish the two output references and verify exactly one call and its
+matching Release independently of the sound hardware installed on the test machine.
+
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
 1. A rule parser (`cSC4RuleParser`) is made. When `cardVersion` is longer than 26 characters, its 4 characters at
    offset 8 and at offset 22, read as hexadecimal, are the card's vendor and device IDs.
-2. The files `Graphics Rules.sgr` (the data directory) and `Graphics Options.sgr` (the user data directory) are
+2. The files `Graphics Rules.sgr` and `Graphics Options.sgr` (the distinct native bases in §3.1) are
    given to the parser, with the symbol `prefsFirstTime` set to true or false from an application flag
    (`+0xF0C` of application slot 38) *[inferred: the first run]*. `cardIdentity` starts as a copy of `cardName`.
 3. On success, the rules and option groups move into the manager, and when the card was found in a `vendor` block
@@ -177,6 +442,86 @@ After a required-file error, later registered files are still visited. The parse
 hook once, its end hook only if the aggregate succeeded, and its finish hook in either case.
 `DoParseFile` treats a false `ReadLine` result as end of input and does not separately classify a
 read failure (`0x00680F64–0x00680F78`). This is not an all-files transaction or an I/O-integrity check.
+
+### 3.1 Native path acquisition and file selection (GR10)
+
+The directory provider is the existing **`cISC4App`, IID `0x26CE01C0`**. Its slots below are
+zero based on the public application face, not on another application interface. Application QI
+returns that face at whole-object `+0x0C` and AddRefs it (`0x004492A7–0x004492C2`). The native
+`SL` helpers use the application pointer cached by `SL::OnAppCreate` (`0x00601C00`); they do not
+acquire a separate directory or filesystem service. See [application.md §9](application.md#9-directories)
+for the getters' stored-path contracts. Treat their returned strings as opaque bases rather than
+deducing a folder from an exported method name.
+
+Let **P** be the rules base, **U** the options base, and **A** the automatic-log base:
+
+| Use | Native helper | `cISC4App` slot / byte offset | Arguments after `this` | Complete path |
+|---|---|---|---|---|
+| Required rules | `SL::DataDirectory`, `0x00602230` | **53 / `+0xD4`** | output string reference, signed language index **−1** | P followed by literal `Graphics Rules.sgr` |
+| Optional options | `SL::UserDataDirectory`, `0x00602270` | **58 / `+0xE8`** | output string reference | U followed by literal `Graphics Options.sgr` |
+| Automatic configuration log (§6.2) | `SL::AppDirectory`, `0x00602210` | **51 / `+0xCC`** | output string reference | A followed by stored `computerName`, then literal `-config-log.txt` |
+
+The dispatch and arguments are instruction-checked at `0x00602230–0x00602249`,
+`0x00602270–0x00602287` and `0x00602210–0x00602227`. Slot 53 is exported as
+`GetPluginDirectory`; its negative index copies the base without adding a language subfolder
+(`0x0044BF90–0x0044BFAC`). Slot 58 is exported as `GetRegionsDirectory`, but is the plain
+stored user-base getter (`0x00449E80`). **Neither slot 51 nor slot 56 obtains a rule-file base.**
+The `.../Apps/` and `.../Plugins/` values reported for those two slots in GR10 therefore do not
+justify appending either rule filename to them.
+
+Construction is literal string append, not a path-join/search API: no separator, `Apps/`,
+`Plugins/`, `Data/`, language folder or parent traversal is inserted. The supplied bases normally
+include a trailing separator. If P were `C:/R` without one, the registered rules path would be
+`C:/RGraphics Rules.sgr`, not `C:/R/Graphics Rules.sgr`. The manager appends the filename byte
+ranges at `0x007CFF38–0x007CFF53` and `0x007CFF9B–0x007CFFB6`; the shared append body
+preserves the existing prefix (`0x0040EBC0`). A relative or empty base is not repaired: the
+resulting relative filename uses ordinary operating-system path resolution, not a game search.
+
+**Parser acquisition and open order.** The COM call at `0x007CFE36–0x007CFE49` uses
+`GZCOM` slot 3 (`+0x0C`) with **class ID `0x5CF9459A`, IID `0x1CF94583`, output interface
+pointer**. This creates `nSCRes::cFileParser`; it is not a filesystem search service. On that
+interface the manager calls slot 3 (`+0x0C`, Init, no arguments), slot 5 (`+0x14`, SetParser,
+the constructed rule-command parser), then slot 6 (`+0x18`, AddInputFilePath) twice:
+
+1. Register **P + `Graphics Rules.sgr`**, flags **1**, at `0x007CFF83–0x007CFF93`.
+2. Register **U + `Graphics Options.sgr`**, flags **0**, at `0x007CFFC1–0x007CFFD1`.
+
+Slot 8 (`+0x20`, ParseFiles, no arguments) then parses those registrations in that order
+(`0x007D003B–0x007D0041`, `0x0068135C–0x00681387`). Registration copies the supplied filename
+and records its parent for include handling; it does not locate an existing copy
+(`0x00681DA0–0x00681E23`). Each top-level attempt constructs a `cRZTextFile` with that full
+filename and opens it with arguments **(1, 2, 7)** (`0x00680EC7–0x00680EE2`): read access,
+open existing. The underlying `cRZFile` opens the supplied path through the Windows file API
+(`0x0093066E–0x00930682`, `0x00919B00–0x00919C77`). There is no game-filesystem mount,
+resource-key lookup, archive lookup, directory enumeration or alternate-directory retry here.
+In particular, neither the parser nor the manager tries the other base after open failure.
+Explicit `include`/`sinclude` directives can name additional files; their parent-relative joining
+is the separate contract in [sc-resources.md §4.2](sc-resources.md#42-input-and-failure-contract).
+
+**Duplicate and missing-file outcomes.** In this table P and U are distinct directories;
+“present” means an accessible, otherwise valid file with the indicated basename. These are
+top-level selection rules, before any explicit includes in the selected contents.
+
+| Copies of the indicated basename | `Graphics Rules.sgr` | `Graphics Options.sgr` |
+|---|---|---|
+| In both P and U | Read P's copy only; U's copy is ignored. | Read U's copy only, after the rules attempt; P's copy is ignored. |
+| In P only | Read P's copy. | Attempt U, ignore its optional open failure; P's copy is ignored. |
+| In U only | Attempt P, record required open failure; U's copy is ignored. | Read U's copy after the rules attempt. |
+| In neither | Attempt P and record required open failure. | Attempt U and ignore its optional open failure. |
+
+A valid required rules file with no options file still succeeds. A missing required rules file
+makes the aggregate parse fail even if the options file exists and parses; the options attempt
+still occurs. Neither file present also fails. Failed aggregate parsing does not publish either
+temporary list, and `Init` installs fallback rules (`0x007D18C2–0x007D18CD`). As in §1, native
+`Init` has no success/status return; GR10's reported status is a replacement-side observation.
+Optional-file syntax errors retain the partial-contribution behavior already specified above.
+
+Source-derived path fixture: with P=`C:/R/`, U=`C:/U/`, A=`C:/A/` and stored computer name
+`HOST`, the two registered paths are exactly `C:/R/Graphics Rules.sgr` and
+`C:/U/Graphics Options.sgr`, in that order. A conflicting `C:/U/Graphics Rules.sgr` or
+`C:/R/Graphics Options.sgr` contributes nothing unless explicitly included. The automatic log
+path is independently `C:/A/HOST-config-log.txt`. These are expected examples, not executed
+native/replacement parity evidence.
 
 ## 4. The language *[compat]*
 
@@ -450,6 +795,22 @@ non-UTF-8 name is not grounds for the native logger to reject the profile. Numer
 delegated by `Sprintf` to native CRT `__snprintf` (`0x0090F83F–0x0090F8DB`), with a promoted
 binary64 argument and default precision. The exact exceptional-value spelling is still an
 explicit GR6 evidence gap, not permission to adopt a host formatter silently.
+
+### 6.2 Automatic log directory (GR10)
+
+When automatic logging is enabled, `SetOptionsFromConfiguration` obtains **A** through
+`SL::AppDirectory`: `cISC4App` IID `0x26CE01C0`, **slot 51 / `+0xCC`**, with an output string
+reference (§3.1). It then appends the stored `computerName` byte range followed by
+`-config-log.txt` (`0x007D19E5–0x007D1A27`). No separator, subfolder or filename sanitization is
+inserted. This uses neither the rules base P nor the options base U; the measured `.../Apps/`
+return for slot 51 applies to this log path.
+
+The manager supplies that complete path to the log file's slot 28 (`+0x70`, SetPath), then
+calls slot 3 (`+0x0C`, Open) with **(2, 1, 1)** (`0x007D1A2C–0x007D1A45`): write access,
+create/replace. It does not create missing parent directories or retry under another base.
+Open failure leaves logging ineffective while rule evaluation still proceeds (§6).
+`LogConfigurationToFile(path)` remains the separate explicit-path operation: the caller's
+path is used directly, without acquiring or prepending any of these three bases.
 
 ## 7. Fallback rules (`SetFallbackRules`, `0x007D13C0`)
 

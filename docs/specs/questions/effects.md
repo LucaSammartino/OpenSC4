@@ -24,3 +24,9 @@ No open questions. EF15 and EF16 are archived in answered/effects.md.
      answered EF22 in sections 18.8.6–18.8.7; originals moved to answered/effects.md. -->
 
 No open questions remain.
+
+<!-- re-ef29 (2026-10-26) answered EF25 from replace-effectsres28 in effects.md
+     section 18.9; original question moved to answered/effects.md. -->
+
+<!-- re-ef30 (2026-10-26) answered EF26 from replace-effectsres28 in effects.md
+     section 18.10; original question moved to answered/effects.md. -->

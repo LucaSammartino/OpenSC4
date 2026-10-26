@@ -327,3 +327,28 @@ step and adds a fallback. The current answer is in brackets.
 <!-- from: verify-landfill-records4 occupant-only round 2 (2026-10-22) -->
 - **LG33 - section 6.4 and foundations 10.3: propagation of a failed nested holder Read:** Does the occupant/base reader ignore the exemplar holder's false return when the primitive stream remains error-free? An independently authored 57-byte input has outer version3, base version4, removal0x0102, highlight0, flags0xF4, type0x6A11BD2B, cell rect FF/00/00/00, exemplar-holder version changed from2 to1 at offset16, plain-holder version2, count0, null parent key, tile0x02F10010, orientation-7, position(-24.5,12.25,40), empty0. Public native Read returns true after consuming39/57 bytes with GetError=0; Rust returns false at the failed holder version. Outer/base wrong-version and final-byte truncation cases agree on rejection. Confirmed in both labels cited in LG32; normal speed is clean/ref0. [Keep Rust's existing strict nested-read failure propagation pending a published clarification; report this one malformed-input difference, and do not score subsequent native state/Write after divergent acceptance. No native output seeds Rust, no behavior changed to fit this measurement, and no new RE requested.]
   **ANSWERED 2026-10-23 (re-landfill-occupant-read4):** DIFFERS — strict propagation of exemplar rejection does not match occupant base `Read`. It ignores exemplar AL at `0x005E8DD8` and returns stream-error status at `0x005E8DE1`–`0x005E8DED`. **MATCHES — native true / 39 of 57 / error 0 follows from the published body.** Landfill tests base AL at `0x0047758D` then consumes a 21-byte tail from offset 18. Exemplar itself still tests plain AL (`0x005FF454`–`0x005FF456`); foundations §10.3 remains strict for that layer. Landfill §6.4 and lot-records §2.2–§2.3 now distinguish all four layers. The companion vectors specify proposed byte/state expectations and mark failures with unread stack temporaries **PARTIAL**, rather than inventing deterministic values or a bounded failed-count loop. The historical acceptance difference and agreed outer/base/final-byte rejection remain recorded; subsequent divergent native state remains unscored. LG31 and every unrelated unknown remain open. No implementation or verifier changes.
+
+<!-- from: replace-lotocc28 (2026-10-26) -->
+- ~~**LG-lotocc28-1 — replacement tile exemplar lifetime:** §§4.8.1/7.3 specify that attaching an
+  exemplar takes one reference and SetTileID mutates its shared key. With a replacement tile holding
+  a GetResource reference, is that reference sufficient across native occupant-manager removal,
+  renderer queries and surviving tiles, including cache effects of GetKey/SetKey? Please specify
+  the supported ownership/lifetime contract at these boundaries. Shared queue run
+  `lotocc28-landfill-r2-2032a` (MAIN/build-runs/game-results, DLL sha256 prefix `1ac88b8a`)
+  stopped corrupt at 2026-03-01: `foreign_exceptions=1`, `ref_warnings=3`. Its log lines 4072–4075
+  report last-reference release and two over-releases of exemplar `1607BD94` at
+  `fc4::props::Exemplar::~Exemplar`, followed by an invalid read. The preceding month reports
+  12 inserted and 8 removed tiles. Our adapter retains a GetResource acquisition, borrows its
+  holder, and releases that acquisition at tile destruction; no additional reference or native
+  field access has been guessed. Replacement tile activation remains unverified pending this
+  contract; the failure has not been attributed to native construction Shutdown.
+  Follow-up `lotocc28-landfill-r5-2032a` (DLL sha256 prefix `4811e717`) used the exact
+  developer-loaded resource with an explicit attachment AddRef instead of a second
+  GetResource lookup (4.8.1 step 3). Focused tests verify one retained reference per
+  tile, repeated attachment, removal and surviving inherited-group queries. The
+  game still stopped corrupt on 2026-03-01 with `foreign_exceptions=1`,
+  `ref_warnings=3`; log lines 4070-4073 again show last-reference release and two
+  over-releases at `fc4::props::Exemplar::~Exemplar`, now for `15F4B214`.
+  This correction did not resolve the boundary. Factory registration was removed
+  again; no further reference-count adjustment or lifetime guess was made.~~
+  **ANSWERED 2026-10-26 (re-lotocc29):** MATCHES — §4.8.1.1 specifies one owned default-exemplar reference per live tile, borrowed holder access versus counted QI, retention through removal/Shutdown until final destruction, separately owned parents/properties, and a balanced temporary SetTileID reference. GetKey/SetKey copy the shared key without cache reindex or resource replacement. The two-tile worked case covers surviving renderer/inherited-group reads. Both reported game failures remain unverified and unattributed; no extra permanent AddRef is prescribed.

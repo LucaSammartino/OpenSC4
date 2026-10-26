@@ -411,7 +411,10 @@ def cmd_slots(ctx, a):
     gs, gsrc = game_slots(ctx, a.game_slots)
     # 2026-10-23 (run 5): 20 on this machine. Native builds go through tools/build_queue.py (two at a time, paused
     # during game runs) and most lanes wait on the model, so the cap no longer scales with CPU; cpu busy still gates.
-    cap = min(20, cpus, gs * 2 + 8)
+    # 2026-10-26: 22. Measured over 25 min with 17 lanes live: CPU 58% avg, commit 69% avg (max 79%), 23 GB free, 5 of 12
+    # game slots free; the CPU term is gone (cpu busy still gates), the game-slot term uses the running queue's 12 slots.
+    # 2026-10-26 11:30: 24 (25 min at cap 22: CPU 57% avg, commit 57% avg, 31 GB free, 2.5 of 12 game slots in use).
+    cap = min(24, gs * 2 + 8)
     free_gb = shutil.disk_usage(str(ctx.main)).free / 2 ** 30
     load = cpu_load()
     lanes = active_lanes(ctx)

@@ -69,3 +69,52 @@ class ResumeTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FillFromPendingTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        (self.root / 'specs').mkdir()
+        self.state = self.root / 'state.json'
+        self.state.write_text(json.dumps({'lanes': {}}), encoding='utf-8')
+        self.specs = []
+        for name in ('a29', 'b29', 'c29'):
+            path = self.root / 'specs' / f'{name}.spec.json'
+            path.write_text('{}', encoding='utf-8')
+            self.specs.append(path)
+        (self.root / 'pending.txt').write_text(''.join(str(p) + chr(10) for p in self.specs), encoding='utf-8')
+        self.run = conductor.Run(argparse.Namespace(run=str(self.root), state=str(self.state)))
+        self.run.log = lambda line: None
+        self.tried = []
+
+    def pending(self):
+        return [Path(line).stem.split('.')[0] for line in
+                (self.root / 'pending.txt').read_text(encoding='utf-8').splitlines() if line.strip()]
+
+    def test_a_refusal_for_one_spec_does_not_block_the_next(self):
+        replies = {'a29': 'RuntimeError: touches x: possible duplicate, mentioned by unmerged lane(s) y',
+                   'b29': 'LAUNCHED run4 round 1', 'c29': 'LAUNCHED run4 round 2'}
+        self.run.launch = lambda p: self.tried.append(Path(p).stem.split('.')[0]) or replies[Path(p).stem.split('.')[0]]
+        self.assertTrue(self.run.fill_from_pending())
+        self.assertEqual(self.tried, ['a29', 'b29'])
+        self.assertEqual(self.pending(), ['a29', 'c29'])  # the blocked spec keeps its place
+
+    def test_a_run_wide_refusal_stops_the_pass(self):
+        self.run.launch = lambda p: self.tried.append(Path(p).stem) or 'ValueError: Live lane cap reached'
+        self.assertFalse(self.run.fill_from_pending())
+        self.assertEqual(len(self.tried), 1)
+        self.assertEqual(self.pending(), ['a29', 'b29', 'c29'])
+
+
+class TargetTests(unittest.TestCase):
+    def test_target_file_written_with_a_byte_order_mark_still_reads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = root / 'state.json'
+            state.write_text(json.dumps({'lanes': {}}), encoding='utf-8')
+            run = conductor.Run(argparse.Namespace(run=str(root), state=str(state)))
+            self.assertEqual(run.target(), 13)  # no file: the default
+            (root / 'target.txt').write_bytes(b'\xef\xbb\xbf24\r\n')
+            self.assertEqual(run.target(), 24)

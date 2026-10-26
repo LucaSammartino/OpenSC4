@@ -571,6 +571,10 @@ void SetDateRange(void* u, uint64_t prop, uint32_t date, uint32_t duration, uint
     if (Writes(u) && prop != 0) PropOf(prop)->SetSimulatorDateRange(date, duration, flag, 0);  // slot 15
 }
 
+void SetDateCalendarRange(void* u, uint64_t prop, uint32_t interval, uint32_t duration, uint8_t month, uint8_t day) {
+    if (Writes(u) && prop != 0) PropOf(prop)->SetSimulatorDateRange(interval, duration, month, day);
+}
+
 // §3.3 Day: TickSimulatorDate(simulator.GetSimDate()) (prop slot 16): the
 // simulator's own date object (the core's day number is that date's).
 void TickDate(void* u, uint64_t prop, uint32_t) {
@@ -881,5 +885,6 @@ fc4_prop_host fc4::MakePropHost(PropDevContext* ctx) {
     h.visual_time_mode = &VisualTimeMode;
     h.lighting_is_night = &LightingIsNight;
     h.terrain_heights = &TerrainHeights;
+    h.set_date_calendar_range = &SetDateCalendarRange;
     return h;
 }
