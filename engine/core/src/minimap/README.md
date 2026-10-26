@@ -16,6 +16,7 @@ The section closure table will name each implemented section and its spec test.
 | 7 Update and blits | `visible_recursive`, `update`, `rotate_blt/dual` | MM-C7: `mm_c7_all_rotations_pitches_and_premultiplied_overlay`; `invisible_parent_frees_pixels_and_update_tail_rehooks`. **Open MMW4:** raw surface service/lock operations default to `Unsupported::Open` |
 | 8 Paint | `paint`, `dither_rgb8_to_argb4`, `frustum_points`, `marker_points` | `dither_uses_remaining_counts_and_padded_rows`, `frustum_size_minus_one_and_marker_size_rotation`. **Open MMW2/MMW3/MMW4:** raw geometry, marker service and surface operations have explicit Unsupported defaults |
 | 9 Input | `center_on_map_point`, `mouse_down/move/up/enter_or_exit` | MM-C10: `mm_c10_center_drag_capture_rotations_and_nan_clamp` |
+| 10 Messages/settings | `do_message`, `tick`, `set_flags`, zone/overlay setters and hooks | MM-C8/C9: `mm_c8_tick_exceeds_threshold_once_and_hidden_releases_map`, `mm_c9_flags_unhook_before_change_and_xor_unmasked_value`; message/setter tests. **Open MMW3:** tick's slot-49/slot-6 query defaults to Unsupported |
 
 `numeric::E` retains a 64-bit significand for products, sums, square roots and
 division, then performs the specified binary32 rounding store. Decimal constants
