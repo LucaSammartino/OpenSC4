@@ -37,20 +37,23 @@ pass-order boundary reviewable; it does not close the prebuilt occupant owner.
 
 The detailed tables map pole, pylon and connection contracts to core code and
 tests. Power pole, its connection record and power line are implemented for the
-published core contracts, as is pylon after applying NO36; base, prebuilt,
-underground and underground connection still have implementation work.
+published core contracts, as are pylon after NO36 and the base occupant after
+NO12/NO14/NO32. Prebuilt and underground still have implementation work;
+underground connection retains the bounded runtime observation below.
 NO12–NO14, NO30, NO32–NO36, NO37 and NO43 are answered in the spec;
 the rows below distinguish applied answers from remaining implementation work.
 UG5/NO40 retain the runtime observation in network §3.6.6 (NO40-C).
 
 | Owner | Spec sections | Code / test / remaining work |
 |---|---|---|
-| cSC4NetworkOccupant | network §§1, 2.1–2.3 | `identity`, `NetworkPiece`, `NetworkBaseRecord`, `Xform`; `tests::{road_piece_identity,class_ids_and_types}`, `tests_record::network_record_v8_layout_and_round_trip`; base layout represented semantically |
-| cSC4NetworkOccupant | network §2.4 | NO14 applied by `NetworkPiece::{get_rotation,get_flip,get_orientation,set_variation,set_under_texture}`, `tests::orientation_flip_rotation`; NO32 numeric UV/zoom/triangle inputs: `surface`, `surface::tests::numeric_tables_zoom_and_independent_halves`; full geometry/draw integration remains |
-| cSC4NetworkOccupant | network §2.5 | `NetworkPiece::{init,shutdown}`, `tests::init_lifecycle`; StaticInit cache/message/render-state operations remain |
-| cSC4NetworkOccupant | network §2.6 | NO12 applied by `NetworkPiece::{add_path_connection,path_connection}` (eight type rows of four entry bytes), `tests::path_connections`; traffic-owned path-cache build/release/reset remain foreign |
-| cSC4NetworkOccupant | network §2.7 | flags and managed status in `NetworkPiece`, `tests::{usable_message,managed_globally}`; NO32 numeric normal/RGB code and tests are in `surface`; SetLit/corner lighting/Draw integration remain implementation work, not an unanswered NO32 |
-| cSC4NetworkOccupant | network §§7.1, 11, 13 tests 1–12,25 | identity/flag/record/cell tests exist; draw and complete city placement integration absent; no owner closure |
+| cSC4NetworkOccupant | network §§1, 2.1–2.3 | implemented: `identity`, `base::NetworkOccupant::{new,record,from_record,get_model_instance,local_bounds,world_bounds,set_transform}`, `NetworkBaseRecord`, `Xform`; `tests::{road_piece_identity,class_ids_and_types}`, `tests_record::network_record_v8_layout_and_round_trip`, `base::tests::{quad_uv_translucency_and_live_record_worked_31_33,geometry_parts_box_pick_and_transform_do_not_recompute_height_box}` |
+| cSC4NetworkOccupant | network §2.4 | implemented: NO14 `NetworkPiece::{get_rotation,get_flip,get_orientation,set_variation,set_under_texture}` and `NetworkOccupant::set_quad_draw`; properties NO5/NO38 in `base.rs`; `tests::orientation_flip_rotation`, `base::tests::{property_and_edge_store_worked_29_and_base_lit_gate,quad_uv_translucency_and_live_record_worked_31_33}` |
+| cSC4NetworkOccupant | network §2.5 | implemented: `NetworkOccupant::{init,shutdown}`, `NetworkStatics::{initialize,shutdown}`, packed `surface::RENDER_STATES`, avenue set and owned resource/cache lifetimes; `base::tests::{base_init_failure_reinit_static_lifetime_and_geometry_worked_28,no32_draw_half_masks_zoom_cache_fallback_and_static_releases}` |
+| cSC4NetworkOccupant | network §2.6; network-rules §11.1 | implemented: NO12 `NetworkPiece::{add_path_connection,path_connection}`, `base/paths.rs` resource/map/elevation/copy/scissor/verify/bitmap pipeline and borrowed cache; `tests::path_connections`, `base::tests::path_pipeline_override_refs_bitmap_cache_borrow_and_failed_retry`; path-info methods remain foreign subsystem primitives |
+| cSC4NetworkOccupant | network §2.7 | implemented: flags and managed status in `NetworkPiece`; base CanBeLit=false gate, corner RGB and NO32 normalized part lighting in `base`/`surface`; `tests::{usable_message,managed_globally}`, `base::tests::{property_and_edge_store_worked_29_and_base_lit_gate,no32_integrated_normal_rgb_alpha_and_degenerate_worked_case}` |
+| cSC4NetworkOccupant | network §§2.9–2.10 | implemented: position, altitude/normal quirks, stale height box, parts/box/Pick, edge store and grouped masks in `base.rs`; `base::tests::{base_init_failure_reinit_static_lifetime_and_geometry_worked_28,geometry_parts_box_pick_and_transform_do_not_recompute_height_box,property_and_edge_store_worked_29_and_base_lit_gate}` |
+| cSC4NetworkOccupant | network §2.11 | implemented: `base/render.rs` texture cache/zoom/fallback, ordered surface/parts/water/self-lit passes and one-way arrows; NO32 half predicates and numeric tables in `surface`; `base::tests::{no32_draw_half_masks_zoom_cache_fallback_and_static_releases,draw_self_lit_early_out_under_piece_order_water_and_state_b,one_way_arrow_worked_32_rotates_restores_uvs_and_replays_state,quad_uv_translucency_and_live_record_worked_31_33}` |
+| cSC4NetworkOccupant | network §§7.1, 11, 13 tests 1–12,25–33 | implemented: owner identity/flags/records and worked cases above; placement/lot ownership remains with network tools/manager (§7.1), not a new lot-occupant class; `base::tests::base_init_failure_reinit_static_lifetime_and_geometry_worked_28`, existing identity/record/path tests |
 | cSC4NetworkOccupantWithPreBuiltModel | network §§1, 2.8 | `identity`, `NetworkPiece` partial init/shutdown (`tests::prebuilt_and_tunnel_init`); complete constructor, model setup, path info and record remain |
 | cSC4NetworkOccupantWithPreBuiltModel | network §§10.1–10.3 | `PrebuiltPiece` draw/cache behavior (`tests_model`); stable Arc OOM abort differs from native allocation-failure cache branch; no prebuilt owner closure |
 | cSC4NetworkOccupantWithPreBuiltModel | network §§11,12,13 | NO30 applied by `PrebuiltPiece::append`, `tests_model::{draw_pass_orders_option_exception_second_transform_and_alpha,draw_dispatches_processor_for_main_and_second_and_honours_skip}`; prebuilt record and inherited base implementation gaps still prevent owner closure |
