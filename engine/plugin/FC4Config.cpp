@@ -445,6 +445,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "reach_contracts", "reach_output", "reach_diagnostics",
                                   // Explicit DX7 shadow selection before city resources, default off.
                                   "gdriver_shadow_select",
+                                  // Sampled land-value input-change diagnostics (not native Step capture).
+                                  "landvalue_shadow_inputs",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
