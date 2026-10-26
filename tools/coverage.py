@@ -893,6 +893,7 @@ def main():
     ap.add_argument("--owners", help="also write a per-function TSV (address, bytes, owner, rule, subsystem)")
     ap.add_argument("--min-natural", type=int, default=20)
     ap.add_argument("--min-dense", type=int, default=200)
+    ap.add_argument("--suite", help="suite tag under build-runs/suite; add suite-exercised/verified/replaced")
     args = ap.parse_args()
     if min(args.min_natural, args.min_dense) < 1:
         ap.error("compare thresholds must be positive")
@@ -904,6 +905,15 @@ def main():
     replace_list, shadow_list, keys = data["replace_list"], data["shadow_list"], data["keys"]
     reg, rrun, warnings = data["reg"], data["rrun"], data["warnings"]
     game, fun_row, lib_b, lib_n = data["game"], data["fun_row"], data["lib_b"], data["lib_n"]
+    suite_evidence, suite_states, suite_stats = None, {}, ()
+    if args.suite:
+        suite_coverage = _sibling("suite_coverage")
+        try:
+            suite_evidence = suite_coverage.load(REPO, args.suite, [k for k, on in keys.items() if on])
+        except (ValueError, OSError, KeyError) as exc:
+            ap.error(f"suite evidence: {exc}")
+        suite_states = suite_coverage.states(suite_evidence, game, rows, SHADOW_LABEL_ALIAS)
+        suite_stats = suite_coverage.STAT
     compare_logs = compare_metrics.regress_logs(regress)
     house_build = compare_metrics.regress_build(regress)
     fn_states, bindings, _, compare_warnings = compare_metrics.collect_states(
@@ -919,7 +929,7 @@ def main():
 
     def tally(items):
         t = {"n": 0, "b": 0, **compare_metrics.tally(items, fn_states)}
-        for s in STAT:
+        for s in STAT + suite_stats:
             t[s + "_n"] = 0
             t[s + "_b"] = 0
         for va, size, i, _ in items:
@@ -929,6 +939,10 @@ def main():
                 continue
             for s in STAT:
                 if rows[i][s]:
+                    t[s + "_n"] += 1
+                    t[s + "_b"] += size
+            for s in suite_stats:
+                if suite_states[va][s]:
                     t[s + "_n"] += 1
                     t[s + "_b"] += size
         return t
@@ -986,12 +1000,24 @@ def main():
     w(f"Game code, the denominator (every function outside the library and compiler buckets): **{game_n:,} "
       f"functions, {game_b:,} bytes**.")
     w("")
+    if suite_evidence:
+        w(f"Legacy verified/replaced use `{regress.name}`. Suite evidence uses tag `{args.suite}` "
+          f"({len(suite_evidence['scenarios'])} scenario/profile runs). Suite-exercised counts only implemented "
+          "function bytes with positive, unskipped original entry counters. Suite-verified additionally requires "
+          "its shadow key to be exact, with zero resyncs, in every scenario that ran it. Suite-replaced counts "
+          "implemented map rows enabled in at least one replace-profile run, with every such run "
+          "clean and complete; it does not imply those function bodies were entered.")
+        w("")
     w("| Status | Meaning | Bytes | % of game bytes | Functions | % of game functions |")
     w("|---|---|---:|---:|---:|---:|")
+    suite_descriptions = tuple((s, desc) for s, desc in (
+        ("suite-exercised", "implemented function bytes entered by the suite"),
+        ("suite-verified", "exercised bytes whose shadow key is exact across the suite"),
+        ("suite-replaced", "implemented rows enabled in clean suite replace runs")) if s in suite_stats)
     for s, desc in (("specified", "a spec in docs/specs covers its owner"),
                     ("implemented", "a clean-room module in engine/ implements its owner"),
                     ("verified", "its same-process shadow is exact in the run that measured it"),
-                    ("replaced", "our class runs instead of the original in the regress replace run"),
+                    ("replaced", "our class runs instead of the original in the regress replace run")) + suite_descriptions + (
                     ("bound", "a function-level native-layout adapter is registered"),
                     ("matched", "function-level in-place compares meet the exact-match thresholds below"),
                     ("matched-natural", "natural compares meet the exactness, count and refusal limits"),
@@ -1031,11 +1057,12 @@ def main():
       "S4 names join through the registry; bytes always come from the game function table.")
     w(compare_metrics.evidence_note(fn_states, compare_warnings, house_build))
     w("")
-    w("| Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced | Bound | Matched | Matched-natural | Matched-dense |")
-    w("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    suite_header = ''.join(f" {s} |" for s in suite_stats)
+    w("| Area | Functions | Bytes | % of game | Specified | Implemented | Verified | Replaced |" + suite_header + " Bound | Matched | Matched-natural | Matched-dense |")
+    w("|---|" + "---:|" * (11 + len(suite_stats)))
     for a in AREAS + ["shared", "unattributed"]:
         t = by_area[a]
-        cells = " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})" for s in STAT + function_stats)
+        cells = " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})" for s in STAT + suite_stats + function_stats)
         w(f"| {a} | {t['n']:,} | {t['b']:,} | {pct(t['b'], game_b)} | {cells} |")
     cells = " | ".join(f"**{pct(whole[s + '_b'], game_b)}** ({pct(whole[s + '_n'], game_n)})" for s in STAT + function_stats)
     w(f"| **all game code** | **{game_n:,}** | **{game_b:,}** | 100.0% | {cells} |")
@@ -1048,8 +1075,8 @@ def main():
       "or the counts `tools/coverage-shadows.tsv` cites from a lane run (`lane run`, or `lane run, not exact` when "
       "a compared set differs). Bound and Matched show byte percentages (function percentages in brackets).")
     w("")
-    w("| Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced | Bound | Matched | Matched-natural | Matched-dense |")
-    w("|---|---|---:|---:|---:|---|---|---|---|---|---:|---:|---:|---:|")
+    w("| Area | Subsystem | Owners | Functions | Bytes | Specified | Implemented | Shadow | Verified | Replaced |" + suite_header + " Bound | Matched | Matched-natural | Matched-dense |")
+    w("|---|---|---:|---:|---:|---|---|---|---|---|" + "---:|" * (4 + len(suite_stats)))
 
     def flag(idx, s):
         vals = {rows[i][s] for i in idx}
@@ -1060,7 +1087,7 @@ def main():
         idx = sub_rows[key]
         notes = sorted({rows[i]["shadow_note"] for i in idx} - {"-"})
         t = tally(items)
-        fn_cells = " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})" for s in function_stats)
+        fn_cells = " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})" for s in suite_stats + function_stats)
         w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {len(items):,} | {sum(g[1] for g in items):,} | "
           f"{flag(idx, 'specified')} | {flag(idx, 'implemented')} | {', '.join(notes) or '-'} | "
           f"{flag(idx, 'verified')} | {flag(idx, 'replaced')} | {fn_cells} |")
@@ -1127,6 +1154,9 @@ def main():
         w(f"| {label} | {text_sha256(path)[:16]} | function compare evidence |")
     if not registry_files:
         w("| engine/plugin/compare/*.tsv | absent | no function bindings |")
+    if suite_evidence:
+        for path in sorted(suite_evidence['inputs']):
+            w(f"| {path.relative_to(REPO).as_posix()} | {text_sha256(path)[:16]} | suite evidence |")
     w("")
     w(f"Read from tools/regress.ps1: {len(replace_list)} replace keys, {len(shadow_list)} shadows. On by default in "
       f"FC4Subsystems.cpp: {', '.join(sorted(k for k, v in keys.items() if v))}.")
@@ -1145,6 +1175,9 @@ def main():
                 f.write(f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\n")
     print(f"coverage: game code {game_n} functions, {game_b} bytes; "
           + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT + function_stats) + f"; wrote {args.out}")
+    if suite_evidence:
+        print(f"suite {args.suite}: " + ", ".join(
+            f"{s} {whole[s + '_b']} bytes ({pct(whole[s + '_b'], game_b)})" for s in suite_stats))
 
 
 if __name__ == "__main__":
