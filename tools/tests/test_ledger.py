@@ -240,7 +240,8 @@ def test_named_shadow_reach_does_not_credit_entire_owner_or_ambiguous_names(tmp_
     assert ledger.shadow_reach(data, [log]) == {0x401000: 64}
 
 
-def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkeypatch):
+@pytest.mark.parametrize("method_credit", [False, True])
+def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkeypatch, method_credit):
     cov = ledger.cov
     registry = tmp_path / "engine/plugin/compare"
     registry.mkdir(parents=True)
@@ -253,7 +254,7 @@ def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkey
     out = tmp_path / "coverage.md"
     game = [(0x401000, 40, 0, "simulation"), (0x402000, 160, 0, "simulation")]
     att = SimpleNamespace(funcs={0x401000: 40, 0x402000: 160}, order=[0x401000, 0x402000],
-                          range_overrides={}, edge_counts={}, hubs=set())
+                          range_overrides={}, edge_counts={}, hubs=set(), name=lambda va: "Owner::Method")
     inputs = {key: tmp_path / key for key in ("names", "vtables", "interfaces", "libs", "ranges",
               "noncode refs", "map", "shadows", "regress.ps1", "subsystems")}
     data = dict(export=tmp_path, exe_sha="1" * 64, base=0x400000, text_lo=0x400000, text_hi=0x403000,
@@ -261,7 +262,8 @@ def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkey
                 rule={va: "name" for va in att.order}, rows=[dict(area="simulation", subsystem="fixture",
                     shadow_note="-", **dict.fromkeys(cov.STAT, False))], replace_list=[], shadow_list=[],
                 keys={}, reg={"tag": "house", "pass": True, "profile": "fixture"}, rrun=("clean", 0),
-                warnings=[], game=game, fun_row={}, lib_b={}, lib_n={})
+                warnings=[], game=game, fun_row={}, lib_b={}, lib_n={},
+                methods={0x401000} if method_credit else set(), method_evidence={0x401000: ["log:fixture"]})
     monkeypatch.setattr(cov, "REPO", tmp_path)
     monkeypatch.setattr(cov, "load_report_data", lambda *args: data)
     monkeypatch.setattr(cov, "text_sha256", lambda path: "0" * 64)
@@ -272,7 +274,9 @@ def test_coverage_report_appends_byte_weighted_function_columns(tmp_path, monkey
     assert area.endswith("| 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) |")
     subsystem = next(s for s in report.splitlines() if s.startswith("| simulation | fixture |"))
     assert subsystem.endswith("| 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) | 20.0% (50.0%) |")
-    assert "| - | - | - | - | - | 20.0%" in subsystem  # existing owner flags remain false
+    assert ("| - | - | - | 20.0% (50.0%) | - | 20.0%" if method_credit else
+            "| - | - | - | 0.0% (0.0%) | - | 20.0%") in subsystem
+    assert f"method-verified {40 if method_credit else 0} bytes" in report
     assert "| **matched** |" in report
 
 

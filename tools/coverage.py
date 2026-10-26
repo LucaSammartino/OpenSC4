@@ -58,6 +58,7 @@ def _sibling(name):
 
 
 compare_metrics = _sibling("compare_metrics")
+coverage_methods = _sibling("coverage_methods")
 
 EXE_SHA256 = "3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b"
 AREAS = ["simulation", "framework", "renderer", "ui", "audio", "region", "other"]
@@ -689,6 +690,7 @@ def read_regress(path, audit_legacy=True):
     text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8", "replace")
     out = {"tag": None, "pass": False, "profile": "", "runs": {}, "shadows": {}, "resynced": {}}
     run = None
+    method_summary = []
     for line in text.splitlines():
         line = line.rstrip()
         m = re.match(r"^REGRESS (\S+): (PASS|FAIL)", line)
@@ -703,6 +705,8 @@ def read_regress(path, audit_legacy=True):
             continue
         if line.startswith("=== regress "):
             run = None
+        if run == "shadows":
+            method_summary.append(line)
         m = re.match(r"^(shadows|replace)\s+(\S+)\s+(\d+)\s+\d+", line)
         if m:
             out["runs"][m.group(1)] = (m.group(2), int(m.group(3)))
@@ -735,6 +739,12 @@ def read_regress(path, audit_legacy=True):
             if resets[label] or counts[label] == out["shadows"][label][1] > 0:
                 out["resynced"][label] = resets[label]
         out["resync_source"] = source
+    out["methods"] = coverage_methods.read_lines(method_summary, summary=True)
+    if audit_legacy and source.is_file():
+        # The complete recorded log is authoritative; summaries support archived runs without logs.
+        out["methods"] = coverage_methods.read_lines(read_text_any(source).splitlines())
+        if out["methods"]:
+            out["method_source"] = source
     return out
 
 
@@ -892,6 +902,13 @@ def load_report_data(export=None, exe=None, regress=None):
                         + ", ".join(not_run))
 
     game, fun_row, lib_b, lib_n, used_rows = map_functions(rows, att, owner)
+    method_paths = sorted((REPO / "docs/specs/attribution").glob("*.tsv"))
+    methods, method_evidence, method_warnings = coverage_methods.credit(method_paths, att, owner, game, reg)
+    warnings.extend(method_warnings)
+    for path in method_paths:
+        inputs["method attribution " + path.name] = path
+    if reg.get("method_source"):
+        inputs["method evidence"] = reg["method_source"]
     for i, r in enumerate(rows):
         if not used_rows[i]:
             warnings.append(f"map row `{r['pattern']}` matches no owner")
@@ -899,7 +916,8 @@ def load_report_data(export=None, exe=None, regress=None):
     return dict(export=export, exe_sha=exe_sha, base=base, text_lo=text_lo, text_hi=text_hi,
                 regress=regress, inputs=inputs, att=att, owner=owner, rule=rule, rows=rows,
                 replace_list=replace_list, shadow_list=shadow_list, keys=keys, reg=reg, rrun=rrun,
-                warnings=warnings, game=game, fun_row=fun_row, lib_b=lib_b, lib_n=lib_n)
+                warnings=warnings, game=game, fun_row=fun_row, lib_b=lib_b, lib_n=lib_n,
+                methods=methods, method_evidence=method_evidence)
 
 
 def main():
@@ -923,6 +941,9 @@ def main():
     replace_list, shadow_list, keys = data["replace_list"], data["shadow_list"], data["keys"]
     reg, rrun, warnings = data["reg"], data["rrun"], data["warnings"]
     game, fun_row, lib_b, lib_n = data["game"], data["fun_row"], data["lib_b"], data["lib_n"]
+    methods = data["methods"]
+    method_only = coverage_methods.incremental(game, rows, methods)
+    method_bytes = sum(size for _, size in method_only)
     suite_evidence, suite_states, suite_stats = None, {}, ()
     if args.suite:
         suite_coverage = _sibling("suite_coverage")
@@ -953,10 +974,8 @@ def main():
         for va, size, i, _ in items:
             t["n"] += 1
             t["b"] += size
-            if i is None:
-                continue
             for s in STAT:
-                if rows[i][s]:
+                if coverage_methods.function_status(rows, i, va, methods, s):
                     t[s + "_n"] += 1
                     t[s + "_b"] += size
             for s in suite_stats:
@@ -1062,7 +1081,8 @@ def main():
     w("## By area")
     w("")
     w("Each status cell is the share of the area's bytes, then (in brackets) of its functions. Shared and "
-      "unattributed code has no owner-level status. Bound and matched are function-level metrics.")
+      "unattributed code has no owner-level status. Verified includes address-bound method evidence. "
+      "Bound and matched are function-level metrics.")
     w("")
     w(f"Matched-natural requires at least {args.min_natural} exact natural compares and refused/sampled <=10%. "
       f"Matched-dense requires at least {args.min_dense} exact compares for each positive corpus/dense source. "
@@ -1108,7 +1128,24 @@ def main():
         fn_cells = " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})" for s in suite_stats + function_stats)
         w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {len(items):,} | {sum(g[1] for g in items):,} | "
           f"{flag(idx, 'specified')} | {flag(idx, 'implemented')} | {', '.join(notes) or '-'} | "
-          f"{flag(idx, 'verified')} | {flag(idx, 'replaced')} | {fn_cells} |")
+          f"{pct(t['verified_b'], t['b'])} ({pct(t['verified_n'], t['n'])}) | {flag(idx, 'replaced')} | {fn_cells} |")
+    w("")
+    w("## Method verification")
+    w("")
+    w(f"**method-verified {method_bytes:,} bytes / {len(method_only):,} functions** beyond verified owner rows; "
+      f"included once in verified. Eligible method evidence covers {sum(att.funcs[va] for va in methods):,} "
+      f"bytes / {len(methods):,} functions, including overlap with verified owners. "
+      "TSV identities must match the coverage function start, literal name, owner and byte size. "
+      "Their named family must be exact with zero resynced lines in this house shadows run. "
+      "Logged methods require positive final calls, final complete=calls, monotone counters, and zero "
+      "mismatches and resyncs on every line. Unknown addresses, interface slots and collisions gain no credit.")
+    w("")
+    w("| Address | Name | Bytes | Additional to owner | Evidence |")
+    w("|---|---|---:|---|---|")
+    additional = {va for va, _ in method_only}
+    for va in sorted(methods):
+        w(f"| 0x{va:08X} | {att.name(va)} | {att.funcs[va]} | {'yes' if va in additional else '-'} | "
+          + ", ".join(data["method_evidence"][va]) + " |")
     w("")
     w("## Excluded from the denominator")
     w("")
@@ -1192,7 +1229,8 @@ def main():
             for va in att.order:
                 f.write(f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\n")
     print(f"coverage: game code {game_n} functions, {game_b} bytes; "
-          + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT + function_stats) + f"; wrote {args.out}")
+          + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT + function_stats)
+          + f"; method-verified {method_bytes} bytes ({len(method_only)} functions); wrote {args.out}")
     if suite_evidence:
         print(f"suite {args.suite}: " + ", ".join(
             f"{s} {whole[s + '_b']} bytes ({pct(whole[s + '_b'], game_b)})" for s in suite_stats))

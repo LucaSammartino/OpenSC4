@@ -64,7 +64,7 @@ statuses are computed from: spec files, core module paths, shadow ini key, repla
 missing spec or core files, unknown keys and rows that match nothing; it also lists the biggest owners only a
 catch-all row matches, the candidates for a new row.
 
-## Statuses (per map row; a function has its owner's row's statuses)
+## Statuses (owner rows plus address-bound method verification)
 
 | Status | Rule |
 |---|---|
@@ -72,6 +72,23 @@ catch-all row matches, the candidates for a new row.
 | implemented | the row names at least one core path and every `engine/<path>` exists |
 | verified | every compared set of the row's shadow key is exact. Two sources, in this order: (1) the key is in the shadows list of `tools/regress.ps1` and every line of that shadow in the regress `.out` read has all mismatch counts 0; (2) else `tools/coverage-shadows.tsv` has the key and every row it records is exact |
 | replaced | the replace key is in `$Replace` of `tools/regress.ps1` (or is on by default in `FC4Subsystems.cpp`) and the regress replace run was clean |
+
+Method verification adds function bytes to `verified` without changing its owner's other functions.
+`docs/specs/attribution/*.tsv` records `address`, `function_name`, `owner`, `bytes`, `shadow_key` and
+`evidence_family`; only a nonempty exact family with explicit zero resynced lines in the selected house shadows
+run proves that record. `TOTAL` annotations do not name functions. The frozen 44-record proposal retains its
+exclusions; folded bodies keep coverage's literal identity, and unnamed adjustors gain no inferred credit.
+
+Alternatively, a house log may contain `<family> method <addr> <Owner>::<Method> (month) YYYY-MM-DD:
+calls=N complete=N mismatches=0; resyncs=0`. Counters are cumulative: final calls must be positive and equal final
+complete, every line must have zero mismatches and resyncs, and counters must not decrease. `complete` counts
+calls comparing every specified output and effect. Partial-output methods retain complete=0. The summary
+retains each method's line count, exact lines, final calls/complete and every failure; counters are never summed.
+Coverage reads the recorded shadows log, or its method summary when the log is unavailable, never replace lines.
+An interface slot logged with address `-` gains no bytes. Addresses must be function starts and names, owners and
+sizes must match coverage's table; duplicate TSV addresses and identity collisions are warned and refused.
+Two starts sharing a name remain distinct. Library bytes stay excluded. Owner verification subsumes method
+credit; `method-verified` reports only additional bytes, with eligible bytes including overlap also in the report.
 
 `python tools/coverage.py --suite <tag>` adds three suite columns beside these four, without changing their rules.
 The tag lives in `build-runs/suite/<tag>/`; `summary.tsv`, `per_key.tsv`, the staged request manifest, raw logs and
