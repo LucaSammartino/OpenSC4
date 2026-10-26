@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 
 #[derive(Default)]
 pub(crate) struct Recording {
-    next: u64,
-    pixels: BTreeMap<Surface, (i32, i32, Vec<u32>)>,
+    pub(crate) next: u64,
+    pub(crate) pixels: BTreeMap<Surface, (i32, i32, Vec<u32>)>,
     pub events: Vec<String>,
     pub records: BTreeMap<(i32, i32), CityRecord>,
     pub fail_size: bool,
