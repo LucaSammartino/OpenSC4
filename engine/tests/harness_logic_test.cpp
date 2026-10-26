@@ -188,6 +188,9 @@ void ScriptParseTests() {
     CHECK(One("2000-01-07 lightinghour 23").actions.at(0).speed == 23);
     CHECK(One("2000-01-07 gdriverprobe").actions.at(0).op == ScriptOp::GDriverProbe);
     CHECK(ErrorIs("2000-01-07 gdriverprobe 1", "gdriverprobe takes 0 argument(s) (none), not 1"));
+    CHECK(One("2000-01-07 SpAn565PrObE").actions.at(0).op == ScriptOp::Span565Probe);
+    CHECK(std::string(ScriptOpName(ScriptOp::Span565Probe)) == "span565probe");
+    CHECK(ErrorIs("2000-01-07 span565probe 16", "span565probe takes 0 argument(s) (none), not 1"));
     CHECK(ErrorIs("2000-01-07 lightinghour 24", "lightinghour '24' is not 0..23"));
     CHECK(ErrorIs("2000-01-07 lightinghour -1", "lightinghour '-1' is not 0..23"));
     CHECK(ErrorIs("2000-01-07 clockmode -1", "clockmode '-1' is not 0, 1 or 2"));

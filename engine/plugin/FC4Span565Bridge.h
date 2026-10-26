@@ -36,5 +36,8 @@ namespace fc4 {
 void Span565SetEnabled(bool on);  // FC4Subsystems: enable = span565
 void Span565Install();            // PostAppInit: entries, then the trace if asked
 void Span565Restore();            // PreAppShutdown: originals back, counter line
+// Explicit suite workload, outside monthly ReachProbeScope. Uses only public
+// buffer/context calls; constructed buffers still do not prove shipped usage.
+const char* Span565ScriptProbe();
 
 }  // namespace fc4

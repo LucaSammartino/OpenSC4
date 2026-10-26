@@ -233,7 +233,8 @@ enum class ScriptOp {
     MySim,        // mysim movein|query: replacement-interface persistence exercise
     Funds,        // funds 0..999999999: set treasury through the budget interface
     Establish,    // establish <name>: name and found an unfounded city
-    GDriverProbe  // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    Span565Probe // span565probe: explicit public software-buffer workload
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -278,6 +279,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::MySim: return "mysim";
         case ScriptOp::Funds: return "funds";
         case ScriptOp::Establish: return "establish";
+        case ScriptOp::Span565Probe: return "span565probe";
     }
     return "?";
 }
@@ -491,6 +493,9 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else if (name == "gdriverprobe") {
         a.op = ScriptOp::GDriverProbe;
         if (!wantArgs(0, "none")) return false;
+    } else if (name == "span565probe") {
+        a.op = ScriptOp::Span565Probe;
+        if (!wantArgs(0, "none")) return false;
     } else if (name == "pause" || name == "resume" || name == "digest") {
         a.op = name == "pause" ? ScriptOp::Pause : name == "resume" ? ScriptOp::Resume : ScriptOp::Digest;
         if (!wantArgs(0, "none")) return false;
@@ -671,7 +676,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)";
+                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, span565probe)";
         return false;
     }
     *out = a;

@@ -1,0 +1,6 @@
+# Explicit constructed software-buffer workload, not evidence of shipped UI use.
+# The public draw system renders type 5/16-bit destinations against Rust copies:
+# four untextured routes, all 156 public texture row/kind pairs, locks and refs.
+# Repeat to check teardown/reinstallation and per-action comparison accounting.
+2026-01-28 span565probe
+2026-01-29 span565probe
