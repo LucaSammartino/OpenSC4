@@ -26,3 +26,17 @@ These are the two unnamed floats at serialized offsets 530 and 534 (§6.1 row 16
 Which operations update them, with which units and inputs, and when? Can a public
 getter mutate this published block? The copy currently preserves the saved values
 as required by save-records §12 Q2; neither comparison nor tolerance is relaxed.
+
+## TC29-FERRY-1: reset point of the saved ferry rider total
+
+Blocked case: `paradis-reiss` in census `sh28-census3`, 2016-10-24 and
+2016-11-19, state 13 -> 19: the original's ferry total is 93, the copy's 186.
+Evidence: main `build-runs/run7/census3/paradis-reiss.shadows.txt`, lines 422
+and 596; the other record fields, trips, holder properties and grids agree.
+Traffic-simulator §3.2 row 19 and traffic-network §4.9.3 say to rotate rider
+counters and add the new last riders to the city total. The current core
+does so, retaining the previously saved total, as §6.1 row 19 specifies.
+When is this total reset (or replaced), and what operations can change it
+between ferry passes? Please include a worked second pass with a nonzero
+loaded total, and its relation to monthly history publication (§4.12).
+The addition and exact comparison remain unchanged pending that rule.
