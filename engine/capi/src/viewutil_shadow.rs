@@ -15,6 +15,89 @@ fn store(words: &mut [u32], at: usize, v: Vec3) {
     words[at..at + 3].copy_from_slice(&[v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]);
 }
 
+// §§7.1.1/13.3: independently owned counterpart of the native resource graph.
+fn fixture_mesh(input: &[u32]) -> Mesh {
+    let group = PrimitiveGroup {
+        kind: input[0],
+        first: 1,
+        count: 3,
+    };
+    Mesh {
+        vertices: vec![
+            Vec3::new(99.0, 99.0, 99.0),
+            Vec3::ZERO,
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(0.0, 2.0, 0.0),
+        ],
+        indices: (input[1] != 0).then(|| vec![99, 1, 2, 3]),
+        groups: vec![group, group],
+    }
+}
+
+fn fixture_transform(input: &[u32]) -> Transform {
+    Transform {
+        kind: input[4] as u8,
+        ..Transform::default()
+    }
+}
+
+struct FixtureCamera(std::cell::Cell<u32>);
+impl CameraRayProvider for FixtureCamera {
+    fn eye_ray(&self, x: f32, y: f32) -> Option<Ray> {
+        self.0.set(self.0.get() + 1);
+        // camera.md §1.6 perspective; R maps local y to +z and local z to -y.
+        Some(Ray {
+            origin: Vec3::new(0.0, 4.0, 0.0),
+            direction: Vec3::new(-(2.0 * x / 8.0 - 1.0), -1.0, -(2.0 * (8.0 - y) / 8.0 - 1.0)),
+        })
+    }
+}
+
+fn fixture_pick(op: u32, input: &[u32], out: &mut [u32]) {
+    let mesh = fixture_mesh(input);
+    let mut pick = Pick {
+        ray: Ray {
+            origin: Vec3::new(0.5, 0.5, 2.0),
+            direction: Vec3::new(0.0, 0.0, -1.0),
+        },
+        nearest_distance: f32::from_bits(input[5]),
+    };
+    let hit = if op == 0x007f91c0 {
+        mesh_pick(&mut pick, &mesh, &fixture_transform(input))
+    } else {
+        struct Instance<'a> {
+            input: &'a [u32],
+            calls: std::cell::Cell<u32>,
+        }
+        impl ModelInstance for Instance<'_> {
+            fn fill_transform(&self, _: usize, transform: &mut Transform) {
+                self.calls.set(self.calls.get() + 1);
+                *transform = fixture_transform(self.input);
+            }
+        }
+        let instance = Instance {
+            input,
+            calls: std::cell::Cell::new(0),
+        };
+        let model = Model {
+            meshes: vec![mesh; input[6] as usize],
+        };
+        let hit = model_pick(&mut pick, &instance, &model);
+        out[20] = 1;
+        out[21] = input[6];
+        out[22] = instance.calls.get();
+        let mut trace: u32 = 1;
+        for i in 0..input[6] {
+            trace = (trace.wrapping_mul(17) + 10 + i).wrapping_mul(17) + 100;
+        }
+        out[23] = trace;
+        out[24] = 0; // all initial transforms have the specified identity fields
+        hit
+    };
+    out[10] = pick.nearest_distance.to_bits();
+    out[31] = u32::from(hit);
+}
+
 /// R-class cached arithmetic, with an owned copy of the published §1 inputs.
 /// # Safety
 /// Snapshot references 284 words; input and output reference 32 words each.
@@ -58,6 +141,13 @@ pub(crate) unsafe extern "C" fn fc4_viewutil_shadow_cached(
         ),
         0x007f6710 => store(out, 0, view.project_point_to_fixed_view_coordinates(p)),
         0x007f6770 => out[0] = u32::from(view.is_bounding_box_in_view_frustum(bounds)),
+        0x007f6910 => out[0] = u32::from(view.is_bounding_box_in_draw_frustum(bounds)),
+        0x007f7f60 => {
+            if let Some(bounds) = view.get_frustum_aabb_city_clipped(input[6] != 0) {
+                store(out, 0, bounds.min);
+                store(out, 3, bounds.max);
+            }
+        }
         0x007f6ba0 => {
             let mut v = vector(out, 0);
             view.get_city_corner_position(input[0], &mut v);
@@ -258,6 +348,48 @@ unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: 
         return;
     };
     match op {
+        0x007f91c0 | 0x007f9a40 => fixture_pick(op, input, out),
+        0x0080b320 => {
+            let mesh = fixture_mesh(input);
+            let group = mesh.groups[input[7] as usize];
+            owner[1] = group.kind;
+            owner[2] = group.count;
+            owner[3] = 1;
+            owner[4] = 12;
+            owner[5] = input[8].wrapping_add(if input[1] == 0 { 12 } else { 0 });
+            owner[6] = 3;
+            owner[7] = if input[1] != 0 { input[9].wrapping_add(2) } else { 0 };
+            owner[8] = group.triangle_count() as u32;
+            owner[10] = 0;
+        }
+        0x007f9160 | 0x007f9ea0 | 0x007f9f50 => {
+            let camera = FixtureCamera(std::cell::Cell::new(0));
+            view.native_camera_presence(true);
+            if op == 0x007f9160 {
+                let mut p = vector(out, 0);
+                out[31] = u32::from(view.get_viewport_point_intersection_with_ground_plane(
+                    Some(&camera),
+                    input[0] as i32 as f32,
+                    input[1] as i32 as f32,
+                    &mut p,
+                ));
+                store(out, 0, p);
+            } else if op == 0x007f9ea0 {
+                if let Some(points) = view.get_viewport_rect_ground_corners(
+                    Some(&camera),
+                    PixelRect::new(input[0] as i32, input[1] as i32, input[2] as i32, input[3] as i32),
+                ) {
+                    for (i, p) in points.into_iter().enumerate() {
+                        out[i * 2] = p.x.to_bits();
+                        out[i * 2 + 1] = p.z.to_bits();
+                    }
+                }
+            } else {
+                view.build_draw_frustum_data_from_viewport_rect(PixelRect::new(0, 0, 8, 8), Some(&camera));
+                view.native_whole_draw_words(owner);
+            }
+            out[16] = camera.0.get();
+        }
         0x007f6df0 => {
             if let Some(initialized) = ViewUtilities::native_constructor_words(owner) {
                 owner.copy_from_slice(&initialized);
@@ -353,6 +485,54 @@ mod tests {
         assert_eq!(owner[0x444 / 4], 0x1357_0000);
         assert_eq!(owner[1], 0);
         assert_eq!(out[31], 1);
+    }
+
+    #[test]
+    fn private_mesh_fixture_checks_strict_distance_and_model_provider_calls() {
+        for indexed in [0, 1] {
+            for (nearest, hit) in [(100.0_f32, true), (2.0, false), (1.0, false)] {
+                let mut input = [0; 64];
+                input[1] = indexed;
+                input[5] = nearest.to_bits();
+                input[6] = 2;
+                let mut owner = [0; 0x470 / 4];
+                let mut out = [0xcccc_cccc; 32];
+                // SAFETY: initialized, disjoint buffers with the transport sizes.
+                unsafe {
+                    fc4_viewutil_shadow_state(0x007f91c0, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr());
+                }
+                assert_eq!(out[31], u32::from(hit));
+                assert_eq!(out[10], nearest.min(2.0).to_bits());
+                assert_eq!(out[9], 0xcccc_cccc);
+                // SAFETY: same fixed transport buffers.
+                unsafe {
+                    fc4_viewutil_shadow_state(0x007f9a40, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr());
+                }
+                assert_eq!(&out[20..23], &[1, 2, 2]);
+                assert_eq!(out[24], 0);
+                assert_eq!(out[31], u32::from(hit));
+            }
+        }
+    }
+
+    #[test]
+    fn private_camera_fixture_checks_successful_ground_wrappers_and_owner_preservation() {
+        let mut input = [0; 64];
+        input[0] = 4;
+        input[1] = 4;
+        let mut owner = [0; 0x470 / 4];
+        owner[1] = 1;
+        let before = owner;
+        let mut out = [0xcccc_cccc; 32];
+        // SAFETY: initialized, disjoint buffers with the transport sizes.
+        unsafe {
+            fc4_viewutil_shadow_state(0x007f9160, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr());
+        }
+        assert_eq!(&out[..3], &[0, 0, 0]);
+        assert_eq!(out[16], 1);
+        assert_eq!(out[31], 1);
+        assert_eq!(owner, before);
+        assert_eq!(out[3], 0xcccc_cccc);
     }
 
     #[test]

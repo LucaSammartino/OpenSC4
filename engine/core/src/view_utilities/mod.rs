@@ -89,9 +89,10 @@ pub fn get_object_y_rotation_angle(rotation: i32) -> f32 {
 pub fn get_city_width_from_ortho_view(width: f32, zoom: u32) -> Option<f32> {
     get_camera_view_angles_for_rotation(0, zoom)?;
     let a = f64::from(f32::from_bits(0x3ec9_0fdb));
-    // SPEC-GAP: VU12 does not publish the trig intermediate stores; retain the
-    // portable evaluation and expose its native mismatch in the shadow.
-    Some((f64::from(width) * (a.cos() + a.sin())) as f32)
+    // §2.3: PC=24 rounds each product before adding; trig stays unrounded.
+    let sine_product = crate::x87::r24(a.sin() * f64::from(width));
+    let cosine_product = crate::x87::r24(a.cos() * f64::from(width));
+    Some((sine_product + cosine_product) as f32)
 }
 
 pub fn rotate_vector_by_view_rotation(v: &mut Vec3, rotation: i32) {
@@ -401,9 +402,9 @@ impl ViewUtilities {
     }
     pub fn get_frustum_aabb_city_clipped(&self, view_frustum: bool) -> Option<Aabb> {
         if view_frustum {
-            self.view.city_clipped_bounds
+            frustum::city_clipped_bounds(&self.view.corners, self.city)
         } else {
-            self.draw.city_clipped_bounds
+            frustum::city_clipped_bounds(&self.draw.corners, self.city)
         }
     }
 

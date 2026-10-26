@@ -484,6 +484,18 @@ fn angle_contract_vectors_and_all_zoom_table_entries() {
     }
     close(get_object_y_rotation_angle(3), -4.712389);
     close(get_city_width_from_ortho_view(100.0, 0).unwrap(), 130.6563);
+    // §2.3 worked cases plus every width that differed in gen27-r5e.
+    for (width, word) in [
+        (64.0, 0x42a7_3d74),
+        (128.0, 0x4327_3d74),
+        (256.0, 0x43a7_3d74),
+        (512.0, 0x4427_3d74),
+        (960.0, 0x449c_c99e),
+        (1024.0, 0x44a7_3d74),
+        (1920.0, 0x451c_c99e),
+    ] {
+        assert_eq!(get_city_width_from_ortho_view(width, 1).unwrap().to_bits(), word);
+    }
     assert!(get_camera_view_angles_for_rotation(0, 5).is_none());
     assert!(get_city_width_from_ortho_view(100.0, 5).is_none());
 }

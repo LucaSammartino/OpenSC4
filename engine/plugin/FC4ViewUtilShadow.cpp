@@ -69,6 +69,11 @@ bool SupportedImage() {
 using Packet = std::array<uint32_t, 32>;
 uint32_t Bits(float f) { uint32_t u; std::memcpy(&u, &f, 4); return u; }
 float Float(uint32_t u) { float f; std::memcpy(&f, &u, 4); return f; }
+uint16_t RawControlWord() {
+    uint16_t cw;
+    __asm fnstcw cw
+    return cw;
+}
 struct Family {
     uint32_t va; const char* name; uint32_t exact = 0, total = 0;
     uint32_t calls = 0, complete = 0, mismatches = 0;
@@ -150,20 +155,136 @@ Family cachedFamilies[] = {
     {0x007f6ba0,"city-corner"},{0x007f7710,"clip3"},{0x007f7750,"visible-edges"},
     {0x007f77d0,"world-view"},{0x007f7850,"world-viewport"},{0x007f78a0,"depth"},
     {0x007f78e0,"world-viewport2"},{0x007f7920,"view-world"},{0x007f79b0,"viewport-world"},
-    {0x007f7a40,"box-rectangle"},{0x007f7e50,"view-point"},{0x007f8390,"viewport-fixed"}
+    {0x007f7a40,"box-rectangle"},{0x007f7e50,"view-point"},{0x007f8390,"viewport-fixed"},
+    {0x007f6910,"draw-box"}, {0x007f7f60,"city-frustum-box"}
 };
 Family stateFamilies[] = {
     {0x007f6df0,"constructor"}, {0x007f83f0,"failed-update"},
     {0x007f9080,"ray-failure"}, {0x007f9b40,"warm-visible-area"},
     {0x0080b000,"iterator-destructor"}, {0x0080b3b0,"iterator-next"}
 };
-Family pendingFamilies[] = {
-    {0x007f6910,"draw-box"}, {0x007f7f60,"city-frustum-box"},
-    // SPEC-GAP: VU17 does not publish the mesh/resource pointer hierarchy.
+Family fixtureFamilies[] = {
     {0x007f9160,"viewport-ground"}, {0x007f91c0,"mesh-pick"},
     {0x007f9a40,"model-pick"}, {0x007f9ea0,"ground-corners"},
     {0x007f9f50,"draw-build"}, {0x0080b320,"iterator-select"}
 };
+
+// Native fixtures use only the consumed records and slots in §§5.1/7.1.1/13.3
+// and camera.md §1.1. No references or game-owned storage are acquired.
+struct Providers {
+    void** vtable;
+    void* camera = nullptr;
+    void* mesh = nullptr;
+    uint32_t count = 0, kind = 0;
+    uint32_t cameraCalls = 0, countCalls = 0, meshCalls = 0, transformCalls = 0, trace = 0, badIdentity = 0;
+};
+void* __fastcall FixtureGetCamera(Providers* p, void*) { ++p->cameraCalls; return p->camera; }
+uint32_t __fastcall FixtureMeshCount(Providers* p, void*) {
+    ++p->countCalls; p->trace=p->trace*17+1; return p->count;
+}
+void* __fastcall FixtureGetMesh(Providers* p, void*, uint32_t index) {
+    ++p->meshCalls; p->trace=p->trace*17+10+index; return p->mesh;
+}
+void __fastcall FixtureGetTransform(Providers* p, void*, uint32_t* transform) {
+    ++p->transformCalls; p->trace=p->trace*17+100;
+    if ((transform[0]&0xff00)!=0 || transform[1]!=Bits(1) || transform[5]!=Bits(1) ||
+        transform[9]!=Bits(1) || transform[13]!=Bits(1)) ++p->badIdentity;
+    for (unsigned j : {2u,3u,4u,6u,7u,8u,10u,11u,12u})
+        if (transform[j]!=0) ++p->badIdentity;
+    transform[0]=(transform[0]&~0xff00u)|(p->kind<<8);
+}
+
+uint32_t CompareFixtures(const fc4_date& date, bool binding, const Owner& snapshot, uint32_t& totalFields) {
+    uint32_t totalMismatches=0;
+    for (auto& family : fixtureFamilies) {
+        uint32_t fields=0, mismatches=0;
+        for (uint32_t sample=0; binding && sample<32; ++sample) {
+            std::array<void*,15> slots{};
+            slots[14]=reinterpret_cast<void*>(&FixtureGetCamera);
+            slots[3]=reinterpret_cast<void*>(&FixtureMeshCount);
+            slots[5]=reinterpret_cast<void*>(&FixtureGetMesh);
+            slots[9]=reinterpret_cast<void*>(&FixtureGetTransform);
+            std::array<uint32_t,0x1a8/4> camera{};
+            camera[0]=0x00abd2c4; camera[0x08/4]=camera[0x0c/4]=Bits(8);
+            camera[0x28/4]=0x0400; camera[0x2c/4]=Bits(1);
+            camera[0x40/4]=Bits(-1); camera[0x48/4]=Bits(1);
+            camera[0x54/4]=Bits(4); camera[0x5c/4]=Bits(1);
+            camera[0x180/4]=2; camera[0x184/4]=Bits(1);
+            const auto cameraBefore=camera;
+            Vector vertices[]={{99,99,99},{0,0,0},{2,0,0},{0,2,0}};
+            uint16_t indices[]={99,1,2,3};
+            auto address=[](const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); };
+            std::array<uint32_t,0x30/4> vertexBuffer{};
+            vertexBuffer[0]=1; vertexBuffer[1]=(4u<<16)|12; vertexBuffer[2]=address(vertices);
+            uint32_t indexBuffer=address(indices);
+            std::array<uint32_t,6> groups{{sample%9,1,3,sample%9,1,3}};
+            std::array<uint32_t,4> groupBuffer{{0,address(groups.data()),address(groups.data()+groups.size()),address(groups.data()+groups.size())}};
+            std::array<uint32_t,3> mesh{{address(vertexBuffer.data()),sample%2?address(&indexBuffer):0,address(groupBuffer.data())}};
+            Providers providers{slots.data()}; providers.camera=camera.data(); providers.mesh=mesh.data();
+            providers.count=sample%3; providers.kind=sample%8==7?255:sample%8;
+            Owner nativeOwner=snapshot; nativeOwner[1]=address(&providers);
+            nativeOwner[0x28/4]=nativeOwner[0x2c/4]=8;
+            Owner replacementOwner=nativeOwner;
+            std::array<uint32_t,64> in{};
+            in[0]=sample%9; in[1]=sample%2; in[4]=providers.kind;
+            in[5]=Bits(sample%4==0?2.0f:sample%4==1?1.0f:100.0f);
+            in[6]=providers.count; in[7]=sample%2;
+            in[8]=address(vertices); in[9]=address(indices);
+            if (family.va==0x007f9160 || family.va==0x007f9ea0) {
+                in[0]=sample%8; in[1]=(sample/4)%8; in[2]=in[0]+4; in[3]=in[1]+4;
+            }
+            Packet native{}, replacement{}; native.fill(0x41200000);
+            if (family.va==0x007f91c0 || family.va==0x007f9a40) {
+                const float ray[]={0.5f,0.5f,2,0,0,-1};
+                std::memcpy(native.data(),ray,sizeof(ray)); native[10]=in[5];
+            }
+            replacement=native;
+            std::array<uint32_t,14> transform{};
+            transform[0]=providers.kind<<8; transform[1]=transform[5]=transform[9]=transform[13]=Bits(1);
+            auto* out=reinterpret_cast<Vector*>(native.data());
+            switch (family.va) {
+            case 0x007f9160:
+                native[31]=Entry<bool(__thiscall*)(void*,int32_t,int32_t,Vector*)>(family.va)(nativeOwner.data(),in[0],in[1],out); break;
+            case 0x007f9ea0:
+                Entry<void(__thiscall*)(void*,uint32_t*,uint32_t*,uint32_t*,uint32_t*,const uint32_t*,const uint32_t*)>(family.va)(
+                    nativeOwner.data(),&native[0],&native[2],&native[4],&native[6],&in[0],&in[2]); break;
+            case 0x007f9f50: {
+                const uint32_t rect[]={0,0,8,8};
+                Entry<void(__thiscall*)(void*,const uint32_t*,const uint32_t*)>(family.va)(nativeOwner.data(),rect,rect+2); break;
+            }
+            case 0x007f91c0:
+                native[31]=Entry<bool(__cdecl*)(void*,void*,void*)>(family.va)(native.data(),mesh.data(),transform.data()); break;
+            case 0x007f9a40:
+                native[31]=Entry<bool(__cdecl*)(void*,void*,void*)>(family.va)(native.data(),&providers,&providers);
+                native[20]=providers.countCalls; native[21]=providers.meshCalls; native[22]=providers.transformCalls;
+                native[23]=providers.trace; native[24]=providers.badIdentity; break;
+            case 0x0080b320:
+                Entry<void(__thiscall*)(void*,void*,int32_t)>(family.va)(nativeOwner.data(),mesh.data(),in[7]); break;
+            }
+            if (family.va==0x007f9160 || family.va==0x007f9ea0 || family.va==0x007f9f50)
+                native[16]=providers.cameraCalls;
+            fc4_viewutil_shadow_state(family.va,replacementOwner.data(),in.data(),replacement.data());
+            const auto compare=[&](uint32_t a,uint32_t b,size_t word,const char* buffer) {
+                ++fields;
+                if (a!=b) {
+                    if (mismatches<8) fc4::Log("viewutil detail family=%s sample=%u buffer=%s word=%u native=%08x core=%08x",
+                        family.name,sample,buffer,static_cast<unsigned>(word),a,b);
+                    ++mismatches;
+                }
+            };
+            for (size_t j=0;j<native.size();++j) compare(native[j],replacement[j],j,"out");
+            for (size_t j=0;j<nativeOwner.size();++j) compare(nativeOwner[j],replacementOwner[j],j,"owner");
+            for (size_t j=0;j<camera.size();++j) compare(camera[j],cameraBefore[j],j,"camera");
+        }
+        if (!binding) ++mismatches;
+        fc4::Log("viewutil-%s shadow %04d-%02d-%02d: body=%08x scope=private-providers samples=%u fields=%u resyncs=0 mismatches=%u",
+            family.name,date.year,date.month,date.day_of_month,family.va,binding?32u:0u,fields,mismatches);
+        ++family.total; family.exact+=mismatches==0;
+        MethodEvidence(family,date,binding?32u:0u,binding?32u:0u,mismatches);
+        totalFields+=fields; totalMismatches+=mismatches;
+    }
+    return totalMismatches;
+}
 
 uint32_t CompareState(const fc4_date& date, bool binding, const Owner& snapshot, uint32_t& totalFields) {
     uint32_t totalMismatches = 0;
@@ -236,7 +357,6 @@ uint32_t CompareState(const fc4_date& date, bool binding, const Owner& snapshot,
         MethodEvidence(family,date,binding?32u:0u,binding?32u:0u,mismatches);
         totalFields+=fields; totalMismatches+=mismatches;
     }
-    for (auto& family : pendingFamilies) MethodEvidence(family,date,0,0,0);
     return totalMismatches;
 }
 
@@ -252,8 +372,10 @@ void NativeCached(uint32_t op, Owner& owner, const Packet& in, Packet& out) {
         out[0]=Bits(Entry<float(__thiscall*)(void*,float)>(op)(self,v[0].x)); break;
     case 0x007f66a0: case 0x007f7750:
         Entry<void(__thiscall*)(void*,uint32_t*,uint32_t*)>(op)(self,&out[0],&out[1]); break;
-    case 0x007f6770:
+    case 0x007f6770: case 0x007f6910:
         out[0]=Entry<bool(__thiscall*)(void*,Vector*,Vector*)>(op)(self,&v[0],&v[1]); break;
+    case 0x007f7f60:
+        Entry<void(__thiscall*)(void*,uint32_t,Vector*,Vector*)>(op)(self,in[6],result,result+1); break;
     case 0x007f6ba0:
         Entry<void(__thiscall*)(void*,int32_t,Vector*)>(op)(self,static_cast<int32_t>(in[0]),result); break;
     case 0x007f78a0:
@@ -281,6 +403,7 @@ uint32_t CompareCached(const fc4_date& date, bool available, const Owner& snapsh
                 in[j+3]=Bits(Float(in[j])+64);
             }
             if (family.va == 0x007f6ba0) in[0]=sample % 6 - 1;
+            if (family.va == 0x007f7f60) in[6]=sample%2;
             // R-class: copy live cached inputs; no provider pointers are used.
             Owner privateOwner=snapshot;
             NativeCached(family.va,privateOwner,in,native);
@@ -412,7 +535,12 @@ uint32_t CompareLocal(const fc4_date& date, bool binding, bool liveAvailable,
                     for (size_t j = 0; j < 4; ++j) in[j] = live[(at + j) % live.size()][j % 3];
                 }
             }
+            // Observe the calling thread without changing its numeric mode.
+            const auto cw = RawControlWord();
             NativeLocal(family.va, in, native);
+            if ((family.va == 0x007f8300 || family.va == 0x007f7780) && sample < 8)
+                fc4::Log("viewutil numeric body=%08x sample=%u cw=%04x capture=f32 input0=%08x input1=%08x output0=%08x",
+                    family.va,sample,cw,in[0],in[1],native[0]);
             fc4_viewutil_shadow_local(family.va, in.data(), replacement.data());
             for (size_t j = 0; j < native.size(); ++j) {
                 ++fields;
@@ -544,10 +672,11 @@ void Compare(int32_t julian, bool load) {
     subsetFields += fields - beforeCached;
     subsetMismatches += cachedMismatches;
     mismatches += CompareState(date,base != 0,snapshot,fields);
+    mismatches += CompareFixtures(date,base != 0,snapshot,fields);
     fc4::Log("viewutil-subset shadow %04d-%02d-%02d: bodies=34/50 excluded=camera-angles,city-width fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, subsetFields, subsetMismatches);
     subsetClean += subsetMismatches == 0;
-    fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-cached-private-state bodies=42/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
+    fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-cached-private-providers bodies=50/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month", available ? 1u : 0u,
         liveRotation, samples, fields, mismatches);
     ++lines;
@@ -566,24 +695,25 @@ void ViewUtilShadowCityLoaded(cISC4City* city, int32_t julian) {
     for (auto& family : localFamilies) family.calls = family.complete = family.mismatches = 0;
     for (auto& family : cachedFamilies) family.calls = family.complete = family.mismatches = 0;
     for (auto& family : stateFamilies) family = Family{family.va,family.name};
-    for (auto& family : pendingFamilies) family = Family{family.va,family.name};
+    for (auto& family : fixtureFamilies) family = Family{family.va,family.name};
     lastMonth = -1;
     if (!active) return;
     unsigned short cw=0;
     __asm { fnstcw cw }
-    Log("viewutil: ON; VU15/VU16 local, cached and private state (42/50 bodies); scalar capture=f32; x87_cw=%04x; isolated storage; default-off",cw);
+    Log("viewutil: ON; VU15/VU16 local, cached and private providers (50/50 bodies); scalar capture=f32; x87_cw=%04x; isolated storage; default-off",cw);
     if (auto* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     Compare(julian, true);
 }
 void ViewUtilShadowMonth(int32_t julian) { Compare(julian, false); }
 void ViewUtilShadowCityShutdown() {
     if (active) {
-        Log("viewutil: %u/%u exact (42/50 bodies), resyncs=0", clean, lines);
+        Log("viewutil: %u/%u exact (50/50 bodies), resyncs=0", clean, lines);
         Log("viewutil-subset: %u/%u exact (34/50 bodies; excludes camera-angles,city-width), resyncs=0", subsetClean, lines);
         Log("viewutil-rotation: %u/%u exact, resyncs=0",rotationFamily.exact,rotationFamily.total);
         for (const auto& family : localFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
         for (const auto& family : cachedFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
         for (const auto& family : stateFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
+        for (const auto& family : fixtureFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
     }
     active = false;
 }
