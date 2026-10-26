@@ -1,3 +1,4 @@
 # One-action reduction of gen27 Konradshohe seed 0 grow (original L129).
-# Pinned DLL 624dd491: plain, end 2026-02-01 -> quit AV 0x005D0F94.
+# Plain, end 2026-02-01: both tick-owned and native posted quit fault at 0x005D0F94.
+# Disabling construction animation is a separate clean control, not this finding.
 2026-01-30 port airport 8 11 1 0

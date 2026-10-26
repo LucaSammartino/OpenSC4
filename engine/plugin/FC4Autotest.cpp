@@ -231,13 +231,12 @@ void RequestQuitNow(long julian) {
             if (fw->GetSystemService(kFC4_SRVID_cIGZMessageServer, kFC4_IID_cIGZMessageServer,
                                      reinterpret_cast<void**>(&server)) && server) {
                 FC4_ACQUIRED(server, "GetSystemService");
-                Log("autotest: native quit post method=%p target=%p", (*reinterpret_cast<void***>(server))[7], target);
                 // Native cSC4App::DoMessage at 00451C30 handles C7AA61C6 by
                 // calling RequestQuit(false, false). Post, never synchronously
                 // send: delivery must be outside the observer's current tick.
                 const cGZMessage command(0xC7AA61C6u);
-                posted = server->GeneralMessagePostToTarget(command, target);
-                failure = "legacy message service rejected the command";
+                server->GeneralMessagePostToTarget(command, target);  // void: native 00930273
+                posted = true;
                 FC4_RELEASE(server);
             }
             FC4_RELEASE(target);
