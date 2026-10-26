@@ -650,7 +650,8 @@ public:
     HostContext* Host() { return &host_; }
     using ViewInit = bool(__thiscall*)(void*, cFC4ISTETerrain*);
     using ViewShutdown = void(__thiscall*)(void*);
-    bool InitView(ViewInit init, ViewShutdown shutdown);
+    using TerrainStaticInit = bool(__cdecl*)();
+    bool InitView(TerrainStaticInit staticInit, ViewInit init, ViewShutdown shutdown);
 
 private:
     bool Enter() const;
@@ -845,11 +846,15 @@ void cFC4STETerrain::SyncDrawVertices() {
     }
 }
 
-bool cFC4STETerrain::InitView(ViewInit init, ViewShutdown shutdown) {
+bool cFC4STETerrain::InitView(TerrainStaticInit staticInit, ViewInit init, ViewShutdown shutdown) {
     // NM20: native slot 15 borrows this view and reads its retained PRIMARY
     // terrain, including +0x6C. Publication/readiness must follow Init.
     if (viewInitialized_) return true;
-    if (f_.view == nullptr || init == nullptr || shutdown == nullptr || !init(f_.view, this)) return false;
+    if (f_.view == nullptr || staticInit == nullptr || init == nullptr || shutdown == nullptr) return false;
+    // terrain.md section 15.5.12.2: the native view's process-wide texture
+    // tables depend on terrain StaticInit. It is idempotent, has no receiver,
+    // and must run before the view's first Init allocates those tables.
+    if (!staticInit() || !init(f_.view, this)) return false;
     viewShutdown_ = shutdown;
     viewInitialized_ = true;
     f_.viewReady = 1;
@@ -996,7 +1001,8 @@ void cFC4STETerrain::DoPostCityInit() {
                     kFC4_CLSID_cSTETerrainView);
             }
         }
-        if (InitView(reinterpret_cast<ViewInit>(compat::DirectCall(compat::Direct::TerrainViewInit)),
+        if (InitView(reinterpret_cast<TerrainStaticInit>(compat::DirectCall(compat::Direct::TerrainStaticInit)),
+                     reinterpret_cast<ViewInit>(compat::DirectCall(compat::Direct::TerrainViewInit)),
                      reinterpret_cast<ViewShutdown>(compat::DirectCall(compat::Direct::TerrainViewShutdown)))) {
             Log("terrain: NM20 view initialized: base=%p drawing=%p primary=%p vertices=%p ready=%u",
                 f_.view, GetView(), Primary(), f_.vertices, f_.viewReady);
@@ -1661,9 +1667,20 @@ struct TerrainViewFixture {
     uint32_t initCalls = 0, shutdownCalls = 0, releases = 0, draws = 0, errors = 0;
     uint16_t drawnFlags = 0;
     bool visible = true, failInit = false;
+    uint32_t staticInitCalls = 0;
+    bool staticReady = false, failStaticInit = false;
 };
 static_assert(offsetof(TerrainViewFixture, drawingVtable) == 0x0C, "NM20 receiver");
 static_assert(offsetof(TerrainViewFixture, terrain) == 0x20, "NM20 retained primary terrain");
+
+TerrainViewFixture* g_terrainStaticFixture = nullptr;
+bool __cdecl TerrainFixtureStaticInit() {
+    auto* view = g_terrainStaticFixture;
+    ++view->staticInitCalls;
+    if (view->failStaticInit) return false;
+    view->staticReady = true;
+    return true;
+}
 
 bool __fastcall TerrainFixtureQuery(TerrainViewFixture*, void*, uint32_t, void** out) {
     if (out != nullptr) *out = nullptr;
@@ -1679,7 +1696,7 @@ uint32_t __fastcall TerrainFixtureRelease(TerrainViewFixture* view, void*) {
 bool __fastcall TerrainFixtureInit(TerrainViewFixture* view, void*, fc4::cFC4ISTETerrain* terrain) {
     ++view->initCalls;
     auto* t = static_cast<fc4::cFC4STETerrain*>(terrain);
-    if (t->f_.viewReady != 0 || t->f_.vertices == nullptr) ++view->errors;
+    if (!view->staticReady || t->f_.viewReady != 0 || t->f_.vertices == nullptr) ++view->errors;
     if (view->failInit) return false;
     if (reinterpret_cast<void*>(terrain) != t->Primary()) ++view->errors;
     view->terrain = terrain;
@@ -1839,19 +1856,27 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     void* drawingVtable[16]{};
     drawingVtable[15] = reinterpret_cast<void*>(&TerrainFixtureDraw);
     TerrainViewFixture view{};
+    g_terrainStaticFixture = &view;
     view.baseVtable = baseVtable;
     view.drawingVtable = drawingVtable;
     t->f_.view = &view;
     auto checkView = [&](bool ok) { ++in->slotsChecked; if (!ok) ++in->mismatches; };
     const auto initView = reinterpret_cast<cFC4STETerrain::ViewInit>(&TerrainFixtureInit);
     const auto stopView = reinterpret_cast<cFC4STETerrain::ViewShutdown>(&TerrainFixtureShutdown);
+    const auto initStatics = &TerrainFixtureStaticInit;
+    checkView(!t->InitView(nullptr, initView, stopView));
+    checkView(view.initCalls == 0 && view.staticInitCalls == 0 && t->f_.viewReady == 0);
+    view.failStaticInit = true;
+    checkView(!t->InitView(initStatics, initView, stopView));
+    checkView(view.initCalls == 0 && view.staticInitCalls == 1 && t->f_.viewReady == 0);
+    view.failStaticInit = false;
     view.failInit = true;
-    checkView(!t->InitView(initView, stopView));
+    checkView(!t->InitView(initStatics, initView, stopView));
     checkView(t->f_.viewReady == 0 && view.terrain == nullptr);
     view.failInit = false;
-    checkView(t->InitView(initView, stopView));
+    checkView(t->InitView(initStatics, initView, stopView));
     checkView(t->GetView() == reinterpret_cast<cISTETerrainView*>(reinterpret_cast<uint8_t*>(&view) + 0x0C));
-    checkView(t->InitView(initView, stopView) && view.initCalls == 2);
+    checkView(t->InitView(initStatics, initView, stopView) && view.initCalls == 2 && view.staticInitCalls == 3);
     checkView(t->AddRef() == 3);  // caller + initialized view + this probe
     t->Release();
     t->SetAltitudeXZ(44, 3, 275.0f);
@@ -1883,6 +1908,7 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     checkView(view.draws == 2 && (view.drawnFlags & 0x1000) != 0);
     t->Shutdown();
     checkView(view.shutdownCalls == 1 && view.releases == 1 && view.errors == 0);
+    g_terrainStaticFixture = nullptr;
     checkView(t->GetView() == nullptr && t->f_.vertices == nullptr);
     checkView(earlyWater->vertices_ == nullptr && lateWater->vertices_ == nullptr);
     checkView(t->AddRef() == 2);  // view returned its retained reference
