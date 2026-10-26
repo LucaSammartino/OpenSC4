@@ -205,7 +205,7 @@ Evidence: constructor stores `0x007A0D8B`–`0x007A0EFB`; selection fields/facto
 subscription vector `0x007A180B`–`0x007A193F`; scratch-grid allocation/retention
 `0x007A2085`–`0x007A2103`. The scratch grid is initialized, told slot 9(true) and slot 6(`0x89D5C471`),
 then rebuilt for layer 5 as in §4.1. It survives subsequent ordinary redraws/view changes; Shutdown calls
-its slots 4 and 2 and clears the pointer (`0x0079FE1D`–`0x0079FE39`). Message-server and marked-cell
+its slots 4 and 2 and clears the pointer (`0x0079FE2E`–`0x0079FE49`). Message-server and marked-cell
 references, custom-view lifecycle, and renderer registration must remain separate identities.
 
 #### Dynamic records, order and comparison
@@ -1420,3 +1420,8 @@ QV1, QV4–QV13 and QV16 are answered in the relevant sections; see the
     **0/−1/0/−1**, so weights are **255/256/255/256**. Source red on opaque black gives red byte
     **254/255/254/255**. This deliberately caller-modified state demonstrates why the helper's
     conversion cannot be replaced with mathematical floor for every RC. The helper leaves RC intact.
+49. **Same-invocation state/surface binding (DS29-1):** use §4.5's layer-2 fixture with each entry
+    adjustment from §1.3. Verify the two inline owner deltas, the unchanged ordered pending requests,
+    four exact pixel words and SetOverlay/reference sequence. Run the notification tick variant with
+    a distinct eligibility clock and ensure the stored clock is the Update-tail sample. A widget
+    draw-context stream with no MapView-local calls is insufficient evidence for this vector.
