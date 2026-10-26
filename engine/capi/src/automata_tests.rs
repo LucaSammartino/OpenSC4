@@ -32,6 +32,10 @@ fn derived_owner_records_replay_full_payload_and_release_every_acquisition() {
     use fc4_core::automata::{AircraftPlacementRecord, AutomatonBase, PedestrianRecord, VehicleRecord};
     use fc4_core::stream::{OutStream, RefValue};
 
+    fn encode(write: impl FnOnce(&mut dyn OutStream) -> bool) -> Vec<u8> {
+        unsafe { write_with(|s| write(&mut crate::stream::COut(&*s))) }
+    }
+
     let leader = RefValue::Host {
         token: 17,
         class_id: PEDESTRIAN,
@@ -43,17 +47,13 @@ fn derived_owner_records_replay_full_payload_and_release_every_acquisition() {
     let mut aircraft = AircraftPlacementRecord::default();
     aircraft.aircraft.base = base.clone();
     aircraft.home_position = [-8.0, 91.5, 3.0];
-    let placement = write_with(|s| aircraft.write(&mut crate::stream::COut(unsafe { &*s })));
+    let placement = encode(|out| aircraft.write(out));
     let mut vehicle = VehicleRecord::new();
     vehicle.traffic.base = base.clone();
     // Independent wire framing: Bus/TrainCar add one u16; Train adds two
     // and retains a distinct car list, trailing network and raw dwords.
-    let car = write_with(|s| {
-        let mut out = crate::stream::COut(unsafe { &*s });
-        out.put_u16(2) && vehicle.write(&mut out)
-    });
-    let train = write_with(|s| {
-        let mut out = crate::stream::COut(unsafe { &*s });
+    let car = encode(|out| out.put_u16(2) && vehicle.write(out));
+    let train = encode(|out| {
         out.put_u16(2);
         out.put_bytes(&car);
         out.put_u32(1);
@@ -71,17 +71,11 @@ fn derived_owner_records_replay_full_payload_and_release_every_acquisition() {
         });
         out.put_u32(0x8000_0000)
     });
-    let water = write_with(|s| {
-        let mut out = crate::stream::COut(unsafe { &*s });
-        out.put_u16(2) && base.write(&mut out)
-    });
-    let aircraft_base = write_with(|s| {
-        let mut out = crate::stream::COut(unsafe { &*s });
-        out.put_u16(1) && base.write(&mut out)
-    });
+    let water = encode(|out| out.put_u16(2) && base.write(out));
+    let aircraft_base = encode(|out| out.put_u16(1) && base.write(out));
     let mut pedestrian = PedestrianRecord::new();
     pedestrian.traffic.base = base;
-    let one_shot = write_with(|s| pedestrian.write(&mut crate::stream::COut(unsafe { &*s })));
+    let one_shot = encode(|out| pedestrian.write(out));
     for (class, bytes, tokens) in [
         (0xCBEB_4F62, &placement, vec![17]),
         (0x8BA9_8EDA, &placement, vec![17]),
