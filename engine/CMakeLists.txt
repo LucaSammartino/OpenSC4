@@ -64,7 +64,7 @@ endif()
 # Compiler cache. Lanes build in fresh git worktrees, so every lane used to compile everything from scratch.
 # With sccache installed (`cargo install sccache --version 0.18.0 --locked`; docs/ops/coordinating.md "Build
 # cache") the C/C++ compiler and rustc go through it. .claude/lane-bin/fc4verify.py runs one sccache server per
-# worktree with SCCACHE_BASEDIRS set to the worktree, so C++ objects hit across worktrees. The cargo env below is
+# worktree, without SCCACHE_BASEDIRS, so objects hit only within their worktree. The cargo env below is
 # the one fc4verify uses: sccache hashes every CARGO_* variable, and incremental builds are not cacheable.
 option(FC4_COMPILER_CACHE "Compile C/C++ and Rust through sccache when it is installed" ON)
 set(FC4_CARGO_ENV "")
