@@ -56,6 +56,26 @@ bool Hazardous(const std::string& name) {
     return false;
 }
 
+const char* NeverArm(uint32_t address, uintptr_t preferredBase) {
+    if (preferredBase != 0x00400000) return "";
+    // 1.1.641 ABI roster artifacts, verified with re_query.py. These addresses
+    // are operands, not instruction boundaries. INT3 corrupts the containing
+    // instruction without delivering a breakpoint. See docs/ops/reach-tracing.md.
+    switch (address) {
+    case 0x00420036: return "not-entry:IID-immediate-at-00420034";
+    case 0x004f4442: return "not-entry:call-displacement-at-004f4440";
+    case 0x00505553: return "not-entry:ModRM-at-00505552";
+    case 0x00544547: return "not-entry:ModRM-stack-store-at-00544546";
+    case 0x005c3a63: return "not-entry:ModRM-stack-load-at-005c3a62";
+    case 0x005f5a52: return "not-entry:displacement-at-005f5a50";
+    case 0x00656c64: return "not-entry:absolute-address-at-00656c61";
+    case 0x00682632: return "not-entry:stack-displacement-at-0068262f";
+    case 0x00736559: return "not-entry:ModRM-stack-test-at-00736558";
+    case 0x00786f62: return "not-entry:SIB-stack-store-at-00786f60";
+    default: return "";
+    }
+}
+
 const char* UnsafeByte(uint8_t b) {
     if (b == 0xcc) return "preexisting-breakpoint";
     // Conservatively omit preexisting detours (including genuine jump thunks).
@@ -363,6 +383,7 @@ bool Tracer::Prepare(const std::vector<Contract>& contracts, uintptr_t preferred
         if ((i && c.address <= last) || c.address < preferredBase ||
             static_cast<uintptr_t>(c.address) - preferredBase >= imageSize ||
             c.size > imageSize - (static_cast<uintptr_t>(c.address) - preferredBase)) e.skipped = "outside-image-or-unordered";
+        else if (*NeverArm(c.address, preferredBase)) e.skipped = NeverArm(c.address, preferredBase);
         else if (Hazardous(c.name)) e.skipped = "exception-or-loader-runtime";
         else {
             // SPEC-GAP: a vtable-only contract can have unknown size (0);
@@ -517,6 +538,9 @@ bool Tracer::Write(const std::string& path) const {
     std::ofstream out(path, std::ios::binary);
     if (!out) return false;
     out << "# entries are capped lower bounds; concurrent entries during restore/step and suspended probe intervals are omitted\n";
+    for (const auto& r : Rows()) if (r.skipped.compare(0, 10, "not-entry:") == 0)
+        out << "# never_arm " << std::hex << std::setfill('0') << std::setw(8) << r.address
+            << std::dec << ' ' << r.skipped << '\n';
     out << "address\tentries\twindows_hit\tfirst_window\tlast_window\tcapped\tskipped\n";
     for (const auto& r : Rows()) {
         out << std::hex << std::setfill('0') << std::setw(8) << r.address << std::dec << '\t'

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <thread>
@@ -94,6 +95,48 @@ int main(int argc, char** argv) {
         std::ifstream actual(argv[2]);
         CHECK(fc4::reach::ReadContracts(actual, parsed, error));
         std::printf("reach ABI roster parsed rows=%zu error=%s\n", parsed.size(), error.c_str());
+    }
+
+    {
+        // A byte inside an instruction can look like a plausible opcode.
+        // Patching it silently changes the return value, without any INT3
+        // exception. Exercise every documented roster exclusion on a relocated
+        // synthetic image, alongside a valid entry that must still be traced.
+        constexpr uint32_t base = 0x400000;
+        const uint32_t bad[] = {0x420036, 0x4f4442, 0x505553, 0x544547, 0x5c3a63,
+            0x5f5a52, 0x656c64, 0x682632, 0x736559, 0x786f62};
+        auto* image = static_cast<uint8_t*>(VirtualAlloc(nullptr, 0x400000,
+            MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE));
+        CHECK(image != nullptr);
+        if (!image) return 2;
+        std::vector<fc4::reach::Contract> artifacts{{0x410010, 6, "valid"}};
+        const uint8_t body[] = {0xb8, 7, 0, 0, 0, 0xc3};  // return 7
+        std::memcpy(image + 0x10010, body, sizeof(body));
+        for (auto address : bad) {
+            std::memcpy(image + address - base - 1, body, sizeof(body));
+            artifacts.push_back({address, 1, "plausible-operand-byte"});
+        }
+        {
+            fc4::reach::Tracer tracer;
+            CHECK(tracer.Prepare(artifacts, base, reinterpret_cast<uintptr_t>(image), 0x400000));
+            CHECK(tracer.Start(2));
+            CHECK(reinterpret_cast<int(__cdecl*)()>(image + 0x10010)() == 7);
+            for (auto address : bad)
+                CHECK(reinterpret_cast<int(__cdecl*)()>(image + address - base - 1)() == 7);
+            const auto s = tracer.GetSummary();
+            CHECK(s.armed == 1 && s.skipped == 10 && s.reached == 1 && s.abortedSteps == 0);
+            CHECK(tracer.Write("reach-never-arm.tsv"));
+            std::ifstream input("reach-never-arm.tsv");
+            std::string text((std::istreambuf_iterator<char>(input)), {});
+            size_t position = 0, exclusions = 0;
+            while ((position = text.find("# never_arm ", position)) != std::string::npos) {
+                ++exclusions;
+                ++position;
+            }
+            CHECK(exclusions == 10);
+            std::printf("reach operand exclusions=10/10 relocated=1 valid-entry=1/1 header=10/10\n");
+        }
+        VirtualFree(image, 0, MEM_RELEASE);
     }
 
     HMODULE dll = LoadLibraryA(argv[1]);
