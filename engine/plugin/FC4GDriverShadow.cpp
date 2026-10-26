@@ -310,14 +310,15 @@ bool Patch(unsigned slot, void* value) {
     VirtualProtect(table + slot, sizeof(void*), old, &ignored);
     return true;
 }
-bool InstallDevice() {
+bool InstallDevice(DWORD& error) {
+    error = ERROR_SUCCESS;
     const auto* owner = reinterpret_cast<const uint8_t*>(driver) - 12;
     const auto* device = reinterpret_cast<void***>(static_cast<uintptr_t>(Word(owner, 0x224)));
     if (!device) return false;
     deviceTable = *device;
     deviceHooks = gdriver_trace::Hooks();
     DWORD old = 0;
-    if (!VirtualProtect(deviceTable, deviceHooks.size() * sizeof(void*), PAGE_READWRITE, &old)) { deviceTable = nullptr; return false; }
+    if (!VirtualProtect(deviceTable, deviceHooks.size() * sizeof(void*), PAGE_READWRITE, &old)) { error = GetLastError(); deviceTable = nullptr; return false; }
     for (unsigned i = 0; i < deviceHooks.size(); ++i) gdriver_trace::original[i] = deviceTable[i];
     for (unsigned i = 0; i < deviceHooks.size(); ++i) InterlockedExchangePointer(deviceTable + i, deviceHooks[i]);
     DWORD ignored = 0;
@@ -367,7 +368,15 @@ void GDriverShadowCityLoaded() {
     frame = compared = differences = refused = lines = clean = details = 0;
     std::memset(methodCalls, 0, sizeof(methodCalls)); std::memset(complete, 0, sizeof(complete));
     std::memset(methodDifferences, 0, sizeof(methodDifferences)); std::memset(methodRefused, 0, sizeof(methodRefused));
-    if (!InstallDevice()) { table = nullptr; FC4_RELEASE(driver); driver = nullptr; Log("gdriver: unavailable: device capture installation failed"); return; }
+    DWORD deviceError = ERROR_SUCCESS;
+    if (!InstallDevice(deviceError)) {
+        const auto* owner = reinterpret_cast<const uint8_t*>(driver) - 12;
+        if (!selectionLogged) Log("gdriver: unavailable: device capture installation failed; current_table=0x%08X selected_active=%u device=0x%08X stages=%u winerror=%lu; retry=monthly",
+            static_cast<unsigned>(currentTable), candidate == (graphics ? graphics->GetGDriver() : nullptr), Word(owner, 0x224), Word(owner, 0x124), deviceError);
+        selectionLogged = true;
+        table = nullptr; FC4_RELEASE(driver); driver = nullptr;
+        return;
+    }
     // Explicit spec slots: the SDK reverses several overloads. No SDK overload
     // dispatch is used for those methods (renderer-driver §§10.2 and 11).
     hooks[12] = reinterpret_cast<void*>(&ClearColor); hooks[13] = reinterpret_cast<void*>(&ClearDepth);
