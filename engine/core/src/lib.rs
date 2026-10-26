@@ -189,3 +189,5 @@ pub mod city_geometry;
 pub mod regional_city;
 pub mod region;
 pub mod pedestrians;
+pub mod dispatch_vehicle_track_info;
+pub mod dispatch_vehicle_view;
