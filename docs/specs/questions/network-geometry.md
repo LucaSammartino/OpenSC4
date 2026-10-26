@@ -13,5 +13,7 @@
   counts). The vertical five-cell controls return true on both sides, price=66/75.
   Evidence: `build-runs/suite/plans-cities29-2/gen27-spandau-s1-default.log:8936`.
   The current implementation's inferred section mapping is retained; no constraint
-  is removed or relaxed. Fresh public-terrain diagnostics are queued under
-  `plans-cities29-r3-spandau`; that run has not produced a verdict yet.
+  is removed or relaxed. `plans-cities29-r3-spandau` independently repeats these
+  differences (clean, ref_warnings=0, nettool=4/7, powerline=7/7), but staged the
+  preceding DLL before the new public-terrain diagnostics finished building.
+  A run of that diagnostic DLL is still needed for the multi-cell terrain trace.
