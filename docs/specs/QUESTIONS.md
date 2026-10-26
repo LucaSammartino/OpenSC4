@@ -201,6 +201,7 @@ generated index: the questions live one file per spec, so read only the file for
 | UG | underground-occupants |
 | UIH | ui-helpers |
 | UIS | ui-script-service |
+| VC | foundations |
 | VH | vehicles |
 | VIC | view-input-controls |
 | VP | video-preferences |
@@ -282,7 +283,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 10 | AO4, HG9, RN6, SV2, VC30 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | freshness | 5 | 0 | FS6 | questions/freshness.md |
@@ -431,4 +432,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **615** | **1672** | | |
+| **total** | **615** | **1673** | | |
