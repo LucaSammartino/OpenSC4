@@ -48,3 +48,13 @@
   exact): native -11584.5830078125 versus core -11584.583251953125, for example. [Apply foundations
   §18.3 literally: load each double without rounding, round each of the two sums and the final
   subtraction to 24-bit precision; retain the double storage and return type. Please reconcile §5.]
+
+<!-- from: replace-region27 (2026-10-26) -->
+- **RY9 - §6.2 / regional-city-records §4.6–§4.7 (RR3), replacement blocker:** Please specify the native interface
+  calls needed to implement ConnectionHost for CreateSymmetricConnections: the network segment method and all
+  arguments (including the meaning of the four trailing values), the demolition region/filter method and arguments
+  for no confirmation/no charge, the traffic-map presence test, the occupant-by-cell query and the connection-word
+  getter/setter. The portable core already implements the described semantic operations, but regional-city-records
+  §4 explicitly leaves these native arguments undecoded as RR3. A road-border/save acceptance run cannot establish
+  a complete COM replacement without this host path. Native registration remains unimplemented pending this contract;
+  the lane is stopping this item rather than choosing undocumented native calls.
