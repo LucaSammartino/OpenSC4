@@ -144,8 +144,7 @@ impl Windows {
     }
     fn steal_fade_buffer(&mut self, host: &mut impl Host, src: Window, buffer: Object) -> Window {
         let s = self.get(src).clone();
-        let tmp = self.create(host, s.manager, s.keyboard);
-        self.set_param(host, tmp, FADE_TEMP, Some(Param::Integer(1)));
+        let tmp = self.create_fade(host, s.manager, s.keyboard);
         self.set_flag(host, tmp, 4, true);
         if let Some(p) = s.parent {
             self.child_add(host, p, tmp);
@@ -244,8 +243,9 @@ impl Windows {
         if let Some(c) = s.draw_context {
             host.event(NativeOp::AddRef(c));
             host.event(NativeOp::Context(c, 3, vec![]));
-            host.event(NativeOp::ContextRect(c, 8, s.draw_origin));
-            host.event(NativeOp::ContextRect(c, 6, s.draw_origin));
+            let origin = s.draw_origin.expect("SetAreaToDrawTo precedes painting (§2)");
+            host.event(NativeOp::ContextRect(c, 8, origin));
+            host.event(NativeOp::ContextRect(c, 6, origin));
             for slot in [4, 15, 10, 19] {
                 host.event(NativeOp::Context(c, slot, vec![]));
             }

@@ -36,9 +36,9 @@ New section 10.1 vectors are in `base/closure_tests.rs`.
 
 | Owner | Spec section | Implemented in `engine/core/src/ui_windows/base/` | Test / remaining question |
 |---|---|---|---|
-| cGZWin | 1 identity | `IID_WIN`, `BaseWindow`, `Windows::create`, `create_default` | `wt01_constructor_and_lifecycle`, `constructors_reparenting_and_tree_forwarders`; native own vtable open: WT1 |
-| cGZWin | 2 layout and defaults | `BaseWindow::new`, public state | `wt01_constructor_and_lifecycle`; untouched A0/A4 zeroed, open: WT2 |
-| cGZWin | 3 flags | `BaseWindow::flag`, `Windows::set_flag` | `wt05_06_exact_mask_focus_capture`; unused default bits retained, open: WT3 |
+| cGZWin | 1 identity — implemented | `IID_WIN`, `BaseWindow`, `Windows::create`, `create_default`, `base_slot`, `Host::handler` (WT1) | `wt01_constructor_and_lifecycle`, `constructors_reparenting_and_tree_forwarders`, `resolved_tests::wt1_callable_inventory_and_constant_stubs` |
+| cGZWin | 2 layout and defaults — implemented | `BaseWindow::new`, `set_mouse_down_offset`, unset draw origin and mouse offset (WT2) | `wt01_constructor_and_lifecycle`, `resolved_tests::wt2_untouched_fields_and_mouse_offset_writer` |
+| cGZWin | 3 flags — implemented | `BaseWindow::flag`, `Windows::set_flag`; preserve consumer bits without base side effects (WT3) | `wt05_06_exact_mask_focus_capture`, `resolved_tests::wt3_default_consumer_flags_have_no_base_side_effects` |
 | cGZWin | 3.1 exact-mask side effects and whole-word return | `set_flag` | `wt05_06_exact_mask_focus_capture`, `wt09_fade_and_unsigned_clock`, `wt14_fade_temporary` |
 | cGZWin | 3.2 show/hide | `show`, `hide` | `wt09_fade_and_unsigned_clock` |
 | cGZWin | 4.1 copy-on-write children | `tree.rs`: `read_children`, `write_children`, `unlock_children`, `ChildRead` | `snapshot_enumeration_and_busy_destruction`, `wt12_manager_retained_cow_references_with_and_without_caller` |
@@ -52,11 +52,11 @@ New section 10.1 vectors are in `base/closure_tests.rs`.
 | cGZWin | 7.2 filters | `dispatch.rs`: `add_filter`, `remove_filter`, `run_filters`; `mod.rs`: `shutdown` | `wt10_live_append_including_original_tail_and_nested_pass`, `wt10_nested_message_retains_pending_until_outer_paint`, `wt10_duplicates_and_nested_paint_boolean_restore`, `wt10_consumed_paint_still_drains_self_removal`, `wt10_repeated_singleton_removal_reaches_corruption_boundary`, `shutdown_clears_active_and_pending_owning_entries` |
 | cGZWin | 7.3 dispatch and defaults | `dispatch.rs`: `do_message_byte`, `do_message`, `accelerate`; `mod.rs`: `Host::child_delete_byte`, `Host::handler` | `wt10_dispatch_filters_and_arguments`, `wt11_type_one_propagates_manager_and_override_bytes` |
 | cGZWin | 7.4 send/post | `dispatch.rs`: `send_byte`, `send`, `post`, `dispatch_posted` | `wt10_dispatch_filters_and_arguments`, `wt11_type_one_propagates_manager_and_override_bytes` |
-| cGZWin | 8.1 construction, Init, Shutdown, destructor | `mod.rs`: `create`, `query_interface`, `add_ref`, `release`, `init`, `shutdown`; `tree.rs`: `destroy`, `deleting_destructor` | `wt01_constructor_and_lifecycle`, `wt12_query_interface_outputs_and_zero_constructor_count`, `wt12_reference_wrap_unsigned_release_and_deleting_argument`, `wt12_deleting_destructor_flag_bit_zero_and_teardown_order`, `wt12_busy_ancestor_coverage_and_root_caller_ownership`; initial manager serial open: WT6 |
+| cGZWin | 8.1 construction, Init, Shutdown, destructor — implemented | `mod.rs`: `Windows::default`, `create`, `query_interface`, `add_ref`, `release`, `init`, `shutdown`; `tree.rs`: `destroy`, `deleting_destructor` (WT6, WT12) | `wt01_constructor_and_lifecycle`, `wt12_query_interface_outputs_and_zero_constructor_count`, `wt12_reference_wrap_unsigned_release_and_deleting_argument`, `wt12_deleting_destructor_flag_bit_zero_and_teardown_order`, `wt12_busy_ancestor_coverage_and_root_caller_ownership`, `resolved_tests::wt6_fresh_manager_first_registration_is_one` |
 | cGZWin | 8.2 fade | `set_fade`, `fade_advance`, `BaseWindow::fade_running` | `wt09_fade_and_unsigned_clock` |
 | cGZWin | 9 quirks | exact-mask, front/back, unsigned time, retained notification, parameter ownership | tests for §§3–8 and 17 |
 | cGZWin | 10 and 10.1 conformance | `tests.rs`, `closure_tests.rs` | all 21 original cases and all 15 added filter/return/lifetime rows, including corruption-boundary detection |
-| cGZWin | 11–12 completion boundary | `mod.rs`: `Host`, `NativeOp` | open: WT1–WT3, WT6, WT14; WT5 and WT10-WT12 settled bodies covered above |
+| cGZWin | 11–12 completion boundary | `mod.rs`: `Host`, `NativeOp`, `base_slot`, `Windows::default` | WT1–WT3 and WT6: `resolved_tests`; WT5 and WT10–WT12: `closure_tests` above; open: WT14 |
 | cGZWin | 13.4 accelerator wiring | `set_accelerator`, `accelerate`, `do_message`, `shutdown` | `wt10_dispatch_filters_and_arguments`, `wt01_constructor_and_lifecycle` |
 | cGZWin | 14.1 paint state | `dirty`, `buffered`, draw rectangles/flags | `wt13_clean_private_buffer` |
 | cGZWin | 14.2 Plot and deferred queue | `plot`, `queue_plot`, `flush_plots` | `wt11_painter_order`, `wt12_overlay_queue_and_present` |
@@ -65,7 +65,7 @@ New section 10.1 vectors are in `base/closure_tests.rs`.
 | cGZWin | 14.5 PrivateBuffer | `paint.rs`: `private_buffer` | `wt14_fade_temporary`, `private_buffer_failure_and_absent_draw_service`, `ineligible_fade_releases_surface_without_temporary`; concrete allocation internals open: WT14 |
 | cGZWin | 14.6 buffer selection | `set_buffer`, `set_buffer_recursive` | `wt17_draw_rectangles_and_converters` |
 | cGZFadeTmpWin | 14.7 constructor, StealBuffer, Plot; 10 vector 14 | `paint.rs`: `steal_fade_buffer`, temporary branch of `plot`; `mod.rs` and `tree.rs`: inherited lifetime | `wt14_fade_temporary` |
-| cGZFadeTmpWin | 12 derived destructor coverage | inherited base teardown only; no invented derived body | open: WT13 |
+| cGZFadeTmpWin | 12 derived destructor coverage — implemented | `create_fade`, inherited `deleting_destructor`, `shutdown` (WT13) | `resolved_tests::wt13_fade_shared_deleting_wrapper_and_parameter_lifetime` |
 | cGZWin | 15.1 cursor routing / mouse-window transitions | `process_cursor`, `set_mouse_window` | `wt15_cursor_disabled_click_and_move` |
 | cGZWin | 15.2 cursor | `update_cursor` | `wt15_cursor_disabled_click_and_move` |
 | cGZWin | 16 key equivalents | `make_key_equivalent`, `check_key_equivalent`, `child_key_equivalent` | `wt16_key_equivalents` |

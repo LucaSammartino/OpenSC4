@@ -153,7 +153,7 @@ impl Windows {
         }
         let s = self.get_mut(w);
         s.draw_area = area;
-        s.draw_origin = origin;
+        s.draw_origin = Some(origin);
         s.blit = blit;
     }
     pub fn set_draw_area_recursive(&mut self, host: &mut impl Host, w: Window) {

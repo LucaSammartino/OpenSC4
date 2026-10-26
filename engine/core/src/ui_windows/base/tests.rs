@@ -132,7 +132,7 @@ fn wt01_constructor_and_lifecycle() {
         (w.flags, w.fade_periods, w.shade, w.instance_id),
         (0x8903, (500, 500), u32::MAX, 7)
     );
-    assert_eq!((w.fill, w.references, w.unknown_a0_a4), (0, 0, [0; 2]));
+    assert_eq!((w.fill, w.references, w.mouse_down_offset), (0, 0, None));
     s.init(&mut h, p);
     s.init(&mut h, p);
     s.set_accelerator(&mut h, p, Some(70));
@@ -395,7 +395,7 @@ fn wt17_draw_rectangles_and_converters() {
         (d, Rect(0, 0, 20, 10), Rect(15, 25, 35, 35)),
     ] {
         assert_eq!(s.get(w).draw_area, area);
-        assert_eq!(s.get(w).draw_origin, origin);
+        assert_eq!(s.get(w).draw_origin, Some(origin));
     }
     assert_eq!(s.get(p).blit, Rect(100, 50, 500, 450));
     let mut point = (0, 0);
@@ -553,7 +553,7 @@ fn private_buffer_failure_and_absent_draw_service() {
     let r = s.create(&mut h, 0, None);
     s.set_area(&mut h, r, Rect(10, 20, 110, 120));
     assert_eq!(s.get(r).draw_area, Rect(10, 20, 110, 120));
-    assert_eq!(s.get(r).draw_origin, Rect(20, 40, 120, 140));
+    assert_eq!(s.get(r).draw_origin, Some(Rect(20, 40, 120, 140)));
 }
 
 #[test]
