@@ -83,6 +83,8 @@ pub struct HolderMasks {
 /// Lists return acquired occupants in manager order. Holder getters borrow.
 pub trait UnloadHost {
     fn system_memory_mib(&mut self) -> Option<u32>;
+    /// Apply the maker's §6.1 type filter. Some(rect) uses standard city cells;
+    /// None enumerates the whole city through the manager-cell query.
     fn occupants(&mut self, city_cells: Option<Rect>) -> Vec<Handle>;
     fn holder(&mut self, occupant: Handle) -> Option<HolderMasks>;
     fn unload(&mut self, occupant: Handle);

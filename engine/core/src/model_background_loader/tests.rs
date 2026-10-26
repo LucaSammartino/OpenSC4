@@ -241,3 +241,17 @@ fn mm1_is_explicit_and_vector_growth_copies_prefix_values_and_suffix() {
     commands.grow_insert(2, 9, 1, true);
     assert_eq!((commands.values, commands.capacity), (vec![3, 8, 9], 12));
 }
+
+#[test]
+fn screen_width_factors_preserve_all_five_spec_cases() {
+    let loader = ModelBackgroundLoader::default();
+    let mut host = Fake::default();
+    loader.init(&mut host);
+    for (zoom, expected) in [170, 91, 46, 20, 10].into_iter().enumerate() {
+        loader
+            .start(zoom as u32, 0, Rect::new(0, 0, 10, 10), [5, 5], &mut host)
+            .unwrap();
+        assert_eq!(loader.snapshot().progress_width, expected);
+    }
+    loader.destroy(&mut host);
+}

@@ -542,7 +542,13 @@ impl ModelBackgroundLoader {
         s.waiting.clear();
         s.view = [zoom, rotation];
         s.progress_width = (host.screen_width().unwrap_or(1024) as f32
-            * [0.166015625, 0.08886719, 0.044921875, 0.01953125, 0.009765625][zoom as usize])
+            * [
+                170.0 / 1024.0,
+                91.0 / 1024.0,
+                46.0 / 1024.0,
+                20.0 / 1024.0,
+                10.0 / 1024.0,
+            ][zoom as usize])
             .trunc() as i32;
         host.set_filter_view(zoom, rotation);
         if host.view_exists() {
