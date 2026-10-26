@@ -8,7 +8,6 @@
 #include "cIGZFrameWork.h"
 #include "cIGZVariant.h"
 #include "cIGZString.h"
-#include "cIGZUnknownList.h"
 #include "cRZBaseString.h"
 #include <map>
 #include <vector>
@@ -144,19 +143,9 @@ inline Words Parameter(cIGZVariant* v,uint32_t key) {
         }
     }
     if(kind==0x10 && key==0xbaca6879) {
-        // variant-storage §6: slot59 is borrowed; never Release it.
-        auto* list=static_cast<cIGZUnknownList*>(v->GetValUnknown());
-        // [abi-ret] cIGZUnknownList::GetSize is the SDK uint32_t count, not cISC4Lot::GetSize.
-        if(list && list->GetSize()==8) {
-            Words w{10};
-            for(uint32_t i=0;i<8;++i) {
-                cIGZString* s=nullptr;
-                if(!list->GetElement(i,GZIID_cIGZString,reinterpret_cast<void**>(&s)) || !s) break;
-                FC4_ACQUIRED(s,"legacy comment GetElement");
-                Text(w,s->Data(),s->Strlen()); FC4_RELEASE(s);
-                if(i==7) return w;
-            }
-        }
+        // SPEC-GAP: §8 identifies the private comment-list object, not an SDK list interface.
+        if(active) active->exhaustive=false;
+        return None();
     }
     if(active) active->exhaustive=false;
     return None();
@@ -250,7 +239,12 @@ inline void ObserveInterface(void* object,uint32_t iid) {
 inline bool __fastcall Create(void* self,void*,uint32_t cls,uint32_t iid,void** out) {
     const bool record=Recording() && iid==0x22ba0121; bool ok;
     {Quiet q;ok=reinterpret_cast<bool(__fastcall*)(void*,void*,uint32_t,uint32_t,void**)>(Original(self,0xc))(self,nullptr,cls,iid,out);}
-    if(record) {Record(Call(1,nullptr,cls,{U(iid)}),out?H(*out):H(nullptr));if(out && *out) ObserveWindow(*out);}
+    if(record) {
+        // A failed factory may leave its out-pointer untouched.
+        void* created=ok && out?*out:nullptr;
+        Record(Call(1,nullptr,cls,{U(iid)}),H(created));
+        if(created) ObserveWindow(created);
+    }
     return ok;
 }
 inline void* __fastcall MainWindow(void* self,void*) {
