@@ -3,6 +3,7 @@
 #pragma once
 #include "FC4RefAudit.h"
 #include "FC4InplaceDetour.h"
+#include "FC4LegacyCtlHooks.h"
 #include "cRZCOMDllDirector.h"
 #include "cIGZCOM.h"
 #include "cIGZFrameWork.h"
@@ -86,25 +87,6 @@ struct Scope {
 inline bool Recording() { return active && !suppressed; }
 inline void Record(Words call,Words result=None()) {
     if (Recording()) active->events.push_back({std::move(call),std::move(result)});
-}
-inline std::mutex tableMutex;
-inline std::map<std::pair<void**,uint32_t>,void*> originals;
-inline bool Patch(void* object,uint32_t offset,void* hook) {
-    if (!object) return true;
-    auto** table=*static_cast<void***>(object);
-    std::lock_guard<std::mutex> lock(tableMutex);
-    const auto key=std::make_pair(table,offset);
-    if (originals.count(key)) return table[offset/4]==hook;
-    DWORD old=0;
-    if (!VirtualProtect(table+offset/4,4,PAGE_READWRITE,&old)) return false;
-    originals[key]=table[offset/4];
-    table[offset/4]=hook;
-    DWORD ignored=0; VirtualProtect(table+offset/4,4,old,&ignored);
-    return true;
-}
-inline void* Original(void* self,uint32_t slot) {
-    std::lock_guard<std::mutex> lock(tableMutex);
-    return originals.at({*static_cast<void***>(self),slot});
 }
 inline void ObserveUnknown(void*);
 inline void ObserveWindow(void*);
@@ -312,7 +294,9 @@ inline Interpreter interpreters[]={
     {0x0094D17E,6,0xa13351b8,"InterpretPropertiesGZWinFolders"},
 };
 template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t first) {
+    HookScope hooks;
     Input input; Trace trace;
+    trace.exhaustive=Setup();
     {Quiet q;input.Capture(props);ObserveWindow(win);}
     // These foreign resource services are not captured yet; never treat absent
     // recording support as a native mismatch or a completed interpreter call.
@@ -323,6 +307,7 @@ template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t f
         Scope scope(trace);
         reinterpret_cast<void(__cdecl*)(void*,void*,uint32_t)>(interpreters[Index].trampoline)(win,props,first);
     }
+    trace.exhaustive=hooks.Finish() && trace.exhaustive;
     if(parent) {
         parent->events.insert(parent->events.end(),trace.events.begin(),trace.events.end());
         parent->exhaustive=parent->exhaustive && trace.exhaustive;
