@@ -162,6 +162,20 @@ mod tests {
     }
 
     #[test]
+    fn water_post_reads_live_altitude_without_refreshing_terrain_snapshot() {
+        let mut t = source();
+        let mut cache = TerrainViewHeights::new(&t);
+        t.set_raw_altitude(2, 1, 310.0);
+        t.set_water_depth(2, 1, 2.0);
+        assert_eq!(
+            cache.handle_post(&t, &post(msg::WATER_CHANGED, VertRect::point(2, 1))),
+            Ok(true)
+        );
+        assert_eq!(cache.terrain()[5], 290.0);
+        assert_eq!(cache.water()[5], 312.0);
+    }
+
+    #[test]
     fn terrain_copy_preserves_float_bits_and_water_addition_rounds_once() {
         let mut t = source();
         t.set_raw_altitude(2, 1, -0.0);
