@@ -47,6 +47,9 @@ pub trait FrameServices: Services + WindowServices {
     fn terrain_height(&mut self, position: Vec3) -> Option<f32>;
     fn project(&mut self, point: Vec3) -> Vec3;
     fn draw_op(&mut self, op: DrawOp);
+    /// Resolve the resource handle's two dereferences at submission time.
+    /// The handle identity, rather than a cached texture, is the stable value.
+    fn icon_texture(&mut self, icon: Option<Icon>) -> Option<Token>;
     fn progress(&mut self, automaton: Token) -> Option<Progress>;
     fn model_transform(&mut self, model: Token) -> Transform;
 }
@@ -355,11 +358,13 @@ fn draw_world(info: &TrackInfo, transform: Transform, host: &mut impl FrameServi
     host.draw_op(DrawOp::ModelTransform(Some(transform)));
     host.draw_op(DrawOp::Transparency((f64::from(info.fade) * 0.5) as f32));
     host.draw_op(DrawOp::State(states[1]));
-    host.draw_op(DrawOp::Texture(info.icon.and_then(|i| i.texture), 0));
+    let texture = host.icon_texture(info.icon);
+    host.draw_op(DrawOp::Texture(texture, 0));
     host.draw_op(DrawOp::Quad(info.icon_quad));
     host.draw_op(DrawOp::Transparency(info.fade));
     host.draw_op(DrawOp::State(states[0]));
-    host.draw_op(DrawOp::Texture(info.icon.and_then(|i| i.texture), 0));
+    let texture = host.icon_texture(info.icon);
+    host.draw_op(DrawOp::Texture(texture, 0));
     host.draw_op(DrawOp::Quad(info.icon_quad));
     host.draw_op(DrawOp::ResetTransparency);
     host.draw_op(DrawOp::ModelTransform(None));
@@ -411,7 +416,8 @@ fn draw_2d(info: &TrackInfo, projected: Vec3, icon_first: bool, host: &mut impl 
     host.draw_op(DrawOp::Transparency(info.fade));
     host.draw_op(DrawOp::State(states[0]));
     let icon_call = |host: &mut _| {
-        FrameServices::draw_op(host, DrawOp::Texture(info.icon.and_then(|i| i.texture), 0));
+        let texture = FrameServices::icon_texture(host, info.icon);
+        FrameServices::draw_op(host, DrawOp::Texture(texture, 0));
         FrameServices::draw_op(host, DrawOp::Quad(icon));
     };
     if icon_first {

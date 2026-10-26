@@ -37,6 +37,8 @@ pub(super) struct Host {
     complete: bool,
     removed: bool,
     transform: Transform,
+    icon_override: Option<Token>,
+    icon_reads: Vec<Token>,
 }
 impl DisplayServices for Host {
     fn camera(&mut self) -> Camera {

@@ -45,6 +45,12 @@ impl FrameServices for Host {
     fn draw_op(&mut self, op: DrawOp) {
         self.draw.push(op);
     }
+    fn icon_texture(&mut self, icon: Option<Icon>) -> Option<Token> {
+        if let Some(icon) = icon {
+            self.icon_reads.push(icon.identity);
+        }
+        self.icon_override.or_else(|| icon.and_then(|i| i.texture))
+    }
     fn progress(&mut self, _: Token) -> Option<Progress> {
         self.progress.clone()
     }
@@ -451,4 +457,21 @@ fn ambiguous_spin_row2_is_an_explicit_unsupported_boundary() {
         .iter()
         .any(|(_, op)| matches!(op, ModelOp::Transform(_) | ModelOp::Draw(_))));
     assert_eq!(h.ops.last(), Some(&ResourceOp::Release(Reference::Automaton, 1001)));
+}
+
+#[test]
+fn texture_resolution_follows_the_live_handle_on_each_world_pass() {
+    let mut h = host();
+    let mut v = view(&mut h);
+    let id = v.track(1, 5, 0, None, &mut h).unwrap();
+    let identity = v.find(id).unwrap().icon.unwrap().identity;
+    h.icon_override = Some(888);
+    v.update(&mut h).unwrap();
+    let textures: Vec<_> = h
+        .draw
+        .iter()
+        .filter_map(|op| if let DrawOp::Texture(t, _) = op { Some(*t) } else { None })
+        .collect();
+    assert_eq!(textures, [Some(888), Some(888)]);
+    assert_eq!(h.icon_reads, [identity, identity]);
 }

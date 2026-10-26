@@ -38,7 +38,7 @@ to the explicit Unsupported boundaries and numeric qualifications below.
 | §7 | limit 0, strict flash reset, NaN angle, 7° spin, processor-null boundary | limit, flash, model tests; native null-this is `Unsupported::NativeProcessorAllocation` |
 | §8 | worked cases 1–7 | TrackInfo kind test plus view tests above; case 8 is the separate tool |
 | §9 | owner inventory | Rust ownership replaces STL/destructor bodies; native pointer adjustors remain adapter work |
-| dispatch §4.1.3 number display / lifetime / messages | `build_display`, `track`, `untrack`, `do_message` | `number_surface_sizing_failure_and_worked_geometry`, lifecycle test |
+| dispatch §4.1.3 number display / lifetime / messages / live texture | `build_display`, `track`, `untrack`, `do_message`, `FrameServices::icon_texture` | `number_surface_sizing_failure_and_worked_geometry`, lifecycle test, `texture_resolution_follows_the_live_handle_on_each_world_pass` |
 | Init packed state words | `Services::render_states`, `Unsupported::OpenRenderStates` | open DVV30-1: adapter must supply state words; never invent packed values |
 
 Native layout offsets, deleting-destructor flags and QI adjustor addresses are
