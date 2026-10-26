@@ -502,7 +502,6 @@ cSCParticleSimulatorBase	effects (particles, decals, visuals)	renderer	particles
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	core/src/effects/particle_owners	-	-
-cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CameraDescription	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
 cSC4DecalDescription	effects (particles, decals, visuals)	renderer	effects.md	-	-	-
 cSC4EffectDescription	effects (particles, decals, visuals)	renderer	effects.md, tiny-owners-b9.md	-	-	-
