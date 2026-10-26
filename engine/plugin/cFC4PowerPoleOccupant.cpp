@@ -10,6 +10,7 @@
 #include "FC4Log.h"
 #include "FC4Interfaces.h"
 #include "FC4OccupantAdapter.h"
+#include "FC4PoleCellVector.h"
 #include "FC4Streams.h"
 #include "compat/FC4Compat.h"
 #include "cIGZApp.h"
@@ -82,6 +83,7 @@ struct PoleHostVt {
     void (*effectStop)(void*, uint64_t, bool);
     float (*terrainWidth)(void*);
     bool (*terrainCorners)(void*, int32_t, int32_t, float*);
+    void (*cellSize)(void*, float*);
 };
 struct PoleTuning {
     uint32_t present;
@@ -97,6 +99,9 @@ void fc4_netpole_destroy(void*, const PoleHostVt*);
 bool fc4_netpole_state(void*, PoleState*, bool);
 uint32_t fc4_netpole_connection_count(const void*);
 uint64_t fc4_netpole_connected_pole(const void*, uint32_t);
+int32_t fc4_netpole_cell_source(const void*, uint32_t, uint64_t*);
+bool fc4_netpole_local_cells(const void*, uint32_t, bool (*)(void*, const fc4::netpole::Cell*, uint32_t),
+                             void*, const PoleHostVt*);
 bool fc4_netpole_has_connection(const void*, uint64_t);
 void fc4_netpole_break_all(void*, uint64_t, bool, const PoleHostVt*);
 void fc4_netpole_remove_connection(void*, uint64_t, bool, const PoleHostVt*);
@@ -165,7 +170,7 @@ public:
     PowerPole() : holder_(static_cast<PoleInterface*>(this)), core_(fc4_netpole_create()) {
         vt_ = {this, &HostAddRef, &HostRelease, &HostInsertLine, &HostRemoveLine, &HostReciprocal, &HostPost,
                &HostSubscribe, &HostEffectCreate, &HostEffectPlace, &HostEffectStart, &HostEffectRunning,
-               &HostEffectStop, &HostTerrainWidth, &HostTerrainCorners};
+               &HostEffectStop, &HostTerrainWidth, &HostTerrainCorners, &HostCellSize};
     }
     ~PowerPole() {
         if (State().subscribed) Subscribe(0x99EF1142, false);
@@ -200,8 +205,15 @@ public:
     // ---- cISC4PowerPoleOccupant ----
     cISC4Occupant* AsOccupant() override { return this; }
     uint32_t GetConnectionCount() override { Lock g(lock_); return fc4_netpole_connection_count(core_); }
-    // SPEC-GAP: the native cell-vector output ABI is missing (NO44).
-    bool GetLineCells(uint32_t, void*) override { return false; }
+    bool GetLineCells(uint32_t index, void* out) override {
+        Lock g(lock_);
+        uint64_t other = 0;
+        const auto source = fc4_netpole_cell_source(core_, index, &other);
+        if (source < 0) return false;
+        if (source == 0)
+            return reinterpret_cast<PoleInterface*>(Ptr(other))->GetLineCellsTo(static_cast<PoleInterface*>(this), out);
+        return fc4_netpole_local_cells(core_, index, &EmitCells, out, &vt_);
+    }
     bool BreakAllConnections(bool quiet) override {
         Lock g(lock_); fc4_netpole_break_all(core_, Self(), quiet, &vt_); return true;
     }
@@ -230,7 +242,12 @@ public:
         if (hasKey) ApplyParent(key);
         return true;
     }
-    bool GetLineCellsTo(cIGZUnknown*, void*) override { return false; }
+    bool GetLineCellsTo(cIGZUnknown* pole, void* out) override {
+        Lock g(lock_);
+        for (uint32_t i = 0, n = fc4_netpole_connection_count(core_); i < n; ++i)
+            if (Ptr(fc4_netpole_connected_pole(core_, i)) == pole) return GetLineCells(i, out);
+        return false;
+    }
     bool GetModelInstances(void*, void**, void*, void*, uint32_t* count) override {
         if (count) *count = 0;  // Model host (4.7.3) is not wired yet.
         return false;
@@ -386,6 +403,12 @@ private:
         if (cISC4Occupant* occ = AsOcc(t)) { if (om) om->RemoveOccupant(occ, true, 0); occ->Release(); }
     }
     static void HostReciprocal(void*, uint64_t other, uint64_t self, bool quiet);
+    static bool EmitCells(void* out, const fc4::netpole::Cell* cells, uint32_t count) {
+        fc4::compat::StlNodeAllocateFn allocate = nullptr;
+        fc4::compat::StlNodeFreeFn release = nullptr;
+        if (!fc4::compat::StlNodeAllocator(&allocate, &release)) return false;
+        return static_cast<fc4::netpole::CellVector*>(out)->Assign(cells, count, allocate, release);
+    }
     static void HostPost(void* u, uint32_t m, uint32_t d) { From(u)->PostOccupantMessage(m, d); }
     static void HostSubscribe(void* u, uint32_t m, bool on) { From(u)->Subscribe(m, on); }
     static uint64_t HostEffectCreate(void* u) {
@@ -423,6 +446,13 @@ private:
         auto* terrain = city ? city->GetTerrain() : nullptr; // borrowed
         // SPEC-GAP: an isolated factory without terrain uses a 16 m cell.
         return terrain ? reinterpret_cast<cFC4ISTETerrainCellWidth*>(terrain)->ReadCellWidth() : 16.0f;
+    }
+    static void HostCellSize(void*, float* out) {
+        cISC4AppPtr app;
+        auto* city = app ? app->GetCity() : nullptr;
+        // SPEC-GAP: an isolated factory without a city uses 16 m cells.
+        out[0] = city ? city->CellWidthX() : 16.0f;
+        out[1] = city ? city->CellWidthZ() : 16.0f;
     }
     static bool HostTerrainCorners(void*, int32_t x, int32_t z, float* out) {
         cISC4AppPtr app;

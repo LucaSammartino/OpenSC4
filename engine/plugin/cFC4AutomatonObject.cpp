@@ -22,7 +22,6 @@
 #include "cGZPersistResourceKey.h"
 #include "cIGZUnknown.h"
 #include "cISC4Automaton.h"
-#include "cS3DVector3.h"
 #include "cISC4Occupant.h"
 #include "cS3DVector3.h"
 
@@ -54,7 +53,6 @@ uint32_t FC4AutomatonClassOfHandle(const fc4_automata_object* handle) {
 
 cFC4AutomatonObject::cFC4AutomatonObject(uint32_t classId, fc4_automata_object* handle)
     : classId_(classId), handle_(handle) {
-    RefreshPosition();
     fc4::Log("cFC4AutomatonObject(%p, class 0x%08X) created, handle %p", static_cast<void*>(this), classId,
              static_cast<void*>(handle));
 }
@@ -107,34 +105,13 @@ cISC4Occupant* cFC4AutomatonObject::AsOccupant() {
 void cFC4AutomatonObject::Slot03() {}
 void cFC4AutomatonObject::Slot04() {}
 void cFC4AutomatonObject::Slot06() {}
-void cFC4AutomatonObject::RefreshPosition() {
-    fc4_automata_automaton_state state{};
-    if (!fc4_automata_automaton_get_state(handle_, &state)) return;
-    std::lock_guard<std::mutex> lock(positionMutex_);
-    position_.fX = state.position[0];
-    position_.fY = state.position[1];
-    position_.fZ = state.position[2];
-}
-
-void cFC4AutomatonObject::GetPosition(cS3DVector3& position) {
-    std::lock_guard<std::mutex> lock(positionMutex_);
-    position = position_;
-}
-
-void cFC4AutomatonObject::SetPosition(cS3DVector3 const& position) {
-    const float v[] = {position.fX, position.fY, position.fZ};
-    fc4_automata_automaton_set_position(handle_, v);
-    std::lock_guard<std::mutex> lock(positionMutex_);
-    position_ = position;
-}
+void cFC4AutomatonObject::Slot07() {}
+void cFC4AutomatonObject::Slot08() {}
 void cFC4AutomatonObject::Slot10() {}
 void cFC4AutomatonObject::Slot11() {}
 void cFC4AutomatonObject::Slot12() {}
 void cFC4AutomatonObject::Slot13() {}
-void cFC4AutomatonObject::SetOrientation(cS3DVector3 const& orientation) {
-    const float v[] = {orientation.fX, orientation.fY, orientation.fZ};
-    fc4_automata_automaton_set_orientation(handle_, v);
-}
+void cFC4AutomatonObject::Slot14() {}
 void cFC4AutomatonObject::Slot15() {}
 void cFC4AutomatonObject::Slot16() {}
 void cFC4AutomatonObject::Slot17() {}
@@ -150,9 +127,7 @@ void cFC4AutomatonObject::Slot26() {}
 void cFC4AutomatonObject::Slot27() {}
 void cFC4AutomatonObject::Slot28() {}
 void cFC4AutomatonObject::Slot29() {}
-void cFC4AutomatonObject::SetAutomataFlag(uint32_t mask, bool on) {
-    fc4_automata_automaton_set_flag(handle_, mask, on);
-}
+void cFC4AutomatonObject::Slot30() {}
 void cFC4AutomatonObject::Slot31() {}
 void cFC4AutomatonObject::Slot32() {}
 void cFC4AutomatonObject::Slot33() {}
@@ -200,7 +175,6 @@ bool cFC4AutomatonObject::Read(cIGZIStream& in) {
     h.add_ref = &AutomatonRefAdd;
     h.release = &AutomatonRefRelease;
     const bool ok = handle_ != nullptr && fc4_automata_object_read(handle_, a.Get(), &h);
-    if (ok) RefreshPosition();
     fc4::Log("cFC4AutomatonObject(0x%08X) Read -> %d", classId_, ok ? 1 : 0);
     return ok;
 }

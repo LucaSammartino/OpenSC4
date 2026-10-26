@@ -340,6 +340,17 @@ struct Cursor<'a> {
 
 type R<T> = Result<T, ParseError>;
 
+fn read_root_version(data: &[u8]) -> R<u16> {
+    let version = Cursor::new(data, 0).u16("root version")?;
+    if !(3..=4).contains(&version) {
+        return Err(ParseError {
+            what: format!("unsupported root version {version}"),
+            offset: 0,
+        });
+    }
+    Ok(version)
+}
+
 impl<'a> Cursor<'a> {
     fn new(d: &'a [u8], p: usize) -> Self {
         Cursor { d, p, strict: false }
@@ -684,7 +695,7 @@ impl EffectDirectory {
     /// Parses a resource, locating the brush and visual effect sections
     /// (module docs, EF6).
     pub fn parse(data: &[u8]) -> R<EffectDirectory> {
-        let root_version = Cursor::new(data, 0).u16("root version")?;
+        let root_version = read_root_version(data)?;
         let tables = Self::locate_tables(data)?;
         let effects_at = Self::locate_effects(data, tables.offsets.games_end)?;
         let eff = read_effects(data, effects_at, false)?;
@@ -694,7 +705,7 @@ impl EffectDirectory {
     /// Parses with known section offsets: the brush section's count at
     /// `brushes`, the visual effect section's version at `effects`.
     pub fn parse_at(data: &[u8], brushes: usize, effects: usize) -> R<EffectDirectory> {
-        let root_version = Cursor::new(data, 0).u16("root version")?;
+        let root_version = read_root_version(data)?;
         let tables = read_tables(data, brushes, false)?;
         let eff = read_effects(data, effects, false)?;
         Ok(Self::assemble(root_version, tables, effects, eff))

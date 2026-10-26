@@ -4,6 +4,35 @@
 
 use super::*;
 
+#[test]
+fn resource_root_version_rejects_unsupported_formats_before_section_search() {
+    // Effects sections 3 and 18.8.1: only root versions 3 and 4 are readable.
+    let mut bytes = crate::effects::shipped::volcano_directory().to_bytes();
+    let directory = EffectDirectory::parse(&bytes).unwrap();
+    for version in [3u16, 4] {
+        bytes[..2].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(EffectDirectory::parse(&bytes).unwrap().root_version, version);
+        assert_eq!(
+            EffectDirectory::parse_at(&bytes, directory.offsets.brushes, directory.offsets.effects)
+                .unwrap()
+                .root_version,
+            version
+        );
+    }
+    for version in [0u16, 1, 2, 5, 0x0300, 0x0400, u16::MAX] {
+        bytes[..2].copy_from_slice(&version.to_le_bytes());
+        for result in [
+            EffectDirectory::parse(&bytes),
+            EffectDirectory::parse_at(&bytes, directory.offsets.brushes, directory.offsets.effects),
+            EffectDirectory::parse(&bytes[..2]),
+        ] {
+            let error = result.unwrap_err();
+            assert_eq!(error.offset, 0);
+            assert!(error.what.contains("root version"));
+        }
+    }
+}
+
 fn component_fixture(name: &[u8], kind: u8) -> Vec<u8> {
     // §3 file offsets after the variable-length name, not in-memory offsets.
     let mut fixed = [0u8; 91];

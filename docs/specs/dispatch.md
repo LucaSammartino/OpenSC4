@@ -556,6 +556,13 @@ contracts; no complete view-provider, complete-owner, exact-shadow or supported
 replacement credit follows while this residual remains. No new runtime trace
 was requested or performed to replace these missing static contracts.
 
+**DP10 closed (2026-10-25, re-dispatchview8).** Every range of the residual above is
+specified in [dispatch-vehicle-view.md](dispatch-vehicle-view.md): the camera rotation
+(§4.2), the kinds 3/4 images (§4.1), the complete per-entry walk with the building ring,
+the bounds clamp and the choice between paths (§5.2), the final 2D vertices (§5.3), the
+world-space two-pass path (§5.4) and the 3D-model indicator (§5.7). It also specifies the
+view's other entry points and tracking kinds 2–6, and the dispatch tool (§6).
+
 ### 4.2 `Dispatch(type, x, z)` (`0x0046A630`, slot 6) → ID *[compat]*
 
 **BeginDispatch's native call layout (DP12, partial).** All calls below use ECX for this;

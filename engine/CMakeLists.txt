@@ -1429,13 +1429,3 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
         PROPERTIES RUN_SERIAL TRUE)
 endif()
-
-# Native construction must receive automaton slots with balanced x86 arguments.
-if(TARGET FreeCity4)
-    add_executable(fc4_automata_construction_test tests/automata_construction_test.cpp)
-    target_include_directories(fc4_automata_construction_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
-    target_compile_definitions(fc4_automata_construction_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
-    target_compile_options(fc4_automata_construction_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
-    add_test(NAME automata_construction_test COMMAND fc4_automata_construction_test "$<TARGET_FILE:FreeCity4>")
-    set_tests_properties(automata_construction_test PROPERTIES RUN_SERIAL TRUE)
-endif()

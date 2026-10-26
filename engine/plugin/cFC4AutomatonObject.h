@@ -22,8 +22,7 @@
 //
 // Scope is 0's: the records and the hooks. The interface is the sparse
 // cFC4ISC4Automaton of FC4AutomataInterfaces.h (2 Release, 5 AsOccupant,
-// 9 SetVisible, 14 SetOrientation, 30 SetAutomataFlag, 51 SetState) plus
-// cIGZSerializable (Write/Read of the
+// 9 SetVisible, 51 SetState) plus cIGZSerializable (Write/Read of the
 // object's own record, 6.4) and cIFC4CoreObject (the handle for
 // OurObjectRef). Movement and animation are not implemented; AsOccupant
 // returns null (the location entry then carries no occupant, disasters.md
@@ -41,10 +40,8 @@
 #include "FC4Streams.h"  // cIFC4CoreObject, TokenOf
 
 #include "cIGZSerializable.h"
-#include "cS3DVector3.h"
 
 #include <cstdint>
-#include <mutex>
 
 class cIGZOStream;
 class cIGZIStream;
@@ -67,18 +64,18 @@ public:
     uint32_t AddRef() override;
     uint32_t Release() override;
 
-    // The sparse class's unused placeholder slots: the
+    // The sparse class's placeholder slots (3-50 except 5, 9, 51): the
     // replacement does not animate (0), so each answers nothing.
     void Slot03() override;
     void Slot04() override;
     void Slot06() override;
-    void GetPosition(cS3DVector3& position) override;
-    void SetPosition(cS3DVector3 const& position) override;
+    void Slot07() override;
+    void Slot08() override;
     void Slot10() override;
     void Slot11() override;
     void Slot12() override;
     void Slot13() override;
-    void SetOrientation(cS3DVector3 const& orientation) override;
+    void Slot14() override;
     void Slot15() override;
     void Slot16() override;
     void Slot17() override;
@@ -94,7 +91,7 @@ public:
     void Slot27() override;
     void Slot28() override;
     void Slot29() override;
-    void SetAutomataFlag(uint32_t mask, bool on) override;
+    void Slot30() override;
     void Slot31() override;
     void Slot32() override;
     void Slot33() override;
@@ -131,11 +128,6 @@ public:
     uint32_t CoreClass() override { return classId_; }
 
 private:
-    void RefreshPosition();
-    // Getters can run on the game's second thread (lessons.md 5.1). They
-    // read this snapshot, never the core's main-thread record/RefCell.
-    std::mutex positionMutex_;
-    cS3DVector3 position_{};
     uint32_t refCount_ = 0;
     uint32_t classId_ = 0;
     fc4_automata_object* handle_ = nullptr;

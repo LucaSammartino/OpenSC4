@@ -160,3 +160,11 @@
 
   LR14 follow-up (2026-10-24): the same final production DLL (SHA256 prefix f7fe29c4) completed the normal-speed house profile to 2032-01-01 cleanly in construction-lr13-r1-house-2032-20261024c-normal (run 471): automataowners 72/72 dated, 73/73 including load, construction 169/169 exact, foreign_exceptions=0/ref_warnings=0. The failed turbo observation remains unresolved; this is not evidence that the bare identity or its release is required behavior.~~
   **ANSWERED 2026-10-24 (re-lotrec-lr14):** MATCHES — §9.1.2 specifies the native teardown route: Shutdown releases field +0x13C without clearing it; effect destruction installs bare Serializable vtable AA41BC at O+0x10. This is stale teardown storage, not a temporary or valid live effect. §9.1.1's live-effect/rejected-input contracts remain literal. Callback QI is borrowed; retained observer pins are separate acquisitions, balanced independently. §9.1.2 defines passive instance/view/Shutdown/destructor tracing needed to attribute run 470; static evidence does not prove that run's timing or crash cause. §9.3 inventories non-Write methods and observation limits; T74–T79 cover ownership, teardown exclusion, rejection and attribution boundaries.
+
+<!-- from: replace-lotocc28 (2026-10-26) -->
+- ~~**LR-lotocc28-1 — standalone wall activation:** the requested `lotocc` key would register the construction
+  and retaining-wall factories while retaining native developers. Section 15.1 explicitly says native wall
+  creation/update bypasses those factories and that this standalone complete-owner boundary is unsupported.
+  Is serialized-object replacement alone an intended supported scope, or which additional owner replacement
+  or proved installation/restoration contract is required to cover new walls? No interception is implemented.~~
+  **ANSWERED 2026-10-26 (re-lotocc29):** MATCHES — §15.1.1 distinguishes limited factory/class-store substitution from complete wall activation. New walls bypass the registry. The lot developer and all add/remove/update/neighbour-wall operations must be replaced together, or every direct edge requires a separately proved installation/restoration contract. No such standalone contract is supplied; the worked load/add/clear case distinguishes the scopes.

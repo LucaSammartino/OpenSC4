@@ -48,7 +48,8 @@ here), and the ambience manager, which fetches the service but calls no slot ([a
 | 17 | `0x004F5A20` | `RemoveSound(id, soundId)` (§4.4) |
 | 18 | `0x004F69E0` | deleting destructor (§2.4) |
 
-All slot operations except `Init`, `Shutdown` and the destructor run under the scape lock (§3.1).
+Primary data operations in slots 5–12 and 14–17 take the scape lock (§3.1); slot 13
+delegates to slot 12. QI/AddRef/Release do not take that data-operation lock.
 
 ## 2. Lifetime *[compat]*
 
@@ -126,13 +127,33 @@ only: scapes still listed are leaked *[quirk]*. Normally `Shutdown` has removed 
 | `+0x2C` | a countdown, read only by the pending list |
 | `+0x38`, `+0x3C` | current volume of the two channels, initially 0 |
 | `+0x40`, `+0x44` | target volume of the two channels, `0x400` (1024), never changed |
-| `+0x48` | the start volume, `(+0x38 × +0x3C) >> 10` (signed, rounded toward zero) |
+| `+0x48` | cached start volume, initially 0; recomputed only when starting a new sound copy as signed low-32-bit `(+0x38 × +0x3C) / 1024`, truncated toward zero |
 
 ### 3.4 A sound definition (0x18 bytes)
 
 `{min, max, extra, soundId, flag (byte), f}`: `min`/`max` the member-count band (unsigned) in which the sound plays,
 `soundId` the sound, `f` a float (50.0 by default). `extra`, `flag` and `f` are stored and copied but read by nothing
 in this owner *[inferred]*.
+
+### 3.5 Input format and ownership (AU42)
+
+There is **no scape resource decoder** in this owner. Slot 5's first argument is a string
+interface: it is copied through the scape's string slot 14 (`+0x38`), not opened as a file or
+TGI resource (`0x004F6551`–`0x004F656B`). The remaining arguments are a u32 ID, u32 flags
+and an f32 radius. The radius is copied without a clamp, sign check or conversion. Sound
+definitions are supplied by slot 16 or temporarily by slot 12; positions are pointers to
+three f32 words, copied into members, with no retained caller pointer. No caller data buffer
+becomes owned by the manager. Slot 11's metadata output is the **emanation total** `+0x30`,
+not a resource ID, byte length or count of returned positions.
+
+For a sound definition the exact record offsets are `+0 min:u32`, `+4 max:u32`,
+`+8 extra:u32`, `+0x0C soundId:u32`, `+0x10 flag:u8`, `+0x14 f:f32` (24 bytes including
+padding). Slot 16 sets f to `50.0` (`0x42480000`); the supplied flag occupies only its low
+byte. A cluster owns a private 24-byte copy for each playing sound; that copy's address is
+posted as its integer instance ID. SoundManager treats the address as an ID and does not
+dereference this record. Stopping/freeing the copy ends that address's ownership here.
+Scape strings/definitions, cluster/member storage and list nodes are manager-owned; foreign
+sound references remain in the sound system. This is an in-memory grouping contract.
 
 ## 4. Scapes *[compat]*
 
@@ -273,6 +294,20 @@ follows the frame rate *[quirk]*. From 0 the value goes 146, 271, 378, 470, 549,
 1024 on the 37th tick (when the gap falls below 7 it jumps the rest). New clusters start at volume 0, so every scape sound fades
 in. There is no fade-out: stops are immediate. True.
 
+The service callback receives the `base+4` view and ignores its tick argument and enabled
+byte. Its timer is at **base+0x20**, previous reading at **base+0x38**. GetElapsedTime's EAX
+and both readings are u32 milliseconds; dt is `(now − previous) mod 2^32`. For each pending
+cluster subtract **unsigned min(dt,countdown)** from its u32 `+0x2C` (`0x004F67DB`–`0x004F681F`).
+This is not a signed comparison or a 64-bit elapsed duration. A null pending entry releases
+the pending lock and returns false before the scape walk (`0x004F6803`, `0x004F691E`–`0x004F6930`).
+Ordinary ticks retain the pending lock while acquiring the scape lock; release scape then
+pending at exit. Neither channel fade uses dt. Once any channel differs from its target,
+the two channels are considered in order 0 then 1; an already-equal channel emits no post.
+Differences/additions are 32-bit, and division by 7 is **signed truncation toward zero**
+(`0x004F6960`–`0x004F6988`). `_PostVolume` updates that channel and posts its value, not the
+product of both channels. The cached product `+0x48` changes only on a new copy's start
+(`0x004F6103`–`0x004F611A`), so ticking alone does not refresh that cache.
+
 ## 7. Position queries *[compat]*
 
 Rectangles are `{x0, z0, x1, z1}` over the x and z axes, **inclusive** on all four sides.
@@ -317,6 +352,63 @@ Either scape unknown → `*count` := 0, false.
 4. The temporary scape is then cleared and freed.
 
 Its flags field is never set; either branch of §4.3 frees every cluster here, so this does not matter.
+
+### 7.4 Capacity, writes and numeric boundaries (AU42)
+
+All count/total outputs are required writable 32-bit words on paths that use them; no
+null-pointer sizing mode exists. Positions have a 12-byte stride. Slot 11 compares signed
+cluster count to signed capacity; slots 9/10 ultimately use the same signed comparison in
+`0x004F6EB1`–`0x004F6EB9`. The total is independent of rectangle filtering:
+
+| Operation/path | Return | Count output | Total output | Positions |
+|---|---|---|---|---|
+| Slot 11, missing group or insufficient capacity | false | unchanged | unchanged | unchanged |
+| Slot 11, existing group and sufficient capacity, even empty | true | stored cluster count | stored emanation total | raw consecutive averages, list order |
+| Slot 9, either ID missing; slot 10, ID missing | false | 0 | unchanged | unchanged |
+| Slots 9/10, resulting group has no clusters | false | 0 | 0 | unchanged |
+| Slots 9/10, nonempty group, direct mode | true | number passing filter | group's full emanation total | packed records, rest unchanged |
+| Slots 9/10, nonempty group, grid mode | true | number of occupied cells | group's full emanation total | record at each occupied cell's index, holes/rest unchanged |
+
+Thus a nonempty group entirely outside the rectangle can succeed with count 0 and nonzero
+total. Slot 9's temporary group's total counts selected **A clusters**, not A's emanations.
+It resets A's add-counter marks and leaves the selected marks set when it returns.
+
+Grid n is `trunc(sqrt(signed capacity))` with the square root in x87; w/h are truncations
+of x87 rectangle differences divided by the integer n (`0x004F6F5C`–`0x004F6F97`). There
+is no intermediate f32 rounding of those differences. Per cluster compute row/column by
+x87 subtraction and division by the signed integer h/w, truncating each separately; form
+the low-32-bit `row*n + column`. The only index check is **signed index < n*n**; there is
+no lower-bound or individual row/column check (`0x004F70E0`–`0x004F7110`). Each cell's
+x/y/z sums are stored f32 after each addition; its count is a 32-bit word. At output use
+the x87 reciprocal of signed cell count multiplied by each f32 sum, then store f32
+(`0x004F7114`–`0x004F713E`, `0x004F718E`–`0x004F71B6`). Empty output cells are not zeroed.
+
+No validation rejects negative/zero capacity, degenerate rectangles, NaNs, negative grid
+indices or arithmetic overflow. Such inputs can reach invalid floating conversions or
+memory outside the grid; they are not a safe false/required-size path. The defined usable
+grid domain requires positive capacity, n > 0, nonzero w/h and in-range nonnegative indices.
+
+### 7.5 Allocation and normal failure (AU42)
+
+Allocation failure is **not** translated to false by these owner algorithms. In slot 5,
+failed 0x34-byte scape allocation leads to a null string-vtable dereference at `0x004F6555`.
+In slot 16, failed 0x18-byte definition allocation reaches a null write at `0x004F5ECA`.
+Creating the temporary scape in slot 9 likewise writes through the null result at
+`0x004F78F4`. New cluster and member blocks are unconditionally dereferenced after their
+shared-pool refill (`0x004F6D29`, `0x004F7478`); cluster-list and member-list node allocations
+are also required to produce storage. Starting a copy unconditionally copies all six words
+through its allocation result before linking (`0x004F6050`–`0x004F60F3`). There is no
+transactional unwind returning false after these storage failures. Grid vector growth
+(`0x004F6DF0`, `0x004F63B0`, `0x004F5D50`) likewise has no owner-level failure return;
+the subsequent cell writes require allocated storage. An allocator may itself raise/fail
+before those dereferences; that does not create a scape boolean failure contract.
+
+Normal false results are the missing/duplicate keys and capacity conditions in §§4–7,
+duplicate tracked emanation key, or a false delegated call. Slot 12 and MoveEmanation's
+recluster path free an uninserted member if the internal add helper returns false; they do
+not make allocator failure recoverable. A missing global sound system suppresses sound
+posts, but does not veto successful local insertion or copy linkage. In particular a sound
+copy linked while the global is absent is not automatically retried when the global returns.
 
 ## 8. Callers *[compat]*
 
@@ -386,3 +478,20 @@ Questions are in [questions/audio-scape.md](questions/audio-scape.md) (prefix **
     out[0] and out[8] written, `*count` = 2.
 11. Unknown scape in slot 13 → a "nameless" scape with flags 1, radius 50 is created and plays its own id.
 12. Fire handler: 10 fire occupants at one spot → one cluster, sound `0x09DC19A2` playing, `0x29DC19EF` stopped.
+13. AU42 timer wrap: previous `0xFFFFFFF0`, now `0x00000020` gives dt 48. Pending countdown
+    60 becomes 12; countdown 20 becomes 0 and its cluster is stopped/freed. A null pending
+    entry instead returns false, with no fade walk.
+14. AU42 channels/cache: after one tick from zero both channels are 146 and each playing
+    copy receives two volume posts of 146. Starting another sound copy then caches/posts
+    `trunc(146*146/1024) = 20`; later ticks change channels but leave that cache at 20 until
+    another copy starts. A channel at 1030 targeting 1024 jumps to 1024 (−6/7 truncates to 0).
+15. AU42 outputs: slot 11 for two clusters, total 5, capacity 1 fails with all outputs
+    untouched. Slot 10 on the same nonempty scape, capacity 2 and a rectangle excluding both,
+    succeeds with count 0 and total 5. A missing ID sets count 0 but preserves a total sentinel.
+16. AU42 grid: use ten clusters, nine at `(5,0,5)` and one at `(25,0,25)`, capacity 9,
+    rectangle `(0,0,30,30)`: n=3, w=h=10; only out[0] and out[8] change, count=2, total=10.
+    The seven holes retain caller sentinels. A point `(30,0,5)` maps to index 3, rather than
+    being rejected as column 3 outside a three-column grid.
+17. AU42 definitions: register name `"test"`, ID 7, flags 0, radius 10; add definition sound 9,
+    extra 123, flag 255, band [2,3]. One member produces no start, two start one copy of sound 9,
+    a fourth stops it. No resource read occurs; neither extra nor flag nor f changes posted payloads.

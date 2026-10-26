@@ -82,7 +82,9 @@ pub fn get_camera_view_angles_for_rotation(rotation: i32, zoom: u32) -> Option<V
 }
 
 pub fn get_object_y_rotation_angle(rotation: i32) -> f32 {
-    (-(i64::from(rotation) * 0x00c9_0fdb)) as f32 * (1.0 / 8_388_608.0)
+    // SPEC-GAP: apply the specified minus to the floating angle, preserving -0
+    // at rotation zero (VU19); the nonzero integer product remains exact.
+    -((i64::from(rotation) * 0x00c9_0fdb) as f32 * (1.0 / 8_388_608.0))
 }
 
 pub fn get_city_width_from_ortho_view(width: f32, zoom: u32) -> Option<f32> {
