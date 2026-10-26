@@ -1201,3 +1201,6 @@ mod gzfw_shadow;
 mod inplace3;
 // Registry compare adapters; private static-link transport, no public DLL ABI.
 mod compare;
+
+// Private RegionalCity handle transport; no public DLL exports.
+mod regionalcity_owner;

@@ -48,3 +48,15 @@
   exact): native -11584.5830078125 versus core -11584.583251953125, for example. [Apply foundations
   §18.3 literally: load each double without rounding, round each of the two sums and the final
   subtraction to 24-bit precision; retain the double storage and return type. Please reconcile §5.]
+
+<!-- from: replace-region27 (2026-10-26) -->
+- **RY9 - §6.2 / regional-city-records §4.6–§4.7 (RR3), replacement blocker:** What `privilege`, `flags`, `dezone`
+  and caller-filter settings does CreateSymmetricConnections pass to `DemolishRegion` for its border strip?
+  The regional-city-records §4 introduction explicitly leaves the exact native arguments open as RR3; §4.6 says
+  no confirmation/no charge and gives a filter layer, but does not select these inputs. demolition.md §4.4 makes
+  them observable: privilege 0 tests removal level 1 (system lock), nonzero tests level 2 (player lock), and nonzero
+  privilege with flags bit 0x2000 clear also applies the current view filter. Please specify the caller filter's
+  accepted occupant types as well as its layer. Network placement itself is documented in network-tools.md §3 and
+  network-manager.md §9; that part needs no new contract. The portable core has the semantic border sequence, but
+  native registration remains unimplemented until this demolition host path can be wired without choosing unknown
+  removal/view behavior. The lane is stopping this item rather than guessing these inputs.

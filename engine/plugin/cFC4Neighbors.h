@@ -505,4 +505,8 @@ std::string NeighborsFormatConfirmText(const std::string& format, const std::str
 // §5.4), one reference for the caller in `*out`. AddDeal now keeps a
 // foreign deal itself (NG4), so the tests make their deal of ours here.
 bool NeighborsTestCopyDeal(cISC4NeighborDeal* src, cISC4NeighborDeal** out);
+// Main-thread owners outside the simulator (e.g. regional-city record replay)
+// enter the normal locked exit so zero-reference elements are collected even
+// when the neighbors replacement itself is disabled.
+bool NeighborsCollectReleasedElements();
 }  // namespace fc4
