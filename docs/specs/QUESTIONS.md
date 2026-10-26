@@ -326,8 +326,8 @@ generated index: the questions live one file per spec, so read only the file for
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
 | network-geometry | 0 | 8 | NG9 | questions/network-geometry.md |
-| network-manager | 0 | 13 | NM14 | questions/network-manager.md |
-| network-occupants | 17 | 29 | NO46 | questions/network-occupants.md |
+| network-manager | 0 | 16 | NM17 | questions/network-manager.md |
+| network-occupants | 17 | 30 | NO46 | questions/network-occupants.md |
 | network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
@@ -355,7 +355,7 @@ generated index: the questions live one file per spec, so read only the file for
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | - |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
-| prop-lotconfig | 8 | 10 | PL25 | questions/prop-lotconfig.md |
+| prop-lotconfig | 7 | 12 | PL25 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
 | protection | 0 | 20 | PR21 | - |
 | radio | 4 | 0 | RA5 | questions/radio.md |
@@ -364,7 +364,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
-| regional-city | 8 | 0 | RY9 | questions/regional-city.md |
+| regional-city | 8 | 1 | RY10 | questions/regional-city.md |
 | regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 2 | 2 | RND5 | questions/render3d.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **668** | **1577** | | |
+| **total** | **667** | **1584** | | |

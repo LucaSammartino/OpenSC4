@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4OccMgrShadow.h"
+#include "FC4PropLotShadow.h"
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
@@ -1774,6 +1775,7 @@ uint32_t __fastcall FollowInsert(void* self, void* edx, cISC4Occupant* occ, uint
     const uint32_t r = CallNext<uint32_t(__fastcall*)(void*, void*, cISC4Occupant*, uint32_t)>(0, self, edx, occ, data4);
     --t_inCall;
     c.origResult = (r & 0xFF) != 0;
+    if (c.origResult) PropLotShadowMutation(c.occ, true);
     if (c.occ != 0) Apply(c);
     return r;
 }
@@ -1788,6 +1790,7 @@ uint32_t __fastcall FollowRemove(void* self, void* edx, cISC4Occupant* occ, uint
         CallNext<uint32_t(__fastcall*)(void*, void*, cISC4Occupant*, uint32_t, uint32_t)>(1, self, edx, occ, shutdown, data4);
     --t_inCall;
     c.origResult = (r & 0xFF) != 0;
+    if (c.origResult) PropLotShadowMutation(c.occ, false);
     if (c.occ != 0) Apply(c);
     DropObject(occ);
     return r;
