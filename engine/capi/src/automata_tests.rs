@@ -131,15 +131,7 @@ fn derived_owner_records_reject_unknown_classes_and_failed_streams() {
         let mut bytes = Out::default();
         fc4_helicopter_shadow_fixture(&ostream(&mut bytes));
         let mut input = In::new(&bytes.bytes);
-        for class in [
-            0,
-            0xCBB3_2B0A,
-            0x4C0D_D224,
-            0x6C1A_CDE1,
-            0xEBE0_DCAD,
-            0x4C22_AE53,
-            0xAA22_2B83,
-        ] {
+        for class in [0, 0xFFFF_FFFF] {
             assert_eq!(
                 fc4_automata_derived_record_roundtrip(
                     class,
@@ -174,6 +166,86 @@ fn derived_owner_records_reject_unknown_classes_and_failed_streams() {
             ),
             1
         );
+    }
+}
+
+#[test]
+fn at29_at33_derived_records_replay_and_balance_crew_and_stream_references() {
+    use fc4_core::automata::*;
+    use fc4_core::stream::{OutStream, RefValue};
+    let vehicle = VehicleWrapperRecord::default();
+    let mut ambulance = AmbulanceRecord::default();
+    ambulance.emergency.v = [1.0, 2.0, 3.0];
+    ambulance.emergency.b = 2;
+    ambulance.emergency.w = 0x1234;
+    ambulance.emergency.u = 3;
+    let fire = FireTruckRecord {
+        emergency: ambulance.emergency.clone(),
+        crew: RefValue::Host {
+            token: 37,
+            class_id: 0x4A22_2E4D,
+        },
+    };
+    let tank = TankRecord {
+        saved_indices: [3, -1],
+        ..TankRecord::default()
+    };
+    let train = MassTransitTrainRecord {
+        cars: vec![RefValue::Host {
+            token: 38,
+            class_id: 0x4A41_6254,
+        }],
+        raw_2c0: 0x1122_3344,
+        vector_2d4: [1.0, 2.0, 3.0],
+        raw_2e4: 0x5566_7788,
+        ..MassTransitTrainRecord::default()
+    };
+    let encode =
+        |write: &dyn Fn(&mut dyn OutStream) -> bool| unsafe { write_with(|s| write(&mut crate::stream::COut(&*s))) };
+    let car_bytes = encode(&|out| vehicle.write(out));
+    for (class, bytes, added, released) in [
+        (CLSID_CARJACKED, car_bytes.clone(), vec![], vec![]),
+        (CLSID_LIMO, car_bytes, vec![], vec![]),
+        (CLSID_AMBULANCE, encode(&|out| ambulance.write(out)), vec![], vec![]),
+        (CLSID_FIRE_TRUCK, encode(&|out| fire.write(out)), vec![37], vec![37, 37]),
+        (CLSID_TANK, encode(&|out| tank.write(out)), vec![], vec![]),
+        (
+            CLSID_MASS_TRANSIT_TRAIN,
+            encode(&|out| train.write(out)),
+            vec![],
+            vec![38],
+        ),
+    ] {
+        let log = RefCell::new(Log::default());
+        let host = ref_host(&log);
+        let mut input = In::new(&bytes);
+        let mut output = Out::default();
+        unsafe {
+            assert_eq!(
+                fc4_automata_derived_record_roundtrip(class, &istream(&mut input), &ostream(&mut output), &host),
+                2,
+                "{class:08X}"
+            );
+        }
+        assert_eq!(input.pos, bytes.len());
+        assert_eq!(output.bytes, bytes);
+        assert_eq!(log.borrow().add_refs, added);
+        assert_eq!(log.borrow().releases, released);
+        // This fixture's error callback always returns zero. Derived tail helpers
+        // retain inherited success; the shadow must also compare exhaustion/bytes.
+        let mut input = In::new(&bytes[..bytes.len() - 1]);
+        let mut output = Out::default();
+        unsafe {
+            assert_eq!(
+                fc4_automata_derived_record_roundtrip(class, &istream(&mut input), &ostream(&mut output), &host),
+                if matches!(class, CLSID_CARJACKED | CLSID_LIMO) {
+                    1
+                } else {
+                    2
+                }
+            );
+        }
+        assert_ne!(output.bytes, bytes[..bytes.len() - 1]);
     }
 }
 

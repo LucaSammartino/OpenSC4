@@ -73,9 +73,15 @@ mod automaton;
 mod codec;
 mod controller;
 mod controller_manager;
+mod derived;
 mod hooks;
 mod manager;
 mod script;
+
+pub use derived::{
+    AmbulanceRecord, DerivedRecordRefs, FireTruckRecord, MassTransitTrainRecord, TankRecord, VehicleWrapperRecord,
+    CLSID_AMBULANCE, CLSID_CARJACKED, CLSID_FIRE_TRUCK, CLSID_LIMO, CLSID_MASS_TRANSIT_TRAIN, CLSID_TANK,
+};
 
 mod aircraft;
 pub use crate::helicopter::Helicopter;
