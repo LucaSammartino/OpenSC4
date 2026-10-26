@@ -38,6 +38,7 @@ uint32_t TypeBytes(uint32_t t) { return t>=4 && t<=7 ? 2 : t==8 || t==9 ? 4 : 0;
 uint32_t KeyMask(uint32_t t) { return t==4 || t==6 ? 0x7fff : t==5 ? 0xffff : t==7 ? 0xfff : t==8 || t==9 ? 0xffffff : 0xffffffff; }
 class Buffer;
 class BufferFace : public cIGZUnknown {
+    // SPEC-GAP: GZF13: IID 0x86D72B57's drawing slots beyond QI/AddRef/Release are unspecified.
 public:
     bool QueryInterface(uint32_t, void**) override;
     uint32_t AddRef() override;
