@@ -55,24 +55,11 @@ Progress is measured, not estimated. [`tools/coverage.py`](tools/coverage.py) as
 executable to the class that owns it and adds up the bytes of machine code at each stage. Library and compiler code
 is left out.
 
-![Treemap of SimCity 4.exe coloured by OpenSC4 status](docs/coverage-map.svg)
+![Coverage of SimCity 4.exe: the funnel and a treemap of every class](docs/coverage-map.svg)
 
-| Share of the game's code | Whole game | Simulation | Renderer | UI | Audio |
-|---|---:|---:|---:|---:|---:|
-| **Specified** (a clean-room spec covers it) | 32.9% | 78.3% | 15.2% | 0% | 0% |
-| **Implemented** (an OpenSC4 module exists) | 23.1% | 61.8% | 0.6% | 0% | 0% |
-| **Verified** (its shadow matches the original exactly) | 10.5% | 30.5% | 0% | 0% | 0% |
-| **Replaced** (runs instead of the original in game) | 12.1% | 35.1% | 0% | 0% | 0% |
-
-These figures are weighted by the bytes of the original machine code, summed over the functions each owner (a class
-or a free function) owns — not by function count. An owner counts as verified when its same-process shadow matches
-the original exactly in the run that measured it (the latest regression run, or a lane run that
-`tools/coverage-shadows.tsv` cites and the tool checks against that run's own recorded counts), and replaced when
-our class runs in its place in the replace run.
-Of the game code, 3.7% is shared helpers reached from several owners and 1.7% is still unattributed; both stay in the
-denominator and never count as done. The full breakdown is in
-[docs/coverage-report.md](docs/coverage-report.md) and the rules are in [docs/COVERAGE.md](docs/COVERAGE.md).
-`python tools/coverage.py` and `python tools/coverage_treemap.py` regenerate both from the RE workspace.
+The full breakdown is in [docs/coverage-report.md](docs/coverage-report.md) and the rules are in
+[docs/COVERAGE.md](docs/COVERAGE.md). `python tools/coverage.py` and `python tools/coverage_treemap.py` regenerate
+both from the RE workspace.
 
 | Milestone | State |
 |---|---|
