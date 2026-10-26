@@ -498,6 +498,103 @@ adapter must still obey the documented lock, stride, ownership and pointer
 lifetime contracts. Allocation failure, resize and foreign-storage attachment
 outside the covered bridge are GZF6, not implied successful operations.
 
+### 6.5 Hardware-cache attachment and lifetime (GZF12)
+
+*[compat]* Slot 37 (`+0x94`, `0x00698CF0`) is
+**GetHardwareCache() → cache pointer in EAX**, with no stack arguments. It
+returns the stored pointer, initially null, **without AddRef**. Slot 38
+(`+0x98`, `0x00826950`) is **SetHardwareCache(cache*) → bool in AL**, popping
+4 bytes. It is an initializing, owning attachment, not a raw-pointer assignment.
+Neither call queries an IID. The expected primary cache face has QI/AddRef/Release
+in slots 0–2, Init(buffer*) → AL in slot 3 and Invalidate() in slot 8. The native
+SimGL implementation's primary face is IID `0xFA59F7B9` (also IID 1); QI for
+`0xEB4D101F` returns its distinct face at primary+4, used by the graphics path.
+Successful cache QI adds one reference; unsupported IDs leave the output alone
+(`0x00990D30`–`0x00990D84`). Pass the primary cache face to slot 38, not that
+SimGL-specific secondary face. These are cache IDs, not additional buffer IDs.
+
+The setter's observable order is fixed (`0x00826954`–`0x008269A2`):
+
+1. If an old cache exists, clear the buffer's cache pointer **before** releasing
+   that old reference. There is no explicit Shutdown or Invalidate call here.
+2. Invoke the incoming cache's Init with this buffer's primary face. This happens
+   even if the incoming address equals the old address. During this callback an
+   ordinary GetHardwareCache sees null.
+3. On false Init, return false. The old cache is already detached; the incoming
+   cache is not retained and no rollback or Shutdown of it occurs.
+4. On true Init, reread the cache pointer, allowing for changes made by callbacks.
+   If it differs from the incoming pointer, AddRef the incoming cache, store it,
+   then Release any pointer found by that reread. If already equal, do none of
+   those three operations. Return true.
+
+The incoming cache is **required to be nonnull and live throughout this call**.
+Passing null releases the old cache and then dereferences null at `0x0082696B`;
+it is not a supported detach operation and does not return false. In particular,
+reattaching the borrowed getter result without an independently held reference
+can destroy that very object in step 1. With a caller reference held, same-pointer
+attachment still performs Release, Init and normally AddRef; it is not a no-op.
+
+*[compat]* Buffer destruction first frees its pixels and clears its initialized
+byte, then releases its cache reference (`0x00826880`–`0x008268A7`). Ordinary
+Shutdown/storage disposal does **not** detach or release the cache. The native
+SimGL cache Init stores a **borrowed** buffer pointer, registers with the draw
+system (`0xEB2EA3CB` / `0x4B2EA3B3`) and returns true; it does not AddRef the buffer
+(`0x00990DF0`–`0x00990E39`).
+Its Shutdown unregisters, shuts down its hardware allocation and clears that
+borrowed pointer (`0x00990E40`–`0x00990E92`); final cache destruction calls Shutdown
+(`0x00991750`). Holding a cache beyond its buffer therefore does not keep the
+buffer alive. The getter conveys no independent lifetime guarantee.
+
+*[compat]* Cache invalidation has two channels, not a callback on every write:
+
+| Buffer operation | Modification counter (slot 36, `+0x90`) | Explicit cache call |
+|---|---|---|
+| Pixel allocation, including reinitialization | Increment once, modulo 2^32 | None |
+| Successful Lock with `0x8000` set | Increment once per call | None |
+| Successful clipped fill or copy | Increment once, including documented no-write successes | None |
+| SetPixel, direct writes through GetPixels, Unlock, diagonal DrawLine | Unchanged | None |
+| SetColorKey, ClearColorKey | Unchanged | Invalidate, slot 8, if attached; even if the key/state was already equal |
+| Shutdown, FreePixels | Unchanged | None; attachment survives |
+
+Allocation and modification-counter writes are established at `0x00826A80`–
+`0x00826A8E`, `0x00826AAF`, `0x0082709E`–`0x008270A4` and
+`0x00826B8C`; explicit key invalidations are at
+`0x00826A20`–`0x00826A29` and `0x00826A34`–`0x00826A3D`.
+The native SimGL IsDirty first returns an already-set dirty flag; otherwise it
+compares slot 36 against its last refreshed counter and latches dirty on inequality
+(`0x00990D90`–`0x00990DB2`). Invalidate simply sets dirty (`0x00990DC0`). Refresh's
+successful completion clears dirty and samples the current slot-36 counter
+(`0x00991352`–`0x0099137A`). The buffer need not call Refresh or recreate a cache
+itself. A direct pixel writer must use the modifying Lock contract if it wants
+this cache to notice its writes; SetPixel alone does not provide that signal.
+Disposal alone provides no such signal, and callers must not refresh freed pixels.
+
+**Worked attachment, hardware use and release (GZF12).** Use a freshly created,
+externally referenced 3×2 type-5/16-bpp buffer B. Init gives stride 8 and counter
+1; Fill with packed `0x1234` gives six pixels of that value and counter 2. Start
+with a cache H held by one caller reference, whose Init returns true and stores
+the buffer pointer without retaining B. SetHardwareCache(H) calls Init(B), then
+AddRef(H): H has two references and B still has its one caller reference.
+GetHardwareCache returns H with those counts unchanged. On the real SimGL path,
+InitCache/Refresh with the graphics service available establish a clean cache
+whose saved counter is 2. Lock(`0x8000`), a direct pixel change, then
+Unlock(`0x8000`) produce counter 3: no Invalidate callback is made, but the next
+IsDirty returns true. Refresh saves 3 and clears dirty. SetColorKey(`0x1234`)
+leaves counter 3 and directly invalidates H; ClearColorKey invalidates again.
+Release the caller's H reference (two → one), then release B (one → zero).
+B frees its 16 pixel bytes before releasing H (one → zero), whose destruction
+shuts down the hardware allocation and unregisters from the draw system.
+There is no buffer/cache reference cycle. A test cache can record exactly this
+callback/refcount order without requiring a GPU.
+
+**Replacement/failure cases.** With H caller-held and attached, attach a second
+caller-held cache J whose Init returns false. H is released/detached before
+J.Init(B); J gets no AddRef, the setter returns false and the getter returns null.
+If J.Init returns true instead, J gains one buffer-held reference. Reattaching
+caller-held J releases that reference, calls Init again and retains it again on
+success. Treat a null setter and same-pointer reattachment without a caller
+reference as fault cases, not as false-return tests in the normal process.
+
 ## 7. Logging (`nGZLog::cService`)
 
 ### 7.1 Interfaces, inventory and defaults

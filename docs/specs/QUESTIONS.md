@@ -294,7 +294,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphics-rules | 4 | 5 | GR10 | questions/graphics-rules.md |
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
-| gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
+| gz-framework-core | 9 | 3 | GZF13 | questions/gz-framework-core.md |
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **632** | **1639** | | |
+| **total** | **632** | **1640** | | |
