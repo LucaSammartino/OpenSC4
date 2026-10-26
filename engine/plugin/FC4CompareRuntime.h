@@ -233,7 +233,7 @@ void Dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* mac
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
     if (depth) ++count.nested;
     const auto call=++count.calls;const std::string mode=modeOverride.empty()?fn.mode:modeOverride;
-    // All four watercraft value bindings need complete=calls for method credit.
+    // Watercraft value bindings need complete=calls for method credit.
     const bool everyCall=std::string(fn.owner)=="cSC4Watercraft";
     if (mode!="replace"&&source==0&&!everyCall&&!fc4::inplace::Sample(call)) {
         // An unsampled original can enter another selected function. Do not
@@ -378,16 +378,17 @@ void InplaceWatercraftMethods(const char* date) {
     if (!active) return;
     AcquireSRWLockExclusive(&sampleLock);
     // These bindings compare every specified output and have no collaborator
-    // calls (watercraft §§3.1/3.4). Do not generalize this credit to other rows.
-    const char* const entries[]={"watercraft-sign","watercraft-angular","watercraft-direction","watercraft-clsid"};
-    const char* const methods[]={"Sign","AngularProximity","DirectionQuantization","GetGZCLSID"};
+    // calls (watercraft §§3.1/3.3/3.4). Do not generalize this credit to other rows.
+    const char* const entries[]={"watercraft-sign","watercraft-angular","watercraft-direction","watercraft-clsid","watercraft-straight"};
+    // Literal docs/abi/functions.tsv identities, including anonymous helpers.
+    const char* const methods[]={"FUN_00566e00","FUN_00567ed0","FUN_00567fd0","cSC4Watercraft::GetGZCLSID","FUN_00568230"};
     for (unsigned i=0;i<std::size(entries);++i) for (const auto& fn:functions) {
         if (!fn.installed||std::string(fn.name)!=entries[i]) continue;
         uint64_t calls=0,complete=0,mismatches=0;
         for (const auto& c:fn.counts) {
             calls+=c.calls;complete+=c.compared;mismatches+=c.floatOnly+c.different;
         }
-        Log("watercraft method 0x%08X cSC4Watercraft::%s (month) %s: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+        Log("watercraft method 0x%08X %s (month) %s: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
             fn.va,methods[i],date,calls,complete,mismatches);
     }
     ReleaseSRWLockExclusive(&sampleLock);

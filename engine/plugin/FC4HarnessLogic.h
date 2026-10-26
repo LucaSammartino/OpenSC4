@@ -236,7 +236,8 @@ enum class ScriptOp {
     GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
     UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl,
     BudgetWindow, // budgetwindow: open the native budget UI; explicit script opt-in only
-    GZFrameworkProbe // gzfwprobe: register, parse, dispatch and unregister an isolated command
+    GZFrameworkProbe, // gzfwprobe: register, parse, dispatch and unregister an isolated command
+    Watercraft // watercraft auto|x z: native self-controlling boat on a checked water cell
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -291,6 +292,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::UiWait: return "uiwait";
         case ScriptOp::UiControl: return "uicontrol";
         case ScriptOp::BudgetWindow: return "budgetwindow";
+        case ScriptOp::Watercraft: return "watercraft";
     }
     return "?";
 }
@@ -648,6 +650,17 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         } else {
             *error = "disaster '" + (nargs > 0 ? tok[2] : std::string()) + "' is not fire, riot, volcano or survey";
             return false;
+        }
+    } else if (name == "watercraft") {
+        a.op = ScriptOp::Watercraft;
+        a.on = nargs == 1 && detail::Lower(tok[2]) == "auto";
+        if (!a.on) {
+            if (!wantArgs(2, "auto or x z")) return false;
+            if (!detail::ParseCount(tok[2], kScriptMaxCell, &a.x0) ||
+                !detail::ParseCount(tok[3], kScriptMaxCell, &a.z0)) {
+                *error = "watercraft requires auto or cells 0..4095";
+                return false;
+            }
         }
     } else if (name == "portprops") {
         // Explicit diagnostic action: native PD12 switch on an existing lot.
