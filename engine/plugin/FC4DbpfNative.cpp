@@ -727,6 +727,7 @@ void DbpfShadowBeforeSave() {
     ++saveGeneration;
     cityAfterSave = true;
     // Harness saves wait for sliced comparisons before calling SaveCity.
+    // SPEC-GAP: EX58 asks for a native-save completion boundary; PostSave is still a writing phase (8.3.1).
     // Unexpected native saves still invalidate pending readers (section 8.3):
     // never retain old segments or silently count incomplete work as exact.
     if (pending != nullptr)
