@@ -22,6 +22,13 @@ uint32_t fc4_overlay_owner_set_shown(void*, uint32_t, uint32_t);
 uint32_t fc4_overlay_owner_shown(const void*, uint32_t);
 uint32_t fc4_overlay_owner_enable_self_lighting(void*, uint32_t, uint32_t);
 uint32_t fc4_overlay_owner_self_lit(const void*, uint32_t);
+uint32_t fc4_overlay_owner_set_color(void*, uint32_t, float, float, float);
+uint32_t fc4_overlay_owner_color(const void*, uint32_t, float*);
+uint32_t fc4_overlay_owner_set_draw_state(void*, uint32_t, uint32_t);
+uint32_t fc4_overlay_owner_draw_state(const void*, uint32_t);
+uint32_t fc4_overlay_owner_set_position(void*, uint32_t, float, float);
+uint32_t fc4_overlay_owner_set_placement(void*, uint32_t, const float*);
+uint32_t fc4_overlay_owner_placement(const void*, uint32_t, float*);
 }
 
 namespace {
@@ -63,6 +70,25 @@ public:
         return fc4_overlay_owner_enable_self_lighting(core_, id, on) != 0;
     }
     bool IsSelfLit(uint32_t id) const override { return fc4_overlay_owner_self_lit(core_, id) != 0; }
+    bool SetColor(uint32_t id, float r, float g, float b) override {
+        return fc4_overlay_owner_set_color(core_, id, r, g, b) != 0;
+    }
+    bool Color(uint32_t id, float* rgb) const override {
+        return fc4_overlay_owner_color(core_, id, rgb) != 0;
+    }
+    bool SetDrawState(uint32_t id, uint32_t index) override {
+        return fc4_overlay_owner_set_draw_state(core_, id, index) != 0;
+    }
+    uint32_t DrawStateIndex(uint32_t id) const override { return fc4_overlay_owner_draw_state(core_, id); }
+    bool SetPosition(uint32_t id, float x, float z) override {
+        return fc4_overlay_owner_set_position(core_, id, x, z) != 0;
+    }
+    bool SetPlacement(uint32_t id, const float* placement) override {
+        return fc4_overlay_owner_set_placement(core_, id, placement) != 0;
+    }
+    bool Placement(uint32_t id, float* placement) const override {
+        return fc4_overlay_owner_placement(core_, id, placement) != 0;
+    }
 private:
     // §1.2: destruction and Shutdown are different protocols.
     ~OverlayOwner() { fc4_overlay_owner_destroy(core_); }
@@ -99,14 +125,42 @@ void OverlayOwnerGameCheck() {
     check(owner->EnableSelfLighting(id, 3) && owner->IsSelfLit(id));
     check(owner->EnableSelfLighting(id, 0) && owner->IsSelfLit(id));
     check(owner->SetAlpha(id, 0.51f));
+    float rgb[3] = {};
+    check(owner->Color(id, rgb) && rgb[0] == 1 && rgb[1] == 1 && rgb[2] == 1);
+    check(owner->DrawStateIndex(id) == 0);
+    check(owner->SetColor(id, -0.25f, 0.5f, 1.75f));
+    check(owner->SetDrawState(id, 0x123403));
+    check(owner->Color(id, rgb) && rgb[0] == -0.25f && rgb[1] == 0.5f && rgb[2] == 1.75f);
+    check(owner->DrawStateIndex(id) == 3);
+    check(owner->IsSelfLit(id) && owner->IsShown(id));
+    float placement[9] = {};
+    check(owner->Placement(id, placement) && placement[0] == 128 && placement[1] == 128 &&
+          placement[2] == 32 && placement[4] == 1 && placement[5] == 1 && placement[6] == 1);
+    check(owner->SetPosition(id, 128.00005f, 128));
+    check(owner->Placement(id, placement) && placement[0] == 128);
+    placement[0] = 160; placement[4] = 2; placement[5] = 3; placement[8] = 7;
+    check(owner->SetPlacement(id, placement));
+    check(owner->SetPosition(id, 192, 224));
+    check(owner->Placement(id, placement) && placement[0] == 192 && placement[1] == 224 &&
+          placement[4] == 2 && placement[5] == 3 && placement[8] == 7);
+    check(owner->Placement(UINT32_MAX, placement) && placement[0] == 192 && placement[8] == 7);
+    check(owner->SetPosition(0, 1, 2));
+    check(owner->Placement(0, placement) && placement[0] == 192);
     check(owner->Init(64, 64, 16, false, true));
     check(owner->Alpha(id) == 0.51f);
+    check(owner->Color(id, rgb) && rgb[0] == -0.25f && rgb[1] == 0.5f && rgb[2] == 1.75f);
+    check(owner->DrawStateIndex(id) == 3);
     check(owner->SetAlpha(id, 0.52f));
+    check(owner->Placement(id, placement) && placement[0] == 192 && placement[8] == 7);
     check(owner->Alpha(id) == 0.51f);
     check(owner->IsShown(id) && owner->IsSelfLit(id));
     // The no-handle sentinel is a successful no-op, not an invalid arena index.
     check(owner->SetShown(UINT32_MAX, true));
     check(owner->EnableSelfLighting(UINT32_MAX, 1));
+    check(owner->SetColor(UINT32_MAX, 2, 3, 4));
+    check(owner->SetDrawState(UINT32_MAX, 255));
+    check(owner->Color(UINT32_MAX, rgb) && rgb[0] == 0 && rgb[1] == 0 && rgb[2] == 0);
+    check(owner->DrawStateIndex(UINT32_MAX) == 0);
     check(!owner->SetShown(UINT32_MAX - 1, true));
     check(!owner->EnableSelfLighting(UINT32_MAX - 1, 1));
     check(owner->Remove(id));
@@ -116,6 +170,8 @@ void OverlayOwnerGameCheck() {
     check(owner->Init(64, 64, 16, false, false));
     check(owner->AddDecal(64, 32, 128, 128, 32, 0) == id);
     check(owner->IsShown(id) && !owner->IsSelfLit(id));
+    check(owner->Color(id, rgb) && rgb[0] == 1 && rgb[1] == 1 && rgb[2] == 1);
+    check(owner->DrawStateIndex(id) == 0);
     owner->Shutdown();
     FC4_RELEASE_CREATED(owner);
     Log("overlays factory check: %u/%u mismatches=%u scope=portable-owner native_interception=0",

@@ -23,6 +23,16 @@ public:
     virtual bool IsShown(uint32_t id) const = 0;
     virtual bool EnableSelfLighting(uint32_t id, uint32_t on) = 0;
     virtual bool IsSelfLit(uint32_t id) const = 0;
+    virtual bool SetColor(uint32_t id, float r, float g, float b) = 0;
+    // Copies all three words on success; failure leaves the output untouched.
+    virtual bool Color(uint32_t id, float* rgb) const = 0;
+    virtual bool SetDrawState(uint32_t id, uint32_t index) = 0;
+    virtual uint32_t DrawStateIndex(uint32_t id) const = 0;
+    virtual bool SetPosition(uint32_t id, float x, float z) = 0;
+    // Nine words: cx, cz, width, turns, stretch, repeatU, repeatV, offset, retained.
+    virtual bool SetPlacement(uint32_t id, const float* placement) = 0;
+    // Failure, direct IDs and the sentinel leave all output words untouched.
+    virtual bool Placement(uint32_t id, float* placement) const = 0;
 };
 
 cIGZUnknown* CreateFC4OverlayOwner();
