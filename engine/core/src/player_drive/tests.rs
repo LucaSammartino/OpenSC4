@@ -189,7 +189,7 @@ fn driving() -> (PlayerDrive, Foreign) {
 
 #[test]
 fn construction_has_literal_bits_and_empty_state() {
-    let owner = PlayerDrive::new(99);
+    let mut owner = PlayerDrive::new(99);
     assert_eq!((ID, CURSOR), (0x2B70_9676, 0xC16C_4E1B));
     assert_eq!(owner.camera_speed_bits(), 0x3D2C_0831);
     assert_eq!(owner.cell_scales(), (0x3F80_0000, 0x3F80_0000));
@@ -197,6 +197,11 @@ fn construction_has_literal_bits_and_empty_state() {
     assert_eq!((owner.current(), owner.hover(), owner.selected()), (None, None, None));
     assert_eq!(owner.mode(), Mode::Choosing);
     assert_eq!(owner.timer(), TimerState::Constructed);
+    assert!(owner.callbacks.is_empty());
+    assert_eq!(owner.dashboard_id(), None);
+    assert_eq!(owner.init(), Err(Unsupported::NativeInit));
+    assert_eq!(owner.shutdown(), Err(Unsupported::NativeShutdown));
+    assert_eq!(owner.mode(), Mode::Choosing);
 }
 
 #[test]

@@ -293,9 +293,11 @@ impl PlayerDrive {
         self.dashboard = window;
     }
     pub fn init(&mut self) -> Result {
+        // SPEC-GAP: DR1/DR3/DR8 leave native services, registration IDs and ownership open.
         Err(Unsupported::NativeInit)
     }
     pub fn shutdown(&mut self) -> Result {
+        // SPEC-GAP: DR8 leaves native teardown order and acquired service references open.
         Err(Unsupported::NativeShutdown)
     }
     pub fn show_ui(&mut self, _id: u32) -> Result {
