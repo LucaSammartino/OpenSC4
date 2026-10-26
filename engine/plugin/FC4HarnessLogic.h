@@ -234,9 +234,8 @@ enum class ScriptOp {
     Funds,        // funds 0..999999999: set treasury through the budget interface
     Establish,    // establish <name>: name and found an unfounded city
     GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
-    UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl
-    BudgetWindow, // budgetwindow: open the native budget UI; explicit script opt-in only
-    GDriverProbe  // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl,
+    BudgetWindow  // budgetwindow: open the native budget UI; explicit script opt-in only
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
