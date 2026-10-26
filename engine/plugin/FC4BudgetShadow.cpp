@@ -23,6 +23,7 @@
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
 #include "fc4.h"
+#include "fc4_trace.h"
 
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
@@ -370,6 +371,9 @@ int Report(bool beforeClean, bool afterClean) {
     AppendPair(line, sizeof(line), "net", true, m.funds1 - m.funds0, m.deptIncKnown && m.deptExpKnown,
                oursInc - oursExp);
     const int mismatches = typeMis + (totalMis ? 1 : 0) + (incMis ? 1 : 0) + (expMis ? 1 : 0);
+    fc4_trace_budget_expected(m.date.year, m.date.month, m.date.day_of_month,
+                              m.wa, m.tax, m.total, origInc - m.ordInc - m.nbInc - m.deptInc,
+                              !yearEnd && m.deptIncKnown, expMis, mismatches);
     ++g_months;
     if (mismatches == 0) ++g_clean;
     AppendF(line, sizeof(line), "; lots=%u; mismatches=%d", s.lots, mismatches);

@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Config.h"
+#include "fc4_trace.h"
 
 #include "FC4Log.h"
 
@@ -449,6 +450,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "ui_command_catalog", "reach_startup",
                                   // Sampled land-value input-change diagnostics (not native Step capture).
                                   "landvalue_shadow_inputs",
+                                  "trace_record", "trace_scenario",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
@@ -635,6 +637,21 @@ std::string Setting(const char* iniKey, const char* envName, const char** source
 void ConfigReload(const char* why) {
     bool found = false;
     const std::map<std::string, std::string> ini = ReadIni(&found);
+    // SPEC-GAP: record/replay tooling uses an explicit scenario label, falling
+    // back to the harness city name. Configure before any shadow is created.
+    static bool traceConfigured = false;
+    if (!traceConfigured) {
+        traceConfigured = true;
+        const std::string dir = Setting("trace_record", "FC4_TRACE_RECORD");
+        std::string scenario = Setting("trace_scenario", "FC4_TRACE_SCENARIO");
+        if (scenario.empty()) scenario = Setting("autoload_city", "FC4_AUTOLOAD_CITY");
+        if (scenario.empty()) scenario = "unnamed";
+        if (!dir.empty()) {
+            const bool ok = fc4_trace_configure(reinterpret_cast<const uint8_t*>(dir.data()), dir.size(),
+                                                reinterpret_cast<const uint8_t*>(scenario.data()), scenario.size());
+            Log("trace record: configured=%d scenario=%s dir=%s", ok ? 1 : 0, scenario.c_str(), dir.c_str());
+        }
+    }
     for (const auto& kv : ini) {
         if (!KnownKey(kv.first)) Log("config: WARNING unknown key '%s' in FreeCity4.ini (ignored)", kv.first.c_str());
     }

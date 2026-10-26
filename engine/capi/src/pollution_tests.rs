@@ -1022,6 +1022,31 @@ fn shadow_agrees_with_an_identical_original() {
 }
 
 #[test]
+fn host_trace_replays_pollution_cycle_and_original_mismatch() {
+    let dir = crate::trace::test_record("pollution-roundtrip", || {
+        let g = Game::new();
+        let a = started(&g);
+        message(a, msg::OCCUPANT_INSERTED, POLLUTER);
+        message(a, msg::OCCUPANT_INSERTED, INCINERATOR);
+        let h = host(&g);
+        let s = unsafe { fc4_pollution_shadow_create(&h, 0) };
+        let mut lines = Vec::new();
+        for day in 0..31 {
+            assert_eq!(shadowed(s, a, &g, msg::SIM_NEW_DAY, JULIAN + day, &mut lines, || {}), 0);
+        }
+        assert_eq!(
+            shadowed(s, a, &g, msg::SIM_NEW_MONTH, JULIAN + 31, &mut lines, || {}),
+            0
+        );
+        unsafe {
+            fc4_pollution_shadow_destroy(s);
+            fc4_pollution_destroy(a);
+        }
+    });
+    assert!(crate::trace::run(&dir.join("manifest.tsv"), true, 2).unwrap());
+}
+
+#[test]
 fn shadow_compares_occupant_properties_and_saved_fields() {
     let g = Game::new();
     let a = started(&g);

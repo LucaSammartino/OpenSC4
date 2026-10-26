@@ -1410,7 +1410,7 @@ pub unsafe extern "C" fn fc4_pollution_shadow_create(
     guard(std::ptr::null_mut(), || match host.as_ref() {
         Some(h) if (h.struct_size as usize) >= std::mem::size_of::<fc4_pollution_host>() && h.grids.complete() => {
             let host = Rc::new(ShadowHost {
-                c: *h,
+                c: crate::trace::pollution_create(*h, max_cells),
                 mode: Cell::new(Mode::Live),
                 cache: RefCell::new(HashMap::new()),
                 overlay: RefCell::new(HashMap::new()),
@@ -1446,7 +1446,9 @@ pub unsafe extern "C" fn fc4_pollution_shadow_destroy(s: *mut fc4_pollution_shad
     if s.is_null() {
         return;
     }
+    crate::trace::will_destroy("pollution");
     guard((), || drop(Box::from_raw(s as *mut Shadow)));
+    crate::trace::destroy("pollution");
 }
 
 /// Before the original's delivery of `msg_type` (SimNewDay `0x66956814` or
@@ -1463,8 +1465,11 @@ pub unsafe extern "C" fn fc4_pollution_shadow_begin(
     if msg_type != msg::SIM_NEW_DAY && msg_type != msg::SIM_NEW_MONTH {
         return -2;
     }
+    crate::trace::pollution_step("begin", msg_type, julian, before);
     let c = capture_of(before);
-    with_shadow(s, -1, |sh| sh.begin(msg_type, julian, c))
+    let r = with_shadow(s, -1, |sh| sh.begin(msg_type, julian, c));
+    crate::trace::step_result("pollution", "begin", r, &[]);
+    r
 }
 
 /// After the original's delivery: compares (see the module notes) and hands
@@ -1479,9 +1484,11 @@ pub unsafe extern "C" fn fc4_pollution_shadow_finish(
     sink: fc4_bytes_sink,
     ctx: *mut c_void,
 ) -> i32 {
+    crate::trace::pollution_step("finish", 0, 0, after);
     let c = capture_of(after);
     let mut lines = Vec::new();
     let r = with_shadow(s, -1, |sh| sh.finish(c, &mut lines));
+    crate::trace::step_result("pollution", "finish", r, &lines);
     emit(&lines, sink, ctx);
     r
 }

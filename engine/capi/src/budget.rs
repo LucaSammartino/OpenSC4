@@ -756,6 +756,12 @@ pub unsafe extern "C" fn fc4_budget_shadow_tax(
     if (out.struct_size as usize) < std::mem::size_of::<fc4_tax_scan>() || rates.is_null() {
         return false;
     }
+    let traced_host = host
+        .as_ref()
+        .map(|h| crate::trace::budget_create(*h, tuning_holder, fix_cs3_weight, difficulty, rates));
+    let host = traced_host
+        .as_ref()
+        .map_or(std::ptr::null(), |h| h as *const fc4_budget_host);
     let Some(h) = host_of(host) else { return false };
     let mut r = [0f32; TAX_GROUPS];
     r.copy_from_slice(std::slice::from_raw_parts(rates, TAX_GROUPS));

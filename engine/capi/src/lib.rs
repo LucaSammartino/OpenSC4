@@ -1207,3 +1207,6 @@ mod regionalcity_owner;
 
 // Private graphics-rule owner transport; native acquisition requires GR9.
 mod cfgrules_owner;
+
+// Opt-in C ABI host-boundary record/replay tooling.
+pub mod trace;

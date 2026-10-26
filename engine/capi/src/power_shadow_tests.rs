@@ -34,6 +34,23 @@ const OCCUPANT_BUILDING: u32 = 0x2781_28A0;
 /// 2000-02-01.
 const FEB_2000: i32 = 2_451_576;
 
+#[test]
+fn host_trace_replays_cycles_messages_and_cache_without_game() {
+    let dir = crate::trace::test_record("power-roundtrip", || {
+        let mut w = World::new(Game::new(1000, &[300, 400]), true);
+        assert!(w.cycle().iter().all(|&n| n == 0));
+        w.notify(msg::OCCUPANT_REMOVED, 12);
+        assert!(w.cycle().iter().all(|&n| n == 0));
+        assert_eq!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}), Some(0));
+    });
+    let manifest = dir.join("manifest.tsv");
+    assert!(crate::trace::run(&manifest, true, 2).unwrap());
+    assert!(crate::trace::run(&manifest, false, 2).unwrap());
+    assert!(std::fs::read_to_string(dir.join("replay-verdicts.tsv"))
+        .unwrap()
+        .contains("\ttrue\t\n"));
+}
+
 /// (element type, array flag, bytes, count).
 type Written = (u16, bool, Vec<u8>, usize);
 
