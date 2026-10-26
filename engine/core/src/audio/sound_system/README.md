@@ -25,8 +25,9 @@ refresh safely rejects missing backend/QI dependencies, and INI stages preserve
 numeric replacement/order and partial success. Foreign interfaces supply COM
 calls, inherited INI enumeration/locale comparison, clocks, random draws and the
 pitch table; they do not supply the selection, transform or framing algorithms.
-The exact remaining SS1 opcode set returns `Unsupported("SS1")`. Runtime-only
-boundaries are listed below; none is silently treated as a completed algorithm.
+The exact remaining SS1 opcode set returns `Unsupported("SS1")`, checked for
+every reserved opcode. Runtime-only boundaries are listed below; none is
+silently treated as a completed algorithm.
 The other owners' closure rows retain their previous scope pending their lanes.
 
 SS12 records literal list choices: preserve registrations, remove all matching
@@ -42,16 +43,23 @@ without open IDs; an owner with any open row remains partial.
 “Open” is limited to the uncertainties explicitly reserved by the source spec;
 inventory names alone are not claimed as algorithms. All 24 §10 vectors execute.
 
+Requested owner credit: cHitChannel (4,814 B), cFreshPlayer (7,845 B) and
+cFreshCellPlayer (3,047 B) are implemented with no open IDs. cHitTrackPlayer
+(16,012 B), cHitMan (6,664 B), cHitIniFile (5,551 B) and
+cHitPropertySetTrackResource (6,092 B) remain partial only at the explicitly
+reserved SS1/SS2/SS4/SS5 observations below. The spec narrows those boundaries
+to runtime measurements; its worked cases do not close them.
+
 | Owner | Spec section | Code item and covering test; explicit open boundary |
 |---|---|---|
 | All interface/service owners | §2 | `SoundRef`, `InterfaceView`, foreign host traits; `track_views_acquire_references_and_preserve_secondary_offsets`, `ss_v08_free_channel_releases_once`; native COM/system-service inheritance stays in adapters |
 | cHitTrackPlayer | §3.1 | `construct`, `query_interface`, embedded channel; `track_construction_acquires_services_without_loading`, `track_views_acquire_references_and_preserve_secondary_offsets`; open: SS1 folded entries need the §3.3 recording-interface/PC observations |
 | cHitTrackPlayer | §3.2 | implemented: `play_with`, `write_play_payload`, load/pause methods; SS-V01/02/04/05, `ss1_mode3_and_play_order_suppress_notifications`; SS1 routing, suppressed flags and Kill/start/dependent/Unpause call order applied; actual foreign calls use `TrackIo` |
-| cHitTrackPlayer | §3.3 | `set_register`, `notify_register`, `execute_next`, `timer_callback`; `ss1_byte_width_wait_and_strict_ramp_worked_cases`, `ss1_instruction_budget_reports_after_102_and_preserves_stack_offsets`; open: SS1 residual opcodes 0B/0E/10–19/1B–1C/1F–33/3E–49/4B–5C/5F–61, branch/tempo/error continuation and cross-object effects require the exact §3.3 PC/register/interface traces; alias words supplied by adapter |
+| cHitTrackPlayer | §3.3 | `set_register`, `notify_register`, `execute_next`, `timer_callback`; `ss1_byte_width_wait_and_strict_ramp_worked_cases`, `ss1_instruction_budget_reports_after_102_and_preserves_stack_offsets`, `ss1_alias_suppression_checked_register_and_callback_countdown`, `ss1_every_reserved_opcode_remains_explicitly_unsupported`; open: SS1 residual opcodes 0B/0E/10–19/1B–1C/1F–33/3E–49/4B–5C/5F–61, branch/tempo/error continuation and cross-object effects require the exact §3.3 PC/register/interface traces; alias words supplied by adapter |
 | cHitMan | §4.1 | `TrackDataBlock::parse`, registration/semantic/group/sequence/duck maps, `random`, pause slots and opaque source forwarding; SS-V08, `ss2_whole_file_duplicate_registration_semantic_duck_and_random`; open: SS2 source payload/control-object policy need slot-3 handler and competing-group recording observations (§4.1); shutdown/callback ordering remains a SPEC-GAP |
 | cHitChannel | §4.2 | implemented (SS3): six QI views/table extents, `update_patch`, `update_pitch`, `update_vol_pan`, `notify`, `notify_inherited`, load/note-on; SS-V06/07, `ss3_pitch_pan_volume_patch_and_interface_worked_cases`, `ss3_notifications_preserve_return_asymmetry_and_retained_sets`; safe missing-backend rejection, optional controls and inherited-set ownership covered |
 | cHitIniFile | §5.1 | `hit_config.rs` numeric conversion/tokenization and all ordered stages, persistent exclusions/creators, foreign inherited enumeration; `ss4_numeric_order_duplicates_and_failure_continuation`; open: SS4 repeated-section callbacks and locale true/TRUE comparison require the §5.1 inherited-reader observation; missing-backend crashes safely rejected |
-| cHitPropertySetTrackResource | §5.2 | legacy framing/version/overlay/defaults/writer, `assign`, `private_copy`, foreign generic serializer selector; SS-V24, `ss5_legacy_framing_defaults_self_reference_writer_and_private_copy`, `ss5_optional_length_magic_skip_and_empty_field_overlay`; open: SS5 invalid QI, S=0/3 and short-read return/crash/property outcomes need the §5.2 mock-record observation; safe invalid-input rejection used |
+| cHitPropertySetTrackResource | §5.2 | legacy framing/version/overlay/defaults/writer, `assign`, `private_copy`, foreign generic serializer selector; SS-V24, `ss5_legacy_framing_defaults_self_reference_writer_and_private_copy`, `ss5_optional_length_magic_skip_and_empty_field_overlay`, `ss5_version_gates_overlay_and_unvalidated_text_tags`; open: SS5 invalid QI, S=0/3 and short-read return/crash/property outcomes need the §5.2 mock-record observation; safe invalid-input rejection used |
 | cFreshPlayer | §6.1 | implemented (SS6): initialization/overloads, valid dimensions, selection/scoring, coordinates/budgets/divisions, beat clock, fades, Stop/Shutdown/reseed and lock callbacks; SS-V09, `ss6_block_coordinate_selection_scores_and_separate_random_sources`, `ss6_fade_overshoot_retarget_zero_step_and_clock_worked_cases`, `ss6_stop_shutdown_and_repeated_init_lifetime_order`, `ss6_path_init_ignores_load_boolean_and_preserves_directory`; invalid dimensions/sparse grids safely rejected |
 | cFreshCellPlayer | §6.2 | implemented (SS7): `start`, GUID/name selection, spatial/pitch/volume setup, external controller call order/failure state, `update_countdown`, `update`, Stop/Kill and AutoPan; SS-V10–14, `ss7_guid_external_failure_countdown_pan_and_controller_worked_cases`, `ss7_internal_start_ignored_play_failure_and_external_setter_order`; foreign CRC/table/draw inputs explicit; low-bit pan polarity marked SPEC-GAP |
 | cGZSndSys | §7.1 | `SndSys`, consuming/deferred event chain, posting, classified target lists/queues, independent update control, renderer master volume; SS-V15–17, `deferred_handlers_survive_nested_dispatch_and_drain_adds_first`, `target_queues_and_callback_short_circuit`, `target_removal_is_deferred_through_nested_enumeration`, `renderer_volume_and_posting_are_foreign_io`, `payload_overload_reuses_existing_event_fields`; open: SS8 period classifier, slow timer, listener/cache/lifecycle/mapping rules; literal choices SS12 |

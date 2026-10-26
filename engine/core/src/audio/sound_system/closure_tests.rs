@@ -83,6 +83,7 @@ struct TrackSpy {
     effects: Vec<TrackEffect>,
     errors: Vec<String>,
     error_result: i32,
+    aliases: BTreeMap<u32, u32>,
 }
 impl TrackIo for TrackSpy {
     fn effect(&mut self, effect: TrackEffect) -> bool {
@@ -95,6 +96,9 @@ impl TrackIo for TrackSpy {
     }
     fn entry(&mut self, id: u32) -> Option<usize> {
         Some(id as usize)
+    }
+    fn alias(&mut self, id: u32) -> u32 {
+        self.aliases.get(&id).copied().unwrap_or(0)
     }
 }
 
@@ -169,6 +173,58 @@ fn ss1_byte_width_wait_and_strict_ramp_worked_cases() {
     track.pc = 0;
     track.execute_next(&[0], &mut io).unwrap();
     assert_eq!(io.errors, ["Illegal Instruction"]);
+}
+
+#[test]
+fn ss1_alias_suppression_checked_register_and_callback_countdown() {
+    let mut track = HitTrackPlayer::default();
+    let mut io = TrackSpy::default();
+    io.aliases.insert(13, 0xFF90_AAC8);
+    assert!(track.set_register(13, -20, 1, &mut io));
+    assert_eq!(track.properties[&0xFF90_AAC8], -20);
+    assert_eq!(track.flags, [false, false, true]);
+    assert!(io.effects.is_empty());
+    // Only the low byte suppresses notification (§3.3).
+    assert!(track.set_register(13, 255, 0x100, &mut io));
+    assert_eq!(io.effects, [TrackEffect::VolPan]);
+    assert_eq!(track.flags, [false, true, false]);
+    track.execute_next(&[4, 75, 1, 4, 74, 2], &mut io).unwrap();
+    assert_eq!(track.properties[&1], 1);
+    track.execute_next(&[4, 75, 1, 4, 74, 2], &mut io).unwrap();
+    assert_eq!(track.properties[&74], 2);
+    assert_eq!(io.errors, ["Illegal Register Id"]);
+
+    track.executing = true;
+    track.wait = 1000;
+    track.note_countdown = 2;
+    io.effects.clear();
+    track.timer_callback(20, &[], &mut io).unwrap();
+    assert_eq!((track.wait, track.note_countdown), (980, 1));
+    assert!(io.effects.is_empty());
+    track.timer_callback(400, &[], &mut io).unwrap();
+    assert_eq!((track.wait, track.note_countdown), (580, 0));
+    assert_eq!(io.effects, [TrackEffect::NoteOff]);
+}
+
+#[test]
+fn ss1_every_reserved_opcode_remains_explicitly_unsupported() {
+    // The exact residual set in §3.3 must never become successful no-ops.
+    let reserved = [0x0B, 0x0E]
+        .into_iter()
+        .chain(0x10..=0x19)
+        .chain(0x1B..=0x1C)
+        .chain(0x1F..=0x33)
+        .chain(0x3E..=0x49)
+        .chain(0x4B..=0x5C)
+        .chain(0x5F..=0x61);
+    for opcode in reserved {
+        let mut track = HitTrackPlayer::default();
+        assert_eq!(
+            track.execute_next(&[opcode], &mut TrackSpy::default()),
+            Err(Unsupported("SS1")),
+            "opcode {opcode:02X}"
+        );
+    }
 }
 
 #[test]
@@ -562,6 +618,41 @@ fn ss5_optional_length_magic_skip_and_empty_field_overlay() {
         assert_eq!(resource.properties[&LEGACY_FIELDS[8]], 0x7DCD_ED2D);
         assert_eq!(resource.properties[&LEGACY_FIELDS[11]], 512);
         assert_eq!(resource.properties[&0xFF6F_9546], 42);
+    }
+}
+
+#[test]
+fn ss5_version_gates_overlay_and_unvalidated_text_tags() {
+    let key = ResourceKey {
+        kind: 0x0B8D_821A,
+        group: 7,
+        instance: 42,
+    };
+    for version in [0, 1, 2, u32::MAX] {
+        let mut text = format!("unvalidated,{version},,");
+        for field in 1..=27 {
+            if (version == 0 && field == 6) || (version < 2 && field >= 22) {
+                continue;
+            }
+            text.push_str(&format!("{field},"));
+        }
+        // §5.2 requires no ETKD marker or maximum-version check.
+        let mut record = 0u32.to_le_bytes().to_vec();
+        record.extend(text.as_bytes());
+        let mut resource = HitPropertySetTrackResource::new(key);
+        resource
+            .properties
+            .extend([(LEGACY_FIELDS[5], 600), (LEGACY_FIELDS[26], 2700)]);
+        assert!(resource.read_legacy_record(&record));
+        assert_eq!(
+            resource.properties[&LEGACY_FIELDS[5]],
+            if version == 0 { 600 } else { 6 }
+        );
+        assert_eq!(resource.properties[&LEGACY_FIELDS[8]], 9);
+        assert_eq!(
+            resource.properties[&LEGACY_FIELDS[26]],
+            if version < 2 { 2700 } else { 27 }
+        );
     }
 }
 
