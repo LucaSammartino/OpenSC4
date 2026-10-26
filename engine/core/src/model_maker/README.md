@@ -25,7 +25,7 @@ destructor releases bindings still present, in reverse order (§3.4).
 | 9 State changes | Pending | M18/M20/M21 pending |
 | 10 View changes | Pending | M19/M23/M27 pending |
 | 11 Lighting/dynamic textures | `dynamic_textures`, `TextureHost`, `Kernel` | M22 `m22_light_threshold_rebuild_order_and_existing_binding_identity`; `raw_kernels_round_alpha_and_keep_the_16_bit_row_stride_quirk`; `dxt_endpoint_remapping_and_dxt35_keeps_unswapped_endpoints` |
-| 12 Model loading | Pending | §§12.1–12.12 pending, no substitute foreign implementation of this owner's logic |
+| 12 Model loading | `materials::{assign_counted,MaterialHost}` and material-walk methods | §§12.3/12.4: `counted_assignment_keeps_identity_and_acquires_before_release`, `change_models_default_mode_checks_registration_and_retains_holder`, `material_apply_reads_frame_once_and_restore_changes_only_swapped_materials`, `offset_swap_leaves_missing_textures_static_and_counts_the_loaded_reference`; remaining subsections pending |
 | 13 Terrain hiding | `hide_occupant_terrain`, `hide_terrain_cells`, `TerrainHost` | §13.2 type worked rules: `network_base_texture_and_pipe_bits_preserve_high_flags`; §13.1 clipping/mode: `foundation_mode_rebuilds_flags_and_refreshes_end_exclusive_clipped_rect` |
 | 14 AddModels | Pending | M28 pending |
 | 15 Background loader | Separate `model_background_loader` module | See its README; **open MM1** is an explicit Unsupported boundary |

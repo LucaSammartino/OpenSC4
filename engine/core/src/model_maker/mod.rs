@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 pub mod dynamic_textures;
 mod geometry;
 mod lifecycle;
+pub mod materials;
 mod terrain_hiding;
 pub use lifecycle::{LifecycleHost, INIT_MESSAGES};
 pub use terrain_hiding::{TerrainHost, TerrainOccupant};
@@ -23,6 +24,29 @@ pub const SERIALIZABLE: u32 = 0xE4FD_A3D4;
 pub const ALL_ZOOMS: u32 = 0x1F;
 pub const ALL_ROTATIONS: u32 = 0x0F;
 pub type Handle = u64;
+
+/// Foreign counted references. Getters borrow unless their trait says otherwise.
+pub trait ObjectHost {
+    fn retain(&mut self, object: Handle);
+    fn release(&mut self, object: Handle);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModelKey {
+    pub type_id: u32,
+    pub group: u32,
+    pub instance: u32,
+}
+
+impl ModelKey {
+    pub const fn s3d(instance: u32) -> Self {
+        Self {
+            type_id: 0x5AD0_E817,
+            group: 0xBADB_57F1,
+            instance,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct DeferredEntry {
