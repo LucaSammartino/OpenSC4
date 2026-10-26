@@ -64,3 +64,17 @@ retains the latch/count, and singular loop removal sends no stop.
 <!-- from: core-audio-inputfix4 (2026-10-22) -->
 - **AA11 - section 3.2:** does the second move set-position (`0x004E8C70`, entered when `0xCA19D7CA` reads) test the sound system `+0x20` itself, and is it reached when the holder lacks `0x6A36AFAC`? [both posts independent, each only with the sound system present]
   **ANSWERED 2026-10-22 (re-audio-final-gaps4):** MATCHES — §3.2: both failing tests at `0x004E8D95` (`0x6A36AFAC`) and `0x004E8D9C` (`+0x20`) join at `0x004E8DDE`, the `0xCA19D7CA` read; `0x004E8C70` tests `+0x20` itself (`0x004E8C76`), posts nothing and returns 1 when absent. Vectors (sound present): A only → 1 post; B only (value 0 included) → 1 post; both → 2 identical posts, A first; neither → 0; sound absent → 0 in every case.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- ~~**AA14 - layer construction, lifetime and uncovered slots:** §8 inventories slots 0–28 but
+  gives no complete constructor/QI/AddRef/Release/destructor, StaticInit/StaticShutdown, Shutdown,
+  DoMessage, Enable, CanHandleOccupant, Insert/Move/RemoveOccupant, loop add/remove, freshness
+  load/add/remove and score-master-volume bodies. Please specify defaults (including initial loop
+  ID and process cell cache), service/reference acquisition/release, Init's first-failure/retry
+  state and resource/player ownership for these routines. In §8.3 does repeated CreateFilters
+  clear old lists/counters as well as bit vectors? [Implement §8.2–8.7 covered algorithms as
+  explicit stages; no guessed native constructor/lifetime/score-loading or successful full Init.]~~
+  **ANSWERED 2026-10-25 (re-audioclose8):** audio-ambience.md §8.1.1 answers every listed body and the defaults,
+  and §8.3 the repeated-CreateFilters question (bit vectors and interface counters only); archived here. The
+  remaining small members, `_RemoveLayers`, `_RemoveAllFilters`, `_StaticRemoveAllFilters` and a correction (each
+  filter-list entry holds a reference) are audio-owner-closure.md §2.

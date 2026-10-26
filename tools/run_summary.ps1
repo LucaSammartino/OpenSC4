@@ -137,7 +137,7 @@ if ($groups) {
 # <date>" and its day lines, "protection shadow (fire) <date>", "flora shadow month <date>: ... mismatched N",
 # "landfill shadow month to <date>: clean|mismatches=N"). Multi-word names become underscore-separated ini labels.
 # A line differs when any of those counts is non-zero.
-$shadows = Select-String -Path $Log -Pattern "\] ([a-z_]+(?: [a-z_]+)*) shadow [^:]*(?:\d{4}-\d\d-\d\d|julian=\d+)[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
+$shadows = Select-String -Path $Log -Pattern "\] ([a-z0-9_-]+(?: [a-z0-9_-]+)*) shadow [^:]*(?:\d{4}-\d\d-\d\d|julian=\d+)[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
 # One shadow key can also report owner families of its own: "<name>-<part>-shadow: ... mismatches=N" (flora_shadow's
 # flora-occupant-shadow and flora-static-shadow lines). Each family is its own label, "<name>-<part>".
 $families = Select-String -Path $Log -Pattern "\] ([a-z0-9]+(?:-[a-z0-9]+)+)-shadow: [^\r\n]*mismatches=\d" -CaseSensitive
@@ -146,6 +146,8 @@ $shadows = @($shadows) + @($families) | Where-Object { $_ }
 # repeats those comparisons and must not add evidence. Empty files are neither exact nor mismatched.
 $formats = Select-String -Path $Log -Pattern "\] (formats) shadow: [^:]+: \d+ exemplar entries, ([1-9]\d*) compared, \d+ exact, \d+ differ, \d+ rejected" -CaseSensitive
 $shadows = @($shadows) + @($formats) | Where-Object { $_ }
+# Method comparisons never establish whole-owner completeness.
+$shadows = @($shadows | Where-Object { $_.Line -cnotmatch '\bmethod (?:0x[0-9a-fA-F]+|[0-9a-fA-F]{8}|-) ' })
 $differs = "mismatch(es|ed)[= ][1-9]|differences [1-9]"
 # A line with its own total ("; mismatches=N", nothing between "; " and the word) is judged by that total alone:
 # other counts on it can be notes (land value: "with the live map total mismatched=391" when the previous desirability map matched).
@@ -171,6 +173,48 @@ if ($sg) {
         Write-Output ("  {0} resynced lines: {1}" -f $g.Name, $resynced)
         $bad = $g.Group | Where-Object { Differs $_.Line } | Select-Object -First 2
         foreach ($b in $bad) { Write-Output ("    differs: " + (Body $b.Line)) }
+    }
+}
+
+# Method counters are cumulative. Retain the last counters and every failed observation;
+# summing calls or selecting the largest complete count could manufacture completeness.
+$methods = @{}
+$methodPattern = '\] ([a-z0-9_-]+(?: [a-z0-9_-]+)*) method (0x[0-9a-fA-F]+|[0-9a-fA-F]{8}|-) (\S+) \(month\) \d{4}-\d\d-\d\d: (.*)$'
+foreach ($line in @(Select-String -Path $Log -Pattern $methodPattern -CaseSensitive)) {
+    $parts = $line.Matches[0].Groups
+    $family = ($parts[1].Value -creplace '[ _-]shadow$', '') -replace ' ', '_'
+    $address = $parts[2].Value
+    if ($address -ne '-') { $address = '0x{0:X8}' -f [Convert]::ToUInt32(($address -replace '^0x', ''), 16) }
+    $name = $parts[3].Value
+    $key = "$family $address $name"
+    if (-not $methods.ContainsKey($key)) {
+        $methods[$key] = @{ Lines=0; Exact=0; Calls=[long]0; Complete=[long]0; Mismatches=0; Resyncs=0; Valid=1 }
+    }
+    $r = $methods[$key]; $r.Lines++
+    if ($parts[4].Value -cnotmatch '^calls=(\d+) complete=(\d+) mismatches=(\d+); resyncs=(\d+)\s*$') {
+        $r.Valid = 0; continue
+    }
+    $values = @(); $parsed = $true
+    for ($j = 1; $j -le 4; $j++) {
+        $number = [long]0
+        if (-not [long]::TryParse($Matches[$j], [ref]$number)) { $parsed = $false }
+        $values += $number
+    }
+    if (-not $parsed) { $r.Valid = 0; continue }
+    $calls, $complete, $mismatches, $resyncs = $values
+    if ($calls -lt $r.Calls -or $complete -lt $r.Complete -or $complete -gt $calls) { $r.Valid = 0 }
+    $r.Calls = $calls; $r.Complete = $complete
+    if ($mismatches -gt 0) { $r.Mismatches++ }
+    if ($resyncs -gt 0) { $r.Resyncs++ }
+    if ($mismatches -eq 0 -and $resyncs -eq 0) { $r.Exact++ }
+}
+if ($methods.Count -gt 0) {
+    Write-Output ''
+    Write-Output 'method lines:'
+    foreach ($key in @($methods.Keys | Sort-Object)) {
+        $r = $methods[$key]
+        $family, $address, $name = $key -split ' ', 3
+        Write-Output ("  {0} method {1} {2}: {3} lines, {4} exact, calls={5} complete={6}; mismatches={7}; resyncs={8}; counters_valid={9}" -f $family, $address, $name, $r.Lines, $r.Exact, $r.Calls, $r.Complete, $r.Mismatches, $r.Resyncs, $r.Valid)
     }
 }
 

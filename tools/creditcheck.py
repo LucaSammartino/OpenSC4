@@ -89,7 +89,8 @@ def load_attribution(tree, data_repo):
     return att, owners
 
 
-def measure_tree(tree, data_repo, reg, *, lane=False, inherited=None, regress_name="lane logs"):
+def measure_tree(tree, data_repo, reg, *, lane=False, inherited=None, inherited_methods=None,
+                 regress_name="lane logs"):
     rows = coverage.read_map(tree / MAP)
     replace, shadows = coverage.regress_lists(tree / "tools/regress.ps1")
     keys = coverage.subsystem_keys(tree / "engine/plugin/FC4Subsystems.cpp")
@@ -106,14 +107,22 @@ def measure_tree(tree, data_repo, reg, *, lane=False, inherited=None, regress_na
             row["shadow_note"] = old["shadow_note"]
     att, owners = load_attribution(tree, data_repo)
     game, _, _, _, _ = coverage.map_functions(rows, att, owners)
+    methods, _, method_warnings = coverage.coverage_methods.credit(
+        sorted((tree / "docs/specs/attribution").glob("*.tsv")), att, owners, game, reg)
+    warnings.extend(method_warnings)
+    for va, identity in (inherited_methods or {}).items():
+        if va in att.funcs and identity == (att.name(va), owners[va], att.funcs[va]):
+            methods.add(va)
     weights = [0] * len(rows)
     for _, size, index, _ in game:
         if index is not None:
             weights[index] += size
     by_pattern = {r["pattern"]: {**r, "bytes": weights[i]} for i, r in enumerate(rows)}
     totals = {s: sum(r["bytes"] for r in by_pattern.values() if r[s]) for s in STAT}
+    totals["verified"] += sum(size for _, size in coverage.coverage_methods.incremental(game, rows, methods))
     return {"rows": by_pattern, "totals": totals, "game_bytes": sum(g[1] for g in game),
-            "warnings": warnings}
+            "warnings": warnings,
+            "methods": {va: (att.name(va), owners[va], att.funcs[va]) for va in methods}}
 
 
 def measure_current(wt):
@@ -151,7 +160,7 @@ def summarize_log(wt, log):
 
 def log_evidence(wt, logs, baseline):
     # Supplied logs add verified credit; replacement cleanliness keeps main's regress verdict.
-    reg = {**baseline, "shadows": {}, "resynced": {}}
+    reg = {**baseline, "shadows": {}, "resynced": {}, "methods": {}}
     parser = tree_coverage(wt)
     SCRATCH.mkdir(exist_ok=True)
     for log in dict.fromkeys(Path(p).resolve() for p in logs):
@@ -160,6 +169,12 @@ def log_evidence(wt, logs, baseline):
             path = Path(tmp) / "summary.out"
             path.write_text("=== regress-creditcheck-shadows (lane log)\n" + summary, encoding="utf-8")
             parsed = parser.read_regress(path, audit_legacy=False)
+        for key, record in parsed.get("methods", {}).items():
+            old = reg["methods"].get(key)
+            current = dict(record)
+            if old is not None and not coverage.coverage_methods.exact(old):
+                current["valid"] = 0
+            reg["methods"][key] = current
         for label, (clean, lines) in parsed["shadows"].items():
             old_clean, old_lines = reg["shadows"].get(label, (0, 0))
             reg["shadows"][label] = (old_clean + clean, old_lines + lines)
@@ -250,7 +265,8 @@ def check(wt, logs=()):
     reg = log_evidence(wt, logs, baseline)
     with snapshot(wt, base) as tree:
         before = measure_tree(tree, data_repo, baseline, inherited=main_rows, regress_name=source.name)
-    after = measure_tree(wt, wt, reg, lane=True, inherited=before["rows"])
+    after = measure_tree(wt, wt, reg, lane=True, inherited=before["rows"],
+                         inherited_methods=before["methods"])
     result = compare(before, after)
     result.update({"tip": tip, "base": base, "logs": [str(Path(p).resolve()) for p in logs],
                    "refusals": validate_changes(before["rows"], after["rows"], wt, reg)})

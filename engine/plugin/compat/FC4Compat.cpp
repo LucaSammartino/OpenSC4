@@ -80,6 +80,8 @@ const ExecutableVersion kVersions[] = {
             0x005FBA20,  // LoadPackageScripts (advisors.md §4.2; AD10)
             0x005EBDF0,  // the placeable pool's allocate (prop-occupant.md §6.1)
             0x005EC370,  // the cSC43DPlaceableObject constructor (prop-occupant.md §6.1)
+            0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
+            0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -527,7 +529,8 @@ uintptr_t DirectCall(Direct which) {
                                          "lua camera_zoom", "lua random_chance",
                                          "lua _dofile_from_resource", "lua print",
                                          "UpdateResourcesFromDirectory", "LoadPackageScripts",
-                                         "placeable pool allocate", "placeable constructor"};
+                                         "placeable pool allocate", "placeable constructor",
+                                         "texture binding AddRef", "texture binding Release"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
@@ -971,28 +974,6 @@ bool FeatureManagerSupported(const void* object) {
         if (entries[i] != slots[i] || !CheckCode("feature manager slot", slots[i], v->imageBase)) return false;
     const int32_t count = static_cast<const int32_t*>(object)[2];
     return count > 0 && count < 0x7ffffff0;
-}
-
-bool DrawStreamTables(void*** context, void*** tree, void*** list) {
-    const auto* version = IdentifiedVersion();
-    if (version != &kVersions[0]) return false;
-    const uintptr_t tables[] = {0x00AC16C8, 0x00AE2FE0, 0x00AE1780};
-    const unsigned slots[] = {35, 88, 88};
-    const uintptr_t expected[] = {0x0082C0C0, 0x009D37C6, 0x009CA19A};
-    for (unsigned i = 0; i < 3; ++i) {
-        MEMORY_BASIC_INFORMATION memory{};
-        const auto* table = reinterpret_cast<const uintptr_t*>(tables[i]);
-        if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) ||
-            memory.State != MEM_COMMIT || memory.Type != MEM_IMAGE ||
-            reinterpret_cast<uintptr_t>(memory.AllocationBase) != version->imageBase ||
-            memory.Protect != PAGE_READONLY ||
-            tables[i] + (slots[i] + 1) * sizeof(uintptr_t) > reinterpret_cast<uintptr_t>(memory.BaseAddress) + memory.RegionSize ||
-            table[slots[i]] != expected[i] || !CheckCode("drawstream entry", expected[i], version->imageBase)) return false;
-    }
-    *context = reinterpret_cast<void**>(tables[0]);
-    *tree = reinterpret_cast<void**>(tables[1]);
-    *list = reinterpret_cast<void**>(tables[2]);
-    return true;
 }
 }  // namespace compat
 }  // namespace fc4

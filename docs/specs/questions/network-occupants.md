@@ -57,11 +57,6 @@ implementer of the class tables and records.
   the network caller always uses the fully implemented mode 1. Null lo still returns immediately. [missing]
 
 <!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
-- **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
-  after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
-  the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
-
-<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
 - **NO31 - §10 instance constructor/destructor inventory:** beyond the published object size, base-class
   identity, processor member, resource reference and prebuilt cache lifetimes, what are the initial state
   and teardown side effects of instance ctor `0x00614A30` and destructor `0x00614830`? The pure core models
@@ -70,13 +65,6 @@ implementer of the class tables and records.
   NO29 implementation refinement: the published mode-0 x/z bounds early-out is implemented too. Only a
   mode-0 call that actually needs six-plane cutting returns `UnspecifiedClipMode`; null lo or contained
   x/z bounds return unchanged. No six-plane output is fabricated.
-
-<!-- from: core-netocc-close5 (2026-10-23) -->
-- **NO32 - sections 2.4, 2.5 and 2.7 base-owner closure inputs:** what are the numeric UV tables
-  `0x00AA7D98`/`0x00AA7D88`, the three packed render states made by StaticInit, and the zoom-table
-  `0x00B0B374` entries and exact `0x6000000` Draw predicate? How are normalized triangle normals encoded
-  into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
-  without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
 
 <!-- from: re-ugbase (2026-10-20) -->
 - **NO38 - §2.1, §2.2:** what the property holder's fixed `true` for `HasProperty(0x88696402)` (`0x00619500`)
@@ -88,18 +76,6 @@ implementer of the class tables and records.
   key from the resource manager. The cached path info is the occupant's own transformed copy (traffic-network.md
   §7.2), so where is that copy kept in a save, and under which key? `0x005D9940` writes the key, `0x005D9820` reads
   it. [as read]
-
-<!-- from: re-ugbase (2026-10-20) -->
-- **NO40 - §3.2, §3.6:** the geometry the model builders make: `CreateUndergroundModel` (`0x0065D810`),
-  `MakeCustomUndergroundPiece` (`0x0065D160`), `CreateWalls` / `AddWallQuad` (`0x0065E260`, `0x0065CFF0`), the mesh
-  transform (slot 85, `0x0065B700`), `ComputeBox` (`0x00659E00`), and the connection's `CreateGeometry`,
-  `CreatePieceModel`, `CreateWalls`, `CreateFloor` and `Draw` (`0x006562B0`, `0x00655850`, `0x00655F10`,
-  `0x00656010`, `0x00656E90`); which descriptor words they read and how the ratio tables T1 and T2 enter the
-  vertices. [as read]
-  **Progress 2026-10-23 (re-netocc-poles5):** §3.6.2/tests 49–50 settle the connection's standalone
-  CreateFloor/CreateWalls/AddWallQuad behavior without an attached occupant, clearing/append semantics,
-  attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
-  underground base geometry and Draw/transform/box algorithms remain open.
 
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets

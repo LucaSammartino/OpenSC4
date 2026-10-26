@@ -130,14 +130,6 @@ bool ErrorIs(const std::string& line, const std::string& message) {
 void ScriptParseTests() {
     using namespace fc4::harness;
     {
-        const auto p = One("2000-01-01 budgetwindow # explicit opt-in");
-        CHECK(p.errors.empty() && p.actions.size() == 1);
-        CHECK(p.actions[0].op == ScriptOp::BudgetWindow);
-        CHECK(ScriptOpName(p.actions[0].op) == std::string("budgetwindow"));
-        CHECK(One("2000-01-01 budgetwindow open").errors.size() == 1);
-        CHECK(One("2000-01-01 budgetwindow 1").errors.size() == 1);
-    }
-    {
         const auto p = One("2000-01-01 funds 999999999\n2000-01-01 establish FC4 small tile # comment");
         CHECK(p.errors.empty() && p.actions.size() == 2);
         CHECK(p.actions[0].op == ScriptOp::Funds && p.actions[0].funds == 999999999);
@@ -299,7 +291,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
-                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, budgetwindow)"));
+                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));

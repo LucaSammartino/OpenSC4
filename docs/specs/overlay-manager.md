@@ -346,10 +346,10 @@ dimensions. An indirect placement's stored aspect is the value retained at creat
 today's binding info is not proof of the original input. Changing the factory resource group can unkey live
 records without changing the overlay pointer or its pixels.
 
-For a source at overlay `+0xB0`, the owner requests dimensions through source slot 3 (`+0x0C`, output prefix
+For a source at overlay `+0xB0`, the owner requests dimensions through source slot 3 (`+0x0C`, complete output
 two unsigned 32-bit words width,height), retains the source with slot 1, releases with slot 2, and asks slot 4
-(`+0x10`) for the texture handle during drawing. The zero pushed at `0x00736892` is SetTexture's stage
-argument, **not** a proved source-slot-4 argument. Evidence: source dimensions and aspect
+(`+0x10`) for the texture handle during drawing. Slot 4 has **no stack arguments**; the zero pushed at
+`0x00736892` belongs to SetTexture's stage argument. The complete adapter ABI is §2.7.1. Evidence: source dimensions and aspect
 `0x0073B035–0x0073B06D`, references `0x0073B09E–0x0073B0C7`, draw `0x0073689D–0x007368AB`.
 There is no universal source-object field layout or resource key: the retained pointer is an interface whose
 implementation owns its state. With a binding present drawing takes that route first. Copying the source
@@ -367,6 +367,56 @@ An observer must report `data unavailable` rather than treating a handle as pixe
 Verifying contents requires observing the original image-info/frame/level upload inputs (and subsequent
 uploads/restores), or a separately specified driver/source readback contract. This limitation is deterministic,
 not a nondeterministic exclusion from a purported full-record/texture shadow.
+
+### 2.7.1 Native source call contracts and worked calls (OV16)
+
+These are 32-bit x86 **thiscall** methods on the retained source interface itself: ECX is the source
+pointer, and its first word supplies the vtable. No manager, factory, binding, frame index or texture stage
+is an additional source-method parameter. The names below describe the calls; they do not assert original
+source-language declarations. The exact callable adapter prototypes, in words, are:
+
+| Source slot | Adapter prototype | Argument stack bytes / callee cleanup | Result channel |
+|---|---|---|---|
+| 3, vtable `+0x0C` | Void-result thiscall on source, with one pointer to writable dimensions storage | 4 / 4 | The pointed-to 8 bytes, width then height, both unsigned 32-bit integers |
+| 4, vtable `+0x10` | Thiscall on source, with no parameters, returning one opaque 32-bit driver texture handle | 0 / 0 | EAX; the native string source returns zero on render failure |
+
+For slot 3, the caller must provide a nonnull pointer to **an 8-byte result object with 4-byte alignment**; larger
+scratch storage is permitted but unnecessary. Output offsets `+0` and `+4` are width and height.
+There are no trailing info fields, padding to reserve, pixel pointers, constructor or destructor in this
+result. The method receives one pointer to the first word, not two output pointers or a pointer-to-pointer.
+The caller owns the storage throughout the call; it does not receive or release an allocated info object.
+The original caller neither initializes the output nor tests a success return before reading both words
+(`0x0073B035–0x0073B05C`). The adapter must read the supplied storage, not interpret EAX as dimensions,
+an info-object pointer or a success boolean. No x87 or register-pair result is involved.
+
+A concrete source used by text decals proves the full write extent and the two method entries:
+the string-texture vtable `0x00AA2A60` has slot 3 `0x005D8130` and slot 4 `0x005D8020`.
+Its size method zero-extends its stored unsigned 16-bit dimensions to those two 32-bit outputs,
+writes only bytes `+0` through `+7`, and removes the one pointer argument (`0x005D8130–0x005D8143`).
+That body leaves **EAX equal to the supplied output address**; this is not a separate source-owned info
+pointer. The void-result adapter above deliberately consumes no return register. Whether a source-level
+declaration spells this as an output parameter or a caller-storage aggregate return does not change the
+machine call: ECX plus that single stack pointer, with an 8-byte memory result and four-byte callee cleanup.
+In particular, an aggregate-return wrapper must not introduce a second hidden argument or return the two
+words in EDX:EAX. String-source creation and its use as the overlay source are independently linked by
+manager slot 5 at `0x00AA2AE8`, creation `0x005D8179–0x005D8189`, and text-decal calls
+`0x005F81C7–0x005F81D5`, `0x005F787A–0x005F788A`; see also glyph-textures §§1.4,3.
+
+For slot 4, the concrete source delegates to its manager with this source as an **internal** argument,
+then returns its manager's handle without removing any caller argument (`0x005D8020–0x005D802B`).
+The manager's cached path returns the binding's frame-zero handle; a rendering failure returns zero
+(`0x005D7FF8–0x005D8016`, glyph-textures §1.4). Calling this method can therefore populate or reorder
+the cache; it is not a pure field getter. The overlay forwards the full returned word to SetTexture,
+without an AddRef or zero-handle rejection. The already-pushed stage zero stays on the stack across the
+source call; after pushing the returned handle, SetTexture consumes **handle, stage** and removes eight
+bytes (`0x00736892–0x007368AB`, `0x007D4070–0x007D40AD`). A source must not consume that pending zero.
+
+**Worked calls (instruction-derived test vectors, not an in-game measurement):**
+
+| Call and inputs | Required outputs and stack balance |
+|---|---|
+| Slot 3 of an initialized string source whose dimensions are width 512, height 128. ECX is that source. Supply result address `P=0x0012F004`, initially eight `0xA5` bytes, with guard bytes immediately before and after. Caller ESP before pushing P is `0x0012EFE0`; at method entry the return address is at `0x0012EFD8` and P at `0x0012EFDC`. | Output words at P and P+4 become `0x00000200`, `0x00000080` (little endian). Both guards remain untouched; P requires neither 8- nor 16-byte alignment. This native size body leaves EAX=P; consume the memory result. On return caller ESP is `0x0012EFE0`. With no binding, AddOverlay retains aspect height/width = binary32 0.25. |
+| Slot 4 of the same source, with a live manager and an existing cache entry whose binding's first handle is `0x13572468`. ECX is that source; no source arguments are pushed. To mirror DrawDecals, caller ESP starts at `0x0012EFE0` and SetTexture's pending stage zero is at `0x0012EFDC` before the source call. | EAX is `0x13572468`; the pending zero survives and caller ESP immediately after the source return is `0x0012EFDC`. The cached entry becomes used/newest as in glyph-textures §1.4. Pushing the handle and calling SetTexture submits handle `0x13572468`, stage 0; SetTexture returns ESP to `0x0012EFE0`. The handle is never dereferenced as CPU image data. |
 
 ## 3. The interface (`0x00AB39E8`) *[compat]*
 

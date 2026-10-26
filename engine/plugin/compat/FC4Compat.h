@@ -85,6 +85,9 @@ enum class Direct : unsigned {
     PlaceablePoolAllocate,  // FUN_005EBDF0, the placeable pool's allocate: cdecl void* (uint32_t size = 0x30,
                             //   unread), the caller pops
     PlaceableConstruct,     // cSC43DPlaceableObject constructor 0x005EC370: thiscall (), pop 0, EAX = this
+    // texture-bindings.md §2: bare counted bindings, not cIGZUnknowns.
+    TextureBindingAddRef,   // thiscall (), pop 0, void (functions.tsv)
+    TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
     Count
 };
 
@@ -348,8 +351,5 @@ bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 
 // feature-manager.md §§2,7: original layout, live app-owned count >0.
 bool FeatureManagerSupported(const void* object);
-
-// gz-graphics 2.1 and widget-controls 5.1/6.1: draw-stream recorder tables.
-bool DrawStreamTables(void*** context, void*** tree, void*** list);
 }  // namespace compat
 }  // namespace fc4

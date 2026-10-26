@@ -31,6 +31,19 @@ def checkout(root):
 
 
 class SuiteParsingTests(unittest.TestCase):
+    def test_reach_cli_preserves_explicit_roster(self):
+        with patch.object(suite, 'read_scenarios', return_value=[]), \
+             patch.object(suite, 'run_scenarios', return_value=(ROOT, {})) as run:
+            status = suite.main(['run', '--set', 'reach29', '--reach', '--dry-run',
+                                 '--extra', 'reach_contracts = build-runs/reduced.tsv',
+                                 '--extra', 'reach_cap = 1'], root=ROOT)
+        self.assertEqual(status, 0)
+        settings = suite.extras(run.call_args.kwargs['extra'])
+        self.assertEqual(settings['reach'], '1')
+        self.assertEqual(settings['reach_window'], 'month')
+        self.assertEqual(settings['reach_contracts'], 'build-runs/reduced.tsv')
+        self.assertEqual(settings['reach_cap'], '1')
+
     def test_resume_preserves_claimed_labels_and_only_bounds_unsubmitted_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -128,6 +141,20 @@ class SuiteParsingTests(unittest.TestCase):
             self.assertIn('clean-exit-crash', summary)
             self.assertIn('0x005D0F94', summary)
 
+    def test_posted_quit_crash_requires_an_accepted_command_after_target(self):
+        lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
+        lines[1] = lines[1].replace('cISC4App::RequestQuit(false, false)',
+                                  'native quit command 0xC7AA61C6 queued')
+        result = suite.parse_log(''.join(lines), '2028-01-28', 'verdict: corrupt')
+        self.assertEqual((result['verdict'], result['exception_address']),
+                         ('clean-exit-crash', '0x005D0F94'))
+        self.assertFalse(suite.successful({'posted': result}))
+        for text in (''.join(lines).replace('queued -> 1', 'queued -> 0'),
+                     lines[1] + lines[0] + ''.join(lines[2:]),
+                     lines[0] + lines[2] + lines[1] + lines[3]):
+            with self.subTest(text=text):
+                self.assertEqual(suite.parse_log(text, '2028-01-28')['verdict'], 'corrupt')
+
     def test_end_date_alone_cannot_reclassify_an_exception_as_a_quit_crash(self):
         lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
         cases = [
@@ -148,6 +175,15 @@ class SuiteParsingTests(unittest.TestCase):
                 self.assertEqual(result['verdict'], verdict)
         loaded = suite.parse_log(''.join(lines), '2028-01-28', only_load=True)
         self.assertEqual((loaded['verdict'], loaded['end_reached']), ('corrupt', '0'))
+
+    def test_failed_native_quit_cannot_pass_by_terminating_before_shutdown(self):
+        text = ('autotest: end date 2028-01-28 reached\n'
+                'autotest: native quit command 0xC7AA61C6 queued -> 0 (autotest_quit_post)\n'
+                'AUTOTEST VERDICT: clean (date=2028-01-28, days_per_second=3.2)\n')
+        result = suite.parse_log(text, '2028-01-28')
+        self.assertEqual((result['verdict'], result['raw_verdict']), ('harness-error', 'clean'))
+        self.assertIn('shutdown untested', result['invalid_reason'])
+        self.assertFalse(suite.successful({'failed-dispatch': result}))
 
     def test_frozen_clock_and_short_windows_fail_but_explicit_load_only_passes(self):
         text = ('memory: address space 968/2047 MiB; largest free 624 MiB\n'

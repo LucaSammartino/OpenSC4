@@ -52,7 +52,7 @@ class cSC4LotConfigurationObject;
 static const uint32_t kFC4_CLSID_cSC4NetworkLotManager = 0xE9A6CD3B;
 static const uint32_t kFC4_IID_cISC4NetworkLotManager = 0x89A5BA3F;
 static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
-// SPEC-GAP: native lot/configuration CLSIDs are unspecified; these FreeCity4 IDs register manager-created views.
+// NM15: native creation is direct allocation; these IDs expose FreeCity4 views only.
 static const uint32_t kFC4_CLSID_cFC4NetworkLot = 0x4E4C3030;  // "NL00"
 static const uint32_t kFC4_CLSID_cFC4NetworkLotConfiguration = 0x4E4C4330;  // "NLC0"
 
@@ -171,13 +171,13 @@ public:
     uint32_t GetLotConfigurationObjectCount() override;
     SC4Vector<cSC4LotConfigurationObject>* GetLotConfigurationObjectArray() override;
 
-    cFC4NetworkLotConfiguration* Config() const { return config_.get(); }
+    cFC4NetworkLotConfiguration* Config() const { return config_; }
 
 private:
     ~cFC4NetworkLot();
     std::atomic<uint32_t> refs_{1};
     cISC4NetworkOccupant* occ_ = nullptr;  // owned, independently of the core's cell entry
-    std::shared_ptr<cFC4NetworkLotConfiguration> config_;
+    cFC4NetworkLotConfiguration* config_ = nullptr;  // one independent COM reference
 };
 
 class cFC4NetworkLotManager final : public cFC4ISC4NetworkLotManager,
@@ -247,6 +247,7 @@ private:
     cIGZMessageServer2* msgServer_ = nullptr;
     std::map<uint64_t, cFC4NetworkLot*> lots_;
     std::map<uint64_t, std::shared_ptr<cFC4NetworkLotConfiguration>> configs_;
+    std::vector<std::pair<uint32_t, std::vector<uint64_t>>> configurationGroups_;
     std::vector<fc4_props*> configProps_;  // alive until the adds are done
     std::atomic<uint32_t> posts_{0};
 };
