@@ -95,7 +95,7 @@ std::map<std::string, unsigned> covered, rotationCovered;
 
 void ReleaseDrainPause() {
     if (!drainSimulator) return;
-    drainSimulator->HiddenResume(); // simulator.md 7: balanced, independent of the speed lock.
+    drainSimulator->HiddenResume(); // simulator.md 6: balanced, independent of the speed lock.
     FC4_RELEASE(drainSimulator);
     drainSimulator = nullptr;
     Log("dbpf drain: hidden pause released");
