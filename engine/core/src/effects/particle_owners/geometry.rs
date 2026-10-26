@@ -42,6 +42,22 @@ impl Default for GeometryParticles {
     }
 }
 impl GeometryParticles {
+    /// §21.2 parameter 9: two vectors and a source, never three vertices.
+    pub fn project_source(
+        &mut self,
+        vectors: [[f32; 3]; 2],
+        resources: &mut impl Resources,
+    ) -> Result<bool, Unsupported> {
+        let Some(source) = self.source else {
+            return Ok(true);
+        };
+        if resources.group_count(source) == 0 {
+            return Ok(true);
+        }
+        let _ = vectors;
+        // SPEC-GAP: nonempty projection/dicing requires §21.2's literal mesh capture.
+        Err(Unsupported::PT8)
+    }
     pub fn set_source(&mut self, source: Option<Reference>, resources: &mut impl Resources) {
         if self.source == source {
             return;
@@ -78,7 +94,11 @@ impl GeometryParticles {
             resources.release(source);
         }
     }
-    pub fn set_model(&mut self, model: Reference, resources: &mut impl Resources) -> Result<(), Unsupported> {
+    pub fn set_model(
+        &mut self,
+        model: Reference,
+        resources: &mut impl Resources,
+    ) -> Result<(), Unsupported> {
         let source = resources.model_interface(model, 0x26a6_8448);
         self.set_source(source, resources);
         if let Some(source) = source {
@@ -189,6 +209,23 @@ impl GeometryParticles {
             resources.release(description);
         }
     }
+}
+
+/// Only the qualified wave prefix; displacement/damping remain PT8.
+pub fn wave_prefix(
+    cache: &mut [f32; 2],
+    dt: f32,
+    field: f32,
+    curve: &[f32],
+    clock: f64,
+) -> Option<f32> {
+    if field == 0. {
+        return None;
+    }
+    if cache[0] == cache[1] {
+        cache[0] = (f64::from(cache[0]) + f64::from(dt) * f64::from(field)) as f32;
+    }
+    Some(super::decal::sample(curve, clock))
 }
 
 /// Numeric mesh generation remains PT8, but already-generated groups retain

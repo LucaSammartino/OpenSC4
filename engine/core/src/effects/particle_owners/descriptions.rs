@@ -33,10 +33,17 @@ pub trait SequenceAllocator {
     type Allocation;
     type Component;
     fn allocate(&mut self, bytes: usize) -> Option<Self::Allocation>;
-    fn construct(&mut self, allocation: Self::Allocation, description: Arc<SequenceDescription>) -> Self::Component;
+    fn construct(
+        &mut self,
+        allocation: Self::Allocation,
+        description: Arc<SequenceDescription>,
+    ) -> Self::Component;
 }
 impl SequenceDescription {
-    pub fn create<A: SequenceAllocator>(self: &Arc<Self>, allocator: &mut A) -> Option<A::Component> {
+    pub fn create<A: SequenceAllocator>(
+        self: &Arc<Self>,
+        allocator: &mut A,
+    ) -> Option<A::Component> {
         allocator
             .allocate(168)
             .map(|allocation| allocator.construct(allocation, Arc::clone(self)))
@@ -45,11 +52,12 @@ impl SequenceDescription {
         // Literal §18.1: consume but do not validate version.
         stream.u16()?;
         let count = stream.u32()?;
-        self.elements.resize_with(count as usize, || SequenceElement {
-            first: 0.,
-            second: 0.,
-            name: Vec::new(),
-        });
+        self.elements
+            .resize_with(count as usize, || SequenceElement {
+                first: 0.,
+                second: 0.,
+                name: Vec::new(),
+            });
         for element in &mut self.elements {
             element.first = stream.f32()?;
             element.second = stream.f32()?;
@@ -92,14 +100,10 @@ impl ParticleDescriptionBase {
         for offset in [0x108, 0x1b8] {
             value.vectors.entry(offset).or_default();
         }
-        // Parser reset has its own contract. Base construction preserves PT3:
-        // absent words explicitly mean unknown, not guessed zero defaults.
+        // particles.md §2 PT3: the three scalar seeds are positive zero.
         for base in [0x7c, 0xe0, 0xf4, 0x18c] {
             for offset in [base, base + 4, base + 8] {
-                value.words.remove(&offset);
-                if let Some(g) = &globals {
-                    value.scalar(offset, g.scalar);
-                }
+                value.scalar(offset, globals.as_ref().map_or(0., |g| g.scalar));
             }
         }
         value.vectors.remove(&0x94);
@@ -163,7 +167,8 @@ impl ParticleDescriptionBase {
         }
         d.strings.insert(0x160, stream.string()?);
         let first = u32::from(stream.u16()?);
-        d.words.insert(0x16c, first | (u32::from(stream.u16()?) << 16));
+        d.words
+            .insert(0x16c, first | (u32::from(stream.u16()?) << 16));
         for offset in (0x170..=0x1a0).step_by(4) {
             d.scalar(offset, stream.f32()?);
         }

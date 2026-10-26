@@ -169,7 +169,9 @@ impl EmitterDesc {
                 let i = pos.floor() as usize;
                 let t = pos - i as f64;
                 if t > 0.0 {
-                    (f64::from(self.curve[i]) + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i]))) as f32
+                    (f64::from(self.curve[i])
+                        + t * (f64::from(self.curve[i + 1]) - f64::from(self.curve[i])))
+                        as f32
                 } else {
                     self.curve[i]
                 }
@@ -246,13 +248,28 @@ pub struct ParticleSimulator {
 }
 
 impl ParticleSimulator {
-    /// No guessed service identities or native transform algorithm (PT13).
-    pub fn init_native_services(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported::PT13)
+    pub fn init_native_services(
+        &mut self,
+        state: &mut super::particle_owners::ordinary::NativeServices,
+        shared: u64,
+        foreign: &mut impl super::particle_owners::ordinary::TerrainServices,
+    ) {
+        state.init(shared, foreign);
+        if let Some(motion) = &mut self.motion {
+            motion.city_extent = Some(state.extent);
+        }
     }
     /// Component main slot 4 is distinct from the draw-associated update.
     pub fn component_update(&mut self, _dt: f32) {}
     pub fn set_float_parameter(&mut self, id: u32, values: &[f32]) -> Result<(), Unsupported> {
+        if let Some(motion) = &mut self.motion {
+            if let Some(result) = motion.set_float(id, values) {
+                return match result? {
+                    true => Ok(()),
+                    false => Err(Unsupported::PT13),
+                };
+            }
+        }
         match id {
             2 => self.desc.scales[1] = values[0],
             0x102 => self.desc.scales[2] = values[0],
@@ -291,7 +308,11 @@ impl ParticleSimulator {
     /// scale `+0x1E0`. EF14: the replacement is used for `ρ` only; burst
     /// age and gaps still use the description's raw period.
     pub fn set_description(&mut self, mut desc: EmitterDesc) {
-        let period = if desc.period > 1e-6 { desc.period } else { 1e-6 };
+        let period = if desc.period > 1e-6 {
+            desc.period
+        } else {
+            1e-6
+        };
         self.rho = 1.0 / f64::from(period);
         self.suppressed = false;
         desc.scales[1] = 1.0;
@@ -313,7 +334,12 @@ impl ParticleSimulator {
         self.start_checked(arg, rng, None)
             .expect("use start_checked for unresolved motion helpers");
     }
-    pub fn start_checked(&mut self, arg: u32, rng: &mut RzRandom, sea_access: Option<u32>) -> Result<(), Unsupported> {
+    pub fn start_checked(
+        &mut self,
+        arg: u32,
+        rng: &mut RzRandom,
+        sea_access: Option<u32>,
+    ) -> Result<(), Unsupported> {
         let d = &self.desc;
         if arg != 0 && d.loop_count > 0 && d.flags_a & emitter_flag::HOLD == 0 {
             return Ok(());
@@ -439,7 +465,9 @@ impl ParticleSimulator {
         Ok(())
     }
     pub fn records(&self) -> impl Iterator<Item = &Record> {
-        self.live.iter().filter_map(|particle| particle.record.as_ref())
+        self.live
+            .iter()
+            .filter_map(|particle| particle.record.as_ref())
     }
     pub fn remove_particle(&mut self, index: usize) {
         let particle = &mut self.live[index];
@@ -449,9 +477,25 @@ impl ParticleSimulator {
             particle.life = particle.age;
         }
     }
-    /// Names are uncomposed PT2 event requests, not fabricated effect lookups.
+    /// Suffix requests can be consumed directly or fired through §8.3's directory.
     pub fn take_events(&mut self) -> Vec<(Vec<u8>, [f32; 3])> {
         std::mem::take(&mut self.events)
+    }
+    pub fn fire_events(
+        &mut self,
+        directory: &mut impl super::particle_owners::ordinary::EventDirectory,
+    ) {
+        if let Some(motion) = &self.motion {
+            let name = motion
+                .description
+                .value
+                .strings
+                .get(&0x160)
+                .map_or(&[][..], Vec::as_slice);
+            for (suffix, position) in std::mem::take(&mut self.events) {
+                super::particle_owners::ordinary::fire_event(name, &suffix, position, directory);
+            }
+        }
     }
     pub fn draw_slot(&self, context_present: bool, model_present: bool) -> u8 {
         if !context_present || self.live.is_empty() {
@@ -498,7 +542,12 @@ impl ParticleSimulator {
             if motion.flags() & 0x2000 != 0 {
                 return Err(Unsupported::PT1);
             }
-            if !motion.description.value.floats.get(&0x1a4).map_or(true, Vec::is_empty)
+            if !motion
+                .description
+                .value
+                .floats
+                .get(&0x1a4)
+                .map_or(true, Vec::is_empty)
                 && motion.description.value.get_scalar(0x1b0).unwrap_or(0.) > 0.
             {
                 return Err(Unsupported::PT1);
@@ -508,7 +557,11 @@ impl ParticleSimulator {
                 for particle in &self.live {
                     if let Some(record) = &particle.record {
                         if record.alive {
-                            for name in crossing_events(&motion.description.value.timed_effects, particle.age, t) {
+                            for name in crossing_events(
+                                &motion.description.value.timed_effects,
+                                particle.age,
+                                t,
+                            ) {
                                 self.events.push((name.to_vec(), record.position));
                             }
                         }
@@ -542,7 +595,12 @@ impl ParticleSimulator {
                 draw(DrawCommand::SelfLit(false));
             }
         }
-        if !self.check_for_stop() && self.motion.as_ref().is_some_and(|m| m.flags() & 0x800000 != 0) {
+        if !self.check_for_stop()
+            && self
+                .motion
+                .as_ref()
+                .is_some_and(|m| m.flags() & 0x800000 != 0)
+        {
             return Err(Unsupported::PT1);
         }
         Ok(())
@@ -565,7 +623,11 @@ impl ParticleSimulator {
         let mut p = Particle {
             age: 0.0,
             life: rng.range_f64(f64::from(self.desc.life_min), f64::from(self.desc.max_age)) as f32,
-            record: self.motion.as_ref().map(|motion| motion.init(rng)).transpose()?,
+            record: self
+                .motion
+                .as_ref()
+                .map(|motion| motion.init(rng))
+                .transpose()?,
             _lease: lease,
         };
         let alive = match initial_age {
@@ -642,7 +704,8 @@ impl ParticleSimulator {
                 let gap = rng.range_f64(f64::from(iv.0), f64::from(iv.1));
                 self.phase -= gap * self.rho;
                 if self.phase < f64::from(self.loops) {
-                    self.countdown = ((f64::from(self.loops) - self.phase) * f64::from(period)) as f32;
+                    self.countdown =
+                        ((f64::from(self.loops) - self.phase) * f64::from(period)) as f32;
                     self.phase = f64::from(self.loops);
                     return Ok(());
                 }
@@ -709,7 +772,14 @@ impl ParticleSimulator {
         }
         // [choice, EF14] Empty curve -> 0; T <= live -> no creations,
         // avoiding the native unsigned-underflow loop (~2^32 attempts).
-        let target = self.desc.curve.first().copied().unwrap_or(0.0).ceil().max(0.0) as u32;
+        let target = self
+            .desc
+            .curve
+            .first()
+            .copied()
+            .unwrap_or(0.0)
+            .ceil()
+            .max(0.0) as u32;
         let count = if self.motion.is_some() {
             target.wrapping_sub(self.live.len() as u32)
         } else {
