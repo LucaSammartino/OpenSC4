@@ -11,17 +11,110 @@ Usage: python qbuild.py --wt <worktree> <step>... [--errors N]
   fmt F..  rustfmt --check --edition 2021 on the given .rs files (paths relative to engine/ or absolute)
   all      test, clippy, verify
 Cargo runs with CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0 (the disk is shared).
+The test and clippy steps share FC4_QBUILD_MAX (default 3) lock slots in <main>/build-runs/qbuild-sem: a fourth run
+waits (a message every 5 min) until one finishes. 0 disables the limit; an unusable lock directory disables it too.
 Exit 0 only if every step passed. Read more of a log with grep or Read offset/limit, never whole.
 The native steps (quick, verify) go through tools/build_queue.py while its worker runs (main checkout
 build-runs/build-queue-worker.alive is fresh): the Codex sandbox cannot run MSVC's CMake configure. Set
 FC4_NATIVE_DIRECT=1 to run them here instead.
 """
 import argparse
+import contextlib
 import os
 import re
 import subprocess
 import sys
 import time
+
+try:
+    import msvcrt
+except ImportError:  # not Windows
+    msvcrt = None
+    import fcntl
+
+# Cargo steps (test, clippy) hold one of FC4_QBUILD_MAX (default 3) lock files under <main>/build-runs/qbuild-sem, so
+# at most that many cargo test/clippy runs from all lanes compile at once (six at once pushed the commit charge to 88%).
+SEM_MAX_DEFAULT = 3
+
+
+def sem_dir():
+    main = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.environ.get("FC4_QBUILD_SEM_DIR") or os.path.join(main, "build-runs", "qbuild-sem")
+
+
+def try_lock(f):
+    """Non-blocking exclusive lock on byte 0 of f; the OS drops it when the process dies, so there are no stale locks."""
+    try:
+        if msvcrt:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def unlock(f):
+    try:
+        if msvcrt:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(f, fcntl.LOCK_UN)
+    except OSError:
+        pass
+    f.close()
+
+
+@contextlib.contextmanager
+def cargo_slot(step, poll=5.0, report=300.0):
+    """Hold one cargo slot while a cargo step runs. Falls back to no limit when the lock directory is unusable."""
+    try:
+        limit = int(os.environ.get("FC4_QBUILD_MAX", SEM_MAX_DEFAULT))
+    except ValueError:
+        limit = SEM_MAX_DEFAULT
+    held = None
+    if limit > 0:
+        try:
+            os.makedirs(sem_dir(), exist_ok=True)
+        except OSError:
+            limit = 0
+    start = last = time.time()
+    while limit > 0 and held is None:
+        usable = 0
+        for i in range(limit):
+            try:
+                f = open(os.path.join(sem_dir(), f"slot{i}.lock"), "a+b")
+            except OSError:
+                continue
+            usable += 1
+            if try_lock(f):
+                held = f
+                try:  # who holds it, beyond the locked byte (readable by others)
+                    f.seek(16)
+                    f.truncate()
+                    f.write(f"pid {os.getpid()} step {step} since {time.strftime('%H:%M:%S')}\n".encode())
+                    f.flush()
+                except OSError:
+                    pass
+                break
+            f.close()
+        if held is None and usable == 0:
+            break  # cannot create or open any lock file here: run unthrottled rather than fail
+        if held is None:
+            if time.time() - last >= report or last == start:
+                print(f"qbuild: waiting for a cargo slot ({limit} cargo runs already active; {int(time.time() - start)} s so far)")
+                sys.stdout.flush()
+                last = time.time()
+            time.sleep(poll)
+    if held is not None and time.time() - start >= 1:
+        print(f"qbuild: cargo slot acquired after {int(time.time() - start)} s")
+    try:
+        yield
+    finally:
+        if held is not None:
+            unlock(held)
 
 
 def run(cmd, cwd, log, env=None):
@@ -49,8 +142,9 @@ def compile_errors(lines, cap):
 
 def step_test(wt, logdir, cap):
     log = os.path.join(logdir, "qbuild-test.log")
-    rc, lines = run(["cargo", "test", "--workspace", "--target", "i686-pc-windows-msvc"],
-                    os.path.join(wt, "engine"), log, cargo_env())
+    with cargo_slot("test"):
+        rc, lines = run(["cargo", "test", "--workspace", "--target", "i686-pc-windows-msvc"],
+                        os.path.join(wt, "engine"), log, cargo_env())
     tot = [0, 0, 0]
     for l in lines:
         m = re.search(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", l)
@@ -80,8 +174,9 @@ def step_test(wt, logdir, cap):
 
 def step_clippy(wt, logdir, cap):
     log = os.path.join(logdir, "qbuild-clippy.log")
-    rc, lines = run(["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
-                    os.path.join(wt, "engine"), log, cargo_env())
+    with cargo_slot("clippy"):
+        rc, lines = run(["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
+                        os.path.join(wt, "engine"), log, cargo_env())
     diags = []
     for i, l in enumerate(lines):
         if re.match(r"^(error|warning)(\[\w+\])?:", l) and "generated" not in l and "could not compile" not in l:

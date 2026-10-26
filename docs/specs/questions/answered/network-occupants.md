@@ -286,3 +286,21 @@
   the owner contract with MySim copying, number-label rasterization, billboard geometry, transform
   rounding and two-endpoint bounds. +150 is the call-number texture; MySim uploads to main +148.
   Rebuild clears dirty even after a resource/placement failure; texture failure is not a geometry gate.
+
+<!-- from: replace-netocc27 (2026-10-25); ID reused independently of the earlier pylon NO44 -->
+- ~~**NO44 - native power-line tool / replacement pole boundary:** power-line-tool §§5.2–5.3 describe
+  `0x00649910` and `0x0064E3E0`, but docs/abi/direct-calls.md publishes only the pole RemoveConnection
+  call. Please publish the calling conventions, stack cleanup, return channels, exact pointer views,
+  wire-vector/list element layouts and allocation/free ownership for both helpers, and the output
+  container contract for pole slots 5/16. Which other concrete pole fields/helpers does the native
+  tool access during placement, preview undo, extension, zone repair and demolition? In particular,
+  can every non-interface access be interposed, or must an FC4 pole expose native-layout connection
+  storage? The current plugin keeps the pole factory native; enabling an incompatible pole would
+  make the interactive tool unsafe. No replacement-pole game credit is claimed. [missing ABI]~~
+  **ANSWERED 2026-10-26 (re-no28):** DIFFERS — network-occupants §4.6.3/tests 75–80 publish both
+  void thiscall/pop-8 helpers, primary-base views, native wire/list/cell containers and ownership,
+  and the ordered placement/extension/undo/zone/demolition calls. Creation bypasses the COM factory
+  and uses fixed +8/+24 views and kind +B8; native helpers require concrete storage unless interposed,
+  including crossings from native neighbours. The outside tool does not itself walk connection storage,
+  so complete interposition can avoid that layout, while returned buffers must obey the native ABI.
+  Power-line-tool §5 now records the draft generated-link skip and literal second undo call (B,B,true).

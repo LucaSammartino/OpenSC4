@@ -4,10 +4,13 @@ Examples: python tools/suite.py run --set smoke --profile shadows --tag smoke1
           python tools/suite.py report smoke1 [--against smoke2]
 The queue must include this checkout in its roots. Requests opt into isolated
 parallel slots. No file in Documents is written by this tool.
+An exception after the target date and an accepted RequestQuit is reported as
+clean-exit-crash, with its address; it still does not pass successful(). Earlier
+exceptions, missing quit evidence and harness errors retain their verdicts.
 """
 import argparse
 import csv
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import hashlib
 import io
 import itertools
@@ -23,7 +26,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 COLUMNS = ('scenario profile verdict end_reached days_per_second actions_ok '
            'actions_failed shadow_lines shadow_exact_lines worst_shadow '
-           'compare_exact compare_different reach_functions log dll_sha256').split()
+           'compare_exact compare_different reach_functions log dll_sha256 exception_address').split()
 KEY_COLUMNS = ['key', 'scenarios_run', 'scenarios_exact', 'first_mismatch']
 SCENARIO_COLUMNS = ['name', 'region', 'city', 'script', 'end', 'sets', 'notes']
 SHADOW = re.compile(r'^([a-z0-9_]+(?:[ -][a-z0-9_]+)*?)(?: shadow\b|-shadow:)')
@@ -69,7 +72,7 @@ def read_scenarios(root, selected):
         folder_name(row['region']); folder_name(row['city']); game_date(row['end'])
         if row['script'] != '-':
             script_file(root, row['script'])
-    result = [r for r in rows if selected in r['sets'].split(',')]
+    result = [r for r in rows if selected == 'all' or selected in r['sets'].split(',')]
     if not result:
         raise ValueError(f'no scenarios in set {selected}')
     return result
@@ -85,7 +88,9 @@ def script_file(root, value):
 def profile_ini(root, profile):
     """Read the house profiles rather than maintaining another replacement list."""
     if profile == 'plain':
-        return {}
+        # Simulator and budget are on by default in the plugin. Also override
+        # FC4_ENABLE so a native control cannot inherit opt-in replacements.
+        return {'disable': 'simulator,budget', 'enable': 'none'}
     source = (root / 'tools/regress.ps1').read_text(encoding='utf-8-sig')
     if profile == 'replace':
         match = re.search(r'\[string\]\$Replace\s*=\s*"([^"]+)"', source)
@@ -139,6 +144,8 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
     base_ini = profile_ini(root, profile)
     changes = extras(extra)
     source_dll = resolve_dll(root, dll)
+    if changes.get('reach') == '1' and b'reach prepared functions=' not in source_dll.read_bytes():
+        raise ValueError(f'{source_dll}: DLL lacks reach tracer; supply a current build with --dll')
     directory = root / 'build-runs/suite' / tag
     if directory.exists():
         raise ValueError(f'tag already exists: {directory}; use report or a new tag')
@@ -185,6 +192,13 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                     ini['script'] = setup_copy.relative_to(root).as_posix()
             else:
                 ini['script'] = script.relative_to(root).as_posix()
+        if ini.get('script'):
+            # Inspect the staged dated script (also a Lua setup companion).
+            # Native full SaveCity can exceed the ordinary ten-second watchdog;
+            # the plugin applies this bounded opt-in only inside full saves.
+            dated = (root / ini['script']).read_text(encoding='utf-8-sig')
+            if re.search(r'(?m)^\s*\d{4}-\d\d-\d\d\s+save(?:\s|$)', dated):
+                ini['script_save_grace_ms'] = '60000'
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
@@ -246,7 +260,8 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
                   per_key={}, action_lines=[], shadow_records=[], shadow_summaries=[], shadow_payloads=[],
                   inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
                   only_load=only_load, real_seconds=None, wall_seconds=None,
-                  load_seconds=None, seconds_per_month=None, reach_windows=[])
+                  load_seconds=None, seconds_per_month=None, reach_windows=[],
+                  raw_verdict='missing', exception_address='-', exceptions=[])
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
@@ -254,6 +269,8 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     load_started = None
     attached = None
     verdict_at = None
+    end_line = None
+    quit_line = None
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
         try:
@@ -277,6 +294,19 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         reached = re.search(r'end date (\d{4}-\d\d-\d\d) reached', body)
         if reached and reached[1] == end:
             result['end_reached'] = '1'
+            end_line = line_no
+        if end_line and re.match(r'autotest: cISC4App::RequestQuit\([^)]*\) -> 1\b', body):
+            quit_line = line_no
+        if body.startswith('first-chance exception '):
+            address = re.search(r'\bat (0x[0-9a-fA-F]+)\b', body)
+            if address:
+                location = re.search(r'\bin (.+?) \(report ', body)
+                result['exceptions'].append(dict(
+                    line=line_no, address=address[1],
+                    location=location[1] if location else '-', text=body,
+                    after_end=end_line is not None, after_quit=quit_line is not None))
+                if result['exception_address'] == '-':
+                    result['exception_address'] = address[1]
         if body.startswith('script:'):
             loaded = re.search(r': (\d+) action\(s\)', body)
             if loaded:
@@ -357,6 +387,7 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     if harness_verdict and harness_verdict[1] != 'clean':
         result['verdict'] = harness_verdict[1]
         result['invalid_reason'] = 'harness verdict overrides plugin verdict'
+    result['raw_verdict'] = result['verdict']
     if only_load:
         result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
     elif speed and float(speed[1]) == 0:
@@ -367,6 +398,11 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     elif result['verdict'] == 'clean' and result['end_reached'] != '1':
         result['invalid_reason'] = 'end date not reached'
         result['verdict'] = 'invalid'
+    if (not only_load and result['end_reached'] == '1'
+            and result['verdict'] in ('corrupt', 'crash') and result['exceptions']
+            and all(e['after_end'] and e['after_quit'] for e in result['exceptions'])):
+        result['verdict'] = 'clean-exit-crash'
+        result['invalid_reason'] = 'exception after end date during quit'
     result['action_lines'] = [a[1] for a in actions.values()]
     result['actions_ok'] = sum(a[0] for a in actions.values())
     result['actions_failed'] = len(actions) - result['actions_ok'] + parse_errors
@@ -462,16 +498,24 @@ def write_results(directory, manifest, results):
     write_tsv(directory / 'saturation.tsv', ['scenario', 'window', 'date', 'new', 'total'], windows)
 
 
-def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
+def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slots=6, stop_file=None):
+    slots = min(slots, 6)  # Include waiting requests in the shared queue footprint.
     deadline = time.monotonic() + wait_seconds
     pending = {r['scenario']['name']: r for r in manifest['requests']}
-    waiting = list(pending) if submit else []
-    active = set() if submit else set(pending)
+    active = set(pending) if not submit else {
+        name for name, request in pending.items()
+        if any((root / relative / (request['label'] + suffix)).exists()
+               for relative, suffix in (('build-runs/game-queue', '.req'),
+                                        ('build-runs/game-queue/done', '.req'),
+                                        ('build-runs/game-results', '.running'),
+                                        ('build-runs/game-results', '.verdict')))}
+    waiting = [name for name in pending if name not in active] if submit else []
     results = {}
     try:
         while pending:
-            # Include queued requests in this lane's six-request shared footprint.
-            while waiting and len(active) < 6 and time.monotonic() < deadline:
+            stopping = stop_file is not None and stop_file.exists()
+            # Include queued requests in this lane's shared footprint.
+            while waiting and not stopping and len(active) < slots and time.monotonic() < deadline:
                 name = waiting.pop(0)
                 request = pending[name]
                 path = root / 'build-runs/game-queue' / (request['label'] + '.req')
@@ -519,6 +563,10 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
                       f'actions={parsed["actions_ok"]} ok/{parsed["actions_failed"]} failed; '
                       f'shadow={parsed["shadow_exact_lines"]}/{parsed["shadow_lines"]}', flush=True)
                 write_results(directory, manifest, results)
+            if stopping and not active:
+                for name, request in pending.items():
+                    results[name] = parse_log('', request['scenario']['end'], 'verdict: not-submitted')
+                break
             if pending and time.monotonic() >= deadline:
                 print('queue wait expired; queued/running: ' + ', '.join(sorted(active))
                       + '; not submitted: ' + ', '.join(waiting), file=sys.stderr)
@@ -533,15 +581,25 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False):
     return results
 
 
-def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=7200, dry_run=False):
+def run_scenarios(root, scenarios, *, profile, dll, tag, extra=(), wait_seconds=7200, dry_run=False, slots=6):
+    slots = min(slots, 6)
     directory, manifest = make_batch(root, scenarios, profile, dll, tag, extra)
     if dry_run:
         print(f'prepared {len(scenarios)} requests (not submitted): {directory}')
         return directory, {}
     queue = root / 'build-runs/game-queue'
     queue.mkdir(parents=True, exist_ok=True)
-    print(f'staged {len(scenarios)} requests; at most 6 in flight; results: {directory}', flush=True)
-    return directory, wait_for_batch(root, directory, manifest, wait_seconds, submit=True)
+    print(f'staged {len(scenarios)} requests; at most {slots} in flight; results: {directory}', flush=True)
+    started = time.monotonic()
+    manifest['timing'] = dict(started_utc=datetime.now(timezone.utc).isoformat(), slots=slots, complete=False)
+    try:
+        results = wait_for_batch(root, directory, manifest, wait_seconds, submit=True, slots=slots)
+        manifest['timing']['complete'] = all(r['verdict'] not in ('queue-timeout', 'not-submitted') for r in results.values())
+        return directory, results
+    finally:
+        manifest['timing'].update(finished_utc=datetime.now(timezone.utc).isoformat(),
+                                  wall_seconds=round(time.monotonic() - started, 3))
+        (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
 
 
 def report(root, tag, against=None):
@@ -602,7 +660,7 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen'], default='tier1')
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)
@@ -624,13 +682,41 @@ def main(argv=None, root=ROOT):
         command.add_argument('--from', dest='sources', help='comma-separated completed calibration tags; default all')
         command.add_argument('--keys', default='', help='comma-separated shadow/replace keys or owners')
         command.add_argument('--budget-seconds', type=float, default=900)
-        command.add_argument('--slots', type=int, choices=range(1, 7), default=6)
+        command.add_argument('--slots', type=int, choices=range(1, 13), default=6)
     select.add_argument('--output', help='optional JSON selection evidence under build-runs/suite')
     run.add_argument('--scenario', action='append', help='select named rows within --set; repeatable')
     show = commands.add_parser('report')
     show.add_argument('tag'); show.add_argument('--against')
+    resume = commands.add_parser('resume', help='harvest/restart a staged batch without resubmitting claimed labels')
+    resume.add_argument('tag')
+    resume.add_argument('--slots', type=int, choices=range(1, 13), default=6)
+    resume.add_argument('--wait-seconds', type=int, default=7200)
+    resume.add_argument('--seconds', type=int, help='bound only requests not yet claimed by the shared queue')
+    resume.add_argument('--timeout', type=int)
     args = parser.parse_args(argv)
     try:
+        if args.command == 'resume':
+            if not NAME.fullmatch(args.tag):
+                raise ValueError('invalid suite tag')
+            directory = root / 'build-runs/suite' / args.tag
+            manifest_path = directory / 'manifest.json'
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            for request in manifest['requests']:
+                label = request['label']
+                claimed = any((root / rel / (label + suffix)).exists() for rel, suffix in (
+                    ('build-runs/game-queue', '.req'), ('build-runs/game-queue/done', '.req'),
+                    ('build-runs/game-results', '.running'), ('build-runs/game-results', '.verdict')))
+                if not claimed:
+                    for key in ('seconds', 'timeout'):
+                        value = getattr(args, key)
+                        if value is not None:
+                            if value <= 0:
+                                raise ValueError(f'--{key} must be positive')
+                            request['request'] = re.sub(rf'^{key} = \d+$', f'{key} = {value}', request['request'], flags=re.M)
+                    (directory / (request['scenario']['name'] + '.req')).write_text(request['request'], encoding='utf-8')
+            manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+            results = wait_for_batch(root, directory, manifest, args.wait_seconds, submit=True, slots=args.slots)
+            return 0 if successful(results) else 1
         if args.command == 'report':
             report(root, args.tag, args.against)
             return 0
@@ -645,7 +731,12 @@ def main(argv=None, root=ROOT):
                 return 0
             manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
             return 0 if suite_states.finalize(root, args.tag, manifest, results) else 1
-        rows = read_scenarios(root, 'full' if args.command == 'select' or args.set == 'tier1' else args.set)
+        marked_tier = False
+        # A checked-in tier is reproducible without local calibration artifacts.
+        if args.command == 'run' and args.set == 'tier1':
+            with (root / 'engine/tests/scenarios/suite.tsv').open(encoding='utf-8-sig', newline='') as stream:
+                marked_tier = any('tier1' in r['sets'].split(',') for r in csv.DictReader(stream, delimiter='\t'))
+        rows = read_scenarios(root, 'full' if args.command == 'select' or (args.set == 'tier1' and not marked_tier) else args.set)
         if getattr(args, 'scenario', None):
             missing = set(args.scenario) - {row['name'] for row in rows}
             if missing:
@@ -653,7 +744,7 @@ def main(argv=None, root=ROOT):
             rows = [row for row in rows if row['name'] in args.scenario]
         if args.budget_seconds <= 0:
             raise ValueError('--budget-seconds must be positive')
-        if args.command == 'select' or args.set == 'tier1' or args.keys:
+        if args.command == 'select' or (args.set == 'tier1' and not marked_tier) or args.keys:
             tags = args.sources.split(',') if args.sources else None
             if tags and any(not NAME.fullmatch(tag) for tag in tags):
                 raise ValueError('--from expects comma-separated suite tags')
@@ -692,7 +783,7 @@ def main(argv=None, root=ROOT):
                       'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()]
         directory, results = run_scenarios(root, rows,
             profile=args.profile, dll=args.dll, tag=args.tag or new_tag(), extra=extra,
-            wait_seconds=args.wait_seconds, dry_run=args.dry_run)
+            wait_seconds=args.wait_seconds, dry_run=args.dry_run, slots=args.slots)
         if not args.dry_run:
             print(f'summary: {directory / "summary.tsv"}')
         return 0 if args.dry_run or successful(results) else 1

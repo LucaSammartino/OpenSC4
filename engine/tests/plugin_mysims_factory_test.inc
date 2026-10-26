@@ -2,6 +2,10 @@
 // The MySim owner group (cSC4MySim, cSC4MyStreetSim, cSC4MySimDispatch) is
 // registered whole with `enable = advisors, mysims` and not at all otherwise.
 #include "FC4MySimDispatchContract.h"
+#include "FC4MySimInterface.h"
+#include "FC4MySimGameHost.h"
+#include "SC4String.h"
+#include "plugin_mysims_host.h"
 
 enum class MySimsIni { Default, Alone, Mixed, Replace };
 
@@ -22,8 +26,14 @@ int MySimsFactoryBoundaryTest(const std::string& dll, const std::string& ini, co
     if (!hd) return 1;
     auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
     auto* director = getDirector ? getDirector() : nullptr;
+    MySimTestCOM host;
     CHECK(director != nullptr);
     if (director) {
+        if (replaced) {
+            host.director = director;
+            cRZBaseString path("mysims-test");
+            CHECK(director->InitializeCOM(&host, path));
+        }
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         // An unavailable group must not prevent another requested factory from
@@ -71,6 +81,52 @@ int MySimsFactoryBoundaryTest(const std::string& dll, const std::string& ini, co
                 CHECK(!director->GetClassObject(id, 0x00000001u, &sim));
                 CHECK(sim == nullptr);
             }
+            // The system is constructed but deliberately not Init'd: the
+            // native agent/class store asks for these objects in this window.
+            void* rawSystem = nullptr;
+            CHECK(director->GetClassObject(0x4A0DD616u, 1, &rawSystem));
+            for (uint32_t id : {0x4A1DBBBFu, 0x0BF606A5u}) {
+                void* rawSim = nullptr;
+                CHECK(director->GetClassObject(id, 0x0A1DA42Fu, &rawSim));
+                if (!rawSim) continue;
+                auto* sim = static_cast<fc4::MySimPublic*>(rawSim);
+                CHECK(!sim->IsActive());
+                MySimTestBuilding building;
+                cS3DVector3 position{};
+                CHECK(!fc4::MySimBuildingPosition(&building, &position));
+                CHECK(building.occupantCalls == 1 && building.wrongPositionCalls == 0);
+                CHECK(building.refs == 1);
+                building.occupant = reinterpret_cast<cISC4Occupant*>(0x1234);
+                CHECK(fc4::MySimBuildingOccupant(&building) == building.occupant);
+                cRZBaseString name("Factory Sim");
+                // Use strings owned/allocated by the DLL, as the real host
+                // does; this loader test has no SDK allocator service.
+                SC4String* bio = sim->GetBio();
+                SC4String* path = sim->GetBitmapFile();
+                static_cast<cIGZString*>(bio)->FromChar("early factory");
+                static_cast<cIGZString*>(path)->FromChar("portrait.png");
+                sim->MoveIn(4, name, true, 7, *bio, 123, *path);
+                CHECK(sim->GetSlot() == 4 && sim->GetSign() == 7 && sim->IsMale());
+                CHECK(sim->GetBitmapID() == 123);
+                CHECK(std::string(sim->GetBio()->ToChar()) == "early factory");
+                CHECK(std::string(sim->GetBitmapFile()->ToChar()) == "portrait.png");
+                void* advisor = nullptr;
+                CHECK(sim->QueryInterface(0xCA09F544, &advisor));
+                CHECK(advisor == sim->AsAdvisor());
+                if (advisor) static_cast<cIGZUnknown*>(advisor)->Release();
+                // Calls on both sides of the reordered overload/grade slots.
+                cRZBaseString text;
+                sim->GetBuildingJobTitle(nullptr, text);
+                CHECK(sim->GetJobTitle() != nullptr);
+                CHECK(sim->GetEQAsText(text));
+                SC4Percentage grade{1.0f};
+                CHECK(sim->LocalSchoolGrade(&grade, 0) == &grade && grade.percentage == 0.0f);
+                CHECK(sim->LocalHospitalGrade(&grade, 0) == &grade && grade.percentage == 0.0f);
+                void* unsupported = reinterpret_cast<void*>(1);
+                CHECK(!sim->QueryInterface(0xDEADBEEF, &unsupported) && !unsupported);
+                CHECK(sim->Release() == 0); // no hidden factory reference
+            }
+            if (rawSystem) static_cast<cIGZUnknown*>(rawSystem)->Release();
         }
     }
     FreeLibrary(hd);

@@ -38,6 +38,9 @@
 //   turbo on|off               our simulator's turbo clock (FC4Turbo.h)
 //   digest                     the observer's DIGEST line, now
 //   mark <text>                a log line
+//   funds amount               budget SetTotalFunds, whole simoleons 0..999999999
+//   establish <name>           name and found only an unfounded city; a leading
+//                              due establish can run at a tick without new days
 //   dispatch type              real station: begin tool, dispatch, record/shadow,
 //                              revoke, end; INCOMPLETE unless a vehicle dispatched
 //   save [fast]                cISC4App::SaveCity(fast) (docs/abi/vtables.tsv
@@ -74,5 +77,8 @@ void ScriptOnTick();
 // True while actions wait for the next tick (the autotest's end date waits
 // for them: FC4Autotest.cpp).
 bool ScriptWaiting();
+// Default zero. Explicit bounded watchdog allowance only while SaveCity(full)
+// is executing; does not change simulation steps, speed, seeds or save bytes.
+uint32_t ScriptSaveGraceMs();
 
 }  // namespace fc4

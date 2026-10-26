@@ -13141,4 +13141,21 @@ bool fc4_lot_configuration_snapshot(const fc4_lot_configuration* config,
 }
 #endif
 
+/* MySim fronts: per-object access before advisor Init/map insertion (mysims §6–7). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_adv_mysim_get_state(const fc4_adv_obj* obj, fc4_mysim_state* out);
+size_t fc4_adv_mysim_text(const fc4_adv_obj* obj, uint32_t which, char* out, size_t capacity);
+bool fc4_adv_mysim_move_in(const fc4_adv_obj* obj, uint8_t slot,
+    const uint8_t* name, size_t name_len, bool male, uint8_t sign,
+    const uint8_t* bio, size_t bio_len, uint32_t bitmap,
+    const uint8_t* path, size_t path_len);
+bool fc4_adv_mysim_notify(const fc4_adv_obj* obj, uint32_t slot,
+    uint64_t building, uint32_t data, float x, float z);
+bool fc4_mysim_set_dispatch(fc4_advisors* system, int32_t id, uint64_t dispatch);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */

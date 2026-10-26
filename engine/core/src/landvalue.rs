@@ -838,8 +838,8 @@ impl LandValueSim {
 
     fn state3(&mut self, work: &mut u32) {
         while let Some((x, z)) = self.next_tract(work) {
-            let a = self.tract_altitude(x, z);
             let land = self.has_land(x, z);
+            let a = self.tract_altitude(x, z);
             if land {
                 if a < self.min_alt {
                     self.min_alt = a;
@@ -862,8 +862,14 @@ impl LandValueSim {
         if self.tract_iter.state != ScanState::Done {
             return;
         }
+        // Store the scan's mean before deciding whether to fall back (§6.1.6).
+        self.mean_alt = if self.count > 0 {
+            (f64::from(self.sum) / f64::from(self.count)) as f32
+        } else {
+            0.0
+        };
         if self.count == 0 && !self.ignore_zoning {
-            // Zoning fallback: recount every land tract (stay in state 3).
+            // Recount all land, retaining both scans' min/max (§6.1.6).
             self.ignore_zoning = true;
             self.tract_iter.reset(0, 0);
             self.sum = 0;
@@ -871,12 +877,6 @@ impl LandValueSim {
             self.histogram.fill(0);
             return;
         }
-        // [precision] one division of the exact int32 operands, rounded to f32.
-        self.mean_alt = if self.count > 0 {
-            (f64::from(self.sum) / f64::from(self.count)) as f32
-        } else {
-            0.0
-        };
         let mut best = 0usize;
         for (i, &n) in self.histogram.iter().enumerate() {
             if n > self.histogram[best] {

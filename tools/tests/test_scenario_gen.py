@@ -113,10 +113,73 @@ class ScenarioGeneratorTests(unittest.TestCase):
                         turbo_off = args[0] == "off"
                     elif op == "save":
                         self.assertIn(args, ([], ["fast"]))
+                    elif op == "funds":
+                        self.assertEqual(args, [str(gen.TREASURY)])
+                    elif op == "establish":
+                        self.assertEqual(args, ["FC4", "generated", str(seed)])
                     else:
                         self.assertIn(op, ("mark", "digest"))
                     self.assertTrue(all(0 <= c < side and c <= 4095 for c in coords), line)
                 self.assertFalse(paused or stopped or turbo_off)
+
+    def test_funding_reserve_and_empty_bootstrap(self):
+        for mix in gen.MIXES:
+            lines = [line for line in gen.generate(2, "large", date(2000, 1, 1), 48, mix).splitlines()
+                     if line and not line.startswith("#")]
+            self.assertEqual(lines[0], "2000-01-01 establish FC4 generated 2")
+            self.assertEqual(lines[1], "2000-01-01 funds " + str(gen.TREASURY))
+            balance, months, refills = 0, 0, 0
+            for line in lines:
+                _, action = line.split(" ", 1)
+                if action.startswith("funds "):
+                    balance = int(action.split()[1])
+                    refills += 1
+                elif " month=" in action:
+                    balance -= gen.MONTHLY_RESERVE
+                    months += 1
+                else:
+                    cost = gen.estimated_cost(action)
+                    if cost:
+                        self.assertGreaterEqual(balance, cost)
+                        balance -= cost
+            self.assertEqual(months, 48)
+            self.assertGreater(refills, 1)
+
+    def test_growth_extends_instead_of_repeating_completed_utility_runs(self):
+        for size in gen.SIZES:
+            seen = set()
+            for line in gen.generate(2, size, date(2000, 1, 1), 24, 'grow').splitlines():
+                if ' network ' not in line:
+                    continue
+                _, _, x0, z0, x1, z1, kind = line.split()
+                key = (kind, tuple(sorted(((int(x0), int(z0)), (int(x1), int(z1))))))
+                self.assertNotIn(key, seen, line)
+                seen.add(key)
+
+    def test_growth_clears_and_flattens_all_network_footprints_before_zoning(self):
+        for seed in range(3):
+            for size in gen.SIZES:
+                actions = [line.split() for line in gen.generate(seed, size, date(2000, 1, 1), 120, 'grow').splitlines()
+                           if line and not line.startswith('#')]
+                clear = next(list(map(int, p[2:6])) for p in actions if p[1] == 'dezone')
+                flat = next(list(map(int, p[2:6])) for p in actions if p[1] == 'terrain')
+                lots = [list(map(int, p[2:6])) for p in actions if p[1] == 'zone']
+                seen = {k: set() for k in range(13)}
+                for p in actions:
+                    if p[1] != 'network':
+                        continue
+                    x0, z0, x1, z1, kind = map(int, p[2:])
+                    cells = {(x, z) for x in range(min(x0, x1), max(x0, x1) + 1)
+                             for z in range(min(z0, z1), max(z0, z1) + 1)}
+                    self.assertTrue(cells - seen[kind], p)  # each run adds cells
+                    seen[kind].update(cells)
+                    for x, z in cells:
+                        self.assertTrue(clear[0] <= x <= clear[2] and clear[1] <= z <= clear[3], p)
+                        self.assertTrue(flat[0] <= x and x + 1 <= flat[2] and
+                                        flat[1] <= z and z + 1 <= flat[3], p)
+                        if kind in (4, 5):
+                            self.assertFalse(any(a <= x <= c and b <= z <= d for a, b, c, d in lots), p)
+                self.assertEqual(sum(p[1] == 'network' and p[6] == '4' for p in actions), 60)
 
     def test_required_mix_coverage(self):
         for mix in gen.MIXES:

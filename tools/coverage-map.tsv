@@ -150,10 +150,10 @@ cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	ad
 cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
+cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	mysims
 cSC4MySimPool	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
+cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	mysims
+cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	mysims
 cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 # lotrec_shadow (glue-simgrid-lotrec5, counted from train176) round-trips every master lot record through core/src/lot_records at load and monthly; units, occupants and unspecified props are excluded, so only cSC4Lot is credited (record-only, run 5)

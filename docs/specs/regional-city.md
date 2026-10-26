@@ -195,6 +195,90 @@ The TerrainReconciliation that follows a load of the moved city rebuilds the con
   (demolition utility slot 6, zone manager), and updates the edge network occupants' flags. It always ends by posting
   ConnectionsReady `0x6AC284F3` (foundations.md §11.6).
 
+### 6.2.1 Border-strip demolition host call (RY9) *[compat]*
+
+The add path that actually places a piece (`pairFlag` true) uses the strip and cell exclusions in
+[regional-city-records.md](regional-city-records.md) §4.6 step 1. Let **R** be that masked cell region. Before
+creating the connection or placing its network piece, it calls demolition utility slot 6 (`+0x18`,
+`DemolishRegion`) with these **eleven arguments, in interface order**:
+
+| Argument | Value |
+|---|---|
+| `doIt` | **true** (actual demolition, not a preview) |
+| `R` | the three-cell strip's region, with the already-occupied cells excluded as above |
+| `privilege` | **0** |
+| `flags` | **`0x00000001`** |
+| `dezone` | **false** |
+| `callerFilter` | a **view-level occupant filter**, with the level below |
+| `cost` | null |
+| `demolished` | null |
+| `clicked` | null |
+| `sx` | 0 |
+| `sy` | 0 |
+
+The argument values and dispatch are verified at `0x004AAE73`–`0x004AAE96`. The result is ignored: it does not
+gate the following connection creation or placement (`0x004AAE99` onward). Removal entries make **no** such
+demolition call (regional-city-records §4.7). PowerPole adds use the same arguments, including `dezone=false`;
+their **separate subsequent** zone-manager call dezones R (§4.6 step 3, `0x004AAEA2`–`0x004AAECD`).
+
+| Incoming connection | Caller filter's level |
+|---|---|
+| Pipe (type 5) | **3**, pipe layer |
+| Subway (type 6) | **2**, subway layer |
+| Every other supported network connection, including PowerPole (type 4) | **1**, surface |
+
+Level selection is verified at `0x004AAA56`, `0x004AACCF`–`0x004AACF6`; the filter receives it at
+`0x004AAE55`–`0x004AAE69`. This is `cSC4ViewLevelOccupantFilter`, whose level is at `+0x0C`, **not** a filter
+restricted to network occupants. Its occupant query (slot 3, `+0x0C`) accepts exactly those occupants for which
+`SC4GetOccupantViewLevel` equals the selected level (`0x005E9E40`–`0x005E9E5B`). Its type-only query (slot 4,
+`+0x10`) accepts **every occupant-type ID**; its property-holder query (slot 5, `+0x14`) also always accepts
+(`0x004FC900`, entries at `0x00A8FAE4` and `0x00A8FAE8`). Neither query substitutes for the occupant query.
+The full layer classifier, including interface, group and property precedence, is specified in
+[occupant-manager.md](occupant-manager.md) §13.2.4. In particular, the caller filter does not read the current
+3D view's selected level. These filter-only examples assume no further classifier overrides:
+
+| Occupant instance | Classified level | Surface filter (1) | Subway filter (2) | Pipe filter (3) |
+|---|---|---|---|---|
+| Ordinary surface building, flora, real prop, power pole or surface network | 1 | admit | refuse | refuse |
+| Pipe or pipe connection | 3 | refuse | refuse | admit |
+| Subway or subway connection | 2 | refuse | admit | refuse |
+| Prop with `0xCAA45670` and `0xCAA45672` true, `0xCAA45671` false | 3 | refuse | refuse | admit |
+| Prop with `0xCAA45670` and `0xCAA45671` true | 2 | refuse | admit | refuse |
+| Prop with only `0xCAA45671` true | 1 | admit | refuse | refuse |
+
+These admissions are still subject to [demolition.md](demolition.md) §§4.2–4.4. In particular:
+
+- Privilege **0** selects removal level **1**, so the **system lock** blocks removal; the player lock alone
+  does not. The utility's occupant filter does **not** apply the current view filter, despite `0x2000` being
+  clear (`0x0046847D`–`0x004684AA`, `0x00468515`–`0x00468524`).
+- The utility still applies realism, cell bounds and its own type gate: building `0x278128A0`, power pole
+  `0x2890D4DE`, construction `0x096E763C`, prop `0xA823821E`, network `0xC772BF98`, flora `0x74758926`, and
+  foundation `0x68FD0C69` only when its foundation-interface slot 9 returns 1. Other types are refused even if
+  the caller filter admits their layer (`0x004667E7`–`0x0046688C`).
+- `flags=1` enables demolition effects, with the utility's usual **current view filter** gate on those effects.
+  Its empty-lot type test also still consults that view filter. Independently, when the current view level is
+  not 1, its network-only check still refuses occupants with any network flag in `0x1F4F`. Privilege 0 does
+  not bypass these tests (demolition §§4.2, 4.4, DM12; `0x004668AE`–`0x004668ED`).
+- There is no confirmation request or budget charge, and no cost is returned to this caller. `dezone=false`
+  does not suppress the utility's normal special-zone handling (demolition §4.4 step 7).
+
+**Worked border request.** In a 64-by-64 city, add a Road connection at west-edge cell `(-1, 10)`, with no
+existing connection. The strip is `(0, 10)`, `(1, 10)`, `(2, 10)`. If the traffic network map already reports
+occupation at `(1, 10)`, R contains only `(0, 10)` and `(2, 10)`. Expect the eleven arguments above, with a
+**level-1** caller filter. Place an ordinary flora occupant at the centre of each selected cell, neither on a
+lot: at `(0, 10)` set only the player lock; at `(2, 10)` set the system lock. Let the current view filter reject
+both flora occupants, with current view level 1 and a working flora simulator. The first occupant passes the
+caller and removal filters and is demolished **without an effect**; the second is refused by `CanRemove(1)`
+and survives. Nothing at the excluded cell `(1, 10)` is selected by this demolition request. As isolated
+predicate checks, the same level-1 caller filter refuses a pipe and a subway, but admits a surface occupant of
+an unsupported type; the utility then refuses that unsupported type. Repeating those predicate checks with
+levels 2 and 3 gives the admissions in the table. Later network placement has its own outcome; it does not
+change these demolition inputs.
+
+If allocation of the 16-byte caller filter fails, the original still makes the same demolition call with a
+**null caller filter**, losing only this additional layer restriction (`0x004AAE3A`–`0x004AAE48`,
+`0x004AB0FC`–`0x004AB0FE`); the utility's own filters remain in force.
+
 ## 7. The city cache *[compat]*
 
 ### 7.1 New-city preferences
@@ -250,3 +334,6 @@ See [questions/regional-city.md](questions/regional-city.md): RY1 (the per-recor
 5. **Move:** `SetPosition(5, 4, true)` from (3, 4) moves a deal's cells (3, 4) and (2, 4) to (5, 4) and (4, 4) and
    sets `moved`.
 6. **Tax rate:** `GetTaxRate(0x3320)` reads the seventh rate; `GetTaxRate(0x9999)` returns 7.0.
+7. **Border demolition host:** the masked west-edge Road request and the three caller-filter policies in
+   §6.2.1 use privilege 0, flags 1 and no demolition dezone; a player-locked occupant with no system lock is
+   removed, a system-locked occupant survives, and hidden eligible flora is removed without a visual effect.
