@@ -7,13 +7,13 @@ mod cities;
 pub mod image;
 mod signposts;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use crate::regional_city::RegionalCity;
 use crate::ui_windows::base::{self, Rect, Window, Windows};
 use crate::widget_controls::{Draw, Handle};
 pub use canvas::{Canvas, CanvasHost, Surface};
-pub use signposts::{Animator, SignpostData};
+pub use signposts::{rating_fraction, signpost_data, Animator, AnimatorHost, Field, SignpostData};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unsupported {
@@ -24,7 +24,7 @@ pub type Result<T> = std::result::Result<T, Unsupported>;
 pub type RegionKey = u64;
 pub type CityId = u64;
 /// No Rc/RefCell in view state: an adapter copies metadata from the city interface.
-pub type CityRecord = RegionalCity<(), ()>;
+pub type CityRecord = RegionalCity;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Icon {
@@ -95,6 +95,14 @@ pub trait Host: base::Host + CanvasHost {
     fn move_signpost(&mut self, signpost: Window, position: (i32, i32));
     /// Adapter applies these values through existing script-created widget controls.
     fn fill_signpost(&mut self, signpost: Window, data: &SignpostData);
+    fn signpost_has_child(&mut self, signpost: Window, id: u32) -> bool;
+    fn signpost_children(&mut self, parent: Window) -> Vec<Window>;
+    fn clear_child_flag(&mut self, child: Window, flag: u32);
+    fn child_has_8810(&mut self, child: Window) -> bool;
+    fn install_animator(&mut self, signpost: Window);
+    fn manager_state(&mut self) -> Handle;
+    fn manager_state_active(&mut self, state: Handle) -> bool;
+    fn restore_manager_state(&mut self, state: Handle);
     fn font(&mut self, id: u32) -> Option<Handle>;
     fn font_height(&mut self, font: Handle) -> i32;
     fn layout_text(&mut self, font: Handle, text: &mut Vec<u8>, bounds: Rect, style: u32);
