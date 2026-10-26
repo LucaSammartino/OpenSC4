@@ -18,6 +18,34 @@ import suite
 FIXTURES = Path(__file__).parent / 'fixtures'
 
 
+def test_findings_set_can_be_staged_from_cli():
+    with patch.object(suite, 'read_scenarios', return_value=[dict(name='finding')]) as read, \
+            patch.object(suite, 'run_scenarios', return_value=(Path('unused'), {})) as run:
+        assert suite.main(['run', '--set', 'findings', '--dry-run']) == 0
+        assert read.call_args.args[1] == 'findings'
+        assert run.call_args.kwargs['dry_run']
+
+
+def test_result_exports_read_each_completed_trace_once_per_harvest(tmp_path):
+    import suite_select
+    directory = tmp_path / 'results'
+    directory.mkdir()
+    scenarios = [dict(name=n, end='2000-04-01', region='Test', city=n, notes='')
+                 for n in ('one', 'two')]
+    manifest = dict(profile='shadows', dll_sha256='fixture', shadow_keys=[],
+                    requests=[dict(scenario=row) for row in scenarios])
+    cache, results = {}, {}
+    with patch.object(suite_select, 'reach', return_value=({'00401000'}, {})) as read:
+        for row in scenarios:
+            results[row['name']] = suite.parse_log('', row['end'])
+            suite.write_results(directory, manifest, results, reach_cache=cache)
+        suite.write_results(directory, manifest, results, reach_cache=cache)
+        assert read.call_count == 2
+        # A new operation must read again, including a newly replaced trace.
+        suite.write_results(directory, manifest, results)
+        assert read.call_count == 4
+
+
 def checkout(root):
     (root / 'tools').mkdir()
     shutil.copy2(ROOT / 'tools/regress.ps1', root / 'tools/regress.ps1')
@@ -43,6 +71,24 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertEqual(settings['reach_window'], 'month')
         self.assertEqual(settings['reach_contracts'], 'build-runs/reduced.tsv')
         self.assertEqual(settings['reach_cap'], '1')
+    def test_city_limits_scale_long_large_runs_and_keep_operator_overrides(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            (root / 'actions.script').write_text('2000-01-01 mark start\n2001-12-31 save full\n')
+            row.update(end='2002-01-01', notes='large 256-cell city')
+            limits, ini = suite.city_limits(row, root / 'actions.script')
+            self.assertGreater(int(limits['seconds']), 4000)
+            self.assertGreater(int(limits['timeout']), int(limits['seconds']) + 600)
+            self.assertEqual(ini['autotest_stall_grace_ms'], '120000')
+            _, sized = suite.make_batch(root, [row], 'plain', str(root), 'large-save')
+            self.assertIn('script_save_grace_ms = 120000\n', sized['requests'][0]['request'])
+            _, manifest = suite.make_batch(root, [row], 'plain', str(root), 'sized',
+                                          ['seconds = 123', 'script_save_grace_ms = 0'])
+            request = manifest['requests'][0]['request']
+            self.assertIn('seconds = 123\n', request)
+            self.assertIn('script_save_grace_ms = 0\n', request)
+            self.assertIn('autotest_stall_grace_ms = 120000\n', request)
 
     def test_resume_preserves_claimed_labels_and_only_bounds_unsubmitted_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -122,15 +168,16 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertTrue(suite.successful({'case': result}))
         self.assertEqual(result['worst_shadow'], 'terrain:1/1')
 
-    def test_quit_crash_retains_address_and_raw_verdict_but_does_not_pass(self):
+    def test_known_original_quit_fault_retains_evidence_and_passes(self):
         text = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8')
         result = suite.parse_log(text, '2028-01-28', 'verdict: corrupt')
         self.assertEqual((result['verdict'], result['end_reached'], result['raw_verdict']),
-                         ('clean-exit-crash', '1', 'corrupt'))
+                         ('clean', '1', 'corrupt'))
+        self.assertEqual(result['known_quit_faults'], 1)
         self.assertEqual(result['exception_address'], '0x005D0F94')
         self.assertEqual(result['exceptions'][0]['location'], 'SimCity 4.exe+0x1D0F94')
         self.assertEqual(result['exceptions'][0]['line'], 3)
-        self.assertFalse(suite.successful({'quit': result}))
+        self.assertTrue(suite.successful({'quit': result}))
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             manifest = dict(requests=[dict(scenario=dict(name='quit', end='2028-01-28'))],
@@ -138,7 +185,7 @@ class SuiteParsingTests(unittest.TestCase):
             suite.write_results(directory, manifest, {'quit': result})
             summary = (directory / 'summary.tsv').read_text(encoding='utf-8')
             self.assertIn('exception_address', summary.splitlines()[0])
-            self.assertIn('clean-exit-crash', summary)
+            self.assertIn('clean', summary)
             self.assertIn('0x005D0F94', summary)
 
     def test_posted_quit_crash_requires_an_accepted_command_after_target(self):
@@ -147,13 +194,26 @@ class SuiteParsingTests(unittest.TestCase):
                                   'native quit command 0xC7AA61C6 queued')
         result = suite.parse_log(''.join(lines), '2028-01-28', 'verdict: corrupt')
         self.assertEqual((result['verdict'], result['exception_address']),
-                         ('clean-exit-crash', '0x005D0F94'))
-        self.assertFalse(suite.successful({'posted': result}))
+                         ('clean', '0x005D0F94'))
+        self.assertTrue(suite.successful({'posted': result}))
         for text in (''.join(lines).replace('queued -> 1', 'queued -> 0'),
                      lines[1] + lines[0] + ''.join(lines[2:]),
                      lines[0] + lines[2] + lines[1] + lines[3]):
             with self.subTest(text=text):
                 self.assertEqual(suite.parse_log(text, '2028-01-28')['verdict'], 'corrupt')
+
+    def test_unknown_quit_faults_and_watchdogs_remain_failures(self):
+        text = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8')
+        for changed in (
+                text.replace('SimCity 4.exe+0x1D0F94', 'SimCity 4.exe+0x123456'),
+                text.replace('SimCity 4.exe+0x1D0F94', 'FreeCity4.dll+0x1D0F94'),
+                text.replace('reading address 0x00000000', 'reading address 0x00000004'),
+                'WATCHDOG: main thread stalled - no OnTick for 10000 ms\n' + text):
+            with self.subTest(text=changed):
+                result = suite.parse_log(changed, '2028-01-28', 'verdict: corrupt')
+                self.assertEqual(result['verdict'], 'clean-exit-crash')
+                self.assertEqual(result['known_quit_faults'], 0)
+                self.assertFalse(suite.successful({'unknown': result}))
 
     def test_end_date_alone_cannot_reclassify_an_exception_as_a_quit_crash(self):
         lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
@@ -262,13 +322,26 @@ class SuiteParsingTests(unittest.TestCase):
             (root / 'probe.lua').write_text('print("fixture")\n', encoding='utf-8')
             row.update(script='probe.lua')
             loaded = dict(row, name='load', script='-', notes='load-only; unfounded city')
-            directory, manifest = suite.make_batch(root, [row, loaded], 'plain', str(root), 'lua')
+            with patch.object(suite, 'city_path', return_value=root / 'fixture.sc4'):
+                directory, manifest = suite.make_batch(root, [row, loaded], 'plain', str(root), 'lua')
             lua, load = [r['request'] for r in manifest['requests']]
             self.assertIn('lua_script = build-runs/suite/lua/scripts/case.one.lua', lua)
             self.assertNotIn('\nscript =', lua)
             self.assertTrue(all('close_dialogs = 1' in r['request'] for r in manifest['requests']))
-            self.assertIn('seconds = 12', load)
+            self.assertIn('seconds = 60\n', load)
+            self.assertIn('timeout = 240\n', load)
             self.assertNotIn('end_date =', load)
+
+    def test_load_only_does_not_wait_for_a_whole_install_archive_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            loaded = dict(row, name='load', script='-', notes='load-only; medium city')
+            _, manifest = suite.make_batch(root, [row, loaded], 'shadows', str(root), 'archives')
+            advancing, load = [r['request'] for r in manifest['requests']]
+            for key in ('dbpf_shadow', 'dbpf_bounds_shadow'):
+                self.assertIn(key + ' = 0\n', load)
+                self.assertIn(key + ' = 1\n', advancing)
 
 
 class SuiteQueueTests(unittest.TestCase):
@@ -369,8 +442,10 @@ class SuiteQueueTests(unittest.TestCase):
                         'AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=8.00)\n', encoding='utf-8')
                     Path(str(result) + '.verdict').write_text('verdict: clean\n', encoding='utf-8')
 
-            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(suite.time, 'sleep', side_effect=queue_tick), contextlib.redirect_stdout(io.StringIO()), \
+                    patch.object(suite, 'write_results', wraps=suite.write_results) as export:
                 directory, results = suite.run_scenarios(root, [row, second], profile='replace', dll=str(root), tag='v1.0')
+            self.assertEqual(export.call_count, 2)  # one changed harvest, one final flush
             self.assertEqual(len(calls), 2)
             self.assertTrue(suite.successful(results))
             manifest = json.loads((directory / 'manifest.json').read_text())

@@ -340,6 +340,7 @@ uint32_t cFC4Simulator::HostNowMs(void* user) {
 }
 
 bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4_message* msg) {
+    fc4::FpuSimulationEntry("calendar agent delivery");
     auto* self = static_cast<cFC4Simulator*>(user);
     if (self != nullptr && self->fixedStep_) self->fixedClock_.Delivered();
     cIGZMessageTarget2* target = AgentPtr(agent);
@@ -1125,6 +1126,7 @@ cIGZSystemService* cFC4Simulator::SetServiceRunning(bool bRunning) {
 }
 
 bool cFC4Simulator::OnTick(uint32_t unknown1) {
+    fc4::FpuSimulationEntry("simulator OnTick");
     fc4::TickScope tick;
     FC4_X87_SCOPE("simulator OnTick", 0);  // x87 leftover guard at the entry and the end (FC4Fpu.h)
     ++ticks_;

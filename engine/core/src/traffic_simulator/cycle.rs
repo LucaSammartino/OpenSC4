@@ -396,6 +396,7 @@ impl Run<'_, '_> {
             }
             cs::FERRY_ROUTES => {
                 let riders = self.cx.begin_ferry_pass();
+                // SPEC-GAP: the ferry total's reset point is unspecified (TC29-FERRY-1).
                 self.st.ferry_total = self.st.ferry_total.wrapping_add(riders);
             }
             // FinishTripMap (15) and the lot sweep (1) share one entry arm

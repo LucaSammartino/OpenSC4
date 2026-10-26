@@ -441,6 +441,9 @@ impl PropHost for Fake {
     fn set_date_range(&self, prop: u64, date: u32, duration: u32, flag: u8) {
         self.log(format!("date_range {prop:#x} {date} {duration} {flag}"));
     }
+    fn set_date_calendar_range(&self, prop: u64, date: u32, duration: u32, month: u8, day: u8) {
+        self.log(format!("date_range {prop:#x} {date} {duration} {month} {day}"));
+    }
     fn tick_date(&self, prop: u64, date: u32) {
         self.log(format!("tick_date {prop:#x} {date}"));
         if let Some(callback) = &*self.date_callback.borrow() {
@@ -1000,7 +1003,7 @@ fn t12_registration() {
             "chance 0x400 100",
             "timer 0x400 4 true",
             "timer 0x400 1 true",
-            "date_range 0x400 4660 1 0",
+            "date_range 0x400 4660 1 0 0",
             "timer 0x400 8 true"
         ]
     );
@@ -1065,6 +1068,28 @@ fn t12_registration() {
         ..Default::default()
     });
     assert!(e.f.take().is_empty());
+}
+
+#[test]
+fn pv18_calendar_pair_and_zero_interval_registration() {
+    for (calendar, expected) in [
+        (vec![], "0 0"),
+        (vec![Elem::U8(3)], "0 0"),
+        (vec![Elem::U8(3), Elem::U8(15)], "3 15"),
+        (vec![Elem::U8(3), Elem::U8(15), Elem::U8(99)], "3 15"),
+    ] {
+        let e = env();
+        let mut h = PropertyHolder::new();
+        h.add(PROP_DATE, Variant::Scalar(Elem::U32(0)));
+        h.add(PROP_DATE_DURATION, Variant::Scalar(Elem::U32(0)));
+        if !calendar.is_empty() {
+            h.add(PROP_DATE_FLAG, Variant::array(mem::UINT8, calendar));
+        }
+        e.f.add_prop(0x400, Some(0x10), None, 0x600, h);
+        e.d.register_prop(0x400);
+        assert!(e.f.take().contains(&format!("date_range 0x400 0 0 {expected}")));
+        assert_eq!(e.d.dated_list(), [PropRef::new(0x400, 0x2977_AA47)]);
+    }
 }
 
 #[test]

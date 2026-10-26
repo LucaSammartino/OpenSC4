@@ -1330,6 +1330,42 @@ this layout (versions 9, 10 and 13, with the version rules below). None contains
   This holds for **both** saved lists, the first and then the second. Every deal read gets `SetFlags(Silent, true)`.
 - The save-file path is not stored. The region sets it from the file name.
 
+**Read into an existing object (RY7).** `Read` (`0x004AC5B0`, on the serializable view at object `+8`)
+mutates its receiver as it consumes the stream. It does **not** clear the population maps, commodity map,
+connections, pending changes, deals or POI map first. Population entries assign by key (later duplicate wins);
+commodity entries find or insert the key and then overwrite its five doubles (later duplicate wins).
+Consequently a freshly constructed object's zero entries for commodities **1, 2 and 3 remain** unless overwritten;
+an absent key does not erase one. Re-reading an object also retains keys absent from the new stream.
+POI entries find or insert a list and **append** the positions: repeated POI keys concatenate in wire order,
+including any positions already in the object. A repeated key with zero positions does not clear its list.
+Evidence: population assignment `0x004AC841`–`0x004AC846`, commodity lookup and writes
+`0x004ACCBA`–`0x004ACD37`, POI lookup/append `0x004ACFC0`–`0x004AD128`.
+
+The count guards above compare the **unsigned 32-bit representation**, including the commodity count read
+through the signed-integer stream method (`0x004ACC3F`–`0x004ACC4B`). Thus commodity count `FFFFFFFF` fails
+immediately as greater than `0x100000`; it does not mean an empty map. Both deal loops instead test only
+**nonzero**, decrement a 32-bit count and repeat until zero (`0x004ACD4B`–`0x004ACD6A`,
+`0x004ACE46`–`0x004ACE7C`, `0x004ACF56`–`0x004ACF5C`). A negative signed count is **not an empty loop**:
+`FFFFFFFF` requests 4,294,967,295 attempts, subject to allocation/failure behaviour. Do not run such a record
+to completion as a conformance test or infer successful acceptance of a truncated file from this loop.
+
+Object-level failure is **not atomic**: an over-limit count or the final stream-error test can return false
+after earlier fields and containers have changed. There is no rollback. Primitive read results are generally
+not checked individually; the final stream error is checked at the end. This differs from publication by
+`SC4ReadRegionalCity(package, &out)`, which uses a new object and leaves `out` untouched on failed `Read`
+([regional-city-records.md](regional-city-records.md) §2.1). A safe standalone wire decoder may reject malformed
+counts before allocation and publish only on success, but those protections do not describe a native object's
+in-place `Read` contract.
+
+Worked cases: (a) a fresh object reading only commodity keys 1 and 2 with produced values 10 and 20 finishes
+with keys **1, 2, 3**, with key 3 still all zero; writing it emits three entries. (b) two key-1 commodity
+entries with produced values 10 then 25 leave 25; two POI key-7 entries containing positions A then B leave
+`[A, B]`, not `[B]`. (c) a pre-existing object's position `(8,9)` is overwritten by `(2,3)` before an
+over-limit commodity count causes false; the position remains `(2,3)`. The wrapper leaves its caller's old
+object reference untouched in the equivalent failed package read. (d) with a recording stream, a deal count
+`FFFFFFFF` enters the first deal attempt rather than proceeding directly to the second list; stop the trace
+there instead of allocating billions of objects.
+
 ### 11.3 The two deal lists *[compat]*
 
 - **O ("other")**: deals loaded from disk that no simulator has claimed yet, plus the deals of the record's city
@@ -1763,8 +1799,10 @@ the order within a level.
 19. **Exemplar holder**: example (a) of §10.6 round-trips. A stub resource manager resolves the parent, and a
     lookup of a property only the parent has succeeds. An unknown parent key still loads the own properties and
     leaves the parent unset. A key of zeros gives no parent. The key is read as group, type, instance.
-20. **Regional-city record**: a synthetic version-13 record with two connections, two commodities, one deal in
-    each list and two points of interest round-trips byte for byte. The header example of §11.2 decodes to the
+20. **Regional-city record**: check the four Read cases in §11.2, including retention of constructor commodity
+    key 3 and concatenation of duplicate POI keys. A two-commodity wire map does not round-trip byte for byte
+    through a fresh native object. For a canonical round trip include all three default commodity keys and
+    put both deals in O with L empty (both input lists load into O). The header example of §11.2 decodes to the
     stated values. Version 10 reads the workforce as a percentage, version 9 has no workforce, version 12 has no
     difficulty, and version 14 fails. Both saved deal lists load into O, and every loaded deal is Silent.
 21. **Deal claiming**: with region cells for cities X (current), C and D, and deals X–C, C–D, X–D and one with a

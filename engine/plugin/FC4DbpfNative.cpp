@@ -597,7 +597,11 @@ void DbpfShadowObserve(int32_t julian) {
     std::set<cIGZPersistDBSegment*> visited;
     auto* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
     cIGZPersistResourceManagerPtr manager;
-    if (!manager || !Interface(com, 4)) ++c.refusal;
+    if (!manager || !Interface(com, 4)) {
+        ++c.refusal;
+        Log("dbpf refusal: root enumeration reason=%s", !manager ? "manager-null" :
+            !compat::IdentifiedVersion() ? "version-null" : "COM-interface-outside-supported-image");
+    }
     else {
         // EX56: public resource-manager roots, recursively expanding public
         // multi-packed segments. No private city-streaming ABI is inferred.
