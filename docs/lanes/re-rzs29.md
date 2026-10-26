@@ -4,7 +4,7 @@
 
 ## Handoff
 
-- Resume after connection drop: git status was clean, but the coordinator STOP guard still rejected further research and validation. No source edits or checks ran during this resume attempt; the pending work below is unchanged.
+- Two resume attempts after connection drops: git status was clean both times, but the coordinator STOP guard still rejected further research and validation. No source edits or checks ran during either resume attempt; the pending work below is unchanged. The STOP guard must be cleared before this lane can continue.
 - STOP received 2026-10-26 during final RZS2 review; no merge-queue file written.
 - RZS1: §7.1 and DT20–DT26 specify live iterators, safe accepted self-removal, unsupported false-return self-removal, other-node deletion, same-pass insertion, replacement, recursion and shared HTML mode. Archived and indexed.
 - RZS2 draft: §§4, 5.2, 7.2; RZ66–RZ77 and DT27–DT30. C-locale tables, shipped wide classification ranges, partial-prefix reassignment, mapping-failure identity, unchanged lowered search offsets, and byte registry comparison are specified. Archived and indexed.
