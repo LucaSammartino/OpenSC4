@@ -3,10 +3,10 @@ use super::list_box::*;
 use super::*;
 #[path = "closure_tests.rs"]
 mod closure;
-#[path = "settled_tests.rs"]
-mod settled;
 #[path = "file_browser/closure_tests.rs"]
 mod file_browser_closure;
+#[path = "settled_tests.rs"]
+mod settled;
 
 #[derive(Default)]
 struct Recording {
@@ -14,6 +14,18 @@ struct Recording {
     fb_editor: Vec<u8>,
     fb_rgb: Vec<[u8; 3]>,
     fb_ops: Vec<(u32, Vec<u32>)>,
+    fb_controls: Vec<(Handle, file_browser::ControlOp)>,
+    fb_grids: Vec<(Handle, file_browser::GridOp)>,
+    fb_parts: Vec<Vec<u8>>,
+    fb_rect: Rect,
+    fb_visible: bool,
+    fb_locks: std::collections::VecDeque<bool>,
+    fb_lock_flags: Vec<u32>,
+    fb_lines: Vec<([i32; 2], [i32; 2])>,
+    fb_fills: Vec<Rect>,
+    fb_factory: Option<(bool, Option<Handle>)>,
+    fb_no_strip: bool,
+    fb_matches: Vec<(Vec<u8>, Vec<u8>, u32)>,
     tree_area: Option<Rect>,
     tree_thickness: [u32; 2],
     tree_resizes: Vec<[u32; 2]>,
@@ -86,17 +98,21 @@ impl file_browser::BrowserIo for Recording {
     fn enumerate(&mut self, _: &[u8], kind: file_browser::Enumeration) -> Vec<Vec<u8>> {
         self.enumerated[usize::from(kind == file_browser::Enumeration::Files)].clone()
     }
-    fn wildcard_match(&mut self, pattern: &[u8], _: &[u8], _: u32) -> bool {
+    fn wildcard_match(&mut self, pattern: &[u8], name: &[u8], option: u32) -> bool {
+        self.fb_matches.push((pattern.to_vec(), name.to_vec(), option));
         self.patterns.push(pattern.to_vec());
         pattern == b"second"
     }
     fn clear_grid(&mut self, _: Handle) {
         self.installed.clear();
     }
+    fn clear_columns(&mut self, _: Handle) {}
     fn grid_set_text(&mut self, _: Handle, column: i32, row: i32, text: &[u8]) {
         self.installed.push((column, row, text.to_vec()));
     }
-    fn grid_set_bitmap(&mut self, _: Handle, _: i32, _: i32, _: Handle) {}
+    fn grid_set_bitmap(&mut self, _: Handle, column: i32, row: i32, icon: Handle) {
+        self.fb_ops.push((0xb17, vec![column as u32, row as u32, icon as u32]));
+    }
     fn combo_select(&mut self, _: Handle, index: u32) {
         self.combo_indices.push(index);
     }
@@ -120,6 +136,23 @@ impl file_browser::BrowserHost for Recording {
 }
 
 impl file_browser::ControlIo for Recording {
+    fn component_result(&mut self, class: u32, iid: u32) -> (bool, Option<Handle>) {
+        self.fb_ops.push((class, vec![iid]));
+        self.fb_factory.unwrap_or((false, None))
+    }
+    fn builtin_spec(&mut self, class: u32, iid: u32, layout: [u32; 3]) -> Option<Handle> {
+        self.fb_ops.push((class, layout.to_vec()));
+        self.builtin(class, iid)
+    }
+    fn control(&mut self, control: Handle, operation: file_browser::ControlOp) {
+        self.fb_controls.push((control, operation));
+    }
+    fn control_name(&mut self, index: usize) -> Vec<u8> {
+        vec![index as u8]
+    }
+    fn confirmation_caption(&mut self) -> Vec<u8> {
+        b"fixture-confirm".to_vec()
+    }
     fn component(&mut self, _: u32, _: u32) -> Option<Handle> {
         None
     }
@@ -129,7 +162,7 @@ impl file_browser::ControlIo for Recording {
 }
 
 #[test]
-fn browser_control_prefix_and_unsettled_init_do_not_claim_full_creation() {
+fn browser_factory_prefix_and_settled_init() {
     use file_browser::*;
     let mut f = Recording {
         buffer_ok: true,
@@ -137,9 +170,9 @@ fn browser_control_prefix_and_unsettled_init_do_not_claim_full_creation() {
     };
     assert_eq!(obtain_control(5, &mut f), Ok(Some(810)));
     assert_eq!(f.refs, [(true, 810)]);
-    assert_eq!(obtain_control(1, &mut f), Err(Unsupported::Open("FBQ2")));
+    assert_eq!(obtain_control(1, &mut f), Ok(Some(810)));
     let mut b = FileBrowser::new(80);
-    assert_eq!(b.init(&mut f, &mut Unsettled), Err(Unsupported::Open("FBQ4")));
+    assert_eq!(b.init(&mut f, &mut Unsettled), Ok(true));
     assert!(b.initialized); // Native first-init has no local rollback.
 }
 
@@ -198,8 +231,8 @@ fn browser_init_paint_refresh_and_final_release_order() {
     assert_eq!(overrides.refreshes, [Refresh::DirectoryList, Refresh::FileList]);
     assert!(!b.dirty);
     b.dirty = true;
-    assert_eq!(b.paint(None, &mut f, &mut Unsettled), Err(Unsupported::Open("FBQ5")));
-    assert!(b.dirty);
+    assert_eq!(b.paint(None, &mut f, &mut Unsettled), Ok(true));
+    assert!(!b.dirty);
     let mut owner = BrowserOwner::new(b);
     assert_eq!(owner.add_ref(), 2);
     assert_eq!(owner.release(&mut f), 1);
@@ -607,19 +640,20 @@ impl file_browser::IconIo for Recording {
         self.icon_calls.push("graphics");
         Some(700)
     }
-    fn init_buffer(&mut self, _: Handle, width: i32, height: i32) -> bool {
-        assert!(matches!((width, height), (18, 17) | (84, 22)));
+    fn init_buffer(&mut self, _: Handle, width: i32, height: i32, format: [u32; 2]) -> bool {
+        assert_eq!(format, [3, 16]);
+        assert!(matches!((width, height), (18, 17) | (84, 22) | (64, 15)));
         self.icon_calls.push("init");
         self.buffer_ok
     }
     fn icon_strip(&mut self, id: u32) -> Option<Handle> {
         assert_eq!(id, 0xa896_3eea);
-        Some(701)
+        (!self.fb_no_strip).then_some(701)
     }
     fn lock_buffer(&mut self, _: Handle, flags: u32) -> bool {
-        assert_eq!(flags, 0x8010);
+        self.fb_lock_flags.push(flags);
         self.icon_calls.push("lock");
-        self.lock_ok
+        self.fb_locks.pop_front().unwrap_or(self.lock_ok)
     }
     fn copy_buffer(&mut self, _: Handle, _: Handle, from: Rect, to: Rect) {
         assert_eq!((from, to), ([36, 0, 54, 17], [0, 0, 18, 17]));
@@ -636,6 +670,13 @@ impl file_browser::IconIo for Recording {
     fn set_color_key(&mut self, _: Handle, color: u32) {
         assert_eq!(color, 0x1234);
         self.icon_calls.push("key");
+    }
+    fn fill_buffer(&mut self, _: Handle, area: Rect, _: u32) {
+        self.fb_fills.push(area);
+    }
+    fn line_buffer(&mut self, _: Handle, from: [i32; 2], to: [i32; 2], _: u32, option: u32) {
+        assert_eq!(option, 1);
+        self.fb_lines.push((from, to));
     }
 }
 
@@ -1476,6 +1517,7 @@ fn fb_c14_c18_creation_selection_and_double_click() {
     assert_eq!(f.paths.last().unwrap(), b"C:\\New Folder (256)\\");
     assert!(browser.refresh_work.is_empty());
     browser.entries.push(Some(Entry {
+        icon: None,
         tag: CUSTOM_FILE,
         id: 42,
         name: b"old.txt".to_vec(),
@@ -1532,6 +1574,7 @@ fn browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary() {
     use file_browser::*;
     let mut f = Recording::default();
     let entry = |tag, text: &[u8]| Entry {
+        icon: None,
         tag,
         id: 0,
         name: text.to_vec(),
@@ -1582,6 +1625,7 @@ fn browser_parent_directory_ids_and_shutdown_reference_order() {
     assert_eq!(browser.style_words[0][6], 0);
     assert_eq!(browser.raw_bytes[&0x1dc], 1);
     browser.entries = vec![Some(Entry {
+        icon: None,
         tag: DIRECTORY,
         id: 42,
         name: b"folder".to_vec(),

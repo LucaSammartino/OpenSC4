@@ -92,31 +92,33 @@ rollback promises. No font rasterization or in-game pixel equality is claimed.
 | Spec section | Code item | Tests / open contract |
 |---|---|---|
 | win-filebrowser 1 identity | query_interface/window/constants | C01-C05 identity/path test |
-| 2 navigation/path | setters, parent, update_path_live | path/lifecycle tests; open: FBQ5 population targets |
+| 2 navigation/path | setters, parent_live, update_path_live | implemented (FBQ5); fbq4_navigation_removal_and_fbq5_live_creation_paint |
 | 3 lookup | get_row_of_entry_by_name | C06-C09 lookup test |
-| 4 vectors C01-C09 | navigation/lookup tests | C05 native refresh targets remain FBQ5 |
+| 4 vectors C01-C09 | navigation/lookup and live refresh | implemented (FBQ5); existing C01-C09 plus fbq4_navigation_removal_and_fbq5_live_creation_paint |
 | 5 flags | set/add/clear/any-bit | C10-C12 flags test |
-| 6 selection/notifications | descriptor/selection/select/double-click | C14-C18 test; remaining ABI FBQ4 |
-| 7 directory creation | create_new_directory | C14-C18; restoration FBQ5 |
-| 8.1 population | populate_files, resolved columns/icons | C19 pattern test; open: FBQ5 sizing/drives/directories/restoration |
+| 6 selection/notifications | descriptor, edited_descriptor, custom_entry, live selection handlers | implemented (FBQ4); C14-C18, fbq4_descriptor_background_and_drive_worked_cases, fbq4_columns_custom_records_and_unchanged_outputs |
+| 7 directory creation | create_directory_candidate, create_directory_live | implemented (FBQ5); C14-C18 and fbq4_navigation_removal_and_fbq5_live_creation_paint |
+| 8.1 population | population.rs, populate_files | implemented (FBQ5); fbq5_c28_c29_case_copy_and_unsigned_capacity, fbq5_c30_c31_c38_restore_empty_grid_and_disabled_columns, fbq5_c34_c35_c36_c37_directory_and_popup_worked_cases |
 | 8.1.1 comparator | precedes | browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary |
 | 8.1.2 fitting | fit_string | same comparator/fit test |
-| 8.2 controls | obtain_control factory/builtin prefix | browser_control_prefix_and_unsettled_init_do_not_claim_full_creation; open: FBQ2 full order/configuration/layout |
+| 8.2 controls/messages | controls.rs, obtain_control, routing.rs | implemented (FBQ2); fbq2_c39_c40_control_order_configuration_and_factory_boolean, fbq2_c41_c42_c43_message_routes_and_borrowed_notifications; no owner-assigned child rectangles per spec |
 | 8.2.1 enables | enable_child | C23-C24 test |
-| 8.3 resources | strip loader, creation cleanup | C20/C21/C25/C26 test; open: FBQ1 procedural pixels/results |
+| 8.3 resources | operations.rs, resources.rs; format (3,16), exact arrow, selector/result boundaries | C20/C21/C25/C26 and fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries; open: FBQ1 §8.3.3 ordered icon/button primitive and pixel trace (two bodies / 5,361 B) |
 | 8.4 buffers | set_icon/set_button_buffer | C23/C24 and lifecycle tests |
-| 8.5 lifecycle/paint/area | lifecycle.rs, set_area, shutdown | browser_init_paint_refresh_and_final_release_order; open: FBQ2 placement/controls, FBQ4 property targets, FBQ5 refresh targets |
+| 8.5 lifecycle/paint/area | lifecycle.rs defaults, init_property, paint_live, set_area, shutdown | implemented (FBQ2/FBQ4/FBQ5); browser_factory_prefix_and_settled_init, browser_init_paint_refresh_and_final_release_order, fbq4_navigation_removal_and_fbq5_live_creation_paint; procedural pixel boundary is in 8.3 |
 | 8.6 construction/destruction | raw defaults/clears, destroy, BrowserOwner | shutdown-order and lifecycle tests distinguish direct destruction/final release |
-| 8.7 properties/forwarding | strings/pending/sort/option/flags, explicit virtual dispatch | pending/flags/lifecycle tests; open: FBQ4 unspecified slot targets |
-| 9 C10-C27 | existing focused vectors plus lifecycle tests | native C05/C14 refresh targets remain FBQ5 |
-| 10/A inventory | no inferred owner denominator | open: FBQ1/FBQ2/FBQ4/FBQ5/FBQ6 |
-| widget-controls 4 | same owner | rows above |
+| 8.7 properties/forwarding | properties.rs, close_popup, select_directory, remove_subdirectory | implemented (FBQ4); fbq4_style_widths_references_optional_words_and_common_font, fbq4_columns_custom_records_and_unchanged_outputs, fbq4_descriptor_background_and_drive_worked_cases, fbq4_navigation_removal_and_fbq5_live_creation_paint |
+| 9 C10-C43 | existing focused vectors, closure_tests.rs | implemented (FBQ5); existing C10-C27 and named C28-C43 tests above |
+| 10/A inventory | spec-scoped attribution; alternate_send and owned-record defaults | FBQ2/FBQ4/FBQ5/FBQ6 applied; fbq6_older_table_dispatch_and_completion_channels and fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries; open: FBQ1 §8.3.3 two pixel recipes; no false comparator target or extra primary slot |
+| widget-controls 4 | same owner | partial: open FBQ1 pixel trace in 8.3; other rows implemented as above |
 
-Unsettled returns explicit Unsupported errors at unresolved virtual calls.
-Tests supply overrides to exercise independently settled Init continuation.
-These overrides are not claimed implementations of missing browser bodies.
-Paint accepts resolved background placement. Automatic native refresh cannot
-be claimed while directory/drive population and restoration remain FBQ5.
+Default lifecycle dispatch now executes the owner property/control/population
+bodies; explicit overrides remain available. Recording services test foreign
+calls, not foreign rendering. FBQ1 glyph paths stop with Unsupported at the
+missing primitive recipe, never invented pixels. Native unsafe inputs (zero
+row height, null required children, column-order scans outside six records)
+are explicit preconditions. The callback directory-order property mapping and
+new-filter pattern parsing remain one-line SPEC-GAP choices in the code.
 
 ### cGZWinListBox
 

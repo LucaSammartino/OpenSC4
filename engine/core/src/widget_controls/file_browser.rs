@@ -4,12 +4,19 @@
 //! not yet implemented are not represented by foreign whole-owner callbacks.
 use super::*;
 
+mod controls;
 mod lifecycle;
 mod operations;
+mod population;
 mod properties;
-pub use properties::{DriveRecord, PropertyIo};
+mod resources;
+mod routing;
+pub use controls::ControlOp;
 pub use lifecycle::{obtain_control, BrowserHost, BrowserOverrides, BrowserOwner, ControlIo, Unsettled};
 pub use operations::{BrowserIo, Column, Enumeration, IconIo};
+pub use population::{GridOp, PopulationIo};
+pub use properties::{DriveRecord, PropertyIo};
+pub use routing::{MessageIo, Received};
 
 pub const IID: u32 = 0x3aa5_2e64;
 pub const PRIMARY_SLOTS: usize = 107;
@@ -20,14 +27,15 @@ pub const DIRECTORY: u32 = 0xbaa8_8502;
 pub const FILE: u32 = 0xbaa8_8503;
 pub const CUSTOM_FILE: u32 = 0xbaa8_8513;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Entry {
+    pub icon: Option<Handle>,
     pub tag: u32,
     pub id: u32,
     pub name: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CustomEntry {
     pub id: u32,
     pub interface: Option<Handle>,
@@ -125,6 +133,8 @@ pub struct FileBrowser {
     pub initialized: bool,
     pub sort_words: [u32; 2],
     pub wildcard_option: u32,
+    // SPEC-GAP: §8.1.1 supplies directory mode separately, without a property mapping.
+    pub directory_order: u32,
     pub common_font: Option<Handle>,
     pub icons: [Option<Handle>; 7],
     pub button_buffers: [Option<Handle>; 4],
@@ -167,6 +177,7 @@ impl FileBrowser {
             initialized: false,
             sort_words: [0, 2],
             wildcard_option: 0,
+            directory_order: 0,
             common_font: None,
             icons: [None; 7],
             button_buffers: [None; 4],
@@ -429,7 +440,7 @@ impl FileBrowser {
         self.mark_dirty(f);
         true
     }
-    pub fn create_new_directory(&mut self, f: &mut impl BrowserForeign) -> bool {
+    fn create_directory_candidate(&self, f: &mut impl BrowserForeign) -> Option<Vec<u8>> {
         let mut leaf = self.new_directory_label.clone();
         let mut path = [&self.current[..], &leaf[..], b"\\"].concat();
         if f.directory_exists(&path) {
@@ -443,8 +454,14 @@ impl FileBrowser {
             }
         }
         if !f.create_directory(&path) {
-            return false;
+            return None;
         }
+        Some(leaf)
+    }
+    pub fn create_new_directory(&mut self, f: &mut impl BrowserForeign) -> bool {
+        let Some(leaf) = self.create_directory_candidate(f) else {
+            return false;
+        };
         self.refresh_work.extend([Refresh::DirectoryList, Refresh::FileList]);
         // Refresh bodies must execute before the grid lookup when this partial
         // state layer is integrated; no external population callback is used.
@@ -467,6 +484,9 @@ impl FileBrowser {
             return;
         }
         if let Some(control) = self.children[index].take() {
+            if index == 7 {
+                self.filter_combo = None;
+            }
             let accessor = if matches!(index, 0 | 6) { 0x14 } else { 0x0c };
             let window = f.child_window(control, accessor);
             f.remove_child(self.window(), window);
@@ -546,6 +566,7 @@ impl FileBrowser {
         for child in &mut self.children {
             replace_ref(child, None, f);
         }
+        self.filter_combo = None;
         replace_ref(&mut self.common_font, None, f);
         for icon in &mut self.icons {
             replace_ref(icon, None, f);

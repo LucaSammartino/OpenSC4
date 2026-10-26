@@ -13,6 +13,7 @@ pub struct DriveRecord {
 }
 
 pub trait PropertyIo: IconIo {
+    fn manager(&mut self, window: Handle) -> Handle;
     fn drives(&mut self) -> Vec<(Vec<u8>, u32)>;
     fn editor_text(&mut self, editor: Handle) -> Vec<u8>;
     fn remove_directory(&mut self, path: &[u8], option: u32) -> bool;
@@ -21,11 +22,50 @@ pub trait PropertyIo: IconIo {
     fn unpack_rgb(&mut self, color: u32) -> [u8; 3];
     fn window_flag(&mut self, window: Handle, flag: u32) -> bool;
     fn complete_modal(&mut self, manager: Handle, id: u32, window: Handle, argument: u32) -> u32;
-    fn complete_window(&mut self, window: Handle, target: u32, argument: u32) -> u32;
+    fn complete_window(&mut self, window: Handle, target: u32, event: u32, sender: Handle, zero: [u32; 2]) -> u32;
     fn base_send(&mut self, window: Handle, message: Message, argument: u32) -> bool;
 }
 
 impl FileBrowser {
+    pub fn init_property(&mut self, slot: u32, args: &[u32], f: &mut impl PropertyIo) -> Result<()> {
+        match slot {
+            93 => {
+                self.initialize_drives(f);
+            }
+            94 => self.initialize_fallback(),
+            40 => {
+                self.set_column_order(args, f);
+            }
+            61 | 63 | 65 => {
+                self.set_dimension(
+                    match slot {
+                        61 => 0x1e4,
+                        63 => 0x1fc,
+                        _ => 0x224,
+                    },
+                    args[0],
+                    f,
+                );
+            }
+            67 | 69 => {
+                self.set_optional_word(if slot == 67 { 0x300 } else { 0x304 }, args[0] as u8, args[1], f);
+            }
+            71 => {
+                self.set_style_colors(args[0], args[1], f);
+            }
+            73 => {
+                for (offset, value) in [0x164, 0x168, 0x16c].into_iter().zip(args) {
+                    self.store_word(offset, *value);
+                }
+                self.mark_dirty(f);
+            }
+            79 => {
+                self.set_outline(args[0], f);
+            }
+            _ => return Err(Unsupported::Precondition("unsupported Init property slot")),
+        }
+        Ok(())
+    }
     /// Indexed style operations address words, without a six-word range check.
     pub fn word(&self, offset: u32) -> u32 {
         for (style, base) in STYLES.iter().enumerate() {
@@ -155,7 +195,9 @@ impl FileBrowser {
         if output.len() as u32 == count {
             Ok(output)
         } else {
-            Err(Unsupported::Precondition("column-order getter scans outside six records"))
+            Err(Unsupported::Precondition(
+                "column-order getter scans outside six records",
+            ))
         }
     }
 
@@ -188,7 +230,10 @@ impl FileBrowser {
 
     pub fn set_background_color(&mut self, color: u32, f: &mut impl PropertyIo) -> bool {
         let [r, g, b] = f.unpack_rgb(color);
-        self.store_word(0x30c, 0xff00_0000 | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b));
+        self.store_word(
+            0x30c,
+            0xff00_0000 | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b),
+        );
         self.raw_bytes.insert(0x309, 1);
         f.invalidate(self.window());
         true
@@ -231,7 +276,12 @@ impl FileBrowser {
                 _ => (4, 3),
             };
             if name.len() >= 2 {
-                self.drive_records.push(DriveRecord { name: name[..2].to_vec(), kind, icon: self.icons[icon], depth: 0 });
+                self.drive_records.push(DriveRecord {
+                    name: name[..2].to_vec(),
+                    kind,
+                    icon: self.icons[icon],
+                    depth: 0,
+                });
             }
             // Native short-name allocation is leaked; no retained record is appended.
         }
@@ -239,7 +289,10 @@ impl FileBrowser {
     }
 
     pub fn initialize_fallback(&mut self) {
-        self.fallback = self.drive_records.iter().find(|r| r.kind == 0 && r.name.len() >= 2)
+        self.fallback = self
+            .drive_records
+            .iter()
+            .find(|r| r.kind == 0 && r.name.len() >= 2)
             .map_or_else(|| b"c:\\".to_vec(), |r| [&r.name[..2], b"\\"].concat());
     }
 
@@ -249,6 +302,12 @@ impl FileBrowser {
         valid
     }
 
+    pub fn set_directory_property(&mut self, path: &[u8], f: &mut impl BrowserForeign) -> bool {
+        self.validate_current(path, f);
+        self.mark_dirty(f);
+        true
+    }
+
     pub fn edited_descriptor(&mut self, f: &mut impl PropertyIo) -> SelectionDescriptor {
         let mut result = self.descriptor();
         if let Some(editor) = self.children[6] {
@@ -256,36 +315,70 @@ impl FileBrowser {
             if self.selection.kind == 2 || !text.is_empty() {
                 self.selection.leaf = text;
                 self.selection.full_path = [&self.selection.directory[..], &self.selection.leaf[..]].concat();
-                if self.selection.kind != 2 { result.kind = 2; }
+                if self.selection.kind != 2 {
+                    result.kind = 2;
+                }
             }
         }
         result
     }
 
     fn group_index(&self, index: u32) -> usize {
-        if index == u32::MAX { self.filter_index as usize } else { index as usize }
+        if index == u32::MAX {
+            self.filter_index as usize
+        } else {
+            index as usize
+        }
     }
 
     fn grow_groups(&mut self, index: usize) {
-        self.custom_groups.resize_with(self.custom_groups.len().max(index + 1), Vec::new);
-        self.filter_labels.resize_with(self.filter_labels.len().max(index + 1), Vec::new);
+        self.custom_groups
+            .resize_with(self.custom_groups.len().max(index + 1), Vec::new);
+        self.filter_labels
+            .resize_with(self.filter_labels.len().max(index + 1), Vec::new);
         // SPEC-GAP: parsed pattern storage is host-supplied; new filters start empty.
         self.filter_patterns.resize_with(self.filter_labels.len(), Vec::new);
     }
 
-    pub fn custom_entry(&self, entry: u32, group: u32, name: &mut Vec<u8>, buffer: &mut Option<Handle>, id: &mut u32) -> bool {
-        let Some(record) = self.custom_groups.get(self.group_index(group)).and_then(|g| g.get(entry as usize)) else { return false; };
+    pub fn custom_entry(
+        &self,
+        entry: u32,
+        group: u32,
+        name: &mut Vec<u8>,
+        buffer: &mut Option<Handle>,
+        id: &mut u32,
+    ) -> bool {
+        let Some(record) = self
+            .custom_groups
+            .get(self.group_index(group))
+            .and_then(|g| g.get(entry as usize))
+        else {
+            return false;
+        };
         name.clone_from(&record.text);
         *buffer = record.interface;
         *id = record.id;
         true
     }
 
-    pub fn add_custom_entry(&mut self, name: &[u8], buffer: Option<Handle>, id: u32, group: u32, f: &mut impl Foreign) -> bool {
+    pub fn add_custom_entry(
+        &mut self,
+        name: &[u8],
+        buffer: Option<Handle>,
+        id: u32,
+        group: u32,
+        f: &mut impl Foreign,
+    ) -> bool {
         let index = self.group_index(group);
         self.grow_groups(index);
-        if let Some(buffer) = buffer { f.add_ref(buffer); }
-        self.custom_groups[index].push(CustomEntry { id, interface: buffer, text: name.to_vec() });
+        if let Some(buffer) = buffer {
+            f.add_ref(buffer);
+        }
+        self.custom_groups[index].push(CustomEntry {
+            id,
+            interface: buffer,
+            text: name.to_vec(),
+        });
         self.mark_dirty(f);
         true
     }
@@ -294,48 +387,74 @@ impl FileBrowser {
         let index = self.group_index(group);
         self.grow_groups(index);
         self.filter_labels[index] = text.to_vec();
-        if let Some(combo) = self.children[7].or(self.filter_combo) { f.combo_label(combo, text, index as u32); }
+        if let Some(combo) = self.children[7].or(self.filter_combo) {
+            f.combo_label(combo, text, index as u32);
+        }
         true
     }
 
     fn remove_custom(&mut self, group: usize, position: Option<usize>, f: &mut impl Foreign) -> bool {
-        let Some(position) = position else { return false; };
+        let Some(position) = position else {
+            return false;
+        };
         let record = self.custom_groups[group].remove(position);
-        if let Some(buffer) = record.interface { f.release(buffer); }
+        if let Some(buffer) = record.interface {
+            f.release(buffer);
+        }
         self.mark_dirty(f);
         true
     }
 
     pub fn remove_custom_id(&mut self, id: u32, group: u32, f: &mut impl Foreign) -> bool {
         let group = self.group_index(group);
-        let position = self.custom_groups.get(group).and_then(|g| g.iter().position(|r| r.id == id));
+        let position = self
+            .custom_groups
+            .get(group)
+            .and_then(|g| g.iter().position(|r| r.id == id));
         self.remove_custom(group, position, f)
     }
 
     pub fn remove_custom_name(&mut self, name: &[u8], group: u32, f: &mut impl PropertyIo) -> bool {
         let group = self.group_index(group);
-        let position = self.custom_groups.get(group).and_then(|g| g.iter().position(|r| f.compare_name(name, &r.text, 1)));
+        let position = self
+            .custom_groups
+            .get(group)
+            .and_then(|g| g.iter().position(|r| f.compare_name(name, &r.text, 1)));
         self.remove_custom(group, position, f)
     }
 
     pub fn complete(&self, argument: u32, f: &mut impl PropertyIo) -> u32 {
         if f.window_flag(self.window(), 0x1000) {
-            f.complete_modal(self.primary + 8, 15, self.window(), argument)
+            let manager = f.manager(self.window());
+            f.complete_modal(manager, 15, self.window(), argument)
         } else {
-            f.complete_window(self.window(), self.word(0x4c), argument)
+            f.complete_window(self.window(), self.word(0x4c), 1, self.window(), [0, 0])
         }
     }
 
     /// This handler belongs only to the two older secondary tables (§A.1).
-    pub fn alternate_send(&mut self, message: Message, argument: u32, descriptor_type: u32, f: &mut impl PropertyIo) -> bool {
+    pub fn alternate_send(
+        &mut self,
+        message: Message,
+        argument: u32,
+        descriptor_type: u32,
+        f: &mut impl PropertyIo,
+    ) -> bool {
         match (message.kind, message.words[1] as u32) {
             (3, 0xbaa5_5d58) => {
-                if self.edited_descriptor(f).kind == 2 { self.complete(1, f); }
+                if self.edited_descriptor(f).kind == 2 {
+                    self.complete(1, f);
+                }
                 true
             }
-            (3, 0xbaa5_5d59) => { self.complete(0, f); true }
+            (3, 0xbaa5_5d59) => {
+                self.complete(0, f);
+                true
+            }
             _ => {
-                if message.kind == 0x7abe_7204 && descriptor_type == 2 { self.complete(1, f); }
+                if message.kind == 0x7abe_7204 && descriptor_type == 2 {
+                    self.complete(1, f);
+                }
                 f.base_send(self.window(), message, argument)
             }
         }

@@ -21,6 +21,7 @@ pub trait BrowserIo: BrowserForeign {
     fn enumerate(&mut self, path: &[u8], kind: Enumeration) -> Vec<Vec<u8>>;
     fn wildcard_match(&mut self, pattern: &[u8], name: &[u8], option: u32) -> bool;
     fn clear_grid(&mut self, grid: Handle);
+    fn clear_columns(&mut self, grid: Handle);
     fn grid_set_text(&mut self, grid: Handle, column: i32, row: i32, text: &[u8]);
     fn grid_set_bitmap(&mut self, grid: Handle, column: i32, row: i32, bitmap: Handle);
     fn combo_select(&mut self, combo: Handle, index: u32);
@@ -32,13 +33,15 @@ pub trait BrowserIo: BrowserForeign {
 pub trait IconIo: BrowserForeign {
     fn factory_buffer(&mut self, component: u32, iid: u32) -> Option<Handle>;
     fn graphics_buffer(&mut self) -> Option<Handle>;
-    fn init_buffer(&mut self, buffer: Handle, width: i32, height: i32) -> bool;
+    fn init_buffer(&mut self, buffer: Handle, width: i32, height: i32, format: [u32; 2]) -> bool;
     fn icon_strip(&mut self, resource: u32) -> Option<Handle>;
     fn lock_buffer(&mut self, buffer: Handle, flags: u32) -> bool;
     fn copy_buffer(&mut self, destination: Handle, source: Handle, from: Rect, to: Rect);
     fn unlock_buffer(&mut self, buffer: Handle);
     fn convert_rgb(&mut self, window: Handle, rgb: [u8; 3]) -> u32;
     fn set_color_key(&mut self, buffer: Handle, color: u32);
+    fn fill_buffer(&mut self, buffer: Handle, area: Rect, color: u32);
+    fn line_buffer(&mut self, buffer: Handle, from: [i32; 2], to: [i32; 2], color: u32, option: u32);
 }
 
 impl FileBrowser {
@@ -48,7 +51,7 @@ impl FileBrowser {
             return false;
         }
         self.filter_index = index;
-        if let Some(combo) = self.filter_combo {
+        if let Some(combo) = self.children[7].or(self.filter_combo) {
             f.combo_select(combo, index);
         }
         self.mark_dirty(f);
@@ -68,20 +71,27 @@ impl FileBrowser {
         let grid = self.children[5];
         if let Some(grid) = grid {
             f.clear_grid(grid);
+            f.clear_columns(grid);
         }
         self.clear_file_entries();
         if self.flags & 1 != 0 && f.split_directory(&self.current, 2, 260).0 >= 2 {
             self.entries.push(Some(Entry {
+                icon: None,
                 tag: PARENT,
                 id: 0,
                 name: self.parent_label.clone(),
             }));
         }
         if self.flags & 4 != 0 {
+            if let Some(button) = self.children[3] {
+                let can_parent = f.split_directory(&self.current, 2, 260).0 >= 2;
+                f.set_window_flag(button, 2, can_parent);
+            }
             let mut directories = f.enumerate(&self.current, Enumeration::Directories);
             directories.sort();
             self.entries.extend(directories.into_iter().map(|name| {
                 Some(Entry {
+                    icon: None,
                     tag: DIRECTORY,
                     id: 0,
                     name,
@@ -99,11 +109,22 @@ impl FileBrowser {
             };
             for name in f.enumerate(&self.current, Enumeration::Files) {
                 if patterns.is_empty()
-                    || patterns
-                        .iter()
-                        .any(|p| f.wildcard_match(p, &name, self.wildcard_option))
+                    || patterns.iter().any(|p| {
+                        let (mut pattern, mut candidate) = (p.clone(), name.clone());
+                        let option = self.raw_bytes[&0x15c];
+                        if option == 0 {
+                            f.lowercase(&mut pattern);
+                            f.lowercase(&mut candidate);
+                        }
+                        f.wildcard_match(&pattern, &candidate, u32::from(option))
+                    })
                 {
-                    self.entries.push(Some(Entry { tag: FILE, id: 0, name }));
+                    self.entries.push(Some(Entry {
+                        icon: None,
+                        tag: FILE,
+                        id: 0,
+                        name,
+                    }));
                 }
             }
         }
@@ -171,21 +192,22 @@ impl FileBrowser {
         else {
             return Ok(false);
         };
-        if !f.init_buffer(buffer, 18, 17) {
+        if !f.init_buffer(buffer, 18, 17, [3, 16]) {
             f.release(buffer);
             return Ok(false);
         }
-        let Some(strip) = f.icon_strip(0xa896_3eea) else {
+        if let Some(strip) = f.icon_strip(0xa896_3eea) {
+            if f.lock_buffer(buffer, 0x8010) {
+                let left = (index as i32).wrapping_mul(18);
+                f.copy_buffer(buffer, strip, [left, 0, left.wrapping_add(18), 17], [0, 0, 18, 17]);
+                f.unlock_buffer(buffer);
+            }
+            let key = f.convert_rgb(self.window(), [255, 0, 255]);
+            f.set_color_key(buffer, key);
+        } else if let Err(error) = self.draw_default_icon(index, Some(buffer), [0, 0, 18, 17], f) {
             f.release(buffer);
-            return Err(Unsupported::Open("FBQ1"));
-        };
-        if f.lock_buffer(buffer, 0x8010) {
-            let left = (index as i32).wrapping_mul(18);
-            f.copy_buffer(buffer, strip, [left, 0, left.wrapping_add(18), 17], [0, 0, 18, 17]);
-            f.unlock_buffer(buffer);
+            return Err(error);
         }
-        let key = f.convert_rgb(self.window(), [255, 0, 255]);
-        f.set_color_key(buffer, key);
         self.set_icon(index, Some(buffer), f);
         f.release(buffer);
         Ok(true)
@@ -207,7 +229,7 @@ impl FileBrowser {
             .factory_buffer(0xc470_d325, 0x2073_2180)
             .or_else(|| f.graphics_buffer());
         if let Some(buffer) = *output {
-            if !f.init_buffer(buffer, 84, 22) {
+            if !f.init_buffer(buffer, 84, 22, [3, 16]) {
                 f.release(buffer);
                 *output = None;
                 return Ok(());
