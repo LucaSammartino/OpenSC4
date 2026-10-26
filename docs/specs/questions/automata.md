@@ -97,3 +97,25 @@ contracts. AT22 stays open.
   vehicle/pedestrian/aircraft/watercraft routes (including a concrete aircraft using the automaton
   constructor), but no separate automaton factory: confirm which route can support the complete inherited
   owner without delegating its missing methods back to native code. [blocked; no new wrapper or factory]
+
+<!-- from: automata-cities29 (2026-10-26) -->
+- **AT24 — concrete carjacked/limo records:** Publish the complete ordered wire fields,
+  leading version (if any), nesting, accepted versions and reference IIDs for
+  `cSC4CarjackedVehicle` (`0xCBB32B0A`) and `cSC4MayorLimo` (`0x4C0DD224`).
+  automata-managers.md §1 specifies their construction, not their records;
+  docs/abi/vtables.tsv assigns both Write `0053ce00`, Read `00524490`, distinct
+  from Vehicle. Census sh28-census3 reports unsupported records in 23 and 9
+  scenarios respectively (e.g. maxisland-bevopolis, maxisland-derris-heights).
+  Blocks replay of these two cases; no presumed alias or opaque-byte bypass.
+- **AT25 — ambulance record:** Publish the complete ordered wire fields, leading
+  version, nesting, accepted versions and reference IIDs for `cSC4Ambulance`
+  (`0x6C1ACDE1`). automata-managers.md §1 identifies an emergency subclass but
+  not its record; ABI assigns Write `00504bf0`, Read `00504c10` rather than the
+  emergency base's methods. Unsupported in 12 census scenarios, e.g.
+  lua-lots-grown and maxisland-east-weburg. Blocks this case's full replay.
+- **AT26 — tank record framing:** vehicles.md §§1, 6, 12.13 say Vehicle plus
+  two owner dwords, but do not specify whether Tank Write `0054aa30` / Read
+  `0054a8e0` add a leading version wrapper, its value/acceptance, or the order
+  and meanings of those dwords. Please specify the exact wire sequence (or
+  explicitly confirm no wrapper and two raw dwords). Unsupported class
+  `0xEBE0DCAD` in maxisland-norte-delano and paradis-zoe blocks those two cases.

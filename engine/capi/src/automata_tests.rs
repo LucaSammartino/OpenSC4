@@ -28,6 +28,152 @@ const AIRCRAFT_MANAGER: u32 = 0xC98F_9D4A;
 const WATERCRAFT_MANAGER: u32 = 0xA98F_9D28;
 
 #[test]
+fn derived_owner_records_replay_full_payload_and_release_every_acquisition() {
+    use fc4_core::automata::{AircraftPlacementRecord, AutomatonBase, PedestrianRecord, VehicleRecord};
+    use fc4_core::stream::{OutStream, RefValue};
+
+    let leader = RefValue::Host {
+        token: 17,
+        class_id: PEDESTRIAN,
+    };
+    let mut base = AutomatonBase::default();
+    base.leader = leader.clone();
+    base.tail = 0x1234_5678;
+    base.vectors[0] = [12.5, -7.0, 42.0];
+    let mut aircraft = AircraftPlacementRecord::default();
+    aircraft.aircraft.base = base.clone();
+    aircraft.home_position = [-8.0, 91.5, 3.0];
+    let placement = write_with(|s| aircraft.write(&mut crate::stream::COut(unsafe { &*s })));
+    let mut vehicle = VehicleRecord::new();
+    vehicle.traffic.base = base.clone();
+    // Independent wire framing: Bus/TrainCar add one u16; Train adds two
+    // and retains a distinct car list, trailing network and raw dwords.
+    let car = write_with(|s| {
+        let mut out = crate::stream::COut(unsafe { &*s });
+        out.put_u16(2) && vehicle.write(&mut out)
+    });
+    let train = write_with(|s| {
+        let mut out = crate::stream::COut(unsafe { &*s });
+        out.put_u16(2);
+        out.put_bytes(&car);
+        out.put_u32(1);
+        out.put_ref(&RefValue::Host {
+            token: 18,
+            class_id: 0x4A41_6254,
+        });
+        out.put_u32(0x7FC0_0001);
+        for x in [1.0, 2.0, 3.0] {
+            out.put_f32(x);
+        }
+        out.put_ref(&RefValue::Host {
+            token: 19,
+            class_id: 0x49C1_A034,
+        });
+        out.put_u32(0x8000_0000)
+    });
+    let water = write_with(|s| {
+        let mut out = crate::stream::COut(unsafe { &*s });
+        out.put_u16(2) && base.write(&mut out)
+    });
+    let aircraft_base = write_with(|s| {
+        let mut out = crate::stream::COut(unsafe { &*s });
+        out.put_u16(1) && base.write(&mut out)
+    });
+    let mut pedestrian = PedestrianRecord::new();
+    pedestrian.traffic.base = base;
+    let one_shot = write_with(|s| pedestrian.write(&mut crate::stream::COut(unsafe { &*s })));
+    for (class, bytes, tokens) in [
+        (0xCBEB_4F62, &placement, vec![17]),
+        (0x8BA9_8EDA, &placement, vec![17]),
+        (0xC96E_75DC, &aircraft_base, vec![17]),
+        (0x096E_75F5, &water, vec![17]),
+        (0xAA09_DC28, &one_shot, vec![17]),
+        (0xAA9F_4A3D, &car, vec![17]),
+        (0x4A41_6254, &car, vec![17]),
+        (0x8A41_625A, &train, vec![17, 18, 19]),
+    ] {
+        let log = RefCell::new(Log::default());
+        let host = ref_host(&log);
+        let mut input = In::new(bytes);
+        let mut output = Out::default();
+        unsafe {
+            assert_eq!(
+                fc4_automata_derived_record_roundtrip(class, &istream(&mut input), &ostream(&mut output), &host),
+                2,
+                "class {class:08X}"
+            );
+        }
+        assert_eq!(input.pos, bytes.len());
+        assert_eq!(&output.bytes, bytes);
+        assert_eq!(log.borrow().releases, tokens);
+
+        log.borrow_mut().releases.clear();
+        let mut input = In::new(&bytes[..bytes.len() - 1]);
+        unsafe {
+            assert_eq!(
+                fc4_automata_derived_record_roundtrip(
+                    class,
+                    &istream(&mut input),
+                    &ostream(&mut Out::default()),
+                    &host,
+                ),
+                1
+            );
+        }
+        assert_eq!(log.borrow().releases, tokens);
+    }
+}
+
+#[test]
+fn derived_owner_records_reject_unknown_classes_and_failed_streams() {
+    unsafe extern "C" fn refuse(_: *mut c_void, _: u16) -> bool {
+        false
+    }
+    unsafe {
+        let log = RefCell::new(Log::default());
+        let host = ref_host(&log);
+        let mut bytes = Out::default();
+        fc4_helicopter_shadow_fixture(&ostream(&mut bytes));
+        let mut input = In::new(&bytes.bytes);
+        for class in [0, 0xCBB3_2B0A, 0x4C0D_D224, 0x6C1A_CDE1, 0xEBE0_DCAD] {
+            assert_eq!(
+                fc4_automata_derived_record_roundtrip(
+                    class,
+                    &istream(&mut input),
+                    &ostream(&mut Out::default()),
+                    &host,
+                ),
+                0
+            );
+            assert_eq!(input.pos, 0);
+        }
+        assert_eq!(
+            fc4_automata_derived_record_roundtrip(0x8BA9_8EDA, std::ptr::null(), std::ptr::null(), &host),
+            1
+        );
+        let mut output = Out::default();
+        let mut stream = ostream(&mut output);
+        stream.put_u16 = Some(refuse);
+        assert_eq!(
+            fc4_automata_derived_record_roundtrip(0x8BA9_8EDA, &istream(&mut input), &stream, &host),
+            1
+        );
+        assert!(output.bytes.is_empty());
+        let mut bad_version = bytes.bytes.clone();
+        bad_version[0] = 2;
+        assert_eq!(
+            fc4_automata_derived_record_roundtrip(
+                0x8BA9_8EDA,
+                &istream(&mut In::new(&bad_version)),
+                &ostream(&mut Out::default()),
+                &host,
+            ),
+            1
+        );
+    }
+}
+
+#[test]
 fn helicopter_shadow_fixture_is_independent_and_propagates_stream_failure() {
     unsafe extern "C" fn refuse(_: *mut c_void, _: u16) -> bool {
         false

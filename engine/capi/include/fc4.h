@@ -13176,4 +13176,17 @@ bool fc4_netlot_iterate_lots_with_configuration(const fc4_netlot* l,
 }
 #endif
 
+/* Concrete automaton record codecs, independent of replacement factories.
+ * Return 0: unspecified class, 1: failed IO, 2: read/write succeeded.
+ * Success still requires the caller to check exhaustion and output bytes.
+ * Every acquired input reference is released on success or failure. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+uint32_t fc4_automata_derived_record_roundtrip(uint32_t class_id,
+    const fc4_istream* input, const fc4_ostream* output, const fc4_automata_ref_host* refs);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */
