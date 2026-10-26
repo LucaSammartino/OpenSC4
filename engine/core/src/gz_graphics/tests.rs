@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+#[path = "answered_tests.rs"]
+mod answered_tests;
+#[path = "canvas_tests.rs"]
+mod canvas_tests;
 #[path = "closure_tests.rs"]
 mod closure_tests;
 use std::sync::{
@@ -814,7 +818,7 @@ fn hardware_state_order_and_simgl_open_routes() {
     assert_eq!(s.specialized_pair_count(3, &[[0., 0.]; 3]), Some(1));
     assert_eq!(s.draw(3, &[[0., 0.]]), Ok(0));
     assert_eq!(s.draw(3, &[[0., 0.]; 2]), Err(Error::Unsupported("GZG2")));
-    assert_eq!(s.draw(6, &[]), Err(Error::Unsupported("GZG2")));
+    assert_eq!(s.draw(6, &[]), Ok(0));
 }
 #[test]
 fn graphics_lifecycle_listeners_flags_and_driver_identity() {
@@ -910,7 +914,10 @@ fn canvas_lifecycle_failures_focus_and_counter_balance() {
     assert_eq!(c.code_page, 0x10);
     assert_eq!((c.width(), c.height()), (100, 80));
     assert_eq!(c.wheel_message, u32::MAX);
-    assert_eq!(take(&log), vec![Event::Canvas(CanvasCall::Event(0))]);
+    assert_eq!(
+        take(&log),
+        vec![Event::Canvas(CanvasCall::Event(8)), Event::Canvas(CanvasCall::Event(0))]
+    );
     c.show(true);
     c.show(false);
     assert_eq!(
@@ -932,6 +939,7 @@ fn canvas_lifecycle_failures_focus_and_counter_balance() {
         vec![
             Event::Canvas(CanvasCall::Event(1)),
             Event::Canvas(CanvasCall::Cleanup),
+            Event::Canvas(CanvasCall::Event(9)),
             Event::Canvas(CanvasCall::ReleaseServices),
             Event::Canvas(CanvasCall::Input2Disabled(false))
         ]
