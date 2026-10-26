@@ -211,7 +211,7 @@ public:
         const auto source = fc4_netpole_cell_source(core_, index, &other);
         if (source < 0) return false;
         if (source == 0)
-            return reinterpret_cast<PoleInterface*>(Ptr(other))->GetLineCellsTo(this, out);
+            return reinterpret_cast<PoleInterface*>(Ptr(other))->GetLineCellsTo(static_cast<PoleInterface*>(this), out);
         return fc4_netpole_local_cells(core_, index, &EmitCells, out, &vt_);
     }
     bool BreakAllConnections(bool quiet) override {
