@@ -1432,8 +1432,9 @@ impl AdvisorExt for MySim {
                 self.s.borrow_mut().neighbor_job = found;
             }
         }
-        // The host creates a missing dispatch or binds the loaded one.
-        self.host.dispatch_command(id, "create");
+        if self.s.borrow().dispatch.is_none() {
+            self.host.dispatch_command(id, "create");
+        }
         let mut tuning = BTreeMap::new();
         for (k, d) in TUNING {
             tuning.insert(k.to_string(), self.host.tuning(k).unwrap_or(d));

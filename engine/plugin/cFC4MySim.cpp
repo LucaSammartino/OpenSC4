@@ -408,6 +408,12 @@ void FillMySimReplacementHost(fc4_mysim_host* h) {
 }
 
 void MySimReplacementStart(fc4_advisors* core) {
+    // Saved dispatches already exist; bind their plugin owner/map without
+    // changing the simulation's Init contract or creating another object.
+    for (int32_t id : {1, 2, 3, 4, 5, 30}) {
+        fc4_mysim_state saved{};
+        if (MySimState(id, &saved) && saved.dispatch != 0) CreateDispatch(id);
+    }
     const bool ok = core != nullptr && fc4_mysims_agent_init(core);
     fc4::Log("mysims: agent Init ok=%d", ok ? 1 : 0);
 }
