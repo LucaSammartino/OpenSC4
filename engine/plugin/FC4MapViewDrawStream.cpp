@@ -98,7 +98,7 @@ void DynamicState(const void* owner, Stream& stream) {
 }
 void Append(Stream& target, const Stream& source) {
     for (const auto& event : source.Events()) target.Append(event);
-    if (!source.Valid()) target.Refuse(source.Reason());
+    if (!source.Valid()) target.Refuse(source.Reason().c_str());
 }
 struct Surface {
     uint32_t width = 0, height = 0;
