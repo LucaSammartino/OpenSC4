@@ -70,6 +70,7 @@ const char* NeverArm(uint32_t address, uintptr_t preferredBase) {
     case 0x005f5a52: return "not-entry:displacement-at-005f5a50";
     case 0x00656c64: return "not-entry:absolute-address-at-00656c61";
     case 0x00682632: return "not-entry:stack-displacement-at-0068262f";
+    case 0x00707865: return "not-entry:absolute-address-at-00707864";
     case 0x00736559: return "not-entry:ModRM-stack-test-at-00736558";
     case 0x00786f62: return "not-entry:SIB-stack-store-at-00786f60";
     default: return "";
@@ -644,6 +645,25 @@ void ReachNewMonth(int32_t julian) {
     g_reachMonth = julian;
     g_reach->NextWindow();
     g_reachDates.push_back(julian);
+}
+
+bool ReachLifecycleEnabled() {
+    return SettingInt("reach_lifecycle", nullptr, 0) == 1;
+}
+
+void ReachLifecycleStart() {
+    if (!ReachLifecycleEnabled()) return;
+    // No city/simulator exists yet. Give the load window an explicit sentinel;
+    // PostCityInit opens the first window bearing the actual saved city date.
+    ReachStart(harness::JulianFromCivil(2000, 1, 1));
+    if (g_reachStarted)
+        Log("reach lifecycle phase=load window=1 date=2000-01-01 sentinel=1");
+}
+
+void ReachCheckpoint() {
+    if (!g_reachStarted || g_reachStopped) return;
+    Log("reach checkpoint phase=post-city-shutdown saved=%u output=%s",
+        g_reach->Write(g_reachOutput) ? 1u : 0u, g_reachOutput.c_str());
 }
 
 void ReachStop() {

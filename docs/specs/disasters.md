@@ -671,7 +671,8 @@ Returns true if the occupant burns afterwards.
    `RegisterDisasterLocation(instance, 0, 0, occupant, zoomLevel, focus')`, where `focus' := focus and the fire-ID
    set was empty` (`0x0057A9BA`–`0x0057A9D6`; the set's size is at instance `+0xF4`, the zoom byte at `+0xC4`). Only
    the first ID of an episode can move the camera. Then add the ID to the set.
-7. Create a fire occupant (class `0x69D25C5F`):
+7. Directly allocate and construct a fire occupant (class `0x29D25F1D`, occupant type `0x69D25C5F`;
+   §5.11.1). This path does not ask GZCOM for a class factory:
    1. Add it to the list and `Init` it.
    2. Set its target to the occupant (§5.11) and its fire ID to `fireID`.
    3. Insert it in the occupant manager.
@@ -916,7 +917,7 @@ For one fire with target `t`:
    Otherwise remove `o` from the occupant manager (slot 21).
 4. `toasted += 1`.
 
-### 5.11 The fire occupant (class `0x69D25C5F`)
+### 5.11 The fire occupant (class `0x29D25F1D`, type `0x69D25C5F`)
 
 A fire occupant is a visual occupant placed on its target. The object is `0x6C` bytes, built by `0x004711C0`, with
 GZCLSID `0x29D25F1D`. `QueryInterface` answers `0x69D25C60` (the fire-occupant interface, the primary vtable) itself
@@ -967,6 +968,64 @@ releases the target.
 
 Outside the fire instance the class is used by the active-fire filter (`0x0046FD70`, §5.7), the fire crew's target
 search (`cSC4SimFireCrew`, `0x005492E6` and `0x00549678`) and the MySim agent simulator.
+
+#### 5.11.1 Factory identity and native-owner boundary (DS-lotocc28-1) *[compat]*
+
+| Role | ID | Evidence / use |
+|---|---|---|
+| Serializable class / replacement factory key | `0x29D25F1D` | `GetGZCLSID` returns this literal (`0x0046FDC0`). Use this ID for an explicit class creation or class-store request; it does not imply that native ignition makes such a request. |
+| Occupant type | `0x69D25C5F` | Constructor stores it in the occupant type field (`0x00471220`); filters use it. It is not the class-factory key. |
+| Fire-occupant IID | `0x69D25C60` | QueryInterface, primary fire view, §5.11; it is neither of the two IDs above. |
+
+Native `Ignite` does **not** use the factory key, or any registry lookup, for step 7. It allocates 0x6C
+bytes through the native heap and calls the fire-occupant constructor directly (`0x0057A983`–`0x0057A993`).
+The named creation helper `0x004715E0` likewise allocates and tail-calls that constructor; its existence is
+not evidence that Ignite calls a registry. Registering either numeric ID cannot replace these direct calls.
+
+The native fire instance then treats its fire pointer as a concrete native object. It AddRefs it while
+putting it in the retained fire list (`0x0057AA21`–`0x0057AA48`), takes the occupant view by a fixed +4
+adjustment (`0x0057AA4B`–`0x0057AA53`), initialises it, sets target/fire ID through the fire interface, and
+inserts that occupant view in the occupant manager (`0x0057AA56`–`0x0057AA75`). These are distinct list and
+manager references, in addition to queued messages. On KillFire it asks manager slot 21 to remove the
+occupant with Shutdown true, then erases the list element and releases its reference
+(`0x0057B76E`–`0x0057B797`). Shutdown releases the retained target and undoes its burning/removal/controller
+state (§5.11); replacing a registration does none of this teardown or migration.
+
+There is also a concrete field/direct-method boundary. `ExtinguishFire` reads the 32-bit extinguish time
+at the fire identity +0x50 (`0x0057925C`), and, if zero, samples the delay and calls native
+`cSC4FireOccupant::Extinguish` directly (`0x00579280`), rather than an interface slot. That method itself
+reads/writes +0x50 (`0x0046FE00`–`0x0046FE1E`). Implementing the fifteen fire-interface slots does not cover
+this access. The +0x50 observation mentioned in §13 applies to a known native fire object; it is not a
+layout promise about an arbitrary replacement object returned by a plugin factory.
+
+**Supported scope.** The factory key is unambiguous, but an independent `fireocc` key with the native fire
+manager/instance still creating and owning fires has **no supported complete replacement boundary** here.
+An explicit factory/serialization test can exercise a replacement object's documented interfaces; it must
+not insert that object into the native instance's concrete fire list or claim to replace normal ignition.
+There is no migration of a running episode when the factory is changed.
+
+Complete replacement requires the fire-owning manager/instance creation, list, update, extinguish and
+teardown paths to be replaced together, using the occupant interfaces for native manager/renderer clients.
+Replacing the disaster layer alone does not establish that boundary: its native-manager dependency remains
+§2.8. Keeping the native fire owner instead would require a separately proved installation/restoration
+contract covering the direct construction, fixed interface adjustment, all concrete field/direct-method
+accesses, retained target/list/manager/message ownership and native storage/deletion. The measured +0x50
+offset or a same-sized allocation alone is insufficient. No such bridge or patch contract is established
+by this answer. Drain outstanding fires and their references before restoring a replacement owner;
+re-registering a class does not change or destroy surviving objects.
+
+**Worked case — registry versus ignition.** Install a counting factory under `0x29D25F1D`, requesting
+IID `0x69D25C60` when explicitly creating one isolated test object. Expect that factory to be selected and
+the object's Serializable view to report `0x29D25F1D`; its occupant view reports type `0x69D25C5F`. Release
+all acquired test views. Now leave the native fire owner installed and ignite one eligible, non-burning
+target with non-zero flammability and `force=true`. Expect **no additional factory request**: the direct
+allocation/constructor path creates the native fire. If its extinguish time is initially zero, an elapsed
+time of 10000 ms and a controlled uniform result 1234 produce a stored time of 11234 ms through the native
+direct method. A second ExtinguishFire call while that word is non-zero draws nothing and leaves it alone.
+KillFire removes the native occupant with Shutdown true, clears the target's burning state and releases
+the list reference. The factory-only test passes while the claim of replaced native ignition fails. An
+owner-replacement test must reproduce that creation/extinguish/teardown sequence without entering the
+native constructor or the concrete extinguish method; a factory hit count by itself cannot establish it.
 
 ### 5.12 Timing in the harness
 

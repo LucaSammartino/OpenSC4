@@ -738,6 +738,13 @@ detail 14 records (8 bytes, 403 saves have none), all identical.
      on the existing lot at (x,z) to state 0 or 1. It logs filter counts, setter calls and before/after states,
      and calls no port-developer method.
 
+     `autotest_stall_grace_ms = 0` is **off by default**. In an autotest only,
+     a positive value (capped at 120000 ms) raises both watchdog thresholds and
+     the terminating stall limit. The suite scales this allowance, the full-save
+     grace and its external time limits using city size and scripted duration.
+     It leaves the watchdog and hard deadline active; ordinary runs retain their
+     existing thresholds. Set either grace to zero with `suite.py --extra` for
+     a diagnostic control run.
      `script_save_grace_ms = 0` is **off by default**. An explicit positive value
      (clamped to 10000..120000 ms) raises the watchdog's stall threshold only while
      a scripted full `SaveCity` executes. Golden runs request 60000 ms because the

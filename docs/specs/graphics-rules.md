@@ -405,7 +405,7 @@ matching Release independently of the sound hardware installed on the test machi
 
 1. A rule parser (`cSC4RuleParser`) is made. When `cardVersion` is longer than 26 characters, its 4 characters at
    offset 8 and at offset 22, read as hexadecimal, are the card's vendor and device IDs.
-2. The files `Graphics Rules.sgr` (the data directory) and `Graphics Options.sgr` (the user data directory) are
+2. The files `Graphics Rules.sgr` and `Graphics Options.sgr` (the distinct native bases in §3.1) are
    given to the parser, with the symbol `prefsFirstTime` set to true or false from an application flag
    (`+0xF0C` of application slot 38) *[inferred: the first run]*. `cardIdentity` starts as a copy of `cardName`.
 3. On success, the rules and option groups move into the manager, and when the card was found in a `vendor` block
@@ -442,6 +442,86 @@ After a required-file error, later registered files are still visited. The parse
 hook once, its end hook only if the aggregate succeeded, and its finish hook in either case.
 `DoParseFile` treats a false `ReadLine` result as end of input and does not separately classify a
 read failure (`0x00680F64–0x00680F78`). This is not an all-files transaction or an I/O-integrity check.
+
+### 3.1 Native path acquisition and file selection (GR10)
+
+The directory provider is the existing **`cISC4App`, IID `0x26CE01C0`**. Its slots below are
+zero based on the public application face, not on another application interface. Application QI
+returns that face at whole-object `+0x0C` and AddRefs it (`0x004492A7–0x004492C2`). The native
+`SL` helpers use the application pointer cached by `SL::OnAppCreate` (`0x00601C00`); they do not
+acquire a separate directory or filesystem service. See [application.md §9](application.md#9-directories)
+for the getters' stored-path contracts. Treat their returned strings as opaque bases rather than
+deducing a folder from an exported method name.
+
+Let **P** be the rules base, **U** the options base, and **A** the automatic-log base:
+
+| Use | Native helper | `cISC4App` slot / byte offset | Arguments after `this` | Complete path |
+|---|---|---|---|---|
+| Required rules | `SL::DataDirectory`, `0x00602230` | **53 / `+0xD4`** | output string reference, signed language index **−1** | P followed by literal `Graphics Rules.sgr` |
+| Optional options | `SL::UserDataDirectory`, `0x00602270` | **58 / `+0xE8`** | output string reference | U followed by literal `Graphics Options.sgr` |
+| Automatic configuration log (§6.2) | `SL::AppDirectory`, `0x00602210` | **51 / `+0xCC`** | output string reference | A followed by stored `computerName`, then literal `-config-log.txt` |
+
+The dispatch and arguments are instruction-checked at `0x00602230–0x00602249`,
+`0x00602270–0x00602287` and `0x00602210–0x00602227`. Slot 53 is exported as
+`GetPluginDirectory`; its negative index copies the base without adding a language subfolder
+(`0x0044BF90–0x0044BFAC`). Slot 58 is exported as `GetRegionsDirectory`, but is the plain
+stored user-base getter (`0x00449E80`). **Neither slot 51 nor slot 56 obtains a rule-file base.**
+The `.../Apps/` and `.../Plugins/` values reported for those two slots in GR10 therefore do not
+justify appending either rule filename to them.
+
+Construction is literal string append, not a path-join/search API: no separator, `Apps/`,
+`Plugins/`, `Data/`, language folder or parent traversal is inserted. The supplied bases normally
+include a trailing separator. If P were `C:/R` without one, the registered rules path would be
+`C:/RGraphics Rules.sgr`, not `C:/R/Graphics Rules.sgr`. The manager appends the filename byte
+ranges at `0x007CFF38–0x007CFF53` and `0x007CFF9B–0x007CFFB6`; the shared append body
+preserves the existing prefix (`0x0040EBC0`). A relative or empty base is not repaired: the
+resulting relative filename uses ordinary operating-system path resolution, not a game search.
+
+**Parser acquisition and open order.** The COM call at `0x007CFE36–0x007CFE49` uses
+`GZCOM` slot 3 (`+0x0C`) with **class ID `0x5CF9459A`, IID `0x1CF94583`, output interface
+pointer**. This creates `nSCRes::cFileParser`; it is not a filesystem search service. On that
+interface the manager calls slot 3 (`+0x0C`, Init, no arguments), slot 5 (`+0x14`, SetParser,
+the constructed rule-command parser), then slot 6 (`+0x18`, AddInputFilePath) twice:
+
+1. Register **P + `Graphics Rules.sgr`**, flags **1**, at `0x007CFF83–0x007CFF93`.
+2. Register **U + `Graphics Options.sgr`**, flags **0**, at `0x007CFFC1–0x007CFFD1`.
+
+Slot 8 (`+0x20`, ParseFiles, no arguments) then parses those registrations in that order
+(`0x007D003B–0x007D0041`, `0x0068135C–0x00681387`). Registration copies the supplied filename
+and records its parent for include handling; it does not locate an existing copy
+(`0x00681DA0–0x00681E23`). Each top-level attempt constructs a `cRZTextFile` with that full
+filename and opens it with arguments **(1, 2, 7)** (`0x00680EC7–0x00680EE2`): read access,
+open existing. The underlying `cRZFile` opens the supplied path through the Windows file API
+(`0x0093066E–0x00930682`, `0x00919B00–0x00919C77`). There is no game-filesystem mount,
+resource-key lookup, archive lookup, directory enumeration or alternate-directory retry here.
+In particular, neither the parser nor the manager tries the other base after open failure.
+Explicit `include`/`sinclude` directives can name additional files; their parent-relative joining
+is the separate contract in [sc-resources.md §4.2](sc-resources.md#42-input-and-failure-contract).
+
+**Duplicate and missing-file outcomes.** In this table P and U are distinct directories;
+“present” means an accessible, otherwise valid file with the indicated basename. These are
+top-level selection rules, before any explicit includes in the selected contents.
+
+| Copies of the indicated basename | `Graphics Rules.sgr` | `Graphics Options.sgr` |
+|---|---|---|
+| In both P and U | Read P's copy only; U's copy is ignored. | Read U's copy only, after the rules attempt; P's copy is ignored. |
+| In P only | Read P's copy. | Attempt U, ignore its optional open failure; P's copy is ignored. |
+| In U only | Attempt P, record required open failure; U's copy is ignored. | Read U's copy after the rules attempt. |
+| In neither | Attempt P and record required open failure. | Attempt U and ignore its optional open failure. |
+
+A valid required rules file with no options file still succeeds. A missing required rules file
+makes the aggregate parse fail even if the options file exists and parses; the options attempt
+still occurs. Neither file present also fails. Failed aggregate parsing does not publish either
+temporary list, and `Init` installs fallback rules (`0x007D18C2–0x007D18CD`). As in §1, native
+`Init` has no success/status return; GR10's reported status is a replacement-side observation.
+Optional-file syntax errors retain the partial-contribution behavior already specified above.
+
+Source-derived path fixture: with P=`C:/R/`, U=`C:/U/`, A=`C:/A/` and stored computer name
+`HOST`, the two registered paths are exactly `C:/R/Graphics Rules.sgr` and
+`C:/U/Graphics Options.sgr`, in that order. A conflicting `C:/U/Graphics Rules.sgr` or
+`C:/R/Graphics Options.sgr` contributes nothing unless explicitly included. The automatic log
+path is independently `C:/A/HOST-config-log.txt`. These are expected examples, not executed
+native/replacement parity evidence.
 
 ## 4. The language *[compat]*
 
@@ -715,6 +795,22 @@ non-UTF-8 name is not grounds for the native logger to reject the profile. Numer
 delegated by `Sprintf` to native CRT `__snprintf` (`0x0090F83F–0x0090F8DB`), with a promoted
 binary64 argument and default precision. The exact exceptional-value spelling is still an
 explicit GR6 evidence gap, not permission to adopt a host formatter silently.
+
+### 6.2 Automatic log directory (GR10)
+
+When automatic logging is enabled, `SetOptionsFromConfiguration` obtains **A** through
+`SL::AppDirectory`: `cISC4App` IID `0x26CE01C0`, **slot 51 / `+0xCC`**, with an output string
+reference (§3.1). It then appends the stored `computerName` byte range followed by
+`-config-log.txt` (`0x007D19E5–0x007D1A27`). No separator, subfolder or filename sanitization is
+inserted. This uses neither the rules base P nor the options base U; the measured `.../Apps/`
+return for slot 51 applies to this log path.
+
+The manager supplies that complete path to the log file's slot 28 (`+0x70`, SetPath), then
+calls slot 3 (`+0x0C`, Open) with **(2, 1, 1)** (`0x007D1A2C–0x007D1A45`): write access,
+create/replace. It does not create missing parent directories or retry under another base.
+Open failure leaves logging ineffective while rule evaluation still proceeds (§6).
+`LogConfigurationToFile(path)` remains the separate explicit-path operation: the caller's
+path is used directly, without acquiring or prepending any of these three bases.
 
 ## 7. Fallback rules (`SetFallbackRules`, `0x007D13C0`)
 

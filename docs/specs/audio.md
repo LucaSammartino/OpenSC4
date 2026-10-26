@@ -1201,6 +1201,120 @@ completion with `(manager+8)` then null. Soft-stop one-shot removes the entry wi
 or +0x24 call. SetPosition(unknown) is false; a childless found ID at (-1.8,2.9,3.1) produces
 properties (-1,2,3) with flags (1,1,0) and returns true even if those property calls fail.
 
+### 8.3.2 Voice admission, refresh and payload completion (AU50) *[compat]*
+
+This completes §8.3.1. The linked averaging, model-specific volume/pan, distance and simulation
+pause, and Resume bodies are [audio-owner-closure.md](audio-owner-closure.md) §7; they are part of
+this contract, rather than unsupported stages. Promotion and payload details below complete
+that section's manager boundary.
+
+**Admission order (`0x004F9D70`).** All IDs, timestamps and counters here are 32-bit words.
+First hard-stop an existing instance with the **requested instance ID**, before resolving the
+requested sound or checking admission. A later rejection does not restore the stopped instance.
+Next perform these two independent walks of the manager's `+0x48` list:
+
+1. Helper `0x004F8510` clears its instance output, initializes an auxiliary signed minimum to
+   `0x7FFFFFFF`, and visits every instance whose sound ID `+4` matches. It always replaces the
+   instance output on a match, so the retained output is the **last matching instance**, irrespective
+   of age. Separately it minimizes signed `(instance timestamp +0x30 − manager time +0x18)`, with
+   subtraction modulo 2^32. Its boolean is whether that minimum differs from `0x7FFFFFFF`; the
+   minimum does not select the instance (`0x004F8548`–`0x004F8563`). The output gets one temporary
+   instance reference. With no match it is null. A null instance-output address returns false
+   without writing either output; the other output is required when the first is supplied.
+2. If that helper reports a match, its selected instance has buffer property `0x33 == 0`
+   (one-shot), and **unsigned** `(manager time − selected timestamp) < 50`, reject and release
+   the temporary reference. Exactly 50 is admitted by this test; elapsed-time wrap follows
+   unsigned subtraction (`0x004F9DDD`–`0x004F9E06`). Release this selection before the second walk.
+3. Helper `0x004F8590` clears its instance and count outputs, counts **all** matching instances
+   (children included), and retains the last one. It returns signed `count > 0`; a null instance
+   output returns false without writes. Reject only when it reports a match, the selected
+   instance has property `0x33 == 0`, and **either** unsigned manager one-shot count `+0x54 >=
+   +0x68` **or** unsigned existing count for this sound `>= +0x64` (`0x004F9E25`–`0x004F9E53`).
+   Defaults are 10 and 3 respectively. No matching instance, or a looping selected instance,
+   bypasses both count comparisons. `+0x6C` (default 30) is not an admission test in this body.
+
+Then resolve the holder/buffer, allocate and initialize the instance, register completion and
+compute radii as §8.3.1 specifies. Helper `0x004F85F0` scans from the list's front and returns
+the **first** matching instance with null master `+0x50`, adding one temporary reference. If
+it exists and its buffer property `0x33` is nonzero, append the new instance to that master's
+child list and set the new instance's `+0x50` to that master. This child link is a raw pointer,
+with no additional instance AddRef (`0x004F8CF0`–`0x004F8D2D`). Do not call holder Play for
+the child. Otherwise set buffer property `0x10` to `(3,0)` and call holder Play with
+`(instance ID, manager master volume,512,0)`. Failed Play returns false before insertion.
+
+Successful independent one-shots increment `+0x54`; successful independent loops increment
+`+0x58`; a linked loop increments neither. Every success increments total `+0x4C`, retains
+the new instance for its map/list entry, stores it in the instance-ID hash and appends it to
+the list. With nonzero **pre-insertion matching count** and a newly resolved buffer whose
+property `0x33` is zero, evaluate the response curve `+0x70` at that existing count converted
+from signed i32 to f32. Multiply its x87 result by f32 `1/1024` (`0x3A800000`), store f32,
+then apply that gain to **every** instance of this sound, including the new one, using
+`0x004F9700` (set `+0x1C`, then the normal effective-volume/linked-position update).
+It is not evaluated at the new count (`0x004FA0DD`–`0x004FA136`). Finally apply simulation
+pause to the new instance, release local instance/holder/buffer/selection references and
+return true. Neither count gate evicts an older voice to admit a new one.
+
+**Refresh (`0x004FA180`).** In instance-list order, for each entry: set buffer property
+`0x15` to `(trunc(signed volume +0x18 × f32 gain +0x1C),0)` using x87 multiplication;
+when its child list is nonempty **or** master is non-null, run UpdatePosition; run
+StartStopSoundForDistance; then StartStopSoundForSimulationPause. Ignore foreign property
+results and return true, including for an empty list. This does not advance the ramp,
+timestamp or manager clock (`0x004FA195`–`0x004FA1DD`). The separate tick callback is §8.3.1.
+
+**Position defaults and promotion.** Constructor `0x004F8790` copies the single process
+word at `0x00B21AF0` to raw coordinates `+0x20/+0x24/+0x28` and averaged coordinates
+`+0x54/+0x58/+0x5C` (`0x004F87B1`–`0x004F87C8`, `0x004F87F8`–`0x004F8813`). That word is
+in the executable's zero-filled `.data` tail: its initial bits are **`0x00000000`**, f32
+positive zero, in all six fields. The image references to this word are reads, with no
+initializer assigning a nonzero sentinel. It is not FLT_MAX or an unspecified caller input.
+
+Promotion helper `0x004F9150`, reached when stopping a master with children, unlinks and
+frees the **first child-list node** and selects its instance. Change all remaining children's
+master pointers to that instance. Assign the old master's holder `+0x0C` and buffer `+0x10`
+to the selected child, AddRef'ing each incoming unequal non-null interface before releasing
+the child's old interface. Swap the two child-list heads; clear the new master's `+0x50`;
+clear and release both old-master interface holders; then UpdatePosition(new master).
+No Play, stop, re-registration, instance reference change, or copy of IDs, timestamps,
+volume, gain, pause count, flags, radii or coordinates occurs in this helper. Those fields
+remain the selected child's own. Child removal `0x004F9100` simply unlinks/frees its node
+from its master's list and clears its master pointer. Neither raw child link owns a reference.
+The manager's map/list ownership keeps these instances alive (§8.3.1 stop ordering).
+
+**Start/position event payloads.** These routes take the event's borrowed payload through
+event slot 6 (`+0x18`), explicitly AddRef it once, and Release it once after the operation;
+they do not QI it. Null event or null payload returns false without effects. Start helper
+`0x004FA1F0` asks payload `+0x48` whether data3 is present; only when true does it read
+`+0x4C`, otherwise its start parameter is 0. It then reads data2 (`+0x38`, instance ID),
+data1 (`+0x24`, sound ID), and calls `_StartSound(sound,instance,parameter low byte)`.
+Position helper `0x004FA4C0` reads data4 (`+0x60`, z), data3 (`+0x4C`, y), data2 (`+0x38`, x)
+and finally data1 (`+0x24`, instance ID). Each coordinate is a **signed i32**, converted
+separately to f32 before SetPosition; no presence probes or bit reinterpretation occur
+(`0x004FA4E4`–`0x004FA527`). Both helpers return **true for any non-null payload**, even
+when `_StartSound` rejects/fails or SetPosition cannot find the ID; DoEvent returns that
+helper result. The direct worker results remain false for those failures. Public post
+wrappers report event creation success, a third, distinct result (§8.3.1).
+
+**Worked cases.** These use stable loop properties and default count limits:
+
+- At time 1000, matching one-shots stamped 900 then 980 select the latter and reject (20 < 50).
+  Stamps 980 then 900 select 900 and pass the time gate, despite the earlier recent match.
+  One match stamped 950 passes the boundary. If total one-shots are 10, this repeated sound
+  still fails the count gate; a previously absent sound bypasses that gate and may make 11.
+- Three existing one-shots of a sound, all at least 50 ticks old, reject the fourth because
+  existing count 3 meets `+0x64`. With two they admit the third; the shipped curve at **2**
+  gives 950, so all three receive f32 gain `950/1024`, not the curve's value 900 at 3.
+- A looping master M with children C1,C2 stops: C1 becomes master of C2, takes M's holder
+  and buffer with balanced interface assignments, and keeps C1's own ID, gain and pause count.
+  There is no second Play. A subsequent refresh writes effective volume before linked
+  position, distance policy and simulation pause, in that order.
+- A fresh instance's six position words are zero. A position payload `(unknown ID,16777217,
+  -3,4)` converts x to f32 16777216, y to −3 and z to 4; no instance changes, the worker
+  returns false, but the helper/DoEvent returns true and balances exactly one payload AddRef/Release.
+- Resume at pause count 2 leaves 1 and performs no foreign calls; 1 becomes 0 and, for an
+  independent instance, executes the complete §7.3 sequence even if optional QI fails or
+  Play reports failure. Count 0 underflows to `0xFFFFFFFF` and does not resume. This is a
+  decrementing transition, not an idempotent unpause command.
+
 ### 8.4 `GenerateNewInstanceId` (`0x004F7BB0`) — answered
 
 ```
@@ -2169,10 +2283,12 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 
 ## 15. Open items
 
-The [owner audit in §§17–21](audio-owner-contracts.md) adds unresolved implementation questions in
-[questions/audio.md](questions/audio.md), AU42–AU43. AU41 is settled in §19.2; AU40 and AU44 in §18.4 and
-§7.4.1 respectively. The remaining questions qualify the coverage of those sections;
-an owner appearing in the inventory does not imply that all its numerical behavior is settled.
+The [owner audit in §§17–21](audio-owner-contracts.md) is completed for AU42 by
+[audio-scape.md](audio-scape.md) §§3–7 and for AU43 by
+[audio-preferences.md](audio-preferences.md) §§1–7. AU50's remaining manager algorithms
+are §8.3.2 and audio-owner-closure §7. AU41 is settled in §19.2; AU40 and AU44 in §18.4
+and §7.4.1 respectively. Other questions in [questions/audio.md](questions/audio.md)
+still qualify their own sections; an inventory entry alone does not establish closure.
 
 | # | Question | What would settle it |
 |---|---|---|
@@ -2191,11 +2307,12 @@ an owner appearing in the inventory does not imply that all its numerical behavi
 
 ---
 
-## 20.4 Scape position enumeration and convenience insertion (AU42 partial)
+## 20.4 Scape position enumeration and convenience insertion (AU42)
 
 This settles primary slots 11 and 13 from [supplement §20.1](audio-owner-contracts.md#201-scape-construction-and-slots).
-AU42 remains open for resource loading, the other instance/group operations, smoothing,
-timers and allocation failure. These two entry points do not establish complete scape coverage.
+The complete group/instance contract is [audio-scape.md](audio-scape.md) §§3–7, with AU42
+timer widths, capacity/output rules, allocation behavior and worked cases in §§3.5, 6.2,
+7.4–7.5 and 11. Slot 5 copies a name string; there is no scape resource loader in this owner.
 
 Primary slot 11 (`0x004F57B0`) takes `(groupKey, positions, countInOut, metadataOut)`.
 It holds the manager's group lock (`base+0x44`) while looking up the first matching group
@@ -2216,14 +2333,14 @@ still reports the group's stored count, rather than the number actually copied. 
 performs both word writes but no position write (`0x004F5807`–`0x004F584D`). Null count or
 metadata output is not accepted on a successful path; a null positions buffer is harmless
 only when no position is copied. No service/initialized/enabled gate is tested here.
-The resource meaning of the raw metadata word remains part of AU42's resource contract.
+The metadata word is the group's emanation total (audio-scape.md §3.5).
 
 Primary slot 13 (`0x004F51E0`) is a four-argument convenience entry. With arguments
 `(A,B,C,D)`, it dynamically dispatches the same object's **primary slot 12**, passing
 `(A,0,0,B,C,D)` in that order. It adds no checks, locking, output clearing, ownership or
 return conversion; the return register is the slot 12 result. This is a dispatch contract,
 not an independent instance insertion algorithm. Fire-handler calls to slot 13 therefore
-inherit slot 12's full contract once the remaining AU42 work settles it.
+inherit slot 12's full contract in audio-scape.md §5.1.
 
 ### Scape capacity conformance vectors
 
