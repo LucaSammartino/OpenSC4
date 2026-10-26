@@ -35,7 +35,12 @@ pub struct Rect {
 }
 impl Rect {
     pub const fn new(left: i32, top: i32, right: i32, bottom: i32) -> Self {
-        Self { left, top, right, bottom }
+        Self {
+            left,
+            top,
+            right,
+            bottom,
+        }
     }
     pub fn contains(self, x: i32, y: i32) -> bool {
         x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
@@ -89,19 +94,48 @@ impl TrackInfo {
             _ => (0x28, 0.0, 0),
         };
         Self {
-            handle: 0, kind, occupant, texture: None,
+            handle: 0,
+            kind,
+            occupant,
+            texture: None,
             number: if kind <= 2 { number } else { 0 },
-            image_instance: if (kind == 3 || kind == 4) && label.is_none() { number } else { 0 },
-            label: if kind == 3 || kind == 4 { label.unwrap_or_default().to_owned() } else { String::new() },
-            icon, display_quad: [Vertex::default(); 4], icon_quad: [Vertex::default(); 4],
-            display_size: [0.0; 2], rectangle: Rect::default(), anchor: [0.0; 3],
-            frame, fade, flags, model: None, flash_accumulator: 0.0, flash_period: 1.0, processor: None,
+            image_instance: if (kind == 3 || kind == 4) && label.is_none() {
+                number
+            } else {
+                0
+            },
+            label: if kind == 3 || kind == 4 {
+                label.unwrap_or_default().to_owned()
+            } else {
+                String::new()
+            },
+            icon,
+            display_quad: [Vertex::default(); 4],
+            icon_quad: [Vertex::default(); 4],
+            display_size: [0.0; 2],
+            rectangle: Rect::default(),
+            anchor: [0.0; 3],
+            frame,
+            fade,
+            flags,
+            model: None,
+            flash_accumulator: 0.0,
+            flash_period: 1.0,
+            processor: None,
         }
     }
-    pub fn key(&self) -> u8 { self.kind as u8 }
-    pub fn has(&self, flag: u32) -> bool { self.flags & flag != 0 }
+    pub fn key(&self) -> u8 {
+        self.kind as u8
+    }
+    pub fn has(&self, flag: u32) -> bool {
+        self.flags & flag != 0
+    }
     pub fn set(&mut self, flag: u32, on: bool) {
-        if on { self.flags |= flag; } else { self.flags &= !flag; }
+        if on {
+            self.flags |= flag;
+        } else {
+            self.flags &= !flag;
+        }
     }
 }
 
