@@ -235,7 +235,7 @@ enum class ScriptOp {
     Establish,    // establish <name>: name and found an unfounded city
     GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
     UiCommand, UiMouse, UiCell, UiKey, UiText, UiWait, UiControl,
-    BudgetWindow  // budgetwindow: open the native budget UI; explicit script opt-in only,
+    BudgetWindow, // budgetwindow: open the native budget UI; explicit script opt-in only
     GZFrameworkProbe // gzfwprobe: register, parse, dispatch and unregister an isolated command
 };
 
