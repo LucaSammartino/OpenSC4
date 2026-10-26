@@ -11,7 +11,9 @@ pub fn interpolate_ramp(out: &mut [u32], ramp: &[(u32, u32)]) -> Result<()> {
     let mut j = 0;
     for (i, pixel) in out.iter_mut().enumerate() {
         let i = i as u64;
-        while j + 1 < ramp.len() && u64::from(ramp[j + 1].0) <= i { j += 1; }
+        while j + 1 < ramp.len() && u64::from(ramp[j + 1].0) <= i {
+            j += 1;
+        }
         if i < u64::from(ramp[0].0) || j + 1 == ramp.len() {
             *pixel = ramp[j].1;
             continue;
@@ -34,7 +36,9 @@ impl MiniMap {
     pub fn load_tunable_values(&mut self, host: &mut impl Host) -> Result<()> {
         if let Some(ramp) = host.tuning_ramp(TUNING_KEY, 0xea35_73af)? {
             interpolate_ramp(&mut self.terrain_palette, &ramp)?;
-            for color in &mut self.terrain_palette { *color &= 0x00ff_ffff; }
+            for color in &mut self.terrain_palette {
+                *color &= 0x00ff_ffff;
+            }
         }
         if let Some(ramp) = host.tuning_ramp(TUNING_KEY, 0x6b73_3233)? {
             interpolate_ramp(&mut self.water_palette, &ramp)?;
@@ -48,7 +52,9 @@ impl MiniMap {
         self.zone_colors[0] = 0;
     }
 
-    pub fn set_default_zone_color_to_trans(&mut self) { self.zone_colors.fill(0); }
+    pub fn set_default_zone_color_to_trans(&mut self) {
+        self.zone_colors.fill(0);
+    }
 
     pub fn set_zone_color(&mut self, index: usize, color: u32) {
         if let Some(slot) = self.zone_colors.get_mut(index) {
@@ -64,14 +70,21 @@ impl MiniMap {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::fixture;
+    use super::*;
 
     #[test]
     fn mm_c6_shipped_ramp_and_endpoints() {
-        let ramp = [(0, 0xff536fd7), (58, 0xff4b83e7), (62, 0xffbbb198),
-            (64, 0xffcdbb8d), (68, 0xff65963d), (72, 0xff70aa8e),
-            (88, 0xff9a8a62), (255, 0xffffffff)];
+        let ramp = [
+            (0, 0xff536fd7),
+            (58, 0xff4b83e7),
+            (62, 0xffbbb198),
+            (64, 0xffcdbb8d),
+            (68, 0xff65963d),
+            (72, 0xff70aa8e),
+            (88, 0xff9a8a62),
+            (255, 0xffffffff),
+        ];
         let mut palette = [0; 256];
         interpolate_ramp(&mut palette, &ramp).unwrap();
         assert_eq!(palette[60], 0xff839ac0); // MM-C6, t=128

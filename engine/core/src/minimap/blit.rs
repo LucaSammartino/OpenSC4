@@ -30,14 +30,21 @@ pub trait Surface {
 pub fn visible_recursive(windows: &Windows, window: Window) -> bool {
     let mut current = Some(window);
     while let Some(w) = current {
-        if !windows.get(w).flag(1) { return false; }
+        if !windows.get(w).flag(1) {
+            return false;
+        }
         current = windows.get(w).parent;
     }
     true
 }
 
 fn valid(p: &[u32], pitch: usize, n: usize) -> bool {
-    n == 0 || (pitch >= n && (n - 1).checked_mul(pitch).and_then(|v| v.checked_add(n)).is_some_and(|v| v <= p.len()))
+    n == 0
+        || (pitch >= n
+            && (n - 1)
+                .checked_mul(pitch)
+                .and_then(|v| v.checked_add(n))
+                .is_some_and(|v| v <= p.len()))
 }
 
 fn offset(x: usize, y: usize, pitch: usize, n: usize, rotation: u32) -> usize {
@@ -49,39 +56,69 @@ fn offset(x: usize, y: usize, pitch: usize, n: usize, rotation: u32) -> usize {
     }
 }
 
-fn blit(dst: &mut SurfacePixels, src: &[u32], pitch: usize, n: usize, rotation: u32, ov: Option<&SurfacePixels>) -> Result<()> {
-    if !valid(src, pitch, n) || !valid(&dst.pixels, dst.pitch, n)
-        || ov.is_some_and(|o| !valid(&o.pixels, o.pitch, n)) {
+fn blit(
+    dst: &mut SurfacePixels,
+    src: &[u32],
+    pitch: usize,
+    n: usize,
+    rotation: u32,
+    ov: Option<&SurfacePixels>,
+) -> Result<()> {
+    if !valid(src, pitch, n) || !valid(&dst.pixels, dst.pitch, n) || ov.is_some_and(|o| !valid(&o.pixels, o.pitch, n)) {
         return Err(Unsupported::Precondition("blit source/destination extent"));
     }
-    for y in 0..n { for x in 0..n {
-        let t = src[offset(x, y, pitch, n, rotation)];
-        let mut pixel = t | 0xff00_0000;
-        if let Some(ov) = ov {
-            let v = ov.pixels[offset(x, y, ov.pitch, n, rotation)];
-            let k = 256 - (v >> 24);
-            pixel = 0xff00_0000;
-            for shift in [0, 8, 16] {
-                let c = ((v >> shift) & 255) + ((((t >> shift) & 255) * k + 128) >> 8);
-                pixel |= c.min(255) << shift;
+    for y in 0..n {
+        for x in 0..n {
+            let t = src[offset(x, y, pitch, n, rotation)];
+            let mut pixel = t | 0xff00_0000;
+            if let Some(ov) = ov {
+                let v = ov.pixels[offset(x, y, ov.pitch, n, rotation)];
+                let k = 256 - (v >> 24);
+                pixel = 0xff00_0000;
+                for shift in [0, 8, 16] {
+                    let c = ((v >> shift) & 255) + ((((t >> shift) & 255) * k + 128) >> 8);
+                    pixel |= c.min(255) << shift;
+                }
             }
+            dst.pixels[y * dst.pitch + x] = pixel;
         }
-        dst.pixels[y * dst.pitch + x] = pixel;
-    } }
+    }
     Ok(())
 }
 
-pub fn rotate_blt(host: &mut impl Surface, dst: Handle, src: &[u32], pitch: usize, n: usize, rotation: u32) -> Result<bool> {
-    let Some(mut lock) = host.surface_lock(dst, 0x8040)? else { return Ok(false); };
+pub fn rotate_blt(
+    host: &mut impl Surface,
+    dst: Handle,
+    src: &[u32],
+    pitch: usize,
+    n: usize,
+    rotation: u32,
+) -> Result<bool> {
+    let Some(mut lock) = host.surface_lock(dst, 0x8040)? else {
+        return Ok(false);
+    };
     let result = blit(&mut lock, src, pitch, n, rotation, None);
     host.surface_unlock(dst, lock);
     result.map(|()| true)
 }
 
-pub fn rotate_blt_dual(host: &mut impl Surface, dst: Handle, src: &[u32], pitch: usize, n: usize, overlay: Handle, rotation: u32) -> Result<bool> {
-    let Some(ov) = host.surface_lock(overlay, 0x8040)? else { return Ok(false); };
+pub fn rotate_blt_dual(
+    host: &mut impl Surface,
+    dst: Handle,
+    src: &[u32],
+    pitch: usize,
+    n: usize,
+    overlay: Handle,
+    rotation: u32,
+) -> Result<bool> {
+    // SPEC-GAP: dual blits use the same opaque lock code as the single blit (MMW4).
+    let Some(ov) = host.surface_lock(overlay, 0x8040)? else {
+        return Ok(false);
+    };
     let result = (|| {
-        let Some(mut lock) = host.surface_lock(dst, 0x8040)? else { return Ok(false); };
+        let Some(mut lock) = host.surface_lock(dst, 0x8040)? else {
+            return Ok(false);
+        };
         let result = blit(&mut lock, src, pitch, n, rotation, Some(&ov));
         host.surface_unlock(dst, lock);
         result.map(|()| true)
@@ -97,9 +134,15 @@ impl MiniMap {
     }
 
     pub fn update(&mut self, windows: &mut Windows, host: &mut impl Host) -> Result<()> {
-        if !visible_recursive(windows, self.window) { self.map.free(); }
-        if self.map.pixels.is_none() || !self.surface_dirty { return Ok(()); }
-        let surface = self.surface.ok_or(Unsupported::Precondition("minimap surface before Update"))?;
+        if !visible_recursive(windows, self.window) {
+            self.map.free();
+        }
+        if self.map.pixels.is_none() || !self.surface_dirty {
+            return Ok(());
+        }
+        let surface = self
+            .surface
+            .ok_or(Unsupported::Precondition("minimap surface before Update"))?;
         let rotation = host.rotation();
         if let Some(overlay) = self.overlay.filter(|_| self.flags & 8 != 0) {
             if let Some(ov) = host.surface_lock(overlay, 0x8040)? {
@@ -108,12 +151,18 @@ impl MiniMap {
                 result?;
             }
         } else {
-            if self.map_dirty { self.update_terrain_and_zone_map(host)?; }
-            if self.flags & 2 != 0 { self.update_networks(host)?; }
+            if self.map_dirty {
+                self.update_terrain_and_zone_map(host)?;
+            }
+            if self.flags & 2 != 0 {
+                self.update_networks(host)?;
+            }
             let pixels = self.map.pixels.as_deref().unwrap();
             if let Some(overlay) = self.overlay {
                 rotate_blt_dual(host, surface, pixels, self.map.width, self.n, overlay, rotation)?;
-            } else { rotate_blt(host, surface, pixels, self.map.width, self.n, rotation)?; }
+            } else {
+                rotate_blt(host, surface, pixels, self.map.width, self.n, rotation)?;
+            }
         }
         self.surface_dirty = false;
         self.request_repaint(windows, host);
@@ -125,22 +174,39 @@ impl MiniMap {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::fixture;
+    use super::*;
 
     #[test]
     fn mm_c7_all_rotations_pitches_and_premultiplied_overlay() {
         let (_, mut h, _) = fixture();
-        h.surfaces.insert(10, SurfacePixels { pixels: vec![0; 8], pitch: 4 });
+        h.surfaces.insert(
+            10,
+            SurfacePixels {
+                pixels: vec![0; 8],
+                pitch: 4,
+            },
+        );
         let src = [1, 2, 99, 3, 4];
-        for (r, expected) in [(0, [1, 2, 3, 4]), (1, [2, 4, 1, 3]),
-            (2, [4, 3, 2, 1]), (3, [3, 1, 4, 2]), (9, [1, 2, 3, 4])] {
+        for (r, expected) in [
+            (0, [1, 2, 3, 4]),
+            (1, [2, 4, 1, 3]),
+            (2, [4, 3, 2, 1]),
+            (3, [3, 1, 4, 2]),
+            (9, [1, 2, 3, 4]),
+        ] {
             rotate_blt(&mut h, 10, &src, 3, 2, r).unwrap();
             let p = &h.surfaces[&10].pixels;
             assert_eq!([p[0], p[1], p[4], p[5]], expected.map(|v| v | 0xff000000));
             assert_eq!([p[2], p[3], p[6], p[7]], [0; 4]);
         }
-        h.surfaces.insert(20, SurfacePixels { pixels: vec![0x80646464], pitch: 1 });
+        h.surfaces.insert(
+            20,
+            SurfacePixels {
+                pixels: vec![0x80646464],
+                pitch: 1,
+            },
+        );
         rotate_blt_dual(&mut h, 10, &[0xff808080], 1, 1, 20, 0).unwrap();
         assert_eq!(h.surfaces[&10].pixels[0], 0xffa4a4a4);
         h.fail_lock = Some(10);
@@ -168,7 +234,13 @@ mod tests {
         m.surface_dirty = true;
         m.repaint = true;
         m.flags = 0;
-        h.surfaces.insert(10, SurfacePixels { pixels: vec![0], pitch: 1 });
+        h.surfaces.insert(
+            10,
+            SurfacePixels {
+                pixels: vec![0],
+                pitch: 1,
+            },
+        );
         m.update(&mut w, &mut h).unwrap();
         assert!(!m.surface_dirty && !m.repaint && m.hooked);
         assert_eq!(h.surfaces[&10].pixels, [0xff000000]);

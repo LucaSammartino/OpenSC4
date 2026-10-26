@@ -7,23 +7,23 @@ use crate::widget_controls;
 
 pub use widget_controls::{Handle, Result, Unsupported};
 
-mod city;
-mod palette;
-mod numeric;
-mod terrain;
-mod networks;
 mod blit;
-mod paint;
+mod city;
 mod input;
-mod messages;
 mod lifecycle;
-pub use messages::{Message, Payload, SUBSCRIPTIONS};
-pub use input::Input;
-pub use paint::{dither_rgb8_to_argb4, frustum_points, marker_points, Paint, PaintGeometry, PaintPixels, Ray};
+mod messages;
+mod networks;
+mod numeric;
+mod paint;
+mod palette;
+mod terrain;
 pub use blit::{rotate_blt, rotate_blt_dual, visible_recursive, Surface, SurfacePixels};
+pub use input::Input;
+pub use messages::{Message, Payload, SUBSCRIPTIONS};
 pub use networks::{Network, SurfaceNetworkFilter};
-pub use terrain::{resample_block, Terrain};
+pub use paint::{dither_rgb8_to_argb4, frustum_points, marker_points, Paint, PaintGeometry, PaintPixels, Ray};
 pub use palette::{interpolate_ramp, TUNING_KEY};
+pub use terrain::{resample_block, Terrain};
 pub mod tz_map;
 pub use tz_map::TzMap;
 
@@ -32,6 +32,7 @@ pub const INTERFACE_ID: u32 = 0xca31_8385;
 
 /// Foreign primitives reuse the widget controls' reference/drawing operations
 /// and the actual cGZWin runtime. No base-window algorithm is reimplemented.
+/// Draw::Line from this owner denotes DrawLineAntialiased(..., color, 1, 0).
 pub trait Host: base::Host + widget_controls::Foreign + Terrain + Network + Surface + Paint + Input {
     fn city_cells(&mut self) -> [usize; 2];
     /// Animation manager slots 5/6; the registration argument is always zero.
@@ -125,5 +126,7 @@ impl MiniMap {
     }
 }
 
+#[cfg(test)]
+mod closure_tests;
 #[cfg(test)]
 mod tests;

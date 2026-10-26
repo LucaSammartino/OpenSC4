@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::*;
 use super::numeric::E;
+use super::*;
 
 pub trait Input {
     fn terrain_height_at(&mut self, x: f32, z: f32) -> Result<f32>;
@@ -8,12 +8,23 @@ pub trait Input {
 }
 
 fn coordinate(x: i32, extent: i32) -> f32 {
-    if extent == 0 { return (x as f32 / 0.0) - 0.5; }
-    E::constant(f64::from(x)).div(E::constant(f64::from(extent))).sub(E::constant(0.5)).single()
+    if extent == 0 {
+        return (x as f32 / 0.0) - 0.5;
+    }
+    E::constant(f64::from(x))
+        .div(E::constant(f64::from(extent)))
+        .sub(E::constant(0.5))
+        .single()
 }
 
 fn clamp(x: f32) -> f32 {
-    if x.is_nan() || x >= 1.0 { 1.0 } else if x <= 0.0 { 0.0 } else { x }
+    if x.is_nan() || x >= 1.0 {
+        1.0
+    } else if x <= 0.0 {
+        0.0
+    } else {
+        x
+    }
 }
 
 impl MiniMap {
@@ -21,8 +32,13 @@ impl MiniMap {
         let area = windows.get(self.window).area;
         let (mut u, mut v) = (coordinate(x, area.width()), coordinate(y, area.height()));
         let rotation = host.rotation();
-        if rotation & 1 != 0 { (u, v) = (-v, u); }
-        if rotation & 2 != 0 { u = -u; v = -v; }
+        if rotation & 1 != 0 {
+            (u, v) = (-v, u);
+        }
+        if rotation & 2 != 0 {
+            u = -u;
+            v = -v;
+        }
         let [sx, sz] = host.world_size();
         let x = clamp(u + 0.5) * sx;
         let z = clamp(v + 0.5) * sz;
@@ -40,7 +56,9 @@ impl MiniMap {
     }
 
     pub fn mouse_move(&self, windows: &Windows, host: &mut impl Host, x: i32, y: i32) -> Result<bool> {
-        if self.dragging { self.center_on_map_point(windows, host, x, y)?; }
+        if self.dragging {
+            self.center_on_map_point(windows, host, x, y)?;
+        }
         Ok(true)
     }
 
@@ -59,8 +77,8 @@ impl MiniMap {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::fixture;
+    use super::*;
 
     #[test]
     fn mm_c10_center_drag_capture_rotations_and_nan_clamp() {

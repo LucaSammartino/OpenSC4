@@ -14,9 +14,13 @@ impl TzMap {
         if self.pixels.is_some() && (self.width, self.height) == (width, height) {
             return Ok(());
         }
-        let len = width.checked_mul(height).ok_or(Unsupported::Precondition("map allocation size"))?;
+        let len = width
+            .checked_mul(height)
+            .ok_or(Unsupported::Precondition("map allocation size"))?;
         let mut pixels = Vec::new();
-        pixels.try_reserve_exact(len).map_err(|_| Unsupported::Precondition("map allocation"))?;
+        pixels
+            .try_reserve_exact(len)
+            .map_err(|_| Unsupported::Precondition("map allocation"))?;
         // SPEC-GAP: newly allocated pixel contents are unspecified; use zero until rebuilt.
         pixels.resize(len, 0);
         self.pixels = Some(pixels);

@@ -15,9 +15,13 @@ pub trait Network: widget_controls::Foreign {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SurfaceNetworkFilter;
 impl SurfaceNetworkFilter {
-    pub fn query_interface(&self, iid: u32) -> bool { matches!(iid, 1 | 0x46a8_0026) }
+    pub fn query_interface(&self, iid: u32) -> bool {
+        matches!(iid, 1 | 0x46a8_0026)
+    }
     pub fn accepts(&self, host: &mut impl Network, occupant: Handle) -> bool {
-        let Some(interface) = host.network_interface(occupant) else { return false; };
+        let Some(interface) = host.network_interface(occupant) else {
+            return false;
+        };
         let accepted = host.network_type_mask(interface) & 0x1f4f != 0;
         host.release(interface);
         accepted
@@ -27,51 +31,77 @@ impl SurfaceNetworkFilter {
 impl MiniMap {
     pub fn update_networks(&mut self, host: &mut impl Host) -> Result<()> {
         let filter = SurfaceNetworkFilter;
-        for z in 0..self.cells[1] { for x in 0..self.cells[0] {
-            let b = 2 * (self.cells[0] * z + x);
-            let word = self.networks.get_mut(b >> 5).ok_or(Unsupported::Precondition("network cache size"))?;
-            let checked = 1u32 << (b & 31);
-            let present = checked << 1;
-            if *word & checked == 0 {
-                *word &= !present;
-                if let Some(occupant) = host.find_occupant(x, z, &filter) {
-                    *word |= present;
-                    host.release(occupant);
+        for z in 0..self.cells[1] {
+            for x in 0..self.cells[0] {
+                let b = 2 * (self.cells[0] * z + x);
+                let word = self
+                    .networks
+                    .get_mut(b >> 5)
+                    .ok_or(Unsupported::Precondition("network cache size"))?;
+                let checked = 1u32 << (b & 31);
+                let present = checked << 1;
+                if *word & checked == 0 {
+                    *word &= !present;
+                    if let Some(occupant) = host.find_occupant(x, z, &filter) {
+                        *word |= present;
+                        host.release(occupant);
+                    }
+                    *word |= checked;
                 }
-                *word |= checked;
+                if *word & present != 0 {
+                    let (row, col) = if self.shift >= 0 {
+                        (x >> self.shift, z >> self.shift)
+                    } else {
+                        (x << -self.shift, z << -self.shift)
+                    };
+                    let pixels = self
+                        .map
+                        .pixels
+                        .as_mut()
+                        .ok_or(Unsupported::Precondition("network map pixels"))?;
+                    let offset = row.checked_mul(self.n).and_then(|v| v.checked_add(col));
+                    let pixel = offset
+                        .filter(|_| col < self.n)
+                        .and_then(|i| pixels.get_mut(i))
+                        .ok_or(Unsupported::Precondition("network pixel outside map"))?;
+                    *pixel = 0xffcf_cfc5;
+                }
             }
-            if *word & present != 0 {
-                let (row, col) = if self.shift >= 0 { (x >> self.shift, z >> self.shift) }
-                    else { (x << -self.shift, z << -self.shift) };
-                let pixels = self.map.pixels.as_mut().ok_or(Unsupported::Precondition("network map pixels"))?;
-                let offset = row.checked_mul(self.n).and_then(|v| v.checked_add(col));
-                let pixel = offset.filter(|_| col < self.n).and_then(|i| pixels.get_mut(i))
-                    .ok_or(Unsupported::Precondition("network pixel outside map"))?;
-                *pixel = 0xffcf_cfc5;
-            }
-        } }
+        }
         Ok(())
     }
 
     pub fn network_changed(&mut self, host: &mut impl Host, occupant: Handle, tag: u32, removed: bool) -> Result<()> {
-        if tag != 0xc772_bf98 { return Ok(()); }
-        let Some(interface) = host.network_interface(occupant) else { return Ok(()); };
+        if tag != 0xc772_bf98 {
+            return Ok(());
+        }
+        let Some(interface) = host.network_interface(occupant) else {
+            return Ok(());
+        };
         let [x, z] = host.occupant_cell(interface);
         host.release(interface);
-        if x < 0 || z < 0 || x as usize >= self.cells[0] || z as usize >= self.cells[1] { return Ok(()); }
+        if x < 0 || z < 0 || x as usize >= self.cells[0] || z as usize >= self.cells[1] {
+            return Ok(());
+        }
         let b = 2 * (self.cells[0] * z as usize + x as usize);
-        let word = self.networks.get_mut(b >> 5).ok_or(Unsupported::Precondition("network change cache size"))?;
+        let word = self
+            .networks
+            .get_mut(b >> 5)
+            .ok_or(Unsupported::Precondition("network change cache size"))?;
         *word &= !(1 << (b & 31));
-        if removed { self.invalidate_tz_map_rect(Rect(x, z, x, z))?; }
-        else { self.surface_dirty = true; }
+        if removed {
+            self.invalidate_tz_map_rect(Rect(x, z, x, z))?;
+        } else {
+            self.surface_dirty = true;
+        }
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::tests::fixture;
+    use super::*;
 
     #[test]
     fn filter_iids_and_surface_mask() {

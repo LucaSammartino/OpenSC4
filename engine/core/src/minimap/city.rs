@@ -9,7 +9,11 @@ impl MiniMap {
         windows.set_area(host, self.window, area);
         let side = area.width().min(area.height());
         // SPEC-GAP: nonpositive window extents have no specified power of two; keep n=0.
-        self.n = if side > 0 { 1usize << (31 - (side as u32).leading_zeros()) } else { 0 };
+        self.n = if side > 0 {
+            1usize << (31 - (side as u32).leading_zeros())
+        } else {
+            0
+        };
         if self.map.pixels.is_some() {
             self.on_city_init(host)?;
         }
@@ -45,10 +49,14 @@ impl MiniMap {
         self.attached = true;
         self.init_tz_map(host)?;
         self.cells = host.city_cells();
-        let words = self.cells[0].checked_mul(self.cells[1])
-            .and_then(|v| v.checked_mul(2)).and_then(|v| v.checked_add(31))
-            .ok_or(Unsupported::Precondition("network vector size"))? >> 5;
-        self.networks.try_reserve(words.saturating_sub(self.networks.len()))
+        let words = self.cells[0]
+            .checked_mul(self.cells[1])
+            .and_then(|v| v.checked_mul(2))
+            .and_then(|v| v.checked_add(31))
+            .ok_or(Unsupported::Precondition("network vector size"))?
+            >> 5;
+        self.networks
+            .try_reserve(words.saturating_sub(self.networks.len()))
             .map_err(|_| Unsupported::Precondition("network allocation"))?;
         self.networks.resize(words, 0);
         host.animation_target(self.window, true);
@@ -75,7 +83,9 @@ impl MiniMap {
     pub fn hook_occupant_messages(&mut self, host: &mut impl Host) {
         if !self.hooked && self.attached {
             if self.flags & 2 != 0 {
-                for id in NETWORK_MESSAGES { host.subscribe(self.window, id, true); }
+                for id in NETWORK_MESSAGES {
+                    host.subscribe(self.window, id, true);
+                }
             }
             self.hooked = true;
         }
@@ -84,7 +94,9 @@ impl MiniMap {
     pub fn unhook_occupant_messages(&mut self, host: &mut impl Host) {
         if self.hooked {
             if self.flags & 2 != 0 {
-                for id in NETWORK_MESSAGES { host.subscribe(self.window, id, false); }
+                for id in NETWORK_MESSAGES {
+                    host.subscribe(self.window, id, false);
+                }
             }
             self.hooked = false;
         }

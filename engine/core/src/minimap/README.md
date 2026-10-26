@@ -29,6 +29,13 @@ division, then performs the specified binary32 rounding store. Decimal constants
 with no operand width in the spec use binary64 (SPEC-GAP); no host FP mode is used.
 Native out-of-bounds dirty/zone/pixel accesses return `Unsupported::Precondition`.
 
+`closure_tests` adds live foreign-service cases for palette alpha policy,
+selective transposed terrain blocks, zone overwrite, incomplete terrain blocks,
+overlay-only bypass, buffer/surface unlocks on 4444 bounds failure, frustum
+edges, alternating marker colours, hidden-map recreation and the raw tick marker.
+MMW1–MMW4 refer to the existing open entries in
+`docs/specs/questions/minimap.md`; no new question is needed by this implementation.
+
 Adapters must call the owner methods (including its final `release`), not the
 base runtime's final release directly. Explicit Shutdown and OnCityShutdown
 events precede destruction; a Rust drop alone cannot release foreign handles.
