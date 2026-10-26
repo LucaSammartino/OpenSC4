@@ -106,3 +106,15 @@ class FillFromPendingTests(unittest.TestCase):
         self.assertFalse(self.run.fill_from_pending())
         self.assertEqual(len(self.tried), 1)
         self.assertEqual(self.pending(), ['a29', 'b29', 'c29'])
+
+
+class TargetTests(unittest.TestCase):
+    def test_target_file_written_with_a_byte_order_mark_still_reads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = root / 'state.json'
+            state.write_text(json.dumps({'lanes': {}}), encoding='utf-8')
+            run = conductor.Run(argparse.Namespace(run=str(root), state=str(state)))
+            self.assertEqual(run.target(), 13)  # no file: the default
+            (root / 'target.txt').write_bytes(b'\xef\xbb\xbf24\r\n')
+            self.assertEqual(run.target(), 24)

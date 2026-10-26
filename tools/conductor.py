@@ -92,7 +92,7 @@ class Run:
 
     def target(self):
         t = self.dir / 'target.txt'
-        return int(t.read_text().strip()) if t.exists() else 13
+        return int(t.read_text(encoding='utf-8-sig').strip()) if t.exists() else 13
 
     def lanes(self):
         """Lanes of the state file with a result path, minus those in <run>/ignore.txt (finished or abandoned)."""
