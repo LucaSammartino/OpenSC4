@@ -342,6 +342,10 @@ bool CompareAttach(const char* name,const CompareInterposition* callbacks) {
 }
 void InplaceStartup() {
     auto selection=Setting("compare",nullptr);if (selection.empty()) selection=Setting("inplace",nullptr);
+    if (SettingInt("watercraft_shadow","FC4_WATERCRAFT_SHADOW",0)!=0) {
+        if (!selection.empty()) selection+=",";
+        selection+="class:cSC4Watercraft";
+    }
     if (selection.empty()) return;
     if (!Supported()) {Log("inplace: unsupported executable identity; no patches");return;}
     modeOverride=Setting("compare_mode",nullptr);
@@ -368,16 +372,36 @@ void InplaceReport() {
     for (const auto& fn:functions) if (fn.selected) for (unsigned s=0;s<4;++s) Report(fn,fn.counts[s],sources[s]);
     ReleaseSRWLockExclusive(&sampleLock);
 }
+void InplaceWatercraftMethods(const char* date) {
+    if (!active) return;
+    AcquireSRWLockExclusive(&sampleLock);
+    // These bindings compare every specified output and have no collaborator
+    // calls (watercraft §§3.1/3.4). Do not generalize this credit to other rows.
+    const char* const entries[]={"watercraft-sign","watercraft-angular","watercraft-direction","watercraft-clsid"};
+    const char* const methods[]={"Sign","AngularProximity","DirectionQuantization","GetGZCLSID"};
+    for (unsigned i=0;i<std::size(entries);++i) for (const auto& fn:functions) {
+        if (!fn.installed||std::string(fn.name)!=entries[i]) continue;
+        uint64_t calls=0,complete=0,mismatches=0;
+        for (const auto& c:fn.counts) {
+            calls+=c.calls;complete+=c.compared;mismatches+=c.floatOnly+c.different;
+        }
+        Log("watercraft method 0x%08X cSC4Watercraft::%s (month) %s: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+            fn.va,methods[i],date,calls,complete,mismatches);
+    }
+    ReleaseSRWLockExclusive(&sampleLock);
+}
 void InplaceCityLoaded() {
     if (!active) return;
     // Getters can arrive on another game thread during this batch. Serialize
     // exports and counters with natural dispatch; nested hooks inherit depth.
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
     ++depth;
-    if (fixtures) {
+    const bool watercraft=SettingInt("watercraft_shadow","FC4_WATERCRAFT_SHADOW",0)!=0;
+    if (fixtures||watercraft) {
         source=1;
         for (unsigned sample=0;sample<16;++sample) for (auto& fn:functions) {
             if (!fn.installed) continue;Input input;
+            if (!fixtures&&std::string(fn.owner)!="cSC4Watercraft") continue;
             if (!fc4_compare_fixture(fn.rustEntry,sample,input.args.data(),nullptr,0)) continue;
             bool valid=true;for (const auto& spec:fn.specs) {const auto size=spec.Size(input.args.data());if (!size) {valid=false;break;}input.windows.emplace_back(size);}
             if (!valid) continue;

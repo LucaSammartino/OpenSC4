@@ -2,6 +2,9 @@
 //! Private static-link compare transport. Buffers are owned copies, never game pointers.
 use std::ffi::{c_char, CStr};
 
+#[path = "compare_watercraft.rs"]
+mod watercraft;
+
 #[repr(C)]
 struct Buffer {
     data: *mut u8,
@@ -40,6 +43,9 @@ unsafe extern "C" fn fc4_compare_adapter(
         std::slice::from_raw_parts_mut(buffers, count)
     };
     let result = &mut *result;
+    if entry.starts_with("watercraft-") {
+        return watercraft::adapt(entry, args, buffers, result);
+    }
     let get = |base: u32| {
         buffers
             .iter()
@@ -237,6 +243,14 @@ unsafe extern "C" fn fc4_compare_fixture(
         return false;
     };
     let args = &mut *args.cast::<[u32; 16]>();
+    if entry.starts_with("watercraft-") {
+        let buffers = if count == 0 {
+            &mut []
+        } else {
+            std::slice::from_raw_parts_mut(buffers, count)
+        };
+        return watercraft::fixture(entry, sample, args, buffers);
+    }
     if count == 0 {
         match entry {
             "language-from-system" => args[0] = (sample << 10) | 9,

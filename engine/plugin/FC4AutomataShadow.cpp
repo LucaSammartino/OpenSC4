@@ -30,6 +30,7 @@
 #include "FC4Streams.h"  // TokenOf
 #include "FC4WriteCapture.h"
 #include "FC4Interfaces.h"
+#include "FC4Inplace.h"
 
 #include "cIGZSerializable.h"
 #include "cIGZUnknown.h"
@@ -689,7 +690,7 @@ void WatercraftCompare(const char* what, int32_t julian) {
         for (uint32_t i = 0; i < 3; ++i) {
             const float values[] = {actual[i].fX, actual[i].fY, actual[i].fZ};
             for (uint32_t axis = 0; axis < 3; ++axis)
-                bad += !(std::fabs(values[axis] - vectors[i * 3 + axis]) <= 1e-5f);
+                bad += std::memcmp(&values[axis], &vectors[i * 3 + axis], sizeof(float)) != 0;
         }
         auto* top = boat->GetState();
         bad += (top == nullptr) != (states[0] == 0);
@@ -752,6 +753,7 @@ void WatercraftCompare(const char* what, int32_t julian) {
         static_cast<unsigned long long>(bytes), bad);
     ++g_watercraftLines;
     if (!bad) ++g_watercraftClean;
+    if (std::strcmp(what,"month")==0) InplaceWatercraftMethods(DateText(julian).c_str());
 }
 
 void RunCompare(const char* what, int32_t julian) {

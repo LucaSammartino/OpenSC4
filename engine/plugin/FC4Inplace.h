@@ -7,6 +7,8 @@ namespace fc4 {
 void InplaceStartup();
 void InplaceCityLoaded();
 void InplaceReport();
+// Complete watercraft value-method samples; called alongside the monthly shadow.
+void InplaceWatercraftMethods(const char* date);
 // Optional per-row outgoing-call interposition. Context and callbacks outlive the
 // run; registration happens before Startup, callbacks must not reconfigure it.
 // No serialized data includes these pointers. Internal C++ interface, not DLL ABI.
