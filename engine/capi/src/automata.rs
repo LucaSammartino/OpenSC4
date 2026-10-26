@@ -2191,3 +2191,83 @@ pub unsafe extern "C" fn fc4_automata_derived_record_roundtrip(
         }
     })
 }
+
+/// Private static-link watercraft record/getter projection. Input references
+/// are tracked even on failure and released before returning to the capture.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_watercraft_shadow_record(
+    input: *const fc4_istream,
+    output: *const fc4_ostream,
+    refs: *const fc4_automata_ref_host,
+    values: *mut f32,
+    state: *mut u32,
+) -> bool {
+    guard(false, || {
+        let (Some(input), Some(output), Some(refs)) = (in_stream(input), out_stream(output), table(refs)) else {
+            return false;
+        };
+        if values.is_null() || state.is_null() {
+            return false;
+        }
+        let mut stream = tracking(input);
+        let record = fc4_core::watercraft::WatercraftRecord::read(&mut stream);
+        let ok = if let Some(record) = record {
+            let owner = fc4_core::watercraft::Watercraft::new(record.clone(), None, 0.0);
+            // Watercraft::new sets constructor-only occupant fields. Preserve
+            // the input record for the codec comparison instead of rebuilding it.
+            for (i, value) in owner.record.base.vectors.iter().flatten().enumerate() {
+                *values.add(i) = *value;
+            }
+            *state = owner.record.base.states.len() as u32;
+            *state.add(1) = owner.top_state().unwrap_or(u32::MAX);
+            record.write(&mut COut(output))
+        } else {
+            false
+        };
+        for token in stream.tokens {
+            refs.release(token);
+        }
+        ok
+    })
+}
+
+fn watercraft_probe_state(step: u32) -> u64 {
+    use fc4_core::automata::AutomatonBase;
+    use fc4_core::watercraft::{Watercraft, WatercraftRecord};
+    let mut owner = Watercraft::new(
+        WatercraftRecord {
+            base: AutomatonBase::new(),
+        },
+        None,
+        0.0,
+    );
+    if step >= 1 {
+        owner.record.base.set_state(2, SetStateArgs::default());
+    }
+    if step >= 2 {
+        owner.record.base.push_state(3, SetStateArgs::default());
+    }
+    if step >= 3 {
+        owner.record.base.pop_state();
+    }
+    ((owner.record.base.states.len() as u64) << 32) | u64::from(owner.top_state().unwrap_or(u32::MAX))
+}
+
+/// Independent constructor/inherited stack probe; no native output seeds it.
+#[no_mangle]
+pub extern "C" fn fc4_watercraft_shadow_probe(step: u32) -> u64 {
+    guard(u64::MAX, || watercraft_probe_state(step))
+}
+
+#[cfg(test)]
+mod watercraft_shadow_tests {
+    use super::watercraft_probe_state;
+
+    #[test]
+    fn private_probe_preserves_stack_order_and_restores_previous_state() {
+        assert_eq!(watercraft_probe_state(0), u64::from(u32::MAX));
+        assert_eq!(watercraft_probe_state(1), (1_u64 << 32) | 2);
+        assert_eq!(watercraft_probe_state(2), (2_u64 << 32) | 3);
+        assert_eq!(watercraft_probe_state(3), (1_u64 << 32) | 2);
+    }
+}

@@ -251,3 +251,12 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
   `+0x50`, and what is the element layout? [the replacement keeps the 12 bytes as an empty vector (three null
   pointers) and keeps the special records' count and cost in its own state]
   **ANSWERED 2026-10-21 (re-disasters46-4):** MATCHES — nothing outside the layer reads record `+0x50` (advisor reads only +0x00/+0x08/+0x5C/+0x60; layer not saved). It is a 12-byte {begin, finish, end_of_storage} vector, allocator B, of 0x20-byte elements {cRZString 0x14 bytes, 4 unwritten padding, int64 cost at +0x18}; ctor 0x00578A10 leaves three nulls, Reset keeps the buffer. Three null pointers forever is conforming (§2.6.1).
+
+<!-- from: replace-lotocc28 (2026-10-26) -->
+- ~~**DS-lotocc28-1 — independent fire-occupant factory boundary:** section 5.11 calls `0x69D25C5F` the class
+  and occupant type, but gives `0x29D25F1D` as GetGZCLSID; section 5.4 does not identify a registry lookup for
+  native ignition. Which ID must a replacement factory register, and does native ignition use it? Section 13
+  also specifies direct access to extinguish time at fire-object +0x50, with no interface slot. Please specify
+  the supported lifetime/layout or owner-dependency boundary for an independent `fireocc` key while the native
+  fire manager/instance remains active. No guessed factory ID, native layout or patch is implemented.~~
+  **ANSWERED 2026-10-26 (re-lotocc29):** DIFFERS — §§5.4/5.11/5.11.1 identify class/factory key 0x29D25F1D, occupant type 0x69D25C5F and IID 0x69D25C60 separately. Native ignition directly allocates/constructs the fire and the native owner uses +4 and +0x50/direct Extinguish. An independent factory does not replace that owner; replace the owning manager/instance paths together or prove a complete installation/layout/lifetime/restoration bridge. The explicit-factory/native-ignition/extinguish/kill worked case specifies the distinction.
