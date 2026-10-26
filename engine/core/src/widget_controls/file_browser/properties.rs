@@ -72,7 +72,7 @@ impl FileBrowser {
             if offset == *base {
                 return self.style_fonts[style].unwrap_or(0) as u32;
             }
-            if offset >= base + 4 && offset <= base + 32 && offset.is_multiple_of(4) {
+            if offset >= base + 4 && offset <= base + 32 && offset % 4 == 0 {
                 return self.style_words[style][((offset - base - 4) / 4) as usize];
             }
         }
@@ -85,7 +85,7 @@ impl FileBrowser {
                 self.style_fonts[style] = (value != 0).then_some(u64::from(value));
                 return;
             }
-            if offset >= base + 4 && offset <= base + 32 && offset.is_multiple_of(4) {
+            if offset >= base + 4 && offset <= base + 32 && offset % 4 == 0 {
                 self.style_words[style][((offset - base - 4) / 4) as usize] = value;
                 return;
             }

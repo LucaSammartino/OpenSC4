@@ -31,6 +31,7 @@ pub trait BrowserIo: BrowserForeign {
 /// Buffer methods preserve the factory/fallback, borrowed resource and locking
 /// boundaries. Procedural geometry itself is explicitly unproved (FBQ1).
 pub trait IconIo: BrowserForeign {
+    fn buffer_bounds(&mut self, buffer: Handle) -> Rect;
     fn factory_buffer(&mut self, component: u32, iid: u32) -> Option<Handle>;
     fn graphics_buffer(&mut self) -> Option<Handle>;
     fn init_buffer(&mut self, buffer: Handle, width: i32, height: i32, format: [u32; 2]) -> bool;

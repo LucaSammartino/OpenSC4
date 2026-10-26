@@ -91,22 +91,22 @@ rollback promises. No font rasterization or in-game pixel equality is claimed.
 
 | Spec section | Code item | Tests / open contract |
 |---|---|---|
-| win-filebrowser 1 identity | query_interface/window/constants | C01-C05 identity/path test |
+| win-filebrowser 1 identity | query_interface/window/constants | implemented; C01-C05 identity/path test |
 | 2 navigation/path | setters, parent_live, update_path_live | implemented (FBQ5); fbq4_navigation_removal_and_fbq5_live_creation_paint |
-| 3 lookup | get_row_of_entry_by_name | C06-C09 lookup test |
+| 3 lookup | get_row_of_entry_by_name | implemented; C06-C09 lookup test |
 | 4 vectors C01-C09 | navigation/lookup and live refresh | implemented (FBQ5); existing C01-C09 plus fbq4_navigation_removal_and_fbq5_live_creation_paint |
-| 5 flags | set/add/clear/any-bit | C10-C12 flags test |
+| 5 flags | set/add/clear/any-bit | implemented; C10-C12 flags test |
 | 6 selection/notifications | descriptor, edited_descriptor, custom_entry, live selection handlers | implemented (FBQ4); C14-C18, fbq4_descriptor_background_and_drive_worked_cases, fbq4_columns_custom_records_and_unchanged_outputs |
 | 7 directory creation | create_directory_candidate, create_directory_live | implemented (FBQ5); C14-C18 and fbq4_navigation_removal_and_fbq5_live_creation_paint |
 | 8.1 population | population.rs, populate_files | implemented (FBQ5); fbq5_c28_c29_case_copy_and_unsigned_capacity, fbq5_c30_c31_c38_restore_empty_grid_and_disabled_columns, fbq5_c34_c35_c36_c37_directory_and_popup_worked_cases |
-| 8.1.1 comparator | precedes | browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary |
-| 8.1.2 fitting | fit_string | same comparator/fit test |
+| 8.1.1 comparator | precedes | implemented; browser_compare_full_tags_byte_order_secondary_once_and_fit_boundary |
+| 8.1.2 fitting | fit_string | implemented; same comparator/fit test |
 | 8.2 controls/messages | controls.rs, obtain_control, routing.rs | implemented (FBQ2); fbq2_c39_c40_control_order_configuration_and_factory_boolean, fbq2_c41_c42_c43_message_routes_and_borrowed_notifications; no owner-assigned child rectangles per spec |
-| 8.2.1 enables | enable_child | C23-C24 test |
+| 8.2.1 enables | enable_child | implemented; C23-C24 test |
 | 8.3 resources | operations.rs, resources.rs; format (3,16), exact arrow, selector/result boundaries | C20/C21/C25/C26 and fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries; open: FBQ1 §8.3.3 ordered icon/button primitive and pixel trace (two bodies / 5,361 B) |
-| 8.4 buffers | set_icon/set_button_buffer | C23/C24 and lifecycle tests |
+| 8.4 buffers | set_icon/set_button_buffer | implemented; C23/C24 and lifecycle tests |
 | 8.5 lifecycle/paint/area | lifecycle.rs defaults, init_property, paint_live, set_area, shutdown | implemented (FBQ2/FBQ4/FBQ5); browser_factory_prefix_and_settled_init, browser_init_paint_refresh_and_final_release_order, fbq4_navigation_removal_and_fbq5_live_creation_paint; procedural pixel boundary is in 8.3 |
-| 8.6 construction/destruction | raw defaults/clears, destroy, BrowserOwner | shutdown-order and lifecycle tests distinguish direct destruction/final release |
+| 8.6 construction/destruction | raw defaults/clears, destroy, BrowserOwner | implemented; shutdown-order and lifecycle tests distinguish direct destruction/final release |
 | 8.7 properties/forwarding | properties.rs, close_popup, select_directory, remove_subdirectory | implemented (FBQ4); fbq4_style_widths_references_optional_words_and_common_font, fbq4_columns_custom_records_and_unchanged_outputs, fbq4_descriptor_background_and_drive_worked_cases, fbq4_navigation_removal_and_fbq5_live_creation_paint |
 | 9 C10-C43 | existing focused vectors, closure_tests.rs | implemented (FBQ5); existing C10-C27 and named C28-C43 tests above |
 | 10/A inventory | spec-scoped attribution; alternate_send and owned-record defaults | FBQ2/FBQ4/FBQ5/FBQ6 applied; fbq6_older_table_dispatch_and_completion_channels and fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries; open: FBQ1 §8.3.3 two pixel recipes; no false comparator target or extra primary slot |

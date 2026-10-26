@@ -22,6 +22,7 @@ pub enum ControlOp {
     Style(u32, i32, i32),
     SelectionWords(u32, u32),
     Outline(u8, u32),
+    Color(u32, u32),
 }
 
 impl FileBrowser {
@@ -76,7 +77,7 @@ impl FileBrowser {
                         f.control(control, ControlOp::Outline(self.raw_bytes[&0x308], black));
                     }
                     for (color, slot) in [(black, 0), (white, 1)] {
-                        f.control(control, ControlOp::Call(0x44, vec![color, slot]));
+                        f.control(control, ControlOp::Color(color, slot));
                     }
                     if index == 5 {
                         f.control(control, ControlOp::Borders([1; 4]));
@@ -101,7 +102,7 @@ impl FileBrowser {
                         self.create_combo_arrow(&mut buffer, f)?;
                     }
                     let buffer = buffer.ok_or(Unsupported::Precondition("required arrow buffer"))?;
-                    let bounds = [0, 0, f.buffer_width(buffer), f.buffer_height(buffer)];
+                    let bounds = f.buffer_bounds(buffer);
                     f.control(control, ControlOp::Image(2, Some(buffer), Some(bounds)));
                     f.release(buffer);
                 }
@@ -118,7 +119,7 @@ impl FileBrowser {
                     }
                     f.control(control, ControlOp::Font(self.common_font));
                     for (slot, color) in [(0, black), (5, black), (1, white), (4, white)] {
-                        f.control(control, ControlOp::Call(0x44, vec![color, slot]));
+                        f.control(control, ControlOp::Color(color, slot));
                     }
                 }
                 7 => {
@@ -126,7 +127,7 @@ impl FileBrowser {
                     f.control(control, ControlOp::Font(self.common_font));
                     f.control(control, ControlOp::Fill(white));
                     for (slot, color) in [(0, black), (2, white)] {
-                        f.control(control, ControlOp::Call(0x44, vec![color, slot]));
+                        f.control(control, ControlOp::Color(color, slot));
                     }
                     f.control(control, ControlOp::Call(0x40, vec![black]));
                     for (i, label) in self.filter_labels.iter().enumerate() {

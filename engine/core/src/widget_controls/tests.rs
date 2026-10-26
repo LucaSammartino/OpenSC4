@@ -631,6 +631,9 @@ fn grid_size_cache_float_fraction_and_pause_dirty_contract() {
 }
 
 impl file_browser::IconIo for Recording {
+    fn buffer_bounds(&mut self, _: Handle) -> Rect {
+        [2, 3, 66, 18]
+    }
     fn factory_buffer(&mut self, component: u32, iid: u32) -> Option<Handle> {
         assert_eq!((component, iid), (0xc470_d325, 0x2073_2180));
         self.icon_calls.push("factory");

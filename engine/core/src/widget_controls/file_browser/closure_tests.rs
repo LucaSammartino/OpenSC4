@@ -428,6 +428,10 @@ fn fbq2_c39_c40_control_order_configuration_and_factory_boolean() {
         .collect::<Vec<_>>();
     assert_eq!(ids, [0, 2, 5, 3, 4, 6, 7, 8, 9, 10, 11, 12]);
     assert!(b.children[1].is_none());
+    assert!(f
+        .fb_controls
+        .iter()
+        .any(|(_, op)| matches!(op, ControlOp::Image(2, Some(_), Some([2, 3, 66, 18])))));
     assert!(f.fb_controls.contains(&(810, ControlOp::Dimensions(2, 0, true))));
     assert!(f.fb_controls.contains(&(810, ControlOp::Font(None))));
     assert!(f.fb_controls.contains(&(810, ControlOp::Append(b"cities".to_vec(), 0))));
