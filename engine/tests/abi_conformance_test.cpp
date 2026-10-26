@@ -396,9 +396,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4CrimeSimulator", 14, 16,
      "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
      "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
-    {"cISC4TrafficNetworkMap", 9, 52,
-     "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
-     "only (landfill §4.4.5, §8)"},
+    {"cISC4TrafficNetworkMap", 12, 52,
+     "cFC4ISC4TrafficNetworkMap declares slots 3-11: landfill calls slot 8 (FindNetworkTile; landfill §4.4.5, §8), "
+     "regional-city-records §4.6 RR3 calls slot 11 with x,z only; slots 12-51 remain undeclared"},
     {"cISC4AdvisorSystem", 23, 29,
      "the SDK declares slots 0-22; the building development simulator calls slot 7 (GetAdvisor) only "
      "(building-development.md §4.10). Slots 23-28 are not declared"},

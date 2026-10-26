@@ -13,6 +13,8 @@ pub use crate::automata::HelicopterChaseGeometry;
 
 mod settled;
 pub use settled::*;
+mod closure;
+pub use closure::*;
 
 /// Import order from aircraft.md §4.1, not an exemplar-property list.
 pub const DRIVE_FIELDS: [&str; 13] = [
@@ -129,6 +131,9 @@ pub struct Helicopter {
     pub spotlight_enabled: Option<bool>,
     pub input_gains: [Option<f32>; 4],
     pub retained_effects_present: [bool; 4],
+    /// Constructor value remains unobserved (§9.3); callers supply the initial value.
+    pub dispatch_state: Option<u32>,
+    pub runtime_masses: [Option<f32>; 2],
 }
 
 impl Helicopter {
@@ -465,7 +470,7 @@ impl Helicopter {
         })
     }
 
-    /// Post-base Shutdown only (§4.2.5); pre-base scaling remains AF4.
+    /// Post-base Shutdown only (§4.2.5); claim release is in shutdown_with_claims.
     /// Slots marked present represent retained owning references, never borrowed pointers.
     pub fn shutdown_after_base(&mut self, base_result: bool) -> ShutdownActions {
         let mut actions = Vec::new();

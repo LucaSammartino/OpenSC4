@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Class factories/lifecycle (§8), sharing existing audio director identities.
-use super::Unsupported;
+use super::NativeFault;
 use std::any::Any;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 pub const SOUND_CLASSES: [u32; 8] = [
     0xE41C_E9FD,
@@ -24,19 +24,157 @@ pub trait DirectorHost {
     fn create(&mut self, class_id: u32, iid: u32) -> Option<ForeignRef>;
     fn add_service(&mut self, service: ForeignRef);
     fn register_handler(&mut self, system: &ForeignRef, handler: ForeignRef);
-    fn panic(&mut self, system: &ForeignRef);
+    fn disable_updates(&mut self, system: &ForeignRef);
+    fn sound_system_service(&mut self) -> Option<ForeignRef>;
+    /// Borrowed cache getter followed by an acquired reference in the adapter.
+    fn acquire_property_cache(&mut self, system: &ForeignRef) -> Option<Arc<dyn PropertyCache>>;
 }
+pub trait PropertyCache: Send + Sync {
+    fn create_instance_set(&self, instance: u32) -> bool;
+}
+pub trait ConstructionIdentity: Send + Sync {
+    fn query(&self, iid: u32, output: &mut Option<ForeignRef>) -> bool;
+    fn add_ref(&self);
+    fn release(&self);
+}
+pub trait ClassConstructor {
+    fn construct(&mut self, class: u32) -> Option<Arc<dyn ConstructionIdentity>>;
+}
+pub trait DirectorChild: Send + Sync {
+    fn initialize(&self, com: &ForeignRef, path: &str) -> bool;
+    fn enum_classes(&self, visit: &mut dyn FnMut(u32));
+    fn get_class_object(&self, class: u32, iid: u32, output: &mut Option<ForeignRef>) -> Result<bool, NativeFault>;
+    fn can_unload(&self) -> bool;
+}
+/// Shared 17-slot director contract (§8.1); secondary view uses offset +4.
+#[derive(Default)]
+pub struct DirectorState {
+    refs: u32,
+    com: Option<ForeignRef>,
+    framework: Option<ForeignRef>,
+    path: String,
+    pub children: Vec<Arc<dyn DirectorChild>>,
+    pub classes: Vec<u32>,
+}
+impl DirectorState {
+    pub fn with_classes(classes: &[u32]) -> Self {
+        Self {
+            classes: classes.to_vec(),
+            ..Self::default()
+        }
+    }
+    pub fn query(&mut self, iid: u32, output_offset: &mut u32) -> bool {
+        let offset = match iid {
+            1 | 0xA21E_E941 => 0,
+            0x03FA_40BF => 4,
+            _ => return false,
+        };
+        *output_offset = offset;
+        self.add_ref();
+        true
+    }
+    pub fn add_ref(&mut self) -> u32 {
+        self.refs = self.refs.wrapping_add(1);
+        self.refs
+    }
+    pub fn remove_ref(&mut self) -> u32 {
+        self.refs = self.refs.saturating_sub(1);
+        self.refs
+    }
+    pub fn release(&mut self) -> u32 {
+        self.remove_ref()
+    }
+    pub fn ref_count(&self) -> u32 {
+        self.refs
+    }
+    pub fn initialize(&mut self, com: Option<ForeignRef>, framework: Option<ForeignRef>, path: &str) -> bool {
+        let Some(com) = com else {
+            return false;
+        };
+        self.com = Some(com.clone());
+        self.framework = framework;
+        self.path = path.to_owned();
+        for child in &self.children {
+            child.initialize(&com, path);
+        }
+        true
+    }
+    pub fn framework(&self) -> Option<&ForeignRef> {
+        self.framework.as_ref()
+    }
+    pub fn com(&self) -> Option<&ForeignRef> {
+        self.com.as_ref()
+    }
+    pub fn library_path(&self, output: &mut String) -> bool {
+        *output = self.path.clone();
+        true
+    }
+    pub fn size_query(&self) -> u32 {
+        0
+    }
+    pub fn no_op(&self) -> bool {
+        true
+    }
+    pub fn can_unload(&self) -> bool {
+        self.refs != 0 || self.children.iter().all(|child| child.can_unload())
+    }
+    pub fn enum_classes(&self, visit: &mut dyn FnMut(u32)) {
+        for child in &self.children {
+            child.enum_classes(visit);
+        }
+        for class in &self.classes {
+            visit(*class);
+        }
+    }
+    pub fn get_class_object(
+        &self,
+        class: u32,
+        iid: u32,
+        output: &mut Option<ForeignRef>,
+        constructors: &mut dyn ClassConstructor,
+    ) -> Result<bool, NativeFault> {
+        for child in &self.children {
+            if child.get_class_object(class, iid, output)? {
+                return Ok(true);
+            }
+        }
+        if !self.classes.contains(&class) {
+            return Ok(false);
+        }
+        let identity = constructors
+            .construct(class)
+            .ok_or(NativeFault::NullConstructionIdentity)?;
+        if identity.query(iid, output) {
+            return Ok(true);
+        }
+        identity.add_ref();
+        identity.release();
+        Ok(false)
+    }
+}
+/// Backend callback allocation size and returned identity offset (§8.2).
+pub const MAC_CONSTRUCTION_LAYOUTS: [(u32, u32, u32); 5] = [
+    (0xFDED_7F31, 0xD8, 0),
+    (0xFDED_7F34, 0x100, 0xD8),
+    (0xE9D2_8415, 0xA0, 8),
+    (0x89D3_D983, 0x54, 4),
+    (0x1C5F_21FE, 0x14, 0),
+];
 #[derive(Default)]
 pub struct SoundDirector {
     pub system: Option<ForeignRef>,
     pub manager: Option<ForeignRef>,
+    pub inherited: DirectorState,
 }
 impl SoundDirector {
     pub fn construct(host: &mut dyn DirectorHost) -> Self {
         for class_id in SOUND_CLASSES {
             host.register_class(class_id);
         }
-        Self::default()
+        Self {
+            inherited: DirectorState::with_classes(&SOUND_CLASSES),
+            ..Self::default()
+        }
     }
     pub fn id(&self) -> u32 {
         crate::audio::director::GZ_SOUND_DIRECTOR.id
@@ -60,28 +198,37 @@ impl SoundDirector {
     }
     pub fn pre_app_shutdown(&mut self, host: &mut dyn DirectorHost) -> bool {
         if let Some(system) = &self.system {
-            host.panic(system);
+            host.disable_updates(system);
         }
         true
     }
     pub const POST_INIT_CACHE_VALUE: u32 = 0xCC30_14EE;
-    pub fn post_app_init(&mut self) -> Result<bool, Unsupported> {
-        if self.system.is_none() {
-            Ok(false)
-        } else {
-            Err(Unsupported("SS10"))
-        }
+    pub fn post_app_init(&mut self, host: &mut dyn DirectorHost) -> Result<bool, NativeFault> {
+        let Some(system) = host.sound_system_service() else {
+            return Ok(false);
+        };
+        let cache = host
+            .acquire_property_cache(&system)
+            .ok_or(NativeFault::MissingPropertyCache)?;
+        cache.create_instance_set(Self::POST_INIT_CACHE_VALUE);
+        drop(cache);
+        drop(system);
+        Ok(true)
     }
 }
 
-pub struct MacSoundDirector;
+pub struct MacSoundDirector {
+    pub inherited: DirectorState,
+}
 impl MacSoundDirector {
     pub const ID: u32 = 0xE9D3_A016;
     pub fn construct(host: &mut dyn DirectorHost) -> Self {
         for class_id in MAC_CLASSES {
             host.register_class(class_id);
         }
-        Self
+        Self {
+            inherited: DirectorState::with_classes(&MAC_CLASSES),
+        }
     }
     pub fn on_start(&self, host: &mut dyn DirectorHost) -> bool {
         host.register_hook(Self::ID);
@@ -92,11 +239,18 @@ impl MacSoundDirector {
         }
         true
     }
+    pub fn pre_app_shutdown(&self, host: &mut dyn DirectorHost) -> bool {
+        if let Some(system) = host.sound_system_service() {
+            host.disable_updates(&system);
+        }
+        true
+    }
 }
 
 pub struct FreshnessDirector {
     pub id: u32,
     pub classes: [u32; 5],
+    pub inherited: Mutex<DirectorState>,
 }
 static FRESHNESS: OnceLock<FreshnessDirector> = OnceLock::new();
 /// The native host arranges process-exit cleanup of acquired factory/native
@@ -107,6 +261,7 @@ pub fn get_freshness_director(register_and_arrange_exit_cleanup: impl FnOnce(&[u
         FreshnessDirector {
             id: crate::audio::director::FRESHNESS_DIRECTOR.id,
             classes: FRESH_CLASSES,
+            inherited: Mutex::new(DirectorState::with_classes(&FRESH_CLASSES)),
         }
     })
 }

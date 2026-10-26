@@ -695,8 +695,58 @@ for i, (key, id) in enumerate([(0x21010,0x1010), (0x21020,0x1020), (0x21030,0x10
 - `coEconomyBonus` (`+0xA0`) and `iEconomyBonus` (`+0xA4`) are saved fields that **no code can set**, except the
   save loader (§15 Q5, settled by a vtable scan). A new city has 0, and every save the original writes for it keeps
   0. *[compat]* Keep, save and apply them, so a save edited by hand behaves the same.
-- *[choice]* If the history has no data in the window, use `maxRate := neutral · 10` (ratio 1). If the tax curve is
-  absent, `taxMod := 0`. If a total node is missing, skip it.
+- Missing history and an empty date window have different contracts; see §8.1.1. The former choice of
+  `neutral · 10` for either case **DIFFERS** from the executable.
+- *[choice]* If the tax curve is absent, `taxMod := 0`. If a total node is missing, skip it.
+
+#### 8.1.1 History outputs, absent series and an empty window (DM-GC29-1) *[compat]*
+
+The demand routine **does not initialize `maxRate` at all** before the first history query. It allocates a
+stack frame, obtains the neutral rate and dates, then passes three output addresses to history slot 7
+(`+0x1C`). The maximum is a single float32 stack slot reused by all twelve unrolled queries. In the stack
+coordinate system after the four register saves at `0x006A6080`, it is +`0x10` (equivalently, function-entry
+stack pointer −`0x30`). The first query returns at `0x006A60F9`; the routine immediately reads that slot,
+without testing the boolean result. The next type uses the same slot at `0x006A6189`–`0x006A61A7`.
+It is neither a saved demand field nor a per-load default, and is not initialized from the neutral tax rate.
+
+The original history implementation (`0x00476280`, history.md §4.7) distinguishes:
+
+| History state | Return and output effect | Maximum consumed by demand |
+|---|---|---|
+| Key absent | false; min, max and average all untouched | previous bits in the maximum slot |
+| Key present, but its series has zero points in total | false; all three outputs untouched | same retained bits |
+| Series has points, but none falls in the inclusive date window | initializes min/max to `+FLT_MAX`/`−FLT_MAX`, then evaluates both window endpoints through `GetPoint` and includes each successful result; returns true | maximum of the endpoint values; not a missing-history default |
+| Series has in-window points | includes those points and any endpoint lacking an exact point, as in history.md §4.7; returns true | maximum of those values |
+
+The early false return precedes **all** output writes (`0x0047629C`–`0x004762B6`). The sentinel writes are
+`0x004762E2`/`0x004762E9`; endpoint calls and inclusion are `0x004763A3`–`0x0047646D`. `GetPoint` widens its
+range, so ordinary non-empty series still supply endpoint values outside their recorded span. An empty
+window alone does not leave `−FLT_MAX` as the final maximum. With both endpoints missing from the series,
+both are included, even if `from = to`.
+
+After a false query, the first type consumes indeterminate prior stack contents; later false queries retain
+whatever the preceding query left there, including a successful type's maximum. The routine still applies
+the curve and writes a new modifier. This explains why detecting a changed modifier does not prove that
+history supplied a maximum. Static analysis supplies **no universal numeric first maximum** across loads.
+
+**Worked cases** (neutral rate 9, ordinance factor 1, shipped curve):
+
+| Input history / captured maximum-slot bits | Result |
+|---|---|
+| All twelve keys absent; slot initially `0x00000000` (+0.0) | every false query preserves 0; ratio 0; all modifiers `0x3E99999A` = 0.300000012 |
+| All twelve keys absent; slot initially `0x44000000` (512) | ratio about 5.689, above the last curve point; all modifiers −3.5 |
+| Type 0 succeeds with maximum 90; type 1 has a present but wholly empty series | type 1 retains 90; at neutral 9 its ratio is 1 and modifier is 0 |
+| One recorded point of value 70, outside the requested window | both endpoints evaluate to 70; min = max = average = 70, true; apply the §8.1 float32 formula with 70 |
+
+The first two rows are controlled input cases, not measurements of the reported cities' stack contents.
+For a same-input shadow, capture the original history call at the **demand caller boundary**, after it returns
+and before the load at `0x006A60F9` (and the corresponding load for each later type). Record key, window,
+boolean result, and raw float32 maximum output bits even on false. Recording the slot before and after the
+first query additionally distinguishes preserved residue from a written history value. To settle the six
+reported first-day cases, also record whether each series is absent, wholly empty, or merely has no points
+inside the window, plus the original endpoint results in the third case. An out-of-window point scan alone
+does not reproduce this contract. A deterministic replacement may choose an initial value for an absent
+first series, but that is a *[choice]* and cannot be claimed exact for the original's uninitialized read.
 
 ### 8.2 National economy (`cISC4Nation::GetEconomyModifier(demandID)`)
 
