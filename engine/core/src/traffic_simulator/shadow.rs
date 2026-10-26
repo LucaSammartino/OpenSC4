@@ -1173,6 +1173,28 @@ fn record_keys(b: &[u8], size: usize) -> Option<Vec<u32>> {
     )
 }
 
+/// Switch keys in capture order (row 9). References and rule lists make
+/// these records variable-sized; reject an incomplete field unchanged.
+fn switch_keys(b: &[u8]) -> Option<Vec<u32>> {
+    let mut r = ByteReader::new(b);
+    let mut keys = Vec::new();
+    while r.remaining() != 0 {
+        let id = r.get_u32()?;
+        if r.get_u32()? != 0 && !r.skip(4) {
+            return None;
+        }
+        if !r.skip(23) {
+            return None;
+        }
+        let rules = r.get_u32()? as usize;
+        if !r.skip(rules.checked_mul(9)?.checked_add(5)?) {
+            return None;
+        }
+        keys.push(id);
+    }
+    Some(keys)
+}
+
 /// The smallest listed bucket count, at least the default (193) and the key
 /// count, under which `keys` is in bucket-ascending order (a table never
 /// shrinks, so a larger count than this is possible; the first few
@@ -1660,7 +1682,7 @@ impl TrafficShadow {
     }
 
     /// After a Read: gives the copy's SGI hash containers (the damage key
-    /// sets, row 13, and the edge densities, row 7) the iteration order of
+    /// sets, row 13, edge densities, row 7, and switches, row 9) the iteration order of
     /// the record they were read from. Our Read, like the original's (§6.2,
     /// TS54), inserts the keys one by one at the head of their chains, so it
     /// reverses each bucket's chain: right for a load, but the shadow reads
@@ -1716,6 +1738,23 @@ impl TrafficShadow {
                 }
                 if m.keys() == keys {
                     n.edge_density = m;
+                    done += 1;
+                }
+            });
+        }
+        if let Some(keys) = field("switches").and_then(switch_keys) {
+            self.copy.network().update_state(|n| {
+                if keys.len() != n.switches.len() {
+                    return;
+                }
+                let Some(p) = order_bucket_count(&keys) else { return };
+                let mut m = StlHashMap::with_hint(p);
+                for &k in keys.iter().rev() {
+                    let Some(v) = n.switches.get(k).cloned() else { return };
+                    m.entry(k, || v);
+                }
+                if m.keys() == keys {
+                    n.switches = m;
                     done += 1;
                 }
             });

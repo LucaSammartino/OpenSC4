@@ -571,6 +571,55 @@ fn shadow_keeps_hash_orders() {
     assert_eq!(sh.stats.resyncs, 0);
 }
 
+/// SimBegin does not change switches. Reading its pre-image must preserve
+/// the writer's collision order, including variable rule/reference sizes.
+#[test]
+fn shadow_keeps_switch_hash_order_and_compares_values() {
+    use crate::traffic_network::{Rule, TransitSwitch};
+
+    let w = World::new();
+    ten_sources(&w);
+    let orig = sim(&w);
+    orig.network().update_state(|n| {
+        for (i, id) in [3, 196, 389, 7].into_iter().enumerate() {
+            n.switches.entry(id, || TransitSwitch {
+                building: if i % 2 == 0 { 100 } else { 0 },
+                load: id as f32,
+                rules: vec![
+                    Rule {
+                        from: 1,
+                        to: 2,
+                        ..Rule::default()
+                    };
+                    i
+                ],
+                ..TransitSwitch::default()
+            });
+        }
+    });
+    let mut live = Live::default();
+    let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+    for day in 0..2 {
+        assert_eq!(deliver(&mut sh, &orig, &mut live, msg::SIM_BEGIN, 2_460_000 + day), 0);
+    }
+    assert_eq!(sh.stats.resyncs, 0);
+
+    sh.before(
+        delivery(msg::SIM_BEGIN, 2_460_002),
+        Some(capture(&orig, &mut live)),
+        &live,
+    );
+    orig.network()
+        .update_state(|n| n.switches.get_mut(196).unwrap().load += 1.0);
+    let out = sh.after(Some(capture(&orig, &mut live)), &live);
+    assert!(out.mismatches > 0, "{:?}", out.lines);
+    assert!(
+        out.lines.iter().any(|line| line.contains("record switches:")),
+        "{:?}",
+        out.lines
+    );
+}
+
 /// An original stopped mid-scan by its deadline (CreateMaps resting at a
 /// cell) is followed: the copy's scan stops at the same cell.
 #[test]
