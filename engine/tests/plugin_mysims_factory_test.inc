@@ -83,8 +83,14 @@ int MySimsFactoryBoundaryTest(const std::string& dll, const std::string& ini, co
                 if (!rawSim) continue;
                 auto* sim = static_cast<fc4::MySimPublic*>(rawSim);
                 CHECK(!sim->IsActive());
-                SC4String name("Factory Sim"), bio("early factory"), path("portrait.png");
-                sim->MoveIn(4, name, true, 7, bio, 123, path);
+                cRZBaseString name("Factory Sim");
+                // Use strings owned/allocated by the DLL, as the real host
+                // does; this loader test has no SDK allocator service.
+                SC4String* bio = sim->GetBio();
+                SC4String* path = sim->GetBitmapFile();
+                static_cast<cIGZString*>(bio)->FromChar("early factory");
+                static_cast<cIGZString*>(path)->FromChar("portrait.png");
+                sim->MoveIn(4, name, true, 7, *bio, 123, *path);
                 CHECK(sim->GetSlot() == 4 && sim->GetSign() == 7 && sim->IsMale());
                 CHECK(sim->GetBitmapID() == 123);
                 CHECK(std::string(sim->GetBio()->ToChar()) == "early factory");
