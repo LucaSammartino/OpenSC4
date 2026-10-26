@@ -213,3 +213,35 @@ fn fbq1_arrow_worked_case_uses_converted_colors_and_ordered_panels() {
     );
     assert!(f.refs.is_empty());
 }
+
+#[test]
+fn fbq1_loader_without_strip_keeps_settled_result_and_ownership() {
+    for selector in [2, 7, u32::MAX] {
+        let mut b = FileBrowser::new(80);
+        let mut f = Recording {
+            buffer_ok: true,
+            fb_no_strip: true,
+            ..Recording::default()
+        };
+        assert_eq!(b.load_default_icon(selector, &mut f), Ok(true));
+        assert_eq!(f.fb_buffer_formats, [(700, 18, 17, [3, 16])]);
+        assert_eq!(f.fb_keys, [0xa5ff_00ff]);
+        assert_eq!(
+            f.fb_lock_flags,
+            if selector == 2 {
+                vec![0x8001, 0x8004]
+            } else {
+                vec![0x8001]
+            }
+        );
+        assert!(f.fb_copies.is_empty() && f.fb_resource_draws.is_empty());
+        assert!(!f.icon_calls.contains(&"unlock"));
+        if selector == 2 {
+            assert_eq!(b.icons[2], Some(700));
+            assert_eq!(f.refs, [(true, 700), (false, 700)]);
+        } else {
+            assert_eq!(b.icons, [None; 7]);
+            assert_eq!(f.refs, [(false, 700)]);
+        }
+    }
+}
