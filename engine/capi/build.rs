@@ -220,8 +220,12 @@ fn main() {
                 .skip(1)
                 .map(|(i, t)| format!(",a{i}:{t}"))
                 .collect::<String>();
+            // The generic return codec also handles unit-return callbacks.
+            out += "#[allow(clippy::unused_unit)]\n";
             out += &format!("#[allow(unused_mut,clippy::let_unit_value)] unsafe extern \"C\" fn {key}_{field}(_user:*mut c_void{params}) -> {ret} {{ let mut live_result: {ret} = Default::default(); let mut input=Vec::new(); {pre} let answer=exchange(\"{owner}\",\"{key}.{field}\",input,|| {{ let original={slot}.with(|s| *s.borrow()).expect(\"trace host\"); {declarations} let result=(original.{field}.expect(\"present callback\"))(original.user,{}); live_result=result; let mut answer=Vec::new(); {post} {ret_put} answer }}); if !replaying(\"{owner}\") {{ return live_result; }} let decoded=(|| -> Result<{ret},String> {{ let mut r=Reader(&answer); {apply} let result={ret_get}; r.end()?; Ok(result) }})(); decode_callback(\"{owner}\",decoded) }}\n",callargs.join(","));
         }
     }
+    // Keep consecutive generated conditionals on separate lines for Clippy.
+    let out = out.replace("}if", "}\nif");
     fs::write(Path::new(&env::var("OUT_DIR").unwrap()).join("trace_hosts.rs"), out).unwrap();
 }
