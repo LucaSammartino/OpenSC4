@@ -7,35 +7,3 @@
   **Partial answer 2026-10-23 (re-overlay-views-contracts4):** §1.2 establishes the second binary32
   SetPathTexture argument as the repeat source; NewPath does not initialize a default. Lot-flag
   identities remain open, so this bundled entry is retained here.
-
-<!-- from: core-overlay-views4 (2026-10-22) -->
-- **OVV4 - §2, SetCellColor and marked-cell state:** publish native r/g/b/a input types/ranges,
-  byte conversion/rounding/clamping and packed byte order, default/common/per-cell and outline colours,
-  and public cell mutation signatures. Can the outline pass be disabled independently of prefer-opaque?
-  [Core retains explicit RGBA byte channels with no packed representation claim; SetCellColor(float...)
-  fails with PackedColourOvv4. Explicit byte/replace_cells helpers do not claim native API equivalence.]
-
-  **Native evidence 2026-10-22 (re-overlay-views-contracts4):** §2.2 now proves float-vector input,
-  bit-based conversion without clamping, common/per-cell/default/outline state and three unnamed mutation
-  wrappers. Residual: identify/prove an independent outline-disable API, or prove its absence across
-  the complete owner inventory; constructor-disabled and prefer-opaque suppression alone do not answer it.
-
-<!-- from: core-overlay-views4 (2026-10-22) -->
-- **OVV6 - owner catalogue and lifecycle:** the task inventory says 54 functions across cSC4PathView,
-  cSC4PathView::PathInfo, SC4MarkedCellView, cSTEVertBufExtn, SC4PathInfoView and SC4TrainJunctionView;
-  current specs name a subset and ABI rows do not identify usable vtables. Publish the complete public
-  method/address checklist: constructors/destructors, init/shutdown, getters/setters, bounds/transforms
-  and reference ownership/failure semantics. [Core checklist limits coverage to published methods;
-  Rust RAII does not claim native AddRef/Release or unpublished lifecycle. All six owners are withheld
-  from complete-owner/runtime promotion.]
-
-  **Native evidence 2026-10-22 (re-overlay-views-contracts4):** §3.2 lists all 49 currently named
-  non-template entries plus three unnamed marked-cell wrappers, all four five-slot primary interfaces,
-  and the proved/residual scope by owner. The claimed 54-entry inventory is not reconciled. Shared
-  QueryInterface/AddRef/Release dispatch, zero-release destruction and remaining setters still need proof.
-  **Qualification 2026-10-23 (re-overlay-views-contracts4):** §3.4 now independently proves the shared
-  ID-1 QI, u32 AddRef/Release and constructor-table-to-deleting-body chain for all four views,
-  including zero-count deletion and train deletion without Shutdown. These portions are supported;
-  OVV6 remains partial for historical inventory membership, additional public setters/interface
-  completeness and caller Shutdown discipline. Two newly traced train cleanup addresses do not by
-  themselves identify the historical 54 entries. §3.3 supplies the per-owner method ledger.

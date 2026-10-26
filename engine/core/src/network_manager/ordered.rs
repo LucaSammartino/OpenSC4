@@ -43,6 +43,18 @@ impl PendingCells {
         self.buckets.values().flatten()
     }
 
+    pub fn contains(&self, key: &u16) -> bool {
+        self.buckets
+            .get(&(usize::from(*key) % self.bucket_count))
+            .is_some_and(|b| b.contains(key))
+    }
+
+    pub fn pop_first(&mut self) -> Option<u16> {
+        let key = *self.iter().next()?;
+        self.remove(&key);
+        Some(key)
+    }
+
     pub fn insert(&mut self, key: u16) {
         // Resize is requested even for a duplicate key. u16 keys cannot
         // require a prime beyond 98317.

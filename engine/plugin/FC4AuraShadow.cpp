@@ -513,6 +513,7 @@ bool Guarded(cISC4City* city, const char* what, void (*fn)(void*), Call* c) {
 // ---- occupant messages (§5.2: posted, delivered to ours when the original gets them) -----------------
 
 intptr_t OnOccupant(cIGZMessage2* msg) {
+    // SPEC-GAP: Same-recipient occupant input capture for Lua cone differences needs AU-GC29-1.
     if (msg == nullptr || g_shadow == nullptr || !g_followed) return 0;
     const uint32_t type = msg->GetType();
     if (type != kMsgOccupantInserted && type != kMsgOccupantRemoved) return 0;

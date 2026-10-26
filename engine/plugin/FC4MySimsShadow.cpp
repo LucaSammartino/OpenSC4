@@ -1362,6 +1362,7 @@ void MySimsShadowCityLoaded(cISC4City* city) {
     // established (budget.md resets the funds on it), never on a load; a real one
     // reaches the core through the forwarder.
     g_state.postCityInitPending = !g_state.postCityInitDelivered;
+    // SPEC-GAP: the original system's unsaved lastDay is not captured (MS-GC29-1).
     char loadDate[16];
     const int mismatches = RunCompare(julian, 0, loadDate);
     Log("mysims shadow %s load: sims=%u injected=%u compared=load mismatches=%d; "

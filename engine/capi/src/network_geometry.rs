@@ -339,6 +339,7 @@ impl From<&fc4_netgeom_params> for PlacementParams {
             tunnel_trigger_slope: p.tunnel_trigger_slope,
             tunnel_end_slope: p.tunnel_end_slope,
             straight_only: p.straight_only != 0,
+            plane_tolerance: 0.0,
             new_cell_tolerance: p.new_cell_tolerance,
             support_threshold: p.support_threshold,
             max_support_height: p.max_support_height,
@@ -716,7 +717,14 @@ unsafe fn info_of(type_id: u32, params: *const fc4_netgeom_params) -> Option<Typ
     if params.is_null() {
         return Some(TypeInfo::shipped(type_id));
     }
-    sized(params).map(|p| TypeInfo::new(type_id, p.into()))
+    sized(params).map(|p| TypeInfo::new(type_id, decode_params(type_id, p)))
+}
+
+fn decode_params(type_id: u32, p: &fc4_netgeom_params) -> PlacementParams {
+    let mut out = PlacementParams::from(p);
+    // The existing C parameter record has no plane-tolerance field.
+    out.plane_tolerance = PlacementParams::shipped(type_id).plane_tolerance;
+    out
 }
 
 // ---- parameters and pure helpers --------------------------------------------------------------------
@@ -904,7 +912,7 @@ pub unsafe extern "C" fn fc4_netgeom_create(
             let mut v = Vec::new();
             for k in 0..(count as usize).min(TYPE_COUNT) {
                 match sized(params.add(k)) {
-                    Some(p) => v.push(PlacementParams::from(p)),
+                    Some(p) => v.push(decode_params(k as u32, p)),
                     None => return std::ptr::null_mut(),
                 }
             }
