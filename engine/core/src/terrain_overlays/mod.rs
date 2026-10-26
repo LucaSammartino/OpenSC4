@@ -593,6 +593,19 @@ impl OverlayManager {
         world_box: [f32; 6],
         descriptor: ProjectionDescriptor<'_>,
     ) -> Result<Handle, Error> {
+        self.add_model_shadow_resolved(|| binding, n, source, pairs, world_box, descriptor)
+    }
+
+    /// Native adapters acquire the binding only after lighting succeeds (§3.7).
+    pub fn add_model_shadow_resolved(
+        &mut self,
+        binding: impl FnOnce() -> Option<Arc<dyn TextureBinding>>,
+        n: i32,
+        source: GeometryToken<'_>,
+        pairs: &mut [[f32; 2]],
+        world_box: [f32; 6],
+        descriptor: ProjectionDescriptor<'_>,
+    ) -> Result<Handle, Error> {
         self.require_init()?;
         if self.shadow_quality == 0 {
             return Ok(Handle::NONE);
@@ -622,7 +635,7 @@ impl OverlayManager {
                 self.geometry.ok_or(Error::NotInitialized)?,
             )?
         };
-        let handle = self.add_overlay_for_rect(binding, cells, primary, 8)?;
+        let handle = self.add_overlay_for_rect(binding(), cells, primary, 8)?;
         if handle == Handle::NONE {
             return Ok(handle);
         }
