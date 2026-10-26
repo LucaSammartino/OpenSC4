@@ -3,6 +3,7 @@
 #include "FC4ConfigRulesAbi.h"
 #include "FC4ConfigRulesAcquisition.h"
 #include "FC4ConfigRulesSystem.h"
+#include "FC4ConfigRulesTrace.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "cIGZApp.h"
@@ -230,6 +231,7 @@ class Owner final : public cFC4ISC4ConfigRules {
     void* owner_;
     std::atomic<uint32_t> refs_{0};
     bool initialized_ = false;
+    cISC4RenderProperties* properties_ = nullptr; // borrowed from the transport's retained reference
 public:
     Owner() { const auto host = host_.Callbacks(); owner_ = fc4_cfgrules_owner_create(&host); }
     ~Owner() { fc4_cfgrules_owner_destroy(owner_); }
@@ -250,6 +252,7 @@ public:
         const auto* prefs = reinterpret_cast<const uint8_t*>(app.app.p->GetPreferences());
         const int status = fc4_cfgrules_owner_init(owner_, properties, Bytes(std::string(data.ToChar())), Bytes(std::string(user.ToChar())), prefs && prefs[0xf0c]);
         initialized_ = status >= 0;
+        if (initialized_) properties_ = properties;
         fc4::Log("cfgrules query Init status=%d", status);
     }
     void SetOptionsFromConfiguration() override {
@@ -257,6 +260,7 @@ public:
         LogInput log;
         const int status = fc4_cfgrules_owner_evaluate(owner_, &log.input);
         fc4::Log("cfgrules query SetOptions status=%d", status);
+        fc4::ConfigRulesTraceProperties(properties_);
     }
     bool LogConfigurationToFile(const cIGZString& path) override {
         LogInput log; bool opened = false;
@@ -267,6 +271,7 @@ public:
     void ApplyOptionGroupSetting(uint32_t group, uint32_t option) override {
         const int status = initialized_ ? fc4_cfgrules_owner_apply(owner_, group, option) : -2;
         fc4::Log("cfgrules query Apply group=%u option=%u status=%d", group, option, status);
+        if (initialized_) fc4::ConfigRulesTraceProperties(properties_);
     }
     uint32_t GetOptionGroupAutoSetting(uint32_t group) override {
         uint32_t result = 0;

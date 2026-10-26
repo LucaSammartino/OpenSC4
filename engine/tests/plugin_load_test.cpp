@@ -11100,6 +11100,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_lotrec_boundary_test.inc"
 #include "plugin_lotconf_ownership_test.inc"
 #include "plugin_netlot_ownership_test.inc"
+#include "plugin_cfgrules_registration_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11211,6 +11212,9 @@ int main(int argc, char** argv) {
     if (mode == "--netlot-defaults") return NetLotOwnershipTest(dll, ini, 1);
     if (mode == "--netlot-disabled") return NetLotOwnershipTest(dll, ini, 2);
     if (mode == "--netlot-object-factories") return NetLotOwnershipTest(dll, ini, 3);
+    if (mode == "--cfgrules-default") return ConfigRulesRegistrationTest(dll, ini, 0);
+    if (mode == "--cfgrules-enabled") return ConfigRulesRegistrationTest(dll, ini, 1);
+    if (mode == "--cfgrules-disabled") return ConfigRulesRegistrationTest(dll, ini, 2);
     if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);
     if (mode == "--ini-default-advisors") return AdvisorsRegistrationTest(dll, ini, log, false);
     if (mode.rfind("--ini-netrules-", 0) == 0) return NetRulesRegistrationTest(dll, ini, log, mode);

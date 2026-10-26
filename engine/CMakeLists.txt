@@ -1433,10 +1433,19 @@ endif()
 # Native graphics-rule provider; the transport remains private to the static link.
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/cFC4ConfigRules.cpp plugin/cFC4ConfigRules.h
-        plugin/FC4ConfigRulesSystem.cpp plugin/FC4ConfigRulesSystem.h plugin/FC4ConfigRulesAcquisition.h)
+        plugin/FC4ConfigRulesSystem.cpp plugin/FC4ConfigRulesSystem.h plugin/FC4ConfigRulesAcquisition.h
+        plugin/FC4ConfigRulesTrace.cpp plugin/FC4ConfigRulesTrace.h)
     target_link_libraries(FreeCity4 PRIVATE version advapi32)
     add_executable(fc4_cfgrules_acquisition_test tests/cfgrules_acquisition_test.cpp)
     target_include_directories(fc4_cfgrules_acquisition_test PRIVATE plugin)
     target_compile_options(fc4_cfgrules_acquisition_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
     add_test(NAME cfgrules_acquisition COMMAND fc4_cfgrules_acquisition_test)
+endif()
+
+if(TARGET fc4_plugin_load_test)
+    foreach(mode default enabled disabled)
+        add_test(NAME plugin_cfgrules_${mode}
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --cfgrules-${mode})
+        set_tests_properties(plugin_cfgrules_${mode} PROPERTIES RUN_SERIAL TRUE)
+    endforeach()
 endif()
