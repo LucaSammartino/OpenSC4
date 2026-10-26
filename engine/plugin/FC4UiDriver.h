@@ -137,7 +137,12 @@ inline bool ControlPixel(uint32_t id, int& x, int& y) {
     auto* main = reinterpret_cast<cFC4IGZWin*>(sc4->GetMainWindow());
     auto* child = main ? main->GetChildWindowFromIDRecursive(id) : nullptr; // borrowed
     bool ok = false;
-    if (child && child->GetW() > 0 && child->GetH() > 0) {
+    bool visible = child != nullptr;
+    for (auto* ancestor = child; ancestor; ancestor = ancestor->GetParentWin()) {
+        // [abi-ret] widget-toolkit.md section 3: GetFlag returns (flags & mask) != 0.
+        if (!ancestor->GetFlag(1) || !ancestor->GetFlag(2)) { visible = false; break; }
+    }
+    if (visible && child->GetW() > 0 && child->GetH() > 0) {
         x = child->GetW() / 2; y = child->GetH() / 2;
         child->WindowToScreenCoordinates(x, y); // consume coordinates, not a leftover AL
         ok = true;

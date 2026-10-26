@@ -28,21 +28,20 @@
 2026-01-28 uicontrol 0x00000041
 2026-01-28 uiwait 500
 # Sub-budget button selectors: budget-window.md section 2.1.
-2026-01-28 uicontrol 0xaa3ac407
+2026-01-28 uicontrol 0xaa3ac50e
+2026-01-28 uiwait 500
+2026-01-28 uicontrol 0xaa3ac507
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
-2026-01-28 uicontrol 0xaa3ac408
+2026-01-28 uicontrol 0xaa3ac508
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
-2026-01-28 uicontrol 0xaa3ac401
+2026-01-28 uicontrol 0xaa3ac501
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
 2026-01-28 uicontrol 0x6a5bb0fb
 2026-01-28 uikey 27
 2026-01-28 uicontrol 0xca2aedcc
-2026-01-28 uiwait 500
-2026-01-28 uikey 27
-2026-01-28 uicommand 0x0bb17c64
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
 2026-01-28 mark ui29-house finished
