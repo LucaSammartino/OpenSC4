@@ -101,7 +101,6 @@ bool fc4_regionalcity_owner_deal_action(FC4RegionalCityOwner*, uint32_t action,
     const FC4RegionalCityRegionCalls*, void* const*, uint32_t, const FC4RegionalCityDealCalls*);
 // event 0: return L to O; 1: reset growth; 2: release all three lists.
 bool fc4_regionalcity_owner_event(FC4RegionalCityOwner*, uint32_t event);
-// SPEC-GAP: Native ConnectionHost border demolition awaits RR3's privilege/flags/filter contract (RY9); do not register an incomplete COM replacement.
 bool fc4_regionalcity_owner_change_connection(FC4RegionalCityOwner*, void*, const FC4RegionalCityConnectionCalls*,
     int32_t sourceX, int32_t sourceZ, int32_t sourceSizeX, int32_t sourceSizeZ, bool add);
 bool fc4_regionalcity_owner_cache(FC4RegionalCityOwner*, const FC4RegionalCityCache*);
@@ -109,4 +108,32 @@ bool fc4_regionalcity_owner_preferences(FC4RegionalCityOwner*, const uint8_t*, u
     const uint8_t*, uint32_t, uint8_t difficulty);
 bool fc4_regionalcity_owner_points(const FC4RegionalCityOwner*, uint32_t type, void*,
     void (*)(void*, const float (*)[3], uint32_t));
+bool fc4_regionalcity_owner_finish_read(FC4RegionalCityOwner*, uint8_t, const uint8_t*, uint32_t);
+bool fc4_regionalcity_owner_save_path(const FC4RegionalCityOwner*, const uint8_t*, uint32_t, void*,
+    bool (*)(void*, const uint8_t*, uint32_t),
+    void (*)(void*, const uint8_t*, uint32_t, void*, void (*)(void*, const uint8_t*, uint32_t)),
+    void*, void (*)(void*, const uint8_t*, uint32_t));
 }
+
+// Synchronous connection operations run outside the owner's state lock: the
+// services can call the record's public getters/setters while rebuilding.
+struct FC4RegionalCityConnectionHost {
+    void* context;
+    FC4RegionalCityConnectionCalls connections;
+    bool driveSide;
+    bool (*otherEstablished)(void*, void*);
+    void (*adjacent)(void*, void*, void (*)(void*, int32_t, int32_t, int32_t, int32_t, void*));
+    bool (*pointsHere)(void*, void*);
+    bool (*networkExists)(void*, uint32_t);
+    bool (*find)(void*, uint32_t, int32_t, int32_t);
+    void (*change)(void*, uint32_t, int32_t, int32_t, bool, bool);
+    bool (*present)(void*, int32_t, int32_t, uint32_t);
+    void (*cells)(void*, uint32_t, const int32_t (*)[2], uint32_t, uint32_t);
+    void (*segment)(void*, uint32_t, int32_t, int32_t, int32_t, int32_t);
+    void (*occupants)(void*, uint32_t, int32_t, int32_t, void*, void (*)(void*, uint64_t));
+    uint32_t (*word)(void*, uint64_t);
+    void (*setWord)(void*, uint64_t, uint32_t);
+    void (*post)(void*, uint32_t);
+};
+extern "C" bool fc4_regionalcity_owner_reconcile(FC4RegionalCityOwner*, bool, bool,
+    const FC4RegionalCityConnectionHost*);
