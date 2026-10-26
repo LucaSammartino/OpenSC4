@@ -24,6 +24,7 @@ inline cISC4Occupant* MySimBuildingOccupant(cISC4BuildingOccupant* building) {
 }
 inline bool MySimBuildingPosition(cISC4BuildingOccupant* building, cS3DVector3* out) {
     cISC4Occupant* occupant = MySimBuildingOccupant(building);
+    // [abi-ret] occupant slot 8 (interfaces.tsv eax-or-void): only gates the position output.
     return occupant && occupant->GetPosition(out);
 }
 
