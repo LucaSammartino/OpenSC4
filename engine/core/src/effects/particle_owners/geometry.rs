@@ -215,7 +215,8 @@ pub fn wave_prefix(cache: &mut [f32; 2], dt: f32, field: f32, curve: &[f32], clo
     if cache[0] == cache[1] {
         cache[0] = (f64::from(cache[0]) + f64::from(dt) * f64::from(field)) as f32;
     }
-    Some(super::decal::sample(curve, clock))
+    let phase = clock - clock.floor();
+    Some(super::decal::sample(curve, phase))
 }
 
 /// Numeric mesh generation remains PT8, but already-generated groups retain
