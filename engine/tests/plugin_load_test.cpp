@@ -6380,7 +6380,9 @@ int LandValueShadowTest(const std::string& dll, const std::string& ini, const st
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW", nullptr);
     SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW_CELLS", nullptr);
-    WriteTextFile(ini, "[tools]\nlandvalue_shadow = 1\nlandvalue_shadow_cells = 3\ndigest = 0\nobserve = 0\n");
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW_INPUTS", nullptr);
+    WriteTextFile(ini, "[tools]\nlandvalue_shadow = 1\nlandvalue_shadow_cells = 3\ndigest = 0\nobserve = 0\n"
+                       "landvalue_shadow_inputs = 0\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;

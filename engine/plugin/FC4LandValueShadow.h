@@ -17,6 +17,12 @@
 //   landvalue_shadow = 1         (env FC4_LANDVALUE_SHADOW)
 //   landvalue_shadow_cells = N   differing tracts listed per grid and line
 //                                (env FC4_LANDVALUE_SHADOW_CELLS, default 4, 1..64)
+//   landvalue_shadow_inputs = 1  sample terrain inputs at city init, daily
+//                                notifications and pass ends (default off;
+//                                env FC4_LANDVALUE_SHADOW_INPUTS). The reported
+//                                observed_changed_input_passes counts comparison
+//                                intervals with observed changes, not proven
+//                                changes within native Step work (LV9/LV10).
 //
 // It needs the ORIGINAL land value simulator (the default: `landvalue` is not
 // enabled). Its own message target (started at PostAppInit) hears:
