@@ -2633,3 +2633,14 @@ one animated airport action, including after a pause or full save. Disabling
 the animation avoids that incomplete object and exits cleanly; it is a
 separate control, not a correction to the finding. The suite retains
 `clean-exit-crash`; it does not enable either diagnostic switch by default.
+
+### Formats replacement
+
+`enable = formats` is off by default. It selects the existing FC4 exemplar and
+cohort resource factories (data-formats section 8.1), including their FC4
+property holders and property values backed by `fc4-formats`. The `exemplars`
+key keeps its existing behavior; selecting both installs the factories once.
+Packed-file segments remain original and are the next replacement step.
+`formats_shadow = 1` checks the replacement against the formats crate and labels
+the comparison as a replacement consistency check. The install-time exemplar
+contract fixture also compares the retained original factories with ours.

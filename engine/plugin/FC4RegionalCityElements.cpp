@@ -11,7 +11,11 @@
 namespace fc4::regionalcity {
 namespace {
 void RetainConnection(void* p) { FC4_ADDREF(static_cast<cISC4NeighborConnection*>(p)); }
-void ReleaseConnection(void* p) { FC4_RELEASE(static_cast<cISC4NeighborConnection*>(p)); }
+void ReleaseConnection(void* p) {
+    // regional-city sections 4.1 and 7.2: the record retains live connections
+    // until replacement/Shutdown, including after the simulator releases them.
+    FC4_RELEASE_LAST_HOLDER(static_cast<cISC4NeighborConnection*>(p));
+}
 uint32_t Type(void* p) { return static_cast<uint32_t>(static_cast<cISC4NeighborConnection*>(p)->GetType()); }
 void Cell(void* p, int32_t* x, int32_t* z) { static_cast<cISC4NeighborConnection*>(p)->GetConnectionCell(*x, *z); }
 void RetainDeal(void* p) { FC4_ADDREF(static_cast<cISC4NeighborDeal*>(p)); }

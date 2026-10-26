@@ -1,0 +1,17 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| replace-netlot28: network lot objects (engine) | Codex / replace-netlot28; detached source 7d5de68e3; additive C ABI | WIP: cargo 7852, clippy clean, CTest 122/122; house clean 2032/ref0; shadow 73/73; action acceptance FAIL | Resolve NM14/NM15/NM16; repeat action acceptance; hold replace-list credit |
+
+- Carried all seven glue-netlotobj-replace22 code commits onto current main; resolved shared-header/test conflicts and seam ID collisions (77/78).
+- `netlotobj` registers cSC4NetworkLot and cSC4NetworkLotConfiguration under explicit FreeCity4 IDs; `netlot` supplies their live manager. Native crew creation/Init remains pending on NM14, as the task permits.
+- Preserved exact configuration-token ownership, borrowed cache and reentrant iterator lifetimes; added factory refcount/getter/default-off/disable-precedence checks. C ABI exports are additive; ABI version unchanged.
+- Final source gate: `qbuild all` PASS; cargo 7852 passed/0 failed/0 ignored, clippy 0 diagnostics, native 46/46 edges, CTest 122/122. Logs: `build-runs/qbuild-test.log`, `qbuild-clippy.log`, `fc4verify-build.log`, `fc4verify-ctest.log`.
+- Acceptance (a) PASS: `netlot28-house54-r2.log`/`.verdict`, existing 53-key house list plus netlotobj, clean at 2032-01-01; ref_warnings=0, foreign_exceptions=0, real_seconds=157.203. Init: 525 lots/543 configurations; both object classes registered under netlotobj.
+- Acceptance (b) PASS: `netlot28-shadow-r2.log`/`.verdict`, netmgr_shadow 73/73 load/month samples exact with netlotobj on; clean at 2032-01-01, ref_warnings=0, real_seconds=38.875. Managers remain native because the owner shadow explicitly skips replaced managers.
+- Acceptance (c) FAIL: `netlot28-gen-s0grow-r2.log:16021`/`.verdict`, suite.tsv gen27-konradshohe-s0-grow, all 216 actions executed; corrupt at shutdown, native null read 0x005D0F94, foreign_exceptions=1/ref_warnings=0. No clean full-profile action acceptance claimed.
+- Control: `netlot28-gen-s0grow-control-r3.log:16100`/`.verdict`, same scenario with netlotobj disabled, all 216 actions executed; corrupt at the same native address, foreign_exceptions=1/ref_warnings=0.
+- Other full-profile action: `netlot28-gen-s1grow-r3.log:8157`/`.verdict`, corrupt at 2026-01-30 near first network actions after an automaton creation; foreign_exceptions=1/ref_warnings=0. No native cause inferred.
+- Focused replacement: `netlot28-gen-s0grow-focused-r4.log:14106`/`.verdict`, only netlot/netlotobj; all 216 actions executed, then corrupt with foreign_exceptions=1/ref_warnings=12. Last-reference warnings identify cFC4NetworkLot destructor:420, native class 0xC9C05C6E; same null read at log:14118.
+- All game evidence above is shared `C:/Users/tlori/FreeCity4/build-runs/game-results/`; every measured run used DLL SHA256 prefix f6b00b1e. Requests used parallel=1, at most three in flight; none remain. Initial r1 requests were rejected before launch for root-level ini options; corrected r2+ requests are separate final verdicts.
+- Questions: NM14/NM15/NM16 in `docs/specs/questions/network-manager.md`; coordinator must regenerate the questions index. Crew creation/Init and configuration IID/output-set bridge remain marked SPEC-GAPs; action lifetime differences stop at NM16 rather than a guessed fix.
+- Next: hold the WIP merge-queue entry and replace-list credit until acceptance (c) is clean. netlotobj registers only the two lot-object classes; do not credit construction crews. No tools, coverage-map, regress-list or run-history edits.

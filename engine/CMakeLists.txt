@@ -1300,6 +1300,9 @@ if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_netocc_shadow_factory_isolation
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-shadow-factories)
     set_tests_properties(plugin_netocc_shadow_factory_isolation PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_netlot_ownership
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-ownership)
+    set_tests_properties(plugin_netlot_ownership PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 if(TARGET FreeCity4)
@@ -1402,4 +1405,27 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_regionalcity_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     target_link_libraries(fc4_regionalcity_owner_test PRIVATE fc4_capi)
     add_test(NAME regionalcity_owner_test COMMAND fc4_regionalcity_owner_test)
+endif()
+
+# RegionalCity native replacement hosts and the border-call contract (RY9).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4RegionalCity.cpp plugin/cFC4RegionalCity.h
+        plugin/FC4RegionalCityConnections.cpp plugin/FC4RegionalCitySetup.cpp
+        plugin/FC4RegionalCityHost.h plugin/FC4RegionalCityBorder.h)
+    add_executable(fc4_regionalcity_border_test tests/regionalcity_border_test.cpp)
+    target_include_directories(fc4_regionalcity_border_test PRIVATE plugin)
+    target_compile_options(fc4_regionalcity_border_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_regionalcity_border_test PRIVATE fc4_capi)
+    add_test(NAME regionalcity_border_contract COMMAND fc4_regionalcity_border_test)
+endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_netlot_default_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-defaults)
+    add_test(NAME plugin_netlot_disabled_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-disabled)
+    add_test(NAME plugin_netlot_object_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-object-factories)
+    set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
+        PROPERTIES RUN_SERIAL TRUE)
 endif()

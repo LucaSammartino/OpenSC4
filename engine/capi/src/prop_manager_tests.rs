@@ -662,11 +662,11 @@ fn insertion_by_usage_and_the_lot_query_boundary() {
         // the city prop already in the list is dropped and released.
         let (ok, v) = list_of(|f, c| fc4_prop_manager_get_props_of(m, 2, 0x70, &city, 1, f, c));
         assert!(ok);
-        assert_eq!(v, [inside]);
-        assert_eq!((g.refs(city), g.refs(inside), g.refs(edge)), (0, 1, 0));
+        assert_eq!(v, [inside, edge]); // PL24 retains equality at the upper bound.
+        assert_eq!((g.refs(city), g.refs(inside), g.refs(edge)), (0, 1, 1));
         let (ok, v) = list_of(|f, c| fc4_prop_manager_get_props_at(m, 2, 0, 0, std::ptr::null(), 0, f, c));
         assert!(ok);
-        assert_eq!(v, [inside]);
+        assert_eq!(v, [inside, edge]);
         // GetStreetProps(list, x, z) is always false (quirk 4).
         let (ok, _) = list_of(|f, c| fc4_prop_manager_get_props_at(m, 4, 0, 0, std::ptr::null(), 0, f, c));
         assert!(!ok);
