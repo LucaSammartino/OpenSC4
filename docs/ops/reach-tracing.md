@@ -20,10 +20,17 @@ roster is unqualified: reach29-r1 had three corrupt runs and one clean run.
 Use the generated roster explicitly as `reach_contracts = <absolute path>`;
 it retains reached and unreached implemented functions under baseline-exact
 keys. It changes the instrumentation footprint, never the coverage weights.
+The reduced-roster r2 still had three corrupt mature-city runs. Lifecycle-off
+controls of all four cities were game-clean. Only `reach29-growth` currently
+qualifies for lifecycle tracing; keep this option off for mature cities until
+the instrumentation fault is resolved. The lotdev and pollution mismatches in
+West Weburg also occur with lifecycle off and are separate engine findings.
 `python tools/suite.py run --set reach29 --profile shadows --slots 4
 --extra "reach = 1" --extra "reach_lifecycle = 1" --extra "reach_cap = 1"
 --extra "reach_contracts = <absolute path>" --tag TAG` runs the four load/save,
-empty-development and Lua-view scenarios in isolated queue slots.
+empty-development and Lua-view scenarios in isolated queue slots. Add
+`--scenario reach29-growth` for the qualified lifecycle run; run the other rows
+with ordinary `--reach` and without `reach_lifecycle = 1`.
 `python tools/suite_reach_gaps.py --baseline build-runs/suite/BEFORE
 --after build-runs/suite/NEW --out build-runs/reach-delta` ranks exact-shadow
 gaps and reports per-owner executed/verified gains and first mismatch lines.
