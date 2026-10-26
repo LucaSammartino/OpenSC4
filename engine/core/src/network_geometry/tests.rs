@@ -337,6 +337,24 @@ fn nt31_retained_powerline_price_precision() {
 }
 
 #[test]
+fn earthwork_product_is_not_rounded_before_the_magic_addition() {
+    let price = extras::CostInputs {
+        cells: vec![extras::CostCell {
+            in_run: false,
+            prebuilt: false,
+            type_mask: 0,
+            corners: [45.0, 0.0, 0.0, 0.0],
+            terrain: [0.0; 4],
+        }],
+        earthwork_cost: 0.1,
+        ..extras::CostInputs::default()
+    };
+    // float32(0.1) * 45 is just above 4.5. Rounding the product to
+    // float32 first would create an exact tie and incorrectly charge 4.
+    assert_eq!(extras::cost_of_solution(&price), 5);
+}
+
+#[test]
 fn t05_street_is_straight_only() {
     let t = flat();
     let mut g = geo();

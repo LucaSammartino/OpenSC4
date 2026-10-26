@@ -85,6 +85,9 @@ bool PowerlineDraft(void* u, fc4_nettool_run* run, uint32_t, uint32_t neighbourM
     context.selection = {};
     context.selectionReady = run->dragged_count < 2 ||
         ReadNetToolPowerlineSelection(&context, &context.selection);
+    // power-line-tool section 2: slot 53 clears valid after selection when
+    // no pole records were generated, before the public getter is observed.
+    if (context.selection.poles == 0) context.selection.valid = 0;
     run->valid_count = context.selection.valid;
     // Incomplete observations remain unavailable, never a successful sample.
     return true;
