@@ -2145,6 +2145,72 @@ pub unsafe extern "C" fn fc4_helicopter_shadow_fixture(output: *const fc4_ostrea
     })
 }
 
+/// Record-only replay for concrete automata outside the replacement factory.
+/// 0 = unspecified class, 1 = failed IO, 2 = complete read/write. The caller
+/// still checks stream exhaustion and every output byte. No Init or tick runs.
+/// All acquired stream references are released, including after partial reads.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_automata_derived_record_roundtrip(
+    class_id: u32,
+    input: *const fc4_istream,
+    output: *const fc4_ostream,
+    refs: *const fc4_automata_ref_host,
+) -> u32 {
+    use fc4_core::automata::{
+        AircraftPlacementRecord, AircraftRecord, PedestrianRecord, CLSID_AIRCRAFT, CLSID_AIRPLANE, CLSID_HELICOPTER,
+    };
+    use fc4_core::vehicles::{Train, TrainCar};
+    use fc4_core::watercraft::WatercraftRecord;
+
+    if !matches!(
+        class_id,
+        CLSID_AIRCRAFT
+            | CLSID_AIRPLANE
+            | CLSID_HELICOPTER
+            | 0x096E_75F5
+            | 0xAA09_DC28
+            | 0xAA9F_4A3D
+            | 0x4A41_6254
+            | 0x8A41_625A
+    ) {
+        // SPEC-GAP: AT24-AT28 leave carjacked/limo, ambulance, tank, mass-transit train and fire-truck records unspecified.
+        return 0;
+    }
+    guard(1, || {
+        let (Some(input), Some(output), Some(refs)) = (in_stream(input), out_stream(output), table(refs)) else {
+            return 1;
+        };
+        let mut stream = tracking(input);
+        let mut out = COut(output);
+        let ok = match class_id {
+            CLSID_AIRCRAFT => AircraftRecord::read(&mut stream).is_some_and(|r| r.write(&mut out)),
+            CLSID_AIRPLANE | CLSID_HELICOPTER => {
+                AircraftPlacementRecord::read(&mut stream).is_some_and(|r| r.write(&mut out))
+            }
+            0x096E_75F5 => WatercraftRecord::read(&mut stream).is_some_and(|r| r.write(&mut out)),
+            0xAA09_DC28 => PedestrianRecord::read(&mut stream).is_some_and(|r| r.write(&mut out)),
+            // vehicles.md §12.1: Bus and TrainCar share the version-2 wrapper.
+            0xAA9F_4A3D | 0x4A41_6254 => {
+                let mut car = TrainCar::default();
+                car.read(&mut stream) && car.write(&mut out)
+            }
+            0x8A41_625A => {
+                let mut train = Train::default();
+                train.read(&mut stream) && train.write(&mut out)
+            }
+            _ => unreachable!(),
+        };
+        for token in stream.tokens {
+            refs.release(token);
+        }
+        if ok {
+            2
+        } else {
+            1
+        }
+    })
+}
+
 /// Private static-link watercraft record/getter projection. Input references
 /// are tracked even on failure and released before returning to the capture.
 #[no_mangle]
