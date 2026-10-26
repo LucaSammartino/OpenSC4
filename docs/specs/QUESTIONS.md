@@ -242,7 +242,7 @@ generated index: the questions live one file per spec, so read only the file for
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
-| automata | 4 | 44 | A5, AM13, AT34 | questions/automata.md |
+| automata | 9 | 44 | A5, AM13, AT34 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -295,7 +295,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
-| gz-framework-core | 8 | 4 | GZF13 | questions/gz-framework-core.md |
+| gz-framework-core | 8 | 5 | GZF14 | questions/gz-framework-core.md |
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
@@ -431,4 +431,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **617** | **1672** | | |
+| **total** | **622** | **1673** | | |
