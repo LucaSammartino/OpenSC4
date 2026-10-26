@@ -105,3 +105,16 @@ implementer of the class tables and records.
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]
 
+## From netocc-cities29 (2026-10-26)
+
+- **NO46 — prebuilt v4 record envelope (extends NO4, §2.8):** please specify the ordered stream fields,
+  including the placement of the subclass/base version words, field widths, reference IIDs and any Read→Write
+  canonicalization, for `cSC4NetworkOccupantWithPreBuiltModel` (`0x49C1A034`). Opaque field semantics are sufficient
+  if they are simply retained. The current shadow sends this class through the plain network v8 codec and fails
+  parsing; §2.8 states a distinct v4 record but does not give its stream layout. This blocks the census's 72
+  prebuilt-containing scenarios, rather than a capture tolerance or timing issue. Fresh baseline evidence:
+  `build-runs/suite/netocc-cities29-before4/lua-lots-grown.log` has class `49C1A034`, capture=1/status=2,
+  and 424 load mismatches; `paradis-port-of-shiganshina.log` has the same failure and 755 load mismatches.
+  The cited runs later stalled and are not acceptance runs; their completed load comparisons establish the
+  codec failure. No prebuilt records have been excluded or normalized past this unsupported envelope.
+

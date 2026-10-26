@@ -249,6 +249,7 @@ size_t g_pmListed = 0;
 std::set<uint64_t> g_candidates;
 std::map<uint64_t, std::pair<int32_t, int32_t>> g_decided;
 std::vector<std::pair<int32_t, int32_t>> g_decidedCells;
+std::map<uint64_t, bool> g_terrainAfter;
 
 // The captures (reused).
 WriteCapture g_origMgr, g_origLot, g_ourMgr, g_ourLot;
@@ -543,13 +544,15 @@ void SettleStep(void*) {
             ++g_n.rebuilt;
         } else {
             ++g_n.origOnly;
-            PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it", static_cast<void*>(FromToken(c)), cx,
-                        cz);
+            PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it (placed after handler=%d)",
+                        static_cast<void*>(FromToken(c)), cx, cz,
+                        g_terrainAfter.count(c) ? (g_terrainAfter[c] ? 1 : 0) : -1);
         }
     }
     g_candidates.clear();
     g_decided.clear();
     g_decidedCells.clear();
+    g_terrainAfter.clear();
     // Road style (§8.7): the original made the same writes after ours.
     for (const auto& w : g_style) {
         const uint64_t n = w.first;
@@ -1322,6 +1325,10 @@ void CallMessage(void* p) {
 // network lot manager (netmgr_shadow_order = late).
 void OnMessage(cIGZMessage2* msg, bool late) {
     if (msg == nullptr || (g_mgr == nullptr && g_lot == nullptr) || g_inMessage) return;
+    if (late && (msg->GetType() == 0x278E6003 || msg->GetType() == 0x6A3B0AFD)) {
+        for (uint64_t n : g_candidates) g_terrainAfter[n] = Placed(n);
+        return;
+    }
     Msg m;
     m.type = msg->GetType();
     m.mgr = !late && IsMgrMessage(m.type);
@@ -1425,6 +1432,10 @@ void LateSubscribe(bool on) {
         } else {
             ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id);
         }
+    }
+    for (uint32_t id : {0x278E6003u, 0x6A3B0AFDu}) {
+        if (on) ok = ms->AddNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id) && ok;
+        else ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(&LateEvents()), id);
     }
     if (on) {
         Log("netmgr shadow: the lot core's listener (late: after the original network lot manager) registered for %u "
