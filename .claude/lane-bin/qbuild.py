@@ -5,12 +5,13 @@ gets only the verdict, the counts and the first errors (capped).
 Usage: python qbuild.py --wt <worktree> <step>... [--errors N]
   test     cargo test --workspace --target i686-pc-windows-msvc (from engine/): summed "test result:" counts,
            failed test names, the first lines of each panic, compile errors
-  clippy   cargo clippy --workspace --all-targets -- -D warnings: error/warning count and the first diagnostics
+  clippy   cargo clippy --workspace --all-targets --target i686-pc-windows-msvc -- -D warnings
   verify   build-runs\\coord-verify-lane.ps1 (CMake build + ctest; copied from the main checkout if missing):
            configure/build/ctest exit, BUILD ERROR lines, the ctest summary and failed tests
   fmt F..  rustfmt --check --edition 2021 on the given .rs files (paths relative to engine/ or absolute)
   all      test, clippy, verify
 Cargo runs with CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0 (the disk is shared).
+All Cargo steps use fc4verify's cache environment and engine/build-x86/cargo, also used by CMake and ctest.
 The test and clippy steps share FC4_QBUILD_MAX (default 3) lock slots in <main>/build-runs/qbuild-sem: a fourth run
 waits (a message every 5 min) until one finishes. 0 disables the limit; an unusable lock directory disables it too.
 Exit 0 only if every step passed. Read more of a log with grep or Read offset/limit, never whole.

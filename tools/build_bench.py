@@ -129,12 +129,17 @@ def main():
         ap.error("--out must be a dedicated directory below build-runs")
     out.mkdir(parents=True, exist_ok=True)
     revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    common = subprocess.check_output(["git", "-C", str(source), "rev-parse", "--path-format=absolute",
+                                      "--git-common-dir"], text=True).strip()
     roots = [out / ("wt-" + str(i)) for i in range(3)]
     for root in roots:
         prepare(source, root, revision)
         if a.overlay:
             shutil.copytree(source / ".claude/lane-bin", root / ".claude/lane-bin", dirs_exist_ok=True)
-            for relative in ("engine/CMakeLists.txt", "engine/.cargo/config.toml"):
+            for relative in ("engine/CMakeLists.txt", "engine/.cargo/config.toml",
+                             "engine/core/Cargo.toml", "engine/formats/Cargo.toml", "engine/conformance/Cargo.toml",
+                             "engine/core/tests/integration.rs", "engine/formats/tests/integration.rs",
+                             "engine/conformance/tests/integration.rs"):
                 shutil.copy2(source / relative, root / relative)
     results = []
     for index in range(a.count):
@@ -146,7 +151,8 @@ def main():
                 raise ValueError("artifact escaped benchmark checkout")
             if artifact.exists():
                 shutil.rmtree(artifact)
-        env = dict(os.environ, FC4_NATIVE_DIRECT="1")
+        env = dict(os.environ, FC4_NATIVE_DIRECT="1",
+                   FC4_CACHE_ROOTS=os.pathsep.join(map(str, [source, Path(common).parent, *roots])))
         result = measured_run([sys.executable, str(root / ".claude/lane-bin/qbuild.py"),
                                "--wt", str(root), "all"], root, env, out / f"{a.label}-{index}.log")
         result.update(worktree=str(root), index=index, label=a.label,

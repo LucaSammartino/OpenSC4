@@ -1,5 +1,4 @@
 """Cache correctness, including train278 with the real Windows toolchain."""
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -8,7 +7,6 @@ import socket
 import subprocess
 import sys
 import tempfile
-from unittest.mock import patch
 
 import pytest
 
@@ -67,6 +65,42 @@ def test_include_mapping(path, expected):
     assert cache_compile.rewrite_include(line, "D:/lane", ["C:/repo"]) == (
         b"Note: including file:   " + expected + b"\r\n")
     assert cache_compile.rewrite_include(b"error: " + path, "D:/lane", ["C:/repo"]) == b"error: " + path
+
+
+@pytest.mark.skipif(os.name != "nt" or not fc4verify.VCVARS.exists() or not shutil.which("sccache"),
+                    reason="requires Windows build tools")
+def test_real_msvc_replayed_include_prefix():
+    """Exercise the mapper with real cached output, independently of Ninja IPC."""
+    (ROOT / "build-runs").mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="msvc-cache-", dir=ROOT / "build-runs") as tmp:
+        tmp = Path(tmp)
+        a, b = tmp / "a", tmp / "b"
+        for directory in (a, b):
+            directory.mkdir()
+            (directory / "value.h").write_text("#define VALUE 1\n")
+            (directory / "main.cpp").write_text('#include "value.h"\nint main(){return VALUE == 1 ? 0 : 1;}\n')
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        env = fc4verify.build_env(ROOT, "msvc-cache-test")
+        env.update(SCCACHE_SERVER_PORT=str(port), SCCACHE_DIR=str(tmp / "cache"),
+                   SCCACHE_BASEDIRS=os.pathsep.join(map(str, (a, b))))
+        compiler = shutil.which("cl", path=env["PATH"])
+        command = [env["FC4_SCCACHE"], compiler, "/nologo", "/showIncludes", "/c", "main.cpp", "/Fomain.obj"]
+        with foreground_server(env["FC4_SCCACHE"], env):
+            subprocess.run(command, cwd=a, env=env, capture_output=True, check=True, timeout=30)
+            mapped = [sys.executable, cache_compile.__file__, "--root", str(b), "--from-root", str(a), "--",
+                      *command]
+            output = subprocess.check_output(mapped, cwd=b, env=env, timeout=30).replace(b"\\", b"/")
+            assert (b / "value.h").as_posix().encode() in output
+            assert (a / "value.h").as_posix().encode() not in output
+            stats = json.loads(subprocess.check_output(
+                [env["FC4_SCCACHE"], "--show-stats", "--stats-format", "json"], env=env, timeout=15))["stats"]
+            assert stats["cache_hits"]["counts"].get("C/C++") == 1
+            original = (b / "main.obj").read_bytes()
+            (b / "value.h").write_text("#define VALUE 2\n")
+            subprocess.run(mapped, cwd=b, env=env, capture_output=True, check=True, timeout=30)
+            assert (b / "main.obj").read_bytes() != original
 
 
 @pytest.mark.skipif(os.name != "nt" or not fc4verify.VCVARS.exists() or not shutil.which("sccache"),

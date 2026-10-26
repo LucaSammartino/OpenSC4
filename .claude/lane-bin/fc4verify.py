@@ -17,11 +17,11 @@ instead of the touched ones), --cxx-tests (quick: also run cxxtest), --no-cache,
 
 Compiler cache: when sccache is installed (`cargo install sccache --version 0.18.0 --locked`) the C++ compiler
 (through CMake's FC4_COMPILER_CACHE) and rustc (RUSTC_WRAPPER) go through it. Each worktree gets its own sccache
-server port and no SCCACHE_BASEDIRS, so objects hit only within their own worktree (a cross-worktree hit replays
-the other worktree's /showIncludes, ninja records its headers, and a later header change never rebuilds the object:
-train278 gate #1 passed a stale capi_smoke, 2026-10-26); all servers share
-one on-disk cache (%LOCALAPPDATA%\\fc4\\sccache, 20G). Rust hits only within a worktree (sccache hashes rustc's
-working directory), e.g. between `cargo test` and ctest's cargo_test. Cargo always runs with CARGO_INCREMENTAL=0
+server configuration with SCCACHE_BASEDIRS, sharing normalized entries in one on-disk cache
+(%LOCALAPPDATA%\\fc4\\sccache, 20G). cache_compile.py translates replayed /showIncludes header paths before
+Ninja records them (train278 stale capi_smoke, 2026-10-26). rust_cache.py gives registry crates a stable cwd;
+workspace/generated-code crates retain their original cwd and path-sensitive cache keys.
+Cargo always runs with CARGO_INCREMENTAL=0
 and no debug info (disk is shared; incremental builds are not cacheable), matching the CMake build's cargo env.
 
 Logs: <log-dir>/fc4verify-<step>.log (default <WT>/build-runs). The console gets one line per step, the first

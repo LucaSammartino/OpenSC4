@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#[path = "support/lua_script_server.rs"]
+mod lua_script_server_support;
 #[path = "aircraft.rs"]
 mod aircraft;
 #[path = "aircraft_closure.rs"]

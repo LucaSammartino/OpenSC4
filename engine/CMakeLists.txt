@@ -63,8 +63,8 @@ endif()
 
 # Compiler cache. Lanes build in fresh git worktrees, so every lane used to compile everything from scratch.
 # With sccache installed (`cargo install sccache --version 0.18.0 --locked`; docs/ops/coordinating.md "Build
-# cache") the C/C++ compiler and rustc go through it. .claude/lane-bin/fc4verify.py runs one sccache server per
-# worktree, without SCCACHE_BASEDIRS, so objects hit only within their worktree. The cargo env below is
+# cache") the C/C++ compiler and rustc go through it. fc4verify uses normalized cache keys and maps
+# replayed MSVC header dependencies into the consuming worktree before Ninja records them. The cargo env is
 # the one fc4verify uses: sccache hashes every CARGO_* variable, and incremental builds are not cacheable.
 option(FC4_COMPILER_CACHE "Compile C/C++ and Rust through sccache when it is installed" ON)
 set(FC4_CARGO_ENV "")
@@ -72,6 +72,9 @@ if(FC4_COMPILER_CACHE)
     find_program(FC4_SCCACHE_EXECUTABLE sccache
         HINTS "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin" "$ENV{HOME}/.cargo/bin")
     if(FC4_SCCACHE_EXECUTABLE)
+        if(DEFINED ENV{SCCACHE_BASEDIRS} AND NOT "$ENV{SCCACHE_BASEDIRS}" STREQUAL "" AND NOT FC4_CACHE_LAUNCHER)
+            message(FATAL_ERROR "SCCACHE_BASEDIRS requires FC4_CACHE_LAUNCHER to repair cached /showIncludes; use fc4verify")
+        endif()
         # fc4verify supplies a /showIncludes mapper before sccache: cache hits
         # may contain another worktree's absolute header paths (train278).
         set(CMAKE_C_COMPILER_LAUNCHER ${FC4_CACHE_LAUNCHER} "${FC4_SCCACHE_EXECUTABLE}")

@@ -19,8 +19,10 @@ def test_every_integration_suite_still_has_a_module():
         included = re.findall(r'#\[path = "([^"]+)"\]',
                               (directory / "tests/integration.rs").read_text())
         existing = {p.name for p in (directory / "tests").glob("*.rs") if p.name != "integration.rs"}
-        assert set(included) == existing
-        assert len(included) == len(existing)
+        suites = [p for p in included if "/" not in p]
+        assert set(suites) == existing
+        assert len(suites) == len(existing)
+        assert all((directory / "tests" / p).is_file() for p in included)
 
 
 def test_qbuild_uses_cmake_target_directory():
