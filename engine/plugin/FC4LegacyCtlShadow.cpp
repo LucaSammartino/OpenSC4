@@ -133,7 +133,9 @@ template<class F> uint32_t Capture(void* owner,uint32_t op,const std::array<uint
     const State after=Snapshot(owner);
     std::memcpy(native,after.words,sizeof(after.words));
     if(rectOut) std::memcpy(native+6,rectOut,16);
-    Replay(trace,before.words,op,args,input,native,scalar);
+    // Build traces do not yet compare constructor defaults/final widget trees
+    // or temporary metadata lifetimes. Never award full SetParameters credit.
+    Replay(trace,before.words,op,args,input,native,scalar,UINT32_MAX,op!=0);
     return native[5];
 }
 bool __fastcall ParentHook(void* self,void*,void* parent) {

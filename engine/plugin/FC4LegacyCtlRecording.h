@@ -278,7 +278,7 @@ inline uint32_t __cdecl ExchangeCall(void* context,const uint32_t* input,uint32_
 struct Stats { std::atomic<uint32_t> calls{0},complete{0},bad{0}; };
 inline Stats stats[30];
 inline void Replay(Trace& trace,const uint32_t* before,uint32_t op,const std::array<uint32_t,4>& args,
-    Input& input,const uint32_t* native,bool scalar=true,unsigned credit=UINT32_MAX) {
+    Input& input,const uint32_t* native,bool scalar=true,unsigned credit=UINT32_MAX,bool allOutputs=true) {
     auto& s=stats[credit==UINT32_MAX?op:credit]; ++s.calls;
     uint32_t expected[10]{};
     const bool supported=input.valid && fc4_legacyctl_shadow_run(before,op,args.data(),input.wire.data(),static_cast<uint32_t>(input.wire.size()),&ExchangeCall,&trace,expected)==1;
@@ -288,7 +288,8 @@ inline void Replay(Trace& trace,const uint32_t* before,uint32_t op,const std::ar
     for(unsigned i=0;i<5;++i) bad+=(expected[i]!=native[i]);
     if(scalar) bad+=(expected[5]!=native[5]);
     if(op==7) for(unsigned i=6;i<10;++i) bad+=(expected[i]!=native[i]);
-    ++s.complete; s.bad+=bad;
+    if(allOutputs) ++s.complete;
+    s.bad+=bad;
     if(bad && s.bad.load()<8) Log("legacyctl replay difference: op=%u calls=%u effects=%u consumed=%u mismatches=%u",op,s.calls.load(),static_cast<unsigned>(trace.events.size()),static_cast<unsigned>(trace.cursor),bad);
 }
 struct Interpreter { uintptr_t entry; unsigned prefix; uint32_t iid; const char* name; void* trampoline=nullptr; };
@@ -316,7 +317,9 @@ template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t f
         parent->exhaustive=parent->exhaustive && trace.exhaustive;
     }
     uint32_t before[5]{},native[10]{};
-    Replay(trace,before,Index==0?10:11,{reinterpret_cast<uint32_t>(win),first&255,interpreters[Index].iid,0},input,native,false,10+Index);
+    // First-pass Common records payloads, but not the temporary variant/list
+    // allocation and reference calls. Second pass contains only flag setters.
+    Replay(trace,before,Index==0?10:11,{reinterpret_cast<uint32_t>(win),first&255,interpreters[Index].iid,0},input,native,false,10+Index,Index!=0 || !(first&255));
 }
 inline bool InstallInterpreters() {
     void* hooks[]={reinterpret_cast<void*>(&Interpret<0>),reinterpret_cast<void*>(&Interpret<1>),reinterpret_cast<void*>(&Interpret<2>),reinterpret_cast<void*>(&Interpret<3>),reinterpret_cast<void*>(&Interpret<4>)};
