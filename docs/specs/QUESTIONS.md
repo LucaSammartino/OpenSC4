@@ -235,7 +235,7 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
-| application | 12 | 6 | AP19 | questions/application.md |
+| application | 13 | 6 | AP20 | questions/application.md |
 | audio | 3 | 17 | AU51 | questions/audio.md |
 | audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
@@ -265,7 +265,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 3 | 60 | EX58 | questions/data-formats.md |
+| data-formats | 4 | 60 | EX59 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | questions/demand.md |
 | demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
@@ -431,4 +431,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **615** | **1672** | | |
+| **total** | **617** | **1672** | | |
