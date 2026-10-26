@@ -614,11 +614,7 @@ pub fn save_path_for_city(
     Ok(candidate)
 }
 
-pub fn active_save_path_for_city(
-    host: &mut dyn RegionHost,
-    name: &str,
-    serial: u32,
-) -> Result<String, Unsupported> {
+pub fn active_save_path_for_city(host: &mut dyn RegionHost, name: &str, serial: u32) -> Result<String, Unsupported> {
     let directory = format!("{}{}\\", host.region_directory(), host.active_directory_name());
     save_path_for_city(host, &directory, name, serial)
 }

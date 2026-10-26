@@ -954,7 +954,10 @@ fn rm18_truncated_filename_worked_cases() {
     ] {
         let base = format!("{directory}{}", sanitize_file_name(&format!("City - {name}.sc4")));
         h.files.insert(base.clone(), vec![]);
-        assert_eq!(save_path_for_city(&mut h, directory, &name, 0), Ok(format!("{directory}{suffix_name}")));
+        assert_eq!(
+            save_path_for_city(&mut h, directory, &name, 0),
+            Ok(format!("{directory}{suffix_name}"))
+        );
     }
     let directory = "C:\\Regions\\R.v1\\";
     h.files.insert(format!("{directory}City - {}", "A".repeat(249)), vec![]);
