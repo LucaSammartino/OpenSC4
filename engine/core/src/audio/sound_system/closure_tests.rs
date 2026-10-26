@@ -84,6 +84,54 @@ fn ss8_period_boundary_and_ss12_category_replay() {
     system.update_targets(1000);
     assert_eq!(count.load(Ordering::SeqCst), 1);
 }
+struct OwnedTarget(Trace, &'static str);
+impl UpdateTarget for OwnedTarget {
+    fn update(&self, _: &mut SndSys) -> bool {
+        true
+    }
+}
+impl Drop for OwnedTarget {
+    fn drop(&mut self) {
+        note(&self.0, self.1);
+    }
+}
+struct QueueOwnedTargets(Trace);
+impl UpdateTarget for QueueOwnedTargets {
+    fn update(&self, system: &mut SndSys) -> bool {
+        system.unregister_target(Arc::new(OwnedTarget(self.0.clone(), "remove1")));
+        system
+            .register_target(Arc::new(OwnedTarget(self.0.clone(), "ordinary")), 20)
+            .unwrap();
+        system.unregister_target(Arc::new(OwnedTarget(self.0.clone(), "remove2")));
+        system
+            .register_target(Arc::new(OwnedTarget(self.0.clone(), "slow")), 250)
+            .unwrap();
+        assert!(self.0.lock().unwrap().is_empty());
+        note(&self.0, "callback");
+        false
+    }
+}
+#[test]
+fn ss8_ss12_queues_retain_until_replay_and_shutdown_releases_active_categories() {
+    let trace = Trace::default();
+    let mut system = SndSys::default();
+    system
+        .register_target(Arc::new(QueueOwnedTargets(trace.clone())), 20)
+        .unwrap();
+    system.update_targets(251);
+    assert_eq!(*trace.lock().unwrap(), ["callback", "remove1", "remove2"]);
+    let mut host = SystemFixture {
+        trace: Trace::default(),
+        start: false,
+        caches: false,
+    };
+    assert!(system.shutdown(&mut host));
+    assert_eq!(
+        *trace.lock().unwrap(),
+        ["callback", "remove1", "remove2", "ordinary", "slow"]
+    );
+}
+
 struct NamedHandler(&'static str, Trace);
 impl EventHandler for NamedHandler {
     fn do_event(&self, _: &mut SndSys, _: &SndEventStd) -> bool {
@@ -550,11 +598,73 @@ fn ss9_autoplay_failed_play_front_only_cleanup_and_source_survival() {
     assert_eq!(Arc::strong_count(&d), 1);
 }
 
+#[derive(Clone)]
+struct Resources(Trace);
+impl ManagerResources for Resources {
+    fn get_resource(&self, key: [u32; 3], iid: u32, output: &mut Option<ObjectRef>, a: u32, b: u32) -> bool {
+        assert_eq!((key, iid, a, b), ([1, 2, 3], 77, 0, 0));
+        note(&self.0, "resource");
+        *output = Some(object("resource", &self.0, true, true));
+        true
+    }
+}
+impl ManagerServices for Resources {
+    fn acquire_sound_system(&mut self) -> bool {
+        true
+    }
+    fn register_manager_update(&mut self, offset: u32, period: u32) {
+        assert_eq!((offset, period), (0x20, 250));
+    }
+    fn retain_persist_manager(&mut self) {}
+    fn persist_manager_reference(&mut self) -> Option<Arc<dyn ManagerResources>> {
+        Some(Arc::new(self.clone()))
+    }
+}
+#[test]
+fn ss9_resource_arguments_and_playing_front_blocking() {
+    let trace = Trace::default();
+    let mut manager = SndMgr::default();
+    assert!(manager.init(&mut Resources(trace.clone())));
+    let mut output = None;
+    assert!(manager.get_resource([1, 2, 3], 77, &mut output));
+    assert!(output.is_some());
+    assert_eq!(*trace.lock().unwrap(), ["resource"]);
+    let playing = Arc::new(AtomicBool::new(true));
+    let a: ObjectRef = Arc::new(Object {
+        name: "A",
+        trace: trace.clone(),
+        query_ok: true,
+        play_ok: true,
+        playing: playing.clone(),
+    });
+    let b = object("B", &trace, true, true);
+    manager.add_autoplay(a.clone());
+    manager.add_autoplay(b.clone());
+    trace.lock().unwrap().clear();
+    manager.update();
+    assert_eq!(manager.autoplay_count(), 2);
+    assert_eq!(*trace.lock().unwrap(), ["playing:A"]);
+    assert_eq!(Arc::strong_count(&b), 2);
+    playing.store(false, Ordering::SeqCst);
+    manager.update();
+    assert_eq!(manager.autoplay_count(), 1);
+    assert_eq!(Arc::strong_count(&a), 1);
+    assert_eq!(Arc::strong_count(&b), 2);
+    manager.update();
+    assert_eq!(manager.autoplay_count(), 0);
+    assert_eq!(Arc::strong_count(&b), 1);
+}
+
 struct Identity(Trace);
 impl ConstructionIdentity for Identity {
-    fn query(&self, _: u32, _: &mut Option<ForeignRef>) -> bool {
+    fn query(&self, iid: u32, output: &mut Option<ForeignRef>) -> bool {
         note(&self.0, "QI");
-        false
+        if iid == 77 {
+            *output = Some(Arc::new(77u32));
+            true
+        } else {
+            false
+        }
     }
     fn add_ref(&self) {
         note(&self.0, "AddRef");
@@ -621,6 +731,72 @@ fn ss10_all_directors_inherited_identity_and_factory_worked_case() {
         MAC_CONSTRUCTION_LAYOUTS.map(|(_, size, offset)| (size, offset)),
         [(0xD8, 0), (0x100, 0xD8), (0xA0, 8), (0x54, 4), (0x14, 0)]
     );
+}
+struct Child {
+    trace: Trace,
+    class: u32,
+    unload: bool,
+}
+impl DirectorChild for Child {
+    fn initialize(&self, _: &ForeignRef, path: &str) -> bool {
+        assert_eq!(path, "sound.dll");
+        note(&self.trace, format!("init:{}", self.class));
+        false // InitializeCOM ignores child results.
+    }
+    fn enum_classes(&self, visit: &mut dyn FnMut(u32)) {
+        visit(self.class);
+    }
+    fn get_class_object(&self, class: u32, _: u32, output: &mut Option<ForeignRef>) -> Result<bool, NativeFault> {
+        note(&self.trace, format!("child:{}", self.class));
+        if class == self.class {
+            *output = Some(Arc::new(class));
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+    fn can_unload(&self) -> bool {
+        note(&self.trace, format!("unload:{}", self.class));
+        self.unload
+    }
+}
+#[test]
+fn ss10_children_precede_local_factories_and_successful_qi_transfers_output() {
+    for classes in [&SOUND_CLASSES[..], &MAC_CLASSES[..], &FRESH_CLASSES[..]] {
+        let trace = Trace::default();
+        let mut state = DirectorState::with_classes(classes);
+        for (class, unload) in [(10, false), (20, true)] {
+            state.children.push(Arc::new(Child {
+                trace: trace.clone(),
+                class,
+                unload,
+            }));
+        }
+        assert!(state.initialize(Some(Arc::new(1u32)), None, "sound.dll"));
+        assert_eq!(*trace.lock().unwrap(), ["init:10", "init:20"]);
+        let mut enumerated = Vec::new();
+        state.enum_classes(&mut |class| enumerated.push(class));
+        assert_eq!(enumerated, [vec![10, 20], classes.to_vec()].concat());
+        trace.lock().unwrap().clear();
+        assert!(!state.can_unload());
+        assert_eq!(*trace.lock().unwrap(), ["unload:10"]);
+        trace.lock().unwrap().clear();
+        state.add_ref();
+        assert!(state.can_unload());
+        assert!(trace.lock().unwrap().is_empty());
+        let mut constructors = Constructors(trace.clone(), true);
+        let mut output = None;
+        assert_eq!(state.get_class_object(20, 77, &mut output, &mut constructors), Ok(true));
+        assert_eq!(*trace.lock().unwrap(), ["child:10", "child:20"]);
+        assert_eq!(output.as_ref().unwrap().downcast_ref::<u32>(), Some(&20));
+        trace.lock().unwrap().clear();
+        assert_eq!(
+            state.get_class_object(classes[0], 77, &mut output, &mut constructors),
+            Ok(true)
+        );
+        assert_eq!(*trace.lock().unwrap(), ["child:10", "child:20", "QI"]);
+        assert_eq!(output.as_ref().unwrap().downcast_ref::<u32>(), Some(&77));
+    }
 }
 struct Cache(Trace);
 impl PropertyCache for Cache {
@@ -698,6 +874,7 @@ struct FileFixture {
     allocate_ok: bool,
     resolved: Option<String>,
     trace: Trace,
+    conversions: Vec<Vec<u8>>,
 }
 impl FileFixture {
     fn text(text: &str) -> Self {
@@ -708,6 +885,7 @@ impl FileFixture {
             allocate_ok: true,
             resolved: None,
             trace: Trace::default(),
+            conversions: Vec::new(),
         }
     }
 }
@@ -733,8 +911,9 @@ impl PlaylistIo for FileFixture {
     fn close(&mut self) {
         note(&self.trace, "close");
     }
-    fn convert(&mut self, _: &mut Vec<u8>, source: i32, destination: u32) -> bool {
+    fn convert(&mut self, line: &mut Vec<u8>, source: i32, destination: u32) -> bool {
         assert_eq!((source, destination), (-1, 8));
+        self.conversions.push(line.clone());
         false
     }
     fn decimal_long(&mut self, text: &str) -> i32 {
@@ -778,6 +957,20 @@ fn ss11_open_appends_plain_comments_urls_and_keeps_entries_on_io_failure() {
     assert_eq!(list.entries.len(), 6);
     assert_eq!(list.directory, "D:/resolved/");
     assert_eq!(io.trace.lock().unwrap().last().unwrap(), "close");
+}
+#[test]
+fn ss11_plain_open_restores_raw_input_and_reconverts_first_line() {
+    // §9.1's saved pre-header input includes whitespace removed by _GetLine.
+    let mut list = PlayList::default();
+    let mut io = FileFixture::text(" \t a.mp3 \r\nb.mp3\r\n");
+    assert_eq!(list.open("C:\\Music\\list", &mut io), Ok(true));
+    assert_eq!(
+        io.conversions,
+        [b"a.mp3".to_vec(), b"a.mp3".to_vec(), b"b.mp3".to_vec()]
+    );
+    assert_eq!(list.entries.len(), 2);
+    assert_eq!(list.entries[0].path, "C:\\Music\\a.mp3");
+    assert!(list.remaining_input.is_empty());
 }
 #[test]
 fn ss11_extended_titles_partial_failure_and_pls_worked_cases() {

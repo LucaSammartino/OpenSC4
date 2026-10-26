@@ -46,11 +46,6 @@ pub enum TargetClass {
     Ordinary,
     Slow,
 }
-enum TargetChange {
-    Add(TargetClass, TargetRef),
-    Remove(TargetRef),
-}
-
 /// Required native services/timers stay foreign; calls preserve §7.1.3 order.
 pub trait SystemHost {
     fn data_directory(&mut self) -> Option<String>;
@@ -86,7 +81,9 @@ pub struct SndSys {
     ordinary: Vec<TargetRef>,
     slow: Vec<TargetRef>,
     enumeration_depth: usize,
-    target_changes: Vec<TargetChange>,
+    removed_targets: Vec<TargetRef>,
+    pending_ordinary: Vec<TargetRef>,
+    pending_slow: Vec<TargetRef>,
     renderers: Vec<RendererRef>,
     slow_started: u32,
     running: bool,
@@ -122,7 +119,9 @@ impl SndSys {
             ordinary: Vec::new(),
             slow: Vec::new(),
             enumeration_depth: 0,
-            target_changes: Vec::new(),
+            removed_targets: Vec::new(),
+            pending_ordinary: Vec::new(),
+            pending_slow: Vec::new(),
             renderers: Vec::new(),
             slow_started: 0,
             running: false,
@@ -150,10 +149,8 @@ impl SndSys {
     pub fn unregister_handler(&mut self, handler: HandlerRef) {
         if self.dispatch_depth != 0 {
             self.removed_handlers.push(handler);
-        } else {
-            if let Some(index) = self.handlers.iter().position(|item| Arc::ptr_eq(item, &handler)) {
-                self.handlers.remove(index);
-            }
+        } else if let Some(index) = self.handlers.iter().position(|item| Arc::ptr_eq(item, &handler)) {
+            self.handlers.remove(index);
         }
     }
     pub fn do_event(&mut self, event: &SndEventStd) -> bool {
@@ -238,7 +235,10 @@ impl SndSys {
     /// Confirmed list operation once a class has been established by an adapter.
     pub fn register_classified_target(&mut self, target: TargetRef, class: TargetClass) {
         if self.enumeration_depth != 0 {
-            self.target_changes.push(TargetChange::Add(class, target));
+            match class {
+                TargetClass::Ordinary => self.pending_ordinary.push(target),
+                TargetClass::Slow => self.pending_slow.push(target),
+            }
         } else {
             self.unregister_target(Arc::clone(&target));
             self.target_list(class).push(target);
@@ -262,7 +262,7 @@ impl SndSys {
             return;
         }
         if self.enumeration_depth != 0 {
-            self.target_changes.push(TargetChange::Remove(target));
+            self.removed_targets.push(target);
         } else {
             self.remove_target(&target);
         }
@@ -287,20 +287,14 @@ impl SndSys {
         if self.enumeration_depth != 0 {
             return;
         }
-        let changes = std::mem::take(&mut self.target_changes);
-        for change in &changes {
-            if let TargetChange::Remove(target) = change {
-                self.unregister_target(Arc::clone(target));
-            }
+        for target in std::mem::take(&mut self.removed_targets) {
+            self.unregister_target(target);
         }
-        for category in [TargetClass::Ordinary, TargetClass::Slow] {
-            for change in &changes {
-                if let TargetChange::Add(class, target) = change {
-                    if *class == category {
-                        self.register_classified_target(Arc::clone(target), *class);
-                    }
-                }
-            }
+        for target in std::mem::take(&mut self.pending_ordinary) {
+            self.register_classified_target(target, TargetClass::Ordinary);
+        }
+        for target in std::mem::take(&mut self.pending_slow) {
+            self.register_classified_target(target, TargetClass::Slow);
         }
     }
     pub fn update_targets(&mut self, now_ms: u32) {
@@ -482,7 +476,10 @@ impl SndSys {
         }
         self.ordinary.clear();
         self.slow.clear();
-        self.target_changes.clear();
+        // SPEC-GAP: §7.1.3 does not name the queued-list offsets; use their §7.1.1 replay order.
+        self.removed_targets.clear();
+        self.pending_ordinary.clear();
+        self.pending_slow.clear();
         self.set_running(false);
         self.renderers.clear();
         self.clear_handlers();

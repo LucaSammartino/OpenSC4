@@ -19,23 +19,20 @@ All numeric property words preserve their 32-bit representation. Missing registe
 values and unknown constructor class IDs stay absent rather than acquiring guessed
 defaults. Source creation safely rejects unavailable dependencies, as allowed by §4.
 
-The source spec deliberately leaves SS1–SS11 unsettled. Public operations that
-would cross those gaps return `Unsupported("SSn")`. Confirmed continuations are
-separate: `prepare_play` exposes restart/routing requirements; `write_play_payload`
-records the four notified writes; channel `*_after_patch` methods implement the
-confirmed IO after a successful patch refresh; `register_classified_target` and
-`enumerate_targets` operate already-classified lists without inventing a period
-classifier; `parse_converted` appends without claiming Open's reset/append policy.
-These methods do not establish that the unresolved prerequisite succeeded.
+Higher sound owners' existing `Unsupported("SSn")` boundaries are listed below.
+Their continuations include `prepare_play`, `write_play_payload` and channel
+`*_after_patch` methods; these do not establish that a prerequisite succeeded.
 
-SS12 records literal list choices: preserve registrations, remove all matching
-pointers, drain target changes in request order (handler additions precede removals
-as required), and join ordinary relative paths using the base's separator style.
-UNC, dot/parent, URL and unresolved format paths explicitly return SS11.
+SS8–SS12 implement the specified system, manager, director and playlist contracts.
+Target queues drain removals, ordinary additions, then slow additions; handlers
+replay pending front insertions before removals. Registrations replace rather than
+duplicate active entries. Playlist paths use literal backslash segments without
+inserting separators; Open appends and restores raw input before parsing plain M3U.
+SS11 still reserves locale output bytes and unchecked IO failures for observation.
 
 ## Owner closure
 
-Tests below are in `tests.rs`; section numbers refer to `sound-system.md`.
+Tests below are in `tests.rs` and `closure_tests.rs`; section numbers refer to `sound-system.md`.
 “Open” is limited to the uncertainties explicitly reserved by the source spec;
 inventory names alone are not claimed as algorithms. All 24 §10 vectors execute.
 
@@ -51,12 +48,12 @@ inventory names alone are not claimed as algorithms. All 24 §10 vectors execute
 | cHitPropertySetTrackResource | §5.2 | `ResourceKey`, `HitPropertySetTrackResource`, `TrackResourceIo`, `ResourceFormat`, `LEGACY_PREFIX`; SS-V24; open: SS5 serializers, malformed input, assignment/private-copy ownership and alternate tables |
 | cFreshPlayer | §6.1 | `FreshPlayer`, `ScoreInput`, `init_resource`, `init_loaded_score`, `play`, setters, `update_volume`, busy count, `try_callback`; SS-V09, `fresh_initialization_play_and_lock_contention`, `score_resource_failure_does_not_initialize`; open: SS6 dimension acceptance, overloads, score selection, timing, fading and stop/shutdown |
 | cFreshCellPlayer | §6.2 | `FreshCellPlayer`, `CellHost`, state predicates, `set_cell`, `kill`, `stop`, `update_source`, two-stage wrapping volume arithmetic and forwarding; SS-V10–14 and `cell_stop_fade_poll_and_scaled_forwarding`; open: SS7 start/spatial policies, external controller and countdown branches |
-| cGZSndSys | §7.1 | `SndSys`, consuming/deferred event chain, posting, classified target lists/queues, independent update control, renderer master volume; SS-V15–17, `deferred_handlers_survive_nested_dispatch_and_drain_adds_first`, `target_queues_and_callback_short_circuit`, `target_removal_is_deferred_through_nested_enumeration`, `renderer_volume_and_posting_are_foreign_io`, `payload_overload_reuses_existing_event_fields`; open: SS8 period classifier, slow timer, listener/cache/lifecycle/mapping rules; literal choices SS12 |
-| cGZSndMgr | §7.2 | `SndMgr::init`, system-sound mapping, manager interface view, existing tag helper; SS-V18/19 and `manager_successful_init_registers_once`; open: SS9 constructor defaults, creators/cache/autoplay and shutdown |
-| cGZSoundCOMDirector | §8 | `SoundDirector::construct`, `on_start`, `pre_app_shutdown`, absent-system `post_app_init`; `director_factories_null_paths_and_panic`; open: SS10 present-system cache operation and inherited/aggregation contracts |
-| GZSndSysMacCOMDirector | §8 | `MacSoundDirector::construct`, `on_start`, `MAC_CLASSES`; `director_factories_null_paths_and_panic`; open: SS10 inherited/aggregation contracts |
-| cFreshnessCOMDirector | §8 | `FRESH_CLASSES`, `get_freshness_director`, alternate entry, `OnceLock`, registration/exit-cleanup callback; SS-V20; open: SS10 inherited/aggregation contracts |
-| cGZPlayList | §9 | `select_format`, `parse_converted`, `is_drive_spec`, `make_absolute_path`; SS-V21–23 and `playlist_absolute_paths_and_unsettled_formats`; open: SS11 Open IO/reset policy, title storage, plain comments/URLs, PLS and complex paths/encoding; literal simple-path joining SS12 |
+| cGZSndSys | §§7.1–7.1.3 | **implemented; SS8, SS12 closed.** `framework.rs`: `SndSys::{update_targets,drain_targets,do_event,init,shutdown}`, extension/listener/cache and renderer operations; SS-V15–17; `closure_tests.rs`: `ss8_period_boundary_and_ss12_category_replay`, `ss12_handler_replacement_and_deferred_front_order`, `ss8_ss12_queues_retain_until_replay_and_shutdown_releases_active_categories`, `ss8_disabled_failed_and_running_init_cache_ownership_shutdown`, `ss8_extension_seed_rule_renderer_identity_and_listener_words`. Native scheduling and factory outcomes are foreign inputs, including failed starts/caches tested here. |
+| cGZSndMgr | §7.2 | **implemented; SS9 closed.** `framework.rs`: `SndMgr` defaults, first-registration registries, creator resolution, resource forwarding, autoplay and shutdown/drop ownership; SS-V18/19; `closure_tests.rs`: `ss9_lookup_gate_cache_rejection_and_ordered_uncached_creators`, `ss9_autoplay_failed_play_front_only_cleanup_and_source_survival`, `ss9_resource_arguments_and_playing_front_blocking`. |
+| cGZSoundCOMDirector | §8 | **implemented; SS10 closed.** `directors.rs`: `SoundDirector`, shared `DirectorState` dispatch/factories, `post_app_init` CreateInstanceSet, explicit `NativeFault` boundaries; `closure_tests.rs`: `ss10_all_directors_inherited_identity_and_factory_worked_case`, `ss10_children_precede_local_factories_and_successful_qi_transfers_output`, `ss10_post_init_retains_cache_ignores_false_and_distinguishes_nulls`. |
+| GZSndSysMacCOMDirector | §8 | **implemented; SS10 closed.** `directors.rs`: `MacSoundDirector`, `MAC_CLASSES`, `MAC_CONSTRUCTION_LAYOUTS`, shared `DirectorState`; `tests.rs`: `director_factories_null_paths_and_panic`; `closure_tests.rs`: `ss10_all_directors_inherited_identity_and_factory_worked_case`, `ss10_children_precede_local_factories_and_successful_qi_transfers_output`. |
+| cFreshnessCOMDirector | §8 | **implemented; SS10 closed.** `directors.rs`: `get_freshness_director`, alternate entry, `OnceLock`/exit-cleanup registration, shared `DirectorState`; SS-V20; `closure_tests.rs`: `ss10_all_directors_inherited_identity_and_factory_worked_case`, `ss10_children_precede_local_factories_and_successful_qi_transfers_output`. |
+| cGZPlayList | §§9.1–9.4 | **partial; SS12 closed; open: SS11 runtime observations.** `playlist.rs`: `PlayList::{open,get_line,parse_records,parse_pls,make_absolute_path}`; SS-V21–23; `closure_tests.rs`: `ss11_open_appends_plain_comments_urls_and_keeps_entries_on_io_failure`, `ss11_plain_open_restores_raw_input_and_reconverts_first_line`, `ss11_extended_titles_partial_failure_and_pls_worked_cases`, `ss11_line_cursor_repeats_unterminated_tail_and_ignores_conversion_status`, `ss11_literal_backslash_paths_and_ss12_no_separator_insertion`, `ss11_reserved_runtime_io_boundaries_remain_explicit`. Observe original title/path bytes and Open results under recorded locale for 0x80/0xE9/invalid multibyte and UTF-8/UTF-16 BOMs, plus zero-byte successful Read and injected allocation-failure outcomes (§9.1). These cases remain explicit `Unsupported` boundaries, not closed behavior. |
 
 ## Conformance vectors
 

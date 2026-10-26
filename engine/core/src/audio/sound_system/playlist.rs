@@ -40,6 +40,9 @@ pub trait PlaylistIo {
 trait Records {
     fn line(&mut self) -> Result<Option<String>, Unsupported>;
     fn decimal_long(&mut self, text: &str) -> i32;
+    fn plain_first(&mut self, first: String) -> Result<Option<String>, Unsupported> {
+        Ok(Some(first))
+    }
 }
 struct Converted<'a, T> {
     lines: std::vec::IntoIter<String>,
@@ -58,10 +61,15 @@ impl<T: PlaylistInput> Records for Converted<'_, T> {
     }
 }
 struct Raw<'a> {
+    saved: Vec<u8>,
     remaining: &'a mut Vec<u8>,
     io: &'a mut dyn PlaylistIo,
 }
 impl Records for Raw<'_> {
+    fn plain_first(&mut self, _: String) -> Result<Option<String>, Unsupported> {
+        *self.remaining = std::mem::take(&mut self.saved);
+        self.line()
+    }
     fn line(&mut self) -> Result<Option<String>, Unsupported> {
         PlayList::get_line(self.remaining, |line, source, destination| {
             self.io.convert(line, source, destination)
@@ -102,7 +110,7 @@ impl PlayList {
         match format {
             Format::Pls => self.parse_pls(base, input),
             Format::M3u => {
-                let mut next = Some(first);
+                let mut next = input.plain_first(first)?;
                 while let Some(path) = next {
                     let filename = path.rsplit(['/', '\\']).next().unwrap_or(&path);
                     let title = filename.rsplit_once('.').map_or(filename, |(stem, _)| stem).to_owned();
@@ -285,6 +293,7 @@ impl PlayList {
         let result = self.parse_records(
             &self.directory.clone(),
             &mut Raw {
+                saved: remaining.clone(),
                 remaining: &mut remaining,
                 io,
             },
