@@ -3,6 +3,8 @@ use super::super::TerrainOccupant;
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 
+type FoundationArrays = (Option<[u32; 5]>, Option<[u32; 5]>);
+
 struct Host {
     refs: BTreeMap<Handle, i32>,
     released: Vec<Handle>,
@@ -22,6 +24,7 @@ struct Host {
     model_ids: Vec<(u32, Vector)>,
     id_queries: usize,
     flags: BTreeMap<Handle, u32>,
+    flag_reads: Vec<Handle>,
     bytes: BTreeMap<Handle, u8>,
     transforms: BTreeMap<Handle, Transform>,
     added: Vec<Handle>,
@@ -34,7 +37,7 @@ struct Host {
     animation_byte: Option<u8>,
     style: bool,
     foundation_style: bool,
-    foundation_data: Option<(Option<[u32; 5]>, Option<[u32; 5]>)>,
+    foundation_data: Option<FoundationArrays>,
     foundation_dimensions: Option<[f32; 2]>,
     foundation_box: Option<Bounds>,
     unused_property: Vec<u32>,
@@ -77,6 +80,7 @@ impl Default for Host {
             model_ids: vec![(1, [0.0; 3])],
             id_queries: 0,
             flags: BTreeMap::new(),
+            flag_reads: vec![],
             bytes: BTreeMap::new(),
             transforms: BTreeMap::new(),
             added: vec![],
@@ -320,6 +324,7 @@ impl ModelHost for Host {
         self.present.contains(&flag)
     }
     fn instance_flags(&mut self, instance: Handle) -> u32 {
+        self.flag_reads.push(instance);
         *self.flags.get(&instance).unwrap_or(&1)
     }
     fn set_instance_flags(&mut self, instance: Handle, flags: u32) {
@@ -573,13 +578,26 @@ fn common_building_first_model_notifies_development_and_flora_sets_flags() {
     host.interfaces.insert(0x87DD_A3A9, 50);
     assert_eq!(maker.load_models_common(1, 4, 2, BUILDING, &mut host), Ok(true));
     assert_eq!(host.flags[&2001], 0x41);
-    assert_eq!(host.flags[&2002], 1);
+    assert!(!host.flags.contains_key(&2002));
+    assert_eq!(host.flag_reads, [2001]);
     assert_eq!(host.development, [(2, ModelKey::s3d(1)), (1, ModelKey::s3d(1))]);
     assert_eq!(host.notifications, [50]);
     assert_eq!(host.refs[&50], 0);
     host.no_temporary_refs();
     assert_eq!(maker.load_models_common(1, 4, 2, FLORA, &mut host), Ok(true));
     assert_eq!(host.flags[&2002], 0x81);
+    host.no_temporary_refs();
+}
+
+#[test]
+fn common_other_types_leave_instance_flags_untouched() {
+    let maker = ModelMaker::default();
+    let mut host = Host::default();
+    for type_id in [FOUNDATION, 0x6A11_BD2B] {
+        assert_eq!(maker.load_models_common(1, 4, 2, type_id, &mut host), Ok(true));
+    }
+    assert!(host.flag_reads.is_empty());
+    assert!(host.flags.is_empty());
     host.no_temporary_refs();
 }
 

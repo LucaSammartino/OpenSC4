@@ -138,6 +138,7 @@ pub trait ModelHost: ObjectHost + TransformHost {
     fn development_accepts(&mut self, occupant: Handle) -> bool;
     fn development_notify(&mut self, building: Handle, argument: u32);
     fn create_foundation(&mut self, argument: u32) -> Handle;
+    /// A None array leaves that side's constructed defaults unchanged (§12.5).
     fn foundation_arrays(&mut self, model: Handle, p1: Option<[u32; 5]>, p2: Option<[u32; 5]>);
     fn foundation_dimensions(&mut self, model: Handle, a: f32, b: f32);
     fn foundation_bounds(&mut self, model: Handle, bounds: Bounds);
@@ -404,8 +405,7 @@ impl ModelMaker {
                 result = model.is_some();
             }
             if let Some(model) = model {
-                let mut flags = host.instance_flags(model);
-                match type_id {
+                let flag_mask = match type_id {
                     BUILDING if index == 0 => {
                         if let Some(building) = host.query_interface(occupant, 0x87DD_A3A9) {
                             if host.development_check(2, key) == 0
@@ -416,18 +416,19 @@ impl ModelMaker {
                             }
                             host.release(building);
                         }
-                        flags |= 0x40;
+                        0x40
                     }
-                    FLORA => flags |= 0x80,
-                    PROP => {
-                        flags |= 0x20;
-                        if host.property_present(ex, 0x4A70_D491) {
-                            flags = (flags & !1) | 2;
-                        }
+                    FLORA => 0x80,
+                    PROP => 0x20,
+                    _ => 0,
+                };
+                if flag_mask != 0 {
+                    let mut flags = host.instance_flags(model) | flag_mask;
+                    if type_id == PROP && host.property_present(ex, 0x4A70_D491) {
+                        flags = (flags & !1) | 2;
                     }
-                    _ => {}
+                    host.set_instance_flags(model, flags);
                 }
-                host.set_instance_flags(model, flags);
                 if host.property_bool(ex, 0xE9F0_FA86) {
                     let byte = host.instance_byte(model) | 4;
                     host.set_instance_byte(model, byte);
