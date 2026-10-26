@@ -1355,10 +1355,32 @@ impl Shadow {
                 }
                 self.phase = phase;
             }
+            // Occupant insert/remove notifications can arrive after the swap
+            // and before state 8 (plumbing.md §5.3/§5.4). These lists and
+            // counts are message-owned inputs, not outputs of the pass. Read
+            // them at the same boundary as state 8, just as we read the flag
+            // map before the flood; keep the pass's computed grids/totals.
+            let end_inputs = if matches!(self.phase, Phase::EndPending(_)) {
+                Some(self.capture_rec())
+            } else {
+                None
+            };
             if let Phase::EndPending(t) = &mut self.phase {
                 // Our state 8, on the inputs the original's state 8 changes
                 // (condition, budget items) as they stand before it.
                 if let Some(run) = t.run.as_mut() {
+                    match end_inputs {
+                        Some(Ok((_, r))) => run.sim.with_state(|s| {
+                            s.pipes = r.state.pipes;
+                            s.num_pipes = r.state.num_pipes;
+                            s.num_distressed = r.state.num_distressed;
+                            s.num_burst = r.state.num_burst;
+                            s.producers = r.state.producers;
+                            s.department = r.state.department;
+                        }),
+                        Some(Err(e)) => note_inexact(run, format!("capture before state 8: {e}")),
+                        None => unreachable!(),
+                    }
                     let ageing = self.ageing;
                     run.ageing = ageing;
                     if ageing.is_none() {
