@@ -5,6 +5,8 @@
 #include "FC4RefAudit.h"
 #include "cIGZUnknown.h"
 #include "cIGZFrameWork.h"
+#include "cIGZGraphicSystem2.h"
+#include "cGZGPixelFormatDesc.h"
 #include "cRZCOMDllDirector.h"
 #include <algorithm>
 #include <cstdint>
@@ -104,12 +106,13 @@ class Buffer final : public BufferPrimary, public BufferFace {
         cIGZUnknown* graphics=nullptr;
         if (!fw || !fw->GetSystemService(0xC416025C,0x0073283C,reinterpret_cast<void**>(&graphics)) || !graphics) return;
         FC4_ACQUIRED(graphics,"gzfw automatic-format graphics");
-        cIGZUnknown* extended=nullptr;
+        cIGZGraphicSystem2* extended=nullptr;
         if (graphics->QueryInterface(0xC47B747C,reinterpret_cast<void**>(&extended))) {
             FC4_ACQUIRED(extended,"gzfw automatic-format graphics2");
-            uint32_t settings[5]={0x40,0,0,0,0};
-            Slot<void(__thiscall*)(void*,uint32_t*)>(extended,15)(extended,settings);
-            bpp=(settings[0]&63)>16 ? 32 : 16; type=bpp==32 ? 9 : 7;
+            cGZGPixelFormatDesc settings{};
+            settings.field0_0x0=0x40;
+            extended->GetScreenPixelFormat(settings);
+            bpp=(settings.field0_0x0&63)>16 ? 32 : 16; type=bpp==32 ? 9 : 7;
             FC4_RELEASE(extended);
         } else {
             uint32_t pair[2]{};
