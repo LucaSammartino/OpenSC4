@@ -251,6 +251,34 @@ fn shadow_month_line() {
     assert!(line.contains("deliveries=2 (day 1, month 1, other 0)"), "{line}");
 }
 
+/// A deadline can stop FullTrips before its first source, on either side
+/// of WorkOnSimCycle's intersection prelude (§3.2, §3.4). Both stops have
+/// identical phase progress; only the latter rebuilds the dirty rectangle.
+#[test]
+fn shadow_zero_progress_intersection_prelude() {
+    for entered_work in [false, true] {
+        let w = World::new();
+        let orig = sim(&w);
+        orig.enter_cycle_state(cycle_state::FULL_TRIPS);
+        orig.network().update_state(|n| {
+            n.intersection_dirty = true;
+            n.intersection_rect = CellRect::new(1, 2, 3, 4);
+        });
+        let mut live = Live::default();
+        let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+        let r0 = capture(&orig, &mut live);
+        sh.before(delivery(msg::DAY, 2_460_000), Some(r0), &live);
+        orig.shadow_day_start();
+        if entered_work {
+            orig.network().update_intersection_data();
+        }
+        let out = sh.after(Some(capture(&orig, &mut live)), &live);
+        assert_eq!(out.mismatches, 0, "entered work {entered_work}: {:?}", out.lines);
+        assert_eq!(sh.copy().network().state().intersection_dirty, !entered_work);
+        assert_eq!(sh.stats.units, 0, "no trip was processed");
+    }
+}
+
 /// A change to the original between two deliveries is found by the record
 /// check, named, and the copy resyncs.
 #[test]

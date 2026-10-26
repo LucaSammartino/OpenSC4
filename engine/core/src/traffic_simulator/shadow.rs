@@ -1996,6 +1996,15 @@ impl TrafficShadow {
         }
         // Ours.
         let (units, note) = if d.msg_type == msg::DAY {
+            // WorkOnSimCycle rebuilds intersections before the phase's
+            // first deadline test (§3.2; traffic-network §4.6). The
+            // original can therefore clear the flag with zero progress.
+            // Replay that prelude when its stop is after it, just as the
+            // scan/source positions bound the phase replay below. This
+            // also rebuilds capacities; copying the flag would lose them.
+            if !target.intersection_dirty {
+                self.copy.network().update_intersection_data();
+            }
             self.run_day(&t, &r1.bytes)
         } else {
             self.copy.do_message(&Message {
