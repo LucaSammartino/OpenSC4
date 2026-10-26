@@ -786,6 +786,15 @@ fn neighbors_shadow_uses_the_originals_state_bytes() {
             let k = counters(p);
             assert_eq!(k.set_local_deals > 0, pushed, "month {i}: the push");
             assert_eq!(k.retries, retries, "month {i}: the retry report");
+            if !pushed {
+                // A not-ready or busy month never pushes deals. Shadow setup
+                // must preserve both cities' captured L + O contributions.
+                for original in snap.cities {
+                    let mut after = fc4_neighbors_shadow_city::default();
+                    assert!(fc4_neighbors_shadow_city_get(p, original.token, &mut after));
+                    assert_eq!(after.stats, original.stats, "month {i}: unchanged trade statistics");
+                }
+            }
             fc4_neighbors_destroy(p);
         }
     }

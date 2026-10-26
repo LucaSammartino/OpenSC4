@@ -21,9 +21,6 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
 - **GZF5 — Tool command adapters (§5.3):** Recover the seven parameter schemas,
   coordinate conversion widths/order, drag helper sequencing and failure behavior
   when no view/tool is available. Link tool semantics already specified elsewhere.
-- **GZF6 — Remaining buffer interface (§6):** Reconcile every remaining
-  `0x00AC1400` slot beyond the span-render-8 bridge with semantic names/signatures;
-  specify resize, attached storage, palette, copy/conversion and allocation failure.
 - **GZF7 — Logging configuration (§7):** Recover the named level table, numeric
   parsing instructions, Init configuration, duplicate backend-name policy and
   backend ownership. Settle recursive drain behavior, formatting
@@ -35,20 +32,3 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
   vocabulary and AddToken overload semantics; numeric textual syntax/overflow,
   unassigned-parameter default variant, final/error callbacks, short reads and
   embedded NUL behavior. Confirm malformed quoted/tagged EOF cases with vectors.
-
-- **GZF12 — Buffer hardware-cache contract blocks replacement (2026-10-26,
-  replace-gzfw29; GZF6 follow-up):** Please specify native slots 37/38
-  (`GetHardwareCache` / `SetHardwareCache` in the SDK): cache interface identity,
-  getter ownership, setter retention/replacement/null behavior, return value,
-  and storage/modification invalidation obligations. The bounded bridge in §6
-  and span-render-8 §10.7 does not cover these calls. With the new default-off
-  `gzfw` factory enabled, conservative refusal reaches these slots repeatedly
-  before city load and produces a broken region UI and `no-load` after 900 s.
-  Evidence: main `build-runs/game-results/gzfw29-s0-on-r1.log` / `.verdict` and
-  `build-runs/q-main-gzfw29-s0-on-r1-end.png` (DLL f966786a). The same gen27 s0-grow
-  script with the key off executes all 216 actions and has 25/25 exact owner
-  shadows; its only exception is the already-known native construction Shutdown
-  fault. This does not isolate the cache as the sole cause: other GZF6 buffer
-  operations are also conservatively refused. Replacement qualification stops
-  here rather than inventing cache ownership or claiming that no-load is a
-  city-level comparison. Full buffer semantics remain necessary for credit.

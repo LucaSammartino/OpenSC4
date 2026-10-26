@@ -1,7 +1,7 @@
 # File browser window (`cGZWinFileBrowser`)
 
-Target: SimCity 4 Deluxe, Windows GOG 1.1.641. RE lane `re-filebrowser4`,
-2026-10-22. This is a **partial owner specification**. Address citations refer
+Target: SimCity 4 Deluxe, Windows GOG 1.1.641. Updated by RE lane `re-fb29`,
+2026-10-26. This is a **partial owner specification**. Address citations refer
 to that executable; they are evidence anchors, not implementation requirements.
 Only the contracts explicitly described below are specified. No implementation,
 shadow comparison, or in-game verification is claimed.
@@ -39,8 +39,10 @@ Browser-specific overrides include Init (4), Shutdown (5), DoMessage (3),
 SetArea (`009A0089`), GZPaint (`009A0A17`), and the destructor thunk at 148;
 inherited entries retain their base-window meanings. The primary table starts
 at `00ADD190` and has **107 pointer entries, slots 0–106**. Its next address,
-`00ADD33C`, is a separate comparator pointer used by `009A32AB`, not browser
-slot 107. The raw table bytes and that reference delimit the table. The primary
+`00ADD33C`, contains the NUL-terminated string `c:\`, used by `009A32AB`, not
+a comparator pointer or browser slot 107. Its four bytes are `63 3A 5C 00`;
+interpreting them as a pointer produced false target `005C3A63`. The native
+bytes and the string assignment call delimit the table. The primary
 table is absent from the current ABI table; this document does not modify ABI
 rows or invent signatures for unidentified slots.
 
@@ -575,7 +577,8 @@ Creation does not assign child rectangles or enforce a minimum browser size.
 Init's actual browser dimensions and row height are specified in 8.5;
 SetArea delegates geometry to the base window. In particular the file grid
 and filename editor remain independently enabled. Pixel recipes of resources
-requested here remain FBQ1; primary property mutations remain FBQ4.
+requested here are specified or narrowed in 8.3; primary property mutations
+are specified in 8.7.
 
 #### 8.2.2 Message routing (`009A0ACC`, 687 bytes)
 
@@ -660,16 +663,145 @@ and drawing area. A null buffer returns true without drawing (argument load,
 test and branch at `0099EF18`–`0099EF1F`). Its palette is converted through the
 window color-conversion operation rather than treated as raw device pixels.
 For example, the first three RGB triples are (255,0,255), (0,0,0), and
-(255,248,144), byte-verified at `0099EF2C`–`0099EF63`. The procedural glyph
-geometry and lock-failure success behavior remain FBQ1; unreliable stack
-recovery in cached pseudocode is not sufficient evidence for those contracts.
+(255,248,144), byte-verified at `0099EF2C`–`0099EF63`. Remaining glyph
+geometry is narrowed to the observation in 8.3.3; lock-failure and success
+channels are specified in 8.3.1.
 
 CreateDefaultButtonBuffer (`009A1163`, 1,938 bytes) uses the same component
 factory/graphic-system fallback and requests an 84 by 22 buffer
 (`009A1173`–`009A11BE`). A failed buffer initialization releases the obtained
 buffer and clears the caller's output pointer (`009A18DF`–`009A18E6`). The
-successful drawing recipe and Boolean result still require instruction-level
-recovery (FBQ1). In particular, do not infer success solely from non-null output.
+remaining drawing recipe is narrowed in 8.3.3. Its Boolean result and all
+initialization/lock outcomes are specified below, independently of output
+pointer identity.
+
+#### 8.3.1 Initialization, selectors and result channels (FBQ1)
+
+LoadDefaultIcon, CreateComboDownArrowBuffer and CreateDefaultButtonBuffer
+pass buffer slot 3 an eight-byte format value consisting of two 32-bit words
+**(3,16)**, after width and height. This is not an uninitialized pair of
+arguments: `0044A490` constructs it on the argument stack, writing 3 and the
+result of `00449500(3)`, namely 16 (native jump-table word at `00449534`).
+This identifies the requested 16-bit format; it does not specify host pixel
+masks independently of the graphic system. Dimensions are respectively
+18×17, 64×15 and 84×22. Factory/fallback order is as above. Arrow/button
+output arguments must initially contain null and must be valid pointers;
+these routines do not themselves clear an existing output before calling
+the factory. Loader uses its own initially-null local output.
+
+For all three allocating routines, no obtained buffer means false; failed
+initialization means Release the obtained buffer, clear its output/local,
+and return false. Successful initialization means true even if every
+subsequent lock fails. The arrow and button routines leave their obtained
+reference in the caller's output; loader instead retains through icon slot
+12 and releases its local reference. Setter selector rejection does not
+change loader's true result.
+
+CreateDefaultIcon is different: it never allocates or initializes its buffer
+and always returns Boolean true, including null buffer, invalid selector and
+failed locks. It initializes its preserved result register to 1 at
+`0099EF15`–`0099EF1C`, never changes it, and returns its low byte at
+`0099FC67`. With a non-null buffer, convert the palette, attempt lock `0x8001`,
+fill the supplied area with converted magenta only on success, then unlock
+that lock only on success. Set the magenta color key regardless of this
+lock result. Next dispatch on the full 32-bit selector; each recognized
+branch separately attempts `0x8004` before drawing its glyph. Failure skips
+that branch's drawing and unlock, retaining true. Invalid selectors still
+receive the initial fill attempt and color-key assignment.
+
+| Icon selector | Glyph branch address |
+|---:|---|
+| 0 | `0099FB4E` |
+| 1 | `0099FA88` |
+| 2 | `0099F99E` |
+| 3 | `0099F7F7` |
+| 4 | `0099F555` |
+| 5 | `0099F2D6` |
+| 6 | `0099F04E` |
+| Any other 32-bit value, including `0xFFFFFFFF` | No glyph branch |
+
+In conversion-call order the icon RGB palette is (255,0,255), (0,0,0),
+(255,248,144), (191,184,191), (127,120,127), (112,112,112), (175,176,175),
+(255,255,255). Values are converted through secondary/window offset `0x1B0`;
+they are not literal destination words. Evidence: `0099EF2C`–`0099EFDD`,
+initial fill/key and dispatch `0099EFE1`–`0099F048`.
+
+Button creation first converts (125,125,125), (170,170,170), (255,0,255),
+(255,255,255), (100,100,100). It attempts a whole-buffer magenta fill under
+`0x8001`, sets that color key whether the lock succeeded or failed, and
+attempts common border drawing under a separate `0x8004` lock. Only
+selectors 2 (`009A1638`) and 3 (`009A1306`) draw additional glyphs;
+0, 1 and all other values exit after the common drawing. These selectors
+correspond to the buffer-index mapping in 8.4; 0/1 are not missing glyph
+cases to invent. Further fill/line phases each test their own lock, skip
+only their own drawing on failure, and unlock only successful locks.
+The result is set to 1 before the common line-lock test (`009A1290`–95)
+and returned at `009A18EC`; initialization failure branches around this
+assignment with result zero. Source anchors: `009A11AA`–`009A12F3`,
+selector dispatch `009A12F3`–`009A1300`, failure cleanup `009A18DF`–F2.
+
+#### 8.3.2 Exact combo-arrow recipe (FBQ1)
+
+The arrow routine `009A0FEE` has no selector. After initializing its 64×15
+buffer, convert black (0,0,0), then magenta (255,0,255), in that order.
+Attempt lock `0x8001`; on success fill rectangle (0,0,64,15) with converted
+magenta and unlock. Assign the magenta color key even on failed fill lock.
+Then process four panels with X origins 4,20,36,52, in that order.
+Each panel independently requests lock `0x8004`. On success issue the
+following four horizontal line operations in black, with primitive option 1,
+then unlock; a failed panel lock skips its four lines and its unlock only.
+
+| Y | First endpoint X | Second endpoint X |
+|---:|---|---|
+| 5 | X | X+7 |
+| 6 | X+1 | X+6 |
+| 7 | X+2 | X+5 |
+| 8 | X+3 | X+4 |
+
+Both endpoints use the listed Y. The routine returns true after all four
+attempts, irrespective of their results (`009A114A`); failed initialization
+releases/nulls the output (`009A1150`–57) and returns false. Colors and fill
+are anchored at `009A1056`–`009A10C3`, panel loop at `009A10C6`–`009A1148`.
+
+Worked case: make initialization succeed and make only the second panel's
+line lock fail. Expect the fill, key, and 12 black lines for origins 4,36,52,
+three matching line unlocks, and true with the obtained buffer still owned
+by the caller. No line at origin 20 and no unlock for that failed lock occur.
+If all five locks fail, expect a key assignment, no fill/lines/unlocks, and
+the same true result. Initialization failure instead gives one Release,
+null output, false, and no color conversion or lock calls.
+
+#### 8.3.3 Bounded remaining pixel observation (FBQ1)
+
+FBQ1 is answered as a narrowed runtime observation, not pixel conformance
+for the two large bodies. The unresolved part is the ordered fill/line
+coordinate-and-color recipe inside icon branches `0099F04E`–`0099FC61` and
+button glyph/common-border branches `009A1297`–`009A18D0`, including repeated
+panel translations and overwrite order. No other resource Boolean, selector,
+format, allocation or lock-outcome contract remains deferred here. The cached
+pseudocode aliases pushed arguments with locals in these bodies, so its
+apparent coordinates/colors must not be used as a pixel oracle.
+
+The observation that settles this is an original-program drawing trace:
+use a known format-(3,16) buffer, icon area (0,0,18,17), and selectors 0–6,
+7 and `0xFFFFFFFF`; use button selectors 0–3, 4 and `0xFFFFFFFF`. Record, in
+call order, all arguments and low-byte results at buffer offsets `0x18`
+(lock), `0x1C` (unlock), `0x48` (rectangle fill), `0x4C` (coordinate fill),
+`0x70` (line), and `0x5C` (key), plus RGB inputs/results at window `0x1B0`.
+Record initialization's two format words, buffer pitch and final 16-bit rows
+separately from the color key. Repeat icons with area (2,3,20,20) to settle
+whether glyph coordinates translate with the supplied area, rather than
+assuming that from the initial fill. Then repeat with each lock failure
+injected in turn and with all locks false. This yields the exact drawing
+recipes and distinguishes skipped phases from unchanged return channels.
+
+Worked boundary cases already settled statically: icon selector 7 with a
+non-null buffer and failed fill lock still sets the key and returns true;
+it draws no glyph and requests no glyph lock. Button selector 4 with
+successful initialization attempts its fill and common border, draws
+neither selector glyph, and returns true. A future trace must preserve
+these outcomes while supplying the missing pixel recipes; a screenshot
+alone is insufficient.
 
 ### 8.4 Icon and button-buffer setters
 
@@ -710,9 +842,8 @@ then receives `(5,5,5)`; slots 61,63 receive `+0x2E8`; slot 65 receives
 `(255,255,255)` to slot 71, and enables slot 79 with true. If browser flag 2
 is set it clears window flags `0x20000` and `0x40000` and sets `0x10000`;
 otherwise it sets `0x20000` and `0x40000`, leaving `0x10000` untouched
-(`009A3D7B`–`009A3EDB`). Public property meanings remain in FBQ4 until their
-method bodies are reconciled; these ordered calls do not authorize substituting
-different setup values.
+(`009A3D7B`–`009A3EDB`). Public property meanings are specified in 8.7;
+these ordered calls do not authorize substituting different setup values.
 
 Next acquire button resources `0x683DB4E5` and `0x683DB4E6` for selectors 2
 and 3, respectively. Retain each borrowed resource, or call the procedural
@@ -862,7 +993,7 @@ Invalidate (secondary offset `0x170`); they do this even for repeated values.
 | 9 / `00993785` (7 B, folded) | Return the entire 32-bit browser flags word `+0x160`; the export's other-owner name is misleading here. |
 | 10 / `0099FDDB` (11 B) | Forward unchanged arguments to window GetChildWindowFromID, secondary slot 34, adjusting `this` by four. Retain the base result/ownership contract. |
 | 14 and 16 / `009A0DCB` (30 B total, shared target) | Copy the current-directory bytes to the caller's string via its slot 3, using stored begin pointer and exact end-minus-begin length. Return true. No borrowed internal string is returned. |
-| 17 / `009A00B6` (36 B) | Call primary slot 15 with the original one-word argument, then dirty/invalidate and return true, irrespective of that callee's result. Slot 15's replacement contract remains FBQ4. |
+| 17 / `009A00B6` (36 B) | Call primary slot 15 with the original one-word argument, then dirty/invalidate and return true, irrespective of that callee's result. Slot 15's replacement contract is in 8.7.2. |
 | 25 / `009A0081` (8 B) | Tail-forward to primary clear-custom-groups slot 106; preserve its true result and reset behavior. |
 | 27 / `009A00DA` (34 B) | Write pending-selection word `+0x198` to the first 32-bit output, copy string `+0x1A0` through the second output string's slot 13, ignore the third argument, and return true. |
 | 28 / `009A323A` (113 B) | Store the first 32-bit argument at `+0x198`, assign string `+0x1A0` from the second string interface, copy the third string interface into a temporary, append all its bytes to `+0x1A0` with no separator, then dirty/invalidate and return true. Both strings must be valid. There is no immediate selection or validation of the first word. |
@@ -885,6 +1016,182 @@ argument is a string interface (`0040AE00` reads its byte pointer and length),
 and `00408C20` appends its range. For example strings `report` and `.txt`
 store pending name `report.txt`; slot 27 later returns that concatenated name
 and leaves its third argument untouched. Restoration on population is in 8.1.3.
+
+#### 8.7.1 Style and property widths (FBQ4, 2026-10-26)
+
+The following are primary slots. A getter returning a pointer borrows that
+pointer: it neither AddRefs it nor constructs an owned copy. Unless a row says
+otherwise, a setter returns Boolean true in the low byte, sets dirty byte
+`+0x31C`, then invalidates. There is no value validation or immediate child
+reconfiguration. These rules include repeated scalar assignments.
+
+Three externally configurable style blocks use the same six operations:
+
+| Block origin B | Font get / replace | Word get / set | Byte get / set |
+|---|---|---|---|
+| `+0x238` | 42 `009A03B8` / 45 `009A031A` | 43 `009A03AA` / 46 `009A0363` | 44 `009A03BF` / 47 `009A0389` |
+| `+0x25C` | 48 `009A0465` / 51 `009A03C7` | 49 `009A0457` / 52 `009A0410` | 50 `009A046C` / 53 `009A0436` |
+| `+0x2A4` | 54 `009A0512` / 57 `009A0474` | 55 `009A0504` / 58 `009A04BD` | 56 `009A0519` / 59 `009A04E3` |
+
+The font is the pointer at B. Replacement compares pointer identity first;
+an identical pointer returns true without reference calls, dirtiness or
+invalidation. On change, AddRef the incoming non-null pointer, Release the
+old non-null pointer, store the new pointer, dirty and invalidate, in that
+order. Null is accepted. Word operations take a 32-bit index I and address
+the 32-bit word at B+4+4I. They have **no range check**; the constructor's
+six repeated words do not impose a bound on this arithmetic. The byte
+operations access B+`0x1D`, not the
+constructor-cleared byte B+`0x1C`. A setter copies only the argument's low
+byte, without Boolean normalization. A getter **sign-extends that byte to
+32 bits**. Thus storing `0x80` reads back as `0xFFFFFF80`.
+Evidence: complete bodies `009A031A`–`009A0520`; in particular indexed stores
+`009A036B`, `009A0418`, `009A04C5`, byte stores `009A038D`, `009A043A`,
+`009A04E7`, and signed loads `009A03BF`, `009A046C`, `009A0519`.
+
+| Get slot / set slot | Stored state and boundary contract |
+|---|---|
+| 60 `009A0542` / 61 `009A0521` | Entire 32-bit word `+0x1E4`. |
+| 62 `009A056A` / 63 `009A0549` | Entire 32-bit word `+0x1FC`. |
+| 64 `009A0592` / 65 `009A0571` | Entire 32-bit word `+0x224`. |
+| 66 `009A05CD` / 67 `009A0599` | Optional word `+0x300`; setter arguments are an enable byte and a 32-bit value. Nonzero enable stores the value; zero stores sentinel `0x40000000`. Getter writes the raw word to argument 1 and one byte to argument 2: true exactly when that word differs from the sentinel; return true separately. |
+| 68 `009A0620` / 69 `009A05EC` | Same optional-word rule at `+0x304`. |
+| 70 `009A068E` / 71 `009A063F` | Setter copies argument 1 to `+0x24C,+0x270,+0x294,+0x2B8`, then argument 2 to `+0x250,+0x274,+0x298,+0x2BC`, as 32-bit words. Getter writes only the first block's two words, in argument order; it does not compare all four blocks. |
+| 72 `009A06E0` / 73 `009A06AB` | Three 32-bit words `+0x164,+0x168,+0x16C`, copied in argument order in either direction. |
+| 74 `009A072A` / 75 `009A0709` | Common-font pointer `+0x2C8`: getter borrows; setter unconditionally overwrites the 32-bit pointer, dirty/invalidate, return true. **No AddRef or Release** occurs, even for replacement. Shutdown still releases the stored non-null pointer (8.5). A caller cannot assume the per-style retaining replacement rule applies here. |
+| 80 `009A07A3` / 81 `009A0789` | Word `+0x230`: setter stores the unsigned maximum of the input and 4; return true, with **no dirty/invalidate**. For example `0xFFFFFFFF` stays `0xFFFFFFFF`, while 3 becomes 4. |
+
+These are integer/pointer bit patterns, not recovered floating-point values.
+The sentinel compares at `009A05DD` and `009A0630` are exact 32-bit equality;
+the optional getter stores at `009A05E5` and `009A0638` are one byte wide.
+Common-font store `009A070D` and unsigned clamp `009A0796`–`009A079C` prove
+the exceptions to the generic style setter.
+
+Worked cases for an implementation test: replace style font A with B and
+observe AddRef(B), Release(A), dirty, invalidate; repeat B and observe none
+of those effects. Set style byte to `0x80` and read `0xFFFFFF80`. Disable
+optional word `+0x300` while passing 123: its getter writes `0x40000000` and
+a single false byte and returns true. Enabling it with `0x40000000` produces
+the same getter result. Set common font A then B: neither call changes either
+reference count, and the eventual Shutdown releases B only.
+
+#### 8.7.2 Remaining primary slots (FBQ4)
+
+These rows, together with 8.7.1, cover all 62 previously residual primary
+targets / 3,835 export bytes. Argument/output words are 32 bits unless a byte
+is expressly named. A true/false result means the low byte; a forwarded or
+unspecified result must not be normalized from the rest of the return register.
+
+| Slot / address | Contract |
+|---|---|
+| 4 / `0099FCAA` | Test secondary/window flag `0x1000` through offset `0x10C`. If set, call the interface at primary `+8`, offset `0x24`, with arguments (15, borrowed window pointer from primary slot 3, original argument). Otherwise call secondary offset `0x248` with (primary word `+0x4C`, 1, borrowed window pointer, 0, 0). Return through the selected virtual call; there is no fixed Boolean success assignment. This is also used by the alternate-table message handler in A.1. |
+| 15 / `009A41CA` | Copy the input string to a temporary and test directory existence. On success copy it to current directory `+0x170` and return true. On failure copy fallback string `+0x184` there and return false. Neither path dirties, invalidates or immediately selects. Slot 17 adds the dirty/invalidate/always-true wrapper. |
+| 18 / `009A43A5` | Fill the same five-word borrowed descriptor as slot 90, then, if filename editor `+0x100` exists, ask its offset `0xB4` to copy text into a temporary. If internal selection type is 2, replace internal leaf `+0x350` with that text even when empty and rebuild full path as directory `+0x33C` followed by leaf, with no added separator. For another type, do this only for nonempty editor text and additionally set the output descriptor's type to 2; internal type `+0x320` is unchanged. The ID snapshot and three borrowed string pointers stay as originally filled. Return true. |
+| 33 / `009A2C2F` | Copy input path. Require its raw bytes to start with all current-directory bytes and its length to differ from current-directory length. Only then call directory removal `0091BF93` with (input string,1). On its true result invoke primary UpdatePath slot 95 and return true; otherwise return false without UpdatePath. There is no separator-boundary check, case folding, normalization or ownership transfer added by this method. |
+| 77 / `009A0731` | Copy input string through embedded parent-label `+0x1B4` slot 13; dirty/invalidate and return true. It retains bytes, not the input interface. |
+| 78 / `009A0782`; 79 / `009A075B` | Getter returns raw byte `+0x308` in the low return byte. Setter copies its argument's low byte there, without normalization, only if different; changed value dirties/invalidates, identical value does neither. Setter returns true in both cases. |
+| 82 / `009A0809` | Read only byte `+0x30E`, zero-extend it, pass that same value three times to graphic-system offset `0x88`, and return its color result. This is a grayscale conversion, not a normal RGB round-trip getter. |
+| 83 / `009A07AA` | Ask graphic-system offset `0x90` to unpack the input color into three bytes R,G,B. Store `0xFF000000 + (R×65536) + (G×256) + B` at `+0x30C`, set byte `+0x309` to 1, invalidate, return true. No dirty-byte assignment. |
+| 84 / `009A0871`; 85 / `009A0828` | Getter borrows background-buffer pointer `+0x310`. Setter compares identity; on change AddRef new non-null buffer, Release old non-null buffer, store new pointer, set background-paint byte `+0x309` to 1, invalidate, return true. Identical pointer returns true without any of these effects. It does not set `+0x31C`. |
+| 86 / `009A08B7`; 87 / `009A0878` | Getter returns normalized true exactly when `+0x309` is zero. Setter writes normalized logical NOT of its input low byte to `+0x309`. For nonzero input additionally call secondary offset `0x110` twice: (flag `0x20000`,true), then (flag `0x40000`,true). Zero input does not undo either flag. No own dirty/invalidate and no fixed Boolean return. |
+| 99 / `009A08C3` | If retained drive popup `+0xEC` exists, obtain its window through offset `0x14`, remove it through secondary offset `0x40`, Release the retained interface, and null `+0xEC`, in that order. Ignore removal's result. Return true, including when absent. |
+| 101 / `009A3A23` | If signed input index equals word `+0x19C`, return true with no calls. Otherwise traverse directory/drive list `+0x158` from its first node through the requested zero-based index, stopping at the sentinel. For each visited record, form its string plus one backslash. Record word `+0x1C` zero replaces current directory `+0x170` with that string; nonzero appends it to current directory. Then invoke UpdatePath slot 95 and return true. A negative index visits no records but still invokes UpdatePath; an oversized index consumes the available prefix. No direct store of the requested index occurs here. |
+
+The complete cited bodies prove the dispatch/side-effect boundaries. In
+particular slot 18's output-only type store is `009A4483`; raw prefix search
+and equal-length rejection are `009A2C64`–`009A2C7A`; grayscale triple pushes
+are `009A0813`–`009A0820`; inverted background byte and one-way flag changes
+are `009A0878`–`009A08AD`; signed navigation traversal is `009A3A3F`–`009A3ADC`.
+
+**Column-order slots.** Slot 41 (`009A01BF`) accepts a pointer to 32-bit IDs
+and an unsigned 32-bit count N. First clear six enable bytes at `+0x1DC+12I`
+and set their order words at `+0x1E0+12I` to `0xFFFFFFFF`, for I=0–5. For
+each input position J from 0 to N−1, an ID 0–5 enables its byte and writes J
+to its order word; any other ID is ignored but still consumes a position.
+Duplicates overwrite the earlier order. Store N at `+0x228`. If N is zero
+or ID 1 is absent, force ID 0 enabled/order 0, ID 1 enabled/order 1, and
+count 2, without clearing other enabled IDs; return false. Otherwise return
+true. Both outcomes dirty/invalidate. Slot 40 (`009A0260`) packages its
+three 32-bit arguments as an array and forwards to slot 41 with count 3,
+preserving that callee's low-byte result.
+
+Slot 39 (`009A028A`) takes an output ID array and an in/out 32-bit capacity.
+Unsigned-clamp the capacity to `+0x228`. Starting with ID 0 and output
+position 0, scan order words in increasing ID order; only an order word
+equal to the current output position emits that ID and increments output
+position. Stop once the clamped output count is reached; return true.
+There is no six-ID scan bound or restart. Do not promise safe rejection
+or a correctly permuted result for duplicate, ignored or reversed input
+orders: such states can make this getter read past the six records. Its
+later fill-with-ID-5 loop does not bound that preceding scan. Slot 38
+(`009A02D3`) initializes a local three-ID array to (5,5,5), calls slot 39
+with capacity 3, copies all three local words to its three output pointers
+in argument order, and returns true. Sources: `009A01CC`–`009A025D`,
+`009A0290`–`009A02D0`, `009A02D9`–`009A0319`.
+
+**Custom entries and filters.** Group index `0xFFFFFFFF` means the current
+32-bit filter index `+0x154` in all five slots below. Other indices are
+unsigned. Custom groups at `+0x13C` are 12-byte vector headers; filter
+strings at `+0x148` are 20-byte string objects. A custom record is 28 bytes:
+32-bit caller ID at 0, nullable retained buffer at 4, owned name string at 8.
+
+| Slot / address | Contract |
+|---|---|
+| 20 / `009A18F5` | Arguments: entry index, output string, output buffer-pointer word, output ID word, group index. If group or entry index is out of range, return false without writes. Otherwise copy all name bytes through output string slot 3, write the buffer pointer without AddRef, then write the ID, and return true. No dirty/invalidate. |
+| 21 / `009A5AAB` | Arguments: input name string, nullable buffer, 32-bit ID, group index. Grow custom-group vector, then filter-string vector, as necessary to include that index, preserving existing elements and creating empty new elements. Allocate/construct one 28-byte record, copy the name through embedded-string slot 13, store buffer and ID, AddRef non-null buffer, append the record pointer to the group's vector, dirty/invalidate, return true. Allocation failure is not converted to false: the subsequent record dereference requires successful allocation. |
+| 22 / `009A5B6E` | Arguments: input filter string, group index. Grow the same two vectors in the same order if needed, then copy the string into that filter's embedded object through its slot 13. If filter child `+0x104` exists, call its offset `0x6C` with the original input string and index. Return true; no dirty/invalidate and no current-index change. |
+| 23 / `009A2E26` | Arguments: input name string, group index. Reject an out-of-range group with false. In stored order ask the input string's comparison slot 10 (`+0x28`) to compare against each record's embedded name, with option 1. Remove the first record whose comparison returns true: Release its non-null buffer, destroy/free the record and owned name, erase its pointer, dirty/invalidate, return true. No match returns false without mutation. |
+| 24 / `009A2FCE` | Arguments: 32-bit ID, group index. Same removal order/result as slot 23, but compare the complete stored ID word for equality; duplicate IDs remove only the first. |
+
+These getters never transfer the record's buffer reference. Erasure can
+invalidate borrowed values even when a prior getter returned true. Sources:
+unsigned bounds and output ordering `009A18F9`–`009A1966`, string comparison
+`009A2E6A`–`009A2E7E`, buffer release/deletion/erase `009A2E8F`–`009A2EC6`
+and `009A3024`–`009A3058`, insertion `009A5AC0`–`009A5B6D`, filter mutation
+`009A5B6E`–`009A5BF1`. Generic collection helpers are classified in A.1.
+
+**Drive initialization.** Slot 93 (`009A330C`) obtains paired drive-name
+and drive-kind sequences from the directory service, and iterates them in
+their returned order. For each pair allocate/construct a 32-byte drive
+record. Map kind 1→type 0/icon `+0x2D8`, 2→type 1/icon `+0x2E4`,
+3→type 2/icon `+0x2E0`, 5→type 3/icon `+0x2DC`, all others→type 4/icon
+`+0x2D8`. Store type at record `+0x14`, borrowed icon at `+0x18`, zero at
+`+0x1C`. If the name has at least two bytes, copy only its first two
+and append the record to list `+0x158`; there is no implicit clearing of
+the existing list. Short names are not appended; the allocation has already
+occurred and this body does not free it. Release temporary service output
+storage and return true. No per-record icon AddRef, dirty/invalidate or
+safe allocation-failure result is supplied (`009A337E`–`009A3446`).
+
+Slot 94 (`009A32AB`) chooses the first list record whose type at `+0x14`
+is zero and whose string has at least two bytes. Store those first two
+bytes followed by a backslash in fallback directory `+0x184`. If none
+qualifies, assign the literal `c:\` through the string's FromChar
+slot 4. This is a string assignment, never a comparator call. It performs
+no existence check, dirty/invalidate or current-directory assignment and
+has no separately assigned Boolean result. Evidence: `009A32BF`–`009A330A`,
+native literal bytes at `00ADD33C`, string slot-4 pointer `0090F50F` at
+`00A80820`, and that method's NUL-terminated assignment `0090F515`–29.
+
+Worked cases for FBQ4:
+
+- Add two custom entries named `alpha` and `beta` with the same ID 42 into
+  group 2 while both vectors are empty. Expect both vectors to have three
+  groups/strings, two owned records in group 2, and one AddRef per non-null
+  supplied buffer. Getter slot 20 returns a copied name and borrowed buffer.
+  Remove ID 42 once: only `alpha` and its retained buffer reference go away;
+  `beta` remains. An out-of-range getter leaves all output sentinels intact.
+- Set order (0,1,5) using slot 40. Expect count 3, true, and getter outputs
+  (0,1,5). Set (2) using slot 41: expect false, count 2, forced IDs 0/1 plus
+  the still-enabled ID 2, showing that fallback is not a complete reset.
+- Internal type 1, ID 9, directory `C:\Town\`, and editor text `new.sc4`:
+  slot 18 reports descriptor type 2/ID 9, borrows strings now containing
+  full path `C:\Town\new.sc4` and leaf `new.sc4`, but internal type stays 1.
+  Slot 90 immediately afterwards reports that internal type 1.
+- If the graphic system unpacks a color to (18,52,86), slot 83 stores
+  `0xFF123456`; slot 82 asks it to convert (18,18,18). Setting the same
+  background-buffer pointer must not reenable background painting.
+- With no type-0 drive, slot 94 assigns `c:\`. With a first qualifying
+  type-0 record named `D:`, it assigns `D:\`, regardless of later drives.
 
 The separate `0099FCFF` entry (5 bytes) is only a tail-forwarder to base-window
 SetFlag `0099DB6B`. Its exported browser name does not make it an additional
@@ -934,9 +1241,10 @@ executed and do not claim foreign rendering pixels or foreign layout policy.
 
 ## 10. Coverage limits and reconciliation
 
-This is partial coverage: resource drawing, control layout, comparator ordering
-and remaining primary property/selection methods remain questions. Lifecycle
-and defaults have been recovered in sections 8.5–8.6, answering FBQ3.
+This is partial coverage: the two procedural icon/button pixel recipes remain
+the bounded runtime observation in 8.3.3. Primary property/selection contracts
+and attribution are resolved in 8.7 and A.1. Lifecycle and defaults have been
+recovered in sections 8.5–8.6, answering FBQ3.
 An inventory row does not assert that a method is specified. Public
 widget-toolkit WT1/WT2/WT3/WT5/WT6 and HTML-document HD7 concern other owners
 and are not answered by this work. Their reviewed spec/question files have no
@@ -968,10 +1276,10 @@ Addresses and lengths identify the functions without exporting their bodies.
 |---|---:|---|---|---|
 | `0047AA30` | 8 | - | name-medium | 1.1 |
 | `0047AA40` | 8 | - | name-low | 1.1 |
-| `0047AA50` | 145 | - | vtable | FBQ6 |
-| `005C2D10` | 370 | - | reach | FBQ6 |
-| `005C2E82` | 42 | - | funclet | FBQ6 |
-| `005C3A63` | 575 | - | reach | FBQ6 |
+| `0047AA50` | 145 | - | vtable | A.1 (attribution) |
+| `005C2D10` | 370 | - | reach | A.1 (attribution) |
+| `005C2E82` | 42 | - | funclet | A.1 (attribution) |
+| `005C3A63` | 575 | - | reach | A.1 (attribution) |
 | `008AEB00` | 8 | - | name-low | 8.6 (adjustor thunk) |
 | `008AF100` | 30 | - | name-high | 8.6 (deleting wrapper) |
 | `00949ADE` | 3 | 92 | new | 8.7 (folded) |
@@ -980,10 +1288,10 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `0099EC98` | 450 | - | name-high | 8.5 |
 | `0099EE5A` | 55 | 12 | neighbour | 8.4 |
 | `0099EE91` | 128 | 13 | neighbour | 8.4 |
-| `0099EF11` | 3423 | - | name-medium | 8.3 partial / FBQ1 |
+| `0099EF11` | 3423 | - | name-medium | 8.3; pixel observation 8.3.3 |
 | `0099FC70` | 24 | 2 | name-high | 8.6 |
 | `0099FC88` | 34 | 0 | name-high | 1.1 |
-| `0099FCAA` | 85 | 4 | neighbour | FBQ4 |
+| `0099FCAA` | 85 | 4 | neighbour | 8.7.1–8.7.2 |
 | `0099FCFF` | 5 | - | name-low | 8.7 (base-forwarding thunk) |
 | `0099FD04` | 27 | 5 | new | 5 |
 | `0099FD1F` | 140 | 6 | new | 5 |
@@ -1001,202 +1309,254 @@ Addresses and lengths identify the functions without exporting their bodies.
 | `009A0170` | 29 | 34 | new | 8.7 |
 | `009A018D` | 33 | 37 | new | 8.7 |
 | `009A01AE` | 17 | 36 | new | 8.7 |
-| `009A01BF` | 161 | 41 | new | FBQ4 |
-| `009A0260` | 42 | 40 | new | FBQ4 |
-| `009A028A` | 73 | 39 | new | FBQ4 |
-| `009A02D3` | 71 | 38 | new | FBQ4 |
-| `009A031A` | 73 | 45 | new | FBQ4 |
-| `009A0363` | 38 | 46 | new | FBQ4 |
-| `009A0389` | 33 | 47 | new | FBQ4 |
-| `009A03AA` | 14 | 43 | new | FBQ4 |
-| `009A03B8` | 7 | 42 | new | FBQ4 |
-| `009A03BF` | 8 | 44 | new | FBQ4 |
-| `009A03C7` | 73 | 51 | new | FBQ4 |
-| `009A0410` | 38 | 52 | new | FBQ4 |
-| `009A0436` | 33 | 53 | new | FBQ4 |
-| `009A0457` | 14 | 49 | new | FBQ4 |
-| `009A0465` | 7 | 48 | new | FBQ4 |
-| `009A046C` | 8 | 50 | new | FBQ4 |
-| `009A0474` | 73 | 57 | new | FBQ4 |
-| `009A04BD` | 38 | 58 | new | FBQ4 |
-| `009A04E3` | 33 | 59 | new | FBQ4 |
-| `009A0504` | 14 | 55 | new | FBQ4 |
-| `009A0512` | 7 | 54 | new | FBQ4 |
-| `009A0519` | 8 | 56 | new | FBQ4 |
-| `009A0521` | 33 | 61 | new | FBQ4 |
-| `009A0542` | 7 | 60 | new | FBQ4 |
-| `009A0549` | 33 | 63 | new | FBQ4 |
-| `009A056A` | 7 | 62 | new | FBQ4 |
-| `009A0571` | 33 | 65 | new | FBQ4 |
-| `009A0592` | 7 | 64 | new | FBQ4 |
-| `009A0599` | 52 | 67 | new | FBQ4 |
-| `009A05CD` | 31 | 66 | new | FBQ4 |
-| `009A05EC` | 52 | 69 | new | FBQ4 |
-| `009A0620` | 31 | 68 | new | FBQ4 |
-| `009A063F` | 79 | 71 | new | FBQ4 |
-| `009A068E` | 29 | 70 | new | FBQ4 |
-| `009A06AB` | 53 | 73 | new | FBQ4 |
-| `009A06E0` | 41 | 72 | new | FBQ4 |
-| `009A0709` | 33 | 75 | new | FBQ4 |
-| `009A072A` | 7 | 74 | new | FBQ4 |
-| `009A0731` | 42 | 77 | new | FBQ4 |
-| `009A075B` | 39 | 79 | new | FBQ4 |
-| `009A0782` | 7 | 78 | new | FBQ4 |
-| `009A0789` | 26 | 81 | new | FBQ4 |
-| `009A07A3` | 7 | 80 | new | FBQ4 |
-| `009A07AA` | 95 | 83 | new | FBQ4 |
-| `009A0809` | 31 | 82 | new | FBQ4 |
-| `009A0828` | 73 | 85 | new | FBQ4 |
-| `009A0871` | 7 | 84 | new | FBQ4 |
-| `009A0878` | 63 | 87 | new | FBQ4 |
-| `009A08B7` | 12 | 86 | new | FBQ4 |
-| `009A08C3` | 55 | 99 | new | FBQ4 |
-| `009A08FA` | 145 | - | reach | FBQ6 |
-| `009A098B` | 56 | - | reach | FBQ6 |
-| `009A09C3` | 84 | - | reach | FBQ6 |
+| `009A01BF` | 161 | 41 | new | 8.7.1–8.7.2 |
+| `009A0260` | 42 | 40 | new | 8.7.1–8.7.2 |
+| `009A028A` | 73 | 39 | new | 8.7.1–8.7.2 |
+| `009A02D3` | 71 | 38 | new | 8.7.1–8.7.2 |
+| `009A031A` | 73 | 45 | new | 8.7.1–8.7.2 |
+| `009A0363` | 38 | 46 | new | 8.7.1–8.7.2 |
+| `009A0389` | 33 | 47 | new | 8.7.1–8.7.2 |
+| `009A03AA` | 14 | 43 | new | 8.7.1–8.7.2 |
+| `009A03B8` | 7 | 42 | new | 8.7.1–8.7.2 |
+| `009A03BF` | 8 | 44 | new | 8.7.1–8.7.2 |
+| `009A03C7` | 73 | 51 | new | 8.7.1–8.7.2 |
+| `009A0410` | 38 | 52 | new | 8.7.1–8.7.2 |
+| `009A0436` | 33 | 53 | new | 8.7.1–8.7.2 |
+| `009A0457` | 14 | 49 | new | 8.7.1–8.7.2 |
+| `009A0465` | 7 | 48 | new | 8.7.1–8.7.2 |
+| `009A046C` | 8 | 50 | new | 8.7.1–8.7.2 |
+| `009A0474` | 73 | 57 | new | 8.7.1–8.7.2 |
+| `009A04BD` | 38 | 58 | new | 8.7.1–8.7.2 |
+| `009A04E3` | 33 | 59 | new | 8.7.1–8.7.2 |
+| `009A0504` | 14 | 55 | new | 8.7.1–8.7.2 |
+| `009A0512` | 7 | 54 | new | 8.7.1–8.7.2 |
+| `009A0519` | 8 | 56 | new | 8.7.1–8.7.2 |
+| `009A0521` | 33 | 61 | new | 8.7.1–8.7.2 |
+| `009A0542` | 7 | 60 | new | 8.7.1–8.7.2 |
+| `009A0549` | 33 | 63 | new | 8.7.1–8.7.2 |
+| `009A056A` | 7 | 62 | new | 8.7.1–8.7.2 |
+| `009A0571` | 33 | 65 | new | 8.7.1–8.7.2 |
+| `009A0592` | 7 | 64 | new | 8.7.1–8.7.2 |
+| `009A0599` | 52 | 67 | new | 8.7.1–8.7.2 |
+| `009A05CD` | 31 | 66 | new | 8.7.1–8.7.2 |
+| `009A05EC` | 52 | 69 | new | 8.7.1–8.7.2 |
+| `009A0620` | 31 | 68 | new | 8.7.1–8.7.2 |
+| `009A063F` | 79 | 71 | new | 8.7.1–8.7.2 |
+| `009A068E` | 29 | 70 | new | 8.7.1–8.7.2 |
+| `009A06AB` | 53 | 73 | new | 8.7.1–8.7.2 |
+| `009A06E0` | 41 | 72 | new | 8.7.1–8.7.2 |
+| `009A0709` | 33 | 75 | new | 8.7.1–8.7.2 |
+| `009A072A` | 7 | 74 | new | 8.7.1–8.7.2 |
+| `009A0731` | 42 | 77 | new | 8.7.1–8.7.2 |
+| `009A075B` | 39 | 79 | new | 8.7.1–8.7.2 |
+| `009A0782` | 7 | 78 | new | 8.7.1–8.7.2 |
+| `009A0789` | 26 | 81 | new | 8.7.1–8.7.2 |
+| `009A07A3` | 7 | 80 | new | 8.7.1–8.7.2 |
+| `009A07AA` | 95 | 83 | new | 8.7.1–8.7.2 |
+| `009A0809` | 31 | 82 | new | 8.7.1–8.7.2 |
+| `009A0828` | 73 | 85 | new | 8.7.1–8.7.2 |
+| `009A0871` | 7 | 84 | new | 8.7.1–8.7.2 |
+| `009A0878` | 63 | 87 | new | 8.7.1–8.7.2 |
+| `009A08B7` | 12 | 86 | new | 8.7.1–8.7.2 |
+| `009A08C3` | 55 | 99 | new | 8.7.1–8.7.2 |
+| `009A08FA` | 145 | - | reach | A.1 (attribution) |
+| `009A098B` | 56 | - | reach | A.1 (attribution) |
+| `009A09C3` | 84 | - | reach | A.1 (attribution) |
 | `009A0A17` | 173 | - | name-high | 8.5 |
 | `009A0AC4` | 8 | 88 | neighbour | 8.7 (adjustor thunk) |
 | `009A0ACC` | 687 | - | name-high | 8.2.2 |
 | `009A0D7B` | 80 | 26 | neighbour | 8 |
 | `009A0DCB` | 30 | 14,16 | neighbour | 8.7 |
 | `009A0DE9` | 30 | 76 | neighbour | 8.7 |
-| `009A0E07` | 46 | - | reach | FBQ6 |
-| `009A0E35` | 120 | - | reach | FBQ6 |
-| `009A0EAD` | 321 | - | name-medium | 8.3 partial / FBQ1 |
-| `009A0FEE` | 373 | - | name-medium | FBQ1 |
-| `009A1163` | 1938 | - | name-medium | 8.3 partial / FBQ1 |
-| `009A18F5` | 116 | 20 | new | FBQ4 |
+| `009A0E07` | 46 | - | reach | A.1 (attribution) |
+| `009A0E35` | 120 | - | reach | A.1 (attribution) |
+| `009A0EAD` | 321 | - | name-medium | 8.3.1 (loader) |
+| `009A0FEE` | 373 | - | name-medium | 8.3.2 |
+| `009A1163` | 1938 | - | name-medium | 8.3; pixel observation 8.3.3 |
+| `009A18F5` | 116 | 20 | new | 8.7.1–8.7.2 |
 | `009A1969` | 25 | - | free-neighbour | 8.1.1 (shared string helper) |
-| `009A1982` | 90 | - | reach | FBQ6 |
-| `009A19DC` | 36 | - | reach | FBQ6 |
-| `009A1A00` | 54 | - | reach | FBQ6 |
-| `009A1A36` | 88 | - | reach | FBQ6 |
-| `009A1A8E` | 43 | - | reach | FBQ6 |
+| `009A1982` | 90 | - | reach | A.1 (attribution) |
+| `009A19DC` | 36 | - | reach | A.1 (attribution) |
+| `009A1A00` | 54 | - | reach | A.1 (attribution) |
+| `009A1A36` | 88 | - | reach | A.1 (attribution) |
+| `009A1A8E` | 43 | - | reach | A.1 (attribution) |
 | `009A1AB9` | 36 | - | free-neighbour | 8.1.1 (shared string helper) |
-| `009A1AFF` | 40 | - | reach | FBQ6 |
-| `009A1B27` | 163 | - | reach | FBQ6 |
-| `009A1BCA` | 85 | - | reach | FBQ6 |
-| `009A1C1F` | 38 | - | reach | FBQ6 |
-| `009A1C45` | 36 | - | reach | FBQ6 |
-| `009A1C69` | 41 | - | neighbour | FBQ6 |
-| `009A1C92` | 29 | - | neighbour | FBQ6 |
-| `009A1CAF` | 27 | - | neighbour | FBQ6 |
-| `009A1CCA` | 50 | - | neighbour | FBQ6 |
-| `009A1CFC` | 50 | - | neighbour | FBQ6 |
-| `009A1D2E` | 64 | - | reach | FBQ6 |
-| `009A1D6E` | 74 | - | reach | FBQ6 |
+| `009A1AFF` | 40 | - | reach | A.1 (attribution) |
+| `009A1B27` | 163 | - | reach | A.1 (attribution) |
+| `009A1BCA` | 85 | - | reach | A.1 (attribution) |
+| `009A1C1F` | 38 | - | reach | A.1 (attribution) |
+| `009A1C45` | 36 | - | reach | A.1 (attribution) |
+| `009A1C69` | 41 | - | neighbour | A.1 (attribution) |
+| `009A1C92` | 29 | - | neighbour | A.1 (attribution) |
+| `009A1CAF` | 27 | - | neighbour | A.1 (attribution) |
+| `009A1CCA` | 50 | - | neighbour | A.1 (attribution) |
+| `009A1CFC` | 50 | - | neighbour | A.1 (attribution) |
+| `009A1D2E` | 64 | - | reach | A.1 (attribution) |
+| `009A1D6E` | 74 | - | reach | A.1 (attribution) |
 | `009A1DB8` | 28 | - | neighbour | 8.6 (record helper) |
-| `009A1DD4` | 29 | - | neighbour | FBQ6 |
-| `009A1DF1` | 29 | - | neighbour | FBQ6 |
-| `009A1E0E` | 83 | - | reach | FBQ6 |
-| `009A1E61` | 133 | - | reach | FBQ6 |
-| `009A1EE6` | 41 | - | reach | FBQ6 |
-| `009A1F0F` | 22 | - | neighbour | FBQ6 |
-| `009A1F25` | 23 | - | reach | FBQ6 |
+| `009A1DD4` | 29 | - | neighbour | A.1 (attribution) |
+| `009A1DF1` | 29 | - | neighbour | A.1 (attribution) |
+| `009A1E0E` | 83 | - | reach | A.1 (attribution) |
+| `009A1E61` | 133 | - | reach | A.1 (attribution) |
+| `009A1EE6` | 41 | - | reach | A.1 (attribution) |
+| `009A1F0F` | 22 | - | neighbour | A.1 (attribution) |
+| `009A1F25` | 23 | - | reach | A.1 (attribution) |
 | `009A1F3C` | 31 | - | neighbour | 8.6 (record helper) |
 | `009A1F5B` | 28 | - | reach | 8.6 (record helper) |
 | `009A1F77` | 3149 | 91 | name-high | 8.2 (child-call boundary) |
 | `009A2BC4` | 107 | 30 | name-medium | 2.2 |
-| `009A2C2F` | 160 | 33 | neighbour | FBQ4 |
+| `009A2C2F` | 160 | 33 | neighbour | 8.7.1–8.7.2 |
 | `009A2CCF` | 215 | - | name-medium | 3.1 |
 | `009A2DA6` | 57 | 105 | neighbour | 8.6 |
-| `009A2DDF` | 40 | - | reach | FBQ6 |
+| `009A2DDF` | 40 | - | reach | A.1 (attribution) |
 | `009A2E07` | 31 | - | neighbour | 8.6 (record helper) |
-| `009A2E26` | 161 | 23 | neighbour | FBQ4 |
+| `009A2E26` | 161 | 23 | neighbour | 8.7.1–8.7.2 |
 | `009A2EC7` | 72 | 104 | neighbour | 8.6 |
-| `009A2F0F` | 24 | - | neighbour | FBQ6 |
-| `009A2F27` | 167 | - | reach | FBQ6 |
-| `009A2FCE` | 140 | 24 | neighbour | FBQ4 |
-| `009A305A` | 51 | - | neighbour | FBQ6 |
-| `009A308D` | 90 | - | reach | FBQ6 |
-| `009A30E7` | 187 | - | neighbour | FBQ6 |
+| `009A2F0F` | 24 | - | neighbour | A.1 (attribution) |
+| `009A2F27` | 167 | - | reach | A.1 (attribution) |
+| `009A2FCE` | 140 | 24 | neighbour | 8.7.1–8.7.2 |
+| `009A305A` | 51 | - | neighbour | A.1 (attribution) |
+| `009A308D` | 90 | - | reach | A.1 (attribution) |
+| `009A30E7` | 187 | - | neighbour | A.1 (attribution) |
 | `009A31A2` | 144 | - | reach | 8.6 |
 | `009A3232` | 8 | - | vtable | 8.6 (adjustor thunk) |
 | `009A323A` | 113 | 28 | neighbour | 8.7 |
-| `009A32AB` | 97 | 94 | neighbour | FBQ4 |
-| `009A330C` | 315 | 93 | neighbour | FBQ4 |
+| `009A32AB` | 97 | 94 | neighbour | 8.7.1–8.7.2 |
+| `009A330C` | 315 | 93 | neighbour | 8.7.1–8.7.2 |
 | `009A3447` | 156 | 100 | name-high | 6.2 |
-| `009A34E3` | 250 | - | neighbour | FBQ6 |
+| `009A34E3` | 250 | - | neighbour | A.1 (attribution) |
 | `009A35DD` | 28 | - | reach | 8.6 (deleting wrapper) |
 | `009A35F9` | 134 | 106 | neighbour | 8.6 |
 | `009A367F` | 488 | 102 | name-high | 6.1 |
 | `009A3867` | 444 | 103 | name-high | 6.1 |
-| `009A3A23` | 208 | 101 | neighbour | FBQ4 |
+| `009A3A23` | 208 | 101 | neighbour | 8.7.1–8.7.2 |
 | `009A3AF3` | 116 | 95 | name-high | 2.3 |
 | `009A3B67` | 346 | - | name-medium | 8.1.2 |
 | `009A3CC1` | 742 | - | name-high | 8.5 |
 | `009A3FA7` | 547 | - | free-neighbour | 8.1.1 |
-| `009A41CA` | 116 | 15 | new | FBQ4 |
+| `009A41CA` | 116 | 15 | new | 8.7.1–8.7.2 |
 | `009A423E` | 359 | 19 | name-medium | 6.3 |
-| `009A43A5` | 259 | 18 | new | FBQ4 |
+| `009A43A5` | 259 | 18 | new | 8.7.1–8.7.2 |
 | `009A44A8` | 114 | 31 | new | 2.1 |
 | `009A451A` | 549 | 32 | name-high | 7 |
 | `009A473F` | 1007 | 98 | name-high | 8.1.5 |
 | `009A4B2E` | 908 | 97 | name-medium | 8.1.4 |
 | `009A4EBA` | 2241 | 96 | name-high | 8.1 / 8.1.3 / 8.1.6 |
-| `009A5AAB` | 195 | 21 | new | FBQ4 |
-| `009A5B6E` | 132 | 22 | new | FBQ4 |
-| `009B689C` | 36 | - | reach | FBQ6 |
-| `009B6A49` | 27 | - | reach | FBQ6 |
+| `009A5AAB` | 195 | 21 | new | 8.7.1–8.7.2 |
+| `009A5B6E` | 132 | 22 | new | 8.7.1–8.7.2 |
+| `009B689C` | 36 | - | reach | A.1 (attribution) |
+| `009B6A49` | 27 | - | reach | A.1 (attribution) |
 | `009CFA1D` | 25 | 89 | new | 8.7 (folded) |
 | `009CFA36` | 12 | 3 | new | 8.7 (folded) |
 
-### A.1 Final third-round reconciliation and parked residuals (2026-10-22)
+### A.1 Attribution resolved for the preserved inventory (FBQ6, 2026-10-26)
 
-Every one of the original 174 addresses occurs exactly once above; sizes sum
-to 28,907 B. The 107 primary slots still resolve to 106 distinct targets
-(slots 14 and 16 share one). They account for 15,406 B. No neighbouring
-comparator pointer has been counted as slot 107.
+The original union remains a historical inventory of 174 entries / 28,907 B,
+not a method count. The 107 primary slots resolve to 106 distinct targets
+(14 and 16 share one), totaling 15,406 B. The following disjoint buckets
+classify every original entry; the former 42-entry / 3,823 B FBQ6 residual
+is exhausted by the last four non-total rows.
 
-The following disjoint attribution buckets reconcile all 174 entries. These
-are function-body bytes, not distinct behavior counts or repaired boundaries.
-
-| Bucket within the original union | Entries | Bytes | Exact identification |
+| Bucket within the original union | Entries | Bytes | Identification |
 |---|---:|---:|---|
-| Browser method/callback bodies reached directly from the primary table | 100 | 15,344 | All P rows except the five folded targets and primary paint thunk `009A0AC4` |
-| Browser method/callback bodies outside the primary table | 13 | 9,404 | `0099EC98`, `0099EF11`, `009A0089`, `009A0A17`, `009A0ACC`, `009A0EAD`, `009A0FEE`, `009A1163`, `009A2CCF`, `009A31A2`, `009A3B67`, `009A3CC1`, `009A3FA7` |
+| Browser bodies reached directly from primary table | 100 | 15,344 | All P rows except five folded targets and paint thunk `009A0AC4` |
+| Previously attributed browser bodies outside primary table | 13 | 9,404 | `0099EC98`, `0099EF11`, `009A0089`, `009A0A17`, `009A0ACC`, `009A0EAD`, `009A0FEE`, `009A1163`, `009A2CCF`, `009A31A2`, `009A3B67`, `009A3CC1`, `009A3FA7` |
 | Shared/folded primary targets | 5 | 54 | `0094D34F`, `009CFA36`, `00993785`, `009CFA1D`, `00949ADE` |
 | Adjustor/base-forwarding thunks | 6 | 45 | `0047AA30`, `0047AA40`, `008AEB00`, `009A3232`, `0099FCFF`, `009A0AC4` |
-| Deleting wrappers, same underlying destructor | 2 | 58 | `008AF100`, `009A35DD` |
-| Owned-record construction/destruction helpers | 4 | 118 | `009A1F3C`, `009A1F5B`, `009A1DB8`, `009A2E07` |
+| Deleting wrappers for one destructor | 2 | 58 | `008AF100`, `009A35DD` |
+| Previously distinguished record helpers | 4 | 118 | `009A1F3C`, `009A1F5B`, `009A1DB8`, `009A2E07` |
 | Shared string-comparison helpers | 2 | 61 | `009A1969`, `009A1AB9` |
-| Attribution still unproved | 42 | 3,823 | Every FBQ6 row above, individually enumerated with bytes |
-| **Total** | **174** | **28,907** | No row counted twice |
+| Browser-specific alternate-table message handler | 1 | 145 | `0047AA50` |
+| Additional browser-record constructors | 3 | 86 | `009A1EE6` (41 B), `009A1F0F` (22 B), `009A1F25` (23 B) |
+| Collection/sort helper instantiations, not browser member bodies | 35 | 2,605 | All helpers in the two lists below |
+| Foreign reachability / false export-boundary attribution | 3 | 987 | `005C2D10` (370 B), `005C2E82` (42 B), `005C3A63` (575 B) |
+| Total | 174 | 28,907 | Each address counted once |
 
-Outside that preserved union, constructor `009A57C4` is one additional owned
-method / 710 B, fully specified in 8.6. The union including this newly found
-constructor is therefore **175 entries / 29,617 B**. Style initializer
-`009A5BF2` (46 B) is cited as a dependency only, not silently inserted into
-either inventory or credited as another browser method. One of the body
-entries, `009A3FA7`, is an owned global comparator callback rather than a
-member method. The 42 unattributed entries prevent an exact total-owned-method
-denominator or complete-owner claim.
+**The false pointer is a string.** Native bytes at `00ADD33C` are
+`63 3A 5C 00`, spelling the NUL-terminated literal `c:\`. Slot 94 pushes
+that address at `009A32E1` and calls fallback-string slot 4 at `009A32E6`.
+The native string vtable's slot-4 word at `00A80820` is `0090F50F`, whose
+body assigns bytes through their first NUL. Nothing loads this word as a
+comparator or dispatches to `005C3A63`. Its recorded data reference at
+`00ADD33C` is a consequence of treating string bytes as an address.
+This site never dispatches to `005C3A63`; its suspicious decoded extent
+does not establish a browser entry point. Its purported call to registry helper `005C2D10`
+and that helper's catch funclet `005C2E82` do not establish browser ownership.
+The registry helper actually calls registry open/query/close services.
+These three sizes stay in the preserved union for reconciliation, but
+must not be credited as browser code or require a browser comparator test.
 
-Disposition audit, updated 2026-10-24: **66 original entries / 15,194 B have
-complete owner-side contracts**
-in the cited sections, counting shared targets, thunks and helpers separately
-as above. This is not 60 unique browser methods. Of the 113 attributed browser
-body entries / 24,748 B, **47 / 14,858 B** are specified and **66 / 9,890 B**
-retain missing behavior. Adding the constructor gives 48 specified browser
-method/callback bodies / 15,568 B; this count still excludes unproved ownership.
-The complete-contract inventory count including all specified wrappers/helpers
-and the constructor is 67 / 15,904 B. Partial sections receive no full-body
-credit. The gain from the earlier 60-entry audit is paint (173 B), FBQ2's
-two bodies (3,836 B), and FBQ5's three (4,156 B). Child/service calls are
-specified at their boundary; their foreign implementations are not credited.
+**Twenty sorting helpers** form the pointer-range algorithm behind file
+population: `009A08FA`, `009A098B`, `009A09C3`, `009A0E07`, `009A0E35`,
+`009A1982`, `009A19DC`, `009A1A00`, `009A1A36`, `009A1A8E`, `009A1BCA`,
+`009A1C1F`, `009A1C45`, `009A1D2E`, `009A1D6E`, `009A1E0E`, `009A1E61`,
+`009A2DDF`, `009A2F27`, `009A308D`. Their arguments are ranges of record
+pointers, sort context and a comparator; their bodies partition, select
+pivots, shift insertion ranges, or maintain heaps, rather than accessing
+browser properties as member methods. Population calls `009A308D` at
+`009A51DD`; it calls introsort `009A2F27` and final insertion `009A1E0E`.
+The introsort chain calls median selection `009A08FA`, partition `009A1982`
+and heap fallback `009A2DDF`; the latter reaches the heap helpers through
+`009A1E61`. This is an algorithm dependency, not twenty extra browser slots.
 
-| Parked question | Exact residual entries | Export bytes | Missing contract |
-|---|---:|---:|---|
-| FBQ1 | 4 | 6,055 | Procedural pixel recipes, selectors and failure/success channels |
-| FBQ4 | 62 | 3,835 | Remaining primary methods, notably style/font ownership and filter/custom-entry mutation |
-| FBQ6 | 42 | 3,823 | Unresolved helper ownership / export boundaries |
-| **Total unresolved within the original union** | **108** | **13,713** | Every address and size is individually enumerated in its FBQ row above |
+**Fifteen collection helpers** are `009A1AFF`, `009A1B27`, `009A1C69`,
+`009A1C92`, `009A1CAF`, `009A1CCA`, `009A1CFC`, `009A1DD4`, `009A1DF1`,
+`009A2F0F`, `009A305A`, `009A30E7`, `009A34E3`, `009B689C`, `009B6A49`.
+They construct/copy/destroy element ranges, insert/resize/reallocate vector
+storage, or destroy the contained string and allocation. The 12-byte
+group-vector stride in `009A30E7` and the begin/end/capacity updates identify
+the nested-vector specialization. `009A305A` destroys a range via
+`009A1DD4` and `009A2F0F`; the latter also has non-browser callers at
+`00995CAE`, `009965F6`, `009B96A5`. Destruction reaches `009B6A49` and
+`009B689C`; the latter also has callers at `009B7411` and `009BB712`.
+Misleading TreeView/float-vector names in shared targets do not turn these
+into foreign widget behavior, nor does a browser neighbour make them members.
 
-FBQ2, FBQ3 and FBQ5 are answered. The largest residual bodies include
-`0099EF11` (3,423 B), `009A1163` (1,938 B) and
-`005C3A63` (575 B, attribution/boundary unproved). This is the final logical
-third-round publication: preserve and park those contracts; no further round
-or full-owner coverage is implied.
+**Three owned-record constructors** have direct, concrete browser uses.
+`009A1EE6` zeros file-record words 0,4,8 and constructs its three strings
+at `+0x0C,+0x20,+0x34`; population calls it at `009A4FC6`, `009A5035`,
+`009A5151`. `009A1F0F` zeros custom-record ID/buffer and constructs its
+name at `+8`; insertion calls it at `009A5B1B`. `009A1F25` constructs the
+drive-record string at 0 and zeros words `+0x14,+0x18,+0x1C`; it is called
+at `009A338E` and `009A4CF7`. All return the input record pointer and
+do not themselves allocate or AddRef a buffer. Native bodies prove offsets
+and widths at `009A1EE9`–`009A1F3B`. These join the existing four helpers,
+not the browser-member-method denominator.
 
-No full-owner, pixel-match, implementation or replacement credit follows
-from this inventory. Questions FBQ1�FBQ6 delimit the missing contracts.
+**Alternate window message handler `0047AA50`.** It is secondary slot 145
+in tables `00A8D000` and `00AC73D0`; do not silently substitute it for the
+constructor-installed table `00ADCF30`. It receives the secondary pointer
+and two SendMsg arguments. For message `0x7ABE7204`, if the descriptor
+pointed to by message word 2 has type 2, call primary slot 4 with 1, then
+delegate both original arguments to base SendMsg `0099BFEC` in either case.
+For message ID 3 and child ID `0xBAA55D58`, obtain a descriptor through
+primary slot 18, call slot 4 with 1 only if its returned type is 2, then
+return true. For message ID 3 and child `0xBAA55D59`, call slot 4 with 0
+and return true. All other messages delegate unchanged to base SendMsg.
+Message/descriptor pointers must be valid. Evidence: `0047AA59`–`0047AAD4`.
+
+Worked FBQ6 cases: an empty drive list makes slot 94 assign `c:\` without
+any comparator invocation. Inventorying that literal must leave the primary
+table at 107 slots and must add no callable target `005C3A63`. In a harness
+using the older secondary table, send ID 3/child `0xBAA55D58`, with slot 18
+reporting type 2: expect slot 4(1), true, no base delegation. A type-1
+descriptor suppresses slot 4 but still returns true. Sending `0x7ABE7204`
+with type 2 instead calls slot 4(1) and then base SendMsg. These distinguish
+the genuine browser handler from mere reachability helpers.
+
+Constructor `009A57C4` adds 710 B outside the original union, as in 8.6.
+Thus the preserved union plus constructor is 175 entries / 29,617 B; within
+that scope, browser method/callback bodies number 115 / 25,603 B (including
+the owned global comparator `009A3FA7` and alternate handler, excluding
+record helpers, shared targets, wrappers and thunks). This is a scoped
+attribution denominator, not proof that the export contains every method
+in the executable. Style initializer `009A5BF2` and collection resize
+dependencies outside this union are not silently added to it.
+
+FBQ4's 62 primary targets / 3,835 B now have contracts in 8.7.1–8.7.2.
+All 42 FBQ6 candidates are classified above; none remains an unattributed
+browser-method candidate. FBQ1's loader and arrow / 694 B are specified;
+only the icon/button pixel recipes in two bodies / 5,361 B require the
+explicit observation in 8.3.3. FBQ1 is archived as narrowed, not as pixel
+closure. No full-owner, pixel-match, implementation, game or replacement
+credit follows from these source/attribution results.

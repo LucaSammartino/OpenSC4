@@ -93,7 +93,9 @@ AddRef/Release (`0x008DC540/550`) adjust receiver by +C and tail-call the shared
 refcount primitives. Their allocation/destruction semantics are not rederived.
 IsActive (`0x00644FC0`) loads only AL from byte +25; upper EAX is not a result.
 Primary slots 4/5/6/14 (`0x006452E0/2F0/300/7B0`) tail-forward to backend
-slots 42/43/44/33 respectively; their return channel is the foreign callee's.
+slots 42/43/45/44 respectively (corrected 2026-10-25, re-nettools8: the jumps go
+through `+0xA8`, `+0xAC`, `+0xB4`, `+0xB0`; slot 6 passes two output words,
+network-tool-owners.md §6); their return channel is the foreign callee's.
 The UI is not derived behaviorally from the base view-input implementation.
 
 The complete exported primary table has these slots; pointer arguments and

@@ -1,5 +1,41 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: re-ugbase (2026-10-20) -->
+- **NO40 - §3.2, §3.6:** the geometry the model builders make: `CreateUndergroundModel` (`0x0065D810`),
+  `MakeCustomUndergroundPiece` (`0x0065D160`), `CreateWalls` / `AddWallQuad` (`0x0065E260`, `0x0065CFF0`), the mesh
+  transform (slot 85, `0x0065B700`), `ComputeBox` (`0x00659E00`), and the connection's `CreateGeometry`,
+  `CreatePieceModel`, `CreateWalls`, `CreateFloor` and `Draw` (`0x006562B0`, `0x00655850`, `0x00655F10`,
+  `0x00656010`, `0x00656E90`); which descriptor words they read and how the ratio tables T1 and T2 enter the
+  vertices. [as read]
+  **Progress 2026-10-23 (re-netocc-poles5):** §3.6.2/tests 49–50 settle the connection's standalone
+  CreateFloor/CreateWalls/AddWallQuad behavior without an attached occupant, clearing/append semantics,
+  attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
+  underground base geometry and Draw/transform/box algorithms remain open.
+  **ANSWERED 2026-10-26 (re-no29):** DIFFERS — narrowed to stated runtime observations, not full owner
+  closure. §§3.2.1–3.2.2 specify the custom vertex kernel, ratio indexing, wall selection/UVs and base
+  bounds; §§3.6.5–3.6.6 specify connection descriptor words, build/deformation/UV order, bounds and Draw
+  passes with worked cases. §3.2.3 NO40-A/B and §3.6.6 NO40-C specify exact capture sites, input variants
+  and expected settled outputs for the unresolved selector arguments and transform/ceiling details.
+
+<!-- from: core-netocc-close5 (2026-10-23) -->
+- **NO32 - sections 2.4, 2.5 and 2.7 base-owner closure inputs:** what are the numeric UV tables
+  `0x00AA7D98`/`0x00AA7D88`, the three packed render states made by StaticInit, and the zoom-table
+  `0x00B0B374` entries and exact `0x6000000` Draw predicate? How are normalized triangle normals encoded
+  into the stated colour bytes (including degenerate normals)? The spec names these inputs and operations
+  without publishing values/encoding. [missing; the base owner remains unclosed, with no invented rendering]
+  **ANSWERED 2026-10-26 (re-no29):** DIFFERS — §2.5 publishes value/mask words; §2.11 publishes
+  binary32 UVs and the HasAny predicate. B0B374 is a scalar cached zoom, not a table. §2.7 gives
+  normalization, degenerate NaN delegation and RGB-to-BGRA copies with a worked fixture case;
+  normals themselves are not encoded as colour bytes.
+
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
+  after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
+  the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
+  **ANSWERED 2026-10-26 (re-no29):** MATCHES — §10.2 now separates the four main-model cases and
+  gives a worked trace. The branch immediately after Clip skips Bind and FlipAndLight when the option
+  byte is nonzero (`0x0061EE60–0x0061EE78`, destination `0x0061EF3A`).
+
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - ~~**NO33 - sections 4.1-4.3 power-pole owner algorithms:** please publish constructor defaults and
   the numeric connection point tables `0x00B0C0D8`/`0x00B0C198`, their subtype extraction and unlisted
@@ -304,3 +340,31 @@
   including crossings from native neighbours. The outside tool does not itself walk connection storage,
   so complete interposition can avoid that layout, while returned buffers must obey the native ABI.
   Power-line-tool §5 now records the draft generated-link skip and literal second undo call (B,B,true).
+
+<!-- from: netocc-cities29 (2026-10-26); answered/narrowed by re-nm30 -->
+
+- ~~**NO46 — prebuilt v4 record envelope (extends NO4, §2.8):** please specify the ordered stream fields,
+  including the placement of the subclass/base version words, field widths, reference IIDs and any Read→Write
+  canonicalization, for `cSC4NetworkOccupantWithPreBuiltModel` (`0x49C1A034`). Opaque field semantics are sufficient
+  if they are simply retained. The current shadow sends this class through the plain network v8 codec and fails
+  parsing; §2.8 states a distinct v4 record but does not give its stream layout. This blocks the census's 72
+  prebuilt-containing scenarios, rather than a capture tolerance or timing issue. Fresh baseline evidence:
+  `build-runs/suite/netocc-cities29-before4/lua-lots-grown.log` has class `49C1A034`, capture=1/status=2,
+  and 424 load mismatches; `paradis-port-of-shiganshina.log` has the same failure and 755 load mismatches.
+  The cited runs later stalled and are not acceptance runs; their completed load comparisons establish the
+  codec failure. No prebuilt records have been excluded or normalized past this unsupported envelope.
+  `C:/Users/tlori/FreeCity4/build-runs/game-results/netocc-cities29-probe4-paradis.log` confirms captured
+  versions 4/4/2 for prebuilt `49C1A034`, bridge `49CC1BCD` and tunnel `8A4BD52B`, all status 2. Please include
+  the inherited envelope for the bridge and tunnel as well. This run is corrupt during load (not acceptance);
+  its completed load sample has 755 netocc mismatches and an exact initial netmgr record.~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — §2.8.1 gives the full ordered prebuilt v4 envelope (outer u16 before base v8), v3 discarded words, exact field widths/primary offsets and raw-u32 optional gate. Bridge inherits that envelope without another version; tunnel wraps it in v2 and a byte plus segment object reference, with write/read IIDs and release rules. Base Read→Write canonicalization and worked gate/legacy/null/present-pair cases are specified. NO4 remains open only for opaque field meanings.
+
+- ~~**NO47 — empty-city shadow sample (census accounting, for the coordinator):** the supplied census's
+  `lua-lots-empty.shadows.txt` load line has `records=0 bytes=0` and every class count zero. The existing
+  shadow deliberately adds one mismatch when no network occupant record exists, to avoid giving owner
+  credit to an empty sample; its later two samples are exact. This is distinct from NO46's parse failure.
+  For the requested "exact in every scenario" metric, how should this proven empty original capture be
+  represented while preserving the rule that absent owners receive no verification credit? No codec
+  output differs in this sample. The lane retains the existing failing sample rather than dropping it,
+  changing its count to zero, or claiming that an unexercised class was verified.~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — §13 separates equality from exercised-owner credit: preserve the empty load as equal/unexercised with records=0, bytes=0, all class counts zero, zero differing records and no owner credit. Keep later samples separate. Report the historical deliberate mismatch sentinel as accounting policy, not a codec difference; all-scenario equality must disclose unexercised samples and cannot imply all owners were verified. No new acceptance run is claimed.

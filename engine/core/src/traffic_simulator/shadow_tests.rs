@@ -251,6 +251,53 @@ fn shadow_month_line() {
     assert!(line.contains("deliveries=2 (day 1, month 1, other 0)"), "{line}");
 }
 
+/// A deadline can stop FullTrips before its first source, on either side
+/// of WorkOnSimCycle's intersection prelude (§3.2, §3.4). Both stops have
+/// identical phase progress; only the latter rebuilds the dirty rectangle.
+#[test]
+fn shadow_zero_progress_intersection_prelude() {
+    for entered_work in [false, true] {
+        let w = World::new();
+        let orig = sim(&w);
+        orig.enter_cycle_state(cycle_state::FULL_TRIPS);
+        orig.network().update_state(|n| {
+            n.intersection_dirty = true;
+            n.intersection_rect = CellRect::new(1, 2, 3, 4);
+        });
+        let mut live = Live::default();
+        let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+        let r0 = capture(&orig, &mut live);
+        sh.before(delivery(msg::DAY, 2_460_000), Some(r0), &live);
+        // Network-info capacities are rebuilt, not serialized. Give both
+        // running models the same stale car record inside the dirty rect.
+        for s in [&*orig, &**sh.copy()] {
+            s.network().update_state(|n| {
+                let car = n.append_info(1, 2, 3).unwrap();
+                car.inv_cap = 0.25;
+                car.net_type = 3; // Street
+                car.conn_count = 3;
+            });
+        }
+        orig.shadow_day_start();
+        if entered_work {
+            orig.network().update_intersection_data();
+        }
+        let out = sh.after(Some(capture(&orig, &mut live)), &live);
+        assert_eq!(out.mismatches, 0, "entered work {entered_work}: {:?}", out.lines);
+        assert_eq!(sh.copy().network().state().intersection_dirty, !entered_work);
+        let capacity = |s: &TrafficSimulator| s.network().state().car_info(2, 3).unwrap().inv_cap;
+        assert_eq!(
+            capacity(sh.copy()),
+            capacity(&orig),
+            "the prelude must rebuild capacities"
+        );
+        if entered_work {
+            assert_ne!(capacity(sh.copy()), 0.25);
+        }
+        assert_eq!(sh.stats.units, 0, "no trip was processed");
+    }
+}
+
 /// A change to the original between two deliveries is found by the record
 /// check, named, and the copy resyncs.
 #[test]
@@ -522,6 +569,55 @@ fn shadow_keeps_hash_orders() {
     assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_000), 0);
     assert_eq!(deliver(&mut sh, &orig, &mut live, msg::DAY, 2_460_001), 0);
     assert_eq!(sh.stats.resyncs, 0);
+}
+
+/// SimBegin does not change switches. Reading its pre-image must preserve
+/// the writer's collision order, including variable rule/reference sizes.
+#[test]
+fn shadow_keeps_switch_hash_order_and_compares_values() {
+    use crate::traffic_network::{Rule, TransitSwitch};
+
+    let w = World::new();
+    ten_sources(&w);
+    let orig = sim(&w);
+    orig.network().update_state(|n| {
+        for (i, id) in [3, 196, 389, 7].into_iter().enumerate() {
+            n.switches.entry(id, || TransitSwitch {
+                building: if i % 2 == 0 { 100 } else { 0 },
+                load: id as f32,
+                rules: vec![
+                    Rule {
+                        from: 1,
+                        to: 2,
+                        ..Rule::default()
+                    };
+                    i
+                ],
+                ..TransitSwitch::default()
+            });
+        }
+    });
+    let mut live = Live::default();
+    let mut sh = TrafficShadow::new(w.clone(), 0, 8, 8);
+    for day in 0..2 {
+        assert_eq!(deliver(&mut sh, &orig, &mut live, msg::SIM_BEGIN, 2_460_000 + day), 0);
+    }
+    assert_eq!(sh.stats.resyncs, 0);
+
+    sh.before(
+        delivery(msg::SIM_BEGIN, 2_460_002),
+        Some(capture(&orig, &mut live)),
+        &live,
+    );
+    orig.network()
+        .update_state(|n| n.switches.get_mut(196).unwrap().load += 1.0);
+    let out = sh.after(Some(capture(&orig, &mut live)), &live);
+    assert!(out.mismatches > 0, "{:?}", out.lines);
+    assert!(
+        out.lines.iter().any(|line| line.contains("record switches:")),
+        "{:?}",
+        out.lines
+    );
 }
 
 /// An original stopped mid-scan by its deadline (CreateMaps resting at a

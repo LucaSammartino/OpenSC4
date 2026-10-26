@@ -1,6 +1,39 @@
 # automata: answered questions (archive)
 <!-- Archive for [automata.md](../../automata.md). Lanes do not read this file. Open questions are in ../automata.md. -->
 
+<!-- from: automata-actions29 (2026-10-26) -->
+- **AT25 - §7.6 (NM17), native construction continuation after balanced worker slots:** The replacement
+  manager returns its own primary pedestrian wrapper (class `0x896E75AF`); it does not invoke native
+  CreateAutomatonInternal or register a concrete pedestrian factory. Its former argument-free placeholders
+  at slots 30/14 left 8/4 bytes on the stack. Those calls now have NM17's signatures; slots 7/8 supply
+  GetPosition(out vec3)/SetPosition(in vec3), each popping 4 bytes. A real-DLL slot test verifies balanced
+  stack/x87 and the worked roof change `(12.5,7,34.5)` to `(12.5,9,34.5)` for both manager wrappers.
+  The original `0x29A5D1EC` fault disappears, but the full-house generated grow acceptance is incomplete:
+  `aa29-fix-house-s0-a` reaches 216/216 and 2028-01-28 (only the excluded native quit fault at +0x1D0F94);
+  `aa29-fix-house-s1-a` reaches 27/216, creates three workers and then faults on another thread in
+  ucrtbase.dll+0x973FE; its repeat `aa29-fix-house-s1-b` reaches 27/216 then faults in ntdll.dll+0x4E728.
+  `aa29-fix-house-s2-a` reaches 75/216 then faults at SimCity 4.exe+0x1CC3B3, reading `0x4396001C`
+  (`eax=0x43960000 ecx=0x18747A88 edx=0x001AED84`); its repeat reaches 84/216 then faults at +0x3529C0.
+  All have ref_warnings=0. With only automata disabled, the same DLL/house/s1 script completes 216/216
+  and quits cleanly (`aa29-control-noauto-a`, 2028-01-29, ref0). Logs are in main's build-runs/game-results/.
+  What additional observable contract must these returned workers satisfy during construction/scaffold
+  continuation? In particular, settle the return-register value of GetPosition (the ABI row says
+  eax-or-void), whether callers consume a returned vector/reference, and any further called slots or
+  concrete views despite replacement of the manager's own creation/removal bodies. The new failures do
+  not establish a specific cause; no return value, concrete layout or native callback was guessed.
+  [blocked item: full-house s1/s2; retain NM17's already-tested stack correction]
+  **ANSWERED 2026-10-26 (re-at29):** DIFFERS — automata.md §§7.6.1, 7.6.4–7.6.5 correct the earlier
+  no-return claim: primary slot 7 returns its caller-supplied output pointer in EAX after copying the
+  three position words, with 4-byte cleanup and no x87 result. Construction ignores that EAX, reloads
+  its saved primary A, replaces the local buffer's y, and invokes slot 8 on A. This occurs before
+  SetLot returns and on subsequent rising/lifting/lowering animation ticks; daily phase transitions
+  do not recreate workers. No additional concrete worker view or callback is introduced when both
+  manager bodies are replaced. Retain the primary interface and construction-owned reference across
+  ticks, then perform the specified manager removal and owner Release. The D0–D0+8 worked case checks
+  call order, position words, clock inputs and lifetime. The +0x1CC3B3 report is dispatch through A's
+  vtable before the getter runs, so a getter return-register correction alone cannot explain/fix it;
+  no runtime root cause or passing action run is claimed.
+
 <!-- from: coordinator train84 controlled saved-port union (2026-10-22) -->
 - **AT24 - aircraft manager loaded-reference destruction:** On identical integration DLL c269a6ba5f, immutable replacement save SHA25638f234433b0c..., identical seven-action reload script and literal39 replacement keys, both +ports and ports-disabled control reach2033/ref_warnings3. All three warnings are native cSC4Airplane class0xCBEB4F62, vtable SimCity4.exe+0x694B38, at cFC4Automata.cpp HostRelease:53 during destruction. Source labels train84-ports-union-reload-20261022-a and train84-ports-union-control-20261022-a are preserved under build-runs/game-results. The normal candidate union and seven ports-only/reload runs are clean/ref0. Does original aircraft-manager Read0x004FBE70 retain owning references to its airport/airplane map, and which exact clear/shutdown/destructor sites release them? Prove reference acquisition, loaded-segment lifetime, release order and final-owner conditions before changing ownership-audit classification or release behavior. Is the existing generic HostRelease semantically wrong or missing a justified destructor-only ownership annotation? No warning suppression or ports replacement promotion is authorized by this observation. [unresolved; same three warnings in control establishes an existing automata-path issue, not a ports-caused difference]
   **ANSWERED 2026-10-22 (re-aircraft-ownedrefs4):** DIFFERS — automata.md §§5.2.1–5.2.2 prove the
@@ -386,3 +419,78 @@ entry is recorded with the lane it came from. Every answer is written into the s
     `+0x90` = 36 is `TweenSpeed`. This matches the Mac `ReturnToDefaultSpeed` (`0x000caa42`,
     `(defaultSpeed, 0.3/m)`).
   automata.md 6.5, S11.
+
+<!-- from: automata-cities29 (2026-10-26); imported by re-at30 -->
+The branch's AT24–AT28 were imported as AT29–AT33 because main already used AT24 and AT25.
+
+- ~~**AT29 — concrete carjacked/limo records (branch AT24):** Publish the complete ordered wire fields,
+  leading version (if any), nesting, accepted versions and reference IIDs for
+  `cSC4CarjackedVehicle` (`0xCBB32B0A`) and `cSC4MayorLimo` (`0x4C0DD224`).
+  automata-managers.md §1 specifies their construction, not their records;
+  docs/abi/vtables.tsv assigns both Write `0053ce00`, Read `00524490`, distinct
+  from Vehicle. Census sh28-census3 reports unsupported records in 23 and 9
+  scenarios respectively (e.g. maxisland-bevopolis, maxisland-derris-heights).
+  Blocks replay of these two cases; no presumed alias or opaque-byte bypass.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.1 specifies
+  both distinct classes as `u16 1` plus complete Vehicle, with no tail and no new reference IID.
+  The shared reader accepts exactly 1 and delegates its Boolean result; worked cases cover both
+  identities, lengths and outer/inherited rejection. No plain-Vehicle alias is assumed.
+
+- ~~**AT30 — ambulance record (branch AT25):** Publish the complete ordered wire fields, leading
+  version, nesting, accepted versions and reference IIDs for `cSC4Ambulance`
+  (`0x6C1ACDE1`). automata-managers.md §1 identifies an emergency subclass but
+  not its record; ABI assigns Write `00504bf0`, Read `00504c10` rather than the
+  emergency base's methods. Unsupported in 12 census scenarios, e.g.
+  lua-lots-grown and maxisland-east-weburg. Blocks this case's full replay.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.2 specifies
+  `u16 1`, complete Emergency (`u16 2`, complete Vehicle, target vector, station occupant reference
+  with IID `0x26BB767E`, attempts byte, call-number word, dispatch-state dword), no Ambulance tail.
+  Exactly 1 is accepted; inherited results are preserved. The worked null-station case is V+27 bytes.
+
+- ~~**AT31 — tank record framing (branch AT26):** vehicles.md §§1, 6, 12.13 say Vehicle plus
+  two owner dwords, but do not specify whether Tank Write `0054aa30` / Read
+  `0054a8e0` add a leading version wrapper, its value/acceptance, or the order
+  and meanings of those dwords. Please specify the exact wire sequence (or
+  explicitly confirm no wrapper and two raw dwords). Unsupported class
+  `0xEBE0DCAD` in maxisland-norte-delano and paradis-zoe blocks those two cases.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.3 and
+  [vehicles.md](../../vehicles.md) §§1, 6, 12.13 correct the record to `u16 2`, complete Vehicle,
+  two signed byte model indices (first auxiliary handle, then second). Read accepts 0/1 without
+  those bytes and 2 with them; it returns the stream-error result after an accepted outer version,
+  even when Vehicle returned false. Worked cases distinguish widths, duplicate model positions,
+  historical versions, interface views and the swallowed inherited failure. There are no new refs.
+
+- ~~**AT32 — mass-transit train record (branch AT27):** Publish the complete ordered wire
+  sequence, wrapper versions, nesting, reference IIDs and failure semantics for
+  `cSC4MassTransitTrain` (`0x4C22AE53`). automata-managers.md §1 specifies its
+  constructor, but neither that section nor vehicles.md §12.1 defines its record.
+  docs/abi/vtables.tsv assigns Write `0053cb30` and Read `0053cb50`, distinct
+  from Train. The new run automata-cities29-2/paradis-braus.log reports this
+  unsupported class during its initial owner capture (line 2137); that run
+  stalled before the first month. Blocks this concrete class's replay; do not
+  presume that it aliases Train or discard its trailing bytes.~~
+  **ANSWERED 2026-10-26 (re-at30):** DIFFERS — [automata.md](../../automata.md) §6.4.4 specifies
+  `u16 1`, Train `u16 2`, TrainCar `u16 2`, complete Vehicle, car count/references (IID `0x4A416254`),
+  raw dword, vector, independent network reference (IID `0xA821EF94`), raw dword. The outer reader
+  accepts exactly 1 and preserves Train's result and list/null handling. Worked cases give exact
+  lengths, retained existing cars and rejection positions; no train tail is discarded.
+
+- ~~**AT33 — fire-truck record framing (branch AT28):** Publish the full ordered record,
+  wrapper version/acceptance, inherited Emergency Read behavior and reference
+  IIDs for `cSC4FireTruck` (`0xAA222B83`). vehicles.md §7.2 describes its crew
+  and §1 says Emergency plus a reference, but automata.md §6.4 specifies the
+  complete wrapper only for PatrolCar. ABI assigns FireTruck Write `00532ee0`
+  and Read `00532f20`, distinct from PatrolCar. The shared-queue run
+  automata-cities29-5/maxisland-norte-delano.log line 2145 has one unsupported
+  fire truck at load: `derived[0xAA222B83]=0/1`, one of 12 automaton failures.
+  The eight-line diagnostic cap hides it behind other classes, but the complete
+  per-class summary retains it. Blocks this load case; no presumed PatrolCar alias.~~
+  **ANSWERED 2026-10-26 (re-at30):** MATCHES — [automata.md](../../automata.md) §6.4.2 proves
+  FireTruck's own sequence: `u16 2`, complete Emergency, one crew reference requesting IID
+  `0xA9B40F05`. Both wrappers require exactly 2; inherited failure prevents the crew operation.
+  The wrapper retains the inherited Boolean and explicitly AddRefs/stores/releases a changed crew.
+  Worked cases cover non-null and null crews, byte lengths and inherited-version rejection.
+
+All five record questions are settled statically from Windows 1.1.641 instruction bytes and the
+documented inherited records. No runtime observation is needed to determine these layouts; the
+worked cases are proposed conformance fixtures, not a claim of a passing game/shadow run.

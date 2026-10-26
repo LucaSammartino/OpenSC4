@@ -2,6 +2,8 @@
 //! Private static-link observation transport; no public DLL exports.
 use fc4_core::legacy_control::observation::{replay, Operation, OwnerState};
 
+mod recording;
+
 // Words: refs, control, parent, procedure, own. Output adds a scalar at [5].
 // Safety: plugin supplies disjoint live arrays of five and six u32 respectively.
 #[no_mangle]
@@ -26,6 +28,8 @@ unsafe extern "C" fn fc4_legacyctl_shadow_replay(before: *const u32, op: u32, ar
         1 => Operation::SetOwnControl(argument != 0),
         2 => Operation::GetControl,
         3 => Operation::QueryInterface(argument),
+        4 => Operation::ImplementInterface([0; 4]),
+        5 | 6 => Operation::AreaStub,
         _ => return 0,
     };
     let (s, value) = replay(state, operation);

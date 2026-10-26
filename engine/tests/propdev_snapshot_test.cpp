@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4PropDevSnapshot.h"
+#include "FC4PropDevRegistration.h"
 #include <cstdio>
 
 // This fixture owns no property holders; the snapshot must preserve null replies.
@@ -30,6 +31,12 @@ fc4_props* Properties(void*, uint64_t) { return nullptr; }
 bool Tag(void*, uint64_t, uint32_t*) { return false; }
 uint32_t Date(void*) { return 0; }
 bool View(void*) { return true; }
+uint32_t registrationState = 7;
+bool powered = true;
+uint32_t State(void*, uint64_t) { return registrationState; }
+void Position(void*, uint64_t, float* out) { out[0] = -1; out[1] = 2; out[2] = 33; }
+bool Powered(void*, int32_t x, int32_t z) { return x == -1 && z == 2 && powered; }
+bool Trigger(void*, uint32_t id) { return id == 23 && powered; }
 void Objects(void* u, const fc4_lot_cfg_object* p, size_t n) {
     auto* count=static_cast<unsigned*>(u);
     if (n==1 && p[0].id_count==3 && p[0].ids[0]==17 && p[0].ids[2]==17) ++*count;
@@ -58,6 +65,27 @@ int main() {
     h.lot_props(nullptr,99,&Tokens,&tokens);
     if (snapshot.valid) return 4;
     fc4::PropBlockSnapshot::active=nullptr;
+    // Handler-entry state must survive the genuine registration changing it.
+    h.prop_state = &State; h.prop_position = &Position; h.is_powered = &Powered;
+    h.view_trigger_state = &Trigger;
+    fc4::PropRegistrationInput::Bind(h);
+    fc4::PropRegistrationInput insertion, nestedInsertion;
+    insertion.Capture(nullptr, 10, 23);
+    registrationState = 1; powered = false;
+    nestedInsertion.Capture(nullptr, 11, 0);
+    {
+        fc4::PropRegistrationInput::Scope entry(&insertion);
+        if (h.prop_state(nullptr, 10) != 7 || !h.is_powered(nullptr, -1, 2) ||
+            !h.view_trigger_state(nullptr, 23)) return 5;
+        {
+            fc4::PropRegistrationInput::Scope nestedEntry(&nestedInsertion);
+            if (h.prop_state(nullptr, 11) != 1 || h.is_powered(nullptr, -1, 2)) return 6;
+        }
+        if (h.prop_state(nullptr, 10) != 7 || !insertion.valid) return 7;
+        h.prop_state(nullptr, 99);
+        if (insertion.valid) return 8;
+    }
+    if (h.prop_state(nullptr, 10) != 1 || fc4::PropRegistrationInput::active) return 9;
     std::puts("propdev snapshot: repeated lot and empty network config captured once; missing input invalidates");
     return 0;
 }
