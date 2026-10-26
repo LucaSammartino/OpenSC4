@@ -733,6 +733,11 @@ if(FC4_IS_WIN32_X86)
     # Needed here as well as below: the conformance test needs the generator.
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
+        if(FC4_COMPILER_CACHE AND FC4_SCCACHE_EXECUTABLE)
+            add_test(NAME compiler_cache_dependency_regression
+                COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../.claude/lane-bin/cache_probe.py")
+            set_tests_properties(compiler_cache_dependency_regression PROPERTIES TIMEOUT 180)
+        endif()
         # ALL, and the command is the target's own action: it runs on every
         # build rather than only when a dependency is newer than the output.
         add_custom_target(fc4_abi_entries ALL
