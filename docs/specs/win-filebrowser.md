@@ -886,6 +886,62 @@ and `00408C20` appends its range. For example strings `report` and `.txt`
 store pending name `report.txt`; slot 27 later returns that concatenated name
 and leaves its third argument untouched. Restoration on population is in 8.1.3.
 
+#### 8.7.1 Style and property widths (FBQ4, 2026-10-26)
+
+The following are primary slots. A getter returning a pointer borrows that
+pointer: it neither AddRefs it nor constructs an owned copy. Unless a row says
+otherwise, a setter returns Boolean true in the low byte, sets dirty byte
+`+0x31C`, then invalidates. There is no value validation or immediate child
+reconfiguration. These rules include repeated scalar assignments.
+
+Three externally configurable style blocks use the same six operations:
+
+| Block origin B | Font get / replace | Word get / set | Byte get / set |
+|---|---|---|---|
+| `+0x238` | 42 `009A03B8` / 45 `009A031A` | 43 `009A03AA` / 46 `009A0363` | 44 `009A03BF` / 47 `009A0389` |
+| `+0x25C` | 48 `009A0465` / 51 `009A03C7` | 49 `009A0457` / 52 `009A0410` | 50 `009A046C` / 53 `009A0436` |
+| `+0x2A4` | 54 `009A0512` / 57 `009A0474` | 55 `009A0504` / 58 `009A04BD` | 56 `009A0519` / 59 `009A04E3` |
+
+The font is the pointer at B. Replacement compares pointer identity first;
+an identical pointer returns true without reference calls, dirtiness or
+invalidation. On change, AddRef the incoming non-null pointer, Release the
+old non-null pointer, store the new pointer, dirty and invalidate, in that
+order. Null is accepted. Word operations take a 32-bit index I and address
+the 32-bit word at B+4+4I. They have **no range check**; the intended six-word
+style range is not enforced. The byte operations access B+`0x1D`, not the
+constructor-cleared byte B+`0x1C`. A setter copies only the argument's low
+byte, without Boolean normalization. A getter **sign-extends that byte to
+32 bits**. Thus storing `0x80` reads back as `0xFFFFFF80`.
+Evidence: complete bodies `009A031A`–`009A0520`; in particular indexed stores
+`009A036B`, `009A0418`, `009A04C5`, byte stores `009A038D`, `009A043A`,
+`009A04E7`, and signed loads `009A03BF`, `009A046C`, `009A0519`.
+
+| Get slot / set slot | Stored state and boundary contract |
+|---|---|
+| 60 `009A0542` / 61 `009A0521` | Entire 32-bit word `+0x1E4`. |
+| 62 `009A056A` / 63 `009A0549` | Entire 32-bit word `+0x1FC`. |
+| 64 `009A0592` / 65 `009A0571` | Entire 32-bit word `+0x224`. |
+| 66 `009A05CD` / 67 `009A0599` | Optional word `+0x300`; setter arguments are an enable byte and a 32-bit value. Nonzero enable stores the value; zero stores sentinel `0x40000000`. Getter writes the raw word to argument 1 and one byte to argument 2: true exactly when that word differs from the sentinel; return true separately. |
+| 68 `009A0620` / 69 `009A05EC` | Same optional-word rule at `+0x304`. |
+| 70 `009A068E` / 71 `009A063F` | Setter copies argument 1 to `+0x24C,+0x270,+0x294,+0x2B8`, then argument 2 to `+0x250,+0x274,+0x298,+0x2BC`, as 32-bit words. Getter writes only the first block's two words, in argument order; it does not compare all four blocks. |
+| 72 `009A06E0` / 73 `009A06AB` | Three 32-bit words `+0x164,+0x168,+0x16C`, copied in argument order in either direction. |
+| 74 `009A072A` / 75 `009A0709` | Common-font pointer `+0x2C8`: getter borrows; setter unconditionally overwrites the 32-bit pointer, dirty/invalidate, return true. **No AddRef or Release** occurs, even for replacement. Shutdown still releases the stored non-null pointer (8.5). A caller cannot assume the per-style retaining replacement rule applies here. |
+| 80 `009A07A3` / 81 `009A0789` | Word `+0x230`: setter stores the unsigned maximum of the input and 4; return true, with **no dirty/invalidate**. For example `0xFFFFFFFF` stays `0xFFFFFFFF`, while 3 becomes 4. |
+
+These are integer/pointer bit patterns, not recovered floating-point values.
+The sentinel compares at `009A05DD` and `009A0630` are exact 32-bit equality;
+the optional getter stores at `009A05E5` and `009A0638` are one byte wide.
+Common-font store `009A070D` and unsigned clamp `009A0796`–`009A079C` prove
+the exceptions to the generic style setter.
+
+Worked cases for an implementation test: replace style font A with B and
+observe AddRef(B), Release(A), dirty, invalidate; repeat B and observe none
+of those effects. Set style byte to `0x80` and read `0xFFFFFF80`. Disable
+optional word `+0x300` while passing 123: its getter writes `0x40000000` and
+a single false byte and returns true. Enabling it with `0x40000000` produces
+the same getter result. Set common font A then B: neither call changes either
+reference count, and the eventual Shutdown releases B only.
+
 The separate `0099FCFF` entry (5 bytes) is only a tail-forwarder to base-window
 SetFlag `0099DB6B`. Its exported browser name does not make it an additional
 browser flag implementation. It is counted with thunks in the audit below.
