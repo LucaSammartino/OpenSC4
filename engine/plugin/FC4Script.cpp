@@ -832,7 +832,10 @@ void ScriptOnTick() {
     // Keep the save and every action behind it in their existing order.
     if (DbpfShadowPending())
         for (const auto* action : g_waiting)
-            if (action->op == harness::ScriptOp::Save) return;
+            if (action->op == harness::ScriptOp::Save) {
+                DbpfShadowWait();
+                return;
+            }
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them

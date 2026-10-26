@@ -612,7 +612,7 @@ public:
         DisastersShadowOnTick();  // disasters_shadow: the quiet-point comparison
         OverlaysShadowOnTick(CurrentCity());  // after city Init exposes all four managers
         fc4::AutomataDriverSituationTick();  // U-Drive-It (automata.md 9): resume when the countdown ends
-        if (saveDue_ && !DbpfShadowPending()) {
+        if (saveDue_ && !DbpfShadowWait()) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
         }
