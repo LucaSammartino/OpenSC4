@@ -24,9 +24,12 @@
 #include "FC4Script.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
+#include "FC4WinInterfaces.h"
 
+#include "cGZMessage.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
+#include "cIGZMessageTarget.h"
 #include "cISC4App.h"
 #include "cRZCOMDllDirector.h"
 
@@ -67,6 +70,7 @@ volatile DWORD g_terminateAt = 0;
 // thread's next tick asks the game to quit (g_quitRequested), and the verdict
 // is written at PostSystemServiceShutdown.
 volatile LONG g_endQuit = 0;
+bool g_quitPost = false;  // opt-in native app command, delivered by the main-loop message pump
 volatile LONG g_quitDue = 0;
 volatile LONG g_quitRequested = 0;
 volatile DWORD g_quitAt = 0;
@@ -216,6 +220,29 @@ void RequestQuitNow(long julian) {
     InterlockedExchange(&g_quitRequested, 1);
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;  // borrowed from the framework
+    if (g_quitPost) {
+        cFC4IGZMessageServer* server = nullptr;
+        cIGZMessageTarget* target = nullptr;
+        bool posted = false;
+        if (app && app->QueryInterface(GZIID_cIGZMessageTarget, reinterpret_cast<void**>(&target)) && target) {
+            FC4_ACQUIRED(target, "QueryInterface");
+            if (fw->GetSystemService(kFC4_SRVID_cIGZMessageServer, kFC4_IID_cIGZMessageServer,
+                                     reinterpret_cast<void**>(&server)) && server) {
+                FC4_ACQUIRED(server, "GetSystemService");
+                // Native cSC4App::DoMessage at 00451C30 handles C7AA61C6 by
+                // calling RequestQuit(false, false). Post, never synchronously
+                // send: delivery must be outside the observer's current tick.
+                const cGZMessage command(0xC7AA61C6u);
+                posted = server->GeneralMessagePostToTarget(command, target);
+                FC4_RELEASE(server);
+            }
+            FC4_RELEASE(target);
+        }
+        Log("autotest: native quit command 0xC7AA61C6 queued -> %d (autotest_quit_post)", posted ? 1 : 0);
+        if (posted) return;
+        AutotestFinish("native quit command could not be queued", "observer (autotest_quit_post)");
+        return;
+    }
     cISC4App* sc4 = nullptr;
     if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
         FC4_ACQUIRED(sc4, "QueryInterface");
@@ -247,6 +274,7 @@ std::string LowerTrim(std::string s) {
 }  // namespace
 
 void AutotestReload() {
+    g_quitPost = SettingInt("autotest_quit_post", "FC4_AUTOTEST_QUIT_POST", 0) == 1;
     const std::string end = LowerTrim(Setting("autotest_end", "FC4_AUTOTEST_END"));
     if (end == "quit") {
         InterlockedExchange(&g_endQuit, 1);
