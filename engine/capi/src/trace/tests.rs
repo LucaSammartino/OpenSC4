@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+
+#[test]
+fn empty_manifests_never_pass_a_suite() {
+    let dir = test_record("empty-manifest", || {});
+    fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("manifest.tsv");
+    fs::write(&path, "# no completed recording\n").unwrap();
+    assert_eq!(run(&path, false, 2).unwrap_err(), "manifest has no recorded traces");
+}
 #[test]
 fn malformed_frames_and_wire_are_rejected() {
     assert!(read_event(&mut &b"\xff\xff\xff\xff"[..]).is_err());

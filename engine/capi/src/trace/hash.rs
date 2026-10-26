@@ -114,6 +114,31 @@ pub(super) fn source_hash(root: &std::path::Path) -> io::Result<String> {
 mod tests {
     use super::*;
     #[test]
+    fn source_fingerprint_tracks_dependency_sources_and_lockfile() {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../build-runs/trace-tests/source-fingerprint");
+        for name in ["core", "capi", "formats"] {
+            std::fs::create_dir_all(root.join(name).join("src/nested")).unwrap();
+            std::fs::write(root.join(name).join("Cargo.toml"), "manifest").unwrap();
+            std::fs::write(root.join(name).join("src/nested/lib.rs"), "source").unwrap();
+        }
+        std::fs::write(root.join("Cargo.toml"), "workspace").unwrap();
+        std::fs::write(root.join("Cargo.lock"), "locked dependency version 1").unwrap();
+        std::fs::write(root.join("capi/build.rs"), "generator").unwrap();
+        let original = source_hash(&root).unwrap();
+        std::fs::write(root.join("core/src/nested/lib.rs"), "changed dependency").unwrap();
+        let changed = source_hash(&root).unwrap();
+        assert_ne!(original, changed);
+        std::fs::write(root.join("Cargo.lock"), "locked dependency version 2").unwrap();
+        assert_ne!(changed, source_hash(&root).unwrap());
+        let changed = source_hash(&root).unwrap();
+        std::fs::write(root.join("core/Cargo.toml"), "changed features").unwrap();
+        assert_ne!(changed, source_hash(&root).unwrap());
+        let changed = source_hash(&root).unwrap();
+        std::fs::write(root.join("unrelated.log"), "not an owner source").unwrap();
+        assert_eq!(changed, source_hash(&root).unwrap());
+    }
+    #[test]
     fn nist_vectors() {
         assert_eq!(
             sha256(&b""[..]).unwrap(),

@@ -24,6 +24,18 @@ fn fields(file: &str, name: &str) -> Vec<(String, String)> {
 }
 
 fn main() {
+    // The embedded cache identity also includes manifests and the lockfile.
+    // Explicit watches keep it current when only dependency metadata changes.
+    for path in [
+        "../Cargo.toml",
+        "../Cargo.lock",
+        "Cargo.toml",
+        "../core/Cargo.toml",
+        "../formats/Cargo.toml",
+        "build.rs",
+    ] {
+        println!("cargo:rerun-if-changed={path}");
+    }
     println!("cargo:rerun-if-changed=../core/src");
     println!("cargo:rerun-if-changed=../formats/src");
     println!("cargo:rerun-if-changed=src");

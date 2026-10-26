@@ -383,6 +383,9 @@ pub fn run(manifest: &Path, no_cache: bool, jobs: usize) -> Result<bool, String>
     let start = Instant::now();
     let rows = rows(manifest)?;
     if rows.is_empty() {
+        return Err("manifest has no recorded traces".into());
+    }
+    if rows.is_empty() {
         return Err("empty replay manifest".into());
     }
     let dir = manifest.parent().unwrap_or(Path::new("."));
