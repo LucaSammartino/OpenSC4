@@ -48,7 +48,8 @@ here), and the ambience manager, which fetches the service but calls no slot ([a
 | 17 | `0x004F5A20` | `RemoveSound(id, soundId)` (§4.4) |
 | 18 | `0x004F69E0` | deleting destructor (§2.4) |
 
-All slot operations except `Init`, `Shutdown` and the destructor run under the scape lock (§3.1).
+Primary data operations in slots 5–12 and 14–17 take the scape lock (§3.1); slot 13
+delegates to slot 12. QI/AddRef/Release do not take that data-operation lock.
 
 ## 2. Lifetime *[compat]*
 
