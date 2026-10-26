@@ -392,7 +392,7 @@ bool __fastcall UIMessage(void* self, void*, void* message) {
     ++uiCount.calls;
     return uiOriginal(self, nullptr, message);
 }
-void Method(const Counter& counter, const char* address, const char* name, int32_t julian) {
+void LogMethod(const Counter& counter, const char* address, const char* name, int32_t julian) {
     const auto date = harness::CivilFromJulian(julian);
     Log("drawstream method %s %s (month) %04d-%02d-%02d: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
         address, name, date.year, date.month, date.day, counter.calls.load(), counter.complete.load(), counter.mismatches.load());
@@ -420,10 +420,10 @@ void MapViewDrawStreamMonth(int32_t julian) {
     const auto date = harness::CivilFromJulian(julian);
     Log("drawstream pilot cSC4WinMapView (month) %04d-%02d-%02d: draws=%llu operations=%llu exact=%llu; active owner complete=0",
         date.year, date.month, date.day, updateCount.calls.load(), updateCount.operations.load(), updateCount.exact.load());
-    Method(updateCount, "0x007A2F60", "cSC4WinMapView::Update", julian);
-    Method(notificationCount, "0x007A54D0", "cSC4WinMapView::DoMessage", julian);
-    Method(uiCount, "0x007A56E0", "cSC4WinMapView::DoMessage", julian);
-    Method(rasterCount[0], "0x0079ED90", "MakeMapColorBuffer<unsigned-byte>", julian);
-    Method(rasterCount[1], "0x0079F230", "MakeMapColorBuffer<signed-byte>", julian);
+    LogMethod(updateCount, "0x007A2F60", "cSC4WinMapView::Update", julian);
+    LogMethod(notificationCount, "0x007A54D0", "cSC4WinMapView::DoMessage", julian);
+    LogMethod(uiCount, "0x007A56E0", "cSC4WinMapView::DoMessage", julian);
+    LogMethod(rasterCount[0], "0x0079ED90", "anonymous::MakeMapColorBuffer<uint8_t>", julian);
+    LogMethod(rasterCount[1], "0x0079F230", "anonymous::MakeMapColorBuffer<int8_t>", julian);
 }
 } // namespace fc4
