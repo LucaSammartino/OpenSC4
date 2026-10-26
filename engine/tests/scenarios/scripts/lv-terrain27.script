@@ -1,0 +1,8 @@
+# Terrain-only first month of gen27-konradshohe-s0-default.
+# Keep the original dates; observe the January and February month-end passes.
+2026-01-30 terrain 57 61 89 93 270 1
+2026-02-09 terrain 0 126 3 127 270 0
+2026-02-19 terrain 0 0 4 4 0 0
+2026-02-19 terrain 0 0 0 4 5000 0
+2026-02-28 mark lv-terrain27 two month ends
+2026-03-05 digest

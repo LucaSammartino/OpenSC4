@@ -7,7 +7,7 @@
 //! The land value C ABI against a fake game: grids as host tokens, a full
 //! pass, persistence through host streams, and the reference protocol.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ffi::c_void;
 
@@ -33,6 +33,8 @@ struct Game {
     grids: RefCell<HashMap<u64, Grid>>,
     next: RefCell<u64>,
     log: RefCell<Vec<String>>,
+    live_altitude: Cell<f32>,
+    live_slope: Cell<f32>,
 }
 
 impl Game {
@@ -379,6 +381,75 @@ fn null_safety() {
         assert_eq!(fc4_landvalue_grid(n, 0), 0);
         assert_eq!(fc4_landvalue_average(n), 0);
         fc4_landvalue_destroy(n);
+    }
+}
+
+unsafe extern "C" fn edited_altitude(u: *mut c_void, _x: f32, _z: f32) -> f32 {
+    game(u).live_altitude.get()
+}
+
+unsafe extern "C" fn edited_slope(u: *mut c_void, _x1: i32, _z1: i32, _x2: i32, _z2: i32) -> f32 {
+    game(u).live_slope.get()
+}
+
+#[test]
+fn terrain_edit_between_statistics_and_intrinsic_keeps_each_states_inputs() {
+    unsafe {
+        let g = Game::default();
+        // gen27's terrain edit at vertex (57,61), and slope tract (7,7).
+        // Use the measured inputs on a flat fake city to isolate read timing.
+        g.live_altitude.set(228.07106);
+        g.live_slope.set(8.655487);
+        let h = fc4_landvalue_host {
+            altitude: Some(edited_altitude),
+            area_slope: Some(edited_slope),
+            ..host(&g)
+        };
+        let lv = fc4_landvalue_create(&h);
+        assert!(fc4_landvalue_init(lv, &tuning(&SHIPPED)));
+        let mut st = fc4_landvalue_state::default();
+        for _ in 0..4 {
+            fc4_landvalue_step(lv, 1000);
+        }
+        assert!(fc4_landvalue_get_state(lv, &mut st));
+        assert_eq!(st.pipeline_state, 5);
+        assert_eq!(st.mean_alt, 228.0); // integer accumulation, spec section 7.2
+        assert_eq!(st.min_alt, 228.07106);
+
+        g.live_altitude.set(270.0);
+        g.live_slope.set(13.074409);
+        assert!(fc4_landvalue_handle_message(lv, 0x278E_6003, 0));
+        assert!(fc4_landvalue_get_state(lv, &mut st));
+        assert_eq!(st.pipeline_state, 5); // dirty, without restarting the pass
+        assert_eq!(st.dirty, 1);
+        fc4_landvalue_step(lv, 1000); // state 5 reads the new slope
+        let slope = fc4_landvalue_grid(lv, 2);
+        let grids = g.grids.borrow();
+        let Data::F32(values) = &grids[&slope].data else { panic!() };
+        assert!(values.iter().all(|&v| v == 13.074409));
+        drop(grids);
+        fc4_landvalue_step(lv, 1000); // state 4 reads 270 against the old statistics
+        let intrinsic = fc4_landvalue_grid(lv, 0);
+        let value = || {
+            let grids = g.grids.borrow();
+            let Data::U8(values) = &grids[&intrinsic].data else { panic!() };
+            values[4] // land tract (1,0), water bonus 45 plus base 1
+        };
+        assert_eq!(value(), 46); // new altitude is beyond the old curve's upper endpoint
+        assert!(fc4_landvalue_get_state(lv, &mut st));
+        assert_eq!(st.mean_alt, 228.0);
+        while st.pipeline_state != 9 {
+            fc4_landvalue_step(lv, 1000);
+            assert!(fc4_landvalue_get_state(lv, &mut st));
+        }
+        assert!(fc4_landvalue_handle_message(lv, 0x6695_6816, 0));
+        for _ in 0..6 {
+            fc4_landvalue_step(lv, 1000);
+        }
+        assert!(fc4_landvalue_get_state(lv, &mut st));
+        assert_eq!(st.mean_alt, 270.0);
+        assert_eq!(value(), 56); // refreshed statistics: curve(50) adds 10
+        fc4_landvalue_destroy(lv);
     }
 }
 
