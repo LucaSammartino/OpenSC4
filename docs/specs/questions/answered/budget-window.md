@@ -110,3 +110,15 @@
   ties to the limit, 32-bit; zero room gives `(0, 0)` and Accept off. §11.4 gives the row cells, the payment total
   and the scroll-button tests. The list redraw drops the bond-limit cap *[quirk]*. §11.5 identifies `DoMessage`'s
   dirty byte with slot 8's `+0x19E`.
+
+<!-- from: re-budgetwindow-answers4 (2026-10-21); narrowed by re-bw30 -->
+- ~~**BW11 - section 4.0 Alt+Enter / Alt+F4 delivery (runtime):** with a sub-budget open, does Alt+Enter
+  close it without another action, and does Alt+F4 close only the dialog or also request application/system
+  close? The translator hooks and accelerators had not been traced.~~
+  **ANSWERED 2026-10-26 (re-bw30):** DIFFERS — §4.0 now distinguishes delivered type-5 behavior from live
+  input routing. Hooks receive an explicit consumed out-byte; only that byte stops traversal. Unconsumed
+  system key-down calls the builder and returns 0 without default-window processing, even when the builder
+  suppresses input. The dialog close body itself neither switches display mode nor requests quit. A separate
+  WM_CLOSE submits type 10. The remaining runtime observation is specified in §4.0: separate fresh-dialog
+  Alt+Enter/Alt+F4 trials, display/popup state, visible close/quit effects, and ordered hook/type-5/system-close
+  plus RequestQuit entry observations. No in-game verdict is asserted; the runtime part is narrowed, not measured.
