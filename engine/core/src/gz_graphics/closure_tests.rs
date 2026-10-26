@@ -288,6 +288,28 @@ fn gzg7_stroke_corners_and_constant_cubic_worked_cases() {
 }
 
 #[test]
+fn gzg7_non_aa_directional_caps_and_aa_length_gate() {
+    use super::geometry::stroke_quad;
+    // Section 3.2.6: caps follow the sign of the major direction; equal
+    // diagonals use the horizontal branch and AA uses the float thickness.
+    for (a, b, expected) in [
+        ([2., 2.], [1., 2.], [[2.5, 3.], [2.5, 1.], [0.5, 1.], [0.5, 3.]]),
+        ([1., 2.], [1., 4.], [[2., 1.5], [0., 1.5], [0., 4.5], [2., 4.5]]),
+        ([1., 4.], [1., 2.], [[0., 4.5], [2., 4.5], [2., 1.5], [0., 1.5]]),
+        ([1., 2.], [2., 3.], [[0.5, 1.], [0.5, 3.], [2.5, 4.], [2.5, 2.]]),
+    ] {
+        assert_eq!(stroke_quad(a, b, 9., 2, false), expected);
+    }
+    let below = 0.0001_f32;
+    let above = f32::from_bits(below.to_bits() + 1);
+    assert_eq!(stroke_quad([0., 0.], [below, 0.], 2., 9, true), [[0.; 2]; 4]);
+    assert_eq!(
+        stroke_quad([0., 0.], [above, 0.], 2., 9, true),
+        [[0., -1.], [0., 1.], [above, 1.], [above, -1.]]
+    );
+}
+
+#[test]
 fn gzg1_non_aa_outline_ellipse_topology_worked_case() {
     let mut e = recorder(0);
     let p = [[-1., -1.], [1., 1.], [-1., -1.], [1., 1.], [99., 99.]];

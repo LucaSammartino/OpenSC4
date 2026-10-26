@@ -394,6 +394,48 @@ fn gzg2_image_cache_failure_and_null_source_worked_cases() {
     assert!(binding.cache.is_none() && binding.texture.is_none());
 }
 
+#[test]
+fn gzg2_image_allocation_failure_releases_old_binding_in_order() {
+    // Section 4.4: release the cache before source callbacks, then release the
+    // old texture even when allocation fails. No old binding is restored.
+    struct MissingCache {
+        cache: std::sync::Weak<dyn ImageCache>,
+        texture: std::sync::Weak<dyn ImageTexture>,
+        allocated: bool,
+    }
+    impl ImageSource for MissingCache {
+        fn cache(&self) -> Option<&Arc<dyn ImageCache>> {
+            assert_eq!(self.cache.strong_count(), 0);
+            assert_eq!(self.texture.strong_count(), 1);
+            None
+        }
+        fn allocate_cache(&mut self, bytes: usize) -> Option<Arc<dyn ImageCache>> {
+            assert_eq!(bytes, 0x68);
+            assert_eq!(self.cache.strong_count(), 0);
+            assert_eq!(self.texture.strong_count(), 1);
+            self.allocated = true;
+            None
+        }
+        fn attach_cache(&mut self, _: &Arc<dyn ImageCache>) -> bool {
+            panic!("allocation failure must not attach a cache")
+        }
+    }
+    let mut binding = ImageBinding {
+        cache: Some(Arc::new(Cache(true))),
+        texture: Some(Arc::new(Texture)),
+    };
+    let mut source = MissingCache {
+        cache: Arc::downgrade(binding.cache.as_ref().unwrap()),
+        texture: Arc::downgrade(binding.texture.as_ref().unwrap()),
+        allocated: false,
+    };
+    assert_eq!(binding.set_image(Some(&mut source)), 0);
+    assert!(source.allocated);
+    assert!(binding.cache.is_none() && binding.texture.is_none());
+    assert_eq!(source.cache.strong_count(), 0);
+    assert_eq!(source.texture.strong_count(), 0);
+}
+
 struct ExtensionDevice(Arc<Mutex<Vec<u32>>>);
 impl HardwareDevice for ExtensionDevice {
     fn init(&mut self, _: &Arc<dyn Buffer>) -> bool {
