@@ -222,6 +222,8 @@ fn ss2_whole_file_duplicate_registration_semantic_duck_and_random() {
 #[derive(Default)]
 struct Backend {
     binds: usize,
+    forwards: Vec<(u32, u32, f32)>,
+    resolved: BTreeMap<u32, Arc<Properties>>,
 }
 impl ChannelBackend for Backend {
     fn create(&mut self, _: u32, _: u32) -> Option<SoundRef> {
@@ -240,6 +242,96 @@ impl ChannelBackend for Backend {
         self.binds += 1;
         true
     }
+    fn optional_float(&mut self, _: &SoundRef, iid: u32, slot: u32, value: f32) -> bool {
+        self.forwards.push((iid, slot, value));
+        false
+    }
+    fn resolve_properties(&mut self, key: ResourceKey, iid: u32) -> Option<Arc<Properties>> {
+        assert_eq!((key.kind, key.group, iid), (0xEBFE_E345, 0xFC45_CAF7, 0xEBB1_0CDD));
+        self.resolved.get(&key.instance).cloned()
+    }
+}
+
+#[test]
+fn ss3_notifications_preserve_return_asymmetry_and_retained_sets() {
+    let child = Arc::new(Source::default());
+    let mut channel = HitChannel {
+        source: Some(child),
+        ..Default::default()
+    };
+    channel.properties.insert(0xFF09_9DB2, 22051);
+    channel
+        .float_properties
+        .extend([(0xFF30_71B9, 0.5), (0xFF01_50F2, 1.25), (0xFF86_FE79, -0.5)]);
+    let mut backend = Backend::default();
+    assert!(channel.notify(0xFF09_9DB2, &mut backend)); // inverted pitch return is discarded
+    assert!(channel.notify(0xFF01_50F2, &mut backend));
+    assert!(!channel.notify(0xFF86_FE79, &mut backend));
+    assert_eq!(backend.forwards, [(0x6B04_46EB, 6, 1.25), (0x4B79_C1A9, 7, -0.5)]);
+    let parent = Arc::new([(0xFF53_DBF3, 512)].into_iter().collect());
+    backend.resolved.insert(7, Arc::clone(&parent));
+    let notifying = Arc::new([(0xFF4C_97BE, 7), (0xFF90_AAC8, -3)].into_iter().collect());
+    assert!(channel.notify_inherited(Arc::clone(&notifying), &mut backend));
+    assert_eq!(Arc::strong_count(&notifying), 2);
+    assert_eq!(Arc::strong_count(&parent), 3);
+    assert_eq!(channel.play_value as i32, -1);
+    channel.notify_inherited(Arc::new(Properties::new()), &mut backend);
+    assert_eq!(Arc::strong_count(&notifying), 1);
+    assert_eq!(Arc::strong_count(&parent), 2);
+    let retained: directors::ForeignRef = Arc::new(7u32);
+    channel.retained_source = Some(Arc::clone(&retained));
+    assert!(channel.notify(0xFFAE_C905, &mut backend));
+    assert_eq!(Arc::strong_count(&retained), 1);
+}
+
+#[test]
+fn ss1_instruction_budget_reports_after_102_and_preserves_stack_offsets() {
+    let mut track = HitTrackPlayer {
+        executing: true,
+        ..Default::default()
+    };
+    let mut io = TrackSpy {
+        error_result: 1,
+        ..Default::default()
+    };
+    track.timer_callback(0, &[15; 103], &mut io).unwrap();
+    assert_eq!(track.pc, 102);
+    assert_eq!(
+        io.errors,
+        ["Too many instructions executed without wait (infinite loop?)"]
+    );
+    track.pc = 0;
+    let stream = [7, 6, 0, 0, 0, 12, 8];
+    track.execute_next(&stream, &mut io).unwrap();
+    assert_eq!((track.pc, track.return_stack.clone()), (6, vec![5]));
+    track.execute_next(&stream, &mut io).unwrap();
+    assert_eq!(track.pc, 5);
+    assert!(track.return_stack.is_empty());
+}
+
+#[test]
+fn ss6_path_init_ignores_load_boolean_and_preserves_directory() {
+    struct Paths(Vec<String>);
+    impl PathScoreInput for Paths {
+        fn load_path(&mut self, path: &str) -> (ScoreData, bool) {
+            self.0.push(path.to_owned());
+            (
+                ScoreData {
+                    rows: 1,
+                    columns: 1,
+                    cells: vec![CellData::default()],
+                    ..Default::default()
+                },
+                false,
+            )
+        }
+    }
+    let mut player = FreshPlayer::default();
+    let mut paths = Paths(Vec::new());
+    player.init_path("Music/score.txt", &mut paths).unwrap();
+    assert!(player.initialized);
+    assert_eq!(player.data_directory, "Music/");
+    assert_eq!(paths.0, ["Music/score.txt"]);
 }
 
 #[test]

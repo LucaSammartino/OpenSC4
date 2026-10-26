@@ -19,14 +19,15 @@ All numeric property words preserve their 32-bit representation. Missing registe
 values and unknown constructor class IDs stay absent rather than acquiring guessed
 defaults. Source creation safely rejects unavailable dependencies, as allowed by §4.
 
-The source spec deliberately leaves SS1–SS11 unsettled. Public operations that
-would cross those gaps return `Unsupported("SSn")`. Confirmed continuations are
-separate: `prepare_play` exposes restart/routing requirements; `write_play_payload`
-records the four notified writes; channel `*_after_patch` methods implement the
-confirmed IO after a successful patch refresh; `register_classified_target` and
-`enumerate_targets` operate already-classified lists without inventing a period
-classifier; `parse_converted` appends without claiming Open's reset/append policy.
-These methods do not establish that the unresolved prerequisite succeeded.
+SS1–SS7's confirmed rules now execute in the core, with worked cases in
+`closure_tests.rs`. Track Play writes suppress notifications, channel patch
+refresh safely rejects missing backend/QI dependencies, and INI stages preserve
+numeric replacement/order and partial success. Foreign interfaces supply COM
+calls, inherited INI enumeration/locale comparison, clocks, random draws and the
+pitch table; they do not supply the selection, transform or framing algorithms.
+The exact remaining SS1 opcode set returns `Unsupported("SS1")`. Runtime-only
+boundaries are listed below; none is silently treated as a completed algorithm.
+The other owners' closure rows retain their previous scope pending their lanes.
 
 SS12 records literal list choices: preserve registrations, remove all matching
 pointers, drain target changes in request order (handler additions precede removals
@@ -35,22 +36,24 @@ UNC, dot/parent, URL and unresolved format paths explicitly return SS11.
 
 ## Owner closure
 
-Tests below are in `tests.rs`; section numbers refer to `sound-system.md`.
+SS-V tests are in `tests.rs`; SS1–SS7 worked cases are in `closure_tests.rs`.
+Section numbers refer to `sound-system.md`. “Implemented” applies only to rows
+without open IDs; an owner with any open row remains partial.
 “Open” is limited to the uncertainties explicitly reserved by the source spec;
 inventory names alone are not claimed as algorithms. All 24 §10 vectors execute.
 
 | Owner | Spec section | Code item and covering test; explicit open boundary |
 |---|---|---|
 | All interface/service owners | §2 | `SoundRef`, `InterfaceView`, foreign host traits; `track_views_acquire_references_and_preserve_secondary_offsets`, `ss_v08_free_channel_releases_once`; native COM/system-service inheritance stays in adapters |
-| cHitTrackPlayer | §3.1 | `HitTrackPlayer::construct`, `query_interface`, embedded `HitChannel`; `track_construction_acquires_services_without_loading`, `track_views_acquire_references_and_preserve_secondary_offsets`; open: SS1 folded/interpreter entries |
-| cHitTrackPlayer | §3.2 | `load`, `unload`, `is_playing`, `pause`, `unpause`, `prepare_play`, `play_one`, `write_play_payload`; SS-V01/02/04/05 and `track_pause_properties_and_payload_notifications`; open: SS1 restart Kill/start and argument routing |
-| cHitTrackPlayer | §3.3 | property-backed getters, `checked_reg_id`, `execute_command`; SS-V03 and `track_pause_properties_and_payload_notifications`; open: SS1 opcode widths, notes, notifications' downstream interpreter effects, timers and recovery |
-| cHitMan | §4.1 | `HitMan::default`, `init`, `alloc_channel`, `free_channel`; SS-V08 and `hit_defaults_and_initialization_services`; open: SS2 file grammar, maps/registration rules, semantics/arbitration, random law, pause, callbacks and shutdown |
-| cHitChannel | §4.2 | `HitChannel::new`, `create_sound`, `load_after_patch`, `note_on_after_patch`; SS-V06/07 and `channel_creation_requires_source_qi_and_selects_3d`; open: SS3 complete tables, patch selection, pitch/pan laws and notification dispatch |
-| cHitIniFile | §5.1 | `HitIniFile`, `IniFile`, `enum_default_entries`; `ini_delegation_defaults_and_missing_services`; open: SS4 complete sections, type/group token grammar, ordering, duplicates and failure aggregation; no duplicate INI parser |
-| cHitPropertySetTrackResource | §5.2 | `ResourceKey`, `HitPropertySetTrackResource`, `TrackResourceIo`, `ResourceFormat`, `LEGACY_PREFIX`; SS-V24; open: SS5 serializers, malformed input, assignment/private-copy ownership and alternate tables |
-| cFreshPlayer | §6.1 | `FreshPlayer`, `ScoreInput`, `init_resource`, `init_loaded_score`, `play`, setters, `update_volume`, busy count, `try_callback`; SS-V09, `fresh_initialization_play_and_lock_contention`, `score_resource_failure_does_not_initialize`; open: SS6 dimension acceptance, overloads, score selection, timing, fading and stop/shutdown |
-| cFreshCellPlayer | §6.2 | `FreshCellPlayer`, `CellHost`, state predicates, `set_cell`, `kill`, `stop`, `update_source`, two-stage wrapping volume arithmetic and forwarding; SS-V10–14 and `cell_stop_fade_poll_and_scaled_forwarding`; open: SS7 start/spatial policies, external controller and countdown branches |
+| cHitTrackPlayer | §3.1 | `construct`, `query_interface`, embedded channel; `track_construction_acquires_services_without_loading`, `track_views_acquire_references_and_preserve_secondary_offsets`; open: SS1 folded entries need the §3.3 recording-interface/PC observations |
+| cHitTrackPlayer | §3.2 | implemented: `play_with`, `write_play_payload`, load/pause methods; SS-V01/02/04/05, `ss1_mode3_and_play_order_suppress_notifications`; SS1 routing, suppressed flags and Kill/start/dependent/Unpause call order applied; actual foreign calls use `TrackIo` |
+| cHitTrackPlayer | §3.3 | `set_register`, `notify_register`, `execute_next`, `timer_callback`; `ss1_byte_width_wait_and_strict_ramp_worked_cases`, `ss1_instruction_budget_reports_after_102_and_preserves_stack_offsets`; open: SS1 residual opcodes 0B/0E/10–19/1B–1C/1F–33/3E–49/4B–5C/5F–61, branch/tempo/error continuation and cross-object effects require the exact §3.3 PC/register/interface traces; alias words supplied by adapter |
+| cHitMan | §4.1 | `TrackDataBlock::parse`, registration/semantic/group/sequence/duck maps, `random`, pause slots and opaque source forwarding; SS-V08, `ss2_whole_file_duplicate_registration_semantic_duck_and_random`; open: SS2 source payload/control-object policy need slot-3 handler and competing-group recording observations (§4.1); shutdown/callback ordering remains a SPEC-GAP |
+| cHitChannel | §4.2 | implemented (SS3): six QI views/table extents, `update_patch`, `update_pitch`, `update_vol_pan`, `notify`, `notify_inherited`, load/note-on; SS-V06/07, `ss3_pitch_pan_volume_patch_and_interface_worked_cases`, `ss3_notifications_preserve_return_asymmetry_and_retained_sets`; safe missing-backend rejection, optional controls and inherited-set ownership covered |
+| cHitIniFile | §5.1 | `hit_config.rs` numeric conversion/tokenization and all ordered stages, persistent exclusions/creators, foreign inherited enumeration; `ss4_numeric_order_duplicates_and_failure_continuation`; open: SS4 repeated-section callbacks and locale true/TRUE comparison require the §5.1 inherited-reader observation; missing-backend crashes safely rejected |
+| cHitPropertySetTrackResource | §5.2 | legacy framing/version/overlay/defaults/writer, `assign`, `private_copy`, foreign generic serializer selector; SS-V24, `ss5_legacy_framing_defaults_self_reference_writer_and_private_copy`; open: SS5 invalid QI, S=0/3 and short-read return/crash/property outcomes need the §5.2 mock-record observation; safe invalid-input rejection used |
+| cFreshPlayer | §6.1 | implemented (SS6): initialization/overloads, valid dimensions, selection/scoring, coordinates/budgets/divisions, beat clock, fades, Stop/Shutdown/reseed and lock callbacks; SS-V09, `ss6_block_coordinate_selection_scores_and_separate_random_sources`, `ss6_fade_overshoot_retarget_zero_step_and_clock_worked_cases`, `ss6_stop_shutdown_and_repeated_init_lifetime_order`, `ss6_path_init_ignores_load_boolean_and_preserves_directory`; invalid dimensions/sparse grids safely rejected |
+| cFreshCellPlayer | §6.2 | implemented (SS7): `start`, GUID/name selection, spatial/pitch/volume setup, external controller call order/failure state, `update_countdown`, `update`, Stop/Kill and AutoPan; SS-V10–14, `ss7_guid_external_failure_countdown_pan_and_controller_worked_cases`, `ss7_internal_start_ignored_play_failure_and_external_setter_order`; foreign CRC/table/draw inputs explicit; low-bit pan polarity marked SPEC-GAP |
 | cGZSndSys | §7.1 | `SndSys`, consuming/deferred event chain, posting, classified target lists/queues, independent update control, renderer master volume; SS-V15–17, `deferred_handlers_survive_nested_dispatch_and_drain_adds_first`, `target_queues_and_callback_short_circuit`, `target_removal_is_deferred_through_nested_enumeration`, `renderer_volume_and_posting_are_foreign_io`, `payload_overload_reuses_existing_event_fields`; open: SS8 period classifier, slow timer, listener/cache/lifecycle/mapping rules; literal choices SS12 |
 | cGZSndMgr | §7.2 | `SndMgr::init`, system-sound mapping, manager interface view, existing tag helper; SS-V18/19 and `manager_successful_init_registers_once`; open: SS9 constructor defaults, creators/cache/autoplay and shutdown |
 | cGZSoundCOMDirector | §8 | `SoundDirector::construct`, `on_start`, `pre_app_shutdown`, absent-system `post_app_init`; `director_factories_null_paths_and_panic`; open: SS10 present-system cache operation and inherited/aggregation contracts |

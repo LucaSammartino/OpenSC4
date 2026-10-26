@@ -139,6 +139,7 @@ impl HitMan {
         self.source_handler.as_ref().map(|handler| call(handler, words))
     }
     /// Semantic payload and control-object policy require the §4.1 recording experiment.
+    // SPEC-GAP: manager shutdown and error-callback ordering are not specified.
     pub fn unresolved_operation(&self) -> Result<(), Unsupported> {
         Err(Unsupported("SS2"))
     }
@@ -536,8 +537,8 @@ pub enum ResourceFormat {
     Legacy,
     Properties,
 }
-/// Serialization is not inferred from the prefix; a foreign decoder can be
-/// supplied once SS5 settles it. This trait only exposes the confirmed selector.
+/// Generic property serialization remains foreign. Properties selects XML on
+/// Write; Read performs the property-sets.md header/QI/rewind dispatch.
 pub trait TrackResourceIo {
     fn read(&mut self, format: ResourceFormat, properties: &mut Properties) -> Result<bool, Unsupported>;
     fn write(&mut self, format: ResourceFormat, properties: &Properties) -> Result<bool, Unsupported>;
