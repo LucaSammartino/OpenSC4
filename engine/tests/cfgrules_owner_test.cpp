@@ -98,8 +98,8 @@ int main() {
     CHECK(owner);
     uint32_t setting = 99;
     CHECK(fc4_cfgrules_owner_auto(owner, 2, &setting) == 0 && setting == 0);
-    CHECK(fc4_cfgrules_owner_init(owner, &a, Bytes("data"), Bytes("user"), false) == 0);
-    CHECK(s.files.size() == 2 && s.files[0].find("data") == 0 && s.files[1].find("user") == 0);
+    CHECK(fc4_cfgrules_owner_init(owner, &a, Bytes("C:/R/"), Bytes("C:/U/"), false) == 0);
+    CHECK(s.files.size() == 2 && s.files[0] == "C:/R/Graphics Rules.sgr" && s.files[1] == "C:/U/Graphics Options.sgr");
     CHECK(s.measures == 1 && a.adds == 1 && a.drops == 0 && a.writes.empty());
     // Init parses without evaluation. Recommendations become visible only on SetOptions.
     CHECK(fc4_cfgrules_owner_auto(owner, 2, &setting) == 0 && setting == 0);

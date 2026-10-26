@@ -11104,6 +11104,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_disasters_test.inc"
 #include "plugin_effects_registration_test.inc"  // Guarded registration, ownership, and section 18.2 target layout.
 #include "plugin_netocc_registration_test.inc"
+#include "plugin_cfgrules_registration_test.inc"
 #include "plugin_lotrec_boundary_test.inc"
 #include "plugin_lotconf_ownership_test.inc"
 #include "plugin_netlot_ownership_test.inc"
@@ -11216,6 +11217,9 @@ int main(int argc, char** argv) {
     if (mode == "--ini-netocc-pole-factory") return NetOccPoleRegistrationTest(dll, ini);
     if (mode == "--netlot-ownership") return NetLotOwnershipTest(dll, ini);
     if (mode == "--netlot-defaults") return NetLotOwnershipTest(dll, ini, 1);
+    if (mode == "--cfgrules-default") return ConfigRulesRegistrationTest(dll, ini, 0);
+    if (mode == "--cfgrules-enabled") return ConfigRulesRegistrationTest(dll, ini, 1);
+    if (mode == "--cfgrules-disabled") return ConfigRulesRegistrationTest(dll, ini, 2);
     if (mode == "--netlot-disabled") return NetLotOwnershipTest(dll, ini, 2);
     if (mode == "--netlot-object-factories") return NetLotOwnershipTest(dll, ini, 3);
     if (mode == "--ini-enable-advisors") return AdvisorsRegistrationTest(dll, ini, log, true);

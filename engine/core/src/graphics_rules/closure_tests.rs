@@ -79,7 +79,7 @@ fn v14_optional_error_keeps_callbacks_and_required_error_visits_later_roots() {
         "user/Graphics Options.sgr".into(),
         "partialRule retained\nend\nbad".into(),
     );
-    let context = InitContext::from_directories("data", "user", false);
+    let context = InitContext::from_directories("data/", "user/", false);
     assert!(m.parse_config_file(&mut files, &context));
     assert_eq!(
         m.rules().iter().map(|r| r.name.as_str()).collect::<Vec<_>>(),
@@ -216,7 +216,7 @@ fn v15_write_and_close_failures_are_ignored_and_open_is_checked_per_line() {
         &properties,
         &mut Provider::default(),
         &mut Files::default(),
-        &InitContext::from_directories("data", "user", false),
+        &InitContext::from_directories("data/", "user/", false),
     );
     assert!(manager.last_init_error.is_none());
     assert_eq!(manager.rules()[0].properties.bools, [(u32::MAX, false); 4]);
@@ -249,4 +249,64 @@ fn nonfinite_log_profile_is_explicitly_unsupported_but_rules_still_apply() {
     assert_eq!(trace(&p), [Write::Int(0, 9)]);
     assert_eq!(m.logger().closes, 1);
     assert!(!m.logger().is_open());
+}
+
+#[test]
+fn gr10_literal_roots_selection_order_and_missing_required_file() {
+    let context = InitContext::from_directories("C:/R/", "C:/U/", false);
+    assert_eq!(context.rules_path, "C:/R/Graphics Rules.sgr");
+    assert_eq!(context.options_path, "C:/U/Graphics Options.sgr");
+    assert_eq!(
+        logging::in_directory("C:/A/", "HOST-config-log.txt"),
+        "C:/A/HOST-config-log.txt"
+    );
+    assert_eq!(
+        InitContext::from_directories("C:/R", "", false).rules_path,
+        "C:/RGraphics Rules.sgr"
+    );
+    assert_eq!(
+        InitContext::from_directories("", "", false).options_path,
+        "Graphics Options.sgr"
+    );
+    for required in [false, true] {
+        for optional in [false, true] {
+            let mut files = Files::default();
+            // Conflicting copies in the other base must never be selected.
+            files
+                .text
+                .insert("C:/U/Graphics Rules.sgr".into(), "partialRule wrong_rules\nend".into());
+            files.text.insert(
+                "C:/R/Graphics Options.sgr".into(),
+                "partialRule wrong_options\nend".into(),
+            );
+            if required {
+                files
+                    .text
+                    .insert(context.rules_path.clone(), "partialRule rules\nend".into());
+            }
+            if optional {
+                files
+                    .text
+                    .insert(context.options_path.clone(), "partialRule options\nend".into());
+            }
+            let parsed = RuleParser::new(&Registry::default(), 0, 0, false).parse_files(
+                &mut files,
+                &context.rules_path,
+                &context.options_path,
+            );
+            assert_eq!(files.reads, [context.rules_path.clone(), context.options_path.clone()]);
+            assert_eq!(parsed.is_ok(), required);
+            if let Ok(parsed) = parsed {
+                let names: Vec<_> = parsed.rules.iter().map(|r| r.name.as_str()).collect();
+                assert_eq!(
+                    names,
+                    if optional {
+                        vec!["rules", "options"]
+                    } else {
+                        vec!["rules"]
+                    }
+                );
+            }
+        }
+    }
 }

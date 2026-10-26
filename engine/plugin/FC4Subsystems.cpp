@@ -131,6 +131,7 @@
 #include "cFC4MySim.h"
 #include "cFC4MySimDispatch.h"
 #include "cFC4RegionalCity.h"
+#include "cFC4ConfigRules.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -563,6 +564,10 @@ const ClassEntry kRegionalCityClasses[] = {
     {0x6A037C24, "cSC4RegionalCity", &CreateFC4RegionalCity},
 };
 
+const ClassEntry kConfigRulesClasses[] = {
+    {0x0A1D8285, "cSC4ConfigRuleManager", &CreateFC4ConfigRules},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -651,6 +656,7 @@ const Subsystem kSubsystems[] = {
     // data-formats section 8.1: use the FC4 exemplar/cohort factories and their
     // property holders. Packed-file segments remain a separate replacement.
     {"formats", nullptr, nullptr, 0, false},
+    {"cfgrules", nullptr, kConfigRulesClasses, sizeof(kConfigRulesClasses) / sizeof(kConfigRulesClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

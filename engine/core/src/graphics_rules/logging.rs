@@ -182,9 +182,6 @@ pub(super) fn options(
 }
 
 pub(super) fn in_directory(directory: &str, file: &str) -> String {
-    if directory.is_empty() || directory.ends_with(['/', '\\']) {
-        format!("{directory}{file}")
-    } else {
-        format!("{directory}/{file}")
-    }
+    // GR10: bases are opaque; even an absent trailing separator is preserved.
+    format!("{directory}{file}")
 }
