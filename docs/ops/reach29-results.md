@@ -1,8 +1,68 @@
-# reach29 measurement and unresolved drivers
+# reach29 measurement and lifecycle qualification
 
-State: **WIP**. The +3-point target is not met. No simulation algorithms or ABI
-exports changed. `reach_lifecycle` is default-off and is qualified only on the
-empty Tempelhof scenario; do not enable it for the mature-city rows.
+State: **harness qualified; coverage target NOT met**. No simulation algorithms
+or ABI exports changed. `reach_lifecycle` is default-off; the reduced exact-owner
+roster is now qualified on all four scenarios. The complete roster remains
+unqualified.
+
+## Continuation: corrected-source measurement
+
+`reach29-repaired` used DLL SHA-256
+`b84f195978e72d0dd1642e9cde21b31f30b95e0dffa0437a37c78caa3e1c07a7`.
+All four runs were **clean, end-reaching, 47/47 actions accepted**; shadows were
+**1236/1328 exact**. Reached functions were house **1889**, Tegel **1834**,
+growth **1672**, views **1816**. Each trace records the excluded operand;
+all have zero aborted steps and thread-slot exhaustions. No compare or replace
+profile was run. Runs changed isolated slot copies only.
+
+The fixed before/after census is the original 179-run `reach29-before` plus
+these four rebuilt-DLL runs, tagged `reach29-repaired-union` (183 runs).
+Earlier corrupt runs and the old-DLL safe-roster control are kept separately.
+Both sides use the same attribution and 5,584,344-byte denominator.
+
+| Metric | Before | Corrected union |
+|---|---:|---:|
+| Suite-verified bytes | 409,033 | 376,658 |
+| Suite-verified percentage | 7.324638% | 6.744893% |
+| Net verified change | | **-32,375 bytes / -0.579746 points** |
+| Newly executed under baseline-exact keys | | 140,626 bytes |
+| New bytes whose keys remain exact | | 109,276 bytes |
+| Previously verified bytes removed by new findings | | 141,651 bytes |
+
+The **+3-point target is not met**. Increased execution exposed mismatches,
+which the conservative whole-key rule correctly removes from suite credit.
+[All 82 owner results](reach29-repaired-owner-results.tsv) include new byte
+counts and first mismatch references. References are scenario and raw log
+line in `build-runs/suite/reach29-repaired/`; full lines are in
+`build-runs/reach29-repaired-delta/mismatches.tsv`.
+
+New findings in West Weburg: residential **4218**, 91/71680 cells differ
+(first EQ 191.47592163085938 / 191.47593688964844); zone development **3795**,
+12 list mismatches, 377/420 lots. Reproduced findings: pollution **3154**,
+regionalcity **3596**, lotdev **3792**, neighbours **4146**. These are findings,
+not simulation fixes. Only 112,605 unexecuted bytes remain in the original
+baseline-exact owner groups whose keys are still exact; exercising all would
+bound this cohort's credit at 489,263 bytes. Broader exact keys or coordinator
+engine findings work is needed before this cohort can meet the original target.
+
+The tracer fix excludes bogus entry **00707865**, an operand of the native
+`mov eax,[00b43d94]` at **00707864**. Patching it changed the global pointer
+loaded by tract initialization. Four-way splits isolated it; the relocated
+regression prints **11/11 exclusions, 1/1 valid entry, 11/11 header**.
+The CLI also now preserves an explicit `reach_contracts` when `--reach` is used.
+
+Validation: `python -m pytest tools/tests -q` printed **499 passed in 633.69s**;
+the focused suite parser run printed **21 passed in 0.61s**. Required final
+`qbuild.py --wt <WT> all` ran once: Rust **7882 passed**, clippy **0 diagnostics**,
+CTest **124/124**, overall **PASS**. Round two used **28 requests, at most 4 in
+flight**: 20 diagnostic splits, 4 old-DLL controls, 4 corrected-source runs.
+The old-DLL empty-city control stalled in a dialog after reaching its end date;
+the corrected-source growth replay is clean. No save or third-party DLL is
+committed. The first measurement helper completed the gap CLI, then was
+interrupted during its optional comparison; final coverage commands pin the
+original `--regress C:/Users/tlori/FreeCity4/build-runs/regress-train264.out`.
+
+## Prior-round evidence (superseded by the corrected-source union above)
 
 ## Fixed census and byte results
 
