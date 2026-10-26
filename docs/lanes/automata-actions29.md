@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| automata-actions29: construction worker ABI (engine, r3) | Codex / automata-actions29 / detached HEAD; reserved branch automata-actions29; code 6e4dcad3e, da8c350d0; ABI true, no version bump | wip; gate 7894 Rust / clippy 0 / CTest 125/125; s0/s1 216/216; s2 84/216 with and without automata; shadow 73/73 exact; NM18 open | 1. Answer NM18 and regenerate question index. 2. Resolve s2 consumer and rerun acceptance. 3. Enqueue kind engine after all criteria pass. |
+| automata-actions29: construction worker ABI (engine, r3) | Codex / automata-actions29 / detached HEAD; reserved branch automata-actions29; code 6e4dcad3e, da8c350d0; ABI true, no version bump | wip; gate 7894 Rust / clippy 0 / CTest 125/125; s0/s1 216/216; s2 84/216 with and without automata; shadow 73/73 exact; NM20 open | 1. Answer NM20 and regenerate question index. 2. Resolve s2 consumer and rerun acceptance. 3. Enqueue kind engine after all criteria pass. |
 
 Game logs: `C:/Users/tlori/FreeCity4/build-runs/game-results/`; gate logs: this worktree's `build-runs/`. All labels below have matching `.log`/`.verdict` files.
 Fix: primary worker slots 30/14 now pop 8/4 argument bytes and store flags/orientation; slots 7/8 copy positions; GetPosition returns the caller buffer in EAX through a locked C++ snapshot.
@@ -18,6 +18,6 @@ Incomplete control: `aa29-at25-s2-noauto-a.log`, 0 actions, load fault +0x10A6CD
 Shadow PASS: `aa29-at25-shadow-a.log`, clean through 2032-01-07; shutdown 73/73 samples exact, 438 components/731467 bytes, 0 mismatches, ref0.
 Unchanged house PASS: `aa29-at25-house-a.log`, clean, 2032-01-01 target reached, ref0.
 Queue discipline: shared main queue, parallel=1, at most three requests outstanding; no private queue or direct game starts.
-NM18 filed in `docs/specs/questions/network-manager.md`: identify the later native consumer/view after s2's type-5 network action; stop that item rather than guess. Coordinator must regenerate the question index.
+NM20 filed in `docs/specs/questions/network-manager.md`: identify the later native consumer/view after s2's type-5 network action; stop that item rather than guess. Coordinator must regenerate the question index.
 Not enqueued for landing: s2 end criterion remains unmet; local merge entry is wip despite the passing gate.
-Next: answer/route NM18, fix its specified boundary, rerun s2 and final artifact acceptance, then enqueue kind engine.
+Next: answer/route NM20, fix its specified boundary, rerun s2 and final artifact acceptance, then enqueue kind engine.

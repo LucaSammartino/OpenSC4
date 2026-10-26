@@ -2,7 +2,7 @@
 <!-- Questions about [network-manager.md](../network-manager.md). Append new entries at the END; when one is answered, move it to answered/network-manager.md. Rules: README.md. -->
 
 <!-- from: automata-actions29 (2026-10-26) -->
-- **NM18 - section 9; native consumer after generated s2 network actions:** Please identify the
+- **NM20 - section 9; native consumer after generated s2 network actions:** Please identify the
   consumer/interface boundary at `SimCity 4.exe+0x3529C0` (`0x007529C0`), its required object view,
   nullability and ownership contract, and the subsystem that supplies that object. With the fixed
   NM17/AT25 automata boundary, the full house list's `gen27-konradshohe-s2-grow.script` stops at
