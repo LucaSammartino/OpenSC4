@@ -82,6 +82,8 @@ const ExecutableVersion kVersions[] = {
             0x005EC370,  // the cSC43DPlaceableObject constructor (prop-occupant.md §6.1)
             0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
             0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
+            0x0058C580,  // collection constructor (effects.md 18.7.2; functions.tsv)
+            0x0058D0E0,  // source collection publication (effects.md 18.7.3)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -530,7 +532,9 @@ uintptr_t DirectCall(Direct which) {
                                          "lua _dofile_from_resource", "lua print",
                                          "UpdateResourcesFromDirectory", "LoadPackageScripts",
                                          "placeable pool allocate", "placeable constructor",
-                                         "texture binding AddRef", "texture binding Release"};
+                                         "texture binding AddRef", "texture binding Release",
+                                         "effects collection construct",
+                                         "effects collection publish"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};

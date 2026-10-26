@@ -11100,6 +11100,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_lotrec_boundary_test.inc"
 #include "plugin_lotconf_ownership_test.inc"
 #include "plugin_netlot_ownership_test.inc"
+#include "plugin_effects_resource_registration_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -11125,6 +11126,10 @@ int main(int argc, char** argv) {
     if (mode == "--effects-enabled" || mode == "--effects-disabled" || mode == "--effects-default" ||
         mode == "--effects-guarded")
         return EffectsRegistrationTest(dll, ini, log, mode);
+
+    if (mode == "--effectsres-default" || mode == "--effectsres-enabled" ||
+        mode == "--effectsres-disabled" || mode == "--effectsres-mixed")
+        return EffectsResourceRegistrationTest(dll, ini, log, mode);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {

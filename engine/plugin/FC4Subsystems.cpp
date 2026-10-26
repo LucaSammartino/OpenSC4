@@ -131,6 +131,7 @@
 #include "cFC4MySim.h"
 #include "cFC4MySimDispatch.h"
 #include "cFC4RegionalCity.h"
+#include "FC4EffectsResource.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -563,6 +564,12 @@ const ClassEntry kRegionalCityClasses[] = {
     {0x6A037C24, "cSC4RegionalCity", &CreateFC4RegionalCity},
 };
 
+// The resource is independently opt-in; effects continues to register only
+// the manager. Keep this default-off until full resource acceptance passes.
+const ClassEntry kEffectsResourceClasses[] = {
+    {kFC4_CLSID_cSC4EffectsResource, "cSC4EffectsResource", &CreateFC4EffectsResource},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -651,6 +658,8 @@ const Subsystem kSubsystems[] = {
     // data-formats section 8.1: use the FC4 exemplar/cohort factories and their
     // property holders. Packed-file segments remain a separate replacement.
     {"formats", nullptr, nullptr, 0, false},
+    {"effectsres", nullptr, kEffectsResourceClasses,
+        sizeof(kEffectsResourceClasses) / sizeof(kEffectsResourceClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

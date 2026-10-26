@@ -88,6 +88,10 @@ enum class Direct : unsigned {
     // texture-bindings.md §2: bare counted bindings, not cIGZUnknowns.
     TextureBindingAddRef,   // thiscall (), pop 0, void (functions.tsv)
     TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
+    // effects.md 18.7.3, 18.9; functions.tsv: collection services, not the
+    // effects-resource creator or its primary Read/Write entries.
+    EffectsCollectionConstruct, // thiscall C, no args; EAX=this
+    EffectsCollectionPublish,   // thiscall source C, destination C; void
     Count
 };
 
