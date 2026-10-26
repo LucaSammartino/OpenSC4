@@ -613,6 +613,10 @@ impl CHost {
 }
 
 impl LotDeveloperHost for CHost {
+    fn invocation_precision(&self) -> fc4_core::x87::Precision {
+        crate::invocation::precision()
+    }
+
     // ---- lifecycle ----
     fn acquire_services(&self) -> bool {
         cb!(self, acquire_services, false)

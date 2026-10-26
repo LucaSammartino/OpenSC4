@@ -1207,3 +1207,6 @@ mod regionalcity_owner;
 
 // Private graphics-rule owner transport; native acquisition requires GR9.
 mod cfgrules_owner;
+
+// Native simulation invocation context; private, no C ABI exports.
+mod invocation;
