@@ -8,3 +8,9 @@
 <!-- from: re-mysimui (2026-10-21) -->
 - **MW2 - §1.6:** what the window does with `0xAC08746E` and `0xAC08746F`, and the layout of the statistics
   captions. [as read]
+
+<!-- from: impl-mysim30 (2026-10-26) -->
+- **MW3 - §1.3, §1.5:** which transport-button images correspond to which Sim state, and what are the exact
+  advice kind/flag-to-colour/icon mappings, HTML structure and title/note selection rules? The summary gives
+  palettes, fonts and an icon range but not these decisions. The core reports Unsupported for image selection
+  and HTML construction, while retaining the documented raw list operations and redraw requests.
