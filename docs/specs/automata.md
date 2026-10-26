@@ -799,6 +799,23 @@ Derived dispatchers layered on the base: `cSC4TrafficAutomaton::DoStateTick` `0x
 `u16` 2, the automaton base record, `ref` automaton (`0xA9B40F05`), `u32`, `u8`, `ref` network occupant
 (`0xA821EF94`; seen class `0xC9C05C6E`), `u32`, `u32`, `u32` n, n × route step (`u8`, `u8`, `u8`).
 
+The fields after the base record are, in order: retained leader, u32 transport
+selector, saved traffic option byte, retained network occupant, packed path key,
+segment-index word, then the route-cell count/triples. Triples contain unsigned
+cell X, cell Z and a preserved annotation byte; they are not vec3 path points.
+The Read/Write receiver is the serialization interface at primary-object `+8`:
+record-relative `+0xA8/+0x1DC/+0x1E0/+0x1E4/+0x1EC/+0x1F4/+0x224` therefore
+alias live `+0xB0/+0x1E4/+0x1E8/+0x1EC/+0x1F4/+0x1FC/+0x22C` respectively.
+This is an address translation, with no stream-format adjustment. Evidence:
+QI `0x00505DCC–0x00505DEC`, constructor `0x005544FB–0x0055450F`, Read
+`0x00554D9A–0x00554E11`, Write `0x00551E17–0x00551E64`.
+
+Read does not restore the path interface or point-collection pointer, query
+network geometry, or call placement. See vehicles.md §12.9 for lane matching,
+advancement/reattachment, the worked record case, and the precise remaining
+runtime observations VH7-R1/R2/R3 for later binding and opaque-byte meanings.
+Those observations remain a boundary on full post-load path reconstruction.
+
 ### 6.4 Concrete classes
 
 | Class | ID | Record (all start with `u16` version) |
