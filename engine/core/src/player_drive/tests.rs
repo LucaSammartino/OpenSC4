@@ -319,6 +319,30 @@ fn drivable_form_gate_has_only_disaster_prefix_and_keeps_existing_current() {
 }
 
 #[test]
+fn switching_driven_automata_releases_old_before_acquiring_drivable_form() {
+    let (mut owner, mut f) = driving();
+    assert!(matches!(
+        owner.enter_driving_mode(&mut f, B, CameraFields::default()),
+        Ok(Progress::Partial(_))
+    ));
+    let references: Vec<_> = f
+        .operations
+        .iter()
+        .filter(|op| matches!(op, Operation::AcquireDriven(_) | Operation::ReleaseDriven(_)))
+        .cloned()
+        .collect();
+    assert_eq!(references, [Operation::ReleaseDriven(A), Operation::AcquireDriven(B)]);
+    assert_eq!(owner.current(), Some(B));
+    assert_eq!(owner.toggles(), [true, false]);
+    f.clear();
+    owner.stop_tracking(&mut f).unwrap();
+    assert_eq!(f.operations.last(), Some(&Operation::ReleaseDriven(B)));
+    f.clear();
+    assert_eq!(owner.stop_tracking(&mut f), Ok(Progress::Ignored));
+    assert!(f.operations.is_empty());
+}
+
+#[test]
 fn dashboard_selection_is_id_selection_only_and_preserves_zero_override() {
     assert_eq!(PlayerDrive::dashboard_selection(0x480E_6151, None), 0x6BE8_846C);
     assert_eq!(PlayerDrive::dashboard_selection(7, None), 0x0BE8_824F);

@@ -390,12 +390,14 @@ impl PlayerDrive {
         let dashboard = Self::dashboard_selection(kind, host.property(a, DASHBOARD_PROPERTY)?);
         self.dashboard_id = Some(dashboard);
         host.emit(Operation::DashboardIdSelected(dashboard));
+        // SPEC-GAP: DR1 does not publish dashboard loading/layout or gauge bindings.
         host.emit(Operation::Gap(Unsupported::DashboardShowUi));
         let sound = host
             .property(a, SOUND_PROPERTY)?
             .ok_or(Unsupported::MissingSoundProperty)?;
         host.emit(Operation::OccupantSound { id: sound, start: true });
         host.emit(Operation::EngineEvent { event: 0, start: true });
+        // SPEC-GAP: DR4 leaves the three audio-table values unpublished.
         host.emit(Operation::Gap(Unsupported::AudioTable));
         host.emit(Operation::AcquireDriven(a));
         self.current = Some(a);
@@ -404,6 +406,7 @@ impl PlayerDrive {
             words: [0x10, 0, 0xBF80_0000, 0, 0, 0, 0],
         });
         host.emit(Operation::VehicleManagerTrack(Some(a)));
+        // SPEC-GAP: DR4 leaves native settings/AEMS selection open; fields are caller-supplied.
         host.emit(Operation::Gap(Unsupported::SettingsSelection));
         self.camera_speed_bits = camera.speed_bits.unwrap_or(CAMERA_SPEED_BITS);
         host.emit(Operation::ZoomLimits(zoom, max_zoom));
