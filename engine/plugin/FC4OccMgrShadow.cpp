@@ -1702,10 +1702,25 @@ struct FollowCall {
     bool origResult;
     bool nested;
     size_t syncBefore;
+    bool resultPending = false;
+    bool applied = false, coreResult = false;
 };
 
+void CompareCallResult(const FollowCall& c) {
+    if (!c.applied) return;
+    ++g_follow.retTotal;
+    if (c.coreResult == c.origResult) {
+        ++g_follow.retExact;
+    } else if (g_follow.retListed++ < 4) {
+        char b[128];
+        snprintf(b, sizeof(b), "[slot %d of %p returned orig %d core %d]", kFollowSlot[c.kind],
+                 static_cast<void*>(Occ(c.occ)), c.origResult ? 1 : 0, c.coreResult ? 1 : 0);
+        g_follow.retDiffs += b;
+    }
+}
+
 void ApplyCall(void* ctx) {
-    const FollowCall& c = *static_cast<const FollowCall*>(ctx);
+    FollowCall& c = *static_cast<FollowCall*>(ctx);
     if (g_fol.core == nullptr || c.self != g_orig) {
         ++g_follow.unfollowed;
         return;
@@ -1748,15 +1763,9 @@ void ApplyCall(void* ctx) {
             break;
         }
     }
-    ++g_follow.retTotal;
-    if (ours == c.origResult) {
-        ++g_follow.retExact;
-    } else if (g_follow.retListed++ < 4) {
-        char b[128];
-        snprintf(b, sizeof(b), "[slot %d of %p returned orig %d core %d]", kFollowSlot[c.kind],
-                 static_cast<void*>(Occ(c.occ)), c.origResult ? 1 : 0, ours ? 1 : 0);
-        g_follow.retDiffs += b;
-    }
+    c.applied = true;
+    c.coreResult = ours;
+    if (!c.resultPending) CompareCallResult(c);
 }
 
 void Apply(FollowCall& c) {
@@ -1785,13 +1794,22 @@ uint32_t __fastcall FollowRemove(void* self, void* edx, cISC4Occupant* occ, uint
     // Our own reference across the call: a Remove with shutdown may drop the
     // last other one before the core follows (released below, §5.1b).
     HoldObject(occ);
+    // §5.2 posts Remove before Shutdown can reenter the manager to remove
+    // children. Replaying at return inverted that order in the shadow only.
+    // The host's Shutdown is read-only; the native call supplies the nested
+    // calls, each independently followed, and its result is checked below.
+    c.resultPending = true;
+    if (c.occ != 0) Apply(c);
     ++t_inCall;
     const uint32_t r =
         CallNext<uint32_t(__fastcall*)(void*, void*, cISC4Occupant*, uint32_t, uint32_t)>(1, self, edx, occ, shutdown, data4);
     --t_inCall;
     c.origResult = (r & 0xFF) != 0;
     if (c.origResult) PropLotShadowMutation(c.occ, false);
-    if (c.occ != 0) Apply(c);
+    {
+        Lock lock;
+        CompareCallResult(c);
+    }
     DropObject(occ);
     return r;
 }

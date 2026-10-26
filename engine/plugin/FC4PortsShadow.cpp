@@ -24,6 +24,7 @@
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
 #include "cFC4PortDeveloper.h"
+#include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
@@ -45,6 +46,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <windows.h>
 
 namespace fc4 {
 namespace {
@@ -150,6 +152,79 @@ cISC4City* CurrentCity() {
     return city;
 }
 
+// §4.8 builds at Init, not at the first month. Later terrain reads can
+// differ after the rest of the city has loaded. Keep inputs, never the
+// native access bytes, so the Rust fill still predicts every output byte.
+struct WaterInput {
+    const void* sim = nullptr;
+    uint32_t width = 0, height = 0;
+    std::vector<uint8_t> cells;
+};
+WaterInput g_water;
+bool g_replayWater = false;
+
+void CaptureWater(const void* sim) {
+    cISC4City* city = CurrentCity();
+    cISTETerrain* t = city ? city->GetTerrain() : nullptr;
+    g_water = WaterInput{};
+    if (t == nullptr) return;
+    g_water.sim = sim;
+    g_water.width = t->CellCountX();
+    g_water.height = t->CellCountZ();
+    for (uint32_t z = 0; z < g_water.height; ++z) {
+        for (uint32_t x = 0; x < g_water.width; ++x) g_water.cells.push_back(t->CellHasWater(x, z) ? 1 : 0);
+    }
+}
+
+void SavedTerrainSize(void*, uint32_t* w, uint32_t* h) {
+    cISC4City* city = g_replayWater ? nullptr : CurrentCity();
+    cISTETerrain* t = city ? city->GetTerrain() : nullptr;
+    if (w) *w = g_replayWater ? g_water.width : (t ? t->CellCountX() : 0);
+    if (h) *h = g_replayWater ? g_water.height : (t ? t->CellCountZ() : 0);
+}
+bool SavedWater(void*, uint32_t x, uint32_t z) {
+    if (!g_replayWater) {
+        cISC4City* city = CurrentCity();
+        cISTETerrain* t = city ? city->GetTerrain() : nullptr;
+        return t && t->CellHasWater(x, z);
+    }
+    return x < g_water.width && z < g_water.height && g_water.cells[z * g_water.width + x] != 0;
+}
+
+using InitFn = uint32_t(__fastcall*)(void*, void*);
+InitFn g_seaportInit = nullptr;
+uint32_t __fastcall FollowSeaportInit(void* self, void* edx) {
+    CaptureWater(self);
+    const uint32_t result = g_seaportInit(self, edx);
+    auto* port = reinterpret_cast<cFC4ISC4SeaportDeveloper*>(self);
+    uint32_t differ = 0;
+    for (uint32_t z = 0; z < g_water.height; ++z) {
+        for (uint32_t x = 0; x < g_water.width; ++x) {
+            if (((port->GetCellSeaAccess(x, z) & 0x80) != 0) != (g_water.cells[z * g_water.width + x] != 0)) ++differ;
+        }
+    }
+    Log("ports water input: captured at seaport Init %ux%u; native water differs=%u", g_water.width, g_water.height,
+        differ);
+    return result;
+}
+
+void InstallWaterCapture() {
+    if (g_seaportInit != nullptr || !compat::IdentifiedVersion()) return;
+    // docs/abi/interfaces.tsv: GOG 1.1.641 seaport primary, slot 3 Init.
+    void** entry = reinterpret_cast<void**>(0x00AB2E10) + 3;
+    if (reinterpret_cast<uintptr_t>(*entry) != 0x00701E60) {
+        Log("ports water input: Init hook refused (unexpected slot)");
+        return;
+    }
+    DWORD before = 0;
+    if (!VirtualProtect(entry, sizeof(void*), PAGE_READWRITE, &before)) return;
+    g_seaportInit = reinterpret_cast<InitFn>(*entry);
+    *entry = reinterpret_cast<void*>(&FollowSeaportInit);
+    DWORD ignored = 0;
+    VirtualProtect(entry, sizeof(void*), before, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), entry, sizeof(void*));
+}
+
 // City slot 77 (airport) / 76 (seaport), borrowed; null when it is ours.
 cIGZUnknown* OriginalOf(cISC4City* city, uint32_t kind) {
     if (city == nullptr) return nullptr;
@@ -235,6 +310,10 @@ bool Restart(Follow& f) {
     f.ctx.readOnly = true;
     f.ctx.kind = f.kind;
     f.host = MakePortHost(&f.ctx);
+    if (f.kind == 1) {
+        f.host.terrain_size = &SavedTerrainSize;
+        f.host.cell_has_water = &SavedWater;
+    }
     f.host.set_lot_condition = &RecCondition;
     f.host.update_occupant_effects = &RecEffects;
     f.host.record_history = &RecHistory;
@@ -251,7 +330,9 @@ bool Restart(Follow& f) {
     if (f.core == nullptr) return false;
     CaptureIStream in(f.capture);
     const bool ok = fc4_port_developer_read(f.core, in.Get());
+    g_replayWater = f.kind == 1 && g_water.sim == f.sim;
     fc4_port_developer_init(f.core);
+    g_replayWater = false;
     fc4_port_developer_do_message(f.core, kMsgPostCityInit, 0, 0, 0);
     if (!ok) {
         DropCore(f);
@@ -352,11 +433,14 @@ void CompareMap(Month& mo) {
     cISTETerrain* t = city ? city->GetTerrain() : nullptr;
     const int32_t w = t ? static_cast<int32_t>(t->CellCountX()) : 0;
     const int32_t h = t ? static_cast<int32_t>(t->CellCountZ()) : 0;
-    uint32_t differ = 0, water = 0, edged = 0;
+    uint32_t differ = 0, water = 0, edged = 0, changedInput = 0;
     for (int32_t z = 0; z < h; ++z) {
         for (int32_t x = 0; x < w; ++x) {
             const uint8_t a = o->GetCellSeaAccess(x, z);
             const uint8_t b = fc4_port_developer_cell_sea_access(f.core, x, z);
+            if (g_water.sim == f.sim && static_cast<uint32_t>(x) < g_water.width &&
+                static_cast<uint32_t>(z) < g_water.height && t &&
+                (t->CellHasWater(x, z) != (g_water.cells[z * g_water.width + x] != 0))) ++changedInput;
             if (a & 0x80) ++water;
             if (a & 0x0F) ++edged;
             if (a != b) {
@@ -369,6 +453,8 @@ void CompareMap(Month& mo) {
     char b[96];
     snprintf(b, sizeof(b), "%dx%d water=%u edge-reaching=%u differ=%u", w, h, water, edged, differ);
     mo.map = b;
+    Log("ports water input: month cached=%d changed_since_capture=%u access_differ=%u", g_water.sim == f.sim ? 1 : 0,
+        changedInput, differ);
     f.mapPending = false;
 }
 
@@ -546,6 +632,7 @@ void CityShutdown() {
         f.agent = nullptr;
         f.months = f.cleanMonths = f.followed = 0;
     }
+    g_water = WaterInput{};
 }
 
 // ---- the followed messages (§3) -------------------------------------------------------------------
@@ -566,6 +653,9 @@ void CallMessage(void* ctx) {
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr) return;
     const uint32_t type = msg->GetType();
+    if (type == kMsgTerrainChanged) {
+        CaptureWater(OriginalOf(CurrentCity(), 1));
+    }
     if (type == kMsgPreCityShutdown) {
         CityShutdown();
         return;
@@ -696,6 +786,8 @@ void PortsShadowStartup(bool simulatorReplaced, bool portsReplaced) {
             "pass through FreeCity4's simulator, and simulator is not enabled",
             src);
     } else {
+        InstallWaterCapture();
+        Listen();
         Log("ports shadow: ON (ports_shadow from %s): a shadow core per developer (read-only host) starts from the "
             "ORIGINAL's record at its first month and follows the messages of §3; at each SimNewMonth the record's "
             "ports are compared with ours, then after the original's month its history value, GetAvgEfficiency "
