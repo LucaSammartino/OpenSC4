@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <map>
 #include <vector>
+#include <intrin.h>
 #include "SC4Vector.h"
 #include "cISC4NetworkTool.h"
 #include "cISC4OccupantManager.h"
@@ -20,6 +21,8 @@ inline unsigned toolDepth = 0, replaceDepth = 0;
 inline uint64_t toolCall = 0, nextToolCall = 0;
 inline uint32_t sequence = 0;
 inline std::vector<std::vector<uint64_t>> seeds;
+inline fc4::netmgr::DestructionSource source = fc4::netmgr::DestructionSource::Unknown;
+inline std::set<uint64_t> refitSeeds, refitRemoved;
 inline std::map<uint64_t, fc4::netmgr::Removal> removals;
 inline std::vector<fc4::netmgr::Insertion> insertions;
 
@@ -75,6 +78,8 @@ inline uint64_t Describe(cISC4Occupant* occupant, const char* event, uint32_t da
              event, p, x, z, n->GetNetworkFlag(), toolDepth, replaceDepth, toolCall, serial, data);
     if (std::strcmp(event, "remove") == 0) removals.emplace(id, fc4::netmgr::Removal{toolCall, serial,
                                                      static_cast<int32_t>(x), static_cast<int32_t>(z)});
+    if (std::strcmp(event, "remove") == 0 && source == fc4::netmgr::DestructionSource::UndergroundRefit &&
+        refitSeeds.count(id)) refitRemoved.insert(id);
     if (std::strcmp(event, "insert") == 0) insertions.push_back({id, toolCall, serial, data,
                                                      static_cast<int32_t>(x), static_cast<int32_t>(z)});
     FC4_RELEASE(n);
@@ -87,9 +92,11 @@ inline void __fastcall Destroy(void* self, void*, const SC4Vector<cISC4NetworkOc
         std::vector<uint64_t> ids;
         for (auto* n : list) {
             ids.push_back(fc4::TokenOf(n));
+            if (source == fc4::netmgr::DestructionSource::UndergroundRefit) refitSeeds.insert(fc4::TokenOf(n));
             Describe(n->AsOccupant(), "seed");
         }
-        seeds.push_back(std::move(ids));
+        if (source == fc4::netmgr::DestructionSource::TerrainFilter) seeds.push_back(std::move(ids));
+        else if (source == fc4::netmgr::DestructionSource::Unknown) complete = false;
     }
     const uint64_t previous = toolCall;
     toolCall = ++nextToolCall;
@@ -97,6 +104,19 @@ inline void __fastcall Destroy(void* self, void*, const SC4Vector<cISC4NetworkOc
     original(self, list);
     --toolDepth;
     toolCall = previous;
+}
+
+inline void __fastcall ManagerDestroy(void* self, void*, const void* list) {
+    // ABI slot 6 is void, despite the SDK's bool declaration. The list
+    // reference is borrowed and forwarded without copying its B-list nodes.
+    const auto original = reinterpret_cast<void(__thiscall*)(void*, const void*)>(Original(self, 6));
+    const auto previous = source;
+    const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+    source = fc4::netmgr::Source(caller);
+    if (active) fc4::Log("netmgr terrain trace destruction: caller=%08X source=%u", static_cast<uint32_t>(caller),
+                        static_cast<unsigned>(source));
+    original(self, list);
+    source = previous;
 }
 
 inline cISC4NetworkTool* __fastcall GetTool(void* self, void*, int32_t type, bool unique) {
@@ -134,11 +154,15 @@ inline void Start(cISC4City* city, uint32_t type, const uint32_t* data) {
     seeds.clear();
     removals.clear();
     insertions.clear();
+    refitSeeds.clear();
+    refitRemoved.clear();
+    source = fc4::netmgr::DestructionSource::Unknown;
     active = true;
     toolDepth = replaceDepth = 0;
     toolCall = nextToolCall = 0;
     sequence = 0;
     complete = Install(city->GetNetworkManager(), 5, 0x006108D0, reinterpret_cast<void*>(&GetTool));
+    complete = Install(city->GetNetworkManager(), 6, 0x00612110, reinterpret_cast<void*>(&ManagerDestroy)) && complete;
     complete = Install(city->GetNetworkManager(), 8, 0x006110B0, reinterpret_cast<void*>(&Replace)) && complete;
     complete = Install(city->GetOccupantManager(), 20, 0x0049EF60, reinterpret_cast<void*>(&Insert)) && complete;
     complete = Install(city->GetOccupantManager(), 21, 0x0049F240, reinterpret_cast<void*>(&Remove)) && complete;

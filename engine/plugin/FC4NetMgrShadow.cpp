@@ -555,8 +555,9 @@ void CheckTerrain() {
         uint32_t cx = 0, cz = 0;
         NetOf(c)->GetOccupiedCell(cx, cz);
         const auto removal = nmtrace::removals.find(c);
-        if (nmtrace::complete && g_ourSeeds == nmtrace::seeds && removal != nmtrace::removals.end() &&
-            netmgr::ObservedReplacement(c, removal->second, nmtrace::insertions)) {
+        const bool downstream = nmtrace::refitRemoved.count(c) != 0 ||
+            (removal != nmtrace::removals.end() && netmgr::ObservedReplacement(c, removal->second, nmtrace::insertions));
+        if (nmtrace::complete && g_ourSeeds == nmtrace::seeds && downstream) {
             ++g_n.rebuilt;
         } else {
             ++g_n.origOnly;

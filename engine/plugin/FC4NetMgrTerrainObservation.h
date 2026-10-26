@@ -4,6 +4,16 @@
 #include <vector>
 
 namespace fc4::netmgr {
+enum class DestructionSource { Unknown, TerrainFilter, UndergroundRefit };
+
+// Published function extents from docs/abi/functions.tsv; classify the
+// observed caller, without reading instructions or inferring from cells.
+inline DestructionSource Source(uintptr_t caller) {
+    if (caller >= 0x00613950 && caller < 0x00613950 + 1964) return DestructionSource::TerrainFilter;
+    if (caller >= 0x006588D0 && caller < 0x006588D0 + 2393) return DestructionSource::UndergroundRefit;
+    return DestructionSource::Unknown;
+}
+
 struct Removal {
     uint64_t call;
     uint32_t sequence;

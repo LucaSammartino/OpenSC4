@@ -7,6 +7,11 @@
 
 int main() {
     using namespace fc4::netmgr;
+    assert(Source(0x00613C4B) == DestructionSource::TerrainFilter);
+    assert(Source(0x006588D0) == DestructionSource::UndergroundRefit);
+    assert(Source(0x006588D0 + 2392) == DestructionSource::UndergroundRefit);
+    assert(Source(0x006588D0 + 2393) == DestructionSource::Unknown);
+    assert(Source(0) == DestructionSource::Unknown);
     const Removal oldB{7, 10, 6, 5};
     const Insertion newB{43, 7, 11, 1, 6, 5};
     assert(ObservedReplacement(42, oldB, {newB}));
