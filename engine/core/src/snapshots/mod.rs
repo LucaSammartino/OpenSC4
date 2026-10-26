@@ -7,9 +7,11 @@
 //! Provisional choices are labelled SN3-SN9; this is not a native/full-owner claim.
 
 pub mod album;
+pub mod album_picture;
 mod info;
 mod primitives;
 pub mod taker;
+pub mod window;
 
 pub use album::{album_directory_name, AlbumAction, SnapshotAlbum};
 pub use info::{CaptionFields, CityContext, GraphicInfo, Information, ViewPosition};
@@ -75,6 +77,13 @@ pub enum Error {
     MissingFile,
     InvalidState,
     Image,
+    Control(crate::widget_controls::Unsupported),
+}
+
+impl From<crate::widget_controls::Unsupported> for Error {
+    fn from(error: crate::widget_controls::Unsupported) -> Self {
+        Self::Control(error)
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
