@@ -16,6 +16,8 @@ mod backing;
 pub use backing::*;
 mod shake;
 pub use shake::*;
+mod container;
+pub use container::*;
 
 pub const CLASS_ID: u32 = 0xE9C6_22D8;
 
@@ -77,6 +79,7 @@ pub struct Render3d {
     dirty: DirtyQueue,
     grid: Option<QuadGrid>,
     shakes: Shakes,
+    geometry: ContainerGeometry,
     state: State,
 }
 
@@ -97,6 +100,7 @@ impl Render3d {
             dirty: DirtyQueue::default(),
             grid: None,
             shakes: Shakes::default(),
+            geometry: ContainerGeometry::default(),
             state: State::default(),
         }
     }
@@ -192,6 +196,8 @@ impl Render3d {
 
 #[cfg(test)]
 mod backing_tests;
+#[cfg(test)]
+mod container_tests;
 #[cfg(test)]
 mod dirty_tests;
 #[cfg(test)]

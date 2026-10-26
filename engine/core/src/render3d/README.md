@@ -19,6 +19,6 @@ The table records whole-section closure, including explicit open boundaries.
 | 11 View objects, visibility, picking | — | Section 11 worked cases | Pending |
 | 12 Backing store | `BackingStore`, `BackingServices`, `save_backing_store`, `restore_backing_store`, `reevaluate_backing_store_object_flags` | `backing_tests`: B1–B4, four probe failure points, reevaluation | Complete |
 | 13 Updates, clearing, driver | — | Case 16 and section 13 cases | Pending |
-| 14 Container rectangles, grid rebuild | — | Section 14 worked cases | Pending |
+| 14 Container rectangles, grid rebuild | `ContainerGeometry`, `ContainerServices`, `world_to_container_rect`, `visible_container_rect`, `viewport_ray_container_rect`, `move_grid_element`, `rebuild_quad_grid` | `container_tests`: rotation/padding table, ordered clamps/sliver, frustum cache invalidation, ray edges, move flags, rebuild guard/binding; L3 margins | Complete; margins helper awaits Init (§9) |
 | 15 Toggles, lifecycle remainder, helpers | — | Section 15 worked cases | Pending |
 | 16 Inventory | — | Closure audit against preceding rows | Pending |
