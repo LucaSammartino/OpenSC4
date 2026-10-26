@@ -2647,8 +2647,9 @@ for top-height > bottom-height. On entering a run at vertex i, start at `max(i�
 on leaving at j draw `(type=0, first=6·start, count=6·(j−start))` if positive. For a run
 still open at the interval end, use `min(nextVertex,N−1)` as j. This includes the cell
 before the first raised vertex. Always restore the incoming offset at the end. The
-rounding and exact edge index words still require the capture below; do not substitute
-the land-cell index table for `edgeIndices`.
+edge index words are specified by TR47 in §15.5.15.5. Edge-intersection
+rounding and complete edge vertices still require the observation in
+§15.5.15.8; do not substitute the land-cell index table for `edgeIndices`.
 
 DrawWaterLayers (`0x007572A0`) does nothing when plumbing display is on. Otherwise call
 terrain slot 83; only if its AL result and water tuning byte `0x00B0D718` are nonzero:
@@ -2710,10 +2711,11 @@ these row subsequences, not an entire frame with cliffs/grid silently discarded.
 For a complete empty-frame case, set the render-terrain byte to zero: return 1, no
 context calls, and even the altitude caches remain unchanged.
 
-**TR46 is narrowed to the following native runtime observation.** No native frame was run
-in this RE round. A complete equal-call frame cannot be asserted from the partial cache
-descriptions or decompiler output alone. The remaining formulas have not been established
-by this answer; they are not claimed to be inherently unrecoverable statically. The following
+**TR46's original runtime observation request, refined by TR47 below.** No native frame was
+run for either answer. A complete equal-call frame cannot be asserted from partial cache
+descriptions or decompiler output alone. TR47 establishes edge words, UV production,
+frustum conversions and additional control streams in §§15.5.15.5–7; §15.5.15.8 narrows
+the remainder, which is not claimed inherently unrecoverable statically. The following
 runtime capture would settle the comparison for its recorded inputs. Obtain it before granting full-frame
 replacement credit; these omissions remain explicit, not default zero/empty behaviour:
 
@@ -2822,7 +2824,10 @@ arithmetic operator would change this rule. Instructions:
 (column bounds, including either intersection ordering). Clamp the lower row
 to at least 0 and upper row to at most vertsZ. For each included row choose
 the smaller x intersection for the lower conversion and the larger for the
-upper conversion; clamp columns to [0,W]. The union is computed before the
+upper conversion; clamp columns to [0,W] for nonnegative conversion results.
+More exactly, a negative lower-column result becomes 0, whereas the
+upper-column check first compares **unsigned** against W, so a negative upper
+result becomes W (`0x00753135`–`0x0075317B`). The union is computed before the
 ascending pass that widens row r by the original row r+1's interval
 (`0x0075310C`–`0x00753201`). Do not recursively propagate the final row's
 interval backwards through all earlier rows.
@@ -2943,8 +2948,8 @@ GetVertexBufferExtension returns null without querying. With it on, the
 ordered interface calls are `QueryInterface(0x09CD86F9,&E)`, then on
 success `E+0x0C(11)` to obtain handle h and `E+0x10(h)` to check format 11.
 A format mismatch releases E (`E+0x08`) and returns null. With matching
-format, driver `0x00B43CF4` slots `+0x1C/+0x20` supply cellsX/cellsZ,
-then `E+0x14(h)` supplies vertex capacity q. Require q≥2(cellsX+1);
+format, collaborator `0x00B43CF4` slots `+0x1C/+0x20` supply dimensions a/b,
+then `E+0x14(h)` supplies vertex capacity q. Require q≥2(a+1);
 otherwise release E and return null. These are the actual dimension
 sources, not assumed equal values read from the view globals
 (`0x0075CD40`–`0x0075CE53`). A failed query returns null without Release.
@@ -2967,11 +2972,86 @@ only spans with left<right−1, then flushes (`0x007521C0`). The textured
 path creates a buffer at entry (`0x0075BA90`), flushes then creates again
 before **each selected texture key**, sets that texture and changes source
 alpha before queueing its spans (`0x0075B790`), and flushes on return
-(`0x0075BB96`). Preserve even an empty first-key flush. E is released by
+(`0x0075BBA2`). Preserve even an empty first-key flush. E is released by
 Update after the land/water path, before the outer depth restoration;
 Release alone is not a flush (`0x0075CA90`). Buffer capacity, overflow
 flushes, mapping results, copied vertex ranges and remapped u16 indices
 must still be supplied by the extension-success observation below.
+
+#### 15.5.15.8 Complete-frame fixture still required (TR47 narrowed)
+
+**No enabled complete native-frame fixture has been observed in this answer.**
+Sections 15.5.15.5–7 establish additional deterministic rules and worked
+subcases, and correct the equality rule in §15.5.15.4. They supersede that
+section's statement that edge words and all boundary conversions are
+unestablished. They do not settle resource-derived cache bytes, every
+auxiliary draw or extension batching. Those remaining rules may be recovered
+statically in further work; they are not claimed to be unknowable. The
+following runtime observation would settle TR47 for its recorded scenarios.
+
+**Fixture identity and inputs.** Record native executable/version, city/grid
+dimensions, terrain type and sea-level float bits, camera/context state,
+preference/render/tuning bytes, initialized view fields, resource file
+identities/content digests and capability-query results. Preserve the
+ordered initialization and delivered messages, including rectangle bounds,
+and distinguish input terrain records from already cached vertices. Record
+x87 control word at the numeric producers, not only at process startup;
+also record any changes during the trace. An isolated UV vector's supplied
+f or supplied terrain colours are not substitutes for the native producers.
+
+For each Update assign an identity and record **all** arguments, returns,
+entry/exit state and mutations with the following observations:
+
+| Capture point | Required data |
+|---|---|
+| Update `0x0075BFD0` entry/exit | Layer word `C+0x50`, zoom/rotation, incoming depth offset, terrain-render/plumbing/grid/snapshot/glare flags, cached altitude values and dirty fields; full ordered context **and bypassed driver/extension** calls until return, including outer and nested restores. Keep resource queries and their results linked to the binding tokens used by draws. |
+| Heights/water producers `0x007569F0`, `0x00756B00`; edge refresh `0x00755B60` | Before/after land and water 32-byte vertices and the edge layer-height arrays, the exact received rectangle and source height/depth bits. Distinguish interior, border and corner writes. Include the water-box 16-byte strips and cliff 24-byte strips, not just their top heights. |
+| Lighting, cliff colour `0x007558B0`, water colour `0x00756D20`, UV `0x00751C80` | Terrain slot-67 input rectangle and output colour bytes; lighting-object inputs/returns used for each edge normal; water ramp/glare pixels, LUT query/return values, tint inputs and final RGBA bytes; UV factor operands, result and all changed records. Keep the water-colour dirty rectangle and empty flag separately from land lighting. |
+| Texture/span rebuild and each binding | Terrain three-ID/weight fields, dirty-row bits, ordered cached keys/spans, level and family member, requested resource TGI **and actually resolved fallback TGI**, binding/image identity and decoded contents/metadata used by UV or colour production. A native pointer or equality of texture names alone is insufficient. The water surface actually dereferences the current entry at `0x00B4C698+4·level` (`0x00752269`–`0x0075227E`); record its resolved binding rather than infer it from an adjacent static address. |
+| Frustum producers `0x00752E80`, `0x007535A0`, `0x00753210`, `0x007539D0` | Camera coefficients, bound/intersection float bits, numeric controls, computed minimum-visible heights, all start/end fields, column arrays and both land/water visibility arrays before and after each producer. Feed the boundary cases below through the actual camera/intersection path as well as the isolated conversion. |
+| Every indexed draw | Current vertex base/format, verbatim SetVertexBuffer count, current index base and verbatim SetIndexBuffer count, draw type/first/count, referenced u16 words, and complete records of every vertex those words address **at that draw**. Capture after alpha writes, even when the bind occurred earlier. Include edge indices `0x00B4C6FC`, terrain J and level/alternate indices actually selected. |
+| Every nonindexed or direct-driver draw | Verbatim arguments and complete vertex records at entry; copy temporary plumbing/quad arrays before they expire. Record raw driver calls such as the grid's `+0x88` pair at their actual position between context calls. |
+| Grid and levelled-cell helpers | Exact 16-float grid texture transform at `0x0075823A`, alpha before/after the grid loop, helper entry bounds and selected plain/extension path. Snapshot the 128-byte cell quads, 8-byte level records, u16 prefix map and companion indices after BuildCellQuads `0x00756350` / `0x007564F0`, then record every helper submission and restore. |
+| Plumbing `0x00759A80` | Per-cell terrain flags, coverage/network query arguments and results (including hidden-triangle decisions), tuning colours, n and all temporary vertices for each draw. Include an eligible wet cell and a cell with partial/hidden network geometry, so the positive path is observed. |
+| Extension `0x0075CD40`, `0x0075C9F0`, `0x0075CB50`, `0x0075CAD0` | Query/format/capacity results; dimension a/b, every map result, copied source ranges and destination bytes, pending vertex/index counts, remapped u16 bytes, overflow flushes, unlock/draw/release order. Copy destination vertices before unlock and indices at extension draw entry. Trace every selected texture key, including empty mapped flushes and failure to map after successful acquisition. |
+
+**Keep these scenarios distinct.** For each scenario collect layer 0 and
+layer 2 as separate ordered Updates with their actual shared-cache history;
+do not concatenate them into a purported single native Update. Preserve
+both a complete initial snapshot and the changes from the preceding state.
+
+| Scenario | Observation required |
+|---|---|
+| Initial dirty / unchanged | First enabled frame after Init and the recorded post-init messages; then a second frame with identical camera, flags, resources and no delivered edit. Carry the first frame's alpha and rebuilt caches into the second. |
+| Interior height edit | A changed interior vertex rectangle with both wet and dry vertices; retain source heights/depths and before/after buffer ranges. Do not combine with an edge edit or texture-only case. |
+| Edge height edit | Each edge and a corner, with recorded edge-layer tuning and refresh arguments; retain the three cliff strata and water-box strips at every resulting draw. |
+| Texture-only | Change the native texture/layer input while keeping height/depth/camera bits fixed. Record messages and dirty-row propagation; capture the same vertices at each successive texture draw, not just the final alpha. |
+| Lighting-only | A bounded lighting update and a full lighting-band change, each with unchanged geometry and textures; include water glare/snapshot inputs and the actual LUT/image values. |
+| Zoom / rotation | Isolate zoom changes at each supported level and rotation changes 0–3, recording previous keys and new keys, textures, colour invalidations and UV writes. Keep these separate from height, texture and lighting edits. |
+| Numeric boundaries | For each rotation, obtain actual ground intersections at the float32 predecessor, exact value and successor of an interior 16-metre boundary; include city clipping at 0 and the far edge. Include H=B, H=Q and Q=A separately and one float step either side, retaining all input/output bits and the control word. The isolated §15.5.15.6 vector alone does not prove these camera outputs. |
+| Grid / plumbing | Each optional mode off and on, grid suppressed by snapshot or missing binding, and plumbing with no eligible rows and with positive coverage draws. Keep these as separate cases with all fixed-state/texture-transform/depth restores. |
+| LevelCell | Before the edit, after first level, after a repeated height change of that cell, and after RemoveCellLevelling. Capture the §15.5.15.7 prefix-map/hidden-index fixture and the actual special-quad draws, including when the grid is enabled. |
+| Extension | Preference off; query failure; format/capacity rejection; successful acquisition and mapping with enough capacity; successful acquisition followed by mapping failure; a capacity-induced flush. Use the same scene as the corresponding plain case, and keep the returned capacities/results as fixture inputs. |
+
+**Comparison record.** Every event needs an ordinal, Update/layer identity,
+receiver role, method, complete arguments (floats as bits), result and
+referenced-data snapshots. Normalize pointers only to allocation identity
+plus byte offset, binding handles to resolved resource identities and
+extension handles to stable tokens. Retain pointer aliasing, all duplicate
+calls, counts that the context wrapper ignores and writes between binds
+and draws. Keep buffer records as explicit bytes; a zero-length region
+is permitted only when the native event actually references zero bytes.
+The expected fixture is the entire native event sequence plus these
+snapshots and entry/exit states. Equality of final buffers or rendered
+triangle totals cannot substitute for it. No missing event or uncaptured
+byte is assigned an expected zero/empty value.
+
+**Disposition:** TR47 is answered by these static rules and narrowed to
+this explicit runtime observation for the remainder. No native enabled
+frame capture or complete-frame parity is claimed. Frame comparison and
+replacement registration remain stopped at this boundary; the static
+subcase vectors, a native forwarding call or a partial pass comparison
+do not earn complete-frame replacement credit.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
