@@ -11,3 +11,10 @@
 - **LR7 - section 7.2 step 3:** when occupant manager slot 33 returns true with `w` null, the update path calls
   `QueryInterface` through null. Is that reachable (does slot 33 ever return true without an occupant)? [treated as a
   host contract violation: the core panics, no null guard is synthesised]
+
+<!-- from: replace-lotocc28 (2026-10-26) -->
+- **LR-lotocc28-1 — standalone wall activation:** the requested `lotocc` key would register the construction
+  and retaining-wall factories while retaining native developers. Section 15.1 explicitly says native wall
+  creation/update bypasses those factories and that this standalone complete-owner boundary is unsupported.
+  Is serialized-object replacement alone an intended supported scope, or which additional owner replacement
+  or proved installation/restoration contract is required to cover new walls? No interception is implemented.
