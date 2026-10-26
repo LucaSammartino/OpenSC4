@@ -747,8 +747,8 @@ mod tests {
             assert_eq!((*p).fields.model_y, 2.0);
             assert!(!(*p).stale);
             assert_eq!(log.borrow().effects, ["corners3,4", "place[35.0, 20.0, 45.0]"]);
-            assert_eq!((*p).geometry[0][0].pos, [30.0, 20.0, 40.0]);
-            assert_eq!((*p).geometry[1][1].pos[1], 2.0);
+            assert_eq!((&(*p).geometry[0])[0].pos, [30.0, 20.0, 40.0]);
+            assert_eq!((&(*p).geometry[1])[1].pos[1], 2.0);
             log.borrow_mut().effects.clear();
             assert!(fc4_netpole_rebuild_geometry(p, true, 3));
             assert!(log.borrow().effects.is_empty()); // Zoom rebuilds do not move the effect.
