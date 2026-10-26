@@ -22,6 +22,7 @@
 #include "FC4OverlaysShadow.h"
 #include "FC4WeatherShadow.h"
 #include "FC4PersistShadow.h"
+#include "FC4Inplace.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4Autoload.h"
@@ -33,6 +34,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Reach.h"
 #include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
@@ -108,6 +110,7 @@
 #include "FC4RegionalCityShadow.h"
 #include "FC4SCResShadow.h"
 #include "FC4GZMsgShadow.h"
+#include "FC4GZFrameworkShadow.h"
 #include "FC4RenderPropsShadow.h"
 #include "FC4LightingShadow.h"
 #include "FC4ModelInstShadow.h"
@@ -589,6 +592,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        PropLotShadowTick();
         AppShadowTick(static_cast<int32_t>(PublishedJulian()));
         FpuTick();
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
@@ -599,6 +603,7 @@ public:
         DbpfShadowTick();  // default off; yields between records, outside simulator OnTick
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
+            ReachProbeScope reachProbes;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
         }
         // script = <path>: a `save` and the actions behind it (FC4Script.h);
@@ -631,6 +636,9 @@ public:
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
+                // Follow calls before any load-time probe creates and removes occupants.
+                // Their queued messages can arrive after every PostCityInit handler returns.
+                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 PopupDialogsOnCityLoad();
                 SimGridProbeAtCityLoaded();  // glue-simgrids4 tooling (simgrids_probe)
                 SimGridsShadowFixtures();  // constructed cases, separate from natural power calls
@@ -645,7 +653,6 @@ public:
                 NetRulesShadowCityLoaded();
                 NetToolDragShadowLoaded(CurrentCity());
                 QueryToolShadowObserve(CurrentCity(), 0, true);
-                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only
@@ -704,6 +711,13 @@ public:
                 WeatherShadowCityLoaded(CurrentCity());
                 SCResShadowLine("load", static_cast<int32_t>(PublishedJulian()), CurrentCity());
                 PersistShadowCityLoaded(CurrentCity(), static_cast<int32_t>(PublishedJulian()));
+                InplaceCityLoaded();
+                if (SettingInt("reach", nullptr, 0) == 1) {
+                    // The first day message has not published a date at city load.
+                    auto* reachCity = CurrentCity();
+                    auto* reachSim = reachCity ? AsGame(reachCity->GetSimulator()) : nullptr;
+                    ReachStart(reachSim ? reachSim->GetSimDateNumber() : static_cast<int32_t>(PublishedJulian()));
+                }
                 break;
             case kMsgPreSave:
                 DbpfShadowBeforeSave();
@@ -732,6 +746,7 @@ public:
                 break;
             }
             case kMsgPreCityShutdown:
+                ReachStop();
                 DbpfShadowShutdown();
                 TractShadowCityShutdown();  // tract_shadow: the forwarder's core goes with the city
                 LotDevShadowCityShutdown();
@@ -765,6 +780,7 @@ public:
                 ViewUtilShadowCityShutdown();
                 ModelInstShadowCityShutdown();
                 WeatherShadowCityShutdown();
+                InplaceReport();
                 fc4::AutomataDriverCityShutdown();  // the automata riot / fire driver's per-city state
                 NetToolRegistry::LogSummary("city shutdown");
                 fc4::MySimsShadowCityShutdown();  // mysims_shadow: the summary line, then the core goes
@@ -801,6 +817,8 @@ public:
                 const int64_t j = DataOf(msg, &ok);
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
+                ReachNewMonth(julian);
+                ReachProbeScope reachProbes;  // constructed probes are not natural reach
                 if (digest_) WriteDigest(julian);
                 fc4::FeatureShadowMonth();
                 SimGridRecordShadowObserve(CurrentCity(), julian, false);
@@ -819,6 +837,7 @@ public:
                 StringsShadowMonth(CurrentCity(), julian);  // default-off, record-only probes
                 LuaShadowMonth(julian);
                 GZMsgShadowMonth(julian);
+                GZFrameworkShadowMonth(julian);
                 AppShadowObserve(julian, false);
                 RenderPropsShadowMonth(julian);
                 ModelInstShadowMonth(julian);

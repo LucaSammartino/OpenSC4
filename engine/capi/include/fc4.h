@@ -194,8 +194,9 @@ extern "C" {
  * 100 = merge-train batch train195 (glue-mysimdispatch-shadow9, glue-helicopter-shadow10): merged (no C ABI history entry of its own)
  * 101 = merge-train batch train210 (glue-querytool-shadow13): merged (no C ABI history entry of its own)
  * 102 = merge-train batch train212 (re-map-view-qv18, glue-renderprops-shadow13, glue-app-shadow13): merged (no C ABI history entry of its own)
- * 103 = merge-train batch train233 (glue-netrules-replace23, glue-lotconfobj-replace22): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 103u
+ * 103 = merge-train batch train233 (glue-netrules-replace23, glue-lotconfobj-replace22): merged (no C ABI history entry of its own)
+ * 104 = merge-train batch train237 (re-netocc-no33, glue-regionalcity-replace23, glue-floraocc-replace22, glue-formats-shadow24): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 104u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
@@ -9310,6 +9311,8 @@ bool fc4_netlot_get_state(const fc4_netlot* l, fc4_netlot_state* out);
  * effect props (IID 0x09820792) come back through resolve_ref. */
 bool fc4_netlot_write(const fc4_netlot* l, const fc4_ostream* out);
 bool fc4_netlot_read(fc4_netlot* l, const fc4_istream* in);
+/* Slot 13: select by exact host identity rather than the non-unique saved ID. */
+bool fc4_netlot_set_next_configuration_token(fc4_netlot* l, uint64_t token);
 
 /* ---- network rules (docs/specs/network-rules.md; engine/capi/src/network_rules.rs) ----
  * The rule database (the tile rule files with #Transmogrify, RUL0 intersection
@@ -10989,6 +10992,70 @@ uint32_t fc4_mysim_distance_to_closest(const fc4_advisors* p, int32_t id, uint32
 uint32_t fc4_mysim_distance_to_closest_special(const fc4_advisors* p, int32_t id, uint32_t building_type);
 /* LocalSchoolGrade / LocalHospitalGrade (§4.9): the grade as a fraction. */
 float fc4_mysim_local_grade(const fc4_advisors* p, int32_t id, uint32_t group, bool hospital);
+/* ---- MySim dispatch (mysims.md §4.6.1, §4.7.1, §6.2.1, §7.2.1, §7.2.3) ------
+ * One cSC4MySimDispatch (CLSID 0xCBC14674) owned by the plugin's class-factory
+ * front under `enable = mysims`. The host supplies the job search's city
+ * services and the synchronous 0x2BA06B99 owner notification (§3.3); the
+ * transport handoffs (automata, stops, route search, the player vehicle, MS18)
+ * are not supplied and report FC4_MYSIM_TRIP_UNSUPPORTED, never an arrival.
+ * The job-search pathfinder runs on an empty network model (no path is
+ * found). Missing callbacks read as absent / 0. Additive; no FC4_ABI_VERSION
+ * bump. */
+typedef struct fc4_mysim_dispatch_obj fc4_mysim_dispatch_obj;
+
+typedef struct fc4_mysim_dispatch_host {
+    uint32_t struct_size; /* sizeof(fc4_mysim_dispatch_host) */
+    void* user;
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    /* An occupant's lot bounding cells {x1, z1, x2, z2}; false = no lot. */
+    bool (*occupant_lot_rect)(void* user, uint64_t occupant, int32_t* rect4);
+    bool (*lot_rect_at)(void* user, int32_t x, int32_t z, int32_t* rect4);
+    /* 0 no lot, 1 a lot without a building, 2 a building (*building). */
+    uint32_t (*lot_at_cell)(void* user, int32_t x, int32_t z, uint64_t* building);
+    bool (*occupant_position)(void* user, uint64_t occupant, float* x, float* z);
+    uint32_t (*wealth)(void* user); /* the owner MySim's GetWealth() */
+    bool (*city_across_connection)(void* user, int32_t x, int32_t z, int32_t* city_x, int32_t* city_z);
+    uint64_t (*region_city)(void* user, int32_t x, int32_t z); /* 0 = none */
+    uint32_t (*connections_of_type_to_city)(void* user, uint32_t connection_type, uint64_t city);
+    bool (*has_owner)(void* user);
+    void (*notify)(void* user, uint32_t sub_id, uint32_t data1, uint32_t data2);
+} fc4_mysim_dispatch_host;
+
+typedef struct fc4_mysim_dispatch_state {
+    uint32_t struct_size;
+    int32_t state, prev_state;
+    uint32_t flags, travel_type;
+    int32_t minutes;
+    uint32_t change_counter, queue_len;
+    uint8_t has_pathfinder, home_in_city, commute_by_commute, reserved;
+    uint64_t home, commute; /* the occupant tokens (0 = none) */
+} fc4_mysim_dispatch_state;
+
+#define FC4_MYSIM_TRIP_ACCEPTED 0u
+#define FC4_MYSIM_TRIP_REJECTED 1u
+#define FC4_MYSIM_TRIP_UNSUPPORTED 2u
+
+fc4_mysim_dispatch_obj* fc4_mysim_dispatch_create(const fc4_mysim_dispatch_host* host);
+void fc4_mysim_dispatch_destroy(fc4_mysim_dispatch_obj* p);
+bool fc4_mysim_dispatch_init(fc4_mysim_dispatch_obj* p);     /* creates the job-search pathfinder */
+void fc4_mysim_dispatch_shutdown(fc4_mysim_dispatch_obj* p);
+void fc4_mysim_dispatch_set_home(fc4_mysim_dispatch_obj* p, uint64_t home); /* SetDefaultDestination */
+uint32_t fc4_mysim_dispatch_commute(fc4_mysim_dispatch_obj* p, bool has_residence, uint8_t mysim_state,
+                                    int32_t hour); /* DispatchCommute, §7.2.1 */
+bool fc4_mysim_dispatch_find_new_job(fc4_mysim_dispatch_obj* p);
+bool fc4_mysim_dispatch_change_job(fc4_mysim_dispatch_obj* p, uint64_t building);
+bool fc4_mysim_dispatch_job_destination(const fc4_mysim_dispatch_obj* p, fc4_mysim_job_destination* out);
+bool fc4_mysim_dispatch_check_flags(const fc4_mysim_dispatch_obj* p, uint32_t mask);
+/* The trip fields of §4.6 (the wait value is the mutating getter of §4.6.1). */
+bool fc4_mysim_dispatch_snapshot(const fc4_mysim_dispatch_obj* p, fc4_mysim_dispatch* out);
+void fc4_mysim_dispatch_minute(fc4_mysim_dispatch_obj* p);        /* message 0x44778231 */
+uint32_t fc4_mysim_dispatch_animation(fc4_mysim_dispatch_obj* p); /* message 0x86AD10EE */
+/* Primary slots 6-8: op 0 CanUDriveIt, 1 EnterUDriveIt, 2 ExitUDriveIt. */
+bool fc4_mysim_dispatch_u_drive(fc4_mysim_dispatch_obj* p, uint32_t op);
+bool fc4_mysim_dispatch_write(const fc4_mysim_dispatch_obj* p, const fc4_ostream* out);
+bool fc4_mysim_dispatch_read(fc4_mysim_dispatch_obj* p, const fc4_istream* in);
+bool fc4_mysim_dispatch_deferred_setup(fc4_mysim_dispatch_obj* p); /* 0x26D31EC1 after a Read */
+bool fc4_mysim_dispatch_get_state(const fc4_mysim_dispatch_obj* p, fc4_mysim_dispatch_state* out);
 
 /* Variable source codes (fc4_adv_src.kind), generated from SrcKind. */
 #define FC4_ADV_SRC_MAYOR_RATING 1u
@@ -12533,6 +12600,8 @@ static_assert(sizeof(fc4_mysim_post) == 24, "fc4_mysim_post layout");
 static_assert(sizeof(fc4_mysim_host) == (sizeof(void*) == 4 ? 196 : 392), "fc4_mysim_host layout");
 static_assert(sizeof(fc4_mysims_agent_state) == 40, "fc4_mysims_agent_state layout");
 static_assert(sizeof(fc4_mysim_state) == 240, "fc4_mysim_state layout");
+static_assert(sizeof(fc4_mysim_dispatch_host) == (sizeof(void*) == 4 ? 52 : 104), "fc4_mysim_dispatch_host layout");
+static_assert(sizeof(fc4_mysim_dispatch_state) == 56, "fc4_mysim_dispatch_state layout");
 static_assert(sizeof(fc4_tract_profile) == 24, "fc4_tract_profile layout");
 static_assert(sizeof(fc4_tract_construction) == 32, "fc4_tract_construction layout");
 static_assert(sizeof(fc4_tract_building_profile) == 12, "fc4_tract_building_profile layout");
@@ -13016,6 +13085,36 @@ uint32_t fc4_dbpf_read_raw(const fc4_dbpf* p, uint32_t type, uint32_t group,
 }
 #endif
 
+/* Flora occupant value ownership and version-3 persistence (flora §3.4,
+ * lot-records §11). Caller serializes access to each live instance. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_flora_instance fc4_flora_instance;
+typedef struct fc4_flora_instance_values {
+    uint32_t flora_type, birth, last_seed;
+    int32_t state;
+    uint32_t orientation;
+    float position[3];
+    uint32_t lot_tag;
+    uint16_t removal;
+    uint8_t flags, highlight, status, cells[4];
+} fc4_flora_instance_values;
+fc4_flora_instance* fc4_flora_instance_create(void);
+void fc4_flora_instance_destroy(fc4_flora_instance* p);
+bool fc4_flora_instance_values_get(const fc4_flora_instance* p, fc4_flora_instance_values* out);
+bool fc4_flora_instance_values_set(fc4_flora_instance* p, const fc4_flora_instance_values* value);
+bool fc4_flora_instance_write(const fc4_flora_instance* p, const fc4_ostream* out, const fc4_props* props);
+bool fc4_flora_instance_read(fc4_flora_instance* p, const fc4_istream* in);
+fc4_props* fc4_flora_instance_props(const fc4_flora_instance* p);
+/* Decode an entire native record, require byte-identical re-encoding, and
+ * compare the public getters. No native state is changed. */
+bool fc4_flora_instance_record_shadow(const uint8_t* bytes, size_t length,
+    const fc4_flora_instance_values* expected, bool lot_tag_available);
+#ifdef __cplusplus
+}
+#endif
+
 /* AF11 partial metadata shadow: fresh Rust helicopter record, class ID or 0.
  * Only the four leading u16 version fields are comparison targets. */
 #ifdef __cplusplus
@@ -13040,6 +13139,39 @@ bool fc4_lot_configuration_load(const fc4_lot_configuration* config,
 bool fc4_lot_configuration_snapshot(const fc4_lot_configuration* config,
     fc4_lot_configuration_fields* out,
     fc4_lotdev_cfg_object_callback visit, void* ctx);
+#ifdef __cplusplus
+}
+#endif
+
+/* MySim fronts: per-object access before advisor Init/map insertion (mysims §6–7). */
+#ifdef __cplusplus
+extern "C" {
+#endif
+bool fc4_adv_mysim_get_state(const fc4_adv_obj* obj, fc4_mysim_state* out);
+size_t fc4_adv_mysim_text(const fc4_adv_obj* obj, uint32_t which, char* out, size_t capacity);
+bool fc4_adv_mysim_move_in(const fc4_adv_obj* obj, uint8_t slot,
+    const uint8_t* name, size_t name_len, bool male, uint8_t sign,
+    const uint8_t* bio, size_t bio_len, uint32_t bitmap,
+    const uint8_t* path, size_t path_len);
+bool fc4_adv_mysim_notify(const fc4_adv_obj* obj, uint32_t slot,
+    uint64_t building, uint32_t data, float x, float z);
+bool fc4_mysim_set_dispatch(fc4_advisors* system, int32_t id, uint64_t dispatch);
+#ifdef __cplusplus
+}
+#endif
+
+/* Network lot live identity projections; legacy fc4_netlot_lot stays 16 bytes.
+ * Configuration tokens identify the selected object even if saved IDs collide.
+ * Getter outputs are optional, untouched on false; token 0 is unresolved.
+ * Iterator tokens and records come from the same snapshot; false stops it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef bool (*fc4_netlot_configuration_visitor)(void*, int32_t, int32_t, const fc4_netlot_lot*, uint64_t);
+bool fc4_netlot_get_lot_with_configuration(const fc4_netlot* l, int32_t x, int32_t z,
+                                         fc4_netlot_lot* out, uint64_t* configuration);
+bool fc4_netlot_iterate_lots_with_configuration(const fc4_netlot* l,
+                                              fc4_netlot_configuration_visitor cb, void* ctx);
 #ifdef __cplusplus
 }
 #endif

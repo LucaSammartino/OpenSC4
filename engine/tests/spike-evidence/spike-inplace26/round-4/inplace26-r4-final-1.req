@@ -1,0 +1,12 @@
+label = inplace26-r4-final-1
+seconds = 180
+end_date = 2026-04-01
+turbo = 1
+[ini]
+compare = all
+compare_corpus = 1
+compare_dense = 8
+inplace_fixture = 1
+inplace_mutate = all
+popup_dialogs = 0
+autotest_end = quit

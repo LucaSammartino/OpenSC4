@@ -1,0 +1,12 @@
+-- These select the dispatch tools; a map click is still required to dispatch.
+dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/fc4.lua')
+fc4.start('lua-emergency')
+fc4.lot('A9DD1E4C', 64, 64, 0)
+fc4.lot('6BB942D7', 72, 64, 1)
+fc4.city('PlaceNetwork', {0, 60, 68, 84, 68})
+fc4.city('ToxicSpill')
+fc4.city('DispatchFireTool')
+fc4.city('Cancel')
+fc4.city('DispatchPoliceTool')
+fc4.city('Cancel')
+fc4.finish()

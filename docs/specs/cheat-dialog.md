@@ -226,5 +226,6 @@ All 33 functions (6,403 bytes):
     `0x00663670`, `0x00663710`, `0x00663850`, `0x006639A0`, `0x00663A60`, `0x00663AC0`, `0x00663B70`;
   - the backward copy `0x005C7E50`.
 
-Not covered: the cheat code manager (`cGZCheatCodeManager`), `SC4DoPopupStringListMenu`, the base dialog
-`cGZWinGenDlg`. The meaning of message type `0x11` and of keyboard slot 3 is *[inferred]* (CCD1, CCD2).
+Not covered here: the cheat code manager (`cGZCheatCodeManager`, now in cheat-codes.md), `SC4DoPopupStringListMenu`,
+the base dialog `cGZWinGenDlg` (widget-dialogs.md). The meaning of message type `0x11` and of keyboard slot 3 is
+*[inferred]* (CCD1, CCD2).

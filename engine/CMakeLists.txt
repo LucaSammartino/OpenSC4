@@ -49,6 +49,8 @@ if(FC4_CHECKED AND MSVC)
 endif()
 
 
+
+
 # Debug info embedded in each object (/Z7) instead of a shared per-target PDB (/Zi): the objects become
 # cacheable (sccache, below) and the compiler no longer talks to mspdbsrv. The linker still writes the PDB.
 if(MSVC)
@@ -415,6 +417,13 @@ if(FC4_IS_WIN32_X86)
         # The MySims shadow (mysims.md): mysims_shadow (no replacement).
         plugin/FC4MySimsShadow.cpp
         plugin/FC4MySimsShadow.h
+        # The MySim replacement (mysims.md; glue-mysims-replace16): enable = advisors, mysims.
+        plugin/FC4MySimGameHost.cpp
+        plugin/FC4MySimGameHost.h
+        plugin/cFC4MySim.cpp
+        plugin/cFC4MySim.h
+        plugin/cFC4MySimDispatch.cpp
+        plugin/cFC4MySimDispatch.h
         # The occupant manager shadow (occupant-manager.md): occmgr_shadow (no replacement).
         # The occupant manager (occupant-manager.md): enable = occmgr; its shadow
         # is occmgr_shadow and follows whichever manager is active.
@@ -594,7 +603,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4RegionalCityShadow.h
         # Default-off live query pick predicates (partial owner observation).
         plugin/FC4QueryToolShadow.cpp
-        plugin/FC4QueryToolShadow.h)
+        plugin/FC4QueryToolShadow.h
+        # Default-off GZ framework constructed-buffer and command differential.
+        plugin/FC4GZFrameworkShadow.cpp
+        plugin/FC4GZFrameworkShadow.h)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -1193,6 +1205,29 @@ if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4ModelInstShadow.cpp plugin/FC4ModelInstShadow.h)
 endif()
 
+# MySim dispatch public ABI: constructor-only checks, no concrete trip calls.
+add_executable(fc4_mysim_dispatch_contract_test tests/mysim_dispatch_contract_test.cpp)
+target_include_directories(fc4_mysim_dispatch_contract_test PRIVATE plugin
+    third_party/gzcom-dll/gzcom-dll/include)
+add_test(NAME mysim_dispatch_contract_test COMMAND fc4_mysim_dispatch_contract_test)
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_mysims_factory_boundary_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-mysims)
+    add_test(NAME plugin_mysims_default_off_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-default-mysims)
+    add_test(NAME plugin_mysims_replace_factory_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-replace-mysims)
+    set_tests_properties(plugin_mysims_factory_boundary_test plugin_mysims_default_off_test
+        plugin_mysims_replace_factory_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+
+# The pending MySim owner group must coexist with a registered replacement.
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_mysims_mixed_factory_boundary_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-mixed-mysims)
+    set_tests_properties(plugin_mysims_mixed_factory_boundary_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+
 # disasters.md §2.8: opt-in layer, preserving concrete native managers.
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/cFC4DisasterLayer.cpp plugin/cFC4DisasterLayer.h)
@@ -1218,6 +1253,23 @@ if(TARGET FreeCity4)
     target_compile_definitions(fc4_advisor_message_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_advisor_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME advisor_message_test COMMAND fc4_advisor_message_test)
+endif()
+
+# Construction interface identity and borrowed slot-3 conversion (LR 9.3).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4ConstructionIdentity.h)
+    add_executable(fc4_construction_identity_test tests/construction_identity_test.cpp)
+    target_include_directories(fc4_construction_identity_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_options(fc4_construction_identity_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME construction_identity_test COMMAND fc4_construction_identity_test)
+endif()
+
+# Construction record-owner staging factory: no subsystem registration yet.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4ConstructionRecord.cpp plugin/cFC4ConstructionRecord.h)
+    add_test(NAME construction_record_factory_test
+        COMMAND fc4_construction_capture_test "$<TARGET_FILE:FreeCity4>" --record-factory)
+    set_tests_properties(construction_record_factory_test PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 # Overlay probe ABI and lifecycle against the real private Rust transport.
@@ -1248,6 +1300,9 @@ if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_netocc_shadow_factory_isolation
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-netocc-shadow-factories)
     set_tests_properties(plugin_netocc_shadow_factory_isolation PROPERTIES RUN_SERIAL TRUE)
+    add_test(NAME plugin_netlot_ownership
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-ownership)
+    set_tests_properties(plugin_netlot_ownership PROPERTIES RUN_SERIAL TRUE)
 endif()
 
 if(TARGET FreeCity4)
@@ -1286,4 +1341,91 @@ if(TARGET fc4_plugin_load_test)
     add_test(NAME plugin_lotconf_registration_ownership
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lotconf-ownership)
     set_tests_properties(plugin_lotconf_registration_ownership PROPERTIES RUN_SERIAL TRUE)
+endif()
+
+# Opt-in natural-entry reach tracing (no C ABI exports).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4Reach.cpp plugin/FC4Reach.h)
+    target_compile_definitions(FreeCity4 PRIVATE
+        FC4_REACH_CONTRACTS_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/functions.tsv")
+endif()
+if(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_library(fc4_reach_fixture SHARED tests/reach_fixture.cpp)
+    # Incremental-link export thunks start with JMP and would correctly be
+    # refused by the tracer; controls need the actual fixture entry points.
+    target_link_options(fc4_reach_fixture PRIVATE /OPT:NOICF /INCREMENTAL:NO)
+    add_executable(fc4_reach_test tests/reach_test.cpp plugin/FC4Reach.cpp)
+    target_include_directories(fc4_reach_test PRIVATE plugin)
+    target_compile_definitions(fc4_reach_test PRIVATE FC4_REACH_TEST NOMINMAX)
+    target_compile_options(fc4_reach_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME reach_test COMMAND fc4_reach_test "$<TARGET_FILE:fc4_reach_fixture>")
+endif()
+
+# S3 opt-in entry-hook observer and architecture-only mechanics tests.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4Inplace.cpp plugin/FC4Inplace.h plugin/FC4InplaceDetour.h)
+    add_executable(fc4_inplace_test tests/inplace_test.cpp)
+    target_include_directories(fc4_inplace_test PRIVATE plugin)
+    target_compile_options(fc4_inplace_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME inplace_mechanics COMMAND fc4_inplace_test)
+endif()
+
+# Registry-only compare bindings; C++ forwarders are generated from published contracts.
+if(TARGET FreeCity4)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    file(GLOB FC4_COMPARE_ROWS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/*.tsv")
+    file(GLOB FC4_COMPARE_CONTRACTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/functions.tsv")
+    set(FC4_COMPARE_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/compare/FC4CompareRows.inc")
+    add_custom_command(OUTPUT "${FC4_COMPARE_GENERATED}"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
+            --engine "${CMAKE_CURRENT_SOURCE_DIR}" --output "${FC4_COMPARE_GENERATED}"
+        DEPENDS ${FC4_COMPARE_ROWS} ${FC4_COMPARE_CONTRACTS} "${CMAKE_CURRENT_SOURCE_DIR}/plugin/compare/generate.py"
+        VERBATIM)
+    target_sources(FreeCity4 PRIVATE "${FC4_COMPARE_GENERATED}")
+    target_include_directories(FreeCity4 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/compare")
+    target_compile_definitions(FreeCity4 PRIVATE FC4_COMPARE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../build-runs")
+    add_executable(fc4_compare_data_test tests/compare_data_test.cpp)
+    target_include_directories(fc4_compare_data_test PRIVATE plugin)
+    target_compile_options(fc4_compare_data_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME compare_value_schema COMMAND fc4_compare_data_test)
+    add_executable(fc4_compare_runtime_test tests/compare_runtime_test.cpp "${FC4_COMPARE_GENERATED}")
+    target_include_directories(fc4_compare_runtime_test PRIVATE plugin "${CMAKE_CURRENT_BINARY_DIR}/compare")
+    target_compile_definitions(fc4_compare_runtime_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN
+        FC4_COMPARE_ROOT="${CMAKE_CURRENT_BINARY_DIR}/compare-unit")
+    target_compile_options(fc4_compare_runtime_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME compare_dispatch_modes COMMAND fc4_compare_runtime_test)
+    set_tests_properties(compare_dispatch_modes PROPERTIES TIMEOUT 20)
+endif()
+
+# RegionalCity private C transport: real Rust owner and host-reference callbacks.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4RegionalCityElements.cpp plugin/FC4RegionalCityElements.h)
+    add_executable(fc4_regionalcity_owner_test tests/regionalcity_owner_test.cpp)
+    target_include_directories(fc4_regionalcity_owner_test PRIVATE plugin)
+    target_compile_options(fc4_regionalcity_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_regionalcity_owner_test PRIVATE fc4_capi)
+    add_test(NAME regionalcity_owner_test COMMAND fc4_regionalcity_owner_test)
+endif()
+
+# RegionalCity native replacement hosts and the border-call contract (RY9).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/cFC4RegionalCity.cpp plugin/cFC4RegionalCity.h
+        plugin/FC4RegionalCityConnections.cpp plugin/FC4RegionalCitySetup.cpp
+        plugin/FC4RegionalCityHost.h plugin/FC4RegionalCityBorder.h)
+    add_executable(fc4_regionalcity_border_test tests/regionalcity_border_test.cpp)
+    target_include_directories(fc4_regionalcity_border_test PRIVATE plugin)
+    target_compile_options(fc4_regionalcity_border_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_regionalcity_border_test PRIVATE fc4_capi)
+    add_test(NAME regionalcity_border_contract COMMAND fc4_regionalcity_border_test)
+endif()
+
+if(TARGET fc4_plugin_load_test)
+    add_test(NAME plugin_netlot_default_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-defaults)
+    add_test(NAME plugin_netlot_disabled_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-disabled)
+    add_test(NAME plugin_netlot_object_factories
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-object-factories)
+    set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
+        PROPERTIES RUN_SERIAL TRUE)
 endif()

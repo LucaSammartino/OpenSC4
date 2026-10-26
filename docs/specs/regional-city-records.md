@@ -223,9 +223,9 @@ city whose neighbours never changed their connections).
 
 ## 4. `CreateSymmetricConnections` (`0x004AA6D0`) *[compat]*
 
-This answers regional-city.md question RY1. The network-manager and demolition calls are described by what they do to
-the edge cell; their exact arguments are not decoded and the network part is *[inferred]* from the call sequence
-(RR3).
+This answers regional-city.md question RY1. The network-manager calls are described by what they do to the edge cell;
+the network part remains *[inferred]* here (RR3). The exact demolition call arguments and caller-filter rules are
+verified in [regional-city.md](regional-city.md) §6.2.1 (RY9).
 
 Inputs: the record's queue, the current city and its services (the neighbours simulator `N`, the network manager, the
 occupant manager, the demolition utility, the zone manager, the traffic network map). The function reads these city
@@ -280,7 +280,8 @@ it flips the orientation of the marker prop.
 | Subway 6 | 7 | | |
 | LightRail 7 | 8 | | |
 
-For Pipe the occupant filter layer is **3** and for Subway **2**; for all other networks it is **1** *[inferred]*.
+For Pipe the occupant filter layer is **3** and for Subway **2**; for all other networks it is **1** (verified:
+regional-city.md §6.2.1).
 (These network numbers are the same ones neighbors.md §6.5 uses for the reverse mapping.)
 
 ### 4.5 Apply each entry, in sorted order
@@ -305,9 +306,12 @@ coordinate). Each entry clears its own strip, at its own lateral coordinate.
 1. **Select the cells to clear.** Start with all cells of the strip. For a **PowerPole** entry, remove from the set every
    cell that already holds an occupant of type `0x2890D4DE` (power pole) or `0x0990B2EA` (power line piece). For every
    other type, remove every cell for which the traffic network map reports that something is already there.
-2. **Demolish.** Through the demolition utility, demolish what stands on the remaining cells, with an occupant filter
-   whose layer value is the one of §4.4 (1 for roads and the like, 3 for pipes, 2 for subways). The call does not
-   ask for confirmation and does not charge money.
+2. **Demolish.** Through demolition utility slot 6, issue an actual demolition of the remaining cells with
+   **privilege 0, flags `0x1`, dezone false**, and a **view-level occupant filter** for the layer in §4.4. Cost,
+   demolished-set and clicked-occupant pointers are null; the final two coordinates are zero. The result is ignored.
+   There is no confirmation or budget charge. The filter's type-only query admits all types; its occupant query
+   requires a matching classified layer. The utility then applies its own type/removal rules. The exact contract,
+   view-filter caveats and worked case are in [regional-city.md](regional-city.md) §6.2.1 (RY9).
 3. **Dezone.** For a PowerPole entry only, ask the zone manager to dezone the same cells.
 4. **Create the connection:** `CreateConnection(type, x, z, dir)`.
 5. **Place the edge piece.** Ask the network manager's network of that type to lay a segment from the strip's first cell
@@ -503,6 +507,26 @@ All six exist in `SimCity_1.dat` as PNGs of the sizes shown (measured). The data
 through the set writer of §6.3, so they take the same temporary-file route as rendered ones. Pictures 4 and 6 are not
 written, so a city with a default thumbnail has two pictures. If either data record is missing the function returns
 false and writes nothing. The default pictures are `128 · size` wide, not `128 · size + 2`.
+
+### 6.6 The render helpers *[compat]*
+
+Added 2026-10-24 (re-thumbs7): the five helpers of `SC4WriteCityRegionViewThumbnail` (§6.4) that the owner
+`fn:SC4WriteCityRegionViewThumbnail` holds besides the renderer itself.
+
+- **Opaque bounds** (`0x005DCAD0(&rect)`, buffer in a register): under lock `0x8080`, every pixel whose low three
+  bytes OR to more than 3 (any colour channel above 3) gets alpha `0xFF` (slots 21, 22) and grows the bounding box,
+  which is returned half-open (`(0, 0, 0, 0)` when no pixel qualifies). True unless the lock fails.
+- **Crop** (`0x005DCC00`): when the rectangle is the whole buffer, the buffer itself (with a reference); otherwise a
+  new buffer of the rectangle's size and the same colour type (surface service `0x00B43C9C` slot 3), cleared to 0
+  (slot 12) and filled with that part of the source by one blit (slot 29) under lock `0x8010`; null on failure.
+- **Average of four** (`0x005DD180(&buffers[4])`): a new 32-bit buffer (colour type 9) of the first buffer's size whose
+  every pixel is the per-channel mean of the four sources' pixels, `(a + b + c + d + 2) / 4` on each of the three
+  colour bytes (the alpha byte becomes 0); all five buffers are locked meanwhile (`0x40`, `0x8040`); null on failure.
+  The renderer uses it to combine four captures.
+- **Foreground test** (`0x005F85F0`): Win32 `GetActiveWindow() == GetForegroundWindow()`; the renderer checks it
+  before and after capturing.
+- **Capture call** (`0x005F9510(a, b, c, d)`): the graphics layer (`0x00B43CA4`) as interface `0xE69BFE2A`, its slot 3
+  `(a, b, c, d, 0)`, released; 0 without the layer or the interface.
 
 ## 7. What was checked against the shipped files
 

@@ -271,6 +271,28 @@ mod transport_tests {
             assert_eq!(fc4_dbpf_read_raw(pkg, 1, 2, 1, raw.as_mut_ptr(), &mut size), 4);
             assert_eq!(size, 4);
             assert_eq!(raw, [65, 66, 67, 68, 0xcc, 0xcc]);
+            // Section 2.6.1: raw capacity applies to stored bytes, not decoded
+            // bytes. Exercise empty, plain and compressed records independently
+            // of the callback/full-payload reader used by the original shadow.
+            for (instance, stored) in [
+                (1, b"ABCD".as_slice()),
+                (2, b"".as_slice()),
+                (3, &[15, 0, 0, 0, 0x10, 0xfb, 0, 0, 4, 0xe0, 65, 66, 67, 68, 0xfc]),
+            ] {
+                for capacity in [0, 1, stored.len().saturating_sub(1), stored.len(), stored.len() + 2] {
+                    let mut guarded = vec![0xcc; capacity + 2];
+                    let mut size = capacity as u32;
+                    let copied = capacity.min(stored.len());
+                    assert_eq!(
+                        fc4_dbpf_read_raw(pkg, 1, 2, instance, guarded.as_mut_ptr().add(1), &mut size),
+                        copied as u32
+                    );
+                    assert_eq!(size, copied as u32);
+                    assert_eq!(&guarded[1..1 + copied], &stored[..copied]);
+                    assert!(guarded[1 + copied..].iter().all(|&b| b == 0xcc));
+                    assert_eq!(guarded[0], 0xcc);
+                }
+            }
             size = 99;
             assert_eq!(fc4_dbpf_read_raw(pkg, 1, 2, 3, std::ptr::null_mut(), &mut size), 4);
             assert_eq!(size, 0);

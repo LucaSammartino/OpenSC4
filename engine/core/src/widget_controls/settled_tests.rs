@@ -135,7 +135,10 @@ fn wc_l16_l22_removal_and_forward_pages() {
 
 #[test]
 fn wc_l23_l30_sizing_sort_search_and_malformed_storage() {
-    let mut f = Recording::default();
+    let mut f = Recording {
+        parent_limit: Some(102),
+        ..Recording::default()
+    };
     let mut l = list_box::ListBox::new(1, true, &mut f);
     l.drop_resize = [false, false];
     l.area = [0, 0, 30, 22];
@@ -147,19 +150,24 @@ fn wc_l23_l30_sizing_sort_search_and_malformed_storage() {
     }
     assert!(l.size_drop_height(&mut f));
     assert_eq!((l.height(), l.whole_rows), (52, 5));
+    assert_eq!(l.first, 0);
+    assert!(l.bar.is_none());
+    assert_eq!(f.area_requests, [(1, [0, 0, 30, 52])]);
     l.clear(&mut f);
     l.x_gutter = 3;
     assert!(l.size_drop_width(&mut f));
     assert_eq!(l.width(), 7);
+    assert_eq!(f.area_requests.last(), Some(&(1, [0, 0, 7, 52])));
     let old = l.height();
     assert!(!l.size_drop_height(&mut f));
     assert_eq!(l.height(), old);
+    assert_eq!(l.drop_resize, [true, true]);
     l.drop_mode = false;
     for t in [b"Alpha".as_slice(), b"alpha", b"B"] {
         l.insert(-2, t.to_vec(), 0, &mut f);
     }
     assert_eq!(l.find_text(b"alpha", &mut f), Some(1));
-    assert!(l.select_prefix(b"A", &mut f));
+    assert!(!l.character(b"A", &mut f)); // WC-L28: W152 navigates but returns false.
     assert_eq!(l.selected, 0);
     l.enable_sorting(&mut f);
     l.entries.reverse();
@@ -195,6 +203,7 @@ fn wc_l26_l31_l34_paint_prefixes_intensity_and_fitting() {
     for t in texts {
         l.insert(-2, t.to_vec(), 0, &mut f);
     }
+    let stored = l.entries.clone();
     l.paint(&mut f).unwrap();
     let painted: Vec<_> = f
         .draws
@@ -214,6 +223,7 @@ fn wc_l26_l31_l34_paint_prefixes_intensity_and_fitting() {
     );
     assert_eq!(painted[5].1, 0x123456);
     assert_eq!(painted[6].1, 0x123456);
+    assert_eq!(l.entries, stored);
     for value in [f32::NEG_INFINITY, 0.5, f32::INFINITY, f32::NAN] {
         l.set_intensity(value, &mut f);
         if value.is_nan() {
@@ -241,8 +251,10 @@ fn wc_l24_l34_l35_l36_clipping_fitting_capture_and_lifetime() {
     for i in 0..5 {
         l.insert(-2, b"abcdef".to_vec(), i, &mut f);
     }
+    f.area_requests.clear();
     l.size_drop_height(&mut f);
     assert_eq!((l.height(), l.whole_rows), (32, 3));
+    assert_eq!(f.area_requests, [(1, [0, 0, 80, 37]), (1, [0, 0, 80, 32])]);
     assert!(l.bar.is_some());
     l.font = Some(7);
     f.fit_counts.push_back(3);
@@ -292,6 +304,7 @@ fn wc_t13_t16_flatten_anchor_and_viewport() {
     t.set_expanded(0, true, &mut f);
     t.recalculate();
     assert_eq!(t.visible, [0, a, c, b]);
+    assert_eq!((t.depth(a), t.depth(b)), (0, 0));
     t.flags |= 0x10;
     t.select(a, false, &mut f);
     t.select(b, false, &mut f);
@@ -300,6 +313,7 @@ fn wc_t13_t16_flatten_anchor_and_viewport() {
     t.set_margins(0, 0, &mut f);
     t.layout_viewport([0, 0, 100, 33], [100, 100], [0, 0]).unwrap();
     assert_eq!((t.viewport_rows, t.page_count), (2, 3));
+    assert_eq!(t.first + t.page_count as i32 - 1, 2); // WC-T16 last paint row
 }
 
 #[test]
@@ -347,6 +361,7 @@ fn wc_t19_t26_properties_order_descriptors_and_restart() {
     t.apply_descriptor(a, value, &mut f);
     assert!(!t.nodes[&a].force_branch);
     assert_eq!(t.nodes[&a].children, topology);
+    assert!(t.get_visible(a)); // WC-T25: visible=false does not hide the node
     let root = t.root;
     let next = t.next_handle;
     t.shutdown(&mut f);
@@ -385,7 +400,7 @@ fn wc_t27_t29_t36_image_retention_metrics_and_failure() {
     let mut t = tree_view::TreeView::new(1);
     f.fail_image_slot = Some(0);
     f.image_attempts.clear();
-    t.init(&mut f);
+    assert!(t.init(&mut f)); // WC-T36: no aggregate image-init failure
     assert_eq!(f.image_attempts, [0, 1, 2, 3]);
     assert!(t.images.iter().all(Option::is_some));
 }
@@ -405,10 +420,10 @@ fn wc_t30_t35_move_remove_and_adapters() {
     assert_eq!(f.invalidations, n);
     t.set_node_color(a, 1, 99, &mut f);
     assert_eq!(t.descriptor(a).unwrap().colors[2], 99);
-    assert!(!t.children(a, None));
-    let mut out = vec![999];
-    assert!(t.children(a, Some(&mut out)));
-    assert!(out.is_empty());
+    assert_eq!(t.children(a, None), Ok(false));
+    let mut out = [999];
+    assert_eq!(t.children(a, Some(&mut out)), Ok(true));
+    assert_eq!(out, [999]); // WC-T34: an empty array copy performs no writes.
     t.flags |= 0x10;
     t.select(a, false, &mut f);
     t.select(b, false, &mut f);
@@ -582,6 +597,7 @@ fn wc_t44_t47_drag_refusal_side_rejection_and_drop() {
     t.mouse_move(199, 90, 0x10, &mut f).unwrap();
     assert_eq!(f.drag_runs, 0);
     assert_eq!(t.selection, [a]);
+    assert!(!f.messages.iter().any(|(_, m)| m.words[0] as u32 == 0x1af5a141));
     t.notify_drag(10, 3, &[a], &mut f).unwrap();
     assert!(t.insertion_side);
     t.notify_drag(10, 7, &[a], &mut f).unwrap();
@@ -600,5 +616,8 @@ fn wc_t44_t47_drag_refusal_side_rejection_and_drop() {
     assert_eq!(t.nodes[&0].children, topology);
     assert!(t.selection.contains(&a));
     assert!(f.messages.iter().any(|(_, m)| m.words[0] as u32 == 0x1af5a141));
+    let last = &f.messages[f.messages.len() - 2..];
+    assert_eq!(last[0].1.words[0] as u32, tree_view::SELECTION);
+    assert_eq!(last[1].1.words[0] as u32, 0x1af5a141); // WC-T47: reselect before drop.
     assert!(!t.insertion_side);
 }

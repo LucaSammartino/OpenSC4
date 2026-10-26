@@ -17,6 +17,7 @@
 #include "FC4BuildingCapacityHost.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4DevelopmentInterfaces.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
@@ -431,7 +432,7 @@ void CollectU32s(void* ctx, const uint32_t* v, size_t n) {
 }
 
 // The original's occupant list (one reference each): its entries in order,
-// each reference noted and given back (the list's destructor frees the nodes).
+// each reference transferred to out until the comparison is complete.
 void TakeOccupantList(SC4List<cISC4Occupant*>& list, std::vector<uint64_t>& out) {
     out.clear();
     size_t n = 0;
@@ -440,7 +441,6 @@ void TakeOccupantList(SC4List<cISC4Occupant*>& list, std::vector<uint64_t>& out)
         out.push_back(TokenOf(o));
         if (o != nullptr) {
             FC4_ACQUIRED(o, "prop list entry");
-            FC4_RELEASE(o);
         }
         o = nullptr;
     }
@@ -527,8 +527,13 @@ struct PropCtx {
     // The catalogue message.
     bool posted = false;
     uint32_t postedData2 = 0;
+    bool tracePositions = false;
+    std::unordered_map<uint64_t, cS3DVector3> queryPositions;
 };
 PropCtx g_pctx;
+SRWLOCK g_mutationLock = SRWLOCK_INIT;
+uint64_t g_mutationTick = 0;
+std::unordered_map<uint64_t, unsigned> g_tickMutations;
 fc4_prop_catalogue* g_propCat = nullptr;
 uint32_t g_catalogueData2 = 0;
 bool g_catalogueData2Known = false;
@@ -599,11 +604,12 @@ void PropSetBox(void* u, uint64_t, const float* mn, const float* mx) {
     }
 }
 
-void PropPosition(void*, uint64_t occ, float* pos3) {
+void PropPosition(void* u, uint64_t occ, float* pos3) {
     pos3[0] = pos3[1] = pos3[2] = 0.0f;
     if (occ == 0 || Odd(occ)) return;
     cS3DVector3 v;
     reinterpret_cast<cISC4Occupant*>(FromToken(occ))->GetPosition(&v);  // slot 8
+    if (PC(u)->tracePositions) PC(u)->queryPositions[occ] = v;
     pos3[0] = v.fX;
     pos3[1] = v.fY;
     pos3[2] = v.fZ;
@@ -922,25 +928,72 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
             // Preserve every failure and expose membership/position evidence;
             // no timer, visibility or pending-save exclusion is permitted.
             for (const auto* tokens : {&os, &us}) {
+                const auto& other = tokens == &os ? us : os;
                 for (uint64_t token : *tokens) {
+                    if (std::find(other.begin(), other.end(), token) != other.end()) continue;
                     auto* occ = reinterpret_cast<cISC4Occupant*>(FromToken(token));
                     cS3DVector3 pos;
                     occ->GetPosition(&pos);
                     uint32_t usage = UINT32_MAX;
+                    uint32_t kind = 0, state = 0, timers = 0, chance = 0;
+                    float start = 0, end = 0;
                     void* q = nullptr;
                     if (occ->QueryInterface(kIID_cISC4PropOccupant, &q) && q != nullptr) {
                         auto* prop = static_cast<cISC4PropOccupant*>(q);
                         FC4_ACQUIRED(prop, "QueryInterface");
                         usage = prop->GetPropUsage();
+                        kind = prop->GetPropType();
+                        state = prop->GetState();
+                        timers = prop->GetPropTimerBitfield();
+                        chance = prop->GetRandomChance();
+                        prop->GetTimeOfDayRange(start, end);
                         FC4_RELEASE(prop);
                     }
+                    int cx = 0, cz = 0;
+                    r.city->PositionToCell(pos.fX, pos.fZ, cx, cz);
+                    uint32_t lotTag = 0;
+                    occ->GetLotTag(lotTag);
+                    unsigned mutations = 0;
+                    AcquireSRWLockShared(&g_mutationLock);
+                    const auto mutation = g_tickMutations.find(TokenOf(Canonical(occ)));
+                    if (mutation != g_tickMutations.end()) mutations = mutation->second;
+                    const uint64_t tick = g_mutationTick;
+                    ReleaseSRWLockShared(&g_mutationLock);
+                    uint32_t bits[3];
+                    const float coordinates[3] = {pos.fX, pos.fY, pos.fZ};
+                    std::memcpy(bits, coordinates, sizeof(bits));
                     Log("propmgr query difference date=%s query=%s cell=(%d,%d) side=%s "
-                        "occupant=%p type=%08X usage=%u pos=(%.9g,%.9g,%.9g)",
+                        "occupant=%p type=%08X usage=%u kind=%08X flags=%08X state=%u timers=%02X "
+                        "chance=%u time=(%.9g,%.9g) lotTag=%08X propCell=(%d,%d) "
+                        "pos=(%.9g,%.9g,%.9g) bits=(%08X,%08X,%08X) "
+                        "tick=%llu added_same_tick=%u removed_same_tick=%u mutationSource=occmgr-single-calls "
+                        "cw=%04X mxcsr=%08X",
                         r.date, what, x, z, tokens == &os ? "native" : "core", occ,
-                        static_cast<uint32_t>(occ->GetType()), usage, pos.fX, pos.fY, pos.fZ);
+                        static_cast<uint32_t>(occ->GetType()), usage, kind, occ->GetFlags(), state, timers,
+                        chance, start, end, lotTag, cx, cz, pos.fX, pos.fY, pos.fZ, bits[0], bits[1], bits[2],
+                        tick, mutations & 1u, (mutations >> 1) & 1u, X87ControlWord(), SseMxcsr());
+                    const auto sampled = g_pctx.queryPositions.find(token);
+                    if (sampled != g_pctx.queryPositions.end()) {
+                        const auto& p = sampled->second;
+                        Log("propmgr query input occupant=%p corePosition=(%.9g,%.9g,%.9g)",
+                            occ, p.fX, p.fY, p.fZ);
+                    }
+                    auto* holder = occ->AsPropertyHolder();
+                    for (uint32_t id : {0x49C9C93Cu, 0x6A3FCC37u, 0x4A149631u, 0x0A751675u,
+                                        0x6A959E71u, 0x4A751AD5u, 0x4A764564u, 0xCA7515CCu}) {
+                        std::vector<float> values;
+                        std::string text;
+                        if (props::GetF32s(holder, id, values)) {
+                            for (float value : values) AppendF(text, " %.9g", value);
+                        } else {
+                            text = " absent";
+                        }
+                        Log("propmgr query timing occupant=%p property=%08X values:%s", occ, id, text.c_str());
+                    }
                 }
             }
         }
+        ReleaseTokens(os);
         ReleaseTokens(us);
     };
     for (long i = 0; i < g_cells; ++i) {
@@ -994,7 +1047,10 @@ intptr_t PropQueries(const Run& r, cISC4PropManager* pm, fc4_prop_manager* s, st
             SC4List<cISC4Occupant*> ol;
             const bool ro = pm->GetLotProps(ol, lx, lz);
             std::vector<uint64_t> us;
+            g_pctx.queryPositions.clear();
+            g_pctx.tracePositions = true;
             const bool rs = fc4_prop_manager_get_props_at(s, 2, lx, lz, nullptr, 0, &Collect, &us);
+            g_pctx.tracePositions = false;
             compare("lot", lx, lz, ro, ol, rs, us);
         }
     }
@@ -2330,6 +2386,21 @@ void ConfigurationSimulatorShadowStartup(bool lotcfgReplaced, bool simulatorRepl
 }
 
 void PropLotShadowMonth(cISC4City* city, int32_t julian) { RunAll(city, julian, "month"); }
+
+void PropLotShadowTick() {
+    if (!g_prop) return;
+    AcquireSRWLockExclusive(&g_mutationLock);
+    ++g_mutationTick;
+    g_tickMutations.clear();
+    ReleaseSRWLockExclusive(&g_mutationLock);
+}
+
+void PropLotShadowMutation(uint64_t occupant, bool inserted) {
+    if (!g_prop || occupant == 0) return;
+    AcquireSRWLockExclusive(&g_mutationLock);
+    g_tickMutations[occupant] |= inserted ? 1u : 2u;
+    ReleaseSRWLockExclusive(&g_mutationLock);
+}
 
 void PropLotShadowPreSave(cISC4City* city) { RunAll(city, CityJulian(city), "save"); }
 

@@ -46,19 +46,30 @@ nonoverlapping pairs of binary32 values. Aliased, invalid, concurrently changed,
 or partially initialized records are outside the admitted domain.
 
 The constructor initializes at least `0x2C` receiver bytes. The observed list
-node/body relation is body=`node+08`; it is not a COM interface pointer. A
-body/registration record extends through the sector word at `+78`; allocation
-and any additional trailing fields are not inferred from the collision helpers.
+node/body relation is body=`node+08`; it is not a COM interface pointer.
+Admission (§7.3) requests a `0x8C`-byte node containing an `0x84`-byte body.
+The leading `0x60` bytes are the physical description, with padding exceptions
+specified there; the remaining fields belong to the simulator.
 
 | Body byte offset | Positively observed role |
 |---|---|
 | `+00,+04` | centre/position pair used for geometric offsets |
 | `+08,+0C` | linear velocity pair read and updated by response |
+| `+10,+14` | height and height velocity; no height acceleration in this helper |
+| `+18` | angle in radians |
 | `+1C` | angular velocity scalar; multiplies the perpendicular contact offset |
 | `+20,+24` | two rectangle extents used in support/separation calculations |
 | `+2C` | linear response multiplier (inverse-mass role); no independent mass conversion established |
+| `+30,+34,+38` | forward, lateral and angular friction subtraction rates |
+| `+3C` | byte enabling all three friction subtractions |
+| `+40,+44` | planar acceleration pair |
+| `+48..+5C` | preserved description words; not reinterpreted by admission/integration |
+| `+60,+64` | axis-aligned half extents, refreshed by integration |
 | `+68` | angular response multiplier (inverse-inertia role); no independent inertia conversion established |
 | `+6C,+70` | axis pair `(c,s)`; perpendicular axis is `(-s,c)` |
+| `+74,+75,+76` | low-response-list marker, explicit static marker, live byte |
+| `+78` | lower-corner packed sector key; zero means not yet mapped |
+| `+7C,+80` | sector span counts, established by admission |
 
 The geometric interpretation assumes finite, nonnegative extents and an
 orthonormal axis pair supplied as raw foreign body state. Helpers do not normalize
@@ -74,12 +85,16 @@ explicit preconditions for bit-exact examples, not a global native mode claim.
 buffer. EAX's upper bytes are not a Boolean result contract.
 
 Split each key into the masked high half (`key & 0xFFFF0000`) and low half
-(`key & 0xFFFF`). Select the unsigned smaller high half and independently the
-unsigned smaller low half, add them, then compare the reconstructed word with
+(`key & 0xFFFF`). Select the unsigned larger high half and independently the
+unsigned larger low half, add them, then compare the reconstructed word with
 `currentKey`. Return true exactly on equality. Equal halves select the first
 key's temporary, with no observable numeric difference. Evidence:
 `0x005BA020–0x005BA031` masks, `0x005BA03B–0x005BA05F` unsigned selections,
 `0x005BA063–0x005BA070` reconstruction/equality.
+
+PT12 correction (2026-10-23): the carry branches select the other temporary when
+the first half is smaller; the previous minimum wording was reversed. This is
+the same helper and contract as [particles.md](particles.md) §17.3.
 
 This is sector duplicate suppression, not body-pointer priority. It cannot by
 itself reject the same body or duplicate registration. Those admission rules need
@@ -308,7 +323,7 @@ the advance body independently establishes `body=node+08`, so this flag is
 the sweep's node `+7E`. No object-release callback is proved by these operations.
 The internals and side effects of the sector-removal call remain unqualified.
 
-### 7.2 Exact advancement boundary, partial inner body
+### 7.2 Advancement and collision phase boundary
 
 The public overload at `0x005BC270–0x005BC296` takes ECX simulator plus a
 single **binary32 timestep word** on the stack, returns with a four-byte pop,
@@ -321,25 +336,17 @@ and specifies no return value. Its order is:
 
 The wrapper has no timestep sign/zero check, retry, remaining-time variable,
 substep loop, or automatic dead sweep. This does not establish whole-call normal
-outcomes for zero/negative/nonfinite time. The inner body and collision cycle
-remain partial; a host must not supply their entire algorithms as an oracle.
+outcomes for nonfinite time or the complete collision cycle. The finite inner
+integration is specified in §7.4; sector-container and full collision behavior
+remain partial.
 
 The inner body (`0x005BBFD0–0x005BC26B`) takes ECX simulator plus root-cell
 pointer and binary32 dt, and pops eight bytes. Its entry checks for an empty
 list and otherwise visits nodes forward. A zero byte at node `+7E` skips the
-body; a live body is node `+08` (`0x005BBFD3–0x005BBFF8`). At its qualified
-prefix, it updates body X,Y by old velocity times dt, then body `+10` by
-`dt*body[+14]`, then binary32 angle `+18` by `dt*body[+1C]`, in that order
-(`0x005BBFFE–0x005BC03D`). This is owned arithmetic, not an external whole
-integrator callback. Angle wrap/trigonometry, acceleration/drag and exact sector
-coordinate conversion remain outside the completed contract.
-
-At the qualified tail, compare a computed raw new key with body `+78`.
-Equality skips remapping. If different and old key nonzero, call
-`RemoveFromSectorMap`; then store the new key at body `+78` **before** calling
-`AddToSectorMap`. Advance to next list node (`0x005BC22E–0x005BC25C`). The
-coordinate calculation and insertion internals are not replaced with guessed
-floor/hash rules. This prefix/tail publication does not complete the inner body.
+body; a live body is node `+08` (`0x005BBFD3–0x005BBFF8`). A zero timestep
+does not bypass live-body processing. The wrapper visits the ordinary and
+low-response lists, **not** the explicit static list at receiver `+08`.
+Static status alone does not erase the supplied velocity from the stored body.
 
 DoCollisions is a separate no-stack-argument ECX body. Its observed entry
 iterates a container at simulator `+10` and begins a sector's pointer range at
@@ -350,6 +357,128 @@ the `+0C` pair-like list, `CheckAgainstInfiniteMassObjects`, and unnamed
 helper `0x005BA210` remain partial/unknown. No first-contact time, simultaneous
 tie, step cap, repeat guard, or whole-step trace is inferred from their names.
 
+### 7.3 Body admission and initial sector bounds *[compat]*
+
+`AddObject` (`005BBC10–005BBFCD`) takes ECX simulator, a physical-description
+pointer and a low-byte static flag in two stack words, pops eight bytes and
+returns a stable body payload pointer. The input must expose `0x60` readable
+bytes. The helper `005BADA0–005BAE36` copies the 32-bit words at `+00..+38`,
+the byte at `+3C`, and the words at `+40..+5C`, without numeric conversion.
+Padding `+3D..+3F` has no promised value. The supplied linear response scalar
+`m=description[+2C]` is **not** inverted or replaced by a computed mass.
+
+Let half extents be `a=description[+20]`, `b=description[+24]`, and let `E`
+denote retained x87 arithmetic, with `F` a binary32 store. First form
+`D=E(b*b+a*a)` and set body `+68=F(E((m*48)/D))`. There is no intermediate
+binary32 store of D or of `m*48` (`005BBCB7–005BBD01`). This calculation
+precedes static/list selection. Zero extents are not rejected; division by
+zero follows the caller's floating environment, with no local false/null
+failure adapter. The admitted finite domain below requires positive D.
+
+Admission chooses exactly one list and appends at its tail:
+
+| Condition, in priority order | Root cell | `+74` | `+75` | Initial mapping |
+|---|---|---|---|---|
+| explicit static flag nonzero | simulator `+08` | 0 | 1 | compute bounds/key and call AddToSectorMap |
+| static flag zero and m strictly below binary32 `3727C5AC` | simulator `+04` | 1 | 0 | key zero, no sector call |
+| static flag zero and m at/above that threshold | simulator `+00` | 0 | 0 | key zero, no sector call |
+
+The threshold is `9.9999997473787516e-6`, not zero. All admitted bodies start
+with live byte `+76=1`. Nonstatic admission sets `+60=+64=0`; it does not
+calculate or initialize the `+6C/+70` trigonometric cache. Its value must not
+be used as a creation-time orientation oracle; the first live integration
+refreshes it. Both nonstatic span counts are `C(E(sqrt(D)*simulator[+28]))`.
+These square spans use the circumradius, independently of angle.
+Evidence: `005BBEEC–005BBF51` and the nonstatic insertion tails.
+
+For static admission, compute cos and sin of the supplied radian angle with
+x87 FCOS/FSIN and store each to binary32 c,s. Its AABB half extents are
+`X=F(E(a*abs(c)+b*abs(s)))` and `Y=F(E(a*abs(s)+b*abs(c)))`.
+With reciprocal sector width r from simulator `+28`, the lower-corner key is
+`((L(E((x-X)*r)) << 16) + L(E((y-Yraw)*r)) + 0x40004000) mod 2^32`.
+The high coordinate is X, low coordinate Y; there is no separate mask/clamp
+before the packed addition. Span counts are `C(E((X*r)*2))` and
+`C(E((Yraw*r)*2))`. Here Yraw is the retained unrounded AABB-Y sum: the
+initial static path stores Y **without popping it**, then uses that retained
+value for the Y key and Y span. X uses its stored binary32 value. This
+staging difference is visible at `005BBD7C–005BBE8D`; later integration uses
+both stored AABB values. Do not substitute full rectangle widths for a,b.
+
+L and C preserve the original conversion at integral boundaries. Under
+round-to-nearest and coordinates in the ordinary city range they act as floor
+and ceiling respectively. Their exact word rules, including the intermediate
+binary32 store, are:
+
+| Conversion | Candidate n | Boundary correction |
+|---|---|---|
+| L(q) | reinterpret the bits of `F(E((q−0.5)+12582912))` as a 32-bit word, subtract `0x4B400000` modulo 2^32 | if retained q equals the signed integer n+1 converted to x87, use n+1 |
+| C(q) | reinterpret the bits of `F(E((q+0.5)+12582912))` as a 32-bit word, subtract `0x4B400000` modulo 2^32 | if retained q equals the signed integer n−1 converted to x87, use n−1 |
+
+These are bit reinterpretations followed by integer arithmetic, **not** casts
+of the large float to an integer. Constants are binary32 `3F000000` at
+`00A84D2C` and `4B400000` at `00AA0F98`. Evidence for L is
+`005BBD83–005BBDFF`; for C, `005BBE17–005BBE8D`, `005BBEEC–005BBF25`.
+There is no evidence here for a saturating conversion of nonfinite/huge inputs.
+
+Each successful insertion requests `0x8C` bytes from `005B9FC0`, copies the
+description and simulator fields through `005BAE40–005BAE9C`, appends the
+node and returns `node+08`. The explicit static insertion alone calls the
+sector helper before returning. No input validation, body AddRef or retained
+description pointer appears. No recoverable allocation failure or rollback is
+established: the payload-copy guard is not a checked null return, and link
+writes follow it unconditionally (`005BBE97–005BBEE9`, `005BBF59–005BBFCD`).
+
+### 7.4 Finite live-body integration *[compat]*
+
+Inputs are a valid stable list, finite body fields and binary32 dt. Each
+arithmetic expression below follows x87 operation order; round only at the
+identified binary32 stores, without fused multiply-add. This is an inner
+integration contract, not a promise that the subsequent collision pass leaves
+the resulting values unchanged.
+
+Position and height use **old** velocities: independently store
+`F(E(x+dt*vx))`, `F(E(y+dt*vy))`, `F(E(h+dt*vh))`, then store angle
+`t=F(E(angle+dt*angularVelocity))` (`005BBFFE–005BC03D`). Compare abs(t)
+with binary64 pi, bits `400921FB54442D18` at `00AA0F90`. On strict greater,
+pass t and binary64 2pi (`401921FB54442D18`, `00AA0FB8`) to the foreign
+`_CIfmod` helper and store its result to binary32. This is a signed remainder
+by 2pi, **not** reduction into [-pi,pi]. In particular ±4 radians remain ±4.
+It is also not comparison against binary32 pi. The math helper's exceptional
+domain/internal accuracy is foreign, not a new solver rule (`005BC040–005BC05C`).
+
+Compute x87 cos/sin of the final stored angle and store c,s to `+6C/+70`.
+Next store accelerated velocity `vx'=F(E(vx+dt*ax))`,
+`vy'=F(E(vy+dt*ay))`. Height velocity and angular velocity have no acceleration
+update here (`005BC05F–005BC097`). When friction byte `+3C` is zero these
+velocities survive to sector remapping.
+
+With friction enabled, form retained values
+`u=E((s*vy'+c*vx')−dt*body[+30])` and
+`v=E((c*vy'+(−s)*vx')−dt*body[+34])`, each independently replaced by positive
+zero when strictly negative. This discards negative forward/lateral motion
+even when the corresponding friction rate is zero. It is not a signed
+deceleration toward zero. For reconstruction, store the four products
+`F(c*u)`, `F(s*u)`, `F((−s)*v)`, `F(c*v)` separately; then store the sums
+of the first/third and second/fourth products to vx,vy. These product stores
+are required; combining into a single unrounded rotation changes results.
+Finally form `w=E(angularVelocity−dt*body[+38])`, store it to `+1C`, and
+overwrite with positive zero if the **retained** w is negative. Evidence:
+`005BC09A–005BC174`. Angle integration already consumed the old angular
+velocity before this subtraction/clamp.
+
+Refresh `+60=F(E(abs(s)*b+abs(c)*a))` and
+`+64=F(E(abs(c)*b+abs(s)*a))`. Compute the packed key using L from §7.3
+on `(y−storedY)*r` and `(x−storedX)*r`, with the same packing addition.
+The two stored extents are used on this path (`005BC17B–005BC234`). Do not
+recompute the admission-time span counts `+7C/+80`.
+If the key equals `+78`, make no sector calls. Otherwise remove old sector
+membership if the old key is nonzero, store the new key, then call
+AddToSectorMap. There is no clamp to city bounds or rollback on foreign-helper
+failure in this inner body (`005BC23B–005BC253`). The dynamic host supplies
+its separate city-boundary policy. A dead node changes no body fields and
+makes no sector calls. A zero dt can still refresh caches/bounds, clamp
+negative velocity when friction is enabled and establish sector membership.
+
 ## 8. Independent proposed vectors
 
 All rows are **PROPOSED/UNEXECUTED**, derived from instruction-stage arithmetic
@@ -357,7 +486,7 @@ before any future implementation outputs. They are not native conformance passes
 
 | ID | Raw input | Required result and distinction |
 |---|---|---|
-| RB-P1 | keyA=`0x00020009`, keyB=`0x00050003` | reconstructed primary key=`0x00020003`; current at either original key is false; swapping A/B does not change the selected key |
+| RB-P1 | keyA=`0x00020009`, keyB=`0x00050003` | reconstructed primary key=`0x00050009`; current at either original key is false; swapping A/B does not change the selected key |
 | RB-P2 | keyA=keyB=`0xFFFF0000`, current equal | true; high-half comparison is unsigned |
 | RB-S1 | body centre `(10,20)`, axes `(1,0)`, extents `(2,3)`, reference `(0,0)`, direction `(1,0)` | support `(8,23)`; second projection is zero so its positive extent survives |
 | RB-S2 | same body/reference, direction `(0,0)` | `(12,23)`; zero is not a sign-flip branch |
@@ -462,6 +591,31 @@ outcome, time-of-impact interval vector, dt-sign outcome, cycle tie, or cap vect
 is published without the missing owner branches; see RB1–RB6 in the
 [open questions](questions/rigid-body-2d.md).
 
+### 8.4 Admission, friction, wrapping and sector fixtures (PROPOSED/UNEXECUTED)
+
+Use valid stable lists, normally returning allocators/sector helpers, x87
+round-to-nearest and finite intermediates. Integration fixtures target the
+inner list overload, before DoCollisions. Unmentioned description scalars are
+zero; source padding and nonstatic initial trig-cache bits are not compared.
+
+| ID | Input | Required observation |
+|---|---|---|
+| RB-A1 | default width 64; description position (64,128), half extents (32,16), angle 0, response m=80; static flag zero | append ordinary root +00; copy m=80; angular response 3; live 1, markers +74/+75 zero; AABB (0,0), key 0, spans (1,1); no sector call |
+| RB-A2 | RB-A1 but static flag nonzero | append root +08; marker +75=1, +74=0; caches (1,0), AABB (32,16), key `40004001`, spans (1,1); one sector-add call after insertion |
+| RB-A3 | RB-A1 with static flag zero; m bits `3727C5AB`, then `3727C5AC`, then `00000000` | root +04, root +00, root +04 respectively; +74=1 only on +04; input m copied unchanged in each case |
+| RB-A4 | static body angle 0, half extents (32,32), position (-32,-32), default width | lower-corner coordinates (-1,-1); key `3FFF3FFF`, spans (1,1); exact negative integral boundaries do not produce (-2,-2) |
+| RB-A5 | RB-A4 position (32,32) | lower-corner coordinates (0,0); key `40004000`, spans (1,1); exact zero/integer boundaries use correction, not an uncorrected tie result |
+| RB-I1 | live body, friction off, position (1,2), h=3, velocity (3,4), vh=2, acceleration (2,-2), angle/angularVelocity zero, dt=0.5 | position (2.5,4), h=4, velocity (4,3), vh=2, angle 0, caches (1,0); old velocity drives position |
+| RB-I2 | live body, angle/angularVelocity 0, velocity (5,7), friction rates (2,4,0), friction on, acceleration zero, dt=0.5 | position changes by (2.5,3.5) before friction; final velocity (4,5) |
+| RB-I3 | live body, angle 0, velocity (-2,-3), angularVelocity -4, friction on with all rates zero, dt=0 | position and angle unchanged; final velocity (+0,+0), angularVelocity +0; cache/bounds/remap still processed |
+| RB-I4 | same as RB-I3 but friction off | velocities remain (-2,-3), angularVelocity -4; dt zero still computes cache/bounds |
+| RB-I5 | angle 3, angularVelocity 1, dt 1, friction off | stored angle 4, cos/sin receive 4; no subtraction of pi or 2pi into [-pi,pi] |
+| RB-I6 | angle -3, angularVelocity -1, dt 1, friction off | stored angle -4; negative remainder retains the dividend's sign |
+| RB-I7 | one live nonstatic body from RB-A1, velocity/acceleration zero, dt zero, no old key | caches (1,0), AABB (32,16), new key `40004001`; store key before one sector-add call; admission span counts unchanged |
+| RB-I8 | RB-I7 with old key already `40004001` | no sector removal or insertion; AABB/cache refresh still happens |
+| RB-I9 | RB-I7 with a different nonzero old key | remove old membership, store `40004001`, add new membership, in that order |
+| RB-I10 | arbitrary body contents but live byte zero | no arithmetic stores or sector calls; node remains until a dead sweep |
+
 ## 9. Per-body publication ledger
 
 | Entry/range start | Status | Bounded credit |
@@ -479,8 +633,8 @@ is published without the missing owner branches; see RB1–RB6 in the
 | `005BB950` constructor | partial | directly observed initialization only, §7 |
 | `005BB9E0–005BBA34` RemoveObject | partial | pair unlink, sector-call boundary, deferred-dead flag, §7.1 |
 | `005BBA40` AddToSectorMap | unknown | sector mutation not yet qualified |
-| `005BBC10` AddObject | unknown | admission not yet qualified |
-| `005BBFD0–005BC26B` AdvanceTime | partial | live-list prefix and remap-call tail, §7.2 |
+| `005BBC10–005BBFCD` AddObject | supported | finite successful admission, source-copy layout, response derivation, three-list selection and initial bound/key staging, §7.3; allocator/sector internals excluded |
+| `005BBFD0–005BC26B` AdvanceTime | supported | finite live integration, signed friction, wrap boundary, store staging and remap calls, §7.4; foreign math and sector-helper internals excluded |
 | `005BC270–005BC296` AdvanceTime overload | supported | exact three-call phase boundary, §7.2 |
 | `005B9FC0` shared helper | foreign | no simulator-owned body credit |
 

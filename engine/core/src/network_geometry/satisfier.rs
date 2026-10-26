@@ -10,7 +10,7 @@
 //!
 //! Every arithmetic result is a float (`r24`, foundations §18).
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::x87::r24;
 
@@ -308,7 +308,7 @@ impl VertexHtConstraintSatisfier {
 
     /// Narrows record `i` to [a, b]. A solved vertex keeps its height and
     /// only checks it. Returns false when the range becomes empty.
-    fn narrow(&mut self, i: usize, a: f32, b: f32, _pinned: &mut VecDeque<usize>) -> bool {
+    fn narrow(&mut self, i: usize, a: f32, b: f32, affected: &mut BTreeSet<(i32, usize)>) -> bool {
         let r = &mut self.recs[i];
         let (lo, hi) = intersect(r.min, r.max, a, b);
         if lo > hi || lo.is_nan() || hi.is_nan() {
@@ -317,27 +317,21 @@ impl VertexHtConstraintSatisfier {
         if r.solved.is_some() {
             return true;
         }
-        r.min = lo;
-        r.max = hi;
+        if r.min != lo || r.max != hi {
+            r.min = lo;
+            r.max = hi;
+            affected.insert((r.id, i));
+        }
         true
     }
 
     /// Applies one constraint once. [choice] A constraint that names a
     /// vertex outside the to-solve set constrains nothing (Q NG10).
-    fn apply(&mut self, c: Constraint, pinned: &mut VecDeque<usize>) -> bool {
+    fn apply(&mut self, c: Constraint, pinned: &mut BTreeSet<(i32, usize)>) -> bool {
         let ix = |v: i32| self.index.get(&v).copied();
         match c {
-            Constraint::Equality(a, b) => {
-                let (Some(ia), Some(ib)) = (ix(a), ix(b)) else {
-                    return true;
-                };
-                let (bmin, bmax) = (self.recs[ib].min, self.recs[ib].max);
-                if !self.narrow(ia, bmin, bmax, pinned) {
-                    return false;
-                }
-                let (amin, amax) = (self.recs[ia].min, self.recs[ia].max);
-                self.narrow(ib, amin, amax, pinned)
-            }
+            // Equalities propagate from the source to its entire group below.
+            Constraint::Equality(_, _) => true,
             Constraint::Slope(a, b, s) => {
                 let (Some(ia), Some(ib)) = (ix(a), ix(b)) else {
                     return true;
@@ -375,6 +369,38 @@ impl VertexHtConstraintSatisfier {
         }
     }
 
+    /// §9.1: alternate signed-id ordered work sets until no bounds change.
+    fn propagate(
+        &mut self,
+        mut current: BTreeSet<(i32, usize)>,
+        groups: &[BTreeSet<(i32, usize)>],
+        queued: &mut [bool],
+        pending: &mut Vec<(usize, f32)>,
+    ) -> bool {
+        while !current.is_empty() {
+            let mut next = BTreeSet::new();
+            for (_, i) in current {
+                for k in 0..self.adj[i].len() {
+                    if !self.apply(self.cons[self.adj[i][k]], &mut next) {
+                        return false;
+                    }
+                }
+                let (lo, hi) = (self.recs[i].min, self.recs[i].max);
+                for &(_, other) in &groups[i] {
+                    if other != i && !self.narrow(other, lo, hi, &mut next) {
+                        return false;
+                    }
+                }
+                if lo == hi && !queued[i] {
+                    queued[i] = true;
+                    pending.push((i, lo));
+                }
+            }
+            current = next;
+        }
+        true
+    }
+
     /// `Solve` (§9.1): equal widths use SGI bucket/chain order (NG1).
     pub fn solve(&mut self) -> bool {
         self.solution.clear();
@@ -394,6 +420,24 @@ impl VertexHtConstraintSatisfier {
                 }
             }
         }
+        // Equality insertion merges equivalence groups; only allowed bounds
+        // propagate, preserving each member's initial height and preferences.
+        let mut groups: Vec<BTreeSet<_>> = self
+            .recs
+            .iter()
+            .enumerate()
+            .map(|(i, r)| BTreeSet::from([(r.id, i)]))
+            .collect();
+        for c in &self.cons {
+            if let Constraint::Equality(a, b) = c {
+                if let (Some(&ia), Some(&ib)) = (self.index.get(a), self.index.get(b)) {
+                    let merged: BTreeSet<_> = groups[ia].union(&groups[ib]).copied().collect();
+                    for &(_, i) in &merged {
+                        groups[i] = merged.clone();
+                    }
+                }
+            }
+        }
         // An inverted range from the inserts fails at once.
         if self
             .recs
@@ -402,19 +446,20 @@ impl VertexHtConstraintSatisfier {
         {
             return false;
         }
-        let mut pinned = VecDeque::new();
-        // 1. Propagate all constraints once.
-        for ci in 0..self.cons.len() {
-            if !self.apply(self.cons[ci], &mut pinned) {
-                return false;
-            }
+        let mut pending = Vec::new();
+        let mut queued = vec![false; self.recs.len()];
+        let all = self.recs.iter().enumerate().map(|(i, r)| (r.id, i)).collect();
+        // NT36: complete the initial propagation before comparing widths.
+        if !self.propagate(all, &groups, &mut queued, &mut pending) {
+            return false;
         }
         // Erasing solved nodes cannot change the relative order of survivors.
         let order: Vec<_> = self.buckets.iter().flatten().copied().collect();
-        // 2. Pick, choose, pin, propagate. The native pending stack is empty;
-        // propagation fixing a range must not give that vertex priority.
+        // 2. Singleton visits append pending pairs; drain them LIFO before
+        // scanning the hash buckets for the narrowest remaining range.
         loop {
-            let mut pick = None;
+            let stacked = pending.pop();
+            let mut pick = stacked.map(|(i, _)| i);
             if pick.is_none() {
                 let mut best_w = 0.0f32;
                 for &i in &order {
@@ -438,18 +483,19 @@ impl VertexHtConstraintSatisfier {
             let Some(i) = pick else {
                 break;
             };
-            let h = self.choose(i);
-            let r = &mut self.recs[i];
-            r.min = h;
-            r.max = h;
-            r.solved = Some(h);
-            self.solution.push((r.id, h));
-            for k in 0..self.adj[i].len() {
-                let ci = self.adj[i][k];
-                if !self.apply(self.cons[ci], &mut pinned) {
+            let h = stacked.map_or_else(|| self.choose(i), |(_, h)| h);
+            if stacked.is_none() {
+                self.recs[i].min = h;
+                self.recs[i].max = h;
+                queued[i] = true;
+                let current = BTreeSet::from([(self.recs[i].id, i)]);
+                if !self.propagate(current, &groups, &mut queued, &mut pending) {
                     return false;
                 }
             }
+            let r = &mut self.recs[i];
+            r.solved = Some(h);
+            self.solution.push((r.id, h));
         }
         // 3. Every vertex got a height.
         self.recs.iter().all(|r| r.solved.is_some())

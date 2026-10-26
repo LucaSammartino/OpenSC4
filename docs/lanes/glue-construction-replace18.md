@@ -1,0 +1,13 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| glue-construction-replace18 (construction records) | `Codex` / `glue-construction-replace18` (engine lane) | Ready to land record staging and tests: cargo 7532 passed, clippy clean, CTest 86/86; rebuilt DLL clean to 2032, construction shadow 73/73, ref_warnings=0. Construction replacement remains incomplete. | Keep construction out of the house replace list. Finish the occupant lifecycle, scheduling, rendering and factory registration, then test both replacement profiles. |
+
+Code: reject missing expected identity before QI; stage a core-backed serializable construction record factory with transactional Read, serialized access and balanced field-reference ownership. The staging factory is exposed only through the test seam and does not supply the construction occupant interface.
+Tests: track exhausted-input errors in the local Rust stream so every truncated record must preserve the prior record; verify successful replacement afterward. The DLL factory test covers duplicate field ownership, rejected effect interfaces, retained accepted fields, and cleanup after success and late failure.
+Gate: qbuild all PASS on stable source; cargo 7532/0, clippy 0 diagnostics, native build 186/186 edges, CTest 86/86. construction_capture_test, construction_identity_test and construction_record_factory_test all passed. Owned Rust formatting passed.
+Gate evidence: build-runs/qbuild-all-r6.log, qbuild-test.log, qbuild-clippy.log, fc4verify-build.log and fc4verify-ctest.log. Native queue: qbuild-20261025-050208-build-ctest; actual terminal verdict pass.
+construction18-r6-shadow2032-20261025a 73/73. Turbo Konradshohe reached 2032-01-03 in 27.016 simulation seconds; ref_warnings=0, foreign_exceptions=0, rtc=0, watchdog_stalls=0, overruns=0, Rust panics=0. Rebuilt DLL SHA256 prefix 7f82b25e.
+Run evidence: build-runs/game-results/construction18-r6-shadow2032-20261025a.verdict and .log; request archived under build-runs/game-queue/done/. No request remains outstanding.
+Scope: construction_shadow remains default-off and measures live position, class, type and identity only; records, lifecycle, scheduling and rendering are excluded. This run does not measure a replacement occupant.
+Missing: full cFC4Construction occupant, lifecycle/scheduling/render adapter, construction replace key, subsystem factory registration and registration CTest. Construction-only and full-house replacement runs were not performed because there is no registered construction replacement. No owner credit flip is claimed.
+Questions: none. Public ABI unchanged. No specs, coverage files, regress scripts or run records edited.

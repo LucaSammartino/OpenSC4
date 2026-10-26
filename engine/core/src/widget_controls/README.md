@@ -9,6 +9,9 @@ pixel or shadow comparison is claimed.
 Grid and TextEdit implement their settled owner specifications. FileBrowser
 and TreeView retain the explicit boundaries below. Public fields supply the
 thin stored-state accessors.
+Grid, ListBox and TreeView implement their settled owner specifications.
+TextEdit and FileBrowser have the explicit question boundaries below.
+Public fields supply the thin stored-state accessors.
 Byte-stage TextEdit fixture entries remain available alongside live methods.
 
 ### cGZWinGrid
@@ -118,35 +121,66 @@ be claimed while directory/drive population and restoration remain FBQ5.
 ### cGZWinListBox
 
 Implemented column paths are relative to `engine/core/src/widget_controls/`.
-This checkpoint applies settled contracts, but does not claim full owner closure.
+The slot map below records the portable equivalents; stored-state getters use
+public fields, without notifications or reference acquisition.
 
-| Spec section | Implemented code item / module path | Test / remaining work |
+| Spec section | Implemented code item / module path | Tests |
 |---|---|---|
-| widget-controls 5.1 identity/inventory | list_box.rs: query_interface, stored fields | wc_l01; residual ABI inventory still needs the complete adapter audit |
+| widget-controls 5.1 identity/inventory | list_box.rs: query_interface, stored fields; L/W slot map below | wc_l01; wc_f01; list_primary_bytes_and_exact_search_preserve_outputs_without_effects; list_residual_slot_adapters_colors_gutters_skin_and_base_flags |
 | 5.2 construction/resources | list_box.rs: new/init/shutdown/destroy | wc_l10_l13; wc_l24_l34_l35_l36; wc_l36_timer_is_destroyed_before_retained_resources |
 | 5.3 entries/selection | list_box.rs: insert/remove/select/next_page/size_drop_height/size_drop_width | wc_l16_l22, wc_l23_l30, wc_l24_l34_l35_l36 |
 | 5.4 messages/capture | list_box.rs: key methods, mouse_move/mouse_up_at, bar_tracking; list_box/adapters.rs: forward_bar | wc_l14_l15; wc_l24_l34_l35_l36; wc_l_residual_outputs_storage_and_bounded_bar_coordinates |
 | 5.5 drawing | list_box.rs: paint/paint_plain_text/scan_rgb; mod.rs: Foreign fitting primitives | wc_l26_l31_l34; wc_l24_l34_l35_l36 |
-| 5.6 residual contracts | list_box.rs: sorting/search/stored_count/intensity, signed storage helpers; list_box/adapters.rs: color/gutter/skin/output adapters | wc_l23_l30, wc_l26_l31_l34; wc_l_residual_outputs_storage_and_bounded_bar_coordinates; full slot-by-slot audit remains |
-| 7 conformance | settled_tests.rs plus tests.rs | grouped WC-L19-L36 scenarios; exhaustive literal vector audit remains |
+| 5.6 residual contracts | list_box.rs: sorting/search/stored_count/intensity, signed storage helpers; list_box/adapters.rs: color/gutter/skin/output adapters | wc_l23_l30, wc_l26_l31_l34; wc_l_residual_outputs_storage_and_bounded_bar_coordinates; wc_l27_l31_literal_sort_storage_and_highlight |
+| 7 conformance | settled_tests.rs, closure_tests.rs and tests.rs | L01-L15 and L19-L36: original grouped tests plus wc_l19_l22_literal_removal_and_page_notifications and wc_l27_l31_literal_sort_storage_and_highlight; no L16-L18 literals are assigned in the spec |
 | 8 coverage | portable core only | no plugin/game/shadow claim; WC1-WC6 are settled, not open questions |
 
 ### cGZWinTreeView
 
-| Spec section | Code item | Tests / open contract |
+| Spec section | Code item | Tests |
 |---|---|---|
-| widget-controls 6.1 identity/interfaces | tree_view.rs: query_interface/constants; tree_view/settled.rs: adapters | T01-T03; full inventory audit remains |
-| 6.2 defaults/lifetime | tree_view.rs: new/internal_init/root/shutdown; tree_view/settled.rs: initialize_images | T01-T03, wc_t19_t26, wc_t27_t29_t36; restart retains stale root/init fields |
+| widget-controls 6.1 identity/interfaces | tree_view.rs: query_interface/constants; tree_view/adapters.rs: primary-slot inventory | T01-T03; tree_primary_insert_wrappers_copy_initialized_defaults_and_failure_data; tree_selection_output_and_borrowed_adapter_inventory |
+| 6.2 defaults/lifetime | tree_view.rs: new/internal_init/create_root/shutdown/checked_init; tree_view/settled.rs: initialize_images | T01-T03, wc_t19_t26, wc_t27_t29_t36; wc_t26_restart_is_not_clean_initialization asserts the stale-root precondition and no resource retry |
 | 6.3 nodes/selection | tree_view.rs: insert/insert_at/recalculate/selection | T02-T06, wc_t13_t16, wc_t19_t26 |
 | 6.4 input/messages | tree_view.rs: wheel/keys/activation/messages; tree_view/input.rs: mouse_button | T07-T11, wc_t37_t38, wc_t39_t43 |
-| 6.5 drawing/layout | tree_view/rendering.rs: layout_viewport/cursor_row/content_width/render_item/paint_tree/connectors; tree_view.rs: draw_subimage/blit_viewport primitives | T12, wc_t13_t16, wc_t17_t18_t48_t51; wc_t18_centered_images_and_packed_drag_preserve_hit_geometry; automatic buffer/bar recalculation remains incomplete |
-| 6.6 properties/descriptors/adapters | tree_view/settled.rs: property setters/descriptor/apply_descriptor/move_node/remove_node/images | wc_t19_t26, wc_t27_t29_t36, wc_t30_t35; raw negative property indices and complete ABI enumeration remain to audit |
-| 6.7 input/drag/rendering | tree_view/input.rs: mouse_button/notify_drag/mouse_move/DragHelper, packed-row drawing with cached-hit preservation; tree_view/rendering.rs: fills/connectors | wc_t37_t38, wc_t39_t43, wc_t44_t47, wc_t17_t18_t48_t51; wc_t18_centered_images_and_packed_drag_preserve_hit_geometry; helper integration and exact vector coverage remain incomplete |
-| 7 conformance | tests.rs and settled_tests.rs | old vectors plus grouped T13-T51 scenarios; not every literal vector is asserted yet |
-| 8 coverage | explicit native preconditions, no WC Open branches | WC2/WC3/WC6 are settled; remaining work is implementation, not unanswered questions |
+| 6.5 drawing/layout | tree_view/rendering.rs: recalculate_all/layout_viewport/cursor_row/content_width/render_item/paint_tree/connectors | T12, wc_t13_t16, wc_t17_t18_t48_t51; wc_t17_t24_literal_geometry_and_descriptor_children; tree_automatic_layout_sizes_buffers_and_updates_both_bar_requirements |
+| 6.6 properties/descriptors/adapters | tree_view/settled.rs and tree_view/adapters.rs: properties, raw aliases, descriptors, insertion, move/removal, images and output copies | wc_t19_t26, wc_t27_t29_t36, wc_t30_t35; tree_negative_property_aliases_preserve_raw_side_effects; tree_property_setters_and_raw_resource_aliases_have_literal_side_effects; tree_primary_insert_wrappers_copy_initialized_defaults_and_failure_data |
+| 6.7 input/drag/rendering | tree_view/input.rs: mouse_button/notify_drag/mouse_move/DragHelper, packed-row drawing; tree_view/rendering.rs: fills/connectors | wc_t37_t38, wc_t39_t43, wc_t44_t47, wc_t17_t18_t48_t51; tree_drag_helper_borrows_session_and_balances_capture; wc_t30_literal_move_order_and_t51_open_stroke; runner remains a supplied synchronous service |
+| 7 conformance | tests.rs, settled_tests.rs and closure_tests.rs | T01-T51; wc_t17_t24_literal_geometry_and_descriptor_children; wc_t26_restart_is_not_clean_initialization; wc_t30_literal_move_order_and_t51_open_stroke; wc_t40_literal_icon_click_and_t49_failed_access_has_no_release |
+| 8 coverage | explicit native preconditions, no WC Open branches | tree_internal_init_failures_do_not_retry_resources; tree_negative_property_aliases_preserve_raw_side_effects |
 
-The WC1-WC6 unsupported placeholders have been replaced. This does not by itself
-establish complete owner coverage: the implementation gaps above are still
-settled obligations. Unsafe native navigation/index domains use explicit
+The WC1-WC6 unsupported placeholders have been replaced. Unsafe native
+navigation/index domains use explicit
 Precondition results. Shared click state is passed by the host to mouse_button;
 the convenience mouse_down method performs an isolated single click.
+
+#### ListBox slot audit (widget-controls 5.1 and 5.6)
+
+Paths below are relative to this directory. Tests use the matching `wc_l*`
+groups in tests.rs, settled_tests.rs and closure_tests.rs.
+
+| Native slots | Portable code item | Covering test group |
+|---|---|---|
+| L0-L3 | query_interface; Foreign add_ref/release; window | wc_l01 |
+| L4-L8 | remove/find_remove/clear/insert/replace_text | wc_l02_l06; wc_l19_l22; wc_l23_l30 |
+| L9-L13 | resize_whole_lines/select/select_id/selected/selected_id | wc_l02_l06; wc_l07_l09 |
+| L14-L18 | enable_sorting/suppression/sort_now/set_drop_byte/drop_byte | wc_l27_l31; wc_l23_l30; list_primary_bytes_and_exact_search_preserve_outputs_without_effects |
+| L19-L25 | text_area/previous/next/first_page/last_page/previous_page/next_page | wc_l_residual_outputs_storage_and_bounded_bar_coordinates; wc_l19_l22 |
+| L26-L34 | is_visible/make_visible/select_prefix/set_first; stored_count/row_height/whole_rows/first; hit_test | wc_l07_l09; wc_l23_l30 |
+| L35-L38 | set_drop_policy_bytes/drop_policy_bytes/set_background/set_font | list_primary_bytes_and_exact_search_preserve_outputs_without_effects; wc_l10_l13 |
+| L39-L46 | set_font_color/font_color/reset_font_color/set_selection_color/selection_color; highlight/set_intensity | wc_l10_l13; wc_l_residual_outputs_storage_and_bounded_bar_coordinates; wc_l27_l31 |
+| L47-L50 | size_drop_height/size_drop_width/copy_text/search_with | wc_l23_l30; wc_l24_l34_l35_l36; wc_l_residual_outputs_storage_and_bounded_bar_coordinates |
+| L51-L60 | set_flat/flat/set_three_d/three_d; set_outline_colors/outline_colors/set_bar_gaps/bar_gap/bar_gap_y/set_text_gutters/x_gutter/y_gutter | wc_l10_l13; wc_l_residual_outputs_storage_and_bounded_bar_coordinates |
+| L61-L65 | set_minimum_height/set_bar_skin/false_stub/set_delivery/delivery_byte | list_residual_slot_adapters_colors_gutters_skin_and_base_flags; list_primary_bytes_and_exact_search_preserve_outputs_without_effects; wc_l14_l15 |
+| W0/W4/W5/W148 | query_interface/init/shutdown/destroy | wc_l01; wc_l36_timer_is_destroyed_before_retained_resources |
+| W68/W88 | set_flag; paint | list_residual_slot_adapters_colors_gutters_skin_and_base_flags; wc_l26_l31_l34 |
+| W130/W131/W134/W136/W138 | key_down/key_up/mouse_down/mouse_up_at/mouse_move | wc_l14_l15; list_mouse_timer_strictness_and_no_font_background; wc_l24_l34_l35_l36 |
+| W151-W159 | find_remove/character/set_border/copy_text/find_exact/recompute_metrics/text/remove_storage/insert_storage | list_primary_bytes_and_exact_search_preserve_outputs_without_effects; wc_l23_l30; wc_l_residual_outputs_storage_and_bounded_bar_coordinates; wc_f01 |
+| W160-W168 | refresh_bar/update_bar; emit/complete_drop and selection/activation forwarding | wc_l14_l15; wc_l24_l34_l35_l36 |
+
+Raw TreeView O40/O41 accesses use the modeled preceding words where defined.
+Other raw object words require host-supplied readable/writable storage in
+raw_property_words; no arbitrary memory read, fabricated default, color
+conversion, retention or invalidation is introduced. Native container/pointer
+corruption still has no safe traversal guarantee. The checked Init adapter
+reports a stale-root precondition rather than promising a restart result.

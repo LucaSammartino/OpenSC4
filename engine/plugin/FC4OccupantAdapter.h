@@ -4,6 +4,7 @@
 // keeps the occupant base block in its core object and supplies, by CRTP:
 //   bool OccGet(FC4OccBase&);  void OccPut(const FC4OccBase&);
 //   std::recursive_mutex& OccLock();  cFC4PropertyHolder& OccHolder();
+//   FC4OccupantStorage& OccStorage();
 // and overrides the slots that are its own (type, position, bounds, Init,
 // Shutdown, ...). The exemplar parent of the property holder and the lazy
 // placeable object (prop-occupant.md §6.1) are kept here.
@@ -29,6 +30,17 @@ struct FC4OccBase {
     uint8_t status;    // bit 0 initialised, bit 1 loaded, high nibble highlight
     uint8_t flags;     // bit 2 visible
     uint8_t rect[4];   // the stored manager box; rect[0] 0xFF = not indexed
+};
+
+// Keep the interface base pointer-sized. Native pole Write passes line+8
+// directly as cIGZSerializable (network-occupants.md 4.4 and 5.1).
+// Owned storage belongs after the derived class's interface subobjects.
+struct FC4OccupantStorage {
+    std::unique_ptr<fc4::props::Exemplar> parent;
+    cISC43DPlaceableObject* placeable = nullptr;
+    ~FC4OccupantStorage() {
+        if (placeable) reinterpret_cast<cIGZUnknown*>(placeable)->Release();
+    }
 };
 
 template <class Self>
@@ -95,11 +107,11 @@ public:
     // view windows hang the models they make on it.
     cISC43DPlaceableObject* GetPlaceableObject() override {
         std::lock_guard<std::recursive_mutex> g(self().OccLock());
-        return placeable_;
+        return Storage().placeable;
     }
     cISC43DPlaceableObject* GetOrCreatePlaceableObject() override {
         std::lock_guard<std::recursive_mutex> g(self().OccLock());
-        if (placeable_ == nullptr) {
+        if (Storage().placeable == nullptr) {
             const uintptr_t alloc = fc4::compat::DirectCall(fc4::compat::Direct::PlaceablePoolAllocate);
             const uintptr_t ctor = fc4::compat::DirectCall(fc4::compat::Direct::PlaceableConstruct);
             if (alloc == 0 || ctor == 0) return nullptr;  // logged once by compat
@@ -108,13 +120,13 @@ public:
             void* made = reinterpret_cast<void*(__fastcall*)(void*, void*)>(ctor)(node, nullptr);
             SwapPlaceable(static_cast<cISC43DPlaceableObject*>(made));
         }
-        return placeable_;
+        return Storage().placeable;
     }
     // 0x0078DAF0: AddRef the new one, Release the old one.
     cISC43DPlaceableObject* SetPlaceableObject(cISC43DPlaceableObject* p) override {
         std::lock_guard<std::recursive_mutex> g(self().OccLock());
         SwapPlaceable(p);
-        return placeable_;
+        return Storage().placeable;
     }
 
     // ---- slots 22-24: groups (property 0xAA1DD396, own or inherited) -------
@@ -178,9 +190,7 @@ public:
     }
 
 protected:
-    // The derived members (the holder) are gone by now; the placeable and
-    // the parent exemplar references are returned here.
-    ~FC4OccupantAdapter() { SwapPlaceable(nullptr); }
+    ~FC4OccupantAdapter() = default;
 
     // occupant-manager §13: loaded Init calls SetHighlight(0, false) and posts
     // no Create; a fresh Init posts Create (0x99EF1140).
@@ -214,16 +224,17 @@ protected:
     void ApplyParent(const uint32_t* key) {
         auto& holder = self().OccHolder();
         holder.SetParent(nullptr);
-        parent_.reset();
+        Storage().parent.reset();
         if (key == nullptr) return;
         auto res = std::make_unique<fc4::props::Exemplar>();
         if (!res->Load(key[0], key[1], key[2])) return;
-        parent_ = std::move(res);
-        holder.SetParent(parent_->Holder());
+        Storage().parent = std::move(res);
+        holder.SetParent(Storage().parent->Holder());
     }
 
 private:
     Self& self() { return *static_cast<Self*>(this); }
+    FC4OccupantStorage& Storage() { return self().OccStorage(); }
     FC4OccBase Get() { FC4OccBase s{}; self().OccGet(s); return s; }
     void Put(const FC4OccBase& s) { self().OccPut(s); }
     uint32_t Removal(uint32_t f, int delta) {
@@ -237,14 +248,12 @@ private:
         return s.removal;
     }
     void SwapPlaceable(cISC43DPlaceableObject* p) {
-        cISC43DPlaceableObject* old = placeable_;
+        cISC43DPlaceableObject* old = Storage().placeable;
         if (p == old) return;
         if (p) Unknown(p)->AddRef();
-        placeable_ = p;
+        Storage().placeable = p;
         if (old) Unknown(old)->Release();
     }
     // Slots 0-2 of the placeable are cIGZUnknown's (prop-occupant.md §6.1).
     static cIGZUnknown* Unknown(cISC43DPlaceableObject* p) { return reinterpret_cast<cIGZUnknown*>(p); }
-    std::unique_ptr<fc4::props::Exemplar> parent_;
-    cISC43DPlaceableObject* placeable_ = nullptr;
 };

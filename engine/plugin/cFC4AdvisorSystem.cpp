@@ -25,6 +25,9 @@
 #include "FC4PropCityCommon.h"
 #include "FC4Streams.h"
 #include "cFC4AdviceSubject.h"
+#include "cFC4MySim.h"
+#include "FC4MySimGameHost.h"
+#include "FC4Subsystems.h"
 #include "cFC4Date.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
@@ -70,6 +73,7 @@ cFC4AdvisorSystem* Self(void* u) { return static_cast<cFC4AdvisorSystem*>(u); }
 // The one live system the Lua trampolines reach (§14.2: the game keeps one in
 // 0x00B207C0 too). Set in Init, cleared in Shutdown.
 cFC4AdvisorSystem* g_live = nullptr;
+std::map<int32_t, int32_t> g_mysimTables;
 
 cISC4App* App() {
     cIGZFrameWork* fw = RZGetFrameWork();
@@ -489,7 +493,12 @@ uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
         auto* s = new cFC4AdviceSubject(handle, &NewSubjectHandle, u);
         return s->Token();
     }
-    if (kind == FC4_ADV_OBJ_ADVISOR) return (new cFC4Advisor(handle))->Token();  // §12.2
+    if (kind == FC4_ADV_OBJ_ADVISOR) {
+        const uint32_t cls = fc4_adv_obj_class(handle);
+        if (cls == kFC4_CLSID_cSC4MySim || cls == kFC4_CLSID_cSC4MyStreetSim)
+            return fc4::CreateMySimFront(handle);
+        return (new cFC4Advisor(handle))->Token();  // §12.2
+    }
     if (kind == FC4_ADV_OBJ_ADVICE) return (new cFC4Advice(handle))->Token();    // §12.3
     fc4_adv_obj_destroy(handle);
     return 0;
@@ -712,6 +721,80 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
 
 }  // namespace
 
+fc4_advisors* fc4::CurrentAdvisorCore() { return g_live != nullptr ? g_live->Core() : nullptr; }
+
+bool fc4::ActivateMySimLua(int32_t id) {
+    cISCLua* L = g_live ? g_live->Lua() : nullptr;
+    const auto it = g_mysimTables.find(id);
+    if (!L || it == g_mysimTables.end()) return false;
+    L->GetRef(it->second);
+    L->SetGlobal("mysim");
+    return true;
+}
+
+void fc4::FillMySimLuaHost(fc4_mysim_host* h) {
+    h->create_table = [](void*, int32_t id) -> bool {
+        cISCLua* L = g_live ? g_live->Lua() : nullptr;
+        if (!L) return false;
+        if (g_mysimTables.find(id) == g_mysimTables.end()) {
+            L->NewTable();
+            g_mysimTables[id] = L->Ref(1);
+        }
+        return true;
+    };
+    h->activate_lua = [](void*, int32_t id) -> bool { return ActivateMySimLua(id); };
+    h->tuning = [](void*, const char* key, double* out) -> bool {
+        cISCLua* L = g_live ? g_live->Lua() : nullptr;
+        if (!L || !key || !out) return false;
+        const int32_t top = L->GetTop();
+        L->GetGlobal("tuning_constants");
+        bool ok = false;
+        // [abi-ret] advisors.md §12.5: SDK Lua type predicates return bool.
+        if (L->IsTable(-1)) {
+            L->PushString(key);
+            L->GetTable(-2);
+            // [abi-ret] advisors.md §12.5: SDK IsNumber returns bool.
+            ok = L->IsNumber(-1);
+            if (ok) *out = L->ToNumber(-1);
+        }
+        L->SetTop(top);
+        return ok;
+    };
+    h->set_field = [](void*, int32_t id, const char* key, const fc4_mysim_field* f) {
+        cISCLua* L = g_live ? g_live->Lua() : nullptr;
+        const auto it = g_mysimTables.find(id);
+        if (!L || !f || !key || it == g_mysimTables.end()) return;
+        const int32_t top = L->GetTop();
+        L->GetRef(it->second);
+        L->PushString(key);
+        if (f->kind == FC4_MYSIM_FIELD_NUMBER) L->PushNumber(f->number);
+        else if (f->kind == FC4_MYSIM_FIELD_STRING)
+            L->PushLString(reinterpret_cast<const char*>(f->str), static_cast<int32_t>(f->len));
+        else if (f->object == 0 && f->subject == nullptr) L->PushNil();
+        else {
+            fc4_adv_obj* s = fc4_advisors_new_subject(CurrentAdvisorCore());
+            fc4_adv_subject_state state{};
+            if (f->subject) state = *f->subject;
+            else {
+                state.object = f->object;
+                fc4_mysim_host services{};
+                FillMySimGameServices(&services);
+                float p[3]{};
+                if (services.occupant_position(nullptr, f->object, p)) {
+                    state.x = p[0]; state.z = p[2]; state.has_location = 1;
+                }
+            }
+            fc4_adv_subject_set(s, &state);
+            cIGZUnknown* subject = FromToken(fc4_adv_obj_token(s));
+            if (subject) FC4_ADDREF(subject);
+            L->PushUserTag(subject, g_tags[0]);
+            fc4_adv_obj_destroy(s);
+        }
+        L->SetTable(-3);
+        L->SetTop(top);
+    };
+}
+
 cIGZUnknown* CreateFC4AdvisorSystem() { return (new cFC4AdvisorSystem())->Primary(); }
 
 // ---- the cheat handler (+8) -------------------------------------------------------------------------------
@@ -736,7 +819,11 @@ cFC4AdvisorSystem::cFC4AdvisorSystem() : cheat_(this) {
     fc4::AdvisorWinProcOps ops{};
     if (fc4::GameAdvisorWinProcOps(&ops)) window_.SetOps(ops);
     host_ = MakeHost(this);
-    core_ = fc4_advisors_create(&host_, nullptr, GetTickCount());  // §9: wall-clock seed
+    // `enable = mysims` (cFC4MySim.h): the core runs the MySim classes and agent.
+    const bool mysims = fc4::MySimsReplaced();
+    if (mysims) fc4::FillMySimReplacementHost(&mysimHost_);
+    core_ = fc4_advisors_create(&host_, mysims ? &mysimHost_ : nullptr, GetTickCount());  // §9: wall-clock seed
+    g_live = this;  // §1.2: class-store Read and factory requests precede Init.
     self_ = core_ ? fc4_advisors_system_object(core_) : nullptr;
     if (self_ != nullptr) fc4_adv_obj_set_token(self_, fc4::TokenOf(Primary()));
     global_ = fc4::AdvisorSystemGlobalSlot(fc4::compat::AdvisorSystemGlobal());
@@ -746,6 +833,7 @@ cFC4AdvisorSystem::cFC4AdvisorSystem() : cheat_(this) {
 }
 
 cFC4AdvisorSystem::~cFC4AdvisorSystem() {
+    if (g_live == this) g_live = nullptr;
     global_.Withdraw();
     map_.Clear();
     if (self_ != nullptr) fc4_adv_obj_destroy(self_);
@@ -802,6 +890,8 @@ void cFC4AdvisorSystem::AcquireLua() {
 void cFC4AdvisorSystem::ReleaseLua() {
     cISCLua* lua = lua_;
     lua_ = nullptr;
+    if (lua) for (const auto& table : g_mysimTables) lua->Unref(table.second);
+    g_mysimTables.clear();
     if (lua != nullptr) FC4_RELEASE(lua);
 }
 
@@ -874,6 +964,7 @@ bool cFC4AdvisorSystem::Init() {
     g_live = this;
     const bool ok = core_ != nullptr && fc4_advisors_init(core_);
     initialised_ = true;
+    if (fc4::MySimsReplaced()) fc4::MySimReplacementStart(core_);
     const fc4_advisors_state st = State();
     fc4::Log("advisors Init: ok=%d lua=%p advisors=%u", ok ? 1 : 0, static_cast<void*>(lua_), st.advisor_count);
     return true;
@@ -881,6 +972,7 @@ bool cFC4AdvisorSystem::Init() {
 
 bool cFC4AdvisorSystem::Shutdown() {
     if (core_ != nullptr) fc4_advisors_shutdown(core_);
+    if (fc4::MySimsReplaced()) fc4::MySimReplacementStop(core_);
     ReleaseLua();
     if (g_live == this) g_live = nullptr;
     initialised_ = false;
@@ -996,6 +1088,12 @@ bool cFC4AdvisorSystem::DoMessage(cIGZMessage2* pMessage) {
 }
 
 // §11.1 holds advisor references: written by the next round with the advisor class.
-bool cFC4AdvisorSystem::Write(cIGZOStream&) { return false; }
-bool cFC4AdvisorSystem::Read(cIGZIStream&) { return false; }
+bool cFC4AdvisorSystem::Write(cIGZOStream& out) {
+    fc4::OStreamAdapter stream(out);
+    return self_ != nullptr && fc4_adv_obj_write(self_, stream.Get());
+}
+bool cFC4AdvisorSystem::Read(cIGZIStream& in) {
+    fc4::IStreamAdapter stream(in);
+    return self_ != nullptr && fc4_adv_obj_read(self_, stream.Get());
+}
 uint32_t cFC4AdvisorSystem::GetGZCLSID() { return kFC4_CLSID_cSC4AdvisorSystem; }

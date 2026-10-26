@@ -117,8 +117,8 @@ cSC4SeaportDeveloper	port developers	simulation	port-developers.md	core/src/port
 cPortTypeConfig	port developers	simulation	port-developers.md	core/src/port_developer	ports_shadow	ports
 cSC4PropDeveloper	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	propdev
 cSC4WealthRequester	prop developer	simulation	prop-developer.md	core/src/prop_developer	-	-
-cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	-	nettool
-cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	core/src/network_tools	-	-
+cSC4NetworkTool	network tools	simulation	network-tools.md,network-geometry.md,network-bridges.md	core/src/network_tools,core/src/network_geometry,core/src/network_bridge	nettool_plan_shadow	nettool
+cSC4PowerLineTool	network tools	simulation	network-tools.md,network-geometry.md	core/src/network_tools	powerline_plan_shadow	-
 cSC4UndergroundNetworkTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4PipeTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
 cSC4SubwayTool	network tools	simulation	network-tools.md,network-geometry.md	-	-	-
@@ -142,6 +142,7 @@ cSC4Demolition	demolition	simulation	demolition.md	core/src/demolition	demolitio
 cSC4DemolitionOccupantFilter	demolition	simulation	demolition.md	core/src/demolition	-	-
 cSC4DispatchManager	dispatch	simulation	dispatch.md	core/src/dispatch	dispatch_shadow	dispatch
 cSC4AdvisorUIAdvisorWinProc	windows and panels	ui	advisor-window.md	-	-	-
+cSC4AdvisorUIImageWinProc	windows and panels	ui	advisor-face.md	-	-	-
 cSC4Advisor*WinProc	windows and panels	ui	-	-	-	-
 cSC4AdvisorSystem	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors
 cSC4Advisor*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	advisors
@@ -149,10 +150,10 @@ cSC4Advice*	advisors	simulation	advisors.md	core/src/advisors	advisors_shadow	ad
 cSC4RewardAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4CitySituationAdvice	advisors	simulation	advisors.md	core/src/advisors	-	-
 cSC4MySimAgentSimulator	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
+cSC4MySim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	mysims
 cSC4MySimPool	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	-
-cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	-
+cSC4MySimDispatch*	mysims	simulation	mysims.md	core/src/mysims	-	mysims
+cSC4MyStreetSim	mysims	simulation	mysims.md	core/src/mysims	mysims_shadow	mysims
 cSC4MySimAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 cSC4MySimBalloonAdvice	mysims	simulation	mysims.md	core/src/mysims	-	-
 # lotrec_shadow (glue-simgrid-lotrec5, counted from train176) round-trips every master lot record through core/src/lot_records at load and monthly; units, occupants and unspecified props are excluded, so only cSC4Lot is credited (record-only, run 5)
@@ -168,14 +169,14 @@ cSC4COMSerializer	city and save file	simulation	foundations.md	core/src/save.rs	
 # the save-game object file (0x005D9490-0x005DC0xx: cSC4AutoLoad/AutoSave streams and records, then the typed stream
 # operators, then SC4OpenSaveGame / SC4ReadBinaryRecord); the operators are called from the Read / Write of the simulators'
 # records (weather, traffic, residential, flora, sim grids, automata, effects, occupants). Two operator<< overloads of the
-# same name live elsewhere (0x005192E0 automata, 0x005AFFF0 effects resource, 1,110 bytes) and share the owner. No spec
-# has them as its subject
-cSC4AutoLoadStream	city and save file	simulation	-	-	-	-
-cSC4AutoSaveStream	city and save file	simulation	-	-	-	-
-cSC4AutoLoadRecord	city and save file	simulation	-	-	-	-
-cSC4AutoSaveRecord	city and save file	simulation	-	-	-	-
-fn:operator>>	city and save file	simulation	-	-	-	-
-fn:operator<<	city and save file	simulation	-	-	-	-
+# same name live elsewhere (0x005192E0 automata, 0x005AFFF0 effects resource, 1,110 bytes) and share the owner. The
+# operators (and those two) are stream-helpers.md; the auto streams and records are auto-records.md
+cSC4AutoLoadStream	city and save file	simulation	auto-records.md	-	-	-
+cSC4AutoSaveStream	city and save file	simulation	auto-records.md	-	-	-
+cSC4AutoLoadRecord	city and save file	simulation	auto-records.md	-	-	-
+cSC4AutoSaveRecord	city and save file	simulation	auto-records.md	-	-	-
+fn:operator>>	city and save file	simulation	stream-helpers.md	-	-	-
+fn:operator<<	city and save file	simulation	stream-helpers.md	-	-	-
 # ---- simulation: no spec yet
 cSC4Aircraft	automata (vehicles, animation)	simulation	aircraft.md, automata.md	-	-	-
 cSC4Airplane	automata (vehicles, animation)	simulation	aircraft.md, automata.md, automata-managers.md	-	-	-
@@ -212,7 +213,7 @@ cSC4AttractorDescription	automata (vehicles, animation)	simulation	automata-supp
 cSC4ControllerGrid	automata (vehicles, animation)	simulation	automata-support.md	-	-	-
 cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	automata-support.md, prop-occupant.md	-	-	-
 tControllerQInfo	automata (vehicles, animation)	simulation	automata.md	-	-	-
-cSC4NetworkToolUI	city tools and input	ui	-	-	-	-
+cSC4NetworkToolUI	city tools and input	ui	network-tool-ui.md	-	-	-
 cSC4NetworkPreview	city tools and input	ui	-	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
@@ -260,39 +261,55 @@ cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
 SC4QuadGrid	other simulation	simulation	render3d.md	-	-	-
 cSC4TutorialRegistry	tutorial	simulation	tutorial-registry.md	core/src/tutorial	-	-
 cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
-cSC4AnimationTickManager	other simulation	simulation	-	-	-	-
+cSC4AnimationTickManager	other simulation	simulation	animation-tick.md	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	regionalcity
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
+fn:SC4WriteCityRegionViewThumbnail	region	region	regional-city-records.md	-	-	-
+fn:SC4ReadCityRegionViewThumbnails	region	region	regional-city-records.md	-	-	-
+fn:SC4RenderRegionBorderMasks	region	region	regional-city-records.md	-	-	-
+fn:SC4WriteCityRegionViewThumbnails	region	region	regional-city-records.md	-	-	-
+fn:SC4WriteDefaultCityRegionViewThumbnail	region	region	regional-city-records.md	-	-	-
+fn:SC4CreateSavePathForCity	region	region	region-model.md	-	-	-
 fn:SC4ReadRegionalCity	region	region	regional-city.md, region.md, foundations.md	-	-	-
 fn:SC4WriteRegionalCity	region	region	region.md	-	-	-
 fn:SC4CreateCitySerialNumber	region	region	region.md	-	-	-
 cSC4Region	region	region	region-model.md, region.md	-	-	-
 cSC4RegionSignpostAnimatorWinProc	region	region	region-view.md	-	-	-
+cSC4RegionalTerrainMap	region	region	sim-misc.md, region-model.md	-	-	-
+cSC4RegionalTerrainView	region	region	region-model.md, sim-misc.md	-	-	-
 cSC4Region*	region	region	-	-	-	-
 cSC4WinRegionScreen	region	region	region-screen.md	-	-	-
 cSC4WinRegionView	region	region	region-view.md	-	-	-
+cSC4WinRegionScroll	region	region	region-screen.md	-	-	-
+cSC4WinRegionClouds	region	region	region-screen.md	-	-	-
 cSC4WinRegion*	region	region	-	-	-	-
 cSC4NewRegionDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4ImportCityDialog	region	region	region-city-dialogs.md	-	-	-
 cSC4EstablishCityWinProc	region	region	region-city-dialogs.md	-	-	-
 cSC4ObliterateCity	region	region	region-city-dialogs.md	-	-	-
+fn:SC4ReadCityRegionViewThumbnailBitmapFile	region	region	sim-misc2.md	-	-	-
+fn:SC4WriteCityRegionViewThumbnailBitmapFile	region	region	regional-city-records.md, sim-misc2.md	-	-	-
 fn:SC4*Region*	region	region	-	-	-	-
+cSTEEdgeReconcileInformMismatch	region	region	foundations.md, sim-misc.md	-	-	-
+cSTEEdgeReconcileInformNoMismatch	region	region	sim-misc.md, modal-dialogs.md	-	-	-
+cSTEEdgeReconcileInformDamage	region	region	foundations.md, sim-misc.md	-	-	-
 cSTEEdgeReconcile*	region	region	-	-	-	-
 # ---- data formats and scripting (framework)
-cGZDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
+cGZDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	dbpf_bounds_shadow	-
 cGZDBSDFRecord	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cGZDBWriteRecord*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
+cGZDBSerialRecordAsIGZFile	persistence and resources	framework	record-as-file.md	-	-	-
 cGZPersistDBSegment*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/dbpf.rs	-	-
 cRZFastCompression*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/qfs.rs	-	-
 cSCResExemplar	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
 cSCResExemplarCohort	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	exemplars
-cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+cSCResExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCExemplar*	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
+cSCPropertyHolder	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 cSCPropertyHelp	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
-cSCProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+cSCProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 # the exemplar text form (data-formats.md §4.3 and EX32: InterpretEntry 0x0067DFD0 reads, WriteEntry and
 # RemoveUnnecessaryFloatingPointDigits 0x0067C2B0 write; called from cSCResExemplarFactory / CohortFactory), the exemplar
 # reader and the resource property object of exemplars (cSCResProperty, created by the exemplar factories)
@@ -300,7 +317,7 @@ fn:InterpretEntry	data formats (DBPF, exemplars)	framework	data-formats.md	forma
 fn:WriteEntry	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 fn:RemoveUnnecessaryFloatingPointDigits	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
 (anonymous_namespace)::cExemplarReader	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar.rs	-	-
-cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	-	-
+cSCResProperty	data formats (DBPF, exemplars)	framework	data-formats.md	formats/src/exemplar	formats_shadow	-
 cRZVariant	foundations	framework	foundations.md	core/src/variant.rs	variant_shadow	-
 # the two generator classes of foundations.md §6.1, specified operation by operation (cRZRandom's lcg / mul states and
 # cRZRandomSuper's reload), and the session seeding of §6.3 that core/src/seeding.rs derives from the host seed with a
@@ -383,9 +400,16 @@ cS3DModelInstanceAnimated	model instances	renderer	model-instances.md	core/src/m
 cS3DModelProcessor	model instances	renderer	model-instances.md	core/src/model_instances	-	-
 cS3DResSpriteAnim*	model instances	renderer	model-instances.md	core/src/model_instances	-	-
 cS3DTransform	model instances	renderer	model-instances.md	core/src/model_instances	-	-
+cS3DBoundingBox	3D scene and models	renderer	sim-misc.md, model-instances.md	-	-	-
+cS3DVertexArray	3D scene and models	renderer	sim-misc.md, model-instances.md	-	-	-
+cS3DRect2D	3D scene and models	renderer	sim-misc2.md	-	-	-
+cS3DVector3	3D scene and models	renderer	sim-misc2.md	-	-	-
+cS3DVector4	3D scene and models	renderer	sim-misc2.md	-	-	-
+cS3DMesh	3D scene and models	renderer	sim-misc2.md	-	-	-
 cS3D*	3D scene and models	renderer	-	-	-	-
 nS3D*	geometry utilities	renderer	geometry-utilities.md	-	-	-
 cSC43DPlaceableObject	occupants and props	simulation	prop-occupant.md	-	-	-
+cSC43DRender	3D scene and models	renderer	render3d.md	-	-	-
 cSC43D*	3D scene and models	renderer	-	-	-	-
 cSC4View3DWin	3D scene and models	renderer	view3d-window.md, ui-windows.md, view3d.md	core/src/ui_windows/view3d	-	-
 cSC4CameraControl	camera and projection	renderer	camera.md	core/src/camera	-	-
@@ -454,16 +478,18 @@ cSC4DynamicParticleSystem	effects (particles, decals, visuals)	renderer	particle
 cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
-cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
-cSC4EffectMaps	effects (particles, decals, visuals)	renderer	-	-	-	-
-cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
 cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
-cGZGraphicCOMDirector	2D drawing and fonts	renderer	-	-	-	-
+cGZGraphicCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 cGZDrawContext	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZDrawContextRenderTo*	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+cGZDrawSystem	2D drawing and fonts	renderer	draw-system.md, span-render-4444.md	-	-	-
+cGZDrawCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 cGZDraw*	2D drawing and fonts	renderer	-	-	-	-
 # the software span renderers of cGZDrawContextRenderToBuffer, one class per buffer color type (Init 00830710).
 # The five rows come before the nGZDrawSoftRender* catch-all so that the 793 template instantiations of
@@ -473,24 +499,36 @@ nGZDrawSoftRender::cSpanRender565	2D drawing (span render 565)	renderer	span-ren
 nGZDrawSoftRender::cSpanRender4444	2D drawing (span render 4444)	renderer	span-render-4444.md	core/src/span_render4444	span4444	span4444
 nGZDrawSoftRender::cSpanRender8888	2D drawing (span render 8888)	renderer	span-render-8888.md	core/src/span_render8888	span8888_shadow	span8888
 nGZDrawSoftRender::cSpanRender8	2D drawing (span render 8)	renderer	span-render-8.md	core/src/span_render8	span8	span8
+nGZDrawSoftRender::cISpanRender	2D drawing and fonts	renderer	framework-misc3.md	-	-	-
 nGZDrawSoftRender*	2D drawing and fonts	renderer	-	-	-	-
 cGZAlphaBlt	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvasW32	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+fn:GenericBufferClip	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+fn:GenericBufferClipStretch	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
 cGZCanvas*	2D drawing and fonts	renderer	-	-	-	-
 CachedBitmapData	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFontSys	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cGZFont*	2D drawing and fonts	renderer	drawing-fonts.md	core/src/fonts	-	-
 cFontCOMDirector	2D drawing and fonts	renderer	drawing-fonts.md	-	-	-
-cRZTileSetup	2D drawing and fonts	renderer	-	-	-	-
-cRZSpanList	2D drawing and fonts	renderer	-	-	-	-
-cRZRGBColorConverter	2D drawing and fonts	renderer	-	-	-	-
-cGZGimexFactory	2D drawing and fonts	renderer	-	-	-	-
-cWinBMPView	2D drawing and fonts	renderer	-	-	-	-
+cRZTileSetup	2D drawing and fonts	renderer	picture-view.md	-	-	-
+cRZSpanList	2D drawing and fonts	renderer	gz-graphics.md, rz-draw.md	-	-	-
+cRZRGBColorConverter	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+cRZRGBColorConverter::Format	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+fn:SC4CreateSpanList	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+cGZGimexFactory	2D drawing and fonts	renderer	gimex.md	-	-	-
+cGZGimexReader	2D drawing and fonts	renderer	gimex.md	-	-	-
+cGZGimexWriter	2D drawing and fonts	renderer	gimex.md	-	-	-
+cWinBMPView	2D drawing and fonts	renderer	picture-view.md	-	-	-
+fn:Resample	2D drawing and fonts	renderer	picture-view.md	-	-	-
+fn:GenerateKernelArray	2D drawing and fonts	renderer	picture-view.md	-	-	-
+fn:ConvertKernelToInteger	2D drawing and fonts	renderer	picture-view.md	-	-	-
 SC4DrawContext	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-
 cSC4PackedRenderState	3D draw context	renderer	draw-context.md	-	-	-
+fn:RZDrawBlt*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 fn:*Blt*	2D drawing and fonts	renderer	-	-	-	-
-fn:RZDraw*	2D drawing and fonts	renderer	-	-	-	-
-fn:Draw*	2D drawing and fonts	renderer	-	-	-	-
+fn:RZDraw*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+fn:drr_get_color	2D drawing and fonts	renderer	rz-draw.md	-	-	-
+fn:Draw*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 # ---- ui
 cSC4ViewInputControl	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControlCityScroll	city tools and input	ui	view-input-controls.md	-	-	-
@@ -512,8 +550,9 @@ cSC4DemolishFilter	city tools and input	ui	bulldozer-tool.md	-	-	-
 cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
 cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/query_tool	-	-
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
+cSC4ViewInputControlEffectDisaster	city tools and input	ui	com-directors-misc.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
-cSC4MySimInputControl*	city tools and input	ui	-	-	-	-
+cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
 cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md, budget-window-bodies.md	core/src/budget_window	-	-
 cSC4BudgetUIWinProc	windows and panels	ui	budget-window.md, budget-window-bodies.md	-	-	-
@@ -527,6 +566,15 @@ cSC4LineGraph	windows and panels	ui	graphs-window.md	-	-	-
 cSC4NewsTickerWinProc	windows and panels	ui	news-ticker.md	-	-	-
 cSC4TutorialUIWinProc	windows and panels	ui	tutorial-window.md	-	-	-
 cSC4GamePreferencesWinProc	windows and panels	ui	game-preferences.md	-	-	-
+cSC4TipOfTheDayWinProc	windows and panels	ui	tip-of-the-day.md	-	-	-
+cSC4MySimBalloonWinProc	windows and panels	ui	mysim-balloon.md	-	-	-
+cSC4BuildingSelectWinProc	windows and panels	ui	building-styles-panel.md	-	-	-
+cSC4CreditsWinProc	windows and panels	ui	small-windows.md	-	-	-
+cSC4TimeDisplayMiniWindowWinProc	windows and panels	ui	small-windows.md	-	-	-
+cSC4PanelUIWinProc	windows and panels	ui	small-windows.md	-	-	-
+cSC4SituationUIImageWinProc	windows and panels	ui	advisor-face.md	-	-	-
+cSC4LegendDialogWinProc	windows and panels	ui	widget-misc2.md	-	-	-
+cSC4QueryDialogWinProc	windows and panels	ui	city-tools-input.md, widget-misc2.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	core/src/map_view	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
@@ -538,37 +586,104 @@ cSC4WinCalloutBox	windows and panels	ui	callout-box.md	-	-	-
 cSC4WinCatalogView	windows and panels	ui	catalog-view.md	-	-	-
 cSC4WinAdviceList	windows and panels	ui	advice-list.md	-	-	-
 cSC4WinIntroVideoScreen	windows and panels	ui	intro-video.md	-	-	-
+cSC4WinAlertBorder	windows and panels	ui	scripted-window-director.md	-	-	-
+cSC4WinRCI	windows and panels	ui	demand-trend-bars.md	-	-	-
+cSC4WinText	windows and panels	ui	widget-text.md	-	-	-
+cSC4WinTrendBar	windows and panels	ui	demand-trend-bars.md	-	-	-
+fn:GZCOM_cSC4WinAdviceListCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinAlertBorderCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinAuraBarCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:GZCOM_cSC4WinTextCLSID	windows and panels	ui	scripted-window-director.md	-	-	-
+fn:SC4GetSC4ScriptedWindowCOMDirector	windows and panels	ui	scripted-window-director.md	-	-	-
+cSC4WinSplashScreen	windows and panels	ui	small-windows.md	-	-	-
+cSC4WinLoadHeightField	windows and panels	ui	small-windows.md	-	-	-
+cSC4WinGenTransparent	windows and panels	ui	small-windows.md	-	-	-
+cSC4WinGameDelay	windows and panels	ui	small-windows.md	-	-	-
+cSC4WinTertiaryMenuFrame	windows and panels	ui	small-windows.md	-	-	-
 cSC4Win*	windows and panels	ui	-	-	-	-
 cSC4CheatCodeEntryDialog	windows and panels	ui	cheat-dialog.md	-	-	-
+cSC4MissingPluginPacksDialog	windows and panels	ui	small-windows.md	-	-	-
+cSC4LoadRegionDialog	windows and panels	ui	region-city-dialogs.md	-	-	-
+cSC4DeleteRegionDialog	windows and panels	ui	region-city-dialogs.md	-	-	-
+cSC4DeleteCityDialog	windows and panels	ui	region-city-dialogs.md	-	-	-
+cSC4DialogWinProcBase	windows and panels	ui	region-city-dialogs.md	-	-	-
+fn:SC4GetPopupModalDialogsSafe	windows and panels	ui	advisors.md	-	-	-
+fn:SC4GetPopupModalDialogsEnabled	windows and panels	ui	advisors.md	-	-	-
 cSC4*Dialog	windows and panels	ui	-	-	-	-
 cSC4TiledScrollingCanvas	windows and panels	ui	region-view.md	-	-	-
-cSC4ToolTipManager	windows and panels	ui	-	-	-	-
-cSC4ProgressScreen	windows and panels	ui	-	-	-	-
+cSC4ToolTipManager	windows and panels	ui	ui-feedback-owners.md	-	-	-
+cSC4ProgressScreen	windows and panels	ui	ui-feedback-owners.md	-	-	-
 cSC4CatalogItem	windows and panels	ui	catalog-view.md	-	-	-
 nSC4UI	windows and panels	ui	ui-helpers.md	-	-	-
 nSC4UI*	windows and panels	ui	-	-	-	-
+fn:SC4DoPopupStringListMenu	windows and panels	ui	widget-misc2.md	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
 cGZWinTextEdit	widget toolkit	ui	widget-controls.md	-	-	-
-cGZWinListBox	widget toolkit	ui	widget-controls.md	-	-	-
-cGZWinTreeView	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinListBox	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
+cGZWinTreeView	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWin	widget toolkit	ui	widget-toolkit.md	-	-	-
+cGZWinBtn	widget toolkit	ui	widget-button.md	-	-	-
+cGZWinGen	widget toolkit	ui	widget-wingen.md	-	-	-
+cGZWinGenTitleBar	widget toolkit	ui	widget-wingen.md	-	-	-
+cGZWinFlatRect	widget toolkit	ui	widget-wingen.md	-	-	-
+fn:__ZThn228_NK14cGZWinFlatRect12GetFillColorEv	widget toolkit	ui	widget-wingen.md	-	-	-
+cGZWinScrollbar2	widget toolkit	ui	widget-scrollbar.md	-	-	-
+cGZWinLineInput	widget toolkit	ui	widget-lineinput.md	-	-	-
+cGZWinCtrlMgr	widget toolkit	ui	widget-ctrlmgr.md	-	-	-
+cGZWinText	widget toolkit	ui	widget-text.md	-	-	-
+cGZWinToolTip	widget toolkit	ui	widget-tooltip.md	-	-	-
+cGZWinToolTipMgr	widget toolkit	ui	widget-tooltip.md	-	-	-
+cGZWinPieMenu	widget toolkit	ui	widget-piemenu.md	-	-	-
+cGZWinFolders	widget toolkit	ui	widget-folders.md	-	-	-
+cGZWinFolderRow	widget toolkit	ui	widget-folders.md	-	-	-
+cGZWinTextTicker	widget toolkit	ui	widget-ticker.md	-	-	-
+cGZWinCOMDirector	widget toolkit	ui	widget-comdirector.md	-	-	-
+cGZWinMsgBox	widget toolkit	ui	widget-dialogs.md	-	-	-
+cGZWinGenDlg	widget toolkit	ui	widget-dialogs.md	-	-	-
+cGZWinSlider	widget toolkit	ui	widget-slider.md	-	-	-
+cGZWinScrollbar	widget toolkit	ui	widget-slider.md	-	-	-
+cGZWinSpinner	widget toolkit	ui	widget-spinner.md	-	-	-
+cGZWinOptGrp	widget toolkit	ui	widget-optgrp.md	-	-	-
+cGZWinCombo	widget toolkit	ui	widget-combo.md	-	-	-
+cGZWinMgrW32	widget toolkit	ui	widget-winmgr.md	-	-	-
+cGZWinMgrBase	widget toolkit	ui	widget-winmgr.md	-	-	-
+cGZWin32COMDirector	widget toolkit	ui	widget-winmgr.md	-	-	-
+cGZWinDragAndDropManager	widget toolkit	ui	widget-dragdrop.md	-	-	-
+cGZWinOutline	widget toolkit	ui	widget-outline.md	-	-	-
+cGZWinKeyAcceleratorResFactory	widget toolkit	ui	widget-accelres.md	-	-	-
+cGZWinKnob	widget toolkit	ui	scripted-window-director.md	-	-	-
+cGZWinBMP	widget toolkit	ui	widget-bmp.md	-	-	-
+cGZWinTreeViewDrag	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinDlg	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinTreeView::GZWinTreeView_TreeNode	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWin::ChildList	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinTextEdit::UndoRedoAction	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
-fn:unscript	widget toolkit	ui	-	-	-	-
-fn:script_tag_*	widget toolkit	ui	-	-	-	-
-fn:GetGZWinFont	widget toolkit	ui	-	-	-	-
-cGZGraph	widget toolkit	ui	-	-	-	-
+fn:unscript	widget toolkit	ui	widget-misc.md	-	-	-
+fn:script_tag_*	widget toolkit	ui	legacy-control.md, widget-misc.md	-	-	-
+fn:GetGZWinFont	widget toolkit	ui	widget-misc.md	-	-	-
+cGZGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZBarGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZLineGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZScatterGraph	widget toolkit	ui	widget-graphs.md	-	-	-
+cGZPieGraph	widget toolkit	ui	widget-graphs.md	-	-	-
 cGZ*Graph	widget toolkit	ui	-	-	-	-
 cHTMLDocument	widget toolkit	ui	html-document.md	core/src/html_document	-	-
 cHTML*	widget toolkit	ui	-	-	-	-
+cGZUIScriptService	widget toolkit	ui	ui-script-service.md	-	-	-
+cGZUIScriptCOMDirector	widget toolkit	ui	ui-script-service.md	-	-	-
+cGZScriptableControlSet	widget toolkit	ui	ui-script-service.md	-	-	-
 cGZUIScript*	widget toolkit	ui	-	-	-	-
-cSC4ScriptedWindowCOMDirector	widget toolkit	ui	-	-	-	-
+cSC4ScriptedWindowCOMDirector	widget toolkit	ui	scripted-window-director.md	-	-	-
 cRZWinKeyAccelerator	widget toolkit	ui	widget-toolkit.md	-	-	-
+cRZWinKeyAcceleratorRes	widget toolkit	ui	widget-accelres.md	-	-	-
 cRZWinKeyAccelerator*	widget toolkit	ui	-	-	-	-
-cRZCursorManager	widget toolkit	ui	-	-	-	-
-cGZClipboardManager*	widget toolkit	ui	-	-	-	-
-cGZCheatCodeManager	widget toolkit	ui	-	-	-	-
+cRZCursorManager	widget toolkit	ui	widget-misc.md	-	-	-
+cGZClipboardManager*	widget toolkit	ui	clipboard.md	-	-	-
+cGZCheatCodeManager	widget toolkit	ui	cheat-codes.md	-	-	-
 cSCUint32ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
 cSCUint8ComboBoxEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
 cSCUint32SpinnerEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
@@ -577,7 +692,7 @@ cSCColorSequenceEntryView	resource and exemplar editor	ui	resource-exemplar-edit
 cSCResKeyTableEntryView	resource and exemplar editor	ui	resource-exemplar-editor.md	core/src/resource_editor	-	-
 cSC*EntryView	resource and exemplar editor	ui	-	-	-	-
 cSC*View	resource and exemplar editor	ui	-	-	-	-
-cSCEditValueDlg	resource and exemplar editor	ui	-	-	-	-
+cSCEditValueDlg	resource and exemplar editor	ui	resource-exemplar-editor.md	-	-	-
 # free functions of the cSCPropertyView object file (0x0066F8E0-0x00671080), called from cSCPropertyView
 fn:getDefaultValue	resource and exemplar editor	ui	-	-	-	-
 fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
@@ -591,10 +706,12 @@ cSC4COMDirector	application	framework	app-directors.md	core/src/application/dire
 cSC4*COMDirector	application	framework	-	-	-	-
 cGZToolsCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZResManCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
+cGZGraphicWin32COMDirector	application	framework	com-directors-misc.md	-	-	-
+cGZCOMDirector	application	framework	framework-misc3.md	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
-cSC4Preferences	application	framework	-	-	-	-
+cSC4Preferences	application	framework	application.md	-	-	-
 cSC4GameDataRegistry	application	framework	app-directors.md	core/src/game_data_registry	-	-
-cSC4AutoGamePause	application	framework	-	-	-	-
+cSC4AutoGamePause	application	framework	auto-game-pause.md	-	-	-
 cGZPersistDBRecord	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistDBSerialRecord	persistence and resources	framework	persistence.md	-	-	-
 cGZPersistResource	persistence and resources	framework	persistence.md	-	-	-
@@ -612,29 +729,53 @@ fn:RZFileFind*	paths and directories	framework	paths.md	core/src/paths	-	-
 cGZPersistResourceManager	persistence and resources	framework	persistence-manager.md	core/src/persistence_manager	-	-
 cGZPersistBufferResource	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 cGZPersistASCIIWriter	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
+cGZPersistBinaryReader	persistence and resources	framework	persist-graph.md	-	-	-
+cGZPersistBinaryReader::cResourceInfo	persistence and resources	framework	persist-graph.md	-	-	-
+cGZPersistBinaryWriter	persistence and resources	framework	persist-graph.md	-	-	-
+cGZPersistSurveyorWriter	persistence and resources	framework	persist-graph.md	-	-	-
+cGZPersistBufferResourceFactory	persistence and resources	framework	persist-buffer-factory.md	-	-	-
 cGZPersist*	persistence and resources	framework	-	-	-	-
 cGZBufferResource	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResourceFactory	persistence and resources	framework	persistence.md	-	-	-
 cGZBufferResource*	persistence and resources	framework	-	-	-	-
-cGZPropertySet*	persistence and resources	framework	-	-	-	-
-cPropertySet*	persistence and resources	framework	-	-	-	-
+cGZPropertySet*	persistence and resources	framework	property-sets.md	-	-	-
+cPropertySet*	persistence and resources	framework	property-sets.md	-	-	-
 cSLTokenRecord	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 cSLTokenSerialRecordIO_Text	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
-cSL*	persistence and resources	framework	-	-	-	-
-SL	persistence and resources	framework	-	-	-	-
+cSL*	persistence and resources	framework	sl-library.md	-	-	-
+SL	persistence and resources	framework	sl-library.md	-	-	-
 nSCRes	persistence and resources	framework	sc-resources.md	-	-	-
 nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-
 cSCStringDetokenizer	strings and language	framework	rz-strings.md	-	-	-
+cSCStringDetokenizerDefault	strings and language	framework	advice-tokens.md	-	-	-
 cSCStringDetokenizer*	strings and language	framework	-	-	-	-
-fn:gAdviceDetokenizerFunction	strings and language	framework	-	-	-	-
+fn:gAdviceDetokenizerFunction	strings and language	framework	advice-tokens.md	-	-	-
+fn:gNeighborDealAdviceDetokenizerFunction	strings and language	framework	advice-tokens.md	-	-	-
+fn:SC4LoadString	strings and language	framework	crime.md	-	-	-
+fn:SC4LoadExemplarString	strings and language	framework	crime.md	-	-	-
+fn:RZFtoaEnglishA	data formats (DBPF, exemplars)	framework	data-formats.md	-	-	-
+fn:RZAtoUint64HexA	data formats (DBPF, exemplars)	framework	data-formats.md	-	-	-
+fn:RZStrtodEnglishA	data formats (DBPF, exemplars)	framework	data-formats.md, small-helpers.md	-	-	-
+fn:SC4GetOccupantViewLevel	occupants and props	simulation	occupant-manager.md	-	-	-
+fn:NetworkNameToID	network rules	simulation	network-rules.md	-	-	-
+fn:LoadOverrideCallback	network rules	simulation	network-rules.md	-	-	-
+fn:Expand	terrain	simulation	terrain.md	-	-	-
+fn:SC4GamePause	application	framework	auto-game-pause.md	-	-	-
+fn:SC4CreateWindowFromScript	windows and panels	ui	ui-windows.md, small-helpers.md	-	-	-
+fn:GetNewTempFilePath	framework services (RZ)	framework	small-helpers.md	-	-	-
+fn:SC4ExportRecordToFile	persistence and resources	framework	small-helpers.md	-	-	-
+fn:SC4DisplayResourceError	application	framework	small-helpers.md	-	-	-
+fn:RZSpawnWait	framework services (RZ)	framework	small-helpers.md	-	-	-
+fn:ConvertBufferFromFormatToFormat	2D drawing and fonts	renderer	small-helpers.md	-	-	-
+fn:S3DTransformLegacyLoad	3D scene and models	renderer	small-helpers.md, lot-records.md	-	-	-
 cRZLanguageUtility	strings and language	framework	language-utility.md	core/src/language	-	-
 cRZLanguageManager	strings and language	framework	strings-language.md	core/src/language	-	-
 cRZLanguage*	strings and language	framework	-	-	-	-
 cRZString	strings and language	framework	rz-strings.md	core/src/language	strings_shadow	-
 fn:ConvertStringEncoding	strings and language	framework	-	-	-	-
-fn:UTF16*	strings and language	framework	-	-	-	-
+fn:UTF16*	strings and language	framework	drawing-fonts.md	-	-	-
 cGZWWWSystem	web and network	framework	web-network.md	core/src/www	-	-
 cRZHTTPClient	web and network	framework	web-network.md	core/src/www	-	-
 cRZHTTP*	web and network	framework	-	-	-	-
@@ -650,13 +791,12 @@ cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
 cGZFramework	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZCOM	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	-
 cGZMiscCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
+cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	-
 cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIniFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-
 cRZIStream	streams	framework	output-streams.md	core/src/rz_streams/istream.rs	-	-
@@ -675,6 +815,66 @@ cGZStringCommandGenerator	command system	framework	command-system.md	core/src/co
 cGZMessage2CommandDispatcher	command system	framework	command-system.md	core/src/commands	-	-
 cGZMessage2CommandDispatcherMessage	command system	framework	command-system.md	core/src/commands	-	-
 fn:RZParseDelimitedText	command system	framework	command-system.md	core/src/commands	-	-
+cGZRegistry	framework services (GZ)	framework	framework-misc.md	-	-	-
+cGZRESIDtoExtensionMap	framework services (GZ)	framework	framework-misc.md	-	-	-
+cGZFileNameToResKeyConverterDefault	framework services (GZ)	framework	framework-misc.md	-	-	-
+cRZTextFile	framework services (RZ)	framework	sc-resources.md, graphics-rules.md, framework-misc.md	-	-	-
+fn:GetTrueName	framework services (RZ)	framework	framework-misc.md	-	-	-
+cRZFastAllocatorGeneralThreadSafe	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZAllocatorService	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cGZDefaultAllocator	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cRZStackAllocator	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZMessage2Standard	framework services (RZ)	framework	foundations.md, framework-misc2.md	-	-	-
+cRZAutoMsg2Notification	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZMouseMessage	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cRZUnknown	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZSystemService	framework services (RZ)	framework	framework-gz-services.md, framework-misc2.md	-	-	-
+cRZAutoRefCount	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZUnknownAutoPtr	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCriticalSection	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZThread	framework services (RZ)	framework	foundations.md, framework-misc2.md	-	-	-
+cGZMessageQueue	framework services (GZ)	framework	framework-misc2.md	-	-	-
+nGZLog::cOutputBackEnd	framework services (GZ)	framework	gz-framework-core.md, framework-misc2.md	-	-	-
+nGZLog::cDefaultOutputBackEnd	framework services (GZ)	framework	gz-framework-core.md, framework-misc2.md	-	-	-
+cRZCursor	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZSystemCursorW95	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZAutoCursor	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCursorResource	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCursorResourceFactory	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZKeyboard	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZResourceCOMDirectorW32	framework services (GZ)	framework	framework-misc2.md	-	-	-
+cGZDBRecordBitmapRes	persistence and resources	framework	persistence.md, framework-misc2.md	-	-	-
+cGZDBRecordPackedFile	persistence and resources	framework	framework-misc2.md	-	-	-
+cRZStringResource	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cGZApp	application	framework	application.md, framework-misc2.md	-	-	-
+cRZVersion	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZExceptionNotification	framework services (RZ)	framework	framework-misc2.md	-	-	-
+cRZCOMDllDirector	framework services (RZ)	framework	renderer-gdrivers-director.md, app-directors.md	-	-	-
+cGZFadeTmpWin	widget toolkit	ui	widget-toolkit.md	-	-	-
+nRZHash	framework services (RZ)	framework	lua-host.md	-	-	-
+cRZThreadSignal	framework services (RZ)	framework	framework-gz-services.md	-	-	-
+cGZCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-
+cIGZWinDragAndDropManager::DragData	widget toolkit	ui	widget-dragdrop.md, framework-misc3.md	-	-	-
+cISC4TrafficSimulator::FerryRouteInfo	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4MySimPool::tMySimTemplate	framework services (GZ)	framework	mysims.md, framework-misc3.md	-	-	-
+cISC4SimGrid	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4BuildingOccupant::BuildingProfile	framework services (GZ)	framework	demand.md, framework-misc3.md	-	-	-
+cISC4CivicBuildingSimulator::ConditionalBuildingStatus	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4ResidentialSimulator::tQueryData	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cRZRefCount	framework services (RZ)	framework	framework-misc3.md	-	-	-
+cGZCOMLibrary	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cGZKeyMessage	framework services (GZ)	framework	framework-misc3.md, framework-misc2.md	-	-	-
+cGZAny	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cRZFastSTLAllocator	framework services (RZ)	framework	framework-misc3.md	-	-	-
+cGZCommandServer::CommandInfo	framework services (GZ)	framework	framework-misc3.md	-	-	-
+nGZLog	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cRZCellMap	framework services (RZ)	framework	framework-misc3.md, zones.md	-	-	-
+cRZLock	framework services (RZ)	framework	framework-misc3.md	-	-	-
+cIGZMessageTarget2	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cIGZWinProc	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cIGZSystemService	framework services (GZ)	framework	framework-misc3.md	-	-	-
+# the GZ catch-all sits below cGZDate and the command-system rows, which it used to hide (first match wins)
+cGZ*	framework services (GZ)	framework	-	-	-	-
 cRZOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
 cRZTextOStream	streams	framework	output-streams.md	-	-	-
 cRZNullOStream	streams	framework	output-streams.md	core/src/rz_streams/ostream.rs	-	-
@@ -684,71 +884,213 @@ nGZLog::cService	framework services (GZ)	framework	gz-framework-core.md	core/src
 nGZ*	framework services (GZ)	framework	-	-	-	-
 cIGZ*	framework services (GZ)	framework	-	-	-	-
 nRZ*	framework services (RZ)	framework	-	-	-	-
+fn:GZCOM_CreatecGZMessageServer2	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4AnimationTickManager	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4BusinessUnit	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4DataViewOccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4DefaultOccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4Demand	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4DisasterInstanceFire	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4DisasterInstancePipeBurst	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4DisasterInstanceVolcano	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4FloraOccupant	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4LotBaseTextureOccupant	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4MySimDispatch	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4NeighborConnection	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4NeighborDeal	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4NetworkOccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4NetworkTunnelOccupant	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4OccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4OccupantTypeFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4OccupantTypesFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4PropOccupant	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4PropOccupantAutomataController	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4PropOccupantBurntBuilding	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4PropOccupantTerrainDecal	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4RealisticOccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4StringSpecificationOccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSC4ViewLevelOccupantFilter	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_CreatecSTETerrainView3D	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cGZBufferCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cGZDrawContextAsBufferCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cGZDrawContextCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cGZDrawSystemCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cGZMessageQueueManager2CLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cGZMessageServer2CLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cRZMessage2StandardCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cS3DFSHTextureFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cS3DResModelFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4AdvisorBaseCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterInstanceFireCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterInstancePipeBurstCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterInstanceVolcanoCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterLayerCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterManagerFireCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterManagerPipeBurstCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4DisasterManagerVolcanoCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4PathInfoFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_cSC4PropPlacementPropertiesFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
 fn:GZCOM_*	framework services (GZ)	framework	-	-	-	-
 cISC4*	framework services (GZ)	framework	-	-	-	-
 # ---- catch-alls
 cSC4RigidBody2DSimulator	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 # Owners attributed from the unowned catch-all by re-other-attribution9 (train188; evidence in docs/specs/attribution/other-owners.tsv).
 cDumpSubTreeVisitor	tree diagnostics	framework	-	-	-	-
-cWinBMPViewGVExtra	windows and panels	ui	-	-	-	-
-cSTEChangeTerrainUI	city tools and input	ui	-	-	-	-
-(anonymous_namespace)::cParser	network rules	simulation	-	-	-	-
-nsGZWinUtils	widget toolkit	ui	-	-	-	-
-RZ	framework services (RZ)	framework	-	-	-	-
+cWinBMPViewGVExtra	windows and panels	ui	picture-view.md, snapshots.md	-	-	-
+cSTEChangeTerrainUI	city tools and input	ui	sim-misc.md	-	-	-
+(anonymous_namespace)::cParser	network rules	simulation	network-rules.md, sim-misc.md	-	-	-
+nsGZWinUtils	widget toolkit	ui	widget-misc2.md	-	-	-
+RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
 nsTexUtil	3D scene and models	renderer	-	-	-	-
-MiscGraphTextInfo	widget toolkit	ui	-	-	-	-
+MiscGraphTextInfo	widget toolkit	ui	widget-misc2.md	-	-	-
 SCLuaTableRef	Lua host	framework	-	-	-	-
 cSourceFileDebugInfo	audio	audio	-	-	-	-
 tControllerTime	automata (managers, records)	simulation	-	-	-	-
-cADVString	advisors	simulation	-	-	-	-
-fn:gAdviceMessageBox	advisors	simulation	-	-	-	-
-LinearRandomIterator	occupants and props	simulation	-	-	-	-
+cADVString	advisors	simulation	advisors.md, sim-misc.md	-	-	-
+fn:gAdviceMessageBox	advisors	simulation	sim-misc2.md	-	-	-
+LinearRandomIterator	occupants and props	simulation	lot-developer.md, sim-misc.md	-	-	-
 MatrixRow	widget toolkit	ui	-	-	-	-
-FerryStationInformation	network manager	simulation	-	-	-	-
+FerryStationInformation	network manager	simulation	sim-misc.md, traffic-network.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-	-	-	-
-MiscGraphPicture	widget toolkit	ui	-	-	-	-
-cGXCOMDirector	2D drawing and fonts	renderer	-	-	-	-
+MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
+cGXCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 SFX	audio	audio	-	-	-	-
 SC43DGridElement	3D scene and models	renderer	-	-	-	-
-MiscGraphArrow	widget toolkit	ui	-	-	-	-
-cTablePropertyReader	advisors	simulation	-	-	-	-
-SC4CellRegion	sim grids	simulation	-	-	-	-
-cTutorialString	tutorial	simulation	-	-	-	-
-BoundaryIterator	sim grids	simulation	-	-	-	-
-tBehaviorTemplate	automata (managers, records)	simulation	-	-	-	-
+MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
+cTablePropertyReader	advisors	simulation	sim-misc.md	-	-	-
+SC4CellRegion	sim grids	simulation	zones.md, sim-misc2.md	-	-	-
+cTutorialString	tutorial	simulation	sim-misc2.md	-	-	-
+BoundaryIterator	sim grids	simulation	sim-misc2.md	-	-	-
+tBehaviorTemplate	automata (managers, records)	simulation	automata.md, sim-misc2.md	-	-	-
 cGroup_SC4RH	audio	audio	-	-	-	-
-MiscGraphRect	widget toolkit	ui	-	-	-	-
+MiscGraphRect	widget toolkit	ui	widget-misc2.md	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
 _GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
 CookieData	web and network	framework	-	core/src/www	-	-
-ilist	container helpers	framework	-	-	-	-
+ilist	container helpers	framework	sim-misc2.md	-	-	-
 cEaseSound	audio	audio	-	-	-	-
 cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
-ThreadPlatformData	framework services (RZ)	framework	-	-	-	-
-SC4QuadGridQuadrant	3D scene and models	renderer	-	-	-	-
-AnyString	persistence and resources	framework	-	-	-	-
-cAutomataOccupantFilter	automata (managers, records)	simulation	-	-	-	-
+ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
+SC4QuadGridQuadrant	3D scene and models	renderer	sim-misc2.md	-	-	-
+AnyString	persistence and resources	framework	sim-misc2.md	-	-	-
+cAutomataOccupantFilter	automata (managers, records)	simulation	occupant-manager.md, sim-misc2.md	-	-	-
 LimitTimer	timers	framework	-	-	-	-
-cPortLot	port developers	simulation	-	-	-	-
-ScanningIterator	sim grids	simulation	-	-	-	-
+cPortLot	port developers	simulation	sim-misc2.md	-	-	-
+ScanningIterator	sim grids	simulation	lot-developer.md, sim-misc2.md	-	-	-
 tCrimePropOccupantFilter	crime	simulation	-	-	-	-
-nsSC4TutorialSystem	tutorial	simulation	-	-	-	-
+nsSC4TutorialSystem	tutorial	simulation	sim-misc2.md	-	-	-
 CacheData	web and network	framework	-	-	-	-
-cISTETerrain::tBrushParameters	terrain	simulation	-	-	-	-
-cCompletionObj	framework services (GZ)	framework	-	-	-	-
-cSTEWaterWave	3D scene and models	renderer	-	-	-	-
-SignalPlatformData	framework services (RZ)	framework	-	-	-	-
-PieGraphSeriesInfo	widget toolkit	ui	-	-	-	-
-ibasic_string	framework services (GZ)	framework	-	-	-	-
+cISTETerrain::tBrushParameters	terrain	simulation	terrain.md, sim-misc2.md	-	-	-
+cCompletionObj	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cSTEWaterWave	3D scene and models	renderer	sim-misc2.md	-	-	-
+SignalPlatformData	framework services (RZ)	framework	framework-misc3.md	-	-	-
+PieGraphSeriesInfo	widget toolkit	ui	framework-misc3.md	-	-	-
+ibasic_string	framework services (GZ)	framework	framework-misc3.md	-	-	-
 RZFileTimeSort	framework services (RZ)	framework	-	-	-	-
-RZFileFindData	framework services (RZ)	framework	-	-	-	-
-FileChangeNotification	framework services (RZ)	framework	-	-	-	-
+RZFileFindData	framework services (RZ)	framework	framework-misc3.md	-	-	-
+FileChangeNotification	framework services (RZ)	framework	framework-misc3.md	-	-	-
 icf::cGZApp	application	framework	-	-	-	-
 icf::cGZCheatCodeManager	cheats	framework	-	-	-	-
 icf::cSC4AudioEventHandlerDisasterFire	audio	audio	-	-	-	-
+cSC4FileTokenizer	other SC4 classes	other	network-rules.md, sim-misc.md	-	-	-
+cSC4TileNeighborhoodCompact	other SC4 classes	other	sim-misc.md, network-rules.md	-	-	-
+cSC4LotConfigurationFilterMonopoly	other SC4 classes	other	lot-configuration.md, sim-misc.md	-	-	-
+cSC4ScriptServiceResourceFactory	other SC4 classes	other	sim-misc.md	-	-	-
+cSC4PrimitivePool	other SC4 classes	other	sim-misc.md	-	-	-
+cSC4TrafficSimulator::TrafficSourceIterator	other SC4 classes	other	traffic-simulator.md	-	-	-
+cSC4LotConfigurationIdentityInfo	other SC4 classes	other	lot-configuration-editor.md, sim-misc.md	-	-	-
+cSC4TrafficSimulator::TransitSwitch	other SC4 classes	other	sim-misc.md	-	-	-
+cSC4SafeListIterator	other SC4 classes	other	traffic-simulator.md, sim-misc2.md	-	-	-
+cSC4QueryAutomatonFilter	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4QueryStoplightFilter	other SC4 classes	other	city-tools-input.md, sim-misc2.md	-	-	-
+cSC4PlaceLotDemolishFilter	other SC4 classes	other	city-tools-input.md, sim-misc2.md	-	-	-
+cSC4BuildingPropFilter	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4LotConfigurationFilter	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4LotConfigurationFilterByBuildingType	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4TractDeveloperLotConfigurationFilter	other SC4 classes	other	tract-developer.md, sim-misc2.md	-	-	-
+cSC4Automaton::TweenStruct	other SC4 classes	other	automata.md, sim-misc2.md	-	-	-
+cSC4PropPlacementProperties	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4PropPlacementPropertiesFactory	other SC4 classes	other	prop-occupant.md, sim-misc2.md	-	-	-
+cSC4GameDataRegistry::cEntry	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4ConfigRule	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4TrafficSimulator::FerryTerminal	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4Blimp	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4AutoFlushInputMessageQueue	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4AutoDisableAppSwitching	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4*	other SC4 classes	other	-	-	-	-
+cSC24BitRGBColorCustomizer	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
+fn:AppendNetworkName	other free functions	other	small-helpers2.md	-	-	-
+fn:ConvertASCIIArrayToBinaryData	other free functions	other	small-helpers2.md	-	-	-
+fn:ConvertBinaryDataToASCIIArray	other free functions	other	small-helpers2.md	-	-	-
+fn:FileBrowserSortFunction	other free functions	other	small-helpers2.md	-	-	-
+fn:GZDllGetGZCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetFontComDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZDrawCOMDllDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZResManCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZResourceCOMDirectorW32	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZUIScriptCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZWin32COMDllDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZWinCOMDllDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetGZWinImage	other free functions	other	small-helpers2.md	-	-	-
+fn:GetPropTypeIndex	other free functions	other	small-helpers2.md	-	-	-
+fn:GetResourceKeyParam	other free functions	other	small-helpers2.md	-	-	-
+fn:GetSC4GDriversCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GetSC4ResourceLibCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:GlobalHeapAlloc	other free functions	other	small-helpers2.md	-	-	-
+fn:GlobalHeapFree	other free functions	other	small-helpers2.md	-	-	-
+fn:IsFileNameCharAllowed	other free functions	other	small-helpers2.md	-	-	-
+fn:LoadVerifiersCallback	other free functions	other	small-helpers2.md	-	-	-
+fn:MatchPattern	other free functions	other	small-helpers2.md	-	-	-
+fn:QueryDebugOutput	other free functions	other	small-helpers2.md	-	-	-
+fn:RZAtoUint32HexA	other free functions	other	small-helpers2.md	-	-	-
+fn:RZAtofA	other free functions	other	small-helpers2.md	-	-	-
+fn:RZAtofEnglishA	other free functions	other	small-helpers2.md	-	-	-
+fn:RZAtoi64A	other free functions	other	small-helpers2.md	-	-	-
+fn:RZConvertToUint32A	other free functions	other	small-helpers2.md	-	-	-
+fn:RZGetCOMDllDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:RZGetCurrentAppPath	other free functions	other	small-helpers2.md	-	-	-
+fn:RZSetEnvironmentVariable	other free functions	other	small-helpers2.md	-	-	-
+fn:ReadFileIntoString	other free functions	other	small-helpers2.md	-	-	-
+fn:RectContainsInclusive	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4AutomataGetCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4CloseSaveGame	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4FlushInputMessageQueue	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4GameDelay	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4GetCOMDirector	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4GetResourceIDFromString	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4LimitStringLength	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4NetworkLoadOverrideMatrix	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4OpenSaveGame	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4ReadAppLoadSaveVersion	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4ReadGZSerializable	other free functions	other	lot-records.md, foundations.md, small-helpers2.md	-	-	-
+fn:SC4ReadStringRecord	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4WriteAppLoadSaveVersion	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4WriteGZSerializable	other free functions	other	lot-records.md, small-helpers2.md	-	-	-
+fn:SC4WriteStringRecord	other free functions	other	small-helpers2.md	-	-	-
+fn:SafeGetAltitude	other free functions	other	small-helpers2.md	-	-	-
+fn:SetGZWinFont	other free functions	other	small-helpers2.md	-	-	-
+fn:SetGZWinImage	other free functions	other	small-helpers2.md	-	-	-
+fn:SetResourceKeyParam	other free functions	other	small-helpers2.md	-	-	-
+fn:ThreadSafeIncrementReturn	other free functions	other	small-helpers2.md	-	-	-
+fn:WildcardMatch	other free functions	other	small-helpers2.md	-	-	-
+fn:WriteConnectionInfo	other free functions	other	small-helpers2.md	-	-	-
+fn:__export__GetMemoryReport	other free functions	other	small-helpers2.md	-	-	-
+fn:_galloc	other free functions	other	small-helpers2.md	-	-	-
+fn:_gfree	other free functions	other	small-helpers2.md	-	-	-
+fn:_glen	other free functions	other	small-helpers2.md	-	-	-
+fn:_gread	other free functions	other	small-helpers2.md	-	-	-
+fn:_gseek	other free functions	other	small-helpers2.md	-	-	-
+fn:_gwrite	other free functions	other	small-helpers2.md	-	-	-
+fn:create_cursor	other free functions	other	small-helpers2.md	-	-	-
+fn:memset32	other free functions	other	small-helpers2.md	-	-	-
+fn:memset8	other free functions	other	small-helpers2.md	-	-	-
+fn:operator[*]	other free functions	other	small-helpers2.md	-	-	-
+fn:operator.new	other free functions	other	small-helpers2.md	-	-	-
+fn:sNotify	other free functions	other	small-helpers2.md	-	-	-
+fn:NULL_about	other free functions	other	framework-misc3.md	-	-	-
+fn:SetTableNumber	other free functions	other	framework-misc3.md	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
 # ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)

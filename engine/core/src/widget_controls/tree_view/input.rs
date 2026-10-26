@@ -126,6 +126,10 @@ impl TreeView {
         if !f.drag_request(self.window(), &mut accept) || accept == 0 {
             return Ok(true);
         }
+        // Section 6.7 requires GS on the accepted path, before temporary creation.
+        if !f.graphics_available() {
+            return Err(Unsupported::Precondition("TreeView drag graphics service"));
+        }
         let copied = self.selection.clone();
         let (mut left, mut right) = (0i32, 0i32);
         for h in &copied {

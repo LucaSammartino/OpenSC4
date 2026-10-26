@@ -630,6 +630,11 @@ std::string IniPath();
 // monthly private-original DrawNetworkLine comparisons, single-cell / wider
 // types respectively. Return, ordered coordinates, straight and total counts
 // only; no placement, validation, cost, solved-piece or subclass credit.
+// nettool_plan_shadow / powerline_plan_shadow = 0 / 1 (default 0):
+// monthly private native draft calls vs a Rust replay on the same city;
+// road/street planning and powerline selection respectively. Works with
+// enable=nettool; requires the original network manager. No native internal
+// cell-info, satisfier or bridge model/reader coverage is claimed.
 // overlays_shadow = 0 / 1 (default 0): original/core getter sentinel probes at
 // city load and each month. Live records/cells/textures await OV12; no rendering.
 
@@ -672,3 +677,21 @@ std::string IniPath();
 }  // namespace fc4
 // app_shadow = 0 / 1: application paths/lifecycle mode comparison (default 0).
 // app_shadow_path_cache = 0 / 1: AP18 unresolved slots65/66 diagnostics (default 0).
+// dbpf_bounds_shadow = 0 / 1 (default 0): also enable the monthly DBPF reader
+// and compare zero, one, short and exact raw-buffer capacities, including QFS
+// storage bytes, returned lengths and untouched guards against Rust (section 2.6.1).
+// reach = on (default off): native function-entry breakpoint census; no replacement.
+// reach_cap = 32: counted natural entries per function per game-month window.
+// reach_window = month: calendar messages are available; other windows refused.
+// reach_include_probes = 1 (default 0): calibration only; count monthly fixtures
+// too. Otherwise the census pauses process-wide for constructed shadow passes.
+// reach_contracts = path: functions.tsv (default source tree docs/abi/functions.tsv).
+// reach_output = path: census TSV (default log path + .reach.tsv). Harness runs
+// should give an absolute <worktree>/build-runs/game-results/<label>.reach.tsv.
+// reach_diagnostics = path (default off): dump this thread's last 32 entry/step
+// contexts on a foreign exception (at most 16 reports); investigation only.
+
+// inplace = names / all; inplace_mutate = names / all; inplace_fixture = 0 / 1:
+// S3 entry-hook observer, independent default-off switches (FC4Inplace.h).
+// compare selects names/class:<Class>/all (inplace alias); compare_mode overrides
+// registry compare/record/replace. Corpus, dense and value exports: docs/harness.md.

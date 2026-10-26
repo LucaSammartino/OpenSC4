@@ -1,0 +1,32 @@
+# Maxisland: North Weburg. Hand-authored local patch (fits a 64-cell tile).
+# Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
+2121-10-24 mark maxisland-north-weburg: begin local build patch
+2121-10-24 speed 0
+2121-10-25 terrain 4 4 54 54 280 1
+2121-10-26 dezone 4 4 54 54
+2121-10-27 network 4 14 52 14 0
+2121-10-27 network 4 28 28 28 3
+2121-10-27 network 32 4 32 50 6
+2121-10-27 network 4 46 52 46 1
+2121-10-27 network 4 16 52 16 4
+2121-10-27 network 4 18 52 18 5
+2121-10-28 zone 6 6 9 9 1
+2121-10-28 zone 12 6 15 9 2
+2121-10-28 zone 18 6 21 9 3
+2121-10-28 zone 6 20 9 23 4
+2121-10-28 zone 12 20 15 23 5
+2121-10-28 zone 18 20 21 23 6
+2121-10-28 zone 6 32 9 35 7
+2121-10-28 zone 12 32 15 35 8
+2121-10-28 zone 18 32 21 35 9
+2121-10-29 clockmode 1
+2121-10-30 speed 1
+2121-10-31 pricezone 38 20 41 23 4
+2121-11-07 clockmode 0
+2121-11-08 speed 2
+2121-12-23 disaster fire auto
+2121-12-23 disaster riot auto
+2121-12-23 save
+2121-12-23 digest
+2121-12-23 mark maxisland-north-weburg: script complete

@@ -132,19 +132,25 @@ if ($groups) {
     }
 }
 
-# Shadow comparison lines: any "<name> shadow ... <date> ...: ..." line that reports "mismatches=N",
+# Shadow comparison lines: any "<name> shadow ... <date or julian=N> ...: ..." line that reports "mismatches=N",
 # "mismatched N" / "mismatched=N" or a bare "clean" (budget and demand per day or month, "pollution shadow month to
 # <date>" and its day lines, "protection shadow (fire) <date>", "flora shadow month <date>: ... mismatched N",
-# "landfill shadow month to <date>: clean|mismatches=N"). A line differs when any of those counts is non-zero.
-$shadows = Select-String -Path $Log -Pattern "\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
+# "landfill shadow month to <date>: clean|mismatches=N"). Multi-word names become underscore-separated ini labels.
+# A line differs when any of those counts is non-zero.
+$shadows = Select-String -Path $Log -Pattern "\] ([a-z_]+(?: [a-z_]+)*) shadow [^:]*(?:\d{4}-\d\d-\d\d|julian=\d+)[^:]*: .*(mismatch(es|ed)[= ]\d|: clean\b)" -CaseSensitive
 # One shadow key can also report owner families of its own: "<name>-<part>-shadow: ... mismatches=N" (flora_shadow's
 # flora-occupant-shadow and flora-static-shadow lines). Each family is its own label, "<name>-<part>".
 $families = Select-String -Path $Log -Pattern "\] ([a-z0-9]+(?:-[a-z0-9]+)+)-shadow: [^\r\n]*mismatches=\d" -CaseSensitive
 $shadows = @($shadows) + @($families) | Where-Object { $_ }
+# Formats reports files rather than dates. Count only files with comparisons; the aggregate "total:" line
+# repeats those comparisons and must not add evidence. Empty files are neither exact nor mismatched.
+$formats = Select-String -Path $Log -Pattern "\] (formats) shadow: [^:]+: \d+ exemplar entries, ([1-9]\d*) compared, \d+ exact, \d+ differ, \d+ rejected" -CaseSensitive
+$shadows = @($shadows) + @($formats) | Where-Object { $_ }
 $differs = "mismatch(es|ed)[= ][1-9]|differences [1-9]"
 # A line with its own total ("; mismatches=N", nothing between "; " and the word) is judged by that total alone:
 # other counts on it can be notes (land value: "with the live map total mismatched=391" when the previous desirability map matched).
 function Differs([string]$line) {
+    if ($line -cmatch '\] formats shadow:') { return $line -cmatch '\b[1-9]\d* (differ|rejected)\b' }
     $m = [regex]::Matches($line, "; mismatches=(\d+)")
     if ($m.Count -gt 0) { return [int]$m[$m.Count - 1].Groups[1].Value -ne 0 }
     return $line -match $differs
@@ -154,7 +160,7 @@ function Resynced([string]$line) {
     return ($line -match '\bresynced:\s*(?!none\b|0\b)\S') -or
            ($line -match '\bresyncs?\s*[=:]\s*[1-9]\d*\b')
 }
-$sg = $shadows | Group-Object { $_.Matches[0].Groups[1].Value }
+$sg = $shadows | Group-Object { $_.Matches[0].Groups[1].Value -replace ' ', '_' }
 if ($sg) {
     Write-Output ""
     Write-Output "shadow lines:"

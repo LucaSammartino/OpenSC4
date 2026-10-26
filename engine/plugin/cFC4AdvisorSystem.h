@@ -155,6 +155,7 @@ private:
     bool destroying_ = false;
     bool initialised_ = false;  // Init without a matching Shutdown (the last Release shuts down first)
     fc4_advisor_host host_{};
+    fc4_mysim_host mysimHost_{};  // `enable = mysims` only
     fc4_advisors* core_ = nullptr;
     fc4_adv_obj* self_ = nullptr;  // the core's system object (token = Primary())
     cISCLua* lua_ = nullptr;      // the app's Lua context, one reference held between Init and Shutdown

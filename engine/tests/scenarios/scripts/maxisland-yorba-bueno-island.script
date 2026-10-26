@@ -1,0 +1,32 @@
+# Maxisland: Yorba Bueno Island. Hand-authored local patch (fits a 64-cell tile).
+# Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
+# Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
+2090-08-27 mark maxisland-yorba-bueno-island: begin local build patch
+2090-08-27 speed 0
+2090-08-28 terrain 4 4 54 54 280 1
+2090-08-29 dezone 4 4 54 54
+2090-08-30 network 4 14 52 14 0
+2090-08-30 network 4 28 28 28 3
+2090-08-30 network 32 4 32 50 6
+2090-08-30 network 4 46 52 46 1
+2090-08-30 network 4 16 52 16 4
+2090-08-30 network 4 18 52 18 5
+2090-08-31 zone 6 6 9 9 1
+2090-08-31 zone 12 6 15 9 2
+2090-08-31 zone 18 6 21 9 3
+2090-08-31 zone 6 20 9 23 4
+2090-08-31 zone 12 20 15 23 5
+2090-08-31 zone 18 20 21 23 6
+2090-08-31 zone 6 32 9 35 7
+2090-08-31 zone 12 32 15 35 8
+2090-08-31 zone 18 32 21 35 9
+2090-09-01 clockmode 1
+2090-09-02 speed 1
+2090-09-03 pricezone 38 20 41 23 4
+2090-09-10 clockmode 0
+2090-09-11 speed 2
+2090-10-26 disaster fire auto
+2090-10-26 disaster riot auto
+2090-10-26 save
+2090-10-26 digest
+2090-10-26 mark maxisland-yorba-bueno-island: script complete

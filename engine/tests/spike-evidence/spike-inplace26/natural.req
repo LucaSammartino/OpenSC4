@@ -1,0 +1,8 @@
+label = inplace26-natural-1
+seconds = 600
+[ini]
+inplace = all
+turbo = 1
+end_date = 2028-01-01
+popup_dialogs = 0
+autotest_end = quit

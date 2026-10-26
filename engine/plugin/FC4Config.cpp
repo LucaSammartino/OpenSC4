@@ -286,6 +286,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // FC4Dialogs.h)
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
                                   "sim_turbo_wait_days", "close_dialogs",
+                                  "sim_fixed_step",  // golden harness; default off
+                                  "script_save_grace_ms",  // golden full-save allowance; default off
+                                  "autotest_quit_post", "script_port_instant", "script_port_probe",  // off
                                   "tract_shadow", "tract_seed", "tract_grow_log",
                                   // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
                                   "commercial_shadow", "commercial_shadow_cells", "civic_shadow", "civic_seed",
@@ -425,6 +428,20 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "lotrecview_shadow",
                                   // Scoped watercraft records/getters and inherited stack probes.
                                   "watercraft_shadow",
+                                  // Private native draft planning vs read-only Rust replay.
+                                  "nettool_plan_shadow", "powerline_plan_shadow",
+                                  // Isolated GZ buffers and read-only command parsing, default off.
+                                  "gzfw_shadow",
+                                  // EX54 raw read capacities and buffer guards, default off.
+                                  "dbpf_bounds_shadow",
+                                  // S3 entry-hook experiment; all default off.
+                                  "inplace", "inplace_mutate", "inplace_fixture",
+                                  // Function compare registry; opt-in only.
+                                  "compare", "compare_mode", "compare_record", "compare_corpus", "compare_dense",
+                                  "compare_record_limit", "compare_case_limit",
+                                  // Native entry census; opt-in only.
+                                  "reach", "reach_cap", "reach_window", "reach_include_probes",
+                                  "reach_contracts", "reach_output", "reach_diagnostics",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

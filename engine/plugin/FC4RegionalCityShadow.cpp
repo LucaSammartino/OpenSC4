@@ -6,8 +6,11 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4WriteCapture.h"
+#include "FC4RegionalCityRecordReplay.h"
+#include "FC4RegionalCityElements.h"
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
+#include "cIGZCOM.h"
 #include "cIGZFrameWork.h"
 #include "cISC4App.h"
 #include "cISC4Region.h"
@@ -28,6 +31,7 @@
 namespace {
 using Probe = bool (*)(void*, uint32_t, uint32_t, double, const uint8_t*, uint32_t);
 extern "C" uint64_t fc4_regionalcity_shadow_compare(const uint8_t*, uint32_t, Probe, void*);
+extern "C" uint64_t fc4_regionalcity_shadow_mutation_compare(const uint8_t*, uint32_t, uint32_t, Probe, void*);
 struct Context {
     cFC4ISC4RegionalCity* city;
     const std::vector<uint8_t>* wire;
@@ -65,6 +69,7 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         case 17: actual = c->GetBudget(); name = "budget"; break;
         case 18: actual = c->GetIncome(); name = "income"; break;
         case 19: actual = c->GetTutorialGUID(); name = "tutorialGUID"; break;
+        // [abi-ret] regional-city §3: IsTutorial returns GetTutorialGUID() != -1.
         case 20: actual = c->IsTutorial(); name = "isTutorial"; break;
         // [abi-ret] regional-city §3 explicitly says both locale getters return true.
         case 21: case 22: if (!c->GetOriginalLanguageAndCountry(x, z)) return false; actual = field == 21 ? x : z; name = "originalLocale"; break;
@@ -88,6 +93,28 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         case 31: c->GetMayorName(text); name = "mayorName"; break;
         case 32: c->GetUtilityAdvisorName(text); name = "utilityAdvisorName"; break;
         case 33: c->GetCityDescription(text); name = "description"; break;
+        case 60: {
+            fc4::GameVector<FC4PointOfInterest> points;
+            const FC4PointOfInterest sentinel{{0x3f800000, 0xc0000000, 0x40400000}};
+            if (!points.push_back(sentinel)) return false;
+            c->GetPointsOfInterest(arg, points);
+            name = "pointsOfInterest";
+            actual = static_cast<double>(points.size());
+            expected = static_cast<double>(len / sizeof(FC4PointOfInterest));
+            equal = len == points.size() * sizeof(FC4PointOfInterest) &&
+                (len == 0 || std::memcmp(bytes, points.begin(), len) == 0);
+            if (!equal) {
+                char detail[160];
+                size_t offset = 0;
+                const auto* actualBytes = reinterpret_cast<const uint8_t*>(points.begin());
+                const size_t actualLen = points.size() * sizeof(FC4PointOfInterest);
+                while (offset < len && offset < actualLen && bytes[offset] == actualBytes[offset]) ++offset;
+                snprintf(detail, sizeof(detail), " poi[%u] nativeBytes=%zu coreBytes=%u firstDifference=%zu;",
+                    arg, actualLen, len, offset);
+                ctx.differences += detail;
+            }
+            break;
+        }
         case 40: actual = c->GetTaxRate(arg); name = "tax"; break;
         case 41: actual = c->GetPopulationOfType(arg); name = "populationByType"; break;
         case 42: actual = c->GetExtrapolatedPopulation(arg); name = "extrapolated"; break;
@@ -113,7 +140,7 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
         default: return false;
     }
     if (field >= 30 && field <= 33) equal = text.Strlen() == len && (len == 0 || memcmp(text.Data(), bytes, len) == 0);
-    else if (field != 100) equal = actual == expected || (std::isnan(actual) && std::isnan(expected));
+    else if (field != 100 && field != 60) equal = actual == expected || (std::isnan(actual) && std::isnan(expected));
     if (!equal && ctx.listed++ < 8) {
         char detail[192];
         snprintf(detail, sizeof(detail), " %s[%u] native=%.17g core=%.17g;", name, arg, actual, expected);
@@ -123,6 +150,91 @@ bool ProbeField(void* raw, uint32_t field, uint32_t arg, double expected, const 
 }
 
 struct Observation { int32_t julian; bool load; };
+
+// A separate, never-Init object exercises setters without changing any city,
+// subscriptions, connections or save files belonging to the running game.
+// SPEC-GAP: regional-city §1 identifies direct construction sites but supplies no interception contract; this is a shadow fixture, not a replacement.
+void MutateFixture(cFC4ISC4RegionalCity* c, uint32_t step) {
+    if (step == 0) {
+        c->SetPosition(-3, 7, false);
+        c->SetCitySize(2, 4);
+        c->SetCitySerialNumber(0x81234567);
+        c->SetBirthDate(0xf1234567);
+        c->SetEstablished(true);
+        c->SetWorldPosition(12.5f, -45.25f);
+        c->SetWorldBaseElevation(37.75f);
+        c->SetBudget(-123456.125);
+        c->SetIncome(98765.0625);
+        c->SetTutorialGUID(0x12345678);
+        cRZBaseString city("FC4 isolated city"), mayor("FC4 isolated mayor");
+        cRZBaseString utility("FC4 isolated utility"), description("FC4 isolated description");
+        c->SetCityName(city);
+        c->SetMayorName(mayor);
+        c->SetUtilityAdvisorName(utility);
+        c->SetCityDescription(description);
+    } else if (step == 1 || step == 2) {
+        for (int32_t commodity : {1, 2, 3, 97}) {
+            const double value = step == 1 ? commodity + 0.125 : -1.0;
+            c->SetProduced(commodity, value);
+            c->SetDemanded(commodity, value * 2.0);
+            c->SetExported(commodity, value * 3.0);
+            c->SetImported(commodity, value * 4.0);
+            c->SetCostPerUnit(commodity, value * 5.0);
+        }
+    } else {
+        c->SetEstablished(false);
+        c->SetTutorialGUID(0xffffffff);
+        cRZBaseString empty;
+        c->SetCityName(empty);
+        c->SetMayorName(empty);
+        c->SetUtilityAdvisorName(empty);
+        c->SetCityDescription(empty);
+        c->ExtrapolateGrowth(0x1010, 17.75f);
+        c->ExtrapolateGrowth(0x1010, -2.5f);
+        c->GetAllowableExtrapolation(0x1010);
+    }
+}
+
+void CompareMutations(uint32_t& fields, uint32_t& mismatches, std::string& differences) {
+    cISC4RegionalCity* fixture = nullptr;
+    auto* com = GZCOM();
+    if (!com || !com->GetClassObject(0x6a037c24, 0x69d2be1d, reinterpret_cast<void**>(&fixture)) || !fixture) {
+        ++mismatches;
+        differences += " fixture-create-failed;";
+        return;
+    }
+    FC4_ACQUIRED(fixture, "regionalcity isolated factory fixture");
+    fc4::WriteCapture baseline;
+    if (!baseline.Capture(fixture)) {
+        ++mismatches;
+        differences += " fixture-capture-failed;";
+    } else {
+        for (uint32_t step = 0; step != 4; ++step) {
+            auto* city = fc4::AsGame(fixture);
+            MutateFixture(city, step);
+            fc4::WriteCapture after;
+            if (!after.Capture(fixture)) {
+                ++mismatches;
+                differences += " fixture-write-failed;";
+                break;
+            }
+            Context ctx{city, &after.Bytes()};
+            const uint64_t result = fc4_regionalcity_shadow_mutation_compare(baseline.Bytes().data(),
+                static_cast<uint32_t>(baseline.Bytes().size()), step, &ProbeField, &ctx);
+            if (result == UINT64_MAX) {
+                ++mismatches;
+                differences += " fixture-decode-failed;";
+                break;
+            }
+            fields += static_cast<uint32_t>(result >> 32);
+            mismatches += static_cast<uint32_t>(result);
+            if (!ctx.differences.empty() && differences.size() < 1500)
+                differences += " fixture-step=" + std::to_string(step) + ctx.differences;
+        }
+    }
+    FC4_RELEASE_CREATED(fixture);
+}
+
 void Observe(void* raw) {
     const auto& obs = *static_cast<Observation*>(raw);
     cIGZFrameWork* fw = RZGetFrameWork();
@@ -146,16 +258,34 @@ void Observe(void* raw) {
     for (auto* record : records) {
         fc4::WriteCapture capture;
         if (!capture.Capture(record)) { ++mismatches; differences += " capture-failed;"; continue; }
+        ++fields;
+        if (!fc4::regionalcity_replay::Roundtrip(capture)) {
+            ++mismatches;
+            differences += " owner-record-roundtrip-failed;";
+        }
+        if (!fc4::regionalcity::CheckLiveRecord(capture, fc4::AsGame(record))) {
+            ++mismatches;
+            differences += " live-record-roundtrip-failed;";
+        }
         Context ctx{fc4::AsGame(record), &capture.Bytes()};
         const uint64_t result = fc4_regionalcity_shadow_compare(capture.Bytes().data(), static_cast<uint32_t>(capture.Bytes().size()), &ProbeField, &ctx);
         if (result == UINT64_MAX) { ++mismatches; differences += " decode-failed;"; continue; }
         ++decoded;
         fields += static_cast<uint32_t>(result >> 32);
         mismatches += static_cast<uint32_t>(result);
+        // The differential must not change a native record. In particular,
+        // allowable-extrapolation and commodity getters can insert map entries.
+        fc4::WriteCapture after;
+        ++fields;
+        if (!after.Capture(record) || after.Bytes() != capture.Bytes()) {
+            ++mismatches;
+            ctx.differences += " observation-changed-record;";
+        }
         if (!ctx.differences.empty() && differences.size() < 1500) {
             differences += " serial=" + std::to_string(ctx.city->GetCitySerialNumber()) + ctx.differences;
         }
     }
+    CompareMutations(fields, mismatches, differences);
     fc4_date date{};
     fc4_date_from_julian(obs.julian, &date);
     fc4::Log("regionalcity shadow %04d-%02d-%02d: phase=%s records=%u decoded=%u fields=%u mismatches=%u%s",
@@ -168,7 +298,7 @@ void Observe(void* raw) {
 namespace fc4 {
 void RegionalCityShadowObserve(int32_t julian, bool load) {
     if (SettingInt("regionalcity_shadow", nullptr, 0) == 0) return;
-    if (load) Log("regionalcity shadow: ON; native live record -> core decode; exact numeric/string getters and record roundtrip; no cache refresh/save/mutations");
+    if (load) Log("regionalcity shadow: ON; native live record -> core decode; exact numeric/string/point getters and record roundtrip; host-owned element record replay; isolated setter fixtures; observation preserves native record");
     Observation obs{julian, load};
     SehGuard("regionalcity shadow", &Observe, &obs);
 }

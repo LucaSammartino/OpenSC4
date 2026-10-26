@@ -33,7 +33,9 @@
 
 namespace fc4 {
 
-// Config load: remember `enable = exemplars`.
+// Config load: remember `enable = exemplars` or `enable = formats`. Both use
+// the same factories and FC4 property objects; formats leaves DBPF segments
+// original until the separate packed-file replacement is implemented.
 void ExemplarFactorySetEnabled(bool enabled);
 // PostAppInit: install when enabled. Logs one line.
 void ExemplarFactoryInstall();

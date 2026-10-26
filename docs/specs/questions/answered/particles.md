@@ -10,3 +10,15 @@
 <!-- from: re-particles4 (2026-10-21) -->
 - **PT4 - §5 pools:** the block size and the particle record size of the refill `0x005A61B0` for the two free lists (`0x00B0A6A0`, `0x00B0A688`), and whether either pool is ever freed.
   **ANSWERED 2026-10-21 (re-particles4):** MATCHES — §5: effect particles 68-byte records in 8,704-byte blocks, base particles 28-byte in 3,584-byte blocks (128 per refill); blocks freed only at program exit.
+
+<!-- from: re-particles4 (2026-10-21) -->
+- **PT3 - §2 defaults:** the constructor copies the globals `0x00B22D54` (colour `+0x7C`, force `+0xE0`, `+0xF4`, `preferDir` `+0x18C`), `0x00B22D70` (effect particle fields) and `0x00B22E20` as floats. Their file images are pointer-like (`0x00A25EC8`, `0x00A25EE0`, `0x00A261F2`), so they are set by static initialisers. What are their values once the program runs (a runtime read or the initialiser's instructions)?
+  **ANSWERED 2026-10-23 (re-particles-pt23):** DIFFERS — particles.md §2 and PO37: all three seeds are positive-zero binary32. They occupy the PE zero-filled .data tail, beyond SizeOfRawData, so the pointer-like file-offset reads were invalid. Constructor loads and stores confirm zero defaults; no runtime measurement is claimed.
+
+<!-- from: core-particles5 (2026-10-23) -->
+- **PT12 - §17.3 and PO30 contradict rigid-body-2d §3:** particles specifies unsigned component-wise maximum (00040005 for 00020005/00040003), while rigid-body-2d specifies unsigned component-wise minimum (00020003). Which contract governs 005BA010? [Preserve existing rigid_body_2d::primary_sector minimum; expose the particles supplement's maximum separately, without replacing native code.]
+  **ANSWERED 2026-10-23 (re-particles-pt23):** DIFFERS — particles.md §17.3/PO30/PO47 and rigid-body-2d.md §3/RB-P1 now agree on unsigned component-wise maximum. Carry-branch operand selection at 005BA03B–005BA05F disproves the older minimum contract; there are not two helper variants.
+
+<!-- from: core-particles5 (2026-10-23) -->
+- **PT13 - §13.2 ordinary Init and component transform/configuration boundary:** which terrain-related services does Init acquire (identities, acquisition order, failure behavior, extent outputs), and which exact stores/ref operations do Shutdown and main slots 3/5/6 perform beyond the already published density fields? The supplement names these entries but gives no complete primitive service inventory or transform/parameter algorithm. [Expose initialization as Unsupported(PT13); accept explicit motion matrices and city extents as already obtained foreign primitive state, without inventing native service calls. Main slot 4 remains a no-op.]
+  **ANSWERED 2026-10-23 (re-particles-pt23):** DIFFERS — particles.md §13.3 and PO38–PO46 specify one retained cISTETerrain, ordered X-count/width/Z-count/width queries, signed-count/f32 extent staging, repeated-Init fast path and unguarded null-service failure. Shutdown release order, both transform records/box translation, every handled parameter ID and pointer-channel dispatch are instruction verified. Main slot 4 remains a no-op; the initialization owner need not remain Unsupported(PT13).

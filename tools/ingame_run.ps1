@@ -39,13 +39,13 @@ Several games at once (slots). Every run, slot or not, starts its game under a l
 single-instance mutex (tools\sc4mutex.ps1) as soon as the game holds it, so the next game can start. -Slot N runs the
 game with -UserDir:"<slot root>\slotN\" instead of the Documents user dir; the slot gets its own Plugins
 (FreeCity4.dll and .pdb from -Dll, else the DLL staged in Documents), FreeCity4.ini, FreeCity4.log, SimCity 4.cfg and
-Regions\FC4 Test, mirrored from Documents before every run (so a city a run changed is restored). The slot root is
+Regions\<Region>, mirrored from Documents before every run (so a city a run changed is restored). The slot root is
 <main checkout>\build-runs\sc4slots (override: -SlotRoot or $env:FC4_SLOT_ROOT). A path with a component that starts
 with '.' (like .claude) is refused: the game ignores such a -UserDir and silently uses Documents. A slot game runs on
 its own CPU (affinity 2N; two games on the game's default CPU 0 starve each other), starts visible without
 activation and is minimized once the city has loaded (it simulates at the same rate minimized; -NoMinimize keeps it
 up). Slot runs never use real input: realkey, realclick, realdrag and save actions are refused.
--City <name> sets autoload_city to the user dir's "Regions\FC4 Test\City - <name>.sc4"; in a slot run an
+-Region <folder> defaults to "FC4 Test". -City <name> sets autoload_city to the user dir's "Regions\<Region>\City - <name>.sc4"; in a slot run an
 autoload_city under Documents\SimCity 4 is remapped to the slot. -Dll without -Slot stages the DLL in Documents.
 -EndDate YYYY-MM-DD adds autotest_end_date (the verdict comes at that game date; -AfterLoadSeconds stays the
 timeout). -Turbo adds sim_turbo = 1. -TurboFrom YYYY-MM-DD starts the turbo clock with a script action at that date
@@ -69,6 +69,7 @@ param(
     [ValidateRange(0, 32)][int]$Slot = 0,
     [string]$Dll = "",
     [string]$City = "",
+    [string]$Region = "FC4 Test",
     [string]$EndDate = "",
     [switch]$Turbo,
     [string]$TurboFrom = "",
@@ -84,8 +85,8 @@ $DocsUser = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4"
 $OutDir = Join-Path $PSScriptRoot "..\build-runs"
 $Ctl = Join-Path $PSScriptRoot "sc4ctl.ps1"
 $MutexTool = Join-Path $PSScriptRoot "sc4mutex.ps1"
-$Region = "FC4 Test"
 . (Join-Path $PSScriptRoot 'city_fixture.ps1')
+. (Join-Path $PSScriptRoot 'process_cmdline.ps1')
 
 Add-Type -ErrorAction SilentlyContinue @"
 using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
@@ -220,10 +221,11 @@ function MainCheckout {
 # PIDs of the SimCity 4 processes that use user dir $dir (from their command lines; no -UserDir = Documents).
 function GamesUsing([string]$dir) {
     $want = $dir.TrimEnd('\').ToLower()
-    try { $all = @(Get-CimInstance Win32_Process -Filter "Name='SimCity 4.exe'" -ErrorAction Stop) }
-    catch { return @(Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) }
+    $all = @(Get-HarnessGameProcesses)
     $r = @()
     foreach ($w in $all) {
+        # Still fail closed when neither query can identify a live process.
+        if (-not $w.CommandLine) { $r += [int]$w.ProcessId; continue }
         $ud = $DocsUser
         if ("$($w.CommandLine)" -match '-UserDir:"?([^"]+)') { $ud = $Matches[1].Trim() }
         if ($ud.TrimEnd('\').ToLower() -eq $want) { $r += [int]$w.ProcessId }
@@ -281,6 +283,9 @@ if ($IniFile) {
     $Ini = [IO.File]::ReadAllText((Resolve-Path -LiteralPath $IniFile).Path)
 }
 foreach ($d in @($EndDate, $TurboFrom)) { if ($d -and $d -notmatch '^\d{4}-\d\d-\d\d$') { Write-Output "BAD ARGS: '$d' is not YYYY-MM-DD"; exit 4 } }
+if ($Region -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._()-]*$' -or $Region.EndsWith('.') -or $Region.EndsWith(' ')) { Write-Output "BAD ARGS: region '$Region' must be one folder name"; exit 4 }
+$regionSource = Join-Path $DocsUser "Regions\$Region"
+if (-not (Test-Path -LiteralPath $regionSource -PathType Container)) { Write-Output "BAD ARGS: no such region: $regionSource"; exit 4 }
 
 if ($Slot -gt 0) {
     $root = if ($SlotRoot) { $SlotRoot } elseif ($env:FC4_SLOT_ROOT) { $env:FC4_SLOT_ROOT } else { Join-Path (MainCheckout) "build-runs\sc4slots" }
@@ -289,10 +294,18 @@ if ($Slot -gt 0) {
 } else { $UserDir = $DocsUser }
 $Plugins = Join-Path $UserDir "Plugins"
 $Log = Join-Path $Plugins "FreeCity4.log"
-$CityDir = Join-Path $UserDir "Regions\$Region"
+# A slot mirrors the selected region under the name FC4 Test, as its only region (see the mirror below).
+$CityDir = if ($Slot -gt 0) { Join-Path $UserDir "Regions\FC4 Test" } else { Join-Path $UserDir "Regions\$Region" }
+if ($Slot -eq 0 -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: -Region other than FC4 Test needs -Slot"; exit 4 }
 $cityFixture = Resolve-HarnessCityFixture $Ini $Slot $City (Join-Path (MainCheckout) 'build-runs\fixtures')
+if ($cityFixture.Source -and $Region -ne 'FC4 Test') { Write-Output "BAD ARGS: fixture_city requires region FC4 Test"; exit 4 }
 $Ini = $cityFixture.Ini
 if ($cityFixture.Source) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
+$suiteState = Resolve-HarnessSuiteState $Ini $Slot (MainCheckout)
+$Ini = $suiteState.Ini
+if ($suiteState.Export -and $KeepSaves) { throw 'export_city requires normal slot backup restoration' }
+if ($suiteState.Source -and $cityFixture.Source) { throw 'prepared_city and fixture_city cannot be combined' }
+if ($suiteState.Source -or $suiteState.Export) { $null = Resolve-HarnessFixtureDestination $UserDir $DocsUser $City }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $plan = @()
@@ -325,12 +338,18 @@ if ($dllSrc -and -not (Test-Path -LiteralPath $dllSrc)) { Write-Output "BAD ARGS
 if ($Slot -gt 0) {
     New-Item -ItemType Directory -Force $Plugins, (Join-Path $UserDir "Regions") | Out-Null
     Copy-Item (Join-Path $DocsUser "SimCity 4.cfg") (Join-Path $UserDir "SimCity 4.cfg") -Force
-    # Mirror the test region (copies only what differs, removes what the last run added).
-    & robocopy (Join-Path $DocsUser "Regions\$Region") $CityDir /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    # The cfg may remember any region (Timbuktu, say); with FC4 Test the slot's only region, the game opens it.
+    foreach ($d in Get-ChildItem -LiteralPath (Join-Path $UserDir "Regions") -Directory) { if ($d.Name -ne "FC4 Test") { Remove-Item -LiteralPath $d.FullName -Recurse -Force } }
+    # Mirror only the selected region (copies only what differs, removes what the last run added).
+    & robocopy $regionSource $CityDir /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { Write-Output "BLOCKED: could not mirror the region into $CityDir (robocopy $LASTEXITCODE)"; exit 3 }
     if ($cityFixture.Source) {
         $fixtureCopy = Copy-HarnessCityFixture $cityFixture.Source $UserDir $DocsUser $City
         Write-Output "fixture_city: $($fixtureCopy.SHA256) -> $($fixtureCopy.Destination) (source preserved)"
+    }
+    if ($suiteState.Source) {
+        $stateCopy = Copy-HarnessCityFixture $suiteState.Source $UserDir $DocsUser $City
+        Write-Output "prepared_city: $($stateCopy.SHA256) -> $($stateCopy.Destination) (source preserved)"
     }
     foreach ($f in Get-ChildItem -LiteralPath $Plugins -File) { if ($f.Name -notin "FreeCity4.dll", "FreeCity4.pdb", "FreeCity4.log") { Remove-Item -LiteralPath $f.FullName -Force } }
 }
@@ -346,7 +365,7 @@ $dllHash = if (Test-Path -LiteralPath $stagedDll) { (Get-FileHash -Algorithm SHA
 # The ini: the caller's text, the city, the autotest defaults, the turbo / end-date switches.
 $text = $Ini
 if ($City) {
-    if ($City -notmatch '^[A-Za-z0-9 ._()-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
+    if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$') { Write-Output "BAD ARGS: city name '$City'"; exit 4 }
     $cityFile = Join-Path $CityDir "City - $City.sc4"
     if (-not (Test-Path -LiteralPath $cityFile)) { Write-Output "BAD ARGS: no city file $cityFile"; exit 4 }
     $text = ($text -replace '(?m)^[ \t]*autoload_city[ \t]*=.*$', '') + "`nautoload_city = $cityFile"
@@ -400,6 +419,53 @@ try {
     else {
         $gameArgs = @("-CPUCount:1", "-w", "-intro:off")
         if ($Slot -gt 0) { $gameArgs += "-UserDir:`"$UserDir\`"" }
+        # Optional Maxis command script; execute only a private slot copy, with the shared Lua helpers.
+        $luaExtensions = $Ini -match '(?im)^[ \t]*lua_extensions[ \t]*=[ \t]*1[ \t]*\r?$'
+        if ($luaExtensions) {
+            if ($Slot -eq 0) { throw 'lua_extensions requires -Slot (third-party plugins are slot-only)' }
+            $extensionSource = Join-Path (MainCheckout) 'build-runs\thirdparty\sc4-lua-extensions'
+            foreach ($name in 'SC4LuaExtensions.dll', 'SC4LuaExtensions.dat') {
+                $source = Join-Path $extensionSource $name
+                if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "lua_extensions: missing $source" }
+            }
+            foreach ($name in 'SC4LuaExtensions.dll', 'SC4LuaExtensions.dat') {
+                Copy-Item -LiteralPath (Join-Path $extensionSource $name) -Destination $Plugins -Force
+            }
+            Write-Output 'lua_extensions: staged DLL and DAT in the private slot Plugins folder'
+        }
+        if ($Ini -match '(?im)^[ \t]*lua_script[ \t]*=[ \t]*([^\r\n]+)') {
+            if ($Slot -eq 0) { throw 'lua_script requires -Slot (scripts must never change Documents)' }
+            $luaRelative = $Matches[1].Trim()
+            if ([IO.Path]::IsPathRooted($luaRelative)) { throw 'lua_script must name an existing repo-relative .lua file' }
+            $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+            # The shared queue runs main's launcher with a lane's staged DLL.
+            # Scripts and helpers must come from that DLL's checkout as well.
+            if ($Dll) {
+                $luaCheckout = [IO.DirectoryInfo](Split-Path -Parent ([IO.Path]::GetFullPath($Dll)))
+                while ($luaCheckout -and -not (Test-Path -LiteralPath (Join-Path $luaCheckout.FullName '.git'))) {
+                    $luaCheckout = $luaCheckout.Parent
+                }
+                if ($luaCheckout) { $repoRoot = $luaCheckout.FullName }
+            }
+            $luaSource = [IO.Path]::GetFullPath((Join-Path $repoRoot $luaRelative))
+            if (-not $luaSource.StartsWith($repoRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
+                [IO.Path]::GetExtension($luaSource) -ine '.lua' -or -not (Test-Path -LiteralPath $luaSource -PathType Leaf)) {
+                throw 'lua_script must name an existing repo-relative .lua file'
+            }
+            $luaRoot = Join-Path $UserDir 'LuaScripts'
+            $luaCopy = Join-Path $luaRoot $luaSource.Substring($repoRoot.Length + 1)
+            $null = New-Item -ItemType Directory -Force (Split-Path -Parent $luaCopy)
+            $luaHelpers = Join-Path $repoRoot 'engine\tests\scenarios\lua'
+            if (Test-Path -LiteralPath $luaHelpers) {
+                $luaHelperCopy = Join-Path $luaRoot 'engine\tests\scenarios\lua'
+                $null = New-Item -ItemType Directory -Force $luaHelperCopy
+                Copy-Item -Path (Join-Path $luaHelpers '*.lua') -Destination $luaHelperCopy -Force
+            }
+            $luaPrefix = "FC4_ROOT = '" + ($luaRoot.Replace('\', '/').Replace("'", "\'")) + "'`n"
+            [IO.File]::WriteAllText($luaCopy, $luaPrefix + [IO.File]::ReadAllText($luaSource), (New-Object Text.UTF8Encoding($false)))
+            $gameArgs += "-LuaScript:`"$luaCopy`""
+            Write-Output "lua_script: $luaSource -> $luaCopy"
+        }
         $docLog = Join-Path $DocsUser "Plugins\FreeCity4.log"
         $docLen = if (Test-Path $docLog) { (Get-Item $docLog).Length } else { 0 }
         if ($Slot -gt 0) { $p = [FC4Run]::Start($Exe, ($gameArgs -join " "), $GameDir, 4) }   # SW_SHOWNOACTIVATE
@@ -463,7 +529,9 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
         if (-not $stallSeen) { $stallSeen = Get-Date }
         elseif ((Get-Date) - $stallSeen -gt [TimeSpan]::FromSeconds(30)) { $verdict = "stalled (fallback): " + $stalls[$stalls.Count - 1].Value; Start-Sleep -Seconds 5; break }
     } else { $stallSeen = $null }
-    if (-not $loadedAt -and $text -match "config \(city load: budget Init\)") { $loadedAt = Get-Date }
+    # The budget Init hook is absent when budget is disabled (the shadows profile).
+    # The plugin starts its autotest clock only after a loaded city's first tick.
+    if (-not $loadedAt -and $text -match "config \(city load: budget Init\)|autotest: clock started;") { $loadedAt = Get-Date }
     if (-not $loadedAt) { if ($p.HasExited) { break }; continue }
 
     # A slot game leaves the screen once its city has loaded. SW_MINIMIZE, which hands the activation on when the game
@@ -565,6 +633,35 @@ if ($p -and -not $p.HasExited) {
 }
 Start-Sleep -Seconds 2
 Copy-Item $Log (Join-Path $OutDir "$Label.log") -Force
+if ($suiteState.Export) {
+    try {
+        if ($verdict -notmatch '^AUTOTEST VERDICT: clean\b' -or -not (Select-String -LiteralPath $Log -Pattern 'script: line .* save -> ok=1' -Quiet)) { throw 'export_city requires a clean run and a successful scripted save' }
+        $null = Resolve-HarnessSuiteState ("export_city = " + $suiteState.Export) $Slot (MainCheckout)
+        $exportHash = Export-HarnessSuiteState $cityPath $suiteState.Export $cityHash
+        Write-Output "export_city: $exportHash -> $($suiteState.Export) (before slot restore)"
+    } catch { $verdict = "state-export-failed: $($_.Exception.Message)" }
+}
+# Optional Lua evidence; never read another slot's or the install's shared logs.
+if ($luaExtensions) {
+    $luaEvidence = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($file in Get-ChildItem -LiteralPath $UserDir -Recurse -File -Filter '*.log' | Sort-Object FullName) {
+        $content = ReadShared $file.FullName
+        if ($file.Name -in 'SC4LuaExtensions.log', 'fc4-lua.log' -or $file.Name -match '^Lua') {
+            $luaEvidence.Add("--- $($file.FullName.Substring($UserDir.Length + 1)) ---")
+            $luaEvidence.Add($content)
+        } else {
+            foreach ($line in ($content -split '\r?\n')) {
+                if ($line -match '(?i)\blua\b|FC4_LUA') { $luaEvidence.Add("$($file.Name): $line") }
+            }
+        }
+    }
+    $luaResult = Join-Path (MainCheckout) "build-runs\game-results\$Label.lua.log"
+    $null = New-Item -ItemType Directory -Force (Split-Path -Parent $luaResult)
+    [IO.File]::WriteAllLines($luaResult, $luaEvidence, (New-Object Text.UTF8Encoding($false)))
+    Copy-Item -LiteralPath $luaResult -Destination (Join-Path $OutDir "$Label.lua.log") -Force
+    Write-Output "lua log: $luaResult ($($luaEvidence.Count) records)"
+}
+# End optional Lua evidence.
 if ($cityBak -and (Get-FileHash $cityPath).Hash -ne $cityHash) {
     Copy-Item $cityBak $cityPath -Force
     $restored = if ((Get-FileHash $cityPath).Hash -eq $cityHash) { "restored" } else { "RESTORE FAILED" }

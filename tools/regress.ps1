@@ -85,7 +85,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [int]$Seconds = 150,
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
-    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24, commercial, industrial, civic, parks, lotdev, zonedev, traffic, automata, netmgr, netlot, nettool, demolition, occmgr, propmgr, lotcfg, citysit, propdev, simgrids, citydetail, ports, dispatch, exemplars, span1555, span4444, span565, span8, span8888, tutorial, advisors, terrain, disasters, effects, netrules",
+    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill, residential, neighbors, zones, development, tract, history, clock24, commercial, industrial, civic, parks, lotdev, zonedev, traffic, automata, netmgr, netlot, nettool, demolition, occmgr, propmgr, lotcfg, citysit, propdev, simgrids, citydetail, ports, dispatch, exemplars, span1555, span4444, span565, span8, span8888, tutorial, advisors, terrain, disasters, effects, netrules, mysims, regionalcity",
     [string]$AddShadows = "",
     [ValidateRange(1,5)][int]$ShadowSplit = 1,
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
@@ -99,9 +99,27 @@ param(
     [string]$TurboFrom = "",
     [int]$TurboTimeout = 1800,
     [string]$Baseline = "",
-    [switch]$AnyPacing
+    [switch]$AnyPacing,
+    [ValidateSet("", "smoke", "tier1")][string]$Suite = ""
 )
 $ErrorActionPreference = "Continue"
+# Optional scenario gate. The house-city default below stays the train default.
+if ($Suite) {
+    if ($Baseline -or $AddShadows -or $ShadowSplit -ne 1 -or $TurboFrom -or $NormalSpeed) {
+        throw '-Suite does not combine with -Baseline, -AddShadows, -ShadowSplit, -TurboFrom or -NormalSpeed'
+    }
+    $suiteDll = if ($Dll) { $Dll } else { Split-Path $PSScriptRoot -Parent }
+    $profiles = if ($Only) { @($Only) } else { @('shadows', 'replace') }
+    $suiteFailed = $false
+    foreach ($profile in $profiles) {
+        $suiteArgs = @((Join-Path $PSScriptRoot 'suite.py'), 'run', '--set', $Suite,
+            '--profile', $profile, '--dll', $suiteDll, '--tag', "$Tag-$profile", '--wait-seconds', "$QueueWait")
+        if ($profile -eq 'replace') { $suiteArgs += @('--extra', "enable = $Replace") }
+        & python @suiteArgs
+        if ($LASTEXITCODE -ne 0) { $suiteFailed = $true }
+    }
+    if ($suiteFailed) { exit 1 }; exit 0
+}
 . (Join-Path $PSScriptRoot "regress_shadows.ps1")
 function Add-RegressShadowKeys([string]$Ini, [string]$Keys) {
     if (-not $Keys) { return $Ini }
@@ -186,7 +204,7 @@ $Out = Join-Path $PSScriptRoot "..\build-runs"
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $runs = [ordered]@{
-    shadows = "disable = budget,ordinance`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1`nterrain_shadow = 1`nautomata_shadow = 1`nnetmgr_shadow = 1`nmysims_shadow = 1`noccmgr_shadow = 1`noccmgr_shadow_follow = 1`nadvisors_shadow = 1`ntutorial_shadow = 1`ncitydetail_shadow = 1`nvariant_shadow = 1`nfeature_shadow = 1`nlotcfg_shadow = 1`npropmgr_shadow = 1`npropmgr_shadow_cells = 32`nnetocc_shadow = 1`nnetrules_shadow = 1`nstrings_shadow = 1`nlua_shadow = 1`noverlays_shadow = 1`noverlays_fixture = 1`nscres_constructed = 1`nsimgrid_shadow = 1`nlotrec_shadow = 1`nordinance_shadow = 1`nlotconf_shadow = 1`nautomata_owners_shadow = 1`nweather_shadow = 1`nscres_file_shadow = 1`ndbpf_shadow = 1`nconstruction_shadow = 1`nlotunit_shadow = 1`nlotbasetexture_shadow = 1`ncitysit_shadow = 1`ndemolition_shadow = 1`ndispatch_shadow = 1`nports_shadow = 1`nrenderprops_shadow = 1`napp_shadow = 1`nregionalcity_shadow = 1"
+    shadows = "disable = budget,ordinance`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1`nneighbours_shadow = 1`nzones_shadow = 1`ndevelopment_shadow = 1`ntract_shadow = 1`nzonedev_shadow = 1`nlotdev_shadow = 1`nhistory_shadow = 1`nclock24_shadow = 1`ncommercial_shadow = 1`ncivic_shadow = 1`nparks_shadow = 1`ntraffic_shadow = 1`ntraffic_shadow_hypotheses = 7`ntraffic_shadow_lines = 1`nterrain_shadow = 1`nautomata_shadow = 1`nnetmgr_shadow = 1`nmysims_shadow = 1`noccmgr_shadow = 1`noccmgr_shadow_follow = 1`nadvisors_shadow = 1`ntutorial_shadow = 1`ncitydetail_shadow = 1`nvariant_shadow = 1`nfeature_shadow = 1`nlotcfg_shadow = 1`npropmgr_shadow = 1`npropmgr_shadow_cells = 32`nnetocc_shadow = 1`nnetrules_shadow = 1`nstrings_shadow = 1`nlua_shadow = 1`noverlays_shadow = 1`noverlays_fixture = 1`nscres_constructed = 1`nsimgrid_shadow = 1`nlotrec_shadow = 1`nordinance_shadow = 1`nlotconf_shadow = 1`nautomata_owners_shadow = 1`nweather_shadow = 1`nscres_file_shadow = 1`ndbpf_shadow = 1`nconstruction_shadow = 1`nlotunit_shadow = 1`nlotbasetexture_shadow = 1`ncitysit_shadow = 1`ndemolition_shadow = 1`ndispatch_shadow = 1`nports_shadow = 1`nrenderprops_shadow = 1`napp_shadow = 1`nregionalcity_shadow = 1`nnettool_plan_shadow = 1`npowerline_plan_shadow = 1`ngzfw_shadow = 1`nformats_shadow = 1`ndbpf_bounds_shadow = 1"
     replace = "enable = $Replace"
 }
 $runs.shadows = Add-RegressShadowKeys $runs.shadows $AddShadows

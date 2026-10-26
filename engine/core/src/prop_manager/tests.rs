@@ -50,6 +50,8 @@ struct Game {
     occs: RefCell<BTreeMap<u64, Occ>>,
     /// Lots: token → cell rect.
     lots: RefCell<BTreeMap<u64, CellRect>>,
+    cell_candidates: RefCell<Option<Vec<u64>>>,
+    world_positions: RefCell<BTreeMap<(i32, i32), (f32, f32)>>,
     /// Buildings: token → (cell, props property).
     buildings: RefCell<Buildings>,
     services: Cell<bool>,
@@ -278,6 +280,12 @@ impl PropHost for Game {
         Some(v)
     }
     fn occupants_in_cell_rect(&self, r: CellRect, u: u32) -> Option<Vec<u64>> {
+        if let Some(v) = self.cell_candidates.borrow().as_ref() {
+            for t in v {
+                self.bump(*t, 1);
+            }
+            return Some(v.clone());
+        }
         // Cells hit by the occupant's position, widened by one cell (a box
         // query also returns neighbours that overlap the rectangle).
         let v: Vec<u64> = self
@@ -315,7 +323,11 @@ impl PropHost for Game {
         self.lots.borrow()[&lot]
     }
     fn cell_to_world(&self, x: i32, z: i32) -> (f32, f32) {
-        (x as f32 * 16.0, z as f32 * 16.0)
+        self.world_positions
+            .borrow()
+            .get(&(x, z))
+            .copied()
+            .unwrap_or((x as f32 * 16.0, z as f32 * 16.0))
     }
     fn world_to_cell(&self, x: f32, z: f32) -> (i32, i32) {
         cell_of(x, z)
@@ -685,8 +697,8 @@ fn t4_get_lot_props_boundary() {
     let m = manager(&g);
     m.init();
     g.lots.borrow_mut().insert(0x900, (10, 20, 11, 21));
-    let inside = [(0x301, 160.0, 320.0), (0x302, 191.9, 351.9)];
-    let outside = [(0x303, 192.0, 330.0), (0x304, 175.0, 319.9)];
+    let inside = [(0x301, 160.0, 320.0), (0x302, 192.0, 352.0)];
+    let outside = [(0x303, f32::from_bits(0x4340_0001), 330.0), (0x304, 175.0, 319.9)];
     for (t, x, z) in inside.iter().chain(&outside) {
         g.add_occ(*t, [*x, 0.0, *z], usage::LOT, true);
         g.bump(*t, 1); // the occupant manager's
@@ -709,6 +721,141 @@ fn t4_get_lot_props_boundary() {
     let mut l3 = Vec::new();
     m.get_lot_props(&mut l3, Some(0x900));
     assert!(!l3.contains(&0x306));
+}
+
+/// PL24: both upper bounds retain the observed kind-0, flags-7 props.
+#[test]
+fn pl24_untyped_lot_props_at_observed_upper_bounds() {
+    let cases = [
+        ((7, 44, 8, 45), [144.0_f32, 285.8455, 723.09265], 0),
+        (
+            (31, 46, 33, 47),
+            [f32::from_bits(0x4401_0094), f32::from_bits(0x438a_b871), 768.0],
+            2,
+        ),
+    ];
+    for (rect, boundary, axis) in cases {
+        let g = Game::new();
+        let m = manager(&g);
+        assert!(m.init());
+        g.lots.borrow_mut().insert(0x900, rect);
+        let mut inside = boundary;
+        inside[axis] = f32::from_bits(boundary[axis].to_bits() - 1);
+        let mut outside = boundary;
+        outside[axis] = f32::from_bits(boundary[axis].to_bits() + 1);
+        for (token, position) in [(0x301, inside), (0x302, boundary), (0x303, outside)] {
+            g.add_occ(token, position, usage::LOT, true);
+            g.occs.borrow_mut().get_mut(&token).unwrap().flags = 7;
+            assert_eq!(g.occ(token).prop_type, 0);
+            g.bump(token, 1); // the occupant manager's reference
+        }
+        let mut list = Vec::new();
+        assert!(m.get_lot_props_at(&mut list, rect.0, rect.1));
+        assert_eq!(list, vec![0x301, 0x302], "rect={rect:?}, axis={axis}");
+        assert_eq!(g.refs(0x301), 2);
+        assert_eq!(g.refs(0x302), 2, "upper-bound entry retained");
+        assert_eq!(g.refs(0x303), 1, "outside entry released");
+    }
+}
+
+/// §T.4: supplied spatial candidates isolate the binary32 position pass.
+#[test]
+fn pl24_binary32_lot_boundary_fixtures() {
+    let rows = [
+        // L, I, X, Z, C, OX, OZ, B, NX, NZ in §T.4 order.
+        ([160.0, 0.0, 320.0], true),
+        ([f32::from_bits(0x433f_ffff), 0.0, f32::from_bits(0x43af_ffff)], true),
+        ([192.0, 0.0, 330.0], true),
+        ([175.0, 0.0, 352.0], true),
+        ([192.0, 0.0, 352.0], true),
+        ([f32::from_bits(0x4340_0001), 0.0, 330.0], false),
+        ([175.0, 0.0, f32::from_bits(0x43b0_0001)], false),
+        ([175.0, 0.0, 319.9], false),
+        ([f32::NAN, 0.0, 330.0], false),
+        ([175.0, 0.0, f32::NAN], false),
+        // Y is ignored; caller outside.
+        ([175.0, f32::NAN, 330.0], true),
+        ([0.0, 0.0, 0.0], false),
+    ];
+    let g = Game::new();
+    let m = manager(&g);
+    assert!(m.init());
+    g.lots.borrow_mut().insert(0x900, (10, 20, 11, 21));
+    let mut expected = Vec::new();
+    let mut candidates = Vec::new();
+    for (i, (position, keep)) in rows.into_iter().enumerate() {
+        let token = 0x301 + i as u64;
+        g.add_occ(token, position, usage::LOT, true);
+        g.bump(token, 1); // occupant manager
+        *g.cell_candidates.borrow_mut() = Some(vec![token]);
+        let mut list = Vec::new();
+        assert!(m.get_lot_props(&mut list, Some(0x900)));
+        assert_eq!(list, if keep { vec![token] } else { vec![] }, "row={i}");
+        assert_eq!(g.refs(token), if keep { 2 } else { 1 }, "row={i}");
+        for t in list {
+            g.bump(t, -1); // caller releases its query result
+        }
+        // The same position pass applies to existing caller entries.
+        *g.cell_candidates.borrow_mut() = Some(vec![]);
+        g.bump(token, 1);
+        let mut list = vec![token];
+        assert!(m.get_lot_props(&mut list, Some(0x900)));
+        assert_eq!(list, if keep { vec![token] } else { vec![] }, "caller row={i}");
+        assert_eq!(g.refs(token), if keep { 2 } else { 1 }, "caller row={i}");
+        for t in list {
+            g.bump(t, -1);
+        }
+        candidates.push(token);
+        if keep {
+            expected.push(token);
+        }
+    }
+    *g.cell_candidates.borrow_mut() = Some(candidates);
+    let mut list = Vec::new();
+    assert!(m.get_lot_props(&mut list, Some(0x900)));
+    assert_eq!(list, expected, "survivors preserve candidate order");
+}
+
+#[test]
+fn pl24_nan_world_bounds_reject_and_ordered_extremes_survive() {
+    let bounds = [160.0, 320.0, 192.0, 352.0];
+    for axis in 0..4 {
+        let g = Game::new();
+        let m = manager(&g);
+        assert!(m.init());
+        g.lots.borrow_mut().insert(0x900, (10, 20, 11, 21));
+        let mut b = bounds;
+        b[axis] = f32::NAN;
+        g.world_positions.borrow_mut().insert((10, 20), (b[0], b[1]));
+        g.world_positions.borrow_mut().insert((12, 22), (b[2], b[3]));
+        g.add_occ(0x301, [175.0, 0.0, 330.0], usage::LOT, true);
+        g.bump(0x301, 1);
+        *g.cell_candidates.borrow_mut() = Some(vec![0x301]);
+        let mut list = Vec::new();
+        assert!(m.get_lot_props(&mut list, Some(0x900)));
+        assert!(list.is_empty(), "NaN bound {axis}");
+        assert_eq!(g.refs(0x301), 1, "NaN bound {axis} releases once");
+    }
+    let g = Game::new();
+    let m = manager(&g);
+    assert!(m.init());
+    g.lots.borrow_mut().insert(0x900, (10, 20, 11, 21));
+    g.world_positions
+        .borrow_mut()
+        .insert((10, 20), (-0.0, f32::NEG_INFINITY));
+    g.world_positions.borrow_mut().insert((12, 22), (0.0, f32::INFINITY));
+    for (token, position) in [
+        (0x301, [0.0, f32::NAN, f32::NEG_INFINITY]),
+        (0x302, [-0.0, 0.0, f32::INFINITY]),
+    ] {
+        g.add_occ(token, position, usage::LOT, true);
+        g.bump(token, 1);
+    }
+    *g.cell_candidates.borrow_mut() = Some(vec![0x301, 0x302]);
+    let mut list = Vec::new();
+    assert!(m.get_lot_props(&mut list, Some(0x900)));
+    assert_eq!(list, vec![0x301, 0x302]);
+    assert_eq!((g.refs(0x301), g.refs(0x302)), (2, 2));
 }
 
 /// PL21-U/C/R/W: grid membership and caller-list retention are distinct.

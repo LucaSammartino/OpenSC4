@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 103;
+pub const FC4_ABI_VERSION: u32 = 104;
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
 pub const FC4_ERR_TRUNCATED: i32 = -2;
@@ -870,6 +870,10 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 }
 
 pub mod advisors;
+// The MySim dispatch front (enable = mysims; mysims.md §6.2.1, §7.2.1, §7.2.3).
+pub mod mysim_dispatch;
+#[cfg(test)]
+mod mysim_dispatch_tests;
 pub mod audio;
 pub mod aura;
 pub mod aura_shadow;
@@ -891,6 +895,7 @@ pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
 pub mod flora_shadow;
+pub mod flora_instance;
 pub mod growth;
 pub mod history;
 pub mod hostgrid;
@@ -1181,6 +1186,8 @@ mod legacyctl_shadow;
 mod viewutil_shadow;
 // Private finite model-instance fixture transport; no DLL export changes.
 mod modelinst_shadow;
+// Private construction record-owner factory; not activated as a replacement.
+mod construction_owner;
 
 // Private portable overlay owner factory transport; no public DLL exports.
 mod overlay_owner;
@@ -1188,3 +1195,12 @@ mod overlay_owner;
 mod netocc_line;
 // Private power-pole occupant factory transport (no public DLL exports).
 mod netocc_pole;
+// Private GZ framework buffer/command monthly differential.
+mod gzfw_shadow;
+// S3 round 3: private native-layout transport, no DLL ABI exports.
+mod inplace3;
+// Registry compare adapters; private static-link transport, no public DLL ABI.
+mod compare;
+
+// Private RegionalCity handle transport; no public DLL exports.
+mod regionalcity_owner;

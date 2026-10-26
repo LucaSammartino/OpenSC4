@@ -6,6 +6,9 @@ use fc4_core::mysims::dispatch::DispatchRecordRefs;
 use fc4_core::mysims::{dispatch::DispatchState, DISPATCH_CLSID};
 use fc4_core::stream::{ByteWriter, RefValue};
 
+#[path = "mysimdispatch_record_shadow.rs"]
+mod record;
+
 struct NoRefs;
 impl DispatchRecordRefs for NoRefs {
     fn reference(&self, _: u64) -> RefValue {

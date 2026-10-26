@@ -5,11 +5,13 @@
 
 mod codec;
 mod connections;
+mod handles;
 pub use codec::{
     read_package, read_path, write_package, write_path, CoreElements, Package, ReadContext, RecordElements,
-    RecordError, RECORD_KEY, VERSION_KEY,
+    RecordError, RecordReader, RECORD_KEY, VERSION_KEY,
 };
 pub use connections::{ConnectionHost, IncomingCity, PendingChange, PreparedChange};
+pub use handles::{ConnectionHandle, DealHandle};
 
 use crate::neighbors::{deal_type, flag, CityId, NeighborConnection, NeighborDeal};
 use std::collections::BTreeMap;
@@ -39,7 +41,7 @@ pub struct Commodity {
 /// Explicit fields also provide the simple copy-in/copy-out slots of §3.
 /// Strings are byte strings, matching the stream's GZStr encoding.
 #[derive(Clone, Debug)]
-pub struct RegionalCity {
+pub struct RegionalCity<C = Rc<NeighborConnection>, D = Rc<NeighborDeal>> {
     pub initialized: bool,
     pub references: u32,
     pub position: (i32, i32),
@@ -54,7 +56,7 @@ pub struct RegionalCity {
     pub extrapolated: BTreeMap<u32, i32>,
     pub potential: BTreeMap<u32, i32>,
     pub tax_rates: [f32; 12],
-    pub connections: Vec<Rc<NeighborConnection>>,
+    pub connections: Vec<C>,
     pub pending: Vec<PendingChange>,
     pub moved: bool,
     pub serial: u32,
@@ -73,8 +75,8 @@ pub struct RegionalCity {
     pub budget: f64,
     pub income: f64,
     pub commodities: BTreeMap<i32, Commodity>,
-    pub other_deals: Vec<Rc<NeighborDeal>>,
-    pub local_deals: Vec<Rc<NeighborDeal>>,
+    pub other_deals: Vec<D>,
+    pub local_deals: Vec<D>,
     pub points: BTreeMap<u32, Vec<[f32; 3]>>,
 }
 
@@ -84,6 +86,22 @@ pub trait Lifecycle {
 
 impl RegionalCity {
     pub fn new(application_default_difficulty: u8) -> Self {
+        Self::with_handles(application_default_difficulty)
+    }
+
+    pub fn placeholder(
+        default_difficulty: u8,
+        position: (i32, i32),
+        size_exponent: u32,
+        name: &[u8],
+        host: &mut impl Lifecycle,
+    ) -> Self {
+        Self::placeholder_with_handles(default_difficulty, position, size_exponent, name, host)
+    }
+}
+
+impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
+    pub fn with_handles(application_default_difficulty: u8) -> Self {
         Self {
             initialized: false,
             references: 0,
@@ -124,14 +142,14 @@ impl RegionalCity {
         }
     }
 
-    pub fn placeholder(
+    pub fn placeholder_with_handles(
         default_difficulty: u8,
         position: (i32, i32),
         size_exponent: u32,
         name: &[u8],
         host: &mut impl Lifecycle,
     ) -> Self {
-        let mut c = Self::new(default_difficulty);
+        let mut c = Self::with_handles(default_difficulty);
         c.init(host);
         // Literal 2^k size from records §2.5; callers supply a valid tile class.
         let size = 1_i32.wrapping_shl(size_exponent);
@@ -283,15 +301,15 @@ impl RegionalCity {
     pub fn cell_counts(&self) -> (i32, i32) {
         (self.size.0.wrapping_mul(64), self.size.1.wrapping_mul(64))
     }
-    pub fn find_connection(&self, t: u32, x: i32, z: i32) -> Option<&Rc<NeighborConnection>> {
+    pub fn find_connection(&self, t: u32, x: i32, z: i32) -> Option<&C> {
         self.connections
             .iter()
             .find(|c| c.conn_type() == t && c.cell() == (x, z))
     }
-    pub fn get_all_connections(&self, out: &mut Vec<Rc<NeighborConnection>>) {
+    pub fn get_all_connections(&self, out: &mut Vec<C>) {
         out.clone_from(&self.connections);
     }
-    pub fn get_local_deals(&self, out: &mut Vec<Rc<NeighborDeal>>) {
+    pub fn get_local_deals(&self, out: &mut Vec<D>) {
         out.clone_from(&self.local_deals);
     }
 
@@ -302,7 +320,7 @@ impl RegionalCity {
         }
         true
     }
-    pub fn set_local_deals(&mut self, list: &mut Vec<Rc<NeighborDeal>>, this: CityId, host: &impl DealRegion) -> bool {
+    pub fn set_local_deals(&mut self, list: &mut Vec<D>, this: CityId, host: &impl DealRegion) -> bool {
         self.local_deals.clear();
         extract(list, &mut self.local_deals, false, this, host);
         self.update_import_export(this, host);
@@ -367,7 +385,7 @@ impl RegionalCity {
         host.set_file_path(&path);
         host.set_size((self.size.0.wrapping_mul(1024), self.size.1.wrapping_mul(1024)));
     }
-    pub fn update_city_cache(&mut self, host: &mut impl CacheHost) {
+    pub fn update_city_cache(&mut self, host: &mut impl CacheHost<C, D>) {
         self.mayor_name = host.mayor_name();
         self.city_name = host.city_name();
         self.difficulty = host.difficulty();
@@ -412,7 +430,7 @@ impl RegionalCity {
             );
         }
     }
-    pub fn do_message(&mut self, message: u32, context: MessageContext, host: &mut impl MessageHost) -> bool {
+    pub fn do_message(&mut self, message: u32, context: MessageContext, host: &mut impl MessageHost<C, D>) -> bool {
         match message {
             0x26C6_3342 => self.return_local_deals(),
             0x26D3_1EC3 if context.names_current_city => self.return_local_deals(),
@@ -433,7 +451,7 @@ impl RegionalCity {
 
 macro_rules! commodity_slots {
     ($($get:ident, $set:ident, $field:ident);* $(;)?) => {$ (
-        impl RegionalCity {
+        impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
             pub fn $get(&mut self, c: i32) -> f64 { self.commodity(c).$field }
             pub fn $set(&mut self, c: i32, value: f64) {
                 self.commodity(c).$field = if value < 0.0 { 0.0 } else { value };
@@ -449,7 +467,7 @@ commodity_slots! {
 
 macro_rules! copy_slots {
     ($($get:ident, $set:ident, $field:ident, $ty:ty);* $(;)?) => {$ (
-        impl RegionalCity {
+        impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
             pub fn $get(&self) -> $ty { self.$field }
             pub fn $set(&mut self, value: $ty) { self.$field = value; }
         }
@@ -466,7 +484,7 @@ copy_slots! {
 }
 macro_rules! string_slots {
     ($($get:ident, $set:ident, $field:ident);* $(;)?) => {$ (
-        impl RegionalCity {
+        impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
             pub fn $get(&self, out: &mut Vec<u8>) { out.clone_from(&self.$field); }
             pub fn $set(&mut self, value: &[u8]) { self.$field = value.to_vec(); }
         }
@@ -479,7 +497,7 @@ string_slots! {
     get_utility_advisor_name, set_utility_advisor_name, utility_advisor_name;
     get_description, set_description, description;
 }
-impl RegionalCity {
+impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
     pub fn get_world_position(&self) -> (f32, f32) {
         (self.world[0], self.world[1])
     }
@@ -532,13 +550,7 @@ pub trait DealRegion {
     fn current_city(&self) -> Option<CityId>;
     fn city_at(&self, cell: (i32, i32)) -> Option<CityId>;
 }
-fn extract(
-    src: &mut Vec<Rc<NeighborDeal>>,
-    dst: &mut Vec<Rc<NeighborDeal>>,
-    remove: bool,
-    this: CityId,
-    host: &impl DealRegion,
-) {
+fn extract<D: DealHandle>(src: &mut Vec<D>, dst: &mut Vec<D>, remove: bool, this: CityId, host: &impl DealRegion) {
     let Some(cur) = host.current_city() else {
         return;
     };
@@ -572,7 +584,7 @@ pub trait CitySetup {
     fn set_file_path(&mut self, path: &[u8]);
     fn set_size(&mut self, metres: (i32, i32));
 }
-pub trait CacheHost {
+pub trait CacheHost<C = Rc<NeighborConnection>, D = Rc<NeighborDeal>> {
     fn mayor_name(&mut self) -> Vec<u8>;
     fn city_name(&mut self) -> Vec<u8>;
     fn difficulty(&mut self) -> u8;
@@ -581,8 +593,8 @@ pub trait CacheHost {
     fn established(&mut self) -> bool;
     fn mayor_rating(&mut self) -> i8;
     fn tax_rate(&mut self, index: usize) -> f32;
-    fn connections(&mut self) -> Vec<Rc<NeighborConnection>>;
-    fn update_commodity_stats(&mut self, city: &mut RegionalCity);
+    fn connections(&mut self) -> Vec<C>;
+    fn update_commodity_stats(&mut self, city: &mut RegionalCity<C, D>);
     fn tutorial_id(&mut self) -> Option<i32>;
     fn residential(&mut self) -> Option<(i32, f32)>;
     fn population_summary(&mut self) -> BTreeMap<u32, i32>;
@@ -597,8 +609,8 @@ pub struct MessageContext {
     pub established: bool,
     pub forced: bool,
 }
-pub trait MessageHost: CacheHost + ConnectionHost {}
-impl<T: CacheHost + ConnectionHost> MessageHost for T {}
+pub trait MessageHost<C = Rc<NeighborConnection>, D = Rc<NeighborDeal>>: CacheHost<C, D> + ConnectionHost<C> {}
+impl<C, D, T: CacheHost<C, D> + ConnectionHost<C>> MessageHost<C, D> for T {}
 
 #[cfg(test)]
 mod tests;

@@ -1,42 +1,38 @@
 # Handoff (start here)
 
-The one page every agent reads first: the current state, and where everything else is. The coordinator updates §0
-before it stops and moves the stop note it replaces, verbatim, to [docs/history/](history/). Operating knowledge
-lives in [docs/ops/](ops/); history is `git log` and [docs/history/handoff-2026-10.md](history/handoff-2026-10.md).
+The coordinator's current state and pointers to operating knowledge. The coordinator updates §0
+before it stops; previous stop notes remain in Git history. Operating knowledge
+lives in [docs/ops/](ops/); history is `git log`.
 Keep §0 to the current state: what is true now, what is parked, and what is next. Narration goes in `git log`.
 
-## 0. Current state — USER STOP, 2026-10-23 11:10 BST
+## 0. Current state — RUN 6 (verification spikes), 2026-10-25
 
-**STOP is set** (`python tools/lanes.py stop`). Nothing runs: the nine stopped workers are landed and
-the refiller has exited. Clear STOP only when the user explicitly resumes.
+STOP is not set. Run 6 tests three verification architectures as Codex spike lanes; ordinary implementation lanes
+are not running. Landed in trains 239-242: shadow summary labels, Codex outage resume with a 40-minute round cap,
+the coverage-credit check at enqueue (`python tools/merge-train.py enqueue ...`; the train refuses entries without
+`credit`), and the docs cleanup.
 
-**Main:** the nine stopped workers were finished and landed as train124 (8 lanes, [run 301](runs/train124-301.md))
-and train125 (`core-my-street-sim4`, [run 302](runs/train125-302.md)); both gates and regresses were clean (the
-train124 netmgr 72/73 -> 71/73 dip was run noise, back to 72/73 in train125). Every lane tip is an ancestor of
-main. The new core modules are unwired, so coverage did not move. No batch is in flight.
+**Coverage** (`tools/coverage.py`, main 041116d01): specified 89.2%, implemented 60.2%, verified 30.6%,
+replaced 27.8%.
 
-**Coverage** (`tools/coverage.py`): specified 57.8%, implemented 36.1%, verified 19.7%, replaced 18.1%
-(3,226,906 / 2,018,463 / 1,099,943 / 1,012,661 of 5,584,842 bytes). Over the 12 hours ending at this stop
-(trains 103-123, ~590 commits, +103k lines) this moved by +8.4 KB implemented, +64 KB verified and 0 replaced.
-The exact-function credit path (76 B, self-reviewed) was removed in the 2026-10-23 trim. Bounded/partial deliveries earn no owner credit; on resume, prefer finishing owners over
-parallel partial slices.
+**Spikes** (worktrees `.claude/worktrees/spike-*`, evidence in `engine/tests/spike-evidence/<lane>/`):
+- `spike-tapes26`, S1 interface tapes: **KILL**. The generic untyped recorder loses required input in 32/78
+  calibration calls (pointer text replaced by markers). Queue entry held at `wip`; do not land.
+- `spike-osboundary26`, S2 OS/DirectX boundary record and replay: round 3 running (per-thread clock).
+- `spike-inplace26`, S3 per-function in-place differential: round 2 INCONCLUSIVE (14/20 exact with confined
+  writes, every deliberate error detected, 0.875 KB per lane-hour including the facility); round 3 measures the
+  marginal cost per added function.
 
-**Unlanded work** (worktrees removed 2026-10-23; every unlanded branch is pushed to origin, and each removed
-worktree's build-runs text is in `build-runs/worktree-archive-2026-10-23.tar.gz`, local only):
-- `re-curve-editor-views4`: spec transliterates x87 instruction sequences (CONTRIBUTING.md "Specs"); rewrite
-  as behaviour before landing.
-- Held Codex lanes (`git branch --no-merged main`, about 35): mostly blocked on unpublished contracts; review
-  one by one before reviving. `tools-build-singleflight4` and `tools-refill-rea-admission4` extend the removed
-  swarm tooling.
-- Pre-run parked branches (`glue25`, `glue26`, `glue-terrain3`, `verify-netmgrfix4`, `integration/*`,
-  `coordinator/*`) are unchanged.
+The coordinator is scoring the same seeded mutants with each oracle (unit tests, in-game shadow, in-place) before
+proposing a method to the user. The definition of verified and the credit rule for a new oracle are the user's.
 
-**Known issues:** train121 really worsened LandValue (72/72 to 71/72) and the coordinator landed it anyway
-([incident](ops/acceptance-incident-train121.md)); every landing must read the full comparison delta, not just
-the verdict. Native per-step LandValue capture is still 0. C: is 68% full after the worktree cleanup.
+**Queue:** the 25 run-5 entries still queued have no `credit`; each needs `merge-train enqueue` at review before
+it can land. `infra-subsysreg23` (per-owner subsystem fragments) still needs a merge of main and should land alone.
 
-The stop note this replaces is archived verbatim in
-[handoff-user-stop-2026-10-23-0916.md](history/handoff-user-stop-2026-10-23-0916.md).
+**Known issues:** landvalue 71/72 and propmgr 219/220 flicker one month in some house shadows runs;
+`plugin_autotest_test` watchdog timings fail under heavy lane load (re-gate passes).
+
+The run-5 stop note this replaces is available in Git history.
 
 <!-- BEGIN GENERATED: latest-run -->
 - **Latest in-game run:** 659 (modelinst partial shadow landed (run 5); renderprops and app exact in the house regress; demand and landvalue flaked.); 652 (partial shadow method audit landed (run 5): 44 functions, 4,070 bytes.); 651 (map view answers complete; render property and application partial shadows landed (run 5).); 649 (renderprops registry and owned fixture exact 73/73 through 2032); 645 (graphics driver partial shadow landed and the 48-key replace list confirmed clean in the house run (run 5).). See `docs/manual-checks.md`.
@@ -44,27 +40,8 @@ The stop note this replaces is archived verbatim in
 
 ## Where everything else is
 
-| File | What | Who reads it |
-|---|---|---|
-| [ops/rules.md](ops/rules.md) | §2: clean room, never commit, public actions, commits | everyone |
-| [ops/conventions.md](ops/conventions.md) | §8: cargo from `engine/`, fmt/clippy baseline, git, PowerShell, build infra | everyone; engine and tooling lanes before the first build |
-| [ops/running-the-game.md](ops/running-the-game.md) | §3: regress, one run, ini keys, test cities, verdicts, hazards | coordinator; engine lanes with game runs; tooling lanes on the harness |
-| [ops/lessons.md](ops/lessons.md) | §5: threading, refcounts, x87, differentials, demand (cited as "HANDOFF §5.x") | engine lanes |
-| [ops/coordinating.md](ops/coordinating.md) | §6: spawning lanes, running the merge train, gate, operator notes | coordinator |
-| [../.claude/workflows/fc4-lane.js](../.claude/workflows/fc4-lane.js) | the lane template (`Workflow({name: 'fc4-lane', args})`) | coordinator |
-| [lane-tools.md](lane-tools.md) | `tools/lanes.py`: slots, check, brief, wait, monitor, ledger | coordinator; RE and tooling lanes (`wait`) |
-| [token-ledger.md](token-ledger.md) | measured tokens per lane, merge share, tokens per coverage point | coordinator |
-| [merge-train.md](merge-train.md) | how a lane lands: queue file, batches, hotspots | coordinator; every lane at its end |
-| [lanes/README.md](lanes/README.md) | lane-file and run-file formats, the queue contract | every lane at its end |
-| [lanes/INDEX.md](lanes/INDEX.md) | generated table: every lane's state and next steps | coordinator; a lane resuming another's work |
-| [manual-checks.md](manual-checks.md) | generated in-game run log | coordinator; engine lanes comparing runs |
-| [history/progress-2026-10-14.md](history/progress-2026-10-14.md) | retired milestone history | nobody by default |
-| [coverage-report.md](coverage-report.md) | measured coverage | coordinator; tooling lanes |
-| [specs/questions/README.md](specs/questions/README.md) | the question workflow | RE lanes; engine lanes filing questions |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md) | the clean-room roles (the single source) | everyone |
-| [ARCHITECTURE.md](ARCHITECTURE.md), [../engine/README.md](../engine/README.md), [harness.md](harness.md) | layout, build, ini keys, switches | engine and tooling lanes |
-| [re-workspace.md](re-workspace.md) | RE toolchain and workspace | RE lanes only |
-| [history/handoff-2026-10.md](history/handoff-2026-10.md) | older stop notes and superseded HANDOFF text | nobody by default |
+The maintained directory and tool index is [ops/inventory.md](ops/inventory.md).
+Lane instructions and their read limits come from the [lane prompt](../.claude/workflows/fc4-lane.js).
 
 ## 1. The project
 

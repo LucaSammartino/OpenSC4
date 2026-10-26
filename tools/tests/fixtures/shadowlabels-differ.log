@@ -1,0 +1,3 @@
+# Synthetic failures in the recorded per-file format.
+2026-10-25 09:24:56.521 [pid 9792 tid 26008] formats shadow: differ.dat: 2 exemplar entries, 2 compared, 1 exact, 1 differ, 0 rejected by the core, 0 not loaded by the game, 3 properties compared
+2026-10-25 09:24:56.521 [pid 9792 tid 26008] formats shadow: rejected.dat: 3 exemplar entries, 2 compared, 2 exact, 0 differ, 1 rejected by the core, 0 not loaded by the game, 3 properties compared

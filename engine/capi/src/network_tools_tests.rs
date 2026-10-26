@@ -28,6 +28,7 @@ struct World {
     pass_valid: u32,
     pass_failure: u32,
     draw_calls: u32,
+    specific_calls: u32,
     callbacks: Vec<(u32, i32, i32, i32, i32)>,
     neighbours: Vec<fc4_nettool_neighbour>,
     /// The occupants that are themselves intersection pieces, with the
@@ -529,4 +530,33 @@ fn state_round_trip_and_reset() {
     unsafe { fc4_nettool_reset(t) };
     assert!(unsafe { fc4_nettool_get_state(t, &mut s) } && s.cache_count == 0);
     unsafe { fc4_nettool_destroy(t) };
+}
+
+#[test]
+fn powerline_draft_override_bypasses_base_solve_over_the_abi() {
+    unsafe extern "C" fn specific(u: U, run: *mut fc4_nettool_run, _: u32, mode: u32, real: bool) -> bool {
+        let run = &mut *run;
+        assert_eq!(run.type_id, 5);
+        assert_eq!(mode, 0);
+        assert!(!real);
+        world(u).specific_calls += 1;
+        run.valid_count = if run.dragged_count < 2 { 0 } else { run.dragged_count };
+        true
+    }
+
+    // network-tools sections 5.1/9: the subclass handles even the one-step
+    // draft. Falling through to the base solve would return this refusal.
+    for drawn in [1, 5, 13] {
+        let mut f = Fixture::new();
+        f.w_mut().drawn = drawn;
+        f.w_mut().pass_failure = 0xF000_0012;
+        f.host.do_network_specific_placement = Some(specific);
+        let t = f.tool(5);
+        assert!(unsafe { fc4_nettool_init(t, 64, 64, 0.0, 0.0, 0.0, 0.0, false) });
+        assert!(unsafe { fc4_nettool_place_network_occupants(t, 2, 2, 2 + drawn as i32 - 1, 2, 0, 0, false, -1) });
+        assert_eq!(unsafe { fc4_nettool_get_failure_state(t) }, 0);
+        assert_eq!(f.w().specific_calls, 1);
+        assert!(f.w().inserted.is_empty());
+        unsafe { fc4_nettool_destroy(t) };
+    }
 }

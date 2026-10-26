@@ -9,7 +9,7 @@ not landed (slots, check), measured cost per lane (ledger) and a ready-made cont
   python tools/lanes.py check   <lane> [--deps a,b] [--touches k1,k2] [--kind engine|re|tool|mech]
   python tools/lanes.py wait    (--verdict <label> | --file <path> [--pattern <regex>]) [--timeout 540]
   python tools/lanes.py monitor [--interval 30]
-  python tools/lanes.py ledger  [--out build-runs/lane-ledger.tsv] [--md docs/token-ledger.md]
+  python tools/lanes.py ledger  [--out build-runs/lane-ledger.tsv] [--md docs/history/token-ledger.md]
   python tools/lanes.py brief   <subsystem-or-key> [--kind engine|re]
   python tools/lanes.py stop    "<reason>"      (the STOP flag: no lane starts or restarts, running lanes hand off)
   python tools/lanes.py go                       (clears it)
@@ -597,7 +597,8 @@ def cmd_check(ctx, a):
                                f"(docs/assignments.tsv): pick other work")
     # 3. explicit subsystem claims; use prose only for legacy/invalid declarations.
     try:
-        keys = split_touch_keys(a.touches)
+        # the lane's own name is a self-reference: another lane naming it (a dependency) is not a duplicate
+        keys = [k for k in split_touch_keys(a.touches) if k != lane.lower()]
     except ValueError as exc:
         reasons.append(str(exc))
         keys = []

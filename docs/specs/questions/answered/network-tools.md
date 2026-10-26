@@ -258,3 +258,47 @@
   host responsibility; original private constructors and slot-54 cell records are not a general
   model callback ABI. Supply the specified model/corner/connection effects or report unavailable;
   retain the measured 13/0,65/0 and 17/0,974/0 differences without city or owner coverage credit.
+
+<!-- copied from: nettool-cost27 (engine lane, commit 464c18187); NT36 title collision retained -->
+- ~~**NT36 - Tempelhof single-cell road draft costs 11 versus 10:** please give an
+  admitted nonflat single-cell fixture identifying the retained network corners
+  (and any additional solved entries) that produce the native price, including
+  the plane/range and equality-propagation inputs needed to reconstruct them.
+  Reproduced in `nettool-cost27-tempelhof-diag1`, Berlin/Tempelhof, unfounded,
+  date 2000-01-01, shadow julian=0. Road `(86,3)-(86,3)` alone differs:
+  original/ours cost=11/10; return=1/1, failure=0/0, valid=1/1, straight=1/1,
+  total=1/1, cells=1/1. City is 128 square, vertex stride 129. Our live corner
+  IDs are `(473,602,603,474)`, terrain float32 values in that order
+  `(291.402679,293.308929,290.792847,289.532623)`; water=false, water depths
+  `(-41.4026794,-43.3089294,-40.7928467,-39.5326233)`, height range / 16 =
+  0.236019135, nearest city edge distance=3, occupied=false, zone=0.
+  Our sole retained run cell has flags=1, intersection=false and corners
+  `(290.792847,290.792847,290.792847,290.792847)`. Its absolute corner deltas
+  sum to 4.386138916015625, so section 8.1 with road cell cost 10 and earthwork
+  factor float32 0.1 correctly prices these *replay* corners at 10.
+  Network-geometry section 9.8's per-run plane is currently left to the
+  replay's host; section 9.1 specifies an initial propagation pass and hash
+  picks, but the native public getters cannot establish this cell's retained
+  corners/constraints (section 8.1.4). Does the specified plane account for
+  this case, and what ordered ranges/preferences/equalities and network result
+  should this fixture have? Please specify equality propagation/order if it
+  affects the first hash pick; no native private state was inspected and no
+  alternative height or additive charge has been inferred from the total.
+  Diagnostic run verdict clean, ref_warnings=0; network exact 0/1 (one of 12
+  vectors), powerline exact 1/1 (six vectors). [blocked; no price adjustment]~~
+  **ANSWERED 2026-10-25 (re-nt36):** DIFFERS — network-tools §8.1.5 and
+  network-geometry §§9.1/9.8.1 specify the complete isolated-cell fixture.
+  Level 0 fails its boundary-fixed flat equality; level 1 frees the run vertices.
+  The stored float32 plane is `(0,256,-25.33203125,-73144)`; initial equality
+  propagation uses ascending-id work sets until quiescent, giving all four
+  allowed ranges `[257.0517578125,325.468505859375]` while preserving individual
+  initial heights/preferences. With the admitted fresh 193-bucket satisfier,
+  vertex 602 wins the first hash tie; all retained corners become
+  293.308929443359375. One run entry, no extra entries: earthwork sum
+  8.198638916015625, factor float32 0.1, one nearest-even result 1, road 10,
+  draft price 11. Singleton propagation really appends pending pairs; the old
+  unused-stack claim is corrected. Flat and gentle single cells remain 10;
+  the supplied gentle eleven-cell straight road remains 110. These are derived
+  fixtures with explicit environment/hash inputs, not private city snapshots
+  or an authorization to fit other native totals. The older occupied-cell NT36
+  above is a separate filing and keeps its answer.

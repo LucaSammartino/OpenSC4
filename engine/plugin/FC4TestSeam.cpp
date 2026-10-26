@@ -16,6 +16,10 @@
 #include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
 #include "FC4OrdinanceShadow.h"
+#include "cFC4PowerPoleOccupant.h"
+#include "cFC4ConstructionRecord.h"
+#include "cFC4NetworkLotManager.h"
+#include "cFC4NetworkManager.h"
 
 #include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
@@ -280,8 +284,20 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b)));
         case kFC4SeamConstructionCapture:
             return fc4::ConstructionCaptureTest(static_cast<cIGZUnknown*>(a));
+        case kFC4SeamConstructionRecordFactory:
+            return fc4::ConstructionRecordFactoryTest(static_cast<cIGZUnknown*>(a), b);
         case kFC4SeamLotConfigurationCreate:
             return reinterpret_cast<intptr_t>(CreateFC4LotConfiguration());
+        case kFC4SeamNetOccPoleFactory: {
+            if (a || b) return 0;
+            auto* pole = CreateFC4PowerPoleOccupant();
+            if (pole) pole->AddRef();
+            return reinterpret_cast<intptr_t>(pole);
+}
+        case kFC4SeamNetworkLotOwnership:
+            return NetworkLotOwnershipTest(static_cast<cIGZUnknown*>(a), static_cast<cIGZUnknown*>(b));
+        case kFC4SeamNetworkCrewOwnership:
+            return NetworkCrewOwnershipTest();
         default:
             return 0;
     }

@@ -1,0 +1,7 @@
+# Isolated copy of Tegel. Observe vehicles and pedestrians; presence is not guaranteed.
+2000-01-01 mark observe vehicles pedestrians and controller updates
+2000-01-01 speed 2
+2000-01-01 clockmode 1
+2000-01-01 digest
+2029-12-20 mark end vehicle observation
+2029-12-20 digest

@@ -1,5 +1,42 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: core-netocc-close5 round 2 (2026-10-23) -->
+- ~~**NO33 - sections 4.1-4.3 power-pole owner algorithms:** please publish constructor defaults and
+  the numeric connection point tables `0x00B0C0D8`/`0x00B0C198`, their subtype extraction and unlisted
+  subtype behavior; connection lookup/copy ownership, RemoveConnection, BreakAllConnectionsAtDestination,
+  refresh, SetDistressed, unnamed flag storage, slots 16/17 outputs, ChangeZoomLevel, SetPosition,
+  SetModelPosition, LoadModel key/failure semantics, bounds/transform/sort, highlight and wire Pick,
+  Draw/DrawPowerlines, floor/wall generation, and shutdown/resource ownership. The spec gives member
+  names/addresses but no algorithms. The core implements published state, two table selections and Init's
+  known state changes; no owner-result callbacks or invented geometry are supplied. [missing; sections
+  4.1-4.3 remain open, including native pool allocation required by section 13 test 4]~~
+  **Progress 2026-10-23 (re-netocc-answers5):** constructor defaults, exact table bits/retained-pointer
+  behavior and unrotated floor/wall generation now appear in §§4.1,4.6,4.7.1 and tests 43–44. Harvested
+  §§4.2–4.7 also supply connection removal, distress, model/position and drawing summaries. Complete
+  connection/cell-walk, model/resource, transform/bounds/Pick/Draw algorithms still require verification;
+  the diagonal floor's numeric operation order remains NO43. NO33 stays open for full owner closure.
+  **Progress 2026-10-23 (re-netocc-answers5d):** §4.7.2/tests 54–55 settle the occupant bounding
+  rectangle, sampled-list eligibility, unsigned extrema comparisons, signed output conversion and
+  wrapping maximum-cell increment. Remaining model/Pick/wire/Draw contracts still prevent closure.
+  **ANSWERED 2026-10-25 (re-netocc-no33):** DIFFERS — network-occupants.md §§4.1–4.3/4.6–4.7
+  and tests 62–73 complete the native 0x124 pool, output/transform, connection lifetime/cell walk,
+  model failure/zoom, Pick/Draw and wire contracts. Enumeration returns the pole's own counted model
+  interface even without a delegate; LoadModel always returns false and preserves an old delegate on
+  acquisition failure; Pick is one model-and-walls box; wet refresh appends coarse curves. Saved +110
+  remains independent opaque storage (NO42), with no invented meaning. Numeric operation order and
+  constants were checked against instruction bytes; see the cited addresses in those sections.
+
+<!-- from: re-powerpoles (2026-10-21) -->
+- ~~**NO43 - §4.2, §4.6, §4.7:** the pole's floor and walls (`CreateFloor` `0x0064BFD0`, `AddWallQuad` `0x0064C2C0`,
+  `CreateWalls` `0x0064C470`), `Draw` and `DrawPowerlines` (`0x0064C800`, `0x0064B750`), `GetBoundingBox`
+  (`0x00649A00`), `Pick` (`0x0064A870`) and the cell walk under a wire (`0x0064A4D0`) in detail. [summary]~~
+  **ANSWERED 2026-10-25 (re-netocc-no33):** DIFFERS — network-occupants.md §§4.6.1/4.7.1–4.7.5
+  and tests 44,54–55,65–66,68–70 give the complete geometry/drawing rules. The diagonal angle is the
+  double 0.78539001941680908203125, with f32 c/s bits `3F350554`/`3F350493`; transformed x alone is
+  rounded before translation (`0x0064C217` versus z's final store `0x0064C248`). Test 66's translated
+  vertex z=`B4400000` rejects rounding z early. Cell walking truncates, retains duplicates and does
+  not force the endpoint; occupant bounds, Pick and Draw use the distinct inputs specified there.
+
 <!-- from: glue-netocc-shadow5 (2026-10-23) -->
 - ~~**NO45 - §2.3 byte-exact record-shadow comparison versus required Read fixups:**
   Native Write saves flags unchanged whereas Read clears `0xE000`, forces triangle
@@ -217,6 +254,12 @@
   **ANSWERED 2026-10-21 (re-powerpoles):** with object offsets: position `+0x38` (3 × f32), cell `+0x44`/`+0x48`, the
   two poles `+0x4C`/`+0x50`, the bool `+0x54`, preview `+0x55` (the earlier table was 4 low). The record
   (`0x0064A310`) is u16 2, the occupant record, 3 × f32, 2 × s32, a u8 and two refs (network-occupants.md §5.1, §5.2).
+  **ANSWERED 2026-10-25 (re-netocc-no33):** MATCHES — the corrected live layout above is confirmed;
+  §5.1/test 74 now specify Shutdown (`0x00649270–0x00649289`): occupant this=object+4, virtual main
+  slot 4 on object with `(null,null,false)`, then base `0x005E8980` with the original occupant pointer.
+  Each held pole is released, including two refs to the same pole; position/cell/preview survive.
+  Base Shutdown clears object+32 bit 0 and posts `0x99EF1141`/0 only if initialized, and always
+  returns true. Equal-pointer SetConnectedPoles still AddRefs before releasing each old field.
 
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - ~~**NO36 - sections 6.1-6.2 pylon owner algorithms:** please publish constructor defaults beyond the
@@ -243,3 +286,21 @@
   the owner contract with MySim copying, number-label rasterization, billboard geometry, transform
   rounding and two-endpoint bounds. +150 is the call-number texture; MySim uploads to main +148.
   Rebuild clears dirty even after a resource/placement failure; texture failure is not a geometry gate.
+
+<!-- from: replace-netocc27 (2026-10-25); ID reused independently of the earlier pylon NO44 -->
+- ~~**NO44 - native power-line tool / replacement pole boundary:** power-line-tool §§5.2–5.3 describe
+  `0x00649910` and `0x0064E3E0`, but docs/abi/direct-calls.md publishes only the pole RemoveConnection
+  call. Please publish the calling conventions, stack cleanup, return channels, exact pointer views,
+  wire-vector/list element layouts and allocation/free ownership for both helpers, and the output
+  container contract for pole slots 5/16. Which other concrete pole fields/helpers does the native
+  tool access during placement, preview undo, extension, zone repair and demolition? In particular,
+  can every non-interface access be interposed, or must an FC4 pole expose native-layout connection
+  storage? The current plugin keeps the pole factory native; enabling an incompatible pole would
+  make the interactive tool unsafe. No replacement-pole game credit is claimed. [missing ABI]~~
+  **ANSWERED 2026-10-26 (re-no28):** DIFFERS — network-occupants §4.6.3/tests 75–80 publish both
+  void thiscall/pop-8 helpers, primary-base views, native wire/list/cell containers and ownership,
+  and the ordered placement/extension/undo/zone/demolition calls. Creation bypasses the COM factory
+  and uses fixed +8/+24 views and kind +B8; native helpers require concrete storage unless interposed,
+  including crossings from native neighbours. The outside tool does not itself walk connection storage,
+  so complete interposition can avoid that layout, while returned buffers must obey the native ABI.
+  Power-line-tool §5 now records the draft generated-link skip and literal second undo call (B,B,true).

@@ -1,6 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Observing records must not take over any occupant class factory.
 #include "cISC4Occupant.h"
+#include "../plugin/FC4PoleCellVector.h"
+
+void NetOccCellVectorTest() {
+    using namespace fc4::netpole;
+    CellVector output;
+    std::vector<uint32_t> sizes;
+    unsigned frees = 0;
+    auto allocate = [&](uint32_t bytes) -> void* { sizes.push_back(bytes); return std::malloc(bytes); };
+    auto release = [&](void* p) { ++frees; std::free(p); };
+    const Cell cells[] = {{1,2}, {3,4}, {5,6}, {7,8}, {9,10}};
+    CHECK(output.Assign(cells, 5, allocate, release));
+    CHECK(sizes == std::vector<uint32_t>({8, 16, 32, 64}));
+    CHECK(frees == 3 && output.end - output.begin == 5 && output.capacity - output.begin == 8);
+    CHECK(output.begin[4].x == 9 && output.begin[4].z == 10);
+    auto* saved = output.begin;
+    CHECK(output.Assign(cells, 2, allocate, release));
+    CHECK(output.begin == saved && output.end == saved + 2 && output.capacity == saved + 8);
+    CHECK(output.Assign(nullptr, 0, allocate, release));
+    CHECK(output.begin == saved && output.end == saved && sizes.size() == 4 && frees == 3);
+    release(output.begin);
+}
 
 class NetOccLineTestInterface : public cIGZUnknown {
 public:
@@ -10,15 +31,18 @@ public:
     virtual bool IsPreview() = 0;
     virtual bool SetPreview(bool) = 0;
 };
-class NetOccTestPole final : public cIGZUnknown {
+class NetOccTestPole final : public cIGZSerializable {
 public:
     uint32_t refs = 1;
     bool QueryInterface(uint32_t iid, void** out) override {
-        if (!out || (iid != 1 && iid != 0xA8C86142)) return false;
+        if (!out || (iid != 1 && iid != 0xA8C86142 && iid != 0xE4FDA3D4)) return false;
         *out = this; AddRef(); return true;
     }
     uint32_t AddRef() override { return ++refs; }
     uint32_t Release() override { return --refs; }
+    bool Write(cIGZOStream&) override { return false; }
+    bool Read(cIGZIStream&) override { return false; }
+    uint32_t GetGZCLSID() override { return 0x09C05C6A; }
 };
 
 int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
@@ -35,12 +59,12 @@ int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         CHECK(std::count(classes.begin(), classes.end(), 0xC9C05C5Du) == 1);
-        CHECK(std::count(classes.begin(), classes.end(), 0x09C05C6Au) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), 0x09C05C6Au) == 0);
         // This partial replacement must leave the other occupant factories native,
         // even when netocc itself is enabled.
         for (uint32_t clsid : {0xC9C05C6Eu, 0x49C1A034u, 0x49CC1BCDu, 0x8A4BD52Bu,
                               0x4A10AFC2u, 0x49C05B9Fu, 0xCA16374Fu, 0x8A139184u,
-                              0xEA0A5ACFu, 0xCA15ED6Bu, 0x49B6D69Bu}) {
+                              0xEA0A5ACFu, 0xCA15ED6Bu, 0x49B6D69Bu, 0x09C05C6Au}) {
             CHECK(std::count(classes.begin(), classes.end(), clsid) == 0);
             void* native = nullptr;
             CHECK(!director->GetClassObject(clsid, GZIID_cIGZUnknown, &native));
@@ -99,7 +123,68 @@ int NetOccLineRegistrationTest(const std::string& dll, const std::string& ini) {
             }
             cIGZSerializable* serial = nullptr;
             CHECK(line->QueryInterface(0xE4FDA3D4, reinterpret_cast<void**>(&serial)));
-            if (serial) { CHECK(serial->GetGZCLSID() == 0xC9C05C5D); serial->Release(); }
+            if (serial) {
+                // Native pole Write uses this concrete view, not line->QI.
+                // Keep the same offset used for every saved connection line.
+                auto* nativeView = reinterpret_cast<cIGZSerializable*>(static_cast<char*>(raw) + 8);
+                CHECK(serial == nativeView);
+                if (serial == nativeView) {
+                    void* queried = nullptr;
+                    CHECK(nativeView->QueryInterface(0xE4FDA3D4, &queried));
+                    CHECK(queried == serial);
+                    if (queried) static_cast<cIGZSerializable*>(queried)->Release();
+                }
+                CHECK(serial->GetGZCLSID() == 0xC9C05C5D);
+                if (serial == nativeView) {
+                    // Exercise the exact call native pole Write makes, including
+                    // dispatch past QI to the stream methods at primary+8.
+                    ResidentialSegOStream saved;
+                    CHECK(nativeView->Write(saved));
+                    CHECK(saved.nullRefs == 2 && saved.bytes.size() >= 8);
+                    if (saved.bytes.size() >= 8) {
+                        // Replace the two null ref IDs with the same pole. The
+                        // segment reader acquires each occurrence independently.
+                        auto bytes = saved.bytes;
+                        const uint32_t id = 1;
+                        std::memcpy(bytes.data() + bytes.size() - 8, &id, 4);
+                        std::memcpy(bytes.data() + bytes.size() - 4, &id, 4);
+                        CHECK(line->SetConnectedPoles(&pole, &pole, true));
+                        CHECK(pole.refs == 3);
+                        for (size_t n = 0; n < bytes.size(); ++n) {
+                            SavedSegIStream truncated(std::vector<uint8_t>(bytes.begin(), bytes.begin() + n));
+                            truncated.objs = {&pole};
+                            CHECK(!nativeView->Read(truncated));
+                            // Even a failure after the first acquired ref must
+                            // release only the new refs, preserving the old pair.
+                            CHECK(pole.refs == 3);
+                            cIGZUnknown* first = nullptr; cIGZUnknown* second = nullptr;
+                            bool heldFlag = false;
+                            CHECK(line->GetConnectedPoles(first, second, heldFlag));
+                            CHECK(first == &pole && second == &pole && heldFlag);
+                            if (first) first->Release();
+                            if (second) second->Release();
+                        }
+                        SavedSegIStream restored(bytes);
+                        restored.objs = {&pole};
+                        CHECK(nativeView->Read(restored));
+                        CHECK(restored.at == bytes.size() && pole.refs == 3);
+                        cIGZUnknown* first = nullptr; cIGZUnknown* second = nullptr;
+                        bool heldFlag = true;
+                        CHECK(line->GetConnectedPoles(first, second, heldFlag));
+                        CHECK(first == &pole && second == &pole && !heldFlag);
+                        if (first) first->Release();
+                        if (second) second->Release();
+                        SavedSegOStream refs;
+                        refs.objs = {&pole};
+                        CHECK(nativeView->Write(refs));
+                        CHECK(refs.ids == std::vector<uint32_t>({1, 1}));
+                        CHECK(pole.refs == 3);
+                        CHECK(line->SetConnectedPoles(nullptr, nullptr, false));
+                        CHECK(pole.refs == 1);
+                    }
+                }
+                serial->Release();
+            }
             line->Release(); CHECK(pole.refs == 1);
         }
     }
@@ -155,6 +240,7 @@ public:
 };
 
 int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
+    NetOccCellVectorTest();
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     WriteTextFile(ini, "[subsystems]\nenable = netocc\n");
@@ -166,7 +252,19 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
     CHECK(director != nullptr);
     if (director) {
         void* raw = nullptr;
-        CHECK(director->GetClassObject(0x09C05C6A, 0xA8C86142, &raw));
+        // Native AddConnection/RemoveConnection access concrete pole storage.
+        // A live factory must fall through to the game; exercise Rust poles
+        // only through the isolated seam until that storage is compatible.
+        CHECK(!director->GetClassObject(0x09C05C6A, 0xA8C86142, &raw));
+        CHECK(raw == nullptr);
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam) {
+            CHECK(seam(kFC4SeamNetOccPoleFactory, director, nullptr) == 0);
+            CHECK(seam(kFC4SeamNetOccPoleFactory, nullptr, director) == 0);
+            raw = reinterpret_cast<void*>(seam(kFC4SeamNetOccPoleFactory, nullptr, nullptr));
+        }
+        CHECK(raw != nullptr);
         if (raw) {
             auto* pole = static_cast<NetOccPoleTestInterface*>(raw);
             // §4.1: the class IDs answer the main interface, 0x452294AA the target.
@@ -209,6 +307,14 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
                 occ->GetBoundingBox(&mn, &mx);
                 CHECK(mn.fX == 32.0f && mn.fZ == 64.0f && mx.fX == 48.0f && mx.fZ == 80.0f);
                 CHECK(mx.fY == 72.0f);
+                CHECK(mn.fY == p.fY); // Off-map/no-city floor-height choice (4.7).
+                // A zoom context rebuilds faces without changing the position.
+                uint32_t context[7]{};
+                context[5] = 2; context[6] = 3; // +14 zoom, +18 rotation.
+                CHECK(pole->ChangeZoomLevel(context));
+                cS3DVector3 after;
+                CHECK(occ->GetPosition(&after));
+                CHECK(after.fX == p.fX && after.fY == p.fY && after.fZ == p.fZ);
                 occ->SetRemovalFlags(2); CHECK(!occ->CanRemove(2) && occ->CanRemove(1));
                 occ->UnsetRemovalFlags(2); CHECK(occ->CanRemove(2));
                 CHECK(!occ->IsInitialized());
@@ -216,11 +322,26 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
             }
             cIGZSerializable* serial = nullptr;
             CHECK(pole->QueryInterface(0xE4FDA3D4, reinterpret_cast<void**>(&serial)));
-            if (serial) { CHECK(serial->GetGZCLSID() == 0x09C05C6A); serial->Release(); }
+            if (serial) {
+                CHECK(reinterpret_cast<char*>(serial) == static_cast<char*>(raw) + 12);
+                CHECK(serial->GetGZCLSID() == 0x09C05C6A);
+                serial->Release();
+            }
             void* second = nullptr;
-            CHECK(director->GetClassObject(0x09C05C6A, 0xA8C86142, &second));
+            if (seam) second = reinterpret_cast<void*>(seam(kFC4SeamNetOccPoleFactory, nullptr, nullptr));
             CHECK(second != nullptr && second != raw);
-            if (second) static_cast<cIGZUnknown*>(second)->Release();
+            if (second) {
+                auto* other = static_cast<NetOccPoleTestInterface*>(second);
+                // The seam must preserve factory isolation without exposing an
+                // incompatible pole to any native tool through the director.
+                CHECK(!other->IsPreview() && !other->IsDistressed());
+                CHECK(other->GetConnectionCount() == 0);
+                CHECK(other->AsOccupant() != occ);
+                other->Release();
+            }
+            void* live = nullptr;
+            CHECK(!director->GetClassObject(0x09C05C6A, GZIID_cIGZUnknown, &live));
+            CHECK(live == nullptr);
             pole->Release();
         }
     }

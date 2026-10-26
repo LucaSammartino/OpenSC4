@@ -4,6 +4,12 @@
 #include <cstdint>
 
 namespace fc4 {
+// The harness keeps delivering ticks while a dated shadow queue drains.
+// Retain the final day's sample, but never extend that queue beyond its target.
+inline bool DbpfSampleInWindow(int32_t julian, int32_t endJulian) {
+    return endJulian <= 0 || julian <= endJulian;
+}
+
 struct DbpfSubset {
     size_t first, count;
     bool Contains(size_t index, size_t files) const {

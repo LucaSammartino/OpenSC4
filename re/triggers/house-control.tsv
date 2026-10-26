@@ -1,0 +1,31 @@
+address	name	primary_kind	primary_root	idle_path	idle_kind	idle_root	verdict
+00894adf	cGZFontSys::FontAcquire	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+005ebbf0	cSC43DPlaceableObject::GetModelCount	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+005cd710	cSC4ConstructionOccupant::AttemptAddOuterCrane	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00408ae0	FUN_00408ae0	startup	cSC4App::Init	yes	startup	cSC4App::Init	fits-structurally
+0081d150	FUN_0081d150	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+0073df80	FUN_0073df80	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+0060c730	cSC4NetworkLotManager::AddRef	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00662a60	std::_Rb_tree<cRZString,std::pair<cRZString_const,unsigned_long>,std::_Select1st<std::pair<cRZString_const,unsigned_long>>,std::less<cRZString>,std::allocator<std::pair<cRZString_const,unsigned_long>>>::_M_erase	city	cSC4Region::Shutdown	yes	city	cSC4Region::Shutdown	fits-structurally
+004abd20	FUN_004abd20	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00621180	FUN_00621180	tool	cSC4NetworkTool	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00900e91	FUN_00900e91	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+006ad320	cSC4FireProtectionSimulator::ProtectionEndOfCycle	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+004778a0	icf::cSC4FireProtectionSimulator::GetPercentCoverage	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+0080be90	cSC4OrdinanceFreeClinics::GetCurrentMonthlyIncome	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00408170	FUN_00408170	city	cSC4Region::Shutdown	yes	city	cSC4Region::Shutdown	fits-structurally
+0090a929	HTMLIsSpace	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+007d2850	SC4DrawContext::EnableCullFaceFlag	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+005adcb0	cSC4MBParticle::cSC4MBParticle	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00695790	cSC4BuildingDevelopmentSimulator::GetDeveloperType_Static	message	e8bda2e7 kMessageStateChanged -> cSC4BuildingDevelopmentSimulator::DoMessage	no	-	-	DISAGREEMENT-unresolved-or-action-path
+00609040	FUN_00609040	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+008031f0	FUN_008031f0	tool	cSC4ViewInputControlPlayerDrive	yes	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4MySimDispatch::DoMessage	fits-structurally
+006cb4d0	cSC4LotDeveloper::UpdateTravelDesignates	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+005093a0	FUN_005093a0	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+007f8170	FUN_007f8170	message	99ef1140 kSC4MessageCreateOccupant -> cSC4ModelMaker::DoMessage	yes	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4ModelMaker::DoMessage	fits-structurally
+00937855	cHitMan::CreateTrackPlayer	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+004302d0	FUN_004302d0	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+005ded60	icf::cSC4LotBaseTextureOccupant::GetBoundingBox	none	-	no	-	-	DISAGREEMENT-unresolved-or-action-path
+009fed82	lib::__handle_exc	message	89171496 kSC4MessageSeaLevelChanged -> cSTEWaterRipple::DoMessage	yes	sim-tick	86ad10ee kSC4MessageAnimationTick -> cSC4DynamicParticleSystem::DoMessage	fits-structurally
+0050c3b0	__gnu_cxx::hashtable<std::pair<unsigned_long_const,cISC4PathInfo::tPath>,unsigned_long,__gnu_cxx::hash<unsigned_long>,std::_Select1st<std::pair<unsigned_long_const,cISC4PathInfo::tPath>>,std::equal_to<unsigned_long>,std::allocator<cISC4PathInfo::tPath>>::begin	city	cSC4PowerPoleOccupant::Read	yes	city	cSC4PowerPoleOccupant::Read	fits-structurally
+006dc970	FUN_006dc970	message	6695681a kSC4MessageSimIdle -> cSC4PlumbingSimulator::DoMessage	no	-	-	DISAGREEMENT-unresolved-or-action-path

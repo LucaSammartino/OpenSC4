@@ -14,6 +14,7 @@
 #include "FC4Script.h"
 
 #include "FC4Config.h"
+#include "FC4Watchdog.h"
 #include "FC4Diag.h"
 #include "FC4DisasterShadow.h"
 #include "FC4DispatchShadow.h"
@@ -32,8 +33,10 @@
 #include "cFC4PortDeveloper.h"  // the glue-portdev4 lane: the port action
 #include "cFC4ZoneManager.h"
 #include "cFC4PropDeveloper.h"
+#include "cFC4MySim.h"
 
 #include "SC4Rect.h"
+#include "SC4String.h"
 #include "cISC4City.h"
 #include "cISC4DispatchManager.h"
 #include "cISC4Occupant.h"
@@ -81,6 +84,7 @@ std::string g_path;                  // the loaded script, "" = none
 // tick (pointers into g_schedule; cleared whenever it is reloaded).
 std::vector<const harness::ScriptAction*> g_waiting;
 bool g_inTick = false;  // ScriptOnTick is running the waiting actions
+volatile LONG g_saveGraceMs = 0;  // watchdog reads; only inside an explicitly opted-in full save
 
 constexpr unsigned long long kMaxScriptBytes = 4ull << 20;  // [choice] a text file of actions, not a save
 
@@ -459,6 +463,36 @@ std::string RunNetwork(const harness::ScriptAction& a, cISC4City* city) {
 
 // ---- speed, pause, resume: the city's simulator ------------------------------------------------------
 
+std::string RunFunds(const harness::ScriptAction& a, cISC4City* city) {
+    auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
+    if (!budget) return "ok=0 (skipped: no city budget)";
+    const int64_t before = budget->GetTotalFunds();
+    // 00690140 has no defined bool return (including the unchanged-funds
+    // path). Discard the SDK's AL declaration; qualify the write by read-back.
+    budget->SetTotalFunds(a.funds);
+    const int64_t after = budget->GetTotalFunds();
+    char b[192];
+    std::snprintf(b, sizeof(b), "ok=%d (SetTotalFunds(%d); treasury %lld -> %lld)",
+                  after == a.funds ? 1 : 0, a.funds,
+                  static_cast<long long>(before), static_cast<long long>(after));
+    return b;
+}
+
+std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
+    if (!city) return "ok=0 (skipped: no city)";
+    if (city->GetEstablished()) return "ok=1 (already established; name unchanged)";
+    // cSC4City::SetEstablished (00459a80) posts the city's establishment
+    // message and calls simulator slot 33, enabling its established agents.
+    // This is also the city command exposed to Maxis Lua as SetCityEstablished.
+    const SC4String name(a.text.c_str());
+    city->SetCityName(name);
+    city->SetEstablished(true);
+    SC4String actual;
+    city->GetCityName(actual);
+    return std::string(city->GetEstablished() ? "ok=1" : "ok=0") +
+           " (SetEstablished(true); city name=" + actual.ToChar() + ")";
+}
+
 std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
     cFC4ISC4Simulator* sim = city ? AsGame(city->GetSimulator()) : nullptr;  // city slot 50, borrowed
     if (sim == nullptr) return "skipped: no city simulator";
@@ -483,7 +517,18 @@ std::string RunSimulator(const harness::ScriptAction& a, cISC4City* city) {
 std::string RunSave(const harness::ScriptAction& a, cISC4City* city) {
     // [choice] No city, no call: what SaveCity does without one is not specified.
     if (city == nullptr) return "ok=0 (skipped: no city)";
+    long grace = a.fast ? 0 : SettingInt("script_save_grace_ms", "FC4_SCRIPT_SAVE_GRACE_MS", 0);
+    if (grace < 0) grace = 0;
+    if (grace > 120000) grace = 120000;
+    if (grace > 0 && grace < 10000) grace = 10000;
+    if (grace) Log("script: full-save watchdog grace %ld ms (script_save_grace_ms)", grace);
+    InterlockedExchange(&g_saveGraceMs, grace);
     const ObserverSave r = ObserverSaveCity(a.fast);
+    // We have resumed the observer's framework tick. Publish that progress
+    // before dropping the allowance, so the completed save is not a stale
+    // no-tick stall at the ordinary threshold.
+    if (grace) NoteFrameworkTick();
+    InterlockedExchange(&g_saveGraceMs, 0);
     if (!r.haveApp) return "ok=0 (skipped: no cISC4App)";
     char b[160];
     std::snprintf(b, sizeof(b), "ok=%d (SaveCity(%s) in %lu ms)%s", r.result ? 1 : 0, a.fast ? "fast" : "full", r.ms,
@@ -633,6 +678,8 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
     std::string result;
     bool digest = false;
     switch (a.op) {
+        case ScriptOp::Funds: result = RunFunds(a, city); break;
+        case ScriptOp::Establish: result = RunEstablish(a, city); break;
         case ScriptOp::Zone:
         case ScriptOp::PriceZone:
         case ScriptOp::Dezone: result = RunZone(a, city); break;
@@ -653,6 +700,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             digest = true;
             break;
         case ScriptOp::Mark: result = "marked"; break;
+        case ScriptOp::MySim: result = MySimScriptAction(a.on); break;
         case ScriptOp::Save:
             NetMgrShadowBeforeSave(city, julian);  // netmgr_shadow = 1 only: the records the save writes
             result = RunSave(a, city);
@@ -760,11 +808,29 @@ void ScriptOnNewDay(int32_t julian) {
 }
 
 void ScriptOnTick() {
+    int32_t bootstrapJulian = 0;
+    if (g_waiting.empty() && !g_inTick && g_schedule.Remaining()) {
+        cISC4City* city = ObserverCity();
+        auto* sim = city ? AsGame(city->GetSimulator()) : nullptr;
+        if (sim && !city->GetEstablished()) {
+            const int32_t julian = sim->GetSimDateNumber();
+            if (g_schedule.BootstrapDue(julian)) {
+                // An unfounded city never sends SimNewDay. Queue the explicit
+                // leading establish and its same-date actions at a framework
+                // tick instead; future actions still wait for real new days.
+                g_inTick = true;
+                ScriptOnNewDay(julian);
+                g_inTick = false;
+                bootstrapJulian = julian;
+            }
+        }
+    }
     if (g_waiting.empty() || g_inTick) return;
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them
-    const int32_t julian = static_cast<int32_t>(PublishedJulian());
+    // No new day has published a date in an unfounded city yet.
+    const int32_t julian = bootstrapJulian ? bootstrapJulian : static_cast<int32_t>(PublishedJulian());
     cISC4City* city = ObserverCity();
     for (const harness::ScriptAction* a : run) RunAction(*a, julian, city);
     g_inTick = false;
@@ -772,5 +838,7 @@ void ScriptOnTick() {
 }
 
 bool ScriptWaiting() { return !g_waiting.empty(); }
+
+uint32_t ScriptSaveGraceMs() { return static_cast<uint32_t>(InterlockedCompareExchange(&g_saveGraceMs, 0, 0)); }
 
 }  // namespace fc4

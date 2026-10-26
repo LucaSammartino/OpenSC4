@@ -446,14 +446,14 @@ undefined4 FUN_005f9390(undefined4 param_1, undefined4 param_2, undefined4 param
 - The work is `cGZUIScriptService` **slot 4**, three arguments, forwarded unchanged, **returning the window in EAX**.
 
 **Name-collision trap — read this before using `re/names_windows.tsv`.** The name table attaches
-`cGZUIScriptService::CreateWindowFromScript` to **two** different functions (`re/names_windows.tsv:12614`, `:12622`),
-and **neither of them is slot 4**:
+`cGZUIScriptService::CreateWindowFromScript` to **two** different functions (`re/names_windows.tsv:12614`, `:12622`).
+They are slots 3 and 4 of the service table `0x00AD5158` (corrected 2026-10-24, re-gzuiscript7; ui-script-service.md
+§2–§3):
 
 | Address | Signature (measured) | Returns | What it actually does |
 |---|---|---|---|
-| `0x0094B08B` | 5 dwords (`ret 0x14`), thiscall | **bool in `AL`** | `w = this->slot4(p1, p2, p3);` if `w`: `ok = w->QueryInterface(p4, p5); w->Release();` return `ok` |
-| `0x0094B210` | one struct pointer (reads `+0`, `+4`, `+8` of it) | — | a struct-taking overload |
-| slot 4 (not separately named) | 3 dwords | **`cIGZWin*` in EAX** | the actual factory; `SC4CreateWindowFromScript` calls it |
+| `0x0094B08B` (slot 3) | 5 dwords (`ret 0x14`), thiscall | **bool in `AL`** | `w = this->slot4(p1, p2, p3);` if `w`: `ok = w->QueryInterface(p4, p5); w->Release();` return `ok` |
+| `0x0094B210` (slot 4) | 3 dwords: the key pointer (reads `+0`, `+4`, `+8` of it), parent, id | **`cIGZWin*` in EAX** | the actual factory; `SC4CreateWindowFromScript` calls it |
 
 So `0x0094B08B` is a **QI wrapper that consumes the window it created** — it returns only whether the query worked,
 and releases the window before returning. A caller that wants the window must call slot 4, which is what
@@ -657,7 +657,7 @@ audio (INVENTORY-M6 §5). None of them needs a section in a UI window spec.
 
 **Corrects:** nothing in `docs/specs/` claims these are UI classes — the coverage map is already right. What *is* owed
 is an old HANDOFF item ("split the catch-all owners … into map rows", the coverage2 lane;
-docs/history/handoff-2026-10.md), which is a coverage-tooling task, not a spec
+the retired HANDOFF, available in Git history), which is a coverage-tooling task, not a spec
 task. Two small gaps in **data-formats.md §4.3** are worth noting for whoever picks that up: it never names
 `InterpretEntry`/`WriteEntry`/`cSCResProperty` (addresses only), and it does not record that the `ParentCohort`
 **writer** `0x0067C590` prints the key as `instance, type, group` while the **reader** `0x0067DFD0` reads

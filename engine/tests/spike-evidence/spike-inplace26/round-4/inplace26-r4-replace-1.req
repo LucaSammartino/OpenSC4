@@ -1,0 +1,9 @@
+label = inplace26-r4-replace-1
+seconds = 180
+end_date = 2026-04-01
+turbo = 1
+[ini]
+compare = clip2,box-rectangle
+compare_mode = replace
+popup_dialogs = 0
+autotest_end = quit

@@ -5,6 +5,23 @@
 
 int main() {
     unsigned failures = 0;
+    // A slow reader needs five ticks per sample while the native clock keeps
+    // advancing. Once the target is reached, it must finish all accepted work
+    // (including the target sample), rather than grow a permanent backlog.
+    const int32_t target = 2463233;  // 2032-01-01
+    unsigned accepted = 0, work = 0;
+    int32_t lastAccepted = 0;
+    for (int32_t tick = 0; tick < 200; ++tick) {
+        const int32_t date = target - 11 + tick;
+        if (fc4::DbpfSampleInWindow(date, target)) {
+            ++accepted;
+            lastAccepted = date;
+            work += 5;
+        }
+        if (work) --work;
+    }
+    if (accepted != 12 || lastAccepted != target || work != 0) ++failures;
+    if (!fc4::DbpfSampleInWindow(target + 1000, 0)) ++failures;
     if (fc4::DbpfMonthlySubset(0, 99).count != 0) ++failures;
     // Check every rolling year, not just January-December. Small and large
     // pools exercise wraparound and the more-than-one-file monthly case.

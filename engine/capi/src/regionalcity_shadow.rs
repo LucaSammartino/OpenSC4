@@ -85,8 +85,26 @@ fn compare(c: &mut RegionalCity, mut probe: impl FnMut(u32, u32, f64, &[u8]) -> 
             check(id, t as u32, value, &[]);
         }
     }
+    // regional-city §7.3: a present type replaces the caller's list, while an
+    // absent type leaves it alone. The host seeds every output with this point.
+    // Compare float bits so signed zero and NaN payloads survive this boundary.
+    let sentinel = [0x3f80_0000_u32, 0xc000_0000, 0x4040_0000];
+    for (&t, points) in &c.points {
+        let bytes: Vec<_> = points
+            .iter()
+            .flatten()
+            .flat_map(|value| value.to_bits().to_le_bytes())
+            .collect();
+        check(60, t, 0.0, &bytes);
+    }
+    // There is a free key among 0..=len, even when the saved types are sparse.
+    let absent = (0..=c.points.len() as u32)
+        .find(|t| !c.points.contains_key(t))
+        .expect("one more candidate than present keys");
+    let bytes: Vec<_> = sentinel.into_iter().flat_map(u32::to_le_bytes).collect();
+    check(60, absent, 0.0, &bytes);
     // This independently exercises all decoded fields, including the pending
-    // changes, connection/deal records, unknown strings and POIs without getters.
+    // changes, connection/deal records and unknown strings without getters.
     let mut out = ByteWriter::new();
     if !c.write_record(&mut out) {
         check(100, 0, 0.0, &[]);
@@ -103,6 +121,77 @@ unsafe extern "C" fn fc4_regionalcity_shadow_compare(
     probe: Option<Probe>,
     ctx: *mut c_void,
 ) -> u64 {
+    // SAFETY: forwarded unchanged to the common capture decoder.
+    unsafe { compare_capture(data, len, probe, ctx, None) }
+}
+
+// The host applies the same steps to an isolated, uninitialised COM object.
+// Never mutate a live regional city: setters can affect its connections/deals.
+fn mutate_fixture(c: &mut RegionalCity, step: u32) {
+    match step {
+        0 => {
+            c.set_position(-3, 7, false);
+            c.set_city_size((2, 4));
+            c.set_serial_number(0x8123_4567);
+            c.set_birth_date(0xf123_4567);
+            c.set_established(true);
+            c.set_world_position(12.5, -45.25);
+            c.set_world_base_elevation(37.75);
+            c.set_budget(-123456.125);
+            c.set_income(98765.0625);
+            c.set_tutorial_guid(0x1234_5678);
+            c.set_city_name(b"FC4 isolated city");
+            c.set_mayor_name(b"FC4 isolated mayor");
+            c.set_utility_advisor_name(b"FC4 isolated utility");
+            c.set_description(b"FC4 isolated description");
+        }
+        1 | 2 => {
+            for commodity in [1, 2, 3, 97] {
+                let value = if step == 1 { f64::from(commodity) + 0.125 } else { -1.0 };
+                c.set_produced(commodity, value);
+                c.set_demanded(commodity, value * 2.0);
+                c.set_exported(commodity, value * 3.0);
+                c.set_imported(commodity, value * 4.0);
+                c.set_cost_per_unit(commodity, value * 5.0);
+            }
+        }
+        3 => {
+            c.set_established(false);
+            c.set_tutorial_guid(-1);
+            c.set_city_name(b"");
+            c.set_mayor_name(b"");
+            c.set_utility_advisor_name(b"");
+            c.set_description(b"");
+            c.extrapolate_growth(0x1010, 17.75);
+            c.extrapolate_growth(0x1010, -2.5);
+            c.get_allowable_extrapolation(0x1010);
+        }
+        _ => unreachable!("fixture step checked at the FFI boundary"),
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_regionalcity_shadow_mutation_compare(
+    data: *const u8,
+    len: u32,
+    step: u32,
+    probe: Option<Probe>,
+    ctx: *mut c_void,
+) -> u64 {
+    if step > 3 {
+        return u64::MAX;
+    }
+    // SAFETY: same synchronous capture/probe contract as the getter entry.
+    unsafe { compare_capture(data, len, probe, ctx, Some(step)) }
+}
+
+unsafe fn compare_capture(
+    data: *const u8,
+    len: u32,
+    probe: Option<Probe>,
+    ctx: *mut c_void,
+    mutation: Option<u32>,
+) -> u64 {
     let Some(probe) = probe else {
         return u64::MAX;
     };
@@ -118,6 +207,11 @@ unsafe extern "C" fn fc4_regionalcity_shadow_compare(
     if input.remaining() != 0 {
         return u64::MAX;
     }
+    if let Some(last_step) = mutation {
+        for step in 0..=last_step {
+            mutate_fixture(&mut c, step);
+        }
+    }
     compare(&mut c, |field, arg, value, bytes| {
         // SAFETY: callback and context live for this synchronous comparison.
         unsafe { probe(ctx, field, arg, value, bytes.as_ptr(), bytes.len() as u32) }
@@ -127,6 +221,143 @@ unsafe extern "C" fn fc4_regionalcity_shadow_compare(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn isolated_setters_cover_unknown_commodity_clamping_and_growth_insertion() {
+        let mut c = RegionalCity::new(2);
+        c.original_locale = (12, 34);
+        mutate_fixture(&mut c, 0);
+        assert_eq!(c.position, (-3, 7));
+        assert_eq!(c.size, (2, 4));
+        assert_eq!(c.serial, 0x8123_4567);
+        assert_eq!(c.birth_date, 0xf123_4567);
+        assert_eq!(c.budget, -123456.125);
+        assert_eq!(c.income, 98765.0625);
+        assert_eq!(c.city_name, b"FC4 isolated city");
+        assert_eq!(c.original_locale, (12, 34));
+        assert!(!c.moved, "non-rearranging position setter must not mark a move");
+        mutate_fixture(&mut c, 1);
+        assert_eq!(c.commodities.len(), 4);
+        let extra = c.commodities[&97];
+        assert_eq!(extra.produced, 97.125);
+        assert_eq!(extra.demanded, 194.25);
+        assert_eq!(extra.exported, 291.375);
+        assert_eq!(extra.imported, 388.5);
+        assert_eq!(extra.cost_per_unit, 485.625);
+        mutate_fixture(&mut c, 2);
+        assert!(c.commodities.values().all(|v| *v == Default::default()));
+        mutate_fixture(&mut c, 3);
+        assert!(!c.established);
+        assert!(!c.is_tutorial());
+        assert!(c.city_name.is_empty() && c.mayor_name.is_empty());
+        assert_eq!(c.extrapolated[&0x1010], 14);
+        assert_eq!(c.potential[&0x1010], 0);
+        assert!(c.populations.is_empty());
+    }
+
+    #[test]
+    fn mutation_boundary_rejects_invalid_step_and_compares_expected_not_captured_output() {
+        unsafe extern "C" fn check(_: *mut c_void, id: u32, _: u32, value: f64, _: *const u8, _: u32) -> bool {
+            // A simulated native setter that retained the old serial is a mismatch.
+            id != 10 || value == 0.0
+        }
+        let mut out = ByteWriter::new();
+        assert!(RegionalCity::new(2).write_record(&mut out));
+        let baseline = out.bytes().to_vec();
+        // SAFETY: local input and synchronous callback, no retained pointers.
+        unsafe {
+            let result = fc4_regionalcity_shadow_mutation_compare(
+                baseline.as_ptr(),
+                baseline.len() as u32,
+                3,
+                Some(check),
+                std::ptr::null_mut(),
+            );
+            assert_eq!(result as u32, 1);
+            assert!(result >> 32 > 60);
+            assert_eq!(
+                fc4_regionalcity_shadow_mutation_compare(
+                    baseline.as_ptr(),
+                    baseline.len() as u32,
+                    4,
+                    Some(check),
+                    std::ptr::null_mut(),
+                ),
+                u64::MAX
+            );
+        }
+        assert_eq!(baseline, out.bytes());
+    }
+
+    #[test]
+    fn observation_skips_getters_that_would_insert_missing_map_entries() {
+        let mut c = RegionalCity::new(2);
+        c.commodities.clear();
+        c.populations.insert(1, 17);
+        c.extrapolated.insert(2, 23);
+        c.potential.insert(3, 31);
+        c.extrapolated.insert(4, 10);
+        c.potential.insert(4, 40);
+        let mut before = ByteWriter::new();
+        assert!(c.write_record(&mut before));
+        let mut allowable = Vec::new();
+        let result = compare(&mut c, |id, t, value, _| {
+            if id == 43 {
+                allowable.push(t);
+                assert_eq!(value, 30.0);
+            }
+            assert!(!(50..=55).contains(&id), "absent commodities must not be queried");
+            true
+        });
+        assert_eq!(result as u32, 0);
+        assert_eq!(allowable, [4]);
+        let mut after = ByteWriter::new();
+        assert!(c.write_record(&mut after));
+        assert_eq!(before.bytes(), after.bytes());
+    }
+
+    #[test]
+    fn points_compare_present_empty_and_absent_lists_without_changing_record() {
+        let mut c = RegionalCity::new(2);
+        c.points.insert(0, vec![[1.25, -0.0, f32::from_bits(0x7fc0_1234)]]);
+        c.points.insert(7, vec![]);
+        let mut before = ByteWriter::new();
+        assert!(c.write_record(&mut before));
+        let mut seen = Vec::new();
+        let result = compare(&mut c, |id, t, _, bytes| {
+            if id == 60 {
+                seen.push(t);
+                match t {
+                    0 => assert_eq!(
+                        bytes,
+                        [0x3fa0_0000_u32, 0x8000_0000, 0x7fc0_1234]
+                            .into_iter()
+                            .flat_map(u32::to_le_bytes)
+                            .collect::<Vec<_>>()
+                    ),
+                    7 => assert!(bytes.is_empty()),
+                    1 => assert_eq!(
+                        bytes,
+                        [0x3f80_0000_u32, 0xc000_0000, 0x4040_0000]
+                            .into_iter()
+                            .flat_map(u32::to_le_bytes)
+                            .collect::<Vec<_>>()
+                    ),
+                    _ => panic!("unexpected point type {t}"),
+                }
+            }
+            if id == 100 {
+                assert_eq!(bytes, before.bytes());
+            }
+            true
+        });
+        assert_eq!(result as u32, 0);
+        assert_eq!(seen, [0, 7, 1]);
+        assert_eq!(compare(&mut c, |id, _, _, _| id != 60) as u32, 3);
+        let mut after = ByteWriter::new();
+        assert!(c.write_record(&mut after));
+        assert_eq!(before.bytes(), after.bytes());
+    }
 
     #[test]
     fn independent_getters_detect_altered_native_values() {
