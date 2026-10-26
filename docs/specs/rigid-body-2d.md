@@ -270,9 +270,10 @@ by `−N`, B position X,Y by `−W`, in that order
 (`0x005BAADA–0x005BAB21`). This second correction is not weighted by `m` or
 `i`; callers cannot assume a zero response multiplier prevents it. The
 zero-stored-length path (including coincident centres) constructs a random object with raw seed `0xFFFFFFFF`
-and calls foreign `RandomDirection2` (`0x005BAA3C–0x005BAA60`); its random
-contract and lifetime remain partial. No deterministic coincident-centre result
-is published. There is no rollback promise after any preceding mutation.
+and calls `RandomDirection2` (`0x005BAA3C–0x005BAA60`); §7.5 specifies the local
+generator's seed/lifetime and the response conditional on its returned direction.
+No deterministic clock-seeded coincident-centre result is published. There is no rollback
+promise after any preceding mutation.
 
 ## 7. Object/sector and advancement boundary
 
@@ -479,6 +480,122 @@ its separate city-boundary policy. A dead node changes no body fields and
 makes no sector calls. A zero dt can still refresh caches/bounds, clamp
 negative velocity when friction is enabled and establish sector membership.
 
+### 7.5 PT11: coincident centres, sector order and joints *[compat]*
+
+This extends §§6–7 within a bounded finite domain. The unchanged SAT rules in §6.1
+already settle finite equality: separation rejects only a strictly positive score; the
+four candidate gates include their stated equalities, later contact candidates replace only
+on a strictly smaller score, and equal scores retain the earlier candidate. Failure leaves
+the output pairs untouched. There is no epsilon enlargement or generic-library tie rule.
+
+**Coincident response.** ResolveCollision applies §6.2's impulse before checking centre
+distance. If the stored binary32 centre distance L is zero, including an underflow to zero,
+construct a local `cRZRandom` with seed argument `FFFFFFFF` and call `RandomDirection2`
+(`005BAA29–005BAA60`). This is not a draw from the particle-emission generator.
+Seed(-1) obtains external word S from `009EFB59(0)` and clock word C from `009F361F`,
+stores `((C<<16)|C) XOR S` to generator +00 and +04 (32-bit operations), and the
+constructor clears +08 (`00913667–00913695`, `00913A5C–00913A71`). Do not treat -1
+as a fixed deterministic seed or rename the first external call from its unreliable symbol.
+There is no heap-owned generator or destructor call on this response path.
+
+`0080B680–0080B727` requests X then Y through RandomDoubleRangeUniform with double
+endpoints -1 and +1. X is stored binary32 before testing squared length; Y remains in
+x87. For finite samples the rejection test rejects squared length >1; a zero vector is
+not screened out by a strict-positive test in this helper. Normalize the accepted pair to
+length 1 and store both output coordinates binary32. A zero accepted pair's division by
+zero is an exceptional domain; do not invent a retry. The compare with double 0.0001 at
+`0080B6EA` is reached only on the >1 branch and does not establish exclusion of the origin.
+
+Use this direction in place of the zero centre difference. The remaining response uses
+the original stored L=0: separation vector is `(4−L)*direction/length(direction)` and
+the velocity correction is the normalized direction. Each body receives the full separation,
+in opposite directions, not half or a mass-weighted share (`005BAA64–005BAB21`). The
+mutation order remains A velocity X/Y, A position X/Y, B velocity X/Y, B position X/Y.
+
+**Conditional numeric vector RB-C0 (proposed, unexecuted).** Coincident bodies at (0,0),
+zero initial linear/angular velocities, response multipliers +2C=+68=1, normal (0,1),
+contact (0,0), extra velocity (0,0). The impulse quotient is zero and takes the positive
+`38D1B717` adjustment, so first velocities become `(0,epsilon)` and `(0,−epsilon)`.
+Supply helper samples `(0.5,0)` to obtain direction (1,0). Final positions are `(4,0)`
+and `(−4,0)`; velocities `(1,epsilon)` and `(−1,−epsilon)`. Angular velocities stay zero.
+This tests the caller conditional on foreign results; it does not predict a live clock seed.
+
+**Sector insertion/removal.** `005BBA40` and `005BB6A0` both derive the initial key by
+subtracting 4000 hex from each unsigned half of body +78 and re-biasing with 40004000
+hex, using 32-bit shifts/additions (`005BBA48–005BBA83`, `005BB6AE–005BB6E8`).
+Visit +7C rows; within each row visit +80 consecutive keys, incrementing the low word
+by a full 32-bit +1. The next row's initial key adds 10000 hex. Zero in either count
+makes no element visits. Do not clamp at a city boundary or silently discard a word carry.
+
+For each key, select the vector by body flags: +75 nonzero selects low-response,
+otherwise +74 nonzero selects explicit static, otherwise ordinary. Thus +75 has priority
+if both bytes are set. The map node has key +04 and vector triples at +08, +14 and +20
+respectively for ordinary, static and low-response; its total membership count is +2C.
+Insertion gets/creates the key, appends the body pointer to the selected vector and
+increments the total. It does not deduplicate pointers. Removal finds the first equal
+pointer, closes that gap by shifting subsequent pointers, and reduces the vector length;
+when a map node is found, its membership count is decremented and zero removes the node.
+No idempotence promise applies to a second removal of an absent member. Allocation failure,
+bucket-count zero with an attempted lookup, count underflow and corrupted vector triples
+are not specified as recovered errors. The native code has no transactional rollback here.
+
+**Pair iteration.** `005BAF30` visits the hash container's existing iterator order:
+follow the node chain, then scan subsequent buckets. It does not sort sector keys or body
+IDs (`005BB1A0–005BB1DB`). Within a sector, visit the ordinary vector forward; for each
+ordinary A visit all later ordinary B in vector order, then call CheckAgainstInfiniteMassObjects
+against the static vector and then the low-response vector. Therefore ordinary [A,B,C]
+has phase trace `(A,B),(A,C),A/static,A/low,(B,C),B/static,B/low,C/static,C/low`.
+Empty static/low vectors make no contacts. Coarse X/Y/height extent comparisons and primary
+key qualification precede SAT. Successful response mutates the bodies immediately; subsequent
+pairs see the modified values. Primary key is the component-wise unsigned maximum of the
+two minimum keys (§3). This establishes traversal, not a sorted global contact queue.
+
+**Joint records.** `005BB3E0` allocates a 28-hex-byte list node, copies a 20-hex-byte
+description through `005BAD50`, then appends at the tail of simulator +0C. Description
+words are A pointer +00, B pointer +04, A local anchor +08/+0C, B local anchor +10/+14,
+distance threshold f32 +18, breaking threshold f32 +1C. No endpoint lookup, dead-byte test,
+duplicate-joint rejection or threshold normalization is present in this append body.
+Host application-ID lookup is a separate operation (particles.md §16.1).
+
+Joints are traversed forward **after** all sector pairs. Transform each local anchor by
+the corresponding body's stored c/s and translation; store both world pairs binary32
+(`005BB1F3–005BB24B`). Store D=anchorB−anchorA, and continue only if |D| is strictly
+greater than the distance threshold; equality leaves the joint intact and does no response
+(`005BB24F–005BB281`). Form the midpoint, call GetRelativeVelocityAtPoint(A,B,midpoint)
+and skip if dot(D,relativeVelocity)<0. If relative speed is strictly greater than the
+binary32 constant at `00A99F20` (approximately 1e-5), call ResolveCollision with **D itself**
+as normal, midpoint as point and zero extra velocity. Do not normalize D first
+(`005BB287–005BB32E`).
+
+Then `005BA210` computes a second relative quantity at that midpoint using **reciprocals**
+of the stored response multipliers: for body Q, its finite mathematical form is
+`T(Q)=velocity/Q(+2C) + (angularVelocity/Q(+68))*perp(midpoint−position)`,
+where perp(x,y)=(-y,x). The helper returns `T(B)−T(A)` as two binary32 values;
+the divides and intermediate stores are at `005BA23D–005BA2DF`. This differs from the
+ordinary contact-velocity helper; a zero multiplier is a singular domain. If its magnitude
+is strictly greater than the breaking threshold, unlink/free the joint and proceed using
+its saved next pointer. Equality retains it (`005BB32E–005BB379`). Exceeding the distance
+threshold alone does not break a joint, and a skipped approach test never reaches breaking.
+
+**Joint/sector cases (proposed, unexecuted).** Identity body orientations, positions (0,0)
+and (3,0), zero local anchors, distance threshold 3: retain the joint without helper calls
+regardless of breaking threshold. With distance threshold 2, both velocities zero, positive
+unit multipliers, breaking threshold 0: no ResolveCollision call (speed zero), the second
+quantity is (0,0), equality retains the joint. For sector insertion, use +78=40004000 hex,
++7C=2,+80=2: keys are 40004000,40004001,40014000,40014001 hex, in that order.
+Insert A then B at one key and remove A: the remaining vector is [B], with count 1.
+
+**Remaining PT11 observations.** Capture S/C, local RNG words, every candidate double and
+accepted direction to turn RB-C0 into an executed clock-seeded fixture. Capture x87 control
+word and all four SAT scores/contact writes for zero extents, coincident axes and one-ULP
+either side of equality; finite §6.1 rules still apply. To qualify unusual input/failure domains,
+record AL/output sentinels and body/joint/map bytes after NaN/infinite/overflow inputs, zero
+response multipliers, a zero accepted random vector, aliased/dead endpoints, duplicate joint
+insertion, missing map members and allocator failure at each creation/growth call. Keep prior
+impulse mutations if failure occurs later; no rollback has been established. Whole static/low
+contact response and hash rehash ordering additionally require a multi-sector call trace
+including `005BAB40`; the phase ordering above alone is not a complete whole-step oracle.
+
 ## 8. Independent proposed vectors
 
 All rows are **PROPOSED/UNEXECUTED**, derived from instruction-stage arithmetic
@@ -624,11 +741,11 @@ zero; source padding and nonstatic initial trig-cache bits are not compared.
 | `005BA080` GetClosestApproach | supported | finite support-point selection and store staging, §4 |
 | `005BA180` GetRelativeVelocityAtPoint | supported | finite contact velocity and store staging, §5 |
 | `005BA2F0–005BA88C` TestForCollision | supported | finite separation/contact CFG and output semantics, §6.1; general bit-exact/NaN behavior excluded |
-| `005BA890–005BAB31` ResolveCollision | partial | finite noncoincident response and mutation order, §6.2; coincident random branch incomplete |
+| `005BA890–005BAB31` ResolveCollision | partial | finite response/mutation order §6.2 and conditional coincident branch §7.5; clock/RNG and exceptional captures pending |
 | `005BAB40` CheckAgainstInfiniteMassObjects | unknown | phase traversal not yet qualified |
 | `005BAEA0–005BAEF4` SweepObjectList | supported | normal stable-list deletion and raw allocator-call order, §7.1 |
 | `005BAF00–005BAF20` RemoveDeadObjects | supported | three-sweep order, §7.1 |
-| `005BAF30–005BB388` DoCollisions | partial | within-sector pair-loop prefix only, §7.2 |
+| `005BAF30–005BB388` DoCollisions | partial | sector/vector phase order and finite joint gates §7.5; static/low-response whole-step trace pending |
 | `005BB6A0` RemoveFromSectorMap | unknown | sector mutation not yet qualified |
 | `005BB950` constructor | partial | directly observed initialization only, §7 |
 | `005BB9E0–005BBA34` RemoveObject | partial | pair unlink, sector-call boundary, deferred-dead flag, §7.1 |
