@@ -74,6 +74,31 @@ constexpr size_t kMaxDepth = 32;
 std::atomic<bool> g_enabled{false};
 std::atomic<bool> g_active{false};
 
+// Parent loads can recursively contribute raw/parse/build time while the
+// outer read waits in its parent stage.
+std::atomic<uint64_t> g_readTicks[4]{};
+std::atomic<uint32_t> g_deferred{0}, g_materialized{0};
+std::atomic<uint64_t> g_materializeTicks{0};
+uint64_t ReadClock() {
+    LARGE_INTEGER t;
+    QueryPerformanceCounter(&t);
+    return static_cast<uint64_t>(t.QuadPart);
+}
+class ReadTimer {
+public:
+    ReadTimer() : start_(ReadClock()) {}
+    ~ReadTimer() { g_readTicks[stage_] += ReadClock() - start_; }
+    void Stage(unsigned stage) {
+        const uint64_t now = ReadClock();
+        g_readTicks[stage_] += now - start_;
+        start_ = now;
+        stage_ = stage;
+    }
+private:
+    uint64_t start_;
+    unsigned stage_ = 0;
+};
+
 struct Counters {
     std::atomic<uint32_t> reads{0}, readFails{0}, parentFails{0}, cycleFails{0}, resourceProps{0}, emptyProps{0};
     std::atomic<uint32_t> created{0}, lists{0}, listFails{0}, unsupported{0}, msgAdds{0};
@@ -485,6 +510,7 @@ public:
     explicit ExCore(uint32_t type, cIGZUnknown* outer)
         : type_(type), key_(type, 0, 0), own_(outer), eff_(outer), holder_(this) {}
     virtual ~ExCore() {
+        fc4_exrec_destroy(pendingRecord_);
         own_.Clear();
         eff_.Clear();
         if (parent_ != nullptr) FC4_RELEASE(parent_);
@@ -499,6 +525,39 @@ public:
     cFC4PropertyHolder eff_;
     ExHolder holder_;
     cISCResExemplarCohort* parent_ = nullptr;
+    // Values are immutable in the parsed record; each exposed property gets
+    // its own mutable holder object before any caller can observe it.
+    // SPEC-GAP: value-property allocation is deferred until first access.
+    fc4_exrec* pendingRecord_ = nullptr;
+    std::vector<std::pair<uint32_t, size_t>> pending_;
+
+    void ClearPending() {
+        pending_.clear();
+        fc4_exrec_destroy(pendingRecord_);
+        pendingRecord_ = nullptr;
+    }
+    void Materialize(uint32_t id) {
+        std::lock_guard<std::recursive_mutex> g(lock_);
+        auto it = std::lower_bound(pending_.begin(), pending_.end(), id,
+            [](const auto& p, uint32_t key) { return p.first < key; });
+        if (it == pending_.end() || it->first != id) return;
+        const uint64_t start = ReadClock();
+        uint16_t mt = 0;
+        bool arr = false;
+        const uint8_t* data = nullptr;
+        size_t count = 0;
+        fc4_exrec_prop(pendingRecord_, it->second, nullptr, &mt, &arr, &data, &count, nullptr);
+        cFC4PropertyHolder::FromCoreProperty(&own_, id, mt, arr, data, count);
+        Mirror(id);
+        pending_.erase(it);
+        ++g_materialized;
+        if (pending_.empty()) ClearPending();
+        g_materializeTicks += ReadClock() - start;
+    }
+    void MaterializeAll() {
+        std::lock_guard<std::recursive_mutex> g(lock_);
+        while (!pending_.empty()) Materialize(pending_.back().first);
+    }
 
     // The parent's holder (cohort slot 9), borrowed; null without a parent.
     cFC4ISCPropertyHolder* ParentHolder() const {
@@ -512,6 +571,7 @@ public:
     // objects (shared with the parent).
     void Rebuild() {
         std::lock_guard<std::recursive_mutex> g(lock_);
+        MaterializeAll();
         ++g_count.rebuilds;
         eff_.Clear();
         if (cFC4ISCPropertyHolder* ph = ParentHolder()) {
@@ -543,6 +603,7 @@ public:
     bool RemoveOwn(uint32_t id, bool b) {
         {
             std::lock_guard<std::recursive_mutex> g(lock_);
+            Materialize(id);
             if (!own_.RemoveProperty(id, false)) return false;  // nothing removed: false, no message
             RevealOrErase(id);
         }
@@ -556,7 +617,8 @@ public:
         bool hadOwn = false;
         {
             std::lock_guard<std::recursive_mutex> g(lock_);
-            hadOwn = own_.Count() != 0;
+            hadOwn = own_.Count() != 0 || !pending_.empty();
+            ClearPending();
             own_.RemoveAllProperties(false);
             std::vector<uint32_t> ids;
             eff_.EnumProperties([](cISCProperty* p, void* d) {
@@ -629,6 +691,7 @@ public:
         std::map<uint32_t, cISCProperty*> m;
         {
             std::lock_guard<std::recursive_mutex> g(lock_);
+            MaterializeAll();
             if (cFC4ISCPropertyHolder* ph = ParentHolder()) {
                 cIGZUnknownList* list = nullptr;
                 if (ph->GetPropertyList(&list) && list != nullptr) {  // [abi-ret] probed: data-formats 8.2 / EX51
@@ -815,6 +878,7 @@ bool ExCore::WriteBinary(cIGZPersistDBSerialRecord* record) {
     cGZPersistResourceKey pk(0, 0, 0);
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
+        MaterializeAll();
         if (parent_ != nullptr) {
             void* pr = nullptr;
             if (parent_->QueryInterface(kIIDResource, &pr) && pr != nullptr) {
@@ -881,16 +945,30 @@ bool ExCore::WriteBinary(cIGZPersistDBSerialRecord* record) {
 bool ExHolder::QueryInterface(uint32_t riid, void** ppvObj) { return o_->Outer()->QueryInterface(riid, ppvObj); }
 uint32_t ExHolder::AddRef() { return o_->Outer()->AddRef(); }
 uint32_t ExHolder::Release() { return o_->Outer()->Release(); }
-bool ExHolder::HasProperty(uint32_t id) const { return o_->eff_.HasProperty(id); }
+bool ExHolder::HasProperty(uint32_t id) const {
+    o_->Materialize(id);
+    return o_->eff_.HasProperty(id);
+}
 bool ExHolder::GetPropertyData(uint32_t id, void* buffer, uint32_t& length) const {
+    o_->Materialize(id);
     return o_->eff_.GetPropertyData(id, buffer, length);
 }
 bool ExHolder::GetPropertyInterface(uint32_t id, uint32_t riid, void** ppv) const {
+    o_->Materialize(id);
     return o_->eff_.GetPropertyInterface(id, riid, ppv);
 }
-bool ExHolder::GetPropertyString(uint32_t id, cIGZString& value) const { return o_->eff_.GetPropertyString(id, value); }
-bool ExHolder::GetPropertyU32(uint32_t id, uint32_t& value) const { return o_->eff_.GetPropertyU32(id, value); }
-cISCProperty* ExHolder::GetProperty(uint32_t id) const { return o_->eff_.GetProperty(id); }
+bool ExHolder::GetPropertyString(uint32_t id, cIGZString& value) const {
+    o_->Materialize(id);
+    return o_->eff_.GetPropertyString(id, value);
+}
+bool ExHolder::GetPropertyU32(uint32_t id, uint32_t& value) const {
+    o_->Materialize(id);
+    return o_->eff_.GetPropertyU32(id, value);
+}
+cISCProperty* ExHolder::GetProperty(uint32_t id) const {
+    o_->Materialize(id);
+    return o_->eff_.GetProperty(id);
+}
 // §8.2 holder add slots (EX51 b). Slots 10-13 are the base bodies: they ignore
 // their bool, never post, and touch the OWN list only: an existing own entry
 // gets its value set in place (the effective list holds the same object, so
@@ -900,18 +978,22 @@ cISCProperty* ExHolder::GetProperty(uint32_t id) const { return o_->eff_.GetProp
 // when the bool is true).
 bool ExHolder::AddPropertyData(uint32_t id, void* data, uint32_t length, bool) {
     std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    o_->Materialize(id);
     return o_->own_.AddPropertyData(id, data, length, false);
 }
 bool ExHolder::AddPropertyObject(uint32_t id, cIGZUnknown* value, bool) {
     std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    o_->Materialize(id);
     return o_->own_.AddPropertyObject(id, value, false);
 }
 bool ExHolder::AddPropertyString(uint32_t id, cIGZString const& value, bool) {
     std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    o_->Materialize(id);
     return o_->own_.AddPropertyString(id, value, false);
 }
 bool ExHolder::AddPropertyU32(uint32_t id, uint32_t value, bool) {
     std::lock_guard<std::recursive_mutex> g(o_->lock_);
+    o_->Materialize(id);
     return o_->own_.AddPropertyU32(id, value, false);
 }
 // Slot 14: a new property with the ID, its value set from the variant
@@ -927,8 +1009,13 @@ bool ExHolder::AddPropertyVariant(uint32_t id, cFC4IGZVariant const* value, bool
 }
 bool ExHolder::AddPropertyRecord(cISCProperty* property, bool b) {
     if (property == nullptr) return false;
-    const bool ok = o_->own_.AddPropertyRecord(property, b);
-    o_->Mirror(property->GetPropertyID());
+    bool ok;
+    {
+        std::lock_guard<std::recursive_mutex> g(o_->lock_);
+        o_->Materialize(property->GetPropertyID());
+        ok = o_->own_.AddPropertyRecord(property, b);
+        o_->Mirror(property->GetPropertyID());
+    }
     o_->Post(b);  // §8.2: slot 15 posts the change message
     return ok;
 }
@@ -949,9 +1036,13 @@ bool ExHolder::CopyAddProperty(cISCProperty* property, bool b) {
 bool ExHolder::RemoveProperty(uint32_t id, bool b) { return o_->RemoveOwn(id, b); }
 bool ExHolder::RemoveAllProperties(bool b) { return o_->RemoveAllOwn(b); }
 bool ExHolder::EnumPropertiesFiltered(FilterFn filter, EnumFn fn, void* data) const {
+    o_->MaterializeAll();
     return o_->own_.EnumPropertiesFiltered(filter, fn, data);
 }
-bool ExHolder::EnumProperties(EnumFn fn, void* data) const { return o_->own_.EnumProperties(fn, data); }
+bool ExHolder::EnumProperties(EnumFn fn, void* data) const {
+    o_->MaterializeAll();
+    return o_->own_.EnumProperties(fn, data);
+}
 
 // §8.2 slot 22: the deleting destructor of the whole object. [choice] only
 // the delete bit (1) is honoured; the object goes regardless of its count,
@@ -976,6 +1067,7 @@ bool ExHolder::GetPropertyList(cIGZUnknownList** list) const {
     std::vector<cISCProperty*> props;
     {
         std::lock_guard<std::recursive_mutex> g(o_->lock_);
+        o_->MaterializeAll();
         o_->eff_.EnumProperties([](cISCProperty* p, void* d) { static_cast<std::vector<cISCProperty*>*>(d)->push_back(p); },
                                 &props);
         std::sort(props.begin(), props.end(),
@@ -995,6 +1087,7 @@ struct LoadingScope {
 
 bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     ++g_count.reads;
+    ReadTimer timer;
     cGZPersistResourceKey rkey;
     record.GetKey(rkey);
     // §4.1: the type the record is stored under must be ours (the core
@@ -1002,7 +1095,9 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     const uint32_t size = record.GetSize();
     std::vector<uint8_t> bytes(size);
     if (size > 0 && !record.GetFieldVoid(bytes.data(), size)) return false;
+    timer.Stage(1);
     fc4_exrec* rec = fc4_exrec_parse(rkey.type, bytes.data(), bytes.size());
+    timer.Stage(2);
     if (rec == nullptr) return false;
     struct Free {
         fc4_exrec* r;
@@ -1035,6 +1130,7 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     }
     {
         std::lock_guard<std::recursive_mutex> g(lock_);
+        ClearPending();
         if (parent_ != nullptr) FC4_RELEASE(parent_);
         parent_ = parent;  // our reference from GetResource
         own_.Clear();
@@ -1042,16 +1138,19 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
     }
     // §4.2: properties in record order; a later one with the same ID
     // replaces the earlier (§4.5); each add updates the effective list.
+    timer.Stage(3);
+    std::lock_guard<std::recursive_mutex> g(lock_);
+    pendingRecord_ = rec;
+    free_.r = nullptr;
     const size_t n = fc4_exrec_count(rec);
+    pending_.reserve(n);
     for (size_t i = 0; i < n; ++i) {
         uint32_t id = 0, key3[3] = {0, 0, 0};
-        uint16_t mt = 0;
-        bool arr = false;
-        const uint8_t* data = nullptr;
-        size_t count = 0;
-        const int32_t kind = fc4_exrec_prop(rec, i, &id, &mt, &arr, &data, &count, key3);
+        const int32_t kind = fc4_exrec_prop(rec, i, &id, nullptr, nullptr, nullptr, nullptr, key3);
         if (kind == 0) {
-            cFC4PropertyHolder::FromCoreProperty(&own_, id, mt, arr, data, count);
+            pending_.emplace_back(id, i);
+            ++g_deferred;
+            continue;
         } else if (kind == 1) {
             // §4.2: Empty is added like any other (memory type 0, no data).
             auto* p = new cFC4Property(id);
@@ -1076,6 +1175,7 @@ bool ExCore::ReadRecord(cIGZPersistDBRecord& record) {
         }
         Mirror(id);
     }
+    if (pending_.empty()) ClearPending();
     return true;
 }
 
@@ -1108,7 +1208,7 @@ public:
     cIGZSerializable* Serializable() override { return static_cast<cISCResExemplar*>(this); }
     cISCPropertyHolder* AsISCPropertyHolder() override { return HolderSdk(); }
     cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<cFC4ResExemplar*>(this)->HolderSdk(); }
-    bool IsPropertyLocal(uint32_t id) override { return own_.HasProperty(id); }  // §4.4: own list only
+    bool IsPropertyLocal(uint32_t id) override { Materialize(id); return own_.HasProperty(id); }  // §4.4: own list only
     // [choice, EX48] borrowed: the reference stays with the exemplar.
     cISCResExemplarCohort* GetCohort() override {
         std::lock_guard<std::recursive_mutex> g(lock_);
@@ -1193,7 +1293,7 @@ public:
     }
     cISCPropertyHolder* AsISCPropertyHolder() override { return HolderSdk(); }
     cISCPropertyHolder* AsISCPropertyHolder() const override { return const_cast<cFC4ResCohort*>(this)->HolderSdk(); }
-    bool IsPropertyLocal(uint32_t id) override { return own_.HasProperty(id); }
+    bool IsPropertyLocal(uint32_t id) override { Materialize(id); return own_.HasProperty(id); }
     bool GetKey(cGZPersistResourceKey& k) override { return ExCore::GetKey(k); }
     bool SetKey(cGZPersistResourceKey const& k) override { return ExCore::SetKey(k); }
     bool CompactProperties() override { return true; }
@@ -1780,6 +1880,46 @@ void RunSide2(cIGZPersistResourceFactory* fe, cIGZPersistResourceFactory* fc, st
     if (c != nullptr) FC4_RELEASE_CREATED(c);
 }
 
+// Exercise deferred values through the public holder operations: a borrowed
+// property's identity and in-place writes must survive materializing others,
+// removal, the own-only add slots, enumeration and an effective-list rebuild.
+void LazyContractTest() {
+    auto* e = new cFC4ResExemplar();
+    auto* outer = static_cast<cISCResExemplar*>(e);
+    FC4_ADDREF(outer);
+    std::vector<uint8_t> bytes = {'E', 'Q', 'Z', 'B', '1', '#', '#', '#'};
+    auto word = [&bytes](uint32_t v) {
+        for (unsigned b = 0; b < 4; ++b) bytes.push_back(static_cast<uint8_t>(v >> (b * 8)));
+    };
+    word(0); word(0); word(0); word(4);
+    for (uint32_t id : {0x10u, 0x20u, 0x30u, 0x50u}) {
+        word(id); bytes.push_back(0); word(3); word(id + 1);
+    }
+    e->pendingRecord_ = fc4_exrec_parse(kTypeExemplar, bytes.data(), bytes.size());
+    unsigned passed = 0;
+    if (e->pendingRecord_ != nullptr) {
+        e->pending_ = {{0x10, 0}, {0x20, 1}, {0x30, 2}, {0x50, 3}};
+        ExHolder& h = e->holder_;
+        cISCProperty* first = h.GetProperty(0x10);
+        passed += first != nullptr && e->own_.Count() == 1;
+        if (first != nullptr) fc4::AsGame(first->GetPropertyValue())->SetValUint32(117);
+        h.AddPropertyU32(0x20, 19, false);
+        uint32_t value = 0;
+        passed += h.GetPropertyU32(0x20, value) && value == 19;  // [abi-ret] concrete ExHolder returns bool, no native call
+        passed += h.RemoveProperty(0x30, false) && !h.HasProperty(0x30);
+        h.AddPropertyU32(0x40, 23, false);
+        passed += !h.HasProperty(0x40);
+        size_t count = 0;
+        h.EnumProperties([](cISCProperty*, void* p) { ++*static_cast<size_t*>(p); }, &count);
+        passed += count == 4 && e->pendingRecord_ == nullptr;
+        e->Rebuild();
+        passed += h.GetPropertyU32(0x40, value) && value == 23;  // [abi-ret] concrete ExHolder returns bool, no native call
+        passed += h.GetProperty(0x10) == first && h.GetPropertyU32(0x10, value) && value == 117;  // [abi-ret] concrete ExHolder returns bool, no native call
+    }
+    Log("formats lazy contract: %u/7 %s", passed, passed == 7 ? "MATCH" : "DIFF");
+    FC4_RELEASE_CREATED(outer);
+}
+
 void ContractTest() {
     static const char* kNames[8] = {"list_order",    "remove_reveals_parent", "setcohort_refs", "stubs_tag_rebuild",
                                     "add_slots_b",   "rebuild_dest_a",        "serialwrite_d",  "tag_text_ef"};
@@ -1789,6 +1929,7 @@ void ContractTest() {
     RunSide(g_ours[0], g_ours[1], ours);
     RunSide2(g_original[0], g_original[1], nat2);
     RunSide2(g_ours[0], g_ours[1], ours2);
+    LazyContractTest();
     t_fixture = false;
     int match = 0;
     for (int i = 0; i < 8; ++i) {
@@ -1823,6 +1964,14 @@ void ExemplarFactoryInstall() {
 void ExemplarFactoryRestore() {
     if (!g_active) return;
     cIGZPersistResourceManagerPtr rm;
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    const double ms = 1000.0 / static_cast<double>(frequency.QuadPart);
+    Log("formats factory read time: raw=%.3f parse=%.3f parent=%.3f build=%.3f ms",
+        g_readTicks[0].load() * ms, g_readTicks[1].load() * ms,
+        g_readTicks[2].load() * ms, g_readTicks[3].load() * ms);
+    Log("formats factory lazy values: deferred=%u materialized=%u build=%.3f ms",
+        g_deferred.load(), g_materialized.load(), g_materializeTicks.load() * ms);
     Log("exemplars: summary reads=%u failed=%u parent_failed=%u cycle_or_depth=%u created=%u empty=%u "
         "resource_props=%u property_lists=%u list_failed=%u message_adds=%u unsupported=%u",
         g_count.reads.load(), g_count.readFails.load(), g_count.parentFails.load(), g_count.cycleFails.load(),
