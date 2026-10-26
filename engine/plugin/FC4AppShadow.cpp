@@ -93,7 +93,9 @@ void Report(int32_t julian, bool load) {
         // monthly quiet point thereafter), so notification order is immaterial.
         using Mode = uint32_t (__thiscall*)(void*);
         const uint32_t nativeMode = reinterpret_cast<Mode>(table[25])(app);
-        differences += fc4_app_shadow_mode(model, nativeMode);
+        const uint32_t modeMismatch = fc4_app_shadow_mode(model, nativeMode);
+        differences += modeMismatch;
+        if (modeMismatch) fc4::Log("app: mode differs; native=%u observed_events=%u", nativeMode, events);
         ++fields;
         FC4_RELEASE(app);
     }
@@ -130,6 +132,7 @@ void AppShadowMessage(uint32_t kind) {
     if (kind == 0x26D31EC2 || kind == 0x8BB5BB46 || kind == 0xCBB5BB45 || kind == 0xEA8AE29A) {
         fc4_app_shadow_message(model, kind);
         ++events;
+        Log("app: mode message=0x%08X observed_events=%u", kind, events);
     }
 }
 void AppShadowObserve(int32_t julian, bool load) {

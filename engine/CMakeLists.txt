@@ -1429,3 +1429,8 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
         PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+# City-situation persistence compares unordered map entries (section 7).
+add_executable(fc4_citysit_record_test tests/citysit_record_test.cpp)
+target_include_directories(fc4_citysit_record_test PRIVATE plugin)
+add_test(NAME citysit_record_comparison COMMAND fc4_citysit_record_test)

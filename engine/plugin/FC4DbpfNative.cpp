@@ -724,6 +724,10 @@ bool DbpfShadowPending() { return pending != nullptr && !pending->empty(); }
 void DbpfShadowBeforeSave() {
     if (SettingInt("dbpf_shadow", nullptr, 0) == 0 &&
         SettingInt("dbpf_bounds_shadow", nullptr, 0) == 0) return;
+    // Finish both readers on the pre-save bytes while the held segments are
+    // still registered. Invalidating a queued slice here compares no bytes at
+    // all (including unchanged DATs), rather than finding a DBPF difference.
+    while (DbpfShadowPending()) DbpfShadowTick();
     ++saveGeneration;
     cityAfterSave = true;
     // Release acquired views while the game's owners are still registered;
