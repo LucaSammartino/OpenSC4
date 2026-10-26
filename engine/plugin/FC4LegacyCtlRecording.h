@@ -15,6 +15,7 @@
 #include <array>
 #include <mutex>
 #include <algorithm>
+#include <atomic>
 
 #if defined(_M_IX86)
 namespace fc4::legacyrecord {
@@ -167,7 +168,8 @@ template<uint32_t Slot,unsigned Op=7,unsigned A=0,unsigned B=0> uint32_t __fastc
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,uint32_t)>(Original(self,Slot))(self,nullptr,a,b);
 }
 template<uint32_t Slot> uint32_t __fastcall Four(void* self,void*,uint32_t a,uint32_t b,uint32_t c,uint32_t d) {
-    Record(Call(8,self,Slot,{U(a),U(b),U(c),U(d)})); Quiet q;
+    // §8's colour reader and §9.7/§9.8 pass byte channels; upper stack bits are undefined.
+    Record(Call(8,self,Slot,{U(a),U(b&255),U(c&255),U(d&255)})); Quiet q;
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,uint32_t,uint32_t,uint32_t)>(Original(self,Slot))(self,nullptr,a,b,c,d);
 }
 inline uint32_t __fastcall Points(void* self,void*,uint32_t n,const uint32_t* p,uint32_t a,uint32_t b) {
@@ -268,8 +270,17 @@ inline uint32_t __cdecl ExchangeCall(void* context,const uint32_t* input,uint32_
     if(trace.cursor>=trace.events.size()) {++trace.bad;return UINT32_MAX;}
     const auto& event=trace.events[trace.cursor++];
     if(event.call.size()!=count || !std::equal(event.call.begin(),event.call.end(),input)) {
-        if(trace.bad==0 && trace.exhaustive) Log("legacyctl trace difference: index=%u native=(%u,%08X,%X) core=(%u,%08X,%X)",
-            static_cast<unsigned>(trace.cursor-1),event.call[0],event.call[1],event.call[2],input[0],input[1],input[2]);
+        static std::atomic<uint32_t> reports{0};
+        if(trace.bad==0 && trace.exhaustive && reports.fetch_add(1)<8) {
+            Log("legacyctl trace difference: index=%u native=(%u,%08X,%X) core=(%u,%08X,%X)",
+                static_cast<unsigned>(trace.cursor-1),event.call[0],event.call[1],event.call[2],input[0],input[1],input[2]);
+            for(size_t i=0;i<std::min<size_t>(event.call.size(),count);++i) {
+                if(event.call[i]!=input[i]) {
+                    Log("legacyctl trace word difference: word=%u native=%08X core=%08X",static_cast<unsigned>(i),event.call[i],input[i]);
+                    break;
+                }
+            }
+        }
         ++trace.bad;
     }
     if(event.result.size()>capacity) return UINT32_MAX;
@@ -305,8 +316,8 @@ template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t f
     {Quiet q;input.Capture(props);ObserveWindow(win);}
     // These foreign resource services are not captured yet; never treat absent
     // recording support as a native mismatch or a completed interpreter call.
-    if((Index==0 && input.HasString(0x106)) || (Index==3 && input.HasString(0xf016)) ||
-        (Index==4 && (input.HasString(0xf016) || std::any_of(input.owned.begin(),input.owned.end(),[](const Input::Owned& p){return p.key==0xf000 && p.kind==6;})))) trace.exhaustive=false;
+    if((first&255) && ((Index==0 && input.HasString(0x106)) || (Index==3 && input.HasString(0xf016)) ||
+        (Index==4 && (input.HasString(0xf016) || std::any_of(input.owned.begin(),input.owned.end(),[](const Input::Owned& p){return p.key==0xf000 && p.kind==6;}))))) trace.exhaustive=false;
     auto* parent=Recording()?active:nullptr;
     {
         Scope scope(trace);
