@@ -9,7 +9,7 @@
 #include <windows.h>
 #include <atomic>
 #include <cstring>
-#include <mutex>
+#include <exception>
 
 extern "C" bool fc4_view3d_shadow_replay(uint32_t, const uint32_t*, uint32_t*, uint32_t*, uint32_t*);
 
@@ -136,7 +136,9 @@ Evidence Compare(const Method& method, const State& before, const void* owner, P
         // GZOnCommand returns AL; the other bound getters have full EAX contracts.
         evidence.result = (method.slot == 143 ? (nativeResult & 0xff) : nativeResult) == value;
     }
-    evidence.bound = true;
+    // SPEC-GAP: these four slots have unresolved eax-or-void returns (§3.3);
+    // compare their observable writes, but never award complete method credit.
+    evidence.bound = method.slot != 20 && method.slot != 34 && method.slot != 53 && method.slot != 54;
     return evidence;
 }
 
@@ -206,6 +208,7 @@ void View3DShadowStartup() {
     bound += Bind<2,143,uint32_t,uint32_t>(window); bound += Bind<3,3,uint32_t,uint32_t>(filter);
     Log("view3d shadow installed boundaries=%u/29 virtual_zoom=%u; invocation inputs only; resyncs=0",bound,zoomBound);
     Log("view3d incomplete: messages need tutorial/base/UI/dispatcher traces; camera changes need renderer, timer, hidden-pause and invalidation traces; paint needs drawing/deferred/timer traces; complete=0");
+    Log("view3d incomplete: slots 20/34/53/54 compare writes; unresolved return contracts retain complete=0");
 }
 
 void View3DShadowMonth(int32_t julian) {

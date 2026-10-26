@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace fc4::view3dshadow {
@@ -20,7 +21,7 @@ struct Totals {
         if (!evidence.Exact()) ++mismatches;
     }
 };
-constexpr size_t OwnerBytes = 0x448;
+constexpr std::size_t OwnerBytes = 0x448;
 using State = std::array<uint8_t, OwnerBytes>;
 using Packet = std::array<uint32_t, 22>;
 }
