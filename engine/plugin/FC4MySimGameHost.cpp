@@ -132,7 +132,7 @@ bool MBuilding(void*, uint64_t t, fc4_mysim_building* out) {
     cS3DVector3 pos{};
     // [abi-ret] occupant slot 8 (interfaces.tsv eax-or-void): only the
     // presence bit is read; the coordinates come from the out struct.
-    if (occ->GetPosition(&pos)) { out->position[0] = pos.fX; out->position[1] = pos.fY; out->position[2] = pos.fZ; }
+    if (MySimBuildingPosition(b, &pos)) { out->position[0] = pos.fX; out->position[1] = pos.fY; out->position[2] = pos.fZ; }
     else { out->position[0] = out->position[1] = out->position[2] = 0.0f; }
     if (cIGZString* name = b->GetBuildingName()) {
         out->name = reinterpret_cast<const uint8_t*>(name->ToChar());
@@ -167,20 +167,25 @@ bool MLotOf(cISC4Lot* lot, uint64_t buildingToken, fc4_mysim_lot* out) {
 bool MLot(void*, uint64_t t, fc4_mysim_lot* out) {
     cISC4City* city = AppCity();
     cISC4LotManager* lm = city ? city->GetLotManager() : nullptr;  // slot 33
-    cISC4Occupant* occ = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(t));
-    if (lm == nullptr || occ == nullptr || out == nullptr) return false;
+    if (lm == nullptr || t == 0 || out == nullptr) return false;
+    auto* occ = Query<cISC4Occupant>(reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t)), GZIID_cISC4Occupant);
+    if (occ == nullptr) return false;
     cISC4Lot* lot = lm->GetOccupantLot(occ);  // slot 14, borrowed
+    Drop(occ);
     if (lot == nullptr) return false;
     return MLotOf(lot, t, out);
 }
 
 bool MOccupantPosition(void*, uint64_t t, float* out) {
-    cISC4Occupant* occ = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(t));
-    if (occ == nullptr || out == nullptr) return false;
+    if (t == 0 || out == nullptr) return false;
+    auto* occ = Query<cISC4Occupant>(reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t)), GZIID_cISC4Occupant);
+    if (occ == nullptr) return false;
     cS3DVector3 p{};
     // [abi-ret] occupant slot 8 (interfaces.tsv eax-or-void): only the
     // presence bit feeds the callback's Option.
-    if (!occ->GetPosition(&p)) return false;
+    const bool positioned = occ->GetPosition(&p);
+    Drop(occ);
+    if (!positioned) return false;
     out[0] = p.fX; out[1] = p.fY; out[2] = p.fZ;
     return true;
 }
@@ -410,16 +415,22 @@ int32_t MPowered(void*, uint64_t t) {
     cISC4City* city = AppCity();
     cISC4PowerSimulator* s = city ? city->GetPowerSimulator() : nullptr;
     if (s == nullptr) return -1;
-    cISC4Occupant* occ = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(t));
-    return s->IsOccupantPowered(occ) ? 1 : 0;  // slot 31
+    auto* occ = Query<cISC4Occupant>(reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t)), GZIID_cISC4Occupant);
+    if (occ == nullptr) return -1;
+    const bool powered = s->IsOccupantPowered(occ);  // slot 31
+    Drop(occ);
+    return powered ? 1 : 0;
 }
 int32_t MWatered(void*, uint64_t t) {
     cISC4City* city = AppCity();
     cISC4PlumbingSimulator* s = city ? city->GetPlumbingSimulator() : nullptr;
     if (s == nullptr) return -1;
-    cISC4Occupant* occ = reinterpret_cast<cISC4Occupant*>(static_cast<uintptr_t>(t));
+    auto* occ = Query<cISC4Occupant>(reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(t)), GZIID_cISC4Occupant);
+    if (occ == nullptr) return -1;
     // [abi-ret] plumbing slot 9 (interfaces.tsv via-call): read as bool.
-    return s->IsBuildingWatered(occ) ? 1 : 0;
+    const bool watered = s->IsBuildingWatered(occ);
+    Drop(occ);
+    return watered ? 1 : 0;
 }
 
 // Police slot 21 (SC4List) / fire slot 22 (ilist): the same node layout; the

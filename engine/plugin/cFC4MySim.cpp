@@ -159,6 +159,17 @@ constexpr uint32_t kIIDMessageTarget2 = 0x452294AA;
 constexpr uint32_t kMsgAdviceCommand = 0x8A09FA6C;  // §3.2: `unknown` = the advisor, by ID for the core
 
 // One dispatch per MySim (advisor ID), one reference each (§7.2.1).
+uint64_t DispatchOccupant(uint64_t building) {
+    cIGZUnknown* source = fc4::FromToken(building);
+    void* out = nullptr;
+    if (!source || !source->QueryInterface(GZIID_cISC4BuildingOccupant, &out) || !out) return 0;
+    auto* b = static_cast<cISC4BuildingOccupant*>(out);
+    FC4_ACQUIRED(b, "QueryInterface");
+    const uint64_t occupant = fc4::TokenOf(fc4::MySimBuildingOccupant(b));
+    FC4_RELEASE(b);
+    return occupant;  // borrowed; the MySim retains the building.
+}
+
 std::map<int32_t, cFC4MySimDispatch*>& Dispatches() {
     static std::map<int32_t, cFC4MySimDispatch*> m;
     return m;
@@ -211,7 +222,7 @@ void CreateDispatch(int32_t sim) {
     d->SetOwner(core, sim);
     d->Init();
     fc4_mysim_state st{};
-    if (MySimState(sim, &st) && st.residence != 0) d->SetHome(st.residence);
+    if (MySimState(sim, &st) && st.residence != 0) d->SetHome(DispatchOccupant(st.residence));
     Dispatches()[sim] = d;
     fc4_mysim_set_dispatch(core, sim, fc4::TokenOf(static_cast<cFC4IMySimDispatch*>(d)));
 }
@@ -239,7 +250,7 @@ bool HFindNewJob(void*, int32_t sim) {
 }
 bool HChangeJob(void*, int32_t sim, uint64_t building) {
     cFC4MySimDispatch* d = DispatchOf(sim);
-    return d != nullptr && d->ChangeJob(building);
+    return d != nullptr && d->ChangeJob(DispatchOccupant(building));
 }
 bool HJobDestination(void*, int32_t sim, fc4_mysim_job_destination* out) {
     cFC4MySimDispatch* d = DispatchOf(sim);
@@ -266,7 +277,7 @@ void HDispatchCommand(void*, int32_t sim, const char* what) {
     } else if (std::strcmp(what, "start_commute") == 0 || std::strcmp(what, "update_residence") == 0) {
         cFC4MySimDispatch* d = DispatchOf(sim);
         fc4_mysim_state st{};
-        if (d != nullptr && MySimState(sim, &st) && st.residence != 0) d->SetHome(st.residence);
+        if (d != nullptr && MySimState(sim, &st) && st.residence != 0) d->SetHome(DispatchOccupant(st.residence));
     } else if (std::strcmp(what, "leave_for_work") == 0) {
         Commute(sim, 8);
     } else if (std::strcmp(what, "return_home") == 0) {
@@ -430,6 +441,7 @@ std::string MySimScriptAction(bool moveIn) {
     if (!core) return "FAILED: no FC4 advisor core";
     bool moved = false;
     uint32_t active = 0;
+    int64_t candidates = 0;
     for (int32_t id = 1; id <= 5; ++id) {
         fc4_adv_obj* handle = fc4_advisors_advisor_object(core, id);
         cIGZUnknown* front = handle ? FromToken(fc4_adv_obj_token(handle)) : nullptr;
@@ -443,10 +455,15 @@ std::string MySimScriptAction(bool moveIn) {
         if (moveIn && !moved && !sim->IsActive()) {
             fc4_mysim_host host{};
             FillMySimGameServices(&host);
-            const int64_t n = host.all_buildings(nullptr, nullptr, 0);
-            std::vector<uint64_t> buildings(n > 0 ? static_cast<size_t>(n) : 0);
-            if (!buildings.empty()) host.all_buildings(nullptr, buildings.data(), buildings.size());
-            for (uint64_t token : buildings) {
+            uint32_t nx = 0, nz = 0;
+            host.cell_counts(nullptr, &nx, &nz);
+            const size_t n = nx && nz ? host.lots_in_rect(nullptr, 0, 0, nx - 1, nz - 1, nullptr, 0) : 0;
+            candidates = static_cast<int64_t>(n);
+            std::vector<fc4_mysim_lot> lots(n);
+            if (n) host.lots_in_rect(nullptr, 0, 0, nx - 1, nz - 1, lots.data(), lots.size());
+            for (const auto& lot : lots) {
+                const uint64_t token = lot.building;
+                if (!token) continue;
                 void* typed = nullptr;
                 if (!FromToken(token)->QueryInterface(0x87DDA3A9, &typed) || !typed) continue;
                 auto* acquired = static_cast<cIGZUnknown*>(typed);
@@ -479,7 +496,7 @@ std::string MySimScriptAction(bool moveIn) {
         sim->Release();
         fc4_adv_obj_destroy(handle);
     }
-    if (moveIn && !moved) return "FAILED: no available MySim/residence";
+    if (moveIn && !moved) return "FAILED: no available MySim/residence (buildings=" + std::to_string(candidates) + ")";
     return "active=" + std::to_string(active) + (moved ? " moved=1" : "");
 }
 

@@ -3,7 +3,46 @@
 
 #include "cIGZAllocatorService.h"
 #include "cIGZFrameWork.h"
+#include "cISC4BuildingOccupant.h"
+#include "SC4Percentage.h"
 #include <cstdlib>
+
+// A building interface is not its occupant interface. The filter must call
+// AsOccupant, never the building's slot 8 as occupant GetPosition.
+class MySimTestBuilding final : public cISC4BuildingOccupant {
+public:
+    uint32_t refs = 1, occupantCalls = 0, wrongPositionCalls = 0;
+    cISC4Occupant* occupant = nullptr;
+    SC4Percentage completion{1.0f};
+    BuildingProfile profile{};
+    MySimTestBuilding() { profile.purpose = PurposeType::Residence; }
+    bool QueryInterface(uint32_t iid, void** out) override {
+        *out = nullptr;
+        if (iid != 1 && iid != GZIID_cISC4BuildingOccupant) return false;
+        *out = this;
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    cISC4Occupant* AsOccupant() override { ++occupantCalls; return occupant; }
+    uint32_t GetBuildingType() override { return 1; }
+    cISC4BuildingOccupant* SetBuildingType(uint32_t) override { return this; }
+    int32_t GetBuildingAge() override { return 0; }
+    void SetBuildingAge(int32_t) override {}
+    bool SetBoundingBox(const float*, const float*) override { ++wrongPositionCalls; return false; }
+    SC4Percentage* GetCompletionPercent() override { return &completion; }
+    bool SetCompletionPercent(const SC4Percentage&) override { return false; }
+    BuildingProfile& GetBuildingProfile() const override { return const_cast<BuildingProfile&>(profile); }
+    cIGZString* GetBuildingName() override { return nullptr; }
+    cIGZString* GetExemplarName() override { return nullptr; }
+    int32_t GetOrientation() override { return 0; }
+    bool SetOrientation(int32_t) override { return false; }
+    bool IsLit() override { return false; }
+    bool SetLit(bool) override { return false; }
+    bool SetName(cIGZString&) override { return false; }
+    bool GetName(cIGZString&) override { return false; }
+};
 
 // The SDK's SC4String caches allocate through the host even before advisor
 // Init. Supply that service without starting any application or simulators.

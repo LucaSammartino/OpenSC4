@@ -3,6 +3,7 @@
 // registered whole with `enable = advisors, mysims` and not at all otherwise.
 #include "FC4MySimDispatchContract.h"
 #include "FC4MySimInterface.h"
+#include "FC4MySimGameHost.h"
 #include "SC4String.h"
 #include "plugin_mysims_host.h"
 
@@ -90,6 +91,13 @@ int MySimsFactoryBoundaryTest(const std::string& dll, const std::string& ini, co
                 if (!rawSim) continue;
                 auto* sim = static_cast<fc4::MySimPublic*>(rawSim);
                 CHECK(!sim->IsActive());
+                MySimTestBuilding building;
+                cS3DVector3 position{};
+                CHECK(!fc4::MySimBuildingPosition(&building, &position));
+                CHECK(building.occupantCalls == 1 && building.wrongPositionCalls == 0);
+                CHECK(building.refs == 1);
+                building.occupant = reinterpret_cast<cISC4Occupant*>(0x1234);
+                CHECK(fc4::MySimBuildingOccupant(&building) == building.occupant);
                 cRZBaseString name("Factory Sim");
                 // Use strings owned/allocated by the DLL, as the real host
                 // does; this loader test has no SDK allocator service.
