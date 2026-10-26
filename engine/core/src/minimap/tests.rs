@@ -5,10 +5,15 @@ use crate::widget_controls::{Delivery, Draw, Message, Rect, Resource};
 #[derive(Default)]
 struct RecordingHost {
     events: Vec<String>,
+    cells: [usize; 2],
 }
 
 impl base::Host for RecordingHost {}
-impl Host for RecordingHost {}
+impl Host for RecordingHost {
+    fn city_cells(&mut self) -> [usize; 2] { self.cells }
+    fn animation_target(&mut self, _: Window, register: bool) { self.events.push(format!("tick:{register}")); }
+    fn subscribe(&mut self, _: Window, message: u32, subscribe: bool) { self.events.push(format!("sub:{message:08x}:{subscribe}")); }
+}
 impl widget_controls::Foreign for RecordingHost {
     fn add_ref(&mut self, h: Handle) { self.events.push(format!("add:{h}")); }
     fn release(&mut self, h: Handle) { self.events.push(format!("release:{h}")); }
@@ -68,4 +73,35 @@ fn constructor_layout_and_inherited_query() {
     assert_eq!(windows.get(map.window).references, 2);
     assert!(!map.query_interface(&mut windows, 123, &mut out));
     assert_eq!(out, Some(map.window));
+}
+
+#[test]
+fn mm_c1_c2_c3_size_scale_and_attached_resize_quirk() {
+    let (mut windows, mut host, mut map) = fixture();
+    map.set_area(&mut windows, &mut host, base::Rect(0, 0, 200, 150)).unwrap();
+    assert_eq!(map.map_size(), 128); // MM-C1
+    host.cells = [256, 64];
+    map.on_city_init(&mut host).unwrap();
+    assert_eq!(map.scale_shift(), 1); // MM-C2; x count only
+    assert_eq!(map.map.dimensions(), [128, 128]);
+    assert_eq!(map.networks.len(), 1024);
+    assert_eq!(map.dirty, [u32::MAX; 16]);
+    assert_eq!(host.events, ["tick:true", "sub:99ef1142:true", "sub:99ef1143:true"]);
+    map.set_area(&mut windows, &mut host, base::Rect(0, 0, 64, 64)).unwrap();
+    assert_eq!(map.n, 64);
+    assert_eq!(map.map.dimensions(), [128, 128]);
+    assert_eq!(map.shift, 1);
+    map.networks[0] = 3;
+    map.on_city_shutdown(&mut host);
+    assert!(map.map.pixels().is_none());
+    assert_eq!(map.cells, [0, 0]);
+    assert_eq!(map.networks[0], 3);
+    host.cells = [64, 64];
+    map.set_area(&mut windows, &mut host, base::Rect(0, 0, 128, 128)).unwrap();
+    map.on_city_init(&mut host).unwrap();
+    assert_eq!(map.scale_shift(), -1); // MM-C3
+    assert_eq!(map.networks[0], 3);
+    let count = host.events.len();
+    map.on_city_init(&mut host).unwrap();
+    assert_eq!(host.events.len(), count);
 }

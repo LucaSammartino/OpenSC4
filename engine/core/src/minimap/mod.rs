@@ -7,12 +7,21 @@ use crate::widget_controls;
 
 pub use widget_controls::{Handle, Result, Unsupported};
 
+mod city;
+pub mod tz_map;
+pub use tz_map::TzMap;
+
 pub const CLASS_ID: u32 = 0xca31_8388;
 pub const INTERFACE_ID: u32 = 0xca31_8385;
 
 /// Foreign primitives reuse the widget controls' reference/drawing operations
 /// and the actual cGZWin runtime. No base-window algorithm is reimplemented.
-pub trait Host: base::Host + widget_controls::Foreign {}
+pub trait Host: base::Host + widget_controls::Foreign {
+    fn city_cells(&mut self) -> [usize; 2];
+    /// Animation manager slots 5/6; the registration argument is always zero.
+    fn animation_target(&mut self, window: Window, register: bool);
+    fn subscribe(&mut self, window: Window, message: u32, subscribe: bool);
+}
 
 #[derive(Debug)]
 pub struct MiniMap {
@@ -36,6 +45,7 @@ pub struct MiniMap {
     terrain_palette: [u32; 256],
     water_palette: [u32; 256],
     networks: Vec<u32>,
+    map: TzMap,
 }
 
 impl MiniMap {
@@ -61,6 +71,7 @@ impl MiniMap {
             terrain_palette: [0; 256],
             water_palette: [0; 256],
             networks: Vec::new(),
+            map: TzMap::default(),
         }
     }
 
@@ -80,6 +91,18 @@ impl MiniMap {
 
     pub fn flags(&self) -> u32 {
         self.flags
+    }
+
+    pub fn map(&self) -> &TzMap {
+        &self.map
+    }
+
+    pub fn map_size(&self) -> usize {
+        self.n
+    }
+
+    pub fn scale_shift(&self) -> i32 {
+        self.shift
     }
 }
 
