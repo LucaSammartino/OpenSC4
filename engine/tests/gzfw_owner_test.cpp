@@ -129,6 +129,7 @@ void ServerTest(FC4TestSeamFn seam) {
     Check(Slot<Register>(s,6)(s,9,"Name","original") && Slot<Register>(s,6)(s,3,"NAME",nullptr),"same name distinct ids");
     Check(!Slot<Register>(s,6)(s,9,"Changed",nullptr),"duplicate id does not replace");
     std::array<void*,12> generatorTable{};
+    generatorTable[0]=reinterpret_cast<void*>(&Query);
     generatorTable[1]=reinterpret_cast<void*>(&Add); generatorTable[2]=reinterpret_cast<void*>(&Release);
     generatorTable[5]=reinterpret_cast<void*>(&Registered); generatorTable[6]=reinterpret_cast<void*>(&Registered);
     generatorTable[9]=reinterpret_cast<void*>(&FromText); generatorTable[10]=reinterpret_cast<void*>(&ToText);
@@ -167,6 +168,7 @@ void ServerTest(FC4TestSeamFn seam) {
     Check(Slot<ConvertOutput>(s,24)(s,nullptr,text) && text.Strlen()==0,"null output set formats as empty");
     Check(generator.conversions==0,"notification generators are not used by default conversion slots");
     std::array<void*,6> dispatcherTable{};
+    dispatcherTable[0]=reinterpret_cast<void*>(&Query);
     dispatcherTable[1]=reinterpret_cast<void*>(&Add); dispatcherTable[2]=reinterpret_cast<void*>(&Release);
     dispatcherTable[5]=reinterpret_cast<void*>(&Execute);
     Fake dispatcher{dispatcherTable.data()};
@@ -185,6 +187,8 @@ void ServerTest(FC4TestSeamFn seam) {
 }
 }
 int main(int argc,char** argv) {
+    // Keep a failed native assertion/access violation from waiting on a UI.
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     if (argc!=2) return 2;
     auto module=LoadLibraryA(argv[1]); if (!module) return 2;
     auto seam=reinterpret_cast<FC4TestSeamFn>(GetProcAddress(module,"FC4TestSeam")); if (!seam) return 2;
