@@ -4,6 +4,8 @@ use fc4_core::regional_city::RegionalCity;
 use std::sync::Mutex;
 #[path = "regionalcity_bridge.rs"]
 mod bridge;
+#[path = "regionalcity_connections.rs"]
+mod connections;
 #[path = "regionalcity_handles.rs"]
 mod handles;
 #[cfg(test)]
@@ -11,6 +13,8 @@ mod handles;
 mod ownership_tests;
 #[path = "regionalcity_record.rs"]
 mod record;
+#[path = "regionalcity_setup.rs"]
+mod setup;
 use handles::{Connection, ConnectionCallbacks, Deal, DealCallbacks};
 use std::ffi::c_void;
 
