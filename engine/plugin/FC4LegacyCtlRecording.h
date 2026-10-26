@@ -319,7 +319,8 @@ template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t f
     uint32_t before[5]{},native[10]{};
     // First-pass Common records payloads, but not the temporary variant/list
     // allocation and reference calls. Second pass contains only flag setters.
-    Replay(trace,before,Index==0?10:11,{reinterpret_cast<uint32_t>(win),first&255,interpreters[Index].iid,0},input,native,false,10+Index,Index!=0 || !(first&255));
+    const bool allOutputs=!(first&255) || (Index!=0 && !(Index==4 && input.HasString(0xf000)));
+    Replay(trace,before,Index==0?10:11,{reinterpret_cast<uint32_t>(win),first&255,interpreters[Index].iid,0},input,native,false,10+Index,allOutputs);
 }
 inline bool InstallInterpreters() {
     void* hooks[]={reinterpret_cast<void*>(&Interpret<0>),reinterpret_cast<void*>(&Interpret<1>),reinterpret_cast<void*>(&Interpret<2>),reinterpret_cast<void*>(&Interpret<3>),reinterpret_cast<void*>(&Interpret<4>)};
