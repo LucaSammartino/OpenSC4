@@ -201,6 +201,7 @@ generated index: the questions live one file per spec, so read only the file for
 | UG | underground-occupants |
 | UIH | ui-helpers |
 | UIS | ui-script-service |
+| VC | foundations |
 | VH | vehicles |
 | VIC | view-input-controls |
 | VP | video-preferences |
@@ -235,14 +236,14 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
-| application | 13 | 6 | AP20 | questions/application.md |
+| application | 13 | 7 | AP20 | questions/application.md |
 | audio | 3 | 17 | AU51 | questions/audio.md |
 | audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
-| automata | 4 | 44 | A5, AM13, AT34 | questions/automata.md |
+| automata | 9 | 44 | A5, AM13, AT34 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -265,7 +266,7 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 4 | 60 | EX59 | questions/data-formats.md |
+| data-formats | 4 | 61 | EX59 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
 | demand | 0 | 13 | DQ14 | questions/demand.md |
 | demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
@@ -282,7 +283,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 10 | AO4, HG9, RN6, SV2, VC30 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | freshness | 5 | 0 | FS6 | questions/freshness.md |
@@ -394,7 +395,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
-| terrain | 8 | 36 | TR45 | questions/terrain.md |
+| terrain | 8 | 38 | TR47 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
@@ -431,4 +432,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **617** | **1672** | | |
+| **total** | **622** | **1677** | | |
