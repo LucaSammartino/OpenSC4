@@ -35,7 +35,10 @@ end 2026-04-29. Before the fix, `reach-fix28-diag3-disaster` reproduced the
 entry/step events. At the fault no step was pending, previousTF was zero,
 EFLAGS was 00010206 (TF clear), DR6 ffff0ff0 (no hardware breakpoint), and
 EDI was 5. The ring's last entry/step pair was 007fe190; its step completed.
-The corrupted stack write at 00544546 explains the bad argument to 005080c0.
+Arming 00544547 changes the stack store at 00544546 into a register move
+that sets ESP from ECX, so the callee uses object storage as its stack.
+Fault ESP=1285e240 is exactly EBP=1285e2c0 minus the resulting frame size,
+0x80 bytes. This explains both the bad argument and the apparent alternate stack.
 There was no intervening foreign exception in the diagnostics. This failure
 is a patched operand, not a swallowed game exception or copied/self-read code.
 The matching grown-city baseline exited C0000005 with no diagnostic report;
@@ -52,3 +55,17 @@ Native `reach_test` covers all ten exclusions using a relocated synthetic image:
 patching a bogus entry would change a return immediate without raising INT3.
 It checks unchanged execution, a valid neighboring entry, and all ten header
 records, alongside existing concurrent, WoW64, flags, x87 and SEH tests.
+
+Validation: `build-runs/acceptance.py` checked twelve clean, end-reaching runs:
+on/off pairs of the disaster, the idle house census, and the original luacmd27
+grown-city fire, garbage, health and power scripts (source equality checked).
+All six on-runs wrote a TSV with ten exclusions; all eight Lua runs completed
+and paired lot statuses agreed. Shadows were 5747/5988 exact, not all exact.
+Health/power pairs used the existing FC4_WATCHDOG_STALL_MS and
+FC4_WATCHDOG_NOTICK_MS environment settings at 60000, with the 650-second hard
+harness limit retained; the other accepted pairs used default watchdog limits.
+The default ten-second watchdog also terminated some reach-off Lua baselines,
+including landmarks, after completed scripts but before calendar advancement.
+Those failures remain separate; this fix does not remove that harness limit.
+An extended-limit power-off attempt timed out after a slow startup; its
+isolated r3 retry completed cleanly. See docs/lanes/reach-fix28.md for labels.
