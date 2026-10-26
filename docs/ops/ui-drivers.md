@@ -32,15 +32,25 @@ utilities and ordinance rows are `aa3ac507`, `aa3ac508` and `aa3ac501`
 (budget-window.md section 2.1). Clicking the hidden `aa3ac4xx` counterparts does
 not exercise a sub-budget. Closing an already hidden panel is a refused action.
 
-The `ui29-candidates` suite group contains house-city, West Weburg and Bevopolis
-censuses. These are qualification candidates, excluded from `full` until clean
-game results and per-owner reach establish the actions they actually exercise.
-Query mouse handlers, text insertion and sub-budget lifecycle have target-owner
-entry evidence. Cell projection has delivery evidence only; road placement and
-news content still need target-owner tracing. Map layers, tree controls,
-web/HTTP and volcano paths still need qualified scenarios. The registered
-`ViewWebBrowser` command refuses an empty parameter set (status 2); no web
-coverage follows from its registration. Candidate rows remain outside `full`.
+The `full,ui29` suite rows contain the house-city and West Weburg censuses plus
+the volcano observation. Final-DLL runs `reach-ui29-p13`, `p14` and `p12`
+respectively completed 50, 22 and 3 actions with clean verdicts and zero reference
+warnings. Their target entry evidence is:
+
+| Path | Entered methods |
+|---|---|
+| Query, text, budgets (p13) | Query OnMouseDownL/DescribeBuilding, TextEdit insertion, SubBudget lifecycle. |
+| Map layer (p13) | WinMapView ShowWindow, DisplayStandardUint8Grid and DisplayStandardSint16Grid. |
+| Road drag (p14) | NetworkTool OnMouseDownL/OnMouseUpL plus PlaceNetwork/PlaceNetworkOccupants; no saved-network assertion. |
+| Volcano (p12) | 26 of 28 traced cSTEVolcanoLava methods, 7,306 entered-function bytes. |
+
+Periodic NewsTickerWinProc display also entered in p13; this does not isolate
+the news button as its cause. Bevopolis remains in `ui29-candidates`, outside
+`full`: p15 is clean with all 23 actions complete and its end date reached,
+but cell 63,63 at height 250 posts at client 478,198 without a query mouse-handler
+entry. Cell projection therefore still has delivery evidence only.
+The registered `ViewWebBrowser` command refuses an empty parameter set (status
+2); no web coverage follows from its registration.
 
 The censuses pause simulation before UI actions and resume afterwards. Modal
 dialogs and the harness's initial unpause can resume the clock. Both end-date
