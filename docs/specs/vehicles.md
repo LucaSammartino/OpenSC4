@@ -92,7 +92,7 @@ that clarification resolves the earlier conflicting descent descriptions in auto
   steering and throttle tweens; `PlayerDriveUpdateSpeed` applies them; `PlayerDriveGetNetwork` finds the network the
   vehicle is on (network mask `0x40341004`); `DoPlayerDriveTick` (4.3 KB) moves it along the network, plays the AEMS
   engine and horn events and collides; `DoPlayerDriveOffRoadTick` moves it off the network;
-  `ChooseNewPlayerDriveDestination` picks a target about four cells away *[summary]*.
+  `ChooseNewPlayerDriveDestination` selects a neighboring network path (§12.16).
 
 ## 4. Trailers
 
@@ -765,10 +765,11 @@ the append contract here is verified against instructions, not that pseudocode o
 | Existing `[X]`, load `[A,A]` | Result `[X,A,A]`; both A entries share one runtime state |
 | Valid live TrainCar written twice | Query its serializable interface for each list occurrence; use shared-stream identity semantics, not two cloned runtime records |
 
-### 12.9 Route geometry findings (VH7, partial)
+### 12.9 Route geometry and serialization boundary (VH7)
 
-This subsection settles individual geometry boundaries. VH7 remains open for the complete route/record
-reconstruction and placement contract; these findings alone do not close the traffic or vehicle owner.
+This subsection specifies the route/path distinction, owner geometry and saved-field aliases.
+The final load-to-live binding and opaque-byte meanings are narrowed to the explicit runtime
+observations below; no successful post-load reconstruction is claimed without those observations.
 
 **Route replacement and failure.** `SetRouteInfo` (`0x005559D0`) rejects an empty input deque before
 replacing the existing route. With a nonempty input it copies the route first. If immediate BeginRoute
@@ -889,33 +890,98 @@ handler when any of the live occupant, path interface or point collection is
 missing, or flag `0x2000` is set. Evidence: `0x00554D20–0x00554E9C`,
 `0x0054E0F9–0x0054E139`.
 
-**Unresolved record-layout distinction (VH7 remains open).** The literal version-2
-stream order in automata.md §6.3 has these instruction-verified native accesses:
+**Serialization uses the interface receiver, not the primary object receiver.**
+Let `P` denote the primary traffic-automaton address and `S` its serialization
+interface. `QueryInterface(0xE4FDA3D4)` returns `S=P+8`. The traffic constructor
+installs the serialization vtable at `P+8`; that table's Write/Read entries are
+the bodies `0x00551DE0/0x00554D20` themselves. Thus those bodies receive `S`,
+without an additional subtraction. The property-interface forwarding thunk
+`0x005552E0` subtracts four from its receiver at `P+12`, arriving at **the same
+`S`**, not at `P`. Vehicle::Read forwarding its receiver unchanged is therefore
+compatible with this inherited serialization contract. This is an established
+interface-layout relationship, not a proposed fix to record bytes. Evidence:
+QI `0x00505DCC–0x00505DEC`, Traffic QI delegation `0x0054D816–0x0054D81A`,
+constructor `0x005544FB–0x0055450F`, vtable `0x00A9BFC4` slots 3/4,
+thunk `0x005552E0–0x005552E7`, Vehicle forwarding `0x0055BD20–0x0055BD28`.
 
-| Field following the base record | Read destination / Write source |
-|---|---|
-| Automaton reference, IID `0xA9B40F05` | `+0xA8` |
-| First u32 | `+0x1DC` |
-| u8 | `+0x1E0` |
-| Network reference, IID `0xA821EF94` | `+0x1E4` |
-| Next u32 | `+0x1EC` |
-| Last scalar u32 | `+0x1F4` |
-| Count and three-byte route entries | deque rooted at `+0x224` |
+The literal version-2 stream order in automata.md §6.3 consequently has these
+aliases. All offsets in the **live** column below are from `P`; the **record**
+column is from `S`. Adding eight to a record-relative displacement translates
+an address; it does not add eight bytes to a stream field or change its width.
 
-These are offsets from the receiver of `Read`/`Write`, not confirmed semantic
-aliases of the live fields listed above. In particular, naming the serialized
-network reference as live `+0x1EC` or calling the following u32 the live path key
-would contradict these accesses. Read's known serialization thunk subtracts four
-from its interface receiver; Vehicle::Read forwards its receiver unchanged.
-The Read body makes no further receiver adjustment. The working PE independently
-contains the displacements `0x1E0` at `0x00554DA0` and `0x1E4` at
-`0x00554DB4`/`0x00551E3A`. Evidence: `0x005552E0–0x005552E7`,
-`0x0055BD20–0x0055BD28`, `0x00554D9A–0x00554E11`,
-`0x00551E17–0x00551E64`. The remaining question is the semantic receiver/layout
-relationship and the later load-to-live binding, not whether Read itself selects
-points. Until established, implementations must not infer an eight-byte adjustment
-or silently rename the stream fields. These observations do not yet establish a
-native save/load defect.
+| Field following the base record | Record access from `S` | Live field from `P` / meaning |
+|---|---|---|
+| Automaton reference, IID `0xA9B40F05` | `+0xA8` | `+0xB0`, retained leader reference used by UpdateCollision |
+| First u32 | `+0x1DC` | `+0x1E4`, transport selector; constructor default 7 |
+| u8 | `+0x1E0` | `+0x1E8`, saved traffic option byte; constructor zero; its operational meaning remains unestablished |
+| Network reference, IID `0xA821EF94` | `+0x1E4` | `+0x1EC`, retained network occupant |
+| Next u32 | `+0x1EC` | `+0x1F4`, packed live path key described above |
+| Last scalar u32 | `+0x1F4` | `+0x1FC`, current segment index, preserved as a 32-bit word |
+| Count and three-byte route entries | deque rooted at `+0x224` | deque rooted at `+0x22C`, route cells described above |
+
+Constructor accesses independently confirm the live occupant/interface/points/index
+at `+0x1EC/+0x1F0/+0x1F8/+0x1FC`, route deque at `+0x22C`, option byte zero,
+and selector 7 (`0x00554524–0x00554542`, `0x00554571–0x005545B2`). Leader use
+is at `0x0054E1D0–0x0054E263`. Record accesses are
+`0x00554D9A–0x00554E11` and `0x00551E17–0x00551E64`.
+
+The stream contains neither the retained path interface at live `+0x1F0` nor
+the selected point-collection pointer at `+0x1F8`. Their absence from Read's
+writes is not an offset defect. On a newly constructed owner they remain null
+until another operation binds them. Conversely, Read is not a promise to clear
+pre-existing geometry when applied to an already live owner: it restores the
+listed fields without selecting/replacing that collection. The base reader
+marks loaded state at record `+0x34`, hence live `+0x3C`, even before its version
+check (`0x0050DFDB–0x0050DFF3`). Traffic Init skips its fresh-owner initialization
+work when that loaded byte is set (`0x0054D7AC–0x0054D7EB`). In particular one
+must not assume that calling Init repeats slot 134 to repair a loaded path.
+The manager's object-list Read resolves automaton references and inserts them
+into the list; the inspected loop makes no path-binding call
+(`0x0050FF40–0x0050FF8F`). The animation dispatcher's missing-geometry branch
+is a straight-line tick, not automatic reattachment (`0x0054E109–0x0054E139`).
+
+**Remaining runtime observations (VH7 narrowed, not a full load closure).**
+
+- **VH7-R1 — first post-load binding.** Load a saved, moving ordinary vehicle
+  with a nonnull network reference, nonzero key and segment index, and at least
+  two route cells. Capture its primary address `P` and serial receiver `S` at
+  Traffic Read entry; require `S=P+8`. From Read return through city/occupant
+  initialization and the first animation tick, watch writes to `P+0x1F0` and
+  `P+0x1F8`. Record the **first** writer/call stack and first nonnull binding
+  if different, its occupant/key/point
+  arguments, the path-service result/count, any slot-131/132 calls, the segment
+  index before/after them, and whether path registration occurs. This settles
+  the actual later binding call and whether the saved index is preserved,
+  reset or explicitly restored. If no binding occurs, record which handler
+  runs with those fields null; do not report successful reconstruction.
+- **VH7-R2 — saved option byte.** For the same `P`, trace reads/writes of
+  `P+0x1E8` outside serialization during route start, following and route end.
+  Record the first setter/consumer and its input condition or property. This
+  establishes an operational name for that byte; the stream/layout alone
+  establishes its address, preservation and zero constructor default.
+- **VH7-R3 — route annotation producer.** At the route supplied to
+  `SetRouteInfo`, record each cell's three bytes, then trace the producer's
+  write of byte 2 (the third byte) before that copy. Capture the writing
+  instruction/call stack and the source value across a straight route, turn,
+  network transition and transfer. Follow the source's setter/enum to establish
+  its meaning. Merely correlating its value with a direction or mode does not
+  establish that meaning. The inspected vehicle/traffic consumers continue to
+  preserve and ignore it as specified above.
+
+**Worked load case.** For a newly constructed owner, read leader L, selector 7,
+option byte `0x5A`, network N, key `0x01000203`, segment-index word 1, and route
+cells `(4,5,0xA7),(5,5,0x3C)`. The required post-Read state is leader at live
+`+0xB0`, N at `+0x1EC`, that key at `+0x1F4`, index 1 at `+0x1FC`, and those
+two exact triples in live deque `+0x22C`; `+0x1F0/+0x1F8` remain null. For
+example with `P=0x10000000`, `S=0x10000008`, the network destination
+`S+0x1E4` and `P+0x1EC` are both `0x100001EC`, and deque
+`S+0x224=P+0x22C=0x1000022C`. Read issues no point query. Write must reproduce
+the option/annotation bytes without interpreting them. An implementation
+without the binding observation must keep this case explicitly unbound
+(Unsupported for a request requiring complete route geometry), rather than
+fabricating points from the triples or resetting the saved index. Separately,
+an explicit successful slot-131 call must follow its protocol above; that is
+a placement test, not evidence for which post-load caller invokes it.
 
 #### Available distance and route end
 
