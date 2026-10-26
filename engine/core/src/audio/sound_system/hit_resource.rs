@@ -71,7 +71,7 @@ impl HitPropertySetTrackResource {
         if header == 0x544B_4432 {
             offset += 8;
         }
-        // Invalid original reads are not emulated; retain the §5.2 observation boundary.
+        // SPEC-GAP: invalid original reads are safely rejected pending §5.2 mock-record observations.
         let Some(buffer) = record.get(offset..) else {
             return false;
         };

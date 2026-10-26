@@ -523,6 +523,48 @@ fn ss5_legacy_framing_defaults_self_reference_writer_and_private_copy() {
     );
 }
 
+#[test]
+fn ss5_optional_length_magic_skip_and_empty_field_overlay() {
+    let key = ResourceKey {
+        kind: 0x0B8D_821A,
+        group: 7,
+        instance: 42,
+    };
+    let mut text = String::from("TKDT,2,,");
+    for field in 1..=27 {
+        text.push_str(match field {
+            1 => "7,",
+            9 => "0,",
+            _ => ",",
+        });
+    }
+    text.push_str("ETKD");
+    let mut ordinary = 0u32.to_le_bytes().to_vec();
+    ordinary.extend(text.as_bytes());
+    let mut special = 0x544B_4432u32.to_le_bytes().to_vec();
+    special.extend(b"ignored!"); // §5.2 skips these eight bytes after the header.
+    special.extend(text.as_bytes());
+    let mut records = vec![text.into_bytes(), ordinary.clone(), special.clone()];
+    for inner in [ordinary, special] {
+        let mut wrapped = (inner.len() as u32).to_le_bytes().to_vec();
+        wrapped.extend(inner);
+        records.push(wrapped);
+    }
+    for record in records {
+        let mut resource = HitPropertySetTrackResource::new(key);
+        resource
+            .properties
+            .extend([(LEGACY_FIELDS[6], 1), (LEGACY_FIELDS[8], 123), (LEGACY_FIELDS[11], 512)]);
+        assert!(resource.read_legacy_record(&record));
+        assert_eq!(resource.properties[&LEGACY_FIELDS[0]], 7);
+        assert_eq!(resource.properties[&LEGACY_FIELDS[6]], 1);
+        // An empty field 7 uses the nonspatial default despite its retained value.
+        assert_eq!(resource.properties[&LEGACY_FIELDS[8]], 0x7DCD_ED2D);
+        assert_eq!(resource.properties[&LEGACY_FIELDS[11]], 512);
+        assert_eq!(resource.properties[&0xFF6F_9546], 42);
+    }
+}
+
 #[derive(Default)]
 struct FreshSpy {
     source: Option<SoundRef>,
