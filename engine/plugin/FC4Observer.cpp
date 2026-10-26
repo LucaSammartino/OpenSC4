@@ -35,6 +35,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Reach.h"
+#include "FC4DrawStreamCapture.h"
 #include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
@@ -844,6 +845,7 @@ public:
                 CityShadowObserve(CurrentCity(), julian, false);
                 LightingShadowMonth(julian);
                 GDriverShadowMonth(julian);
+                DrawStreamMonth(julian);
                 ViewUtilShadowMonth(julian);
                 WeatherShadowMonth(CurrentCity(), julian);
                 PersistShadowMonth(julian);
