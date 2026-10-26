@@ -6,6 +6,8 @@ use super::*;
 
 mod lifecycle;
 mod operations;
+mod properties;
+pub use properties::{DriveRecord, PropertyIo};
 pub use lifecycle::{obtain_control, BrowserHost, BrowserOverrides, BrowserOwner, ControlIo, Unsettled};
 pub use operations::{BrowserIo, Column, Enumeration, IconIo};
 
@@ -27,6 +29,7 @@ pub struct Entry {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CustomEntry {
+    pub id: u32,
     pub interface: Option<Handle>,
     pub text: Vec<u8>,
 }
@@ -114,8 +117,7 @@ pub struct FileBrowser {
     pub filter_index: u32,
     pub filter_labels: Vec<Vec<u8>>,
     pub filter_patterns: Vec<Vec<Vec<u8>>>,
-    /// Resolved combo interface; the incomplete AddControls table does not
-    /// establish a retained-field index for this control (FBQ2).
+    /// Alias of retained child 7 for callers supplying controls directly.
     pub filter_combo: Option<Handle>,
     pub selection: Selection,
     pub selected_row: i32,
@@ -127,16 +129,14 @@ pub struct FileBrowser {
     pub icons: [Option<Handle>; 7],
     pub button_buffers: [Option<Handle>; 4],
     pub name_column: Option<i32>,
-    /// Required calls are recorded in order, never silently outsourced. Bodies
-    /// of these refresh operations still need FBQ5's specified portions added.
+    /// Deferred work for state-only callers; live paths execute it synchronously.
     pub refresh_work: Vec<Refresh>,
-    pub drive_records: Vec<Vec<u8>>,
+    pub drive_records: Vec<DriveRecord>,
     pub custom_groups: Vec<Vec<CustomEntry>>,
     pub style_fonts: [Option<Handle>; 4],
     pub style_words: [[u32; 8]; 4],
     pub extra_reference: Option<Handle>,
-    /// Offset-keyed constructor facts whose public property meanings are not
-    /// proved (FBQ4). These are values, not a native struct memory layout.
+    /// Offset-keyed scalar state, not a native struct memory layout.
     pub raw_words: std::collections::BTreeMap<u32, u32>,
     pub raw_bytes: std::collections::BTreeMap<u32, u8>,
 }

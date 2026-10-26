@@ -5,9 +5,15 @@ use super::*;
 mod closure;
 #[path = "settled_tests.rs"]
 mod settled;
+#[path = "file_browser/closure_tests.rs"]
+mod file_browser_closure;
 
 #[derive(Default)]
 struct Recording {
+    fb_drives: Vec<(Vec<u8>, u32)>,
+    fb_editor: Vec<u8>,
+    fb_rgb: Vec<[u8; 3]>,
+    fb_ops: Vec<(u32, Vec<u32>)>,
     tree_area: Option<Rect>,
     tree_thickness: [u32; 2],
     tree_resizes: Vec<[u32; 2]>,
@@ -623,7 +629,7 @@ impl file_browser::IconIo for Recording {
         self.icon_calls.push("unlock");
     }
     fn convert_rgb(&mut self, _: Handle, rgb: [u8; 3]) -> u32 {
-        assert!(matches!(rgb, [255, 0, 255] | [8, 36, 107] | [255, 255, 255]));
+        self.fb_rgb.push(rgb);
         self.icon_calls.push("rgb");
         0x1234
     }
@@ -1599,6 +1605,7 @@ fn browser_parent_directory_ids_and_shutdown_reference_order() {
     browser.extra_reference = Some(500);
     browser.style_fonts = [Some(600), Some(601), Some(602), Some(603)];
     browser.custom_groups = vec![vec![CustomEntry {
+        id: 0,
         interface: Some(700),
         text: vec![],
     }]];
