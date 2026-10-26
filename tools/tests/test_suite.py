@@ -31,6 +31,23 @@ def checkout(root):
 
 
 class SuiteParsingTests(unittest.TestCase):
+    def test_city_limits_scale_long_large_runs_and_keep_operator_overrides(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            (root / 'actions.script').write_text('2000-01-01 mark start\n2001-12-31 save full\n')
+            row.update(end='2002-01-01', notes='large 256-cell city')
+            limits, ini = suite.city_limits(row, root / 'actions.script')
+            self.assertGreater(int(limits['seconds']), 4000)
+            self.assertGreater(int(limits['timeout']), int(limits['seconds']) + 600)
+            self.assertEqual(ini['script_save_grace_ms'], '120000')
+            _, manifest = suite.make_batch(root, [row], 'plain', str(root), 'sized',
+                                          ['seconds = 123', 'script_save_grace_ms = 0'])
+            request = manifest['requests'][0]['request']
+            self.assertIn('seconds = 123\n', request)
+            self.assertIn('script_save_grace_ms = 0\n', request)
+            self.assertIn('autotest_stall_grace_ms = 120000\n', request)
+
     def test_resume_preserves_claimed_labels_and_only_bounds_unsubmitted_requests(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

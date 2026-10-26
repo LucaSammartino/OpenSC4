@@ -136,6 +136,31 @@ def label_for(tag, name, profile):
     return label
 
 
+def city_path(row):
+    return (Path.home() / 'Documents/SimCity 4/Regions' / row['region'] /
+            ('City - ' + row['city'] + '.sc4'))
+
+
+def city_limits(row, script=None):
+    """Bound slow native work using tile hints, save bytes and scripted duration.
+
+    These are explicit suite INI overrides; plugin defaults remain off. File
+    size is a conservative fallback when the catalogue has no tile-size hint.
+    """
+    source = city_path(row)
+    size = source.stat().st_size if source.is_file() else 0
+    text = script.read_text(encoding='utf-8-sig') if script else ''
+    hints = row['notes'].lower() + '\n' + text[:200]
+    scale = (4 if re.search(r'\blarge\b|\b256\b', hints) or size >= 4_000_000 else
+             2 if re.search(r'\bmedium\b|\b128\b', hints) or size >= 1_000_000 else 1)
+    dates = re.findall(r'^(\d{4}-\d\d-\d\d)\s', text, re.M)
+    days = max(0, (date.fromisoformat(row['end']) - date.fromisoformat(min(dates))).days) if dates else 0
+    seconds = max(750, min(7200, 120 + ((days + 29) // 30) * 45 * scale))
+    grace = 30000 * scale
+    return dict(seconds=str(seconds), timeout=str(seconds + 150 * scale + grace // 1000)), {
+        'script_save_grace_ms': str(grace), 'autotest_stall_grace_ms': str(grace)}
+
+
 def make_batch(root, scenarios, profile, dll, tag, extra=()):
     if not NAME.fullmatch(tag):
         raise ValueError('tag: use 1..40 letters, digits, dots, underscores or dashes')
@@ -169,6 +194,9 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                        region=row['region'], city=row['city'], seconds='750',
                        timeout='900', end_date=row['end'], turbo='1', parallel='1')
         ini = dict(base_ini, autotest_unpause='2', autotest_end='quit', popup_dialogs='0', close_dialogs='1')
+        limits, allowances = city_limits(row, source_script)
+        request.update(limits)
+        ini.update(allowances)
         for field, key in (('_prepared_city', 'prepared_city'), ('_export_city', 'export_city')):
             if row.get(field):
                 ini[key] = row[field]
@@ -541,7 +569,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                 elif request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
                     parsed['actions_pending'] = 1  # requested script produced no execution evidence
                 parsed['log'] = str(log) if log.exists() else '-'
-                source_city = Path.home() / 'Documents/SimCity 4/Regions' / request['scenario']['region'] / ('City - ' + request['scenario']['city'] + '.sc4')
+                source_city = city_path(request['scenario'])
                 parsed['city_bytes'] = source_city.stat().st_size if source_city.is_file() else None
                 (directory / f'{name}.verdict').write_text(verdict_text, encoding='utf-8')
                 (directory / f'{name}.json').write_text(json.dumps(parsed, indent=2) + '\n', encoding='utf-8')

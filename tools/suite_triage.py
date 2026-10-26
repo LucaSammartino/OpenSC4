@@ -55,8 +55,21 @@ def diagnose(text, verdict_text, end, *, only_load=False):
         cause = 'unhandled-exit-no-address'
     else:
         cause = verdict
+    watchdog = next((suite.ENVELOPE.sub('', line) for line in lines
+                     if 'WATCHDOG:' in line and ('stalled' in line or 'stuck' in line)), '-')
+    saving = next((line for line in reversed(lines)
+                   if 'script: full-save watchdog grace' in line or 'script: line ' in line), '')
+    if stall and ('SaveCity' in point or 'RunSave' in text
+                  or ('full-save watchdog grace' in saving and 'SaveCity(' not in saving)):
+        cause = 'save-watchdog'
+    owner = ('harness' if cause in ('launcher-lua-checkout', 'launcher-load-detection',
+              'unestablished-city', 'window-exhausted', 'save-watchdog', 'rejected',
+              'no-load', 'queue-timeout', 'not-submitted', 'missing') else
+             'none' if verdict == 'clean' else 'game-or-engine')
     return dict(verdict=verdict, cause=cause, verdict_line=raw, address=address,
-                first_exception_or_stall=point, end_reached=result['end_reached'])
+                first_exception_or_stall=point, end_reached=result['end_reached'],
+                watchdog=watchdog, owner=owner,
+                last_lines=' / '.join(lines[-5:]) or '-')
 
 
 def triage(directory):
@@ -67,10 +80,9 @@ def triage(directory):
         name = scenario['name']
         log = directory / (name + '.log')
         verdict = directory / (name + '.verdict')
-        if not verdict.exists():
-            continue  # Unsubmitted rows have no failure evidence to diagnose.
+        verdict_text = verdict.read_text(encoding='utf-8', errors='replace') if verdict.exists() else 'verdict: missing\n'
         row = diagnose(log.read_text(encoding='utf-8', errors='replace') if log.exists() else '',
-                       verdict.read_text(encoding='utf-8', errors='replace'), scenario['end'],
+                       verdict_text, scenario['end'],
                        only_load=suite.load_only(scenario))
         rows.append(dict(scenario=name, **row, reach='present' if
                          (directory / (name + '.reach.tsv')).exists() else 'missing',
@@ -79,6 +91,9 @@ def triage(directory):
         raise ValueError('no returned verdicts in this tag')
     output = directory / 'triage.tsv'
     suite.write_tsv(output, list(rows[0]), rows)
+    suite.write_tsv(directory / 'causes.tsv', list(rows[0]),
+                    sorted((r for r in rows if r['verdict'] != 'clean'),
+                           key=lambda r: (r['owner'], r['cause'], r['address'], r['scenario'])))
     return rows, output
 
 

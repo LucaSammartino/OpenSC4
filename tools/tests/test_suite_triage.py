@@ -1,4 +1,5 @@
 import suite_triage
+import json
 
 
 def test_no_load_after_clock_is_a_launcher_failure():
@@ -42,3 +43,30 @@ def test_exhausted_window_is_distinct_from_unestablished_city():
     row = suite_triage.diagnose('AUTOTEST VERDICT: clean (date=2000-01-01, days_per_second=0.00)',
                                'verdict: clean\n', '2000-04-01')
     assert row['cause'] == 'unestablished-city'
+
+
+def test_save_stall_is_a_harness_cause_with_tail_and_watchdog():
+    log = ('script: full-save watchdog grace 10000 ms (script_save_grace_ms)\n'
+           'WATCHDOG: main thread (tid 42) stalled - no OnTick for 11000 ms\n'
+           '  context: eip=0x00412345 (SimCity 4.exe+0x12345)\n')
+    row = suite_triage.diagnose(log, 'verdict: stalled\n', '2000-04-01')
+    assert row['cause'] == 'save-watchdog'
+    assert row['owner'] == 'harness'
+    assert row['address'] == '0x00412345'
+    assert '11000 ms' in row['watchdog']
+    assert 'context:' in row['last_lines']
+
+
+def test_causes_includes_missing_rows_without_inventing_exceptions(tmp_path):
+    requests = [dict(scenario=dict(name=name, end='2000-04-01', notes='', script='-'))
+                for name in ('absent', 'clean')]
+    (tmp_path / 'manifest.json').write_text(json.dumps(dict(requests=requests)))
+    (tmp_path / 'clean.verdict').write_text('verdict: clean\n')
+    (tmp_path / 'clean.log').write_text('AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=2.0)\n')
+    rows, _ = suite_triage.triage(tmp_path)
+    assert len(rows) == 2
+    causes = suite_triage.suite.csv.DictReader((tmp_path / 'causes.tsv').open(), delimiter='\t')
+    missing, = list(causes)
+    assert missing['scenario'] == 'absent'
+    assert missing['address'] == '-'
+    assert missing['owner'] == 'harness'
