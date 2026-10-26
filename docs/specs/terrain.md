@@ -2539,7 +2539,7 @@ Init is attempted on that same base. An override which observes only the 22 inte
 miss Init, the index notification, and Shutdown in both tests. No runtime observation is needed
 to establish this boundary; these are direct instruction-verified calls.
 
-### 15.5.15 Frame submission: verified stream and remaining capture boundary (TR46) *[compat]*
+### 15.5.15 Frame submission: verified stream and remaining capture boundary (TR46, TR47) *[compat]*
 
 This section settles the index question and the submission order below. **It does not establish
 an exact complete frame for all view modes.** The remaining vertex-cache and auxiliary-pass
@@ -2731,6 +2731,68 @@ draw-time data, normalizing pointer addresses to buffer offsets and binding hand
 resource identities, while preserving duplicate calls and state restores. The replacement
 must use the same capability/preferences and entry state. A pointer-only trace, a final
 buffer dump, equal triangle totals, or an omitted optional pass cannot settle this question.
+
+#### 15.5.15.5 Additional byte rules established for TR47
+
+**Edge indices are fixed, not terrain flags.** Let W be `0x00B4C74C` and
+S = 6(W−1). The shared edge array `0x00B4C6FC` contains S little-endian u16s.
+Its six words for cell i are `(i, W+i, W+i+1, i, W+i+1, i+1)`, reduced to
+16 bits on storage. Allocation is 12(W−1) bytes. This array is initialized by
+AllocateStaticBuffers and is distinct from both the terrain's per-row indices J
+and the alternate-diagonal array `0x00B4C6F8`. Neither hidden-triangle nor winding
+flags participate in its initialization. Evidence: allocation `0x00758EF1`–
+`0x00758F1B`; word stores `0x00758F70`–`0x00758FDD`.
+
+For W=5, the edge cells 1 and 2 therefore reference the words
+`(1,6,7,1,7,2, 2,7,8,2,8,3)`, or bytes
+`01 00 06 00 07 00 01 00 07 00 02 00 02 00 07 00 08 00 02 00 08 00 03 00`.
+This remains true if terrain cell 2 has flags `0x1220`: compare the different
+terrain words in §15.5.15.4. The cliff and water-box binds use this shared edge
+array and retain their S count argument even when no positive run is drawn.
+This rule establishes that array's contents; it does not establish every edge
+vertex's bytes or make a rectangular city's odd-edge row stride equal to N.
+
+**UV arithmetic and its cache key.** UpdateTextureCoordinates (`0x00751C80`)
+returns without writes when both its last zoom `0x00B0D700` and last rotation
+`0x00B0D704` equal `C+0x14` and `C+0x18`. Otherwise it stores those new keys,
+multiplies float32 `0x00B0D708` by the float32 table member at
+`0x00AB4330 + 4·level`, and **stores the product to float32 before using it**.
+Call that rounded product f. For each land vertex and then the corresponding
+water vertex, the following formulas read that buffer's own x/z fields and
+store u and v as float32 at `+0x10/+0x14`. X and Z are the float32 city sizes
+at `0x00B4C734/730`.
+
+| Rotation | u | v |
+|---|---|---|
+| 0 | f·x | f·z |
+| 1 | f·z | (X−x)·f |
+| 2 | (X−x)·f | (Z−z)·f |
+| 3 | (Z−z)·f | f·x |
+
+The subtraction, where present, precedes multiplication; there is no intervening
+float32 store of the difference. Use the recorded x87 precision/rounding controls
+for these operations, then the float32 destination store. A rotation outside
+0–3 updates the keys and factor but performs no vertex writes. No colour, height,
+alpha or `+0x18/+0x1C` field is written here. Evidence in instructions:
+`0x00751C84`–`0x00751CCB` (keys and factor), `0x00751CE3`–`0x00751EB0`
+(four paths and float32 stores). This is the producer's key, not a claim that
+changing a tuning value alone forces a UV refresh.
+
+**Worked vertex bytes.** With X=64, Z=48, x=16, z=32 and f=1/16, rotations
+0,1,2,3 produce respectively `(u,v)=(1,2),(2,3),(3,1),(1,1)` in both buffers.
+The expected float32 UV word pairs are `(3F800000,40000000)`,
+`(40000000,40400000)`, `(40400000,3F800000)`, `(3F800000,3F800000)`.
+For a land vertex with y=10, zero second UV pair, floor terrain colour bytes
+`(+0x13,+0x14,+0x15)=(11,22,33)` in hexadecimal, and incoming alpha FF,
+rotation 1 gives the following complete 32-byte **floor-draw** record, in order:
+`00 00 80 41 00 00 20 41 00 00 00 42 33 22 11 FF
+00 00 00 40 00 00 40 40 00 00 00 00 00 00 00 00`.
+If the textured pass then supplies terrain first-colour bytes `(44,55,66)` and
+a matching layer weight `0x01AB`, bytes `+0x0C..0x0F` at that textured draw are
+`66 55 44 AB`; the other 28 bytes remain the same. On an unchanged following
+floor pass those four bytes become `33 22 11 AB`: the floor RGB copy does not
+restore FF. This fixture supplies producer inputs explicitly; it does not
+pretend these chosen colours came from an observed native lighting/resource set.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 
