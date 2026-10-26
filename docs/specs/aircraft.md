@@ -111,10 +111,49 @@ intermediates (`0x004FCA96–0x004FCB60`, `0x004FCBE1–0x004FCC85`).
 
 ### 3.2 Init and effects
 
-`Init` (`0x005017C0`) loads both parameter sets, builds the three ray probes (`0x004FF840`, `0x004FFAE0`,
-`0x004FFD80`), and the effects: the propeller (`fx_00_planepropstill` / `fx_00_planeprop`, or the fire-plane
+`Init` (`0x005017C0`) loads both parameter sets, evaluates three synthetic flight calibrations (`0x004FF840`,
+`0x004FFAE0`, `0x004FFD80`; §3.2.1), and prepares effects: the propeller (`fx_00_planepropstill` / `fx_00_planeprop`, or the fire-plane
 versions `fx_00_fireplanepropstill` / `fx_00_fireplaneprop`), sky writing (`fx_00_skywriting`), the water drop
 (`fx_00_waterdrop`), the indicator (`aircraftindicate`) and the bomb (`jetbomb`, U-Drive-It).
+
+#### 3.2.1 Constructor and teardown additions (AF4) *[compat]*
+
+The airplane constructor installs phase 0, drop-active false, countdown 0,
+water ammunition 3, zero velocity (+0x234 triple), zero angular fields
+(+0x240 triple), null effect pointers +0x208/+0x20C/+0x210/+0x214, and null
+fire filter +0x344. Loaded-placement byte +0x348 and dispatch state +0x334
+start at zero. Home +0x34C triple starts at zero. These are constructor
+values, not fields restored by the airplane record.
+
+The player gains +0x300 through +0x32C, in ascending four-byte order, start
+with binary32 bits `3ECCCCCD,3E99999A,3E4CCCCD,3F800000,3F000000,3E4CCCCD,
+3DCCCCCD,3E99999A,3DCCCCCD,3E4CCCCD,3E4CCCCD,3DCCCCCD`. The fire-search
+anchor +0x338 triple starts at the file-backed sentinel (−1,−2,−3).
+Evidence: `0x004FCFE0–0x004FD25C`.
+
+The three helpers previously called “ray probes” are **not terrain-ray queries**.
+Each starts from orientation `(0,sin(ElevatorMax),cos(ElevatorMax))`, with
+velocity equal to that direction times TakeOffSpeed. Each permits up to 100
+force/integration/attitude iterations with a synthetic 0.1-second step. Their
+synthetic six-value control records are respectively `(1,0,0,1,1,0)`,
+`(−1,0,0,owner[+0x31C],1,0)`, and
+`(owner[+0x320],1,1,owner[+0x31C],1,0)`.
+No city terrain is sampled in this initialization calculation. The first two
+return an absolute velocity-component ratio, and the third an angular quantity;
+the complete convergence/attitude arithmetic is included in the AF2 observation
+boundary (§9). Evidence: `0x004FF840–0x005000A2`.
+
+Airplane Shutdown releases/nulls the fire filter first. For each present effect
+in order +0x20C, +0x208, +0x214, +0x210: stop through +0x10(1), clear its owner
+field, Release through +0x08. It then tail-calls aircraft-base Shutdown and
+returns that result. This cleanup occurs **before**, not after, the base call
+(`0x004FD2C0–0x004FD37B`).
+
+Worked case: create without reading a record and without visiting a goal;
+expect phase 0, ammo 3, zero countdown and velocity. Supply four mock effects
+and a false-returning base Shutdown: expect the listed stop/Release order,
+all owner pointers cleared and false returned. No effect stop follows the
+base call on the airplane path.
 
 ### 3.3 AI goals (`AI_PursueGoal`, `0x00504590`; automata.md §6.6)
 
@@ -721,6 +760,74 @@ This settles runtime ownership and the post-base cleanup sequence; attachment
 construction, the pre-base Shutdown scale handling, and the full Init/physics
 phase-trigger contracts remain AF4.
 
+#### 4.2.6 Rotor sequencing, power and home completion (AF2/AF4) *[compat]*
+
+The rotor state R is reached through owner +0x254; its parameter block P is
+R+0, control block C through owner +0x258, and transform T through R+0x94.
+These offsets identify native records, not public interface slots.
+`NextFrame(R,h)` invokes engine-power, attitude/slide, horizontal motion,
+then vertical motion, once each with the same seconds step. Only afterwards
+does it copy T's internal X/Z (+0x18/+0x20) to R+0x18/+0x1C and, if changed,
+to R+0x10/+0x14. Phase 1 then adds h to R+0x1C4. Phase 6 exits before these
+four steps (`0x005398B1–0x00539988`).
+
+For finite inputs, engine power (`0x005346D0–0x005348BC`) obeys these ordered
+rules. Let E=R+0x148 and engine flag e=R+0x1CC. With e=0, set
+E=clamp(E−100h,0,400). With e nonzero and E<400, set
+E=clamp(E+100h,0,400); otherwise leave E unchanged. Thus flags other than 1
+can spin the rotor but do not activate the powered-force branch below.
+
+Set C+0x2C to `(C[+8]+100) × binary32 0.005`, without an initial clamp,
+and C+0x28 to zero. Only when e=1 set the latter to
+`C[+0x2C] × P.Power × clamp(E × binary32 0.0025,0,1)`.
+Then form q from R+0xD4 (vertical velocity) twice and R+0xC8 (mass), in
+the order `vy × k × vy × mass`:
+
+| Condition | k (binary32 bits) | Final correction to C+0x28 |
+|---|---|---|
+| e=1 and vy≥0 | `3C9374BC` (0.018) | subtract q×4 |
+| e=1 and vy<0 | same | add q |
+| e≠1, R+0x10C<0 and R+0xCC>10 | `3CC0AD04` (0.02352) | add q×C[+0x2C]×4 |
+| Other e≠1 | same | first clamp C+0x2C to [0,1], then add (1−C[+0x2C])×q |
+
+Products and the indicated field stores use binary32 fields with x87
+intermediates; 100,400,4 are exact, while 0.005 and 0.0025 are respectively
+`3BA3D70A` and `3B23D70A`. This power stage does not itself move the object
+or request AEMS sounds. Worked case: E=0, e=1, h=1, collective=0, vy=0,
+P.Power=240 gives E=100, C+0x2C≈0.5 and C+0x28≈30. Repeat with e=2:
+E still reaches 100, but C+0x28 stays zero for vy=0.
+
+`UpdatePhysics` has a distinct home-completion path when owner byte +0x25C
+is set. It resets controls, then checks the current goal. Goal 0 or 0x32
+with distance to home <1 copies home exactly and requests phase 0. Otherwise
+those goals blend position toward home using
+`a=min(binary32(h × binary32 1/3),1)` and `(1−a)×position+a×home`.
+For any other goal clear +0x25C. This path synchronizes internal transform
+position from world position using binary32 `40555555`, and skips NextFrame
+and collision detection for that visit. Evidence: `0x0053B4E0–0x0053B65F`.
+Worked case: position (30,0,0), home zero, h=0.3 and goal 0x32 move to
+approximately (27,0,0), with no phase-0 request yet. Starting at (0.5,0,0)
+instead snaps to zero and requests phase 0, including its repeated-phase
+side effects from §4.2.3.
+
+#### 4.2.7 Shared destination claims before Shutdown (AF4) *[compat]*
+
+Before base Shutdown the helicopter checks its destination (+0x4C triple)
+against sentinel (−1,−2,−3). If any component is not within strict binary32
+epsilon `38D1B717` of the sentinel, remove **all** matching triples from the
+shared list at `0x00B2289C`, then write the sentinel to the owner. Matching
+requires each absolute component difference to be ordered <epsilon; equality
+at epsilon does not match. Removal unlinks and frees each matching node,
+without stopping after the first. Then perform base Shutdown and the
+§4.2.5 cleanup. This operation releases destination claims; it is not a
+position-scale adjustment. Evidence: `0x00539664–0x005396D6`,
+`0x005395F0–0x0053965C`.
+
+Worked case: two shared entries exactly equal the helicopter destination,
+and a third differs in X by 1. Shutdown removes the first two, leaves the
+third, stores the sentinel, then calls base Shutdown. Repeated Shutdown
+with the sentinel makes no claim-removal call.
+
 ### 4.3 Named player weapon requests (AF5, partial) *[compat]*
 
 Both aircraft command translators first run the base command translator. They
@@ -837,6 +944,67 @@ approximately 200; +0x300 stays 2. Refresh again with an absent provider:
 both stay as they are. Exit player state: the AI loader restores its maximum
 (150 for no record) and clears the four listed controls, independently of the
 base callback's returned boolean.
+
+### 4.4 Goal dispatch and owner callbacks (AF3/AF6) *[compat, bounded]*
+
+Flight phase, goal ID and dispatch state are three separate values. Goal
+stack operations below are primary owner +0xD0 PushState, +0xD4 PopState,
++0xE4 FindState and +0xEC current ID (automata.md §6.6). Unless stated
+otherwise, pushed goals use priority 0, duration −1 and remaining flags/
+payloads zero. The base stack controls the timing of entry/exit callbacks.
+
+| Airplane goal/condition | Ordered owner actions |
+|---|---|
+| 0, phase>1 | Push 0x32 LAND; return |
+| 0, phase=1 | Run Stop controller; do not emit a dispatch state here |
+| 0x32 LAND | If dispatch state is neither 4 nor 0, request 6; run Land; on success request 0 then Pop |
+| 0x33 destination | Clip destination; Pop on sentinel destination or successful GotoDestination |
+| 0x35 LOITER | Request dispatch 5, then run §3.3.1 countdown/drop logic |
+| 0x39 FIRE, fire found and ammo>0 | Request 3; Push 0x35 then 0x33 |
+| 0x39 FIRE, no fire and ammo>0 | Pop current goal; request 3; Push 0x32, then 0x35, then 0x33 |
+| 0x39 FIRE, ammo≤0, whether or not a fire was found | Request 4; Push 0x32 |
+| Unrecognized goal | Pop, then execute goal-0 handling in the same visit |
+
+The FIRE query uses the saved search anchor +0x338 and destination output
++0x4C (§3.3.2). It does not request a drop immediately on finding a fire;
+the later LOITER visit activates the drop. Evidence:
+`0x00504590–0x00504977`. Push order matters: the last pushed goal is active.
+
+| Helicopter goal/condition | Ordered owner actions |
+|---|---|
+| 0x32 LAND, rotor phase=0 | Request dispatch 0, Pop, then perform goal-0 handling |
+| 0x32 LAND, rotor phase≠0 | Request 6, then perform goal-0 handling |
+| 0, phase=0 | Reset controls, disable spotlight, return |
+| 0, phase≠0 | Invoke engine-enable helper; disable spotlight; steer home; set +0x25C when full 3D home distance <24 |
+| 0x33 destination | Request 3; enable engine; disable spotlight; move toward X/Z destination while outside the completion gate; Pop when inside; building-lift control runs in either case |
+| 0x34 CHASE, missing target or target current goal≠0x10 | Pop; return, without inventing another dispatch state |
+| 0x34 valid target | Engine/spotlight on, then §4.2.2 chase rules |
+| 0x35 LOITER | Request 5; engine/spotlight on; aim at ground height at destination; if 0x36 exists in stack, RespondToCrimeScene; stop horizontal motion; building-lift control |
+| Unrecognized goal | Pop, then execute LAND/goal-0 handling in this visit |
+
+On home steering, horizontal distance ≤8 selects the horizontal-stop helper;
+otherwise MoveXZ receives the displacement and scalar 10. Horizontal distance
+≤48 selects hover demand `home.y + horizontalDistance − 2`; greater distance
+selects building lift. The <24 completion test uses **3D** distance, not the
+horizontal distance. Evidence: `0x0053C441–0x0053C5AA`; the remaining claim/
+crime/rescue branches at `0x0053BE73–0x0053C43C` need the observation in §9.
+
+Helicopter `SetDispatchState(s)` is a no-op for repeated state. On a change,
+if goal 0x36 exists and city service +0xBC exists, s=5 requests the owner's
+`riot_police_repulsor` object through +0x14(name,0), then passes the result
+to that service's +0x14. Every other s passes owner +0x14() to service +0x38.
+Only after this service work does it store s at +0x274 and notify owner
++0x198(7,s). It does not call the emergency-vehicle base setter. Missing goal
+or service skips only the repulsor action; store/notification still occur.
+Evidence: `0x0053A360–0x0053A40A`. Entry/exit callbacks are in §4.3.3.
+
+Worked cases: FIRE with an empty query and ammo 1 produces Pop, dispatch 3,
+Push LAND, Push LOITER, Push destination; with ammo 0 it instead requests 4
+and pushes LAND without the Pop/LOITER/destination sequence. LAND already
+at dispatch 4 does not request 6; successful landing requests 0 before Pop.
+A helicopter changing 3→5 while a 0x36 state exists makes the repulsor
+request before notifying (7,5); repeating 5 makes neither request. A
+helicopter already at phase 0 on LAND requests dispatch 0 before Pop.
 
 ## 5. The air dispatch sources *[compat]*
 
