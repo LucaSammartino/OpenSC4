@@ -233,7 +233,9 @@ void Dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* mac
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
     if (depth) ++count.nested;
     const auto call=++count.calls;const std::string mode=modeOverride.empty()?fn.mode:modeOverride;
-    if (mode!="replace"&&source==0&&!fc4::inplace::Sample(call)) {
+    // All four watercraft value bindings need complete=calls for method credit.
+    const bool everyCall=std::string(fn.owner)=="cSC4Watercraft";
+    if (mode!="replace"&&source==0&&!everyCall&&!fc4::inplace::Sample(call)) {
         // An unsampled original can enter another selected function. Do not
         // retain an unmarked outer lock across that call.
         if (locking) ReleaseSRWLockExclusive(&sampleLock);original();return;
