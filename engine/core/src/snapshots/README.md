@@ -1,0 +1,31 @@
+# Snapshot owners
+
+Portable Rust owners from `docs/specs/snapshots.md`; no C ABI or plugin binding.
+`album` owns the store and album workflow; `taker` owns capture scheduling.
+Foreign IO, image codecs, language/date services and simulator pause are traits.
+`Unsupported` (also exported as `Gap` for existing callers) names the boundary;
+`Unsupported::question` cites `docs/specs/questions/snapshots.md`. All SN1-SN9
+remain open. Supplying a number or ninth field does not assign it a meaning.
+
+## Closure table
+
+The spec has five worked cases in section 6. Other tests below are direct
+fixtures of the stated rules, not additional native behavior evidence.
+
+| Spec section | Code item | Spec fixture / test | Open Unsupported boundary |
+|---|---|---|---|
+| 0 Summary | `SnapshotAlbum`, `SnapshotTaker` | `capture_pipeline_depth_metadata_pause_and_restore` | Native UI binding: `NativeToolkit` (SN7) |
+| 1.1 Folders | `album_directory_name`, `create_album`, `refresh_albums` | `folder_creation_filter_sort_and_companion_lifecycle`: Big Town, 2 -> Big Town--2/album.ini (worked case 1) | `AlbumNumberMeaning` (SN1), `FilenameSanitizing` (SN3), `AlbumOrdering` (SN4); portable UTF-8 prefix/byte sort only |
+| 1.2 Picture files | `VPath::companion`, `new_picture_path`, `save_description` | `folder_creation_filter_sort_and_companion_lifecycle`: empty X.png description removes X.txt (worked case 3) | `CollisionNaming`, `RegionOnlyNaming` (SN3), `TextEncoding` (SN5) |
+| 1.3 Information | `GraphicInfo::encode`, `Information::decode`, `caption_fields`, `caption` | `prescribed_info_wire_bytes_and_read_fields`: first byte 0x28, ten LF fields (worked case 2), caption returns Unsupported | `NinthInformationField` (SN1), `CaptionLayout` (SN2), malformed/encoding rules (SN5) |
+| 2 Taker | `SnapshotTaker` | `taker_size_digit_and_four_delivery_fixture`: last Space wraps, 5 -> 60, delivery 4 captures (worked cases 4-5) | Percentage meaning SN1; frame defaults/geometry SN6; toolkit SN7; pixel masks SN8 |
+| 3.1 Creation | `SnapshotAlbum::begin_modal`, `on_shutdown` | `modal_restores_previous_pause_and_shutdown_saves_then_clears` | Window/control script binding SN7; control composition pending |
+| 3.2 Browsing | `SnapshotAlbum::action`, browse/delete methods | `browse_saves_before_loading_and_delete_removes_only_companions` | Initial/order/endpoints SN4; raw button/message IDs SN7; failure policy SN9; control composition pending |
+| 3.3 Albums | `go_to_album`, `add_new_graphic` | `import_copy_move_and_same_folder_retains_original_name` | Number meaning SN1; naming SN3; selection SN4; copy/failure policy SN9 |
+| 4 Quirks | `GraphicInfo::encode`, `album_directory_name` | `prescribed_info_wire_bytes_and_read_fields`, `names_trim_at_character_boundary_and_do_not_invent_collision_suffixes` | Native encoding/character boundaries SN3/SN5 |
+| 5 Open questions | `Unsupported::question`, `Information::caption` | `prescribed_info_wire_bytes_and_read_fields` asserts SN2 boundary | SN1-SN9 open; no new questions |
+| 6 Conformance | `tests` | Five worked cases covered by the tests cited above | No game/native-exact claim |
+
+`OWNER_INVENTORY.md` records the prior portable/native surface distinction.
+The bytewise lists, UTF-8 names, checked indices and clamped endpoints in the
+existing workflow are provisional portable policies, not resolutions of SN3-SN5.
