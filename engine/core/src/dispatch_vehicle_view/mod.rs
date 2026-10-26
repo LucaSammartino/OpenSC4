@@ -7,6 +7,10 @@ pub use display::{build_display, Camera, DisplayServices, Image, Reference, Reso
 mod services;
 pub use services::*;
 mod tracking;
+mod update;
+pub use update::{
+    clamp_rectangle, conflict, relocate, screen_quads, DrawOp, FloatRect, FrameServices, Progress, ProgressNode,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Obstacle {

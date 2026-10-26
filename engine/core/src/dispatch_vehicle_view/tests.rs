@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
+#[path = "update_tests.rs"]
+mod frame;
 
 #[derive(Default)]
-struct Host {
+pub(super) struct Host {
     ops: Vec<ResourceOp>,
     model_ops: Vec<(Token, ModelOp)>,
     camera: Camera,
@@ -16,6 +18,25 @@ struct Host {
     model: Option<Token>,
     processor: Option<Token>,
     state_missing: bool,
+    draw: Vec<DrawOp>,
+    elapsed: f32,
+    blocked: bool,
+    denied: bool,
+    simulator: u8,
+    starts: usize,
+    stops: usize,
+    main: Option<Window>,
+    children: Vec<Window>,
+    exclusions: Vec<Token>,
+    window_queries: Vec<Token>,
+    window_releases: Vec<Token>,
+    origin: [f32; 2],
+    position: Vec3,
+    terrain: Option<f32>,
+    progress: Option<Progress>,
+    complete: bool,
+    removed: bool,
+    transform: Transform,
 }
 impl DisplayServices for Host {
     fn camera(&mut self) -> Camera {
@@ -87,6 +108,15 @@ impl Services for Host {
     fn automaton(&mut self, occupant: Token) -> Option<Token> {
         Some(occupant + 1000)
     }
+    fn automaton_flag(&mut self, _: Token, flag: u32) -> bool {
+        if flag == 1 {
+            self.removed
+        } else if flag == 0x0800_0000 {
+            self.complete
+        } else {
+            false
+        }
+    }
     fn set_automaton_flag(&mut self, _: Token, flag: u32, _: bool) {
         assert_eq!(flag, 0x200000);
     }
@@ -113,12 +143,12 @@ impl Services for Host {
         }
     }
 }
-fn view(host: &mut Host) -> DispatchVehicleView {
+pub(super) fn view(host: &mut Host) -> DispatchVehicleView {
     let mut v = DispatchVehicleView::default();
     v.init(host).unwrap();
     v
 }
-fn near(a: f32, b: f32) {
+pub(super) fn near(a: f32, b: f32) {
     assert!((a - b).abs() < 0.0001, "{a} != {b}");
 }
 

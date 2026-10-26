@@ -110,6 +110,8 @@ impl TrackInfo {
                 String::new()
             },
             icon,
+            // SPEC-GAP: initial geometry on a failed first image build is not
+            // specified; portable scratch geometry starts at zero.
             display_quad: [Vertex::default(); 4],
             icon_quad: [Vertex::default(); 4],
             display_size: [0.0; 2],
