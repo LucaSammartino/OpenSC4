@@ -91,6 +91,43 @@ const Event* ReplayQuery(Frame& capture, unsigned slot, uint32_t receiver,
     capture.core.Append(*response);
     return response;
 }
+using RegisterFn = bool(__fastcall*)(void*, void*, void*, int32_t, uint32_t);
+RegisterFn registerOriginal = nullptr;
+bool __fastcall RegisterOverlay(void* self, void*, void* view, int32_t layer, uint32_t priority) {
+    auto* capture = frame && frame->clearProfile && !frame->boundaryDepth ? frame : nullptr;
+    if (capture) ++capture->boundaryDepth;
+    const auto result = registerOriginal(self, nullptr, view, layer, priority);
+    if (capture) {
+        --capture->boundaryDepth;
+        try {
+            capture->renderer = self;
+            ObserveQuery(*capture, 32, self, {capture->objects.Borrow(view), static_cast<uint32_t>(layer), priority},
+                {result ? 1u : 0u});
+        } catch (...) { capture->native.Refuse("overlay registration capture"); }
+    }
+    return result;
+}
+// Custom-view Update is an opaque collaborator. Capture the ordered call and
+// its view of MapView state on both sides of the call.
+// No foreign callback is executed during replay.
+void __fastcall CustomUpdate(void* self, void*) {
+    using Fn = void(__fastcall*)(void*, void*);
+    auto* capture = frame && frame->clearProfile && !frame->boundaryDepth && frame->custom == self ? frame : nullptr;
+    if (capture) try {
+        capture->native.Call(Domain::Command, 5, capture->objects.Borrow(self));
+        capture->native.Data(Domain::State, 4, 0, capture->owner, capture->entry.size());
+        DynamicState(capture->owner, capture->native);
+    } catch (...) { capture->native.Refuse("custom entry capture"); }
+    if (capture) ++capture->boundaryDepth;
+    reinterpret_cast<Fn>(BoundaryOriginal(self, 5))(self, nullptr);
+    if (capture) {
+        --capture->boundaryDepth;
+        try {
+            capture->native.Data(Domain::State, 5, 0, capture->owner, capture->entry.size());
+            DynamicState(capture->owner, capture->native);
+        } catch (...) { capture->native.Refuse("custom exit capture"); }
+    }
+}
 bool __cdecl ReplayClear(void* context, uint32_t operation, uint32_t* output) {
     auto& capture = *static_cast<Frame*>(context);
     try {
@@ -111,6 +148,21 @@ bool __cdecl ReplayClear(void* context, uint32_t operation, uint32_t* output) {
             const auto* clock = ReplayQuery(capture, 0x009F361F, 0, {}, 1);
             if (!clock) return false;
             *output = clock->words[0];
+        } else if (operation == 3) {
+            const auto* result = ReplayQuery(capture, 32, capture.objects.Borrow(capture.renderer),
+                {capture.objects.Borrow(Load<void*>(capture.entry.data(), 0x13c)), 5, 1000}, 1);
+            if (!result) return false;
+            *output = result->words[0];
+        } else if (operation == 4) {
+            auto expected = capture.entry;
+            expected[0x9d9] = 0;
+            if (expected[0x140]) expected[0x141] = 1;
+            capture.core.Call(Domain::Command, 5, capture.objects.Borrow(capture.custom));
+            for (const auto point : {4u, 5u}) {
+                capture.core.Data(Domain::State, point, 0, expected.data(), expected.size());
+                Append(capture.core, capture.dynamicBefore);
+            }
+            *output = 0; // No result of this collaborator is consumed by MapView.
         } else return false;
         return true;
     } catch (...) { capture.core.Refuse("clear replay allocation"); return false; }

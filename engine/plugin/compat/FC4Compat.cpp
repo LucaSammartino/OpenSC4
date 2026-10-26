@@ -1008,8 +1008,8 @@ uintptr_t MapViewDrawStreamEntry(unsigned which) {
 }
 void** MapViewDrawStreamTable(unsigned which) {
     const auto* version = IdentifiedVersion();
-    constexpr uintptr_t sites[] = {0x00AB838C, 0x00AB8140, 0x00AB7EE0};
-    if (version != &kVersions[0] || which >= 3) return nullptr;
+    constexpr uintptr_t sites[] = {0x00AB838C, 0x00AB8140, 0x00AB7EE0, 0x00ABAB60};
+    if (version != &kVersions[0] || which >= 4) return nullptr;
     MEMORY_BASIC_INFORMATION memory{};
     auto** table = reinterpret_cast<void**>(sites[which]);
     if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) || memory.State != MEM_COMMIT ||

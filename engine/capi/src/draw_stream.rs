@@ -41,7 +41,14 @@ pub unsafe extern "C" fn fc4_drawstream_clear_update(
         if state.is_null() || output.is_null() {
             return false;
         }
-        let state = [*state, *state.add(1), *state.add(2), *state.add(3)];
+        let state = [
+            *state,
+            *state.add(1),
+            *state.add(2),
+            *state.add(3),
+            *state.add(4),
+            *state.add(5),
+        ];
         let result = fc4_core::map_view::replay_clear_update(state, |operation| {
             let mut result = 0;
             if boundary(context, operation, &mut result) {
@@ -51,7 +58,7 @@ pub unsafe extern "C" fn fc4_drawstream_clear_update(
             }
         });
         let Ok(result) = result else { return false };
-        std::ptr::copy_nonoverlapping(result.as_ptr(), output, 2);
+        std::ptr::copy_nonoverlapping(result.as_ptr(), output, 3);
         true
     }))
     .unwrap_or(false)

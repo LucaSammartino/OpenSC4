@@ -110,6 +110,8 @@ struct Surface {
 };
 struct Frame {
     void* owner = nullptr;
+    OwnerBytes entry{};
+    Stream dynamicBefore;
     Objects objects;
     Stream native, core;
     std::map<void*, Surface> surfaces;
@@ -117,6 +119,8 @@ struct Frame {
     void* parent = nullptr;
     void* child = nullptr;
     void* childWindow = nullptr;
+    void* renderer = nullptr;
+    void* custom = nullptr;
     unsigned boundaryDepth = 0;
     bool clearProfile = false;
 };
@@ -291,29 +295,36 @@ void __fastcall Update(void* self, void*) {
     OwnerBytes before; std::memcpy(before.data(), self, before.size());
     Stream dynamicBefore;
     const bool inactive = before[0x142] == 0;
-    capture.clearProfile = !inactive && Load<uint32_t>(before.data(), 0x144) == 0 &&
-        before[0x141] != 0 && Load<uint32_t>(before.data(), 0x9d0) == 0;
+    capture.clearProfile = !inactive && Load<uint32_t>(before.data(), 0x144) == 0;
+    capture.entry = before;
+    capture.custom = Load<void*>(before.data(), 0x9d0);
     if (inactive || capture.clearProfile) try { DynamicState(self, dynamicBefore); }
     catch (...) { dynamicBefore.Refuse("entry snapshot allocation"); }
-    if (capture.clearProfile && (!clockOriginal ||
+    if (capture.clearProfile) Append(capture.dynamicBefore, dynamicBefore);
+    if (capture.clearProfile && (!clockOriginal || !registerOriginal ||
         !BoundaryHook(static_cast<uint8_t*>(self) + 8, 11, reinterpret_cast<void*>(&BoundaryTap<11>))))
         capture.native.Refuse("clear update boundary unavailable");
+    if (capture.clearProfile && capture.custom &&
+        !BoundaryHook(capture.custom, 5, reinterpret_cast<void*>(&CustomUpdate)))
+        capture.native.Refuse("custom update boundary unavailable");
     {
         Scope<Frame> scope(frame, &capture);
         updateOriginal(self, nullptr);
     }
     try {
         // Other active profiles compare only the raster/presentation substream.
-        // Registration, nonzero sources and custom views remain uncredited.
+        // Nonzero sources remain uncredited at the owner boundary.
         if (capture.clearProfile) {
-            const uint32_t state[] = {1, before[0x9d9], Load<uint32_t>(before.data(), 0x9dc), before[0x140]};
-            uint32_t output[2]{};
+            const uint32_t state[] = {1, before[0x9d9], Load<uint32_t>(before.data(), 0x9dc), before[0x140],
+                before[0x141], Load<uint32_t>(before.data(), 0x9d0)};
+            uint32_t output[3]{};
             if (!fc4_drawstream_clear_update(state, &capture, &ReplayClear, output))
                 capture.core.Refuse("clear update core replay");
             if (capture.child) capture.core.Call(Domain::Surface, 2, capture.objects.Borrow(capture.child));
             if (!capture.inputs.Complete()) capture.core.Refuse("unconsumed update queries");
             before[0x9d9] = static_cast<uint8_t>(output[0]);
             std::memcpy(before.data() + 0x9dc, output + 1, 4);
+            before[0x141] = static_cast<uint8_t>(output[2]);
         }
         if (inactive || capture.clearProfile) {
             capture.native.Data(Domain::State, 0, 0, self, before.size());
@@ -323,8 +334,9 @@ void __fastcall Update(void* self, void*) {
         }
         const auto detail = Inspect(capture.native, capture.core);
         if (updateCount.calls.load() < 5 || std::strcmp(detail.field, "none") != 0)
-            Log("drawstream pilot cSC4WinMapView::Update source=%u layer=%u operations=%u exact=%u first=%u field=%s[%u] native=0x%llX core=0x%llX complete=%u",
+            Log("drawstream pilot cSC4WinMapView::Update source=%u layer=%u overlay=%u registered=%u/%u custom=%u operations=%u exact=%u first=%u field=%s[%u] native=0x%llX core=0x%llX complete=%u",
                 Load<uint32_t>(before.data(), 0x144), Load<uint32_t>(before.data(), 0x148),
+                capture.entry[0x140], capture.entry[0x141], Load<uint8_t>(self, 0x141), capture.custom != nullptr,
                 static_cast<unsigned>(capture.native.Events().size()), static_cast<unsigned>(detail.exactOperations),
                 static_cast<unsigned>(detail.operation), detail.field, static_cast<unsigned>(detail.element), detail.native, detail.core,
                 (inactive || capture.clearProfile) && capture.native.Valid() && capture.core.Valid());
@@ -427,10 +439,13 @@ void MapViewDrawStreamStartup() {
     auto** child = compat::MapViewDrawStreamTable(0);
     auto** target = compat::MapViewDrawStreamTable(1);
     auto** window = compat::MapViewDrawStreamTable(2);
-    if (!child || !target || !window) { Log("drawstream MapView tables unavailable"); return; }
+    auto** renderer = compat::MapViewDrawStreamTable(3);
+    if (!child || !target || !window || !renderer) { Log("drawstream MapView tables unavailable"); return; }
     overlayOriginal = reinterpret_cast<OverlayFn>(child[4]);
     notificationOriginal = reinterpret_cast<MessageFn>(target[3]);
     uiOriginal = reinterpret_cast<MessageFn>(window[3]);
+    registerOriginal = reinterpret_cast<RegisterFn>(renderer[32]);
+    if (!Patch(renderer, 32, reinterpret_cast<void*>(&RegisterOverlay))) registerOriginal = nullptr;
     clockOriginal = reinterpret_cast<ClockFn>(Detour(compat::MapViewDrawStreamEntry(3), reinterpret_cast<void*>(&Clock)));
     baseUIOriginal = reinterpret_cast<MessageFn>(Detour(compat::MapViewDrawStreamEntry(4), reinterpret_cast<void*>(&BaseUI)));
     fillOriginal[0] = reinterpret_cast<FillFn>(Detour(compat::MapViewDrawStreamEntry(1), reinterpret_cast<void*>(&Fill<0>)));
@@ -439,7 +454,7 @@ void MapViewDrawStreamStartup() {
     const bool overlay = Patch(child, 4, reinterpret_cast<void*>(&SetOverlay));
     const bool notify = Patch(target, 3, reinterpret_cast<void*>(&Notify));
     const bool ui = Patch(window, 3, reinterpret_cast<void*>(&UIMessage));
-    Log("drawstream MapView installed Update=%u u8=%u i8=%u overlay=%u notify=%u ui=%u clock=%u base=%u; complete profile=source-zero/no-custom/registered-overlay",
+    Log("drawstream MapView installed Update=%u u8=%u i8=%u overlay=%u notify=%u ui=%u clock=%u base=%u; complete profile=source-zero/bounded-custom",
         updateOriginal != nullptr, fillOriginal[0] != nullptr, fillOriginal[1] != nullptr, overlay, notify, ui, clockOriginal != nullptr, baseUIOriginal != nullptr);
 }
 void MapViewDrawStreamMonth(int32_t julian) {
