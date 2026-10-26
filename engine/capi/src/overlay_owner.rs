@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private static-library transport for the portable and native overlay interfaces.
+mod drawing;
 mod native;
 use fc4_core::terrain_overlays::{BindingLookup, Handle, OverlayManager, TerrainProvider, TextureBinding};
 use fc4_core::terrain_overlays::{Placement, TextureFactory, ViewProvider};
@@ -59,13 +60,21 @@ impl TextureBinding for Dimensions {
     }
 }
 
-pub struct Owner(Mutex<OverlayManager>, Mutex<Option<Arc<native::Host>>>);
+pub struct Owner(
+    Mutex<OverlayManager>,
+    Mutex<Option<Arc<native::Host>>>,
+    native::ResourceMap,
+);
 
 // The pointers below are private handles returned by create, valid until destroy.
 // A mutex also covers const getters: the host reads on a second thread.
 #[no_mangle]
 pub extern "C" fn fc4_overlay_owner_create() -> *mut Owner {
-    Box::into_raw(Box::new(Owner(Mutex::new(OverlayManager::new()), Mutex::new(None))))
+    Box::into_raw(Box::new(Owner(
+        Mutex::new(OverlayManager::new()),
+        Mutex::new(None),
+        Arc::default(),
+    )))
 }
 #[no_mangle]
 pub unsafe extern "C" fn fc4_overlay_owner_destroy(owner: *mut Owner) {

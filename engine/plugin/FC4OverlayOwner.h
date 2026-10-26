@@ -41,6 +41,7 @@ public:
     virtual bool InitBindingFactory(cIGZUnknown* factory, uint32_t nx, uint32_t nz, float cellWidth,
                                     bool dynamic, bool water, int32_t quality, int32_t debug,
                                     const FC4OverlayBindingCalls* testCalls = nullptr) = 0;
+    virtual bool DrawFrame(const FC4OverlayFrame*) = 0;
 };
 
 cIGZUnknown* CreateFC4OverlayOwner();

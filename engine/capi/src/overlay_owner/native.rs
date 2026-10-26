@@ -5,7 +5,10 @@ use fc4_core::terrain_overlays::{
     BindingLookup, CellRect, GeometryToken, Handle, ModelLighting, ProjectionDescriptor, TerrainProvider,
     TextureBinding, TextureFactory, TextureSource, ViewProvider,
 };
-use std::sync::Arc;
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
+
+pub(super) type ResourceMap = Arc<Mutex<BTreeMap<usize, (usize, u32)>>>;
 
 #[repr(C)]
 #[derive(Default)]
@@ -39,7 +42,7 @@ pub struct Services {
 
 // Only the callback context crosses this boundary; core never dereferences it.
 // The host owns synchronization for retain/release. Owner serializes all calls.
-pub(super) struct Host(Services);
+pub(super) struct Host(Services, ResourceMap);
 #[derive(Clone)]
 struct Adapter {
     host: Arc<Host>,
@@ -61,9 +64,13 @@ struct NativeResource {
     release: unsafe extern "C" fn(usize, usize, u32),
     value: Resource,
     kind: u32,
+    identities: ResourceMap,
 }
 impl Drop for NativeResource {
     fn drop(&mut self) {
+        if let Ok(mut identities) = self.identities.lock() {
+            identities.remove(&(self as *const Self as usize));
+        }
         unsafe { (self.release)(self.value.context, self.value.object, self.kind) };
     }
 }
@@ -78,6 +85,19 @@ impl TextureSource for NativeResource {
     }
 }
 impl Host {
+    fn acquired(&self, value: Resource, kind: u32) -> Option<Arc<NativeResource>> {
+        let resource = Arc::new(NativeResource {
+            release: self.0.release_resource?,
+            value,
+            kind,
+            identities: self.1.clone(),
+        });
+        self.1
+            .lock()
+            .ok()?
+            .insert(Arc::as_ptr(&resource) as usize, (resource.value.object, kind));
+        Some(resource)
+    }
     fn setting(&self, index: u32) -> i32 {
         self.0.setting.map_or(0, |get| unsafe { get(self.0.context, index) })
     }
@@ -90,11 +110,7 @@ impl Host {
         if unsafe { get(self.0.context, object, kind, &mut value) } == 0 || value.object == 0 {
             return None;
         }
-        Some(Arc::new(NativeResource {
-            release: self.0.release_resource?,
-            value,
-            kind,
-        }))
+        self.acquired(value, kind)
     }
     fn lookup(self: &Arc<Self>, slot: u32, key: usize) -> Option<Arc<dyn TextureBinding>> {
         let mut value = Resource::default();
@@ -102,11 +118,7 @@ impl Host {
         if unsafe { get(self.0.context, slot, key, &mut value) } == 0 || value.object == 0 {
             return None;
         }
-        Some(Arc::new(NativeResource {
-            release: self.0.release_resource?,
-            value,
-            kind: 0,
-        }))
+        self.acquired(value, 0).map(|r| r as Arc<dyn TextureBinding>)
     }
 }
 impl TerrainProvider for Adapter {
@@ -230,7 +242,7 @@ pub unsafe extern "C" fn fc4_overlay_native_init(
         old.clone()
     } else {
         services.retain.unwrap()(services.context);
-        Arc::new(Host(*services))
+        Arc::new(Host(*services, owner.2.clone()))
     };
     let result = core.init(Arc::new(Adapter { host: host.clone() }), dynamic != 0, water != 0);
     *saved_host = Some(host);

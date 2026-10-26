@@ -80,3 +80,44 @@ struct FC4OverlayBindingCalls {
     uint32_t (*addRef)(void*);
     uint32_t (*release)(void*);
 };
+
+// Private portable draw transport, NOT the game's draw-context layout. The
+// producer supplies raw inputs; Rust selects records and composes transforms.
+enum class FC4OverlayCommandKind : uint32_t {
+    DepthOffset, DrawState, Transparency, Shade, VertexColors, ResetTransparency,
+    ResetShade, Transform, ClearTransform, Filtering, Wrap, ShadowCombiner,
+    TextureEnabled, Environment, AlphaTest, DeviceFlag7
+};
+struct FC4OverlayCommand {
+    FC4OverlayCommandKind kind;
+    uint32_t a, b, c;
+    float data[16];
+};
+struct FC4OverlayRows {
+    int32_t begin, end;
+    uint32_t count;
+    const int32_t* starts;
+    const int32_t* ends;
+};
+struct FC4OverlayFrame {
+    uintptr_t context;
+    // snapshot=1, decals=2, shadows=4, useSecondStage=8.
+    uint32_t flags;
+    void (*resetModel)(uintptr_t);
+    void (*modelMatrix)(uintptr_t, float*);
+    // depthOffset=0, deviceFlag7=1, locationStrengthEnabled=2.
+    uint32_t (*value)(uintptr_t, uint32_t);
+    // acquire=1 transfers one extension reference if the result is nonzero;
+    // acquire=0 releases exactly that reference on the common exit.
+    uint32_t (*vertexExtension)(uintptr_t, uint32_t acquire);
+    void (*rows)(uintptr_t, FC4OverlayRows*);
+    void (*command)(uintptr_t, const FC4OverlayCommand*);
+    // Borrowed resources, valid for the call. Null means no resource in that arm.
+    void (*texture)(uintptr_t, uint32_t stage, uintptr_t binding, uintptr_t source);
+    // route: land static/dynamic/extension static/extension dynamic=0..3,
+    // water static/dynamic=4..5, land shadow static/dynamic=6..7.
+    void (*rectangle)(uintptr_t, uint32_t route, const int32_t* vertices);
+    int32_t (*water)(uintptr_t, int32_t* cells);
+    void (*shadowParameters)(uintptr_t, float* q_s_rgb);
+    float (*strength)(uintptr_t, const float* worldXZ);
+};

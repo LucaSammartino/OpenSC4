@@ -40,6 +40,7 @@ uint32_t fc4_overlay_native_model(void*, uintptr_t, int32_t, const void*, float*
 void fc4_overlay_native_scale(void*, uint32_t, float, float);
 size_t fc4_overlay_native_stats(const void*, char*, size_t);
 uint32_t fc4_overlay_native_message(void*, uint32_t);
+uint32_t fc4_overlay_native_draw(void*, const FC4OverlayFrame*);
 }
 
 namespace {
@@ -124,6 +125,9 @@ public:
     }
     bool InitServices(const FC4OverlayHost* services, bool dynamic, bool water) override {
         return fc4_overlay_native_init(core_, services, dynamic, water) != 0;
+    }
+    bool DrawFrame(const FC4OverlayFrame* frame) override {
+        return fc4_overlay_native_draw(core_, frame) != 0;
     }
     bool InitBindingFactory(cIGZUnknown* factory, uint32_t nx, uint32_t nz, float width,
                              bool dynamic, bool water, int32_t quality, int32_t debug,

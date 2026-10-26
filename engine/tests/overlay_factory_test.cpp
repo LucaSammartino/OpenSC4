@@ -79,6 +79,131 @@ public:
     bool operator<(const cIGZMessage2& other) const override { return type < other.GetType(); }
 };
 
+struct Drawing {
+    uint32_t resets = 0, acquires = 0, releases = 0, rowReads = 0, parameterReads = 0;
+    bool extension = true;
+    std::vector<FC4OverlayCommand> commands;
+    struct Texture { uint32_t stage; uintptr_t binding, source; };
+    struct Rectangle { uint32_t route; int32_t vertices[4]; };
+    std::vector<Texture> textures;
+    std::vector<Rectangle> rectangles;
+    std::vector<int32_t> starts = std::vector<int32_t>(64, 0);
+    std::vector<int32_t> ends = std::vector<int32_t>(64, 64);
+    static Drawing& Of(uintptr_t p) { return *reinterpret_cast<Drawing*>(p); }
+    static void Reset(uintptr_t p) { ++Of(p).resets; }
+    static void Matrix(uintptr_t, float* out) {
+        std::fill_n(out, 16, 0.0f);
+        out[0] = out[5] = out[10] = out[15] = 1;
+        out[12] = -16; // owner must invert and compose this raw model matrix
+    }
+    static uint32_t Value(uintptr_t, uint32_t index) { return index == 0 ? 17 : 0; }
+    static uint32_t Extension(uintptr_t p, uint32_t acquire) {
+        auto& d = Of(p);
+        if (acquire) { ++d.acquires; return d.extension; }
+        ++d.releases;
+        return 0;
+    }
+    static void Rows(uintptr_t p, FC4OverlayRows* out) {
+        auto& d = Of(p);
+        ++d.rowReads;
+        *out = {0, 64, 64, d.starts.data(), d.ends.data()};
+    }
+    static void Command(uintptr_t p, const FC4OverlayCommand* command) { Of(p).commands.push_back(*command); }
+    static void Bind(uintptr_t p, uint32_t stage, uintptr_t binding, uintptr_t source) {
+        Of(p).textures.push_back({stage, binding, source});
+    }
+    static void Rect(uintptr_t p, uint32_t route, const int32_t* vertices) {
+        Rectangle r{route, {}};
+        std::copy_n(vertices, 4, r.vertices);
+        Of(p).rectangles.push_back(r);
+    }
+    static int32_t Water(uintptr_t, int32_t*) { return 0; }
+    static void Parameters(uintptr_t p, float* values) {
+        ++Of(p).parameterReads;
+        const float raw[5] = {0.5f, 0.25f, 1, 0.75f, 0.5f};
+        std::copy_n(raw, 5, values);
+    }
+    static float Strength(uintptr_t, const float*) { return 1; }
+    FC4OverlayFrame Frame(uint32_t flags = 2) {
+        return {reinterpret_cast<uintptr_t>(this), flags, Reset, Matrix, Value, Extension,
+            Rows, Command, Bind, Rect, Water, Parameters, Strength};
+    }
+};
+
+void CheckDrawing(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
+    Resources resources;
+    auto host = resources.Host();
+    CHECK(owner->InitServices(&host, true, false));
+    const float xz[2] = {128, 128};
+    const auto source = native->AddSource(reinterpret_cast<void*>(1), xz, 32, 0);
+    const auto binding = native->AddBinding(reinterpret_cast<void*>(2), xz, 32, 0);
+    CHECK(source != UINT32_MAX && binding != UINT32_MAX);
+    Drawing drawing;
+    auto frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.resets == 1 && drawing.acquires == 1 && drawing.releases == 1 && drawing.rowReads == 0);
+    CHECK(drawing.parameterReads == 0 && drawing.textures.size() == 2 && drawing.rectangles.size() == 2);
+    CHECK(drawing.textures[0].source == 1 && drawing.textures[0].binding == 0);
+    CHECK(drawing.textures[1].source == 0 && drawing.textures[1].binding == 2);
+    const int32_t expected[4] = {7, 7, 10, 10};
+    for (const auto& rect : drawing.rectangles) {
+        CHECK(rect.route == 3 && std::equal(expected, expected + 4, rect.vertices));
+    }
+    const auto transform = std::find_if(drawing.commands.begin(), drawing.commands.end(), [](const auto& c) {
+        return c.kind == FC4OverlayCommandKind::Transform;
+    });
+    CHECK(transform != drawing.commands.end());
+    if (transform != drawing.commands.end()) CHECK(transform->a == 0 && transform->data[12] == -3.0f);
+    CHECK(drawing.commands.back().kind == FC4OverlayCommandKind::DepthOffset && drawing.commands.back().a == 17);
+    CHECK(drawing.commands[drawing.commands.size() - 2].kind == FC4OverlayCommandKind::ClearTransform);
+    // Dynamic snapshot must return before even checking the producer callbacks.
+    FC4OverlayFrame snapshot{};
+    snapshot.flags = 1;
+    CHECK(owner->DrawFrame(&snapshot) && drawing.resets == 1);
+    FC4OverlayFrame incomplete{};
+    CHECK(!owner->DrawFrame(&incomplete));
+    owner->Shutdown();
+    CHECK(resources.sources == 0 && resources.bindings == 1 && resources.refs == 0);
+    CHECK(!owner->DrawFrame(&frame) && drawing.resets == 1);
+    // Static water takes rows from the producer; the owner still chooses IDs
+    // and expands cell maxima to vertex maxima before issuing rectangles.
+    CHECK(owner->InitServices(&host, false, true));
+    CHECK(native->AddBinding(reinterpret_cast<void*>(3), xz, 32, 0) != UINT32_MAX);
+    drawing = Drawing{};
+    frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.rowReads == 1 && drawing.rectangles.size() == 1 && drawing.rectangles[0].route == 4);
+    CHECK(drawing.acquires == 1 && drawing.releases == 1);
+    // The rough shadow pass consumes lighting inputs and reports the exact
+    // alpha-test reference, without pretending to supply terrain geometry.
+    CHECK(native->AddGroupShadow(123, xz, 32, 0, 0) != UINT32_MAX);
+    drawing = Drawing{};
+    drawing.extension = false;
+    frame = drawing.Frame(4);
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.parameterReads == 1 && drawing.acquires == 1 && drawing.releases == 0);
+    const auto alpha = std::find_if(drawing.commands.begin(), drawing.commands.end(), [](const auto& c) {
+        return c.kind == FC4OverlayCommandKind::AlphaTest && c.a == 1;
+    });
+    CHECK(alpha != drawing.commands.end());
+    if (alpha != drawing.commands.end()) CHECK(alpha->data[0] == 0.125f);
+    // Repeat Init replaces services but retains records and their independent
+    // resources. The draw transport must still resolve those original objects.
+    Resources replacement;
+    auto nextHost = replacement.Host();
+    CHECK(owner->InitServices(&nextHost, true, false));
+    CHECK(resources.refs == 0 && resources.bindings == 2 && replacement.refs == 1);
+    drawing = Drawing{};
+    frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.textures.size() == 1 && drawing.textures[0].binding == 3);
+    owner->Shutdown();
+    CHECK(owner->Init(64, 64, 16, true, false)); // release retained Init binding
+    owner->Shutdown();
+    CHECK(resources.refs == 0 && resources.bindings == 0 && resources.sources == 0);
+    CHECK(replacement.refs == 0 && replacement.bindings == 0);
+}
+
 class BindingFactory;
 struct CountedBinding {
     void* handles = nullptr;
@@ -423,6 +548,7 @@ int main(int argc, char** argv) {
         if (native) {
             CheckNative(owner, native); // owner still holds the object.
             CheckBindingAdapter(owner, native);
+            CheckDrawing(owner, native);
         }
         CHECK(owner->Release() == 0);
     }
