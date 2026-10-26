@@ -21,6 +21,7 @@
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "FC4WriteCapture.h"
+#include "cFC4Message2Standard.h"
 #include "fc4.h"
 
 #include "GZServPtrs.h"
@@ -51,6 +52,7 @@ namespace fc4 {
 namespace {
 
 constexpr uint32_t kMsgDestroyed = 0x99EF1141;  // §5.5 (the occupant's Shutdown)
+constexpr uint32_t kMsgFollowBoundary = 0xFC40CC29;  // diagnostic queue marker, no game behaviour
 constexpr uint32_t kMsgInserted = 0x99EF1142;   // §5.5
 constexpr uint32_t kMsgRemoved = 0x99EF1143;
 constexpr uint32_t kMsgMoved = 0x99EF1146;
@@ -70,6 +72,7 @@ thread_local int t_inCall = 0;  // inside a followed original call on this threa
 int g_samples = 4;
 bool g_listening = false;
 bool g_loggedOurs = false;
+bool g_waitingBoundary = false;
 
 CRITICAL_SECTION g_cs;
 bool g_csReady = false;
@@ -1628,6 +1631,21 @@ void CompareMessagesCalls() {
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr) return;
     const uint32_t type = msg->GetType();
+    if (type == kMsgFollowBoundary) {
+        Lock lock;
+        // Foundations §5.1: normal posts append to the queue. Everything
+        // delivered before this marker was already queued before following
+        // began. Keep comparing it for now, exposing the capture boundary.
+        Log("occmgr shadow boundary: pre-follow queued=%u core pending=%u", unsigned(g_follow.origMsgs.size()),
+            unsigned(g_follow.coreMsgs.size()));
+        for (size_t i = 0; i < g_follow.origMsgs.size() && i < 4; ++i) {
+            const auto& m = g_follow.origMsgs[i];
+            Log("occmgr shadow boundary: pre-follow %s of %p d4=%u", MsgName(m.kind),
+                static_cast<void*>(Occ(m.occ)), m.data4);
+        }
+        g_waitingBoundary = false;
+        return;
+    }
     const bool followed = type == kMsgInserted || type == kMsgRemoved || type == kMsgMoved;
     if (!followed && type != kMsgDestroyed) return;
     void* p = nullptr;
@@ -1946,7 +1964,7 @@ void Listen() {
     bool ok = true;
     // Destroy is subscribed for the §5.3 interleaving check only: it is
     // counted, never replayed onto the core.
-    for (uint32_t id : {kMsgDestroyed, kMsgInserted, kMsgRemoved, kMsgMoved}) {
+    for (uint32_t id : {kMsgDestroyed, kMsgInserted, kMsgRemoved, kMsgMoved, kMsgFollowBoundary}) {
         ok = ms->AddNotification(static_cast<cIGZMessageTarget2*>(&Events()), id) && ok;
     }
     if (!ok) Log("occmgr shadow: a notification was refused; the shadow core can miss messages");
@@ -2034,6 +2052,15 @@ void OccMgrShadowCityLoaded(cISC4City* city) {
             static_cast<unsigned>(mo.rec.occs.size()), static_cast<unsigned>(mo.rec.refs.size()),
             static_cast<double>(st.size_x), static_cast<double>(st.size_z), st.counts[0], st.counts[1], st.counts[2],
             st.counts[3], st.holders, st.nodes);
+    }
+    if (g_followCalls) {
+        cIGZMessageServer2Ptr ms;
+        auto* marker = cFC4Message2Standard::New();
+        marker->AddRef();
+        marker->SetType(kMsgFollowBoundary);
+        g_waitingBoundary = ms && ms->MessagePost(marker, false);
+        marker->Release();
+        if (!g_waitingBoundary) Log("occmgr shadow boundary: marker post failed");
     }
     InstallProbe(orig);
     InstallFollow(orig);
