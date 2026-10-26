@@ -1,5 +1,13 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
+- **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
+  after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
+  the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
+  **ANSWERED 2026-10-26 (re-no29):** MATCHES — §10.2 now separates the four main-model cases and
+  gives a worked trace. The branch immediately after Clip skips Bind and FlipAndLight when the option
+  byte is nonzero (`0x0061EE60–0x0061EE78`, destination `0x0061EF3A`).
+
 <!-- from: core-netocc-close5 round 2 (2026-10-23) -->
 - ~~**NO33 - sections 4.1-4.3 power-pole owner algorithms:** please publish constructor defaults and
   the numeric connection point tables `0x00B0C0D8`/`0x00B0C198`, their subtype extraction and unlisted

@@ -2591,9 +2591,10 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 
 | Path (main model) | Condition | Calls, in order |
 |---|---|---|
-| options skip | option `0x6A845768` true (its byte is saved at `0x0061E97B`) | none: the instance draws the shared flat model |
-| surface | network-flag test (primary slot 8) `0x40000` false | `Bind` `0x00614350`, then `Deform` `0x00614A90`, then `FlipAndLight` `0x00616800` |
-| clipped | `0x40000` true | `Clip` `0x00618B00` **first** (it runs even when the option is set), then `Bind`, then `FlipAndLight` (no `Deform`) |
+| surface, options skip | `0x40000` false and option `0x6A845768` true (its byte is saved at `0x0061E97B`) | none |
+| surface | network-flag test (primary slot 8) `0x40000` false and option false | `Bind` `0x00614350`, then `Deform` `0x00614A90`, then `FlipAndLight` `0x00616800` |
+| clipped, options skip | `0x40000` true and option true | `Clip` `0x00618B00` only |
+| clipped | `0x40000` true and option false | `Clip` **first**, then `Bind`, then `FlipAndLight` (no `Deform`) |
 | second model | option false | `Bind`, then `FlipAndLight` |
 
 `Clip` is called at `0x0061EE60` as `Clip(&lo, &hi, 1)` with
@@ -2601,6 +2602,17 @@ When byte `+0xAB` ≠ 0xFF, the draw attributes get alpha `+0xAB × (1/255)` (co
 - h = (lowest of the four terrain heights at the piece's cell corners) − position y (`0x0061EE07`);
 - the corner heights come from the terrain at `0x00B43CF4`: slot `+0x38` per integer vertex, or, when slot
   `+0x14C` answers true, slot `+0x78` at world (16·x, 16·z) and (16·x+16, 16·z+16).
+
+**NO30, option boundary** (2026-10-26, re-no29). The option suppresses Bind and FlipAndLight on
+the clipped path too. Immediately after Clip (`0x0061EE60`), the saved option byte is tested
+(`0x0061EE65–0x0061EE6B`); a nonzero byte jumps to the alpha handling at `0x0061EF3A`, past both
+Bind (`0x0061EE73`) and the common FlipAndLight call (`0x0061EF35`). This does not suppress the
+earlier model load, transform assignment, clipping, subsequent alpha assignment or cache ownership.
+
+**Worked case:** give the main piece flag `0x40000`, option true, position y=100 and terrain corner
+heights (105, 108, 107, 106). The processing trace is exactly Clip with mode 1 and local lower y=5;
+Bind, Deform and FlipAndLight are absent. With the option false and all other inputs identical,
+the trace is Clip, Bind, FlipAndLight. An alpha byte 128 still sets the instance alpha in both cases.
 
 ### 10.3 The four bodies *(NO21, NO22)*
 

@@ -57,11 +57,6 @@ implementer of the class tables and records.
   the network caller always uses the fully implemented mode 1. Null lo still returns immediately. [missing]
 
 <!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
-- **NO30 - §10.2 clipped path with option `0x6A845768`:** does the true option skip Bind and FlipAndLight
-  after Clip, or does the clipped row override the options-skip row for all three calls? The core treats
-  the explicit parenthesis as an exception for Clip alone: Clip runs, Bind/FlipAndLight skip. [ambiguous]
-
-<!-- from: core-networkmodel-contractfix4 (2026-10-22) -->
 - **NO31 - §10 instance constructor/destructor inventory:** beyond the published object size, base-class
   identity, processor member, resource reference and prebuilt cache lifetimes, what are the initial state
   and teardown side effects of instance ctor `0x00614A30` and destructor `0x00614830`? The pure core models
