@@ -1291,5 +1291,8 @@ fn invalid_zoom_fails_and_degenerate_basis_does_not_invent_valid_vectors() {
 #[test]
 fn yaw_rounds_the_product_before_adding_the_offset_under_pc24() {
     // §2.2 + foundations §18: a single final store changes this by one ULP.
-    assert_eq!(get_camera_view_angles_for_rotation(3, 3).unwrap().yaw.to_bits(), 0x408a_3ae6);
+    assert_eq!(
+        get_camera_view_angles_for_rotation(3, 3).unwrap().yaw.to_bits(),
+        0x408a_3ae6
+    );
 }

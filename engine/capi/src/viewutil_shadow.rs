@@ -237,9 +237,150 @@ unsafe extern "C" fn fc4_viewutil_shadow_rotate(words: *mut u32, rotation: i32) 
     words.copy_from_slice(&[v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]);
 }
 
+/// Private word transport for fully specified owner/iterator storage (§13).
+/// # Safety
+/// `owner` has 284 mutable words, `input` 64 readable words and `out` 32
+/// mutable words. All three initialized buffers must be disjoint.
+#[no_mangle]
+unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: *const u32, out: *mut u32) {
+    if owner.is_null() || input.is_null() || out.is_null() {
+        return;
+    }
+    // SAFETY: fixed disjoint initialized buffers supplied by the observer.
+    let (owner, input, out) = unsafe {
+        (
+            std::slice::from_raw_parts_mut(owner, 0x470 / 4),
+            std::slice::from_raw_parts(input, 64),
+            std::slice::from_raw_parts_mut(out, 32),
+        )
+    };
+    let Some(mut view) = ViewUtilities::from_native_cached_words(owner) else {
+        return;
+    };
+    match op {
+        0x007f6df0 => {
+            owner.copy_from_slice(&ViewUtilities::native_constructor_words());
+            out[31] = 1; // constructor returns its own receiver
+        }
+        0x007f83f0 => {
+            // Only the missing-renderer path is exercised here. Preserve all
+            // stale geometry and invalidate both byte flags, as in §2/§6.
+            view.set_renderer_present(false);
+            view.update_camera_position(None);
+            owner[0] = (owner[0] & !0xff) | u32::from(view.is_valid());
+            owner[0x444 / 4] &= !0xffff;
+        }
+        0x007f9080 => {
+            let mut ray = Ray {
+                origin: vector(out, 0),
+                direction: vector(out, 3),
+            };
+            out[31] = u32::from(view.viewport_position_to_ray(
+                None,
+                input[0] as i32 as f32,
+                input[1] as i32 as f32,
+                &mut ray,
+            ));
+            store(out, 0, ray.origin);
+            store(out, 3, ray.direction);
+        }
+        0x007f9b40 => {
+            if let Some(area) = view.get_ground_plane_visible_area_rectangle(None) {
+                for (i, p) in [area.inner.min, area.inner.max, area.outer.min, area.outer.max]
+                    .into_iter()
+                    .enumerate()
+                {
+                    if input[0] & (1 << i) != 0 {
+                        store(out, i * 3, p);
+                    }
+                }
+            }
+        }
+        0x0080b3b0 => {
+            let mesh = Mesh {
+                vertices: (0..16).map(|i| vector(input, i * 3)).collect(),
+                indices: (input[59] != 0).then(|| (0..16).map(|i| (15 - i) as u16).collect()),
+                groups: vec![PrimitiveGroup {
+                    kind: input[56],
+                    first: 0,
+                    count: input[57],
+                }],
+            };
+            if let Some(mut iterator) = TriangleIterator::select_group(&mesh, 0) {
+                let mut discarded = [Vec3::ZERO; 3];
+                for _ in 0..input[58] {
+                    let _ = iterator.next_triangle(&mut discarded);
+                }
+                let mut triangle = [vector(out, 0), vector(out, 3), vector(out, 6)];
+                if let Ok(found) = iterator.next_triangle(&mut triangle) {
+                    out[31] = u32::from(found);
+                    if found {
+                        owner[10] = owner[10].wrapping_add(1);
+                    }
+                    for (i, p) in triangle.into_iter().enumerate() {
+                        store(out, i * 3, p);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_state_transport_preserves_stale_geometry_and_failure_outputs() {
+        let mut owner = [0x3f80_0000; 0x470 / 4];
+        owner[1] = 0;
+        owner[0] = 0xaabb_cc01;
+        owner[0x444 / 4] = 0xaabb_0101;
+        let before = owner;
+        let input = [0; 64];
+        let mut out = [0x4120_0000; 32];
+        // SAFETY: disjoint initialized arrays with the documented sizes.
+        unsafe { fc4_viewutil_shadow_state(0x007f9080, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr()) };
+        assert_eq!(owner, before);
+        assert_eq!(&out[..31], &[0x4120_0000; 31]);
+        assert_eq!(out[31], 0);
+        // SAFETY: same fixed buffers.
+        unsafe { fc4_viewutil_shadow_state(0x007f83f0, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr()) };
+        let mut expected = before;
+        expected[0] = 0xaabb_cc00;
+        expected[0x444 / 4] = 0xaabb_0000;
+        assert_eq!(owner, expected);
+    }
+
+    #[test]
+    fn warm_visible_area_copies_each_optional_output_without_touching_owner() {
+        let mut owner = [0; 0x470 / 4];
+        owner[0x444 / 4] = 1;
+        for i in 0..12 {
+            owner[0x414 / 4 + i] = (i as f32).to_bits();
+        }
+        let before = owner;
+        for mask in 0..16 {
+            let mut input = [0; 64];
+            input[0] = mask;
+            let mut out = [0x4120_0000; 32];
+            // SAFETY: fixed disjoint buffers, all sixteen optional-pointer masks.
+            unsafe { fc4_viewutil_shadow_state(0x007f9b40, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr()) };
+            assert_eq!(owner, before);
+            for i in 0..12 {
+                assert_eq!(
+                    out[i],
+                    if mask & (1 << (i / 3)) != 0 {
+                        (i as f32).to_bits()
+                    } else {
+                        0x4120_0000
+                    }
+                );
+            }
+            assert_eq!(&out[12..], &[0x4120_0000; 20]);
+        }
+    }
 
     #[test]
     fn object_angle_transport_keeps_negative_zero_and_signed_extrema() {

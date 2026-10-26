@@ -5,6 +5,18 @@
 use super::*;
 
 impl ViewUtilities {
+    /// Constructor transport only (§1). No camera-derived field is seeded
+    /// from a native constructor result.
+    #[doc(hidden)]
+    pub fn native_constructor_words() -> [u32; 0x470 / 4] {
+        let view = Self::new();
+        let mut words = [0; 0x470 / 4];
+        for (offset, value) in [0x3f4, 0x3f8, 0x410].into_iter().zip(view.unused_constructor_fields) {
+            words[offset / 4] = value.to_bits();
+        }
+        words
+    }
+
     /// Internal observer transport, with the native word offsets in spec §1.
     /// No pointers in the snapshot are dereferenced or retained.
     #[doc(hidden)]
@@ -23,6 +35,7 @@ impl ViewUtilities {
             far: f(0x11c),
         };
         let mut out = Self {
+            renderer_present: words[1] != 0,
             valid: words[0] & 0xff != 0,
             city: (f(0x20), f(0x24)),
             camera: CameraState {
@@ -47,6 +60,18 @@ impl ViewUtilities {
             inverse_scales: v(0x464),
             ..Self::default()
         };
+        if words[0x444 / 4] & 0xff != 0 {
+            let _ = out.visible_area.set(Some(VisibleArea {
+                inner: Aabb {
+                    min: v(0x414),
+                    max: v(0x420),
+                },
+                outer: Aabb {
+                    min: v(0x42c),
+                    max: v(0x438),
+                },
+            }));
+        }
         out.view.volume = volume;
         out.view.bounds = Aabb {
             min: v(0x78),
