@@ -229,7 +229,8 @@ public:
         id=fc4_gzfw_registry_lookup(core_,reinterpret_cast<const uint8_t*>(words[0].data()),words[0].size(),false); if (!id) return false;
         cIGZCommandParameterSet* ps=nullptr; CreateParameters(&ps); if (!ps) return false;
         for (size_t i=1;i<words.size();++i) {
-            cRZBaseString word(words[i].c_str()); cFC4Variant value; value.SetValString(word);
+            // command-system section 3.4: copied RZChar array, without NUL.
+            cFC4Variant value; value.SetRefRZChar(words[i].data(),static_cast<uint32_t>(words[i].size()));
             ps->SetParameter(static_cast<uint32_t>(i-1),*fc4::AsSdk(&value));
         }
         out=ps; return true;

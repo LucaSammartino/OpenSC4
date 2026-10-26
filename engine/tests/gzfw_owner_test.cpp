@@ -22,6 +22,7 @@ using Flag=bool(__thiscall*)(void*,uint32_t);
 using QI=bool(__thiscall*)(void*,uint32_t,void**);
 struct Parameters final : cIGZCommandParameterSet {
     uint32_t refs=0;
+    bool strings=true;
     std::map<uint32_t,std::string> values;
     bool QueryInterface(uint32_t,void**) override { return false; }
     uint32_t AddRef() override { return ++refs; }
@@ -32,6 +33,7 @@ struct Parameters final : cIGZCommandParameterSet {
     cIGZVariant* GetParameter(uint32_t) override { return nullptr; }
     void SetParameter(uint32_t id,const cIGZVariant& value) override {
         cRZBaseString text; value.GetValString(text); values[id]=text.ToChar();
+        strings=strings && value.GetType()==0x800e && value.GetCount()==text.Strlen();
     }
     void AppendParameter(const cIGZVariant&) override {}
     void RemoveParameter(uint32_t) override {}
@@ -61,7 +63,7 @@ bool __fastcall Init(void* p,void*) { ++static_cast<Fake*>(p)->init; return true
 void* __fastcall Dispatcher(void*,void*) { return nullptr; }
 uint32_t __fastcall CreateParameters(void* p,void*,cIGZCommandParameterSet** out) {
     auto* ps=static_cast<Fake*>(p)->parameters;
-    ps->values.clear(); *out=ps; return ps->AddRef();
+    ps->values.clear(); ps->strings=true; *out=ps; return ps->AddRef();
 }
 int32_t __fastcall Execute(void* p,void*,uint32_t id,void* in,void* out) {
     auto& f=*static_cast<Fake*>(p); ++f.executions; f.id=id; f.input=in; f.output=out;
@@ -154,7 +156,7 @@ void ServerTest(FC4TestSeamFn seam) {
     Check(!Slot<Convert>(s,22)(s,"",0,id,parsed) && id==0x1234 && parsed==reinterpret_cast<cIGZCommandParameterSet*>(0x1234),"empty conversion preserves outputs");
     Check(!Slot<Convert>(s,22)(s,"missing",7,id,parsed) && id==0 && parsed==reinterpret_cast<cIGZCommandParameterSet*>(0x1234),"unknown conversion writes only id");
     Check(Slot<Convert>(s,22)(s,"nAmE 5 \"a b\"",0xffffffff,id,parsed) && id==9 && parsed==&parameters,"default generator parses registered name");
-    Check(parameters.values==std::map<uint32_t,std::string>({{0,"5"},{1,"a b"}}) && parameters.refs==1,"string parameters and caller-owned reference");
+    Check(parameters.values==std::map<uint32_t,std::string>({{0,"5"},{1,"a b"}}) && parameters.strings && parameters.refs==1,"string parameters and caller-owned reference");
     parsed->Release();
     std::string many="Name"; for (unsigned i=0;i<300;++i) many+=" x";
     Check(Slot<Convert>(s,22)(s,many.c_str(),0xffffffff,id,parsed) && parameters.values.size()==255 && parameters.values.rbegin()->first==254,"default generator caps input at 256 words");
