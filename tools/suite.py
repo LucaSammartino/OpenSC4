@@ -207,6 +207,13 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             load_seconds = int(allowances['autotest_stall_grace_ms']) // 1000 * 2
             request.update(seconds=str(load_seconds), timeout=str(load_seconds + 180), turbo='0')
             del request['end_date']
+            # Either archive shadow starts the background whole-install scan.
+            # Autotest waits for that scan before RequestQuit. These short
+            # god-mode load probes cover city/load shadows; advancing scenarios
+            # retain both archive shadows and their full evidence.
+            for key in ('dbpf_shadow', 'dbpf_bounds_shadow'):
+                if key in ini:
+                    ini[key] = '0'
         if source_script:
             script = directory / 'scripts' / (row['name'] + source_script.suffix)
             script.parent.mkdir(exist_ok=True)

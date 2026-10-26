@@ -252,6 +252,17 @@ class SuiteParsingTests(unittest.TestCase):
             self.assertIn('timeout = 240\n', load)
             self.assertNotIn('end_date =', load)
 
+    def test_load_only_does_not_wait_for_a_whole_install_archive_scan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            loaded = dict(row, name='load', script='-', notes='load-only; medium city')
+            _, manifest = suite.make_batch(root, [row, loaded], 'shadows', str(root), 'archives')
+            advancing, load = [r['request'] for r in manifest['requests']]
+            for key in ('dbpf_shadow', 'dbpf_bounds_shadow'):
+                self.assertIn(key + ' = 0\n', load)
+                self.assertIn(key + ' = 1\n', advancing)
+
 
 class SuiteQueueTests(unittest.TestCase):
     def test_lua_can_stage_a_dated_terrain_companion_without_replacing_lua_entry(self):
