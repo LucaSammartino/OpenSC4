@@ -2154,7 +2154,7 @@ pub unsafe extern "C" fn fc4_automata_derived_record_roundtrip(
             | 0x4A41_6254
             | 0x8A41_625A
     ) {
-        // SPEC-GAP: AT24-AT27 leave carjacked/limo, ambulance, tank and mass-transit train records unspecified.
+        // SPEC-GAP: AT24-AT28 leave carjacked/limo, ambulance, tank, mass-transit train and fire-truck records unspecified.
         return 0;
     }
     guard(1, || {

@@ -131,7 +131,15 @@ fn derived_owner_records_reject_unknown_classes_and_failed_streams() {
         let mut bytes = Out::default();
         fc4_helicopter_shadow_fixture(&ostream(&mut bytes));
         let mut input = In::new(&bytes.bytes);
-        for class in [0, 0xCBB3_2B0A, 0x4C0D_D224, 0x6C1A_CDE1, 0xEBE0_DCAD, 0x4C22_AE53] {
+        for class in [
+            0,
+            0xCBB3_2B0A,
+            0x4C0D_D224,
+            0x6C1A_CDE1,
+            0xEBE0_DCAD,
+            0x4C22_AE53,
+            0xAA22_2B83,
+        ] {
             assert_eq!(
                 fc4_automata_derived_record_roundtrip(
                     class,

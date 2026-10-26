@@ -128,3 +128,13 @@ contracts. AT22 stays open.
   unsupported class during its initial owner capture (line 2137); that run
   stalled before the first month. Blocks this concrete class's replay; do not
   presume that it aliases Train or discard its trailing bytes.
+- **AT28 — fire-truck record framing:** Publish the full ordered record,
+  wrapper version/acceptance, inherited Emergency Read behavior and reference
+  IIDs for `cSC4FireTruck` (`0xAA222B83`). vehicles.md §7.2 describes its crew
+  and §1 says Emergency plus a reference, but automata.md §6.4 specifies the
+  complete wrapper only for PatrolCar. ABI assigns FireTruck Write `00532ee0`
+  and Read `00532f20`, distinct from PatrolCar. The shared-queue run
+  automata-cities29-5/maxisland-norte-delano.log line 2145 has one unsupported
+  fire truck at load: `derived[0xAA222B83]=0/1`, one of 12 automaton failures.
+  The eight-line diagnostic cap hides it behind other classes, but the complete
+  per-class summary retains it. Blocks this load case; no presumed PatrolCar alias.
