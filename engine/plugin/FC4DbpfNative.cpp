@@ -646,7 +646,10 @@ void DbpfShadowObserve(int32_t julian) {
     }
     for (const auto& file : sample.files) sample.citySelected += file.city;
     cityAfterSave = false;
-    if (sample.interrupted) DbpfShadowWait();
+    // EX58: a live-file obligation cannot be replayed at a later date. Hold
+    // the date from capture, not only once a save has already interrupted it.
+    // Framework ticks still drain the queue; the final tick balances the pause.
+    DbpfShadowWait();
 }
 
 namespace {
