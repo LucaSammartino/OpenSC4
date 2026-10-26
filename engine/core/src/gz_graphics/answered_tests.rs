@@ -272,6 +272,63 @@ fn gzg5_ordinary_alpha_worked_pixels_and_lock_failures() {
 }
 
 struct Texture;
+
+#[test]
+fn gzg5_ordinary_keyed_type6_and_unsupported_source_depth() {
+    let trace = Arc::new(Mutex::new(vec![]));
+    let s = alpha_buffer(1, &trace, true, 4);
+    let d = alpha_buffer(2, &trace, true, 6);
+    let a = alpha_buffer(3, &trace, true, 2);
+    s.inner.pixels.lock().unwrap()[..4].copy_from_slice(&[0xff, 0x7f, 0, 0]);
+    a.inner.pixels.lock().unwrap()[..2].fill(31);
+    d.inner.pixels.lock().unwrap()[..4].copy_from_slice(&[0x34, 0x12, 0xff, 0x7f]);
+    assert_eq!(
+        alpha_blt_no_clip(
+            AlphaSource {
+                buffer: &s,
+                depth: 16,
+                colour_key: Some(0x7fff)
+            },
+            &d,
+            &a,
+            Rect(0, 0, 2, 1),
+            [0, 0]
+        ),
+        Ok(1)
+    );
+    assert_eq!(&d.inner.pixels.lock().unwrap()[..4], &[0x34, 0x12, 0, 0]);
+    d.inner.pixels.lock().unwrap().fill(0xa5);
+    assert_eq!(
+        alpha_blt_no_clip(
+            AlphaSource {
+                buffer: &s,
+                depth: 8,
+                colour_key: None
+            },
+            &d,
+            &a,
+            Rect(0, 0, 2, 1),
+            [0, 0]
+        ),
+        Ok(1)
+    );
+    assert!(d.inner.pixels.lock().unwrap().iter().all(|&b| b == 0xa5));
+    assert_eq!(
+        alpha_blt_no_clip(
+            AlphaSource {
+                buffer: &s,
+                depth: 16,
+                colour_key: None
+            },
+            &s,
+            &a,
+            Rect(0, 0, 1, 1),
+            [0, 0]
+        ),
+        Err(Error::Unsupported("GZG5"))
+    );
+}
+
 impl ImageTexture for Texture {}
 struct Cache(bool);
 impl ImageCache for Cache {
