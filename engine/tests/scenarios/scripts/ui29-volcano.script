@@ -1,0 +1,5 @@
+# disasters.md section 10: explicit cell centre converted to world metres.
+# Lava uses real animation time, not turbo days; observe beyond its 50 s duration.
+2026-01-28 disaster volcano 63 63
+2026-01-28 uiwait 55000
+2026-01-28 mark ui29-volcano complete
