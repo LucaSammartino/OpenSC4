@@ -193,7 +193,11 @@ bool SavedWater(void*, uint32_t x, uint32_t z) {
 
 using InitFn = uint32_t(__fastcall*)(void*, void*);
 InitFn g_seaportInit = nullptr;
+void Listen();
 uint32_t __fastcall FollowSeaportInit(void* self, void* edx) {
+    // App services must exist before requesting the message server. Subsystem
+    // startup runs earlier; city Init still precedes the terrain notifications.
+    Listen();
     CaptureWater(self);
     const uint32_t result = g_seaportInit(self, edx);
     auto* port = reinterpret_cast<cFC4ISC4SeaportDeveloper*>(self);
@@ -787,7 +791,6 @@ void PortsShadowStartup(bool simulatorReplaced, bool portsReplaced) {
             src);
     } else {
         InstallWaterCapture();
-        Listen();
         Log("ports shadow: ON (ports_shadow from %s): a shadow core per developer (read-only host) starts from the "
             "ORIGINAL's record at its first month and follows the messages of §3; at each SimNewMonth the record's "
             "ports are compared with ours, then after the original's month its history value, GetAvgEfficiency "
