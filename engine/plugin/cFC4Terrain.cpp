@@ -50,7 +50,9 @@
 #include "SC4List.h"
 
 #include <atomic>
+#include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <vector>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -347,7 +349,19 @@ public:
     uint32_t nativeReserved_[4]{};
     WaterDrawVertex* vertices_ = nullptr;
 
-    cFC4STESurfaceWater() = default;
+    cFC4STESurfaceWater() {
+        std::lock_guard<std::mutex> guard(InstanceMutex());
+        vertices_ = SharedVertices();
+        Instances().push_back(this);
+    }
+
+    // The city may create a distinct water interface before terrain Init.
+    // Its native view reads that object's +0x18, not necessarily terrain +0x24.
+    static void PublishDrawVertices(WaterDrawVertex* vertices) {
+        std::lock_guard<std::mutex> guard(InstanceMutex());
+        SharedVertices() = vertices;
+        for (auto* water : Instances()) water->vertices_ = vertices;
+    }
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override {
         if (ppvObj == nullptr) return false;
@@ -410,7 +424,18 @@ public:
     }
 
 private:
-    ~cFC4STESurfaceWater() = default;
+    ~cFC4STESurfaceWater() {
+        std::lock_guard<std::mutex> guard(InstanceMutex());
+        auto& instances = Instances();
+        instances.erase(std::find(instances.begin(), instances.end(), this));
+    }
+
+    static std::mutex& InstanceMutex() { static std::mutex mutex; return mutex; }
+    static std::vector<cFC4STESurfaceWater*>& Instances() {
+        static std::vector<cFC4STESurfaceWater*> instances;
+        return instances;
+    }
+    static WaterDrawVertex*& SharedVertices() { static WaterDrawVertex* vertices = nullptr; return vertices; }
 
     uint32_t refCount_ = 0;
     bool destroying_ = false;
@@ -778,7 +803,7 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
     drawVertices_.resize(f_.vertexCount);
     waterVertices_.resize(f_.vertexCount);
     f_.vertices = drawVertices_.data();
-    water_->vertices_ = waterVertices_.data();
+    cFC4STESurfaceWater::PublishDrawVertices(waterVertices_.data());
     f_.seaLevel = fc4_terrain_sea_level(core_);
     f_.cachedMin = fc4_terrain_cached_height(core_, 0);
     f_.cachedMax = fc4_terrain_cached_height(core_, 1);
@@ -851,7 +876,7 @@ void cFC4STETerrain::DestroyCore() {
     fc4_terrain_destroy(core_);
     core_ = nullptr;
     f_.vertices = nullptr;
-    water_->vertices_ = nullptr;
+    cFC4STESurfaceWater::PublishDrawVertices(nullptr);
     drawVertices_.clear();
     waterVertices_.clear();
     g_cellsX.store(0, std::memory_order_release);
@@ -1703,11 +1728,14 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     in->brushLevel = 0;
     in->mismatches = 0;
 
+    auto* earlyWater = new cFC4STESurfaceWater();
+    earlyWater->AddRef();
     auto* t = new cFC4STETerrain();
     t->AddRef();
     t->Host()->testMode = true;
     if (!t->Init()) {
         t->Release();
+        earlyWater->Release();
         return -1;
     }
 
@@ -1838,6 +1866,9 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     auto* water = static_cast<uint8_t*>(t->f_.surfaceWater);
     auto* waterVertices = *reinterpret_cast<WaterDrawVertex**>(water + 0x18);
     checkView(waterVertices != nullptr && waterVertices[index].depth == t->GetWaterDepthAtFlatIndex(index));
+    auto* lateWater = new cFC4STESurfaceWater();
+    lateWater->AddRef();
+    checkView(earlyWater->vertices_ == waterVertices && lateWater->vertices_ == waterVertices);
     uint8_t context[0x50]{};
     *reinterpret_cast<void**>(context + 0x4C) = t->GetView();
     float uv[8]{0, 0, 1, 0, 0, 1, 1, 1};
@@ -1853,8 +1884,11 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     t->Shutdown();
     checkView(view.shutdownCalls == 1 && view.releases == 1 && view.errors == 0);
     checkView(t->GetView() == nullptr && t->f_.vertices == nullptr);
+    checkView(earlyWater->vertices_ == nullptr && lateWater->vertices_ == nullptr);
     checkView(t->AddRef() == 2);  // view returned its retained reference
     t->Release();
+    earlyWater->Release();
+    lateWater->Release();
     t->Shutdown();
     checkView(view.shutdownCalls == 1 && view.releases == 1);
     t->Release();
