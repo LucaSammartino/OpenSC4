@@ -236,8 +236,8 @@ generated index: the questions live one file per spec, so read only the file for
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
 | application | 12 | 6 | AP19 | questions/application.md |
-| audio | 8 | 12 | AU51 | questions/audio.md |
-| audio-ambience | 4 | 11 | AA15 | questions/audio-ambience.md |
+| audio | 6 | 14 | AU51 | questions/audio.md |
+| audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
@@ -271,7 +271,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 3 | 44 | DS48 | questions/disasters.md |
-| dispatch | 1 | 12 | DP14 | questions/dispatch.md |
+| dispatch | 0 | 13 | DP14 | questions/dispatch.md |
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
@@ -411,7 +411,7 @@ generated index: the questions live one file per spec, so read only the file for
 | underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 9 | VH12 | questions/vehicles.md |
-| video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
+| video-preferences | 0 | 5 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 5 | 13 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **666** | **1588** | | |
+| **total** | **657** | **1597** | | |
