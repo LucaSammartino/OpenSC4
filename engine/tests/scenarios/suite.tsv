@@ -173,7 +173,7 @@ gen28-tegel-s2-default	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen28-tegel
 gen28-tegel-s2-grow	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen28-tegel-s2-grow.script	2031-08-21	gen	Funded v3 seed 2 grow; 24 months; edge/churn refusals intentional; gen27 retained separately
 gen28-tegel-s2-churn	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen28-tegel-s2-churn.script	2031-08-21	gen	Funded v3 seed 2 churn; 24 months; edge/churn refusals intentional; gen27 retained separately
 gen28-tegel-s2-edge	FC4 Test	Tegel	engine/tests/scenarios/scripts/gen28-tegel-s2-edge.script	2031-08-21	gen	Funded v3 seed 2 edge; 24 months; edge/churn refusals intentional; gen27 retained separately
-gen28-empty-small	Berlin	New City	engine/tests/scenarios/scripts/gen28-empty-small.script	2002-01-01	gen	Explicit establishment; funded small empty tile; two game years
-gen28-empty-medium	Berlin	Tempelhof	engine/tests/scenarios/scripts/gen28-empty-medium.script	2002-01-01	gen	Explicit establishment; funded medium empty tile; two game years
+gen28-empty-small	Berlin	New City	engine/tests/scenarios/scripts/gen28-empty-small.script	2002-01-12	gen	Explicit establishment; funded small empty tile; two years from saved date 2000-01-12
+gen28-empty-medium	Berlin	Tempelhof	engine/tests/scenarios/scripts/gen28-empty-medium.script	2002-01-08	gen	Explicit establishment; funded medium empty tile; two years from saved date 2000-01-08
 finding28-tegel-port	FC4 Test	Tegel	engine/tests/scenarios/scripts/finding28-tegel-port.script	2029-08-24	findings	Candidate minimum for gen27 Tegel seed 2 grow stall; original fixed script retained; qualification pending
 finding28-tegel-lighting	FC4 Test	Tegel	engine/tests/scenarios/scripts/finding28-tegel-lighting.script	2030-06-22	findings	Candidate minimum for gen27 Tegel seed 0 churn native AV; qualification pending
