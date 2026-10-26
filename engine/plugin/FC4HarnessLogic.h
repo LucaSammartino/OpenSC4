@@ -230,6 +230,7 @@ enum class ScriptOp {
     PortProps,
     ClockMode, // clockmode 0|1|2: enable transitions, then select normal/day/night
     LightingHour, // lightinghour 0..23: genuine lighting manager SetTimeOfDay
+    MySim,        // mysim movein|query: replacement-interface persistence exercise
     Funds,        // funds 0..999999999: set treasury through the budget interface
     Establish     // establish <name>: name and found an unfounded city
 };
@@ -272,6 +273,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::PortProps: return "portprops";
         case ScriptOp::ClockMode: return "clockmode";
         case ScriptOp::LightingHour: return "lightinghour";
+        case ScriptOp::MySim: return "mysim";
         case ScriptOp::Funds: return "funds";
         case ScriptOp::Establish: return "establish";
     }
@@ -430,7 +432,15 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         }
         return true;
     };
-    if (name == "zone" || name == "pricezone") {
+    if (name == "mysim") {
+        a.op = ScriptOp::MySim;
+        if (!wantArgs(1, "movein or query")) return false;
+        if (tok[2] != "movein" && tok[2] != "query") {
+            *error = "mysim expects movein or query";
+            return false;
+        }
+        a.on = tok[2] == "movein";
+    } else if (name == "zone" || name == "pricezone") {
         a.op = name == "zone" ? ScriptOp::Zone : ScriptOp::PriceZone;
         if (!wantArgs(5, "x0 z0 x1 z1 type") || !rect()) return false;
         if (!detail::ParseCount(tok[6], 15, &a.type)) {

@@ -13,8 +13,20 @@
 #pragma once
 
 #include "fc4.h"
+#include "cISC4BuildingOccupant.h"
+#include "cISC4Occupant.h"
 
 namespace fc4 {
+
+// SDK building slot 3 supplies the occupant interface used by dispatch/position.
+inline cISC4Occupant* MySimBuildingOccupant(cISC4BuildingOccupant* building) {
+    return building ? building->AsOccupant() : nullptr;
+}
+inline bool MySimBuildingPosition(cISC4BuildingOccupant* building, cS3DVector3* out) {
+    cISC4Occupant* occupant = MySimBuildingOccupant(building);
+    // [abi-ret] occupant slot 8 (interfaces.tsv eax-or-void): only gates the position output.
+    return occupant && occupant->GetPosition(out);
+}
 
 // Sets the city/building/grid callbacks of `h` (the Lua, dispatch, message
 // and reference callbacks are the caller's).

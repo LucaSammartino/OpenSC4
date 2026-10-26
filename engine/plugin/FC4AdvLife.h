@@ -33,6 +33,11 @@ public:
     AdvFront(const AdvFront&) = delete;
     AdvFront& operator=(const AdvFront&) = delete;
 
+    // Keep a freshly created object alive until the director's first QI.
+    // Ownership transfers to the ordinary first GZCOM reference, without
+    // adding a reference the caller could never release.
+    void HoldForFactory(fc4_adv_obj* handle) { strong_ = handle; }
+
     // A handle for one call: the strong one, or a temporary upgrade (null
     // once the core object is gone).
     class Pin {

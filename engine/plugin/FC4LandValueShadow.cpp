@@ -71,6 +71,9 @@ bool g_enabled = false;
 bool g_replaced = false;
 long g_cells = kDefaultCells;
 bool g_started = false;
+bool g_traceInputs = false;
+bool g_inputDay = false;
+uint32_t g_inputAltitudeReads = 0;
 
 bool g_loggedOurs = false;
 bool g_loggedNone = false;
@@ -92,6 +95,7 @@ void ReadSettings() {
     if (n <= 0) n = kDefaultCells;
     if (n > kMaxCells) n = kMaxCells;
     g_cells = n;
+    g_traceInputs = SettingInt("landvalue_shadow_inputs", "FC4_LANDVALUE_SHADOW_INPUTS", 0) != 0;
 }
 
 // ---- the read-only host (fc4_landvalue_host, landvalue.md §12) ------------------------------------
@@ -119,7 +123,13 @@ bool IsLandVertex(void*, uint32_t x, uint32_t z) {
 
 float Altitude(void*, float x, float z) {
     cISTETerrain* t = Terrain();
-    return t ? t->GetAltitude(x, z) : 0.0f;  // compiled slot 13 (foundations §16)
+    const float a = t ? t->GetAltitude(x, z) : 0.0f;  // compiled slot 13 (foundations §16)
+    if (g_traceInputs && ((x == 16.0f && (z == 16.0f || z == 1584.0f)) || (x == 912.0f && z == 976.0f))) {
+        Log("landvalue input julian=%ld event=%s altitude_read=%u world=(%.0f,%.0f) altitude=%.9g "
+            "input_capture=pass-end-sample native_step_capture=0",
+            PublishedJulian(), g_inputDay ? "day-replay" : "pass-end-replay", ++g_inputAltitudeReads, x, z, a);
+    }
+    return a;
 }
 
 float MinAllowedHeight(void*) {
@@ -145,7 +155,13 @@ float AreaSlope(void*, int32_t x1, int32_t z1, int32_t x2, int32_t z2) {
     cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr;  // borrowed
     if (ld == nullptr) return 0.0f;
     const SC4Rect<int32_t> r(x1, z1, x2, z2);
-    return ld->GetAreaSlope(r, true);
+    const float slope = ld->GetAreaSlope(r, true);
+    if (g_traceInputs && ((x1 == 56 && z1 == 56) || (x1 == 0 && z1 == 0))) {
+        Log("landvalue input julian=%ld event=%s slope_rect=(%d,%d..%d,%d) water=1 slope=%.9g "
+            "input_capture=pass-end-sample native_step_capture=0",
+            PublishedJulian(), g_inputDay ? "day-replay" : "pass-end-replay", x1, z1, x2, z2, slope);
+    }
+    return slope;
 }
 
 // The token is the pointer GetDeveloper(ID) returns: the original applies its
@@ -394,6 +410,22 @@ intptr_t OnEvent(cISC4City* city, int32_t julian, bool day) {
     g_run.sim = sim;
     g_run.julian = julian;
     g_run.day = day;
+    g_inputDay = day;
+    g_inputAltitudeReads = 0;
+    if (g_traceInputs && day) {
+        cISTETerrain* terrain = Terrain();
+        cISC4BuildingDevelopmentSimulator* bds = Bds();
+        cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr;  // borrowed
+        if (terrain && ld) {
+            Log("landvalue terrain sample julian=%ld event=day-observer "
+                "altitude(1,1)=%.9g altitude(1,99)=%.9g altitude(57,61)=%.9g "
+                "slope(56,56..63,63,water=1)=%.9g "
+                "native_step_capture=0",
+                PublishedJulian(), terrain->GetAltitude(16.0f, 16.0f), terrain->GetAltitude(16.0f, 1584.0f),
+                terrain->GetAltitude(912.0f, 976.0f),
+                ld->GetAreaSlope(SC4Rect<int32_t>(56, 56, 63, 63), true));
+        }
+    }
     SehGuard(day ? "landvalue shadow (day)" : "landvalue shadow (pass end)", &Step, nullptr);
     g_city = nullptr;
     intptr_t result = g_run.done ? g_run.result : -2;

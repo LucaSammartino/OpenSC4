@@ -203,7 +203,8 @@ terrain or any grid. Calling it from a shadow, or more often than state 5 does, 
 ### 6.1 When each input is read *[compat]* (QUESTIONS LV1, from the exe)
 
 A pass has **no single input instant**. Each state reads the world at the moment it handles a tract (or developer),
-inside its own `Step` call, and never reads it again for that pass. The calls of one pass are spread over frames
+inside its own `Step` call, and retains that work. Later states can read the same terrain again, and state 3's
+zoning fallback can rescan (§6.1.6). The calls of one pass are spread over frames
 and days (SimIdle every frame, paused or not, plus one 5 ms call per SimNewDay, §5), so two states, and two tracts
 of one time-sliced state, can see different worlds. The original keeps no copy of any input: nothing is snapshotted
 at the pass start, at SimNewMonth or at the pass end.
@@ -212,7 +213,7 @@ at the pass start, at SimNewMonth or at the pass end.
 |---|---|---|
 | 1 | `HasLand(t)` (terrain altitude and water level of its (S+1)² vertices, §2) | scratch base; it also decides the water-bonus sources of state 2 |
 | 2 | no world input except terrain `MaxAllowedHeight`, `MinAllowedHeight` (tuning constants) | state 3 |
-| 3 | `HasLand(t)`, `alt(t)`, and `IsZoned(t)` unless ignoreZoning (or HasLand is false: `IsZoned` is evaluated first, so it is read for every tract while ignoreZoning is false) | minAlt, maxAlt, meanAlt, modeAlt, pivot, ranges, topIndex; ignoreZoning for state 8. `SetupAltitudeEffect` (end of state 3, same call as the last tract) reads `MaxAllowedHeight` again when highRange > 100 (§7.3) |
+| 3 | `HasLand(t)`, then `alt(t)`, then `IsZoned(t)` unless ignoreZoning. Zoning is tested even when the saved HasLand result is false; HasLand is not called a second time. | minAlt, maxAlt, meanAlt, modeAlt, pivot, ranges, topIndex; ignoreZoning for state 8. `SetupAltitudeEffect` (end of state 3, same call as the last tract) reads `MaxAllowedHeight` again when highRange > 100 (§7.3) |
 | 5 | per slope tract: terrain altitude and water level of its 9 × 9 vertices (`GetAreaSlope`, §6) | slope grid |
 | 4 | `alt(t)` **again** (terrain `GetAltitude` at the tract centre); combined with state 1's scratch and state 3's parameters | intrinsic grid |
 | 6 | nothing from the world (copies intrinsic) | |
@@ -255,7 +256,7 @@ Typed input record for one pass (what an implementation or shadow needs to recom
 | Part | Type | Taken at |
 |---|---|---|
 | land1[t] | bool per land value tract | the state-1 call that handled t |
-| land3[t], alt3[t], zoned3[t] | bool, float32 (`GetAltitude` result stored to float32), bool | the state-3 call that handled t (the last scan if the fallback ran) |
+| land3[t], alt3[t], zoned3[t], per scan | bool, float32 (`GetAltitude` result stored to float32), bool | the state-3 call that handled t; keep both scans if the fallback ran, because first-scan minAlt/maxAlt survive (§6.1.6) |
 | areaSlope[s] | float32 per slope tract | the state-5 call that handled s |
 | alt4[t] | float32 | the state-4 call that handled t (absent when there is no altitude curve) |
 | D[i] | int16 grid per developer, in list order | developer i's state-7 call |
@@ -330,9 +331,10 @@ Next advances x first, wraps x to x0 and increases z, with inclusive signed int3
 (`0x0060C8D0–0x0060C92A`). Iterator state 2 is exhaustion, not a valid final tract. An unchanged fresh
 iterator means no tract was read. On a pipeline transition attribute work to the old state under
 §6's rules, including its skip cases; a newly reset iterator does not imply new-state work.
-In the state-3 fallback, ignoreZoning changes to true, statistics
-and the tract iterator reset, and state remains 3 (`0x006BEBED–0x006BEC2B`); discard the old
-scan's inputs rather than interpreting the reset as ordinary forward progress.
+In the state-3 fallback, ignoreZoning changes to true, sum/count/histogram
+and the tract iterator reset, and state remains 3 (`0x006BEBED–0x006BEC2B`). Start a separate
+scan record rather than interpreting the reset as ordinary forward progress. Keep the
+first scan's land/altitude observations for minAlt/maxAlt, which are **not** reset (§6.1.6).
 
 State 6 establishes the first developer cursor without reading its desirability map
 (`0x006BEEB3–0x006BEEC3`). A state-7 call with cursor unequal to header reads that one node's
@@ -584,6 +586,146 @@ further native field or signature to infer for this answer. Until that evidence 
 actual before/forward/after capture exist, retain
 `input_capture=pass-end-sample; native_step_capture=0`. Closing LV8 does not close LV2 or
 LV7, certify an installed adapter, or upgrade exact sampled output to input provenance.
+
+### 6.1.5 LV9: usable observation boundary and host eligibility *[compat]*
+
+**Answer: native capture remains ineligible until an independently supplied host meets
+§6.1.4.** The examined native lifecycle and dispatch paths supply no admission/exclusion
+service that a plugin can acquire. A deterministic reference-host fixture demonstrates
+the obligations, not an installed game host. This closes LV9's native question with a
+negative eligibility decision; providing and validating the host remains integration
+work. It does not require another inference of fields, signatures or lifecycle order.
+
+There are two different boundaries:
+
+| Purpose | Observable boundary and required behavior |
+|---|---|
+| Attribute inputs to actual work | Bracket **each actual delivery** of SimNewDay `0x66956814` or SimIdle `0x6695681A` to native land-value M, before its `DoMessage` and immediately after it returns (§6.1.1). Save pre-state/progress and owned inputs, forward once with unchanged message/budget, then save post-state/progress. State 0 alone is not a pass-wide input boundary. |
+| Safely publish or retire the route | The host must close admission **before callers can fetch the affected destination**, drain earlier admissions, then mutate/retire under that exclusion. Calendar dispatch fetches M's table at `0x007039C6` and calls slot 3 at `0x007039CB`; idle's SendAgentMessage fetches it at `0x0070251B` and calls at `0x00702520`. These are concrete fetch/call boundaries to cover, not native barrier APIs. Exclusion must also cover notifications, nested entry and every affected thread; gating only these two simulator call sites does not establish route-wide exclusion. |
+| Preserve inputs during capture | From the before-copy through native reads and the after-copy, admit no conflicting terrain/zoning/developer mutation or owner destruction. If that interval cannot be established, the record is not faithful. Ordinary pause, an observer's entry counter or the simulator's current state does not establish it. |
+| Cover startup and shutdown | Establish the route before the first initialized delivery on **both** new- and loaded-city paths; do not read incomplete Init state. Close owner-read admission and drain accepted intervals before native Shutdown destroys inputs. Apply the separate route-retirement proof even if an L/M reference keeps the allocation alive (§6.1.4). |
+
+TerrainHeightsChanged `0x278E6003` is a dirty notification, not an exclusion point or a
+terrain snapshot. SimNewMonth can restart a completed pass, but does not freeze its
+subsequent inputs. LandValueMapChanged is queued after the work, too late to capture its
+reads. Message-server dispatch retains a target list, releases its collection lock,
+then fetches/calls each target (`0x0092EAF1–0x0092EB15`); unsubscribing cannot drain that
+already retained list. None supplies the missing host provision.
+
+Until an actual host is identified and demonstrates all these guarantees, leave capture
+disabled and report `input_capture=pass-end-sample; native_step_capture=0`, including on
+output-exact passes. Do not require input-faithful replay from edited pass-end samples,
+select a historical sample by matching output, or count the reference-host vectors as
+game installation evidence. LV2/LV7 still require their actual runtime captures.
+
+### 6.1.6 LV10: terrain edits, retained work and replay fixtures *[compat]*
+
+**Answer: no additional terrain-change refresh.** TerrainHeightsChanged enters the
+common dirty=true store and returns (`0x006BF0FC–0x006BF101`, `0x006BF173`). It does not
+reset either iterator, clear a grid, recalculate statistics or change pipelineState.
+Step dispatches on its saved state, without a dirty-triggered restart
+(`0x006BE7CD–0x006BE7DD`). Thus a terrain edit affects only reads **still to occur**.
+Completed work, even within a partially scanned state, survives. Dirty coalesces changes
+into the next eligible monthly pass; it is not a queue of per-edit recalculations.
+
+| Execution order | Read/write order and retention across an edit |
+|---|---|
+| 0, then 1 | State 0 resets the tract iterator only. State 1 tests live land/water vertices for each yielded tract and writes that tract's scratch base. Already written scratch cells are not revisited. |
+| 2 | Water bonus uses the completed scratch grid, not another land/water scan. Initialise min/max from allowed terrain limits, clear sum/count/histogram and ignoreZoning, reset the iterator, enter 3 (`0x006BE93F–0x006BE98F`). |
+| 3, each tract | First HasLand, then centre altitude stored as float32 (`0x006BEA36–0x006BEA63`); update land min/max, then test zoning unless ignoreZoning, then use the saved land result to decide counting. Integer sum is converted to float, altitude added, result truncated back to int32 **for each counted tract**; increment count and the clamped altitude bin (`0x006BEAA1–0x006BEB0B`). Retain processed tracts' contributions; later tracts read live terrain. There is no subtraction/recount after an edit. |
+| 3, scan end | Mean is first stored as 0, or sum/count when count is positive (`0x006BEB12–0x006BEB2D`). With zero count and ignoreZoning=false, reset sum/count/histogram and iterator, set ignoreZoning=true and return in 3; **keep min/max from the first scan** (`0x006BEBED–0x006BEC2B`). The next scan reads live terrain again and can extend those extrema. Otherwise finish mode/clamping and altitude-effect setup, reset the slope iterator and enter 5 (`0x006BEB30–0x006BEBDD`). Neither a terrain edit nor a state-4 read repeats this setup. |
+| 5 | Read live altitude/water through GetAreaSlope for each yielded slope tract and store float32 to that cell (`0x006BECF0–0x006BED31`). An already written slope cell keeps its value, including across later slices of state 5. After the final cell, reset the intrinsic iterator and enter 4 (`0x006BED39–0x006BED45`). |
+| 4 | Read each tract's centre altitude **again**, round the argument to float32, evaluate it with the retained state-3 parameters, add the retained state-1/2 scratch byte and saturate to 255 (`0x006BEE11–0x006BEE6F`). Do not read slope or recompute mean/mode/extrema here. Written intrinsic cells survive later edits; unprocessed cells use their later live altitude. If the altitude curve is absent, retain the whole old intrinsic grid (§6). |
+| 6, 7, 8 | Copy intrinsic in 6; apply each developer's actually published D in its own state-7 call, then publish total. Do not regenerate D from the new slope/terrain. State-7 completion clears the reused sum/count fields for averaging (`0x006BEF52–0x006BEF61`); the stored mean/mode and altitude-effect parameters survive. State 8 retests live zoning/land to choose cells for the average; it does not recompute their intrinsic, slope or total (`0x006BF016–0x006BF048`). |
+| 9, then monthly restart | State 9 does no work. SimNewMonth clears dirty and selects state 0 **only if dirty and state 9** (`0x006BF122–0x006BF134`); it does not execute state 0 in that delivery. A month arriving during a running pass leaves its work and dirty flag intact. The following eligible month begins a new pass, whose states 1/3/5/4 obtain new inputs. |
+
+Consequently mean/mode and altitude-effect parameters can describe older terrain than
+the slope grid, which can in turn describe older terrain than some intrinsic cells.
+An edit after state 3 and before 5/4 retains the old statistics, reads the new slope in
+5 and the new altitude in 4. An edit after a slope cell or intrinsic cell was processed
+does not repair that cell in this pass. Recompute that work only when the ordinary
+pipeline next reaches it. The sole state-3 rescan is the zoning fallback above, not an
+edit handler. A fallback capture must retain first-scan extrema contributions as well
+as the second scan; “last scan only” is insufficient when terrain changes between scans.
+
+**Reduced numeric fixture for controlled deliveries.** This is an input-record test,
+not a reconstruction of the city map. Start immediately after state 2 with scratch=1
+for two land tracts A and B; both are zoned, other tracts are not land. Use the shipped
+altitude curve (§7.3), no developers, and land/zoned=true for A/B in state 8. A's old
+altitude is float32(228.07106), B's is 300. Their completed state-3 sum is 528, count=2,
+mean=264, min=A's old altitude, max=300; bins 7 and 9 tie, so mode=240, pivot=240,
+highRange=60, topIndex=100. No terrain edit may replace these values mid-pass.
+
+| Delivery-controlled edit | Expected results of this pass |
+|---|---|
+| After completed 3, before 5; A becomes 270 | Mean=264, mode=240. State 4's A index is 75, curve output 21, intrinsic A=22; B index=100, intrinsic B=51. Empty-developer publication gives total A=22/B=51; average=36. A slope input changed from 8.65548706 to 13.0744085 is stored as the latter when 5 processes it. |
+| After completed 5, before 4; same edit | Same retained statistics, intrinsic/total and average as above. A slope cell already written as 8.65548706 stays that value, even though an immediate independent terrain query now returns 13.0744085. |
+| After completed 4, before 6; same edit | Old intrinsic A=1/B=51 survives, total A=1/B=51, average=26; statistics and written slope remain old. Do not rerun 4 from state 6. |
+| Next eligible monthly pass, A=270/B=300 throughout | New sum=570, mean=285, min=270, max=300, mode=pivot=272, lowRange=2, highRange=28. A index=0, intrinsic/total A=1; B=51; average=26. Slope now takes the changed value in 5. |
+
+For a separate fallback variant, make both tracts unzoned during the **first** state-3
+scan at old altitudes. It counts zero but records min=float32(228.07106), max=300.
+Between scans set A=270. The ignoreZoning scan produces sum=570, mean=285, mode=pivot=272,
+but min **stays old**, lowRange is float32(272 − old min), and highRange=28. State 4's A
+index truncates to 47, curve output truncates to 9, intrinsic/total A=10; B=51, average=30.
+A fresh pass instead gives A=1. This difference tests retained extrema, not a special
+terrain refresh. Arithmetic/storage order is verified at `0x006BD754–0x006BD7AB` and
+`0x006BD83A–0x006BD890`; use §7's float32 rounding and integer truncation.
+
+**Recorded city fixture: `lv-terrain27.script`.** Preserve the full action sequence.
+The main-checkout logs `build-runs/game-results/lvterrain27-repro-base1.log` and
+`lvterrain27-repro-inputs1.log` record these terrain requests (dates are simulation dates):
+
+| Date, 2026 | Recorded action/observation |
+|---|---|
+| January 30 | Set altitude on vertices (57,61)..(89,93) to 270, final argument 1. Vertex (57,61) changes 228.07106 → 270; this is land-value tract (28,30)'s centre, world (912,976) metres. The input-probe day observer reports slope tract (7,7), rectangle (56,56)..(63,63), water=true: 8.65548706 before, 13.0744085 after. These are observer queries, not native state-5 capture. |
+| February 9 | Set altitude on (0,126)..(3,127) to 270, final argument 0; logged vertex (0,126) 271.8013 → 270. |
+| February 19 | In order: request 0 on (0,0)..(4,4), then 5000 on (0,0)..(0,4), both final argument 0. Logged vertex (0,0) is 274.968079 → 0 → 5000. Do not substitute just January's edit for this complete repro. |
+
+March 6 is the recorded **completion date**, not a new terrain-read boundary. Preserve
+the following expected native outputs and comparison results for the named recordings;
+their calendar dates alone do not prescribe the same state/iterator schedule in a rerun.
+
+| Recording, March 6 pass 3 | Native outputs | Difference from that run's sampled replay |
+|---|---|---|
+| `lvterrain27-repro-base1` | mean=270.02063, mode=272, average=72 | intrinsic 930/4096, total 637/4096, max byte delta 45 for each; slope 0/256, types 0/4096; mean/mode/average exact. |
+| `lvterrain27-repro-inputs1` | mean=270.02063, mode=272, average=73 | All intrinsic, total, slope, types and scalars exact in this comparison. This run overall is 1/4 exact; it is a separate observation, not a correction to base1. |
+
+Selected **native expected bytes in the preserved base1 March 6 record**:
+
+| Tract (x,z) | Intrinsic | Total |
+|---|---|---|
+| (0,0) | 1 | 16 |
+| (0,1) | 1 | 16 |
+| (0,2) | 14 | 24 |
+| (0,3) | 15 | 25 |
+| (0,4) | 11 | 8 |
+| (0,5) | 10 | 7 |
+| (0,6) | 10 | 1 |
+| (0,7) | 10 | not logged |
+| (1,0) | not logged | 16 |
+
+These bytes are assertions for replay of that recording's actual native inputs, not a
+complete golden map or an assertion about a newly timed run. Base1 was clean/ref0,
+3/4 output-exact; April 6 pass 4 was exact, mean=270.022, mode=272, average=67. The probe
+run was clean/ref0, 1/4 exact. Its February 6 mean=270.02023 versus sampled 270.02063
+became exact in the existing day-3-of-10 diagnostic, including intrinsic/mode/total;
+that diagnostic is not a passing comparison and does not identify the native reads.
+The earlier supplied gen27 February 3 sample (mean 270.05533/270.02008, intrinsic
+313/4096, total 277/4096, slope 22/256; slope (7,7) 8.655487/13.074409) likewise lacks
+those read boundaries. None establishes a missing refresh or which February edit a
+particular native tract read. Both named runs remain pass-end-sample/native_step_capture=0.
+
+**Acceptance and the idle house control.** Use the controlled-delivery fixtures to test
+retention and live reads without a game host. To demand bitwise replay of an edited
+native pass, first obtain §6.1.5's eligible host and the full per-delivery input record,
+including both fallback scans and each developer's map. Do not choose historical inputs
+by their matching outputs or weaken comparison tolerances. Preserve the supplied idle
+house baseline of **73/73 output-exact**: with unchanged relevant inputs over a pass,
+the same formulas and state order must retain exact intrinsic/total/type bytes, slope
+float32 values and scalars. Exact sampled house output remains output evidence, not
+proof of native capture. LV9's host provision and LV2/LV7 runtime verification are not
+settled by either controlled fixtures or that baseline.
 
 ## 7. Formulas *[compat]*
 
@@ -977,6 +1119,17 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
    safe publication and retirement; vectors 26–31 distinguish these from notifications.
    This static answer grants no native capture or LV2/LV7 runtime verification credit.
 
+7. *(resolved)* LV9, host provision: §6.1.5. The observation boundary is each actual
+   land-value SimIdle/SimNewDay delivery; installation requires independent pre-fetch
+   admission/exclusion across all affected routes and threads. No supported native host
+   provision is identified; native capture remains ineligible until one is demonstrated.
+
+8. *(resolved)* LV10, terrain-edit refresh/acceptance: §6.1.6. Dirty notification does
+   not rewind a pass. Keep processed statistics/slope/intrinsic, read live terrain only
+   at remaining state reads, and refresh through the next eligible monthly pass.
+   Fallback retains first-scan min/max. Controlled numeric and recorded March 6 fixtures
+   distinguish this rule from pass-end sampling; idle house stays 73/73 output-exact.
+
 ## 16. Conformance tests (must exist in `engine/conformance`)
 
 Shipped tuning unless stated; S = 2.
@@ -1110,5 +1263,31 @@ Shipped tuning unless stated; S = 2.
     case retain `input_capture=pass-end-sample; native_step_capture=0`; these acceptance
     fixtures do not settle LV2/LV7 or count as real-game native capture evidence.
 
-Vectors 19–31 are specified here for an engine/adapter lane to implement; this RE lane has
+32. **LV10 retained statistics/live terrain.** Use §6.1.6's two-tract input fixture;
+    inject the edit after completed state 3, before 5. Assert retained mean=264/mode=240,
+    changed slope input=13.0744085, intrinsic/total A=22/B=51 and average=36. Repeating
+    the edit after completed 5 retains its old slope=8.65548706 with the same later
+    intrinsic/total result. State 4 must not read slope or rebuild altitude parameters.
+33. **LV10 already processed cells and slices.** Edit after completed state 4: retain
+    intrinsic/total A=1/B=51 and average=26. Also split state 3 after it counts A at its
+    old altitude, then edit before B: its sum still completes as 528, mean=264. Splitting
+    state 5 or 4 immediately after a cell must retain that cell and read live inputs
+    only for subsequent yielded cells; no iterator reset on the terrain notification.
+34. **LV10 monthly eligibility.** Mark dirty while running, deliver SimNewMonth before
+    state 9: do not restart or clear dirty. Finish, then deliver a later SimNewMonth:
+    state=0, dirty=false, no state-0 work yet. With A=270/B=300 throughout the next pass,
+    obtain mean=285, mode=272, intrinsic/total A=1/B=51, average=26 and the changed slope.
+35. **LV10 fallback extrema and capture.** Apply §6.1.6's unzoned first-scan variant.
+    Reset counting inputs at fallback but retain min=float32(228.07106), max=300 through
+    the rescan at A=270/B=300. Assert mean=285, mode=272, A index=47, intrinsic/total
+    A=10/B=51, average=30. A last-scan-only capture that loses the old min is incomplete.
+36. **LV9/LV10 replay eligibility and control.** Retain both named recordings' March 6
+    native scalars/bytes and measured comparison counts (§6.1.6); do not turn the probe's
+    diagnostic day-3 replay into a pass. With no eligible host, capture remains off even
+    when sampled outputs match. An actual host must pass §16.26–31 for both startup
+    paths and supply every real delivery before claiming input-faithful edited replay.
+    The supplied unchanged-input idle house control remains 73/73 output-exact, without
+    granting native-input provenance or settling LV2/LV7.
+
+Vectors 19–36 are specified here for engine/adapter validation; this RE lane has
 not added executable vectors or run native capture. They do not change vectors 1–18.
