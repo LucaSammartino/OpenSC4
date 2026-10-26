@@ -61,6 +61,12 @@ def probe(root):
             if not condition:
                 raise AssertionError(message)
 
+        def has_header(deps, header):
+            # Ninja canonicalizes absolute dependencies below its working drive
+            # into relative paths. Resolve them before comparing worktree roots.
+            return any((b / line.strip()).resolve() == header.resolve()
+                       for line in deps.splitlines() if line.strip().endswith("value.h"))
+
         with foreground_server(cache, env) as debug_lines:
             fixture(a, False)
             run(["ninja"], a)
@@ -69,7 +75,7 @@ def probe(root):
             stats = json.loads(run([cache, "--show-stats", "--stats-format", "json"]))["stats"]
             require(sum(stats["cache_hits"]["counts"].values()) >= 1, "must exercise a cache hit")
             deps = run(["ninja", "-t", "deps"], b).replace("\\", "/").lower()
-            require((a / "value.h").as_posix().lower() in deps, "reproduce foreign dependency")
+            require(has_header(deps, a / "value.h"), "reproduce foreign dependency: " + deps)
             (b / "value.h").write_text("#define VALUE 2\n", encoding="utf-8")
             require("no work to do" in run(["ninja"], b), "reproduce missing rebuild")
             require(subprocess.run([str(b / "smoke.exe")]).returncode == 0, "reproduce stale success")
@@ -78,8 +84,8 @@ def probe(root):
             fixture(b, True)
             run(["ninja"], b)
             deps = run(["ninja", "-t", "deps"], b).replace("\\", "/").lower()
-            require((b / "value.h").as_posix().lower() in deps, "mapped dependency must name B")
-            require((a / "value.h").as_posix().lower() not in deps, "no foreign dependency remains")
+            require(has_header(deps, b / "value.h"), "mapped dependency must name B: " + deps)
+            require(not has_header(deps, a / "value.h"), "no foreign dependency remains: " + deps)
             obj_time = (b / "object.obj").stat().st_mtime_ns
             exe_time = (b / "smoke.exe").stat().st_mtime_ns
             (b / "value.h").write_text("#define VALUE 2\n", encoding="utf-8")
