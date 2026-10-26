@@ -1,0 +1,53 @@
+# IDs: installed 3D-view accelerator resource A2E3D533/6A231EAA/6A9362EF.
+# UI input is posted only to this process's game window.
+2026-01-28 mark ui29-house begin
+2026-01-28 pause
+2026-01-28 uicommand 0x6a935cf3
+2026-01-28 uiwait 500
+2026-01-28 uimouse 600 350 move
+2026-01-28 uimouse 600 350 click
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935ca8
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935e2a
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935e2d
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935e34
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 mark ui29-house complete
+2026-01-28 uicommand 0x2a9496c9
+2026-01-28 uiwait 500
+2026-01-28 uitext ui29 text input
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935ca4
+2026-01-28 uicontrol 0x00000041
+2026-01-28 uiwait 500
+# Sub-budget button selectors: budget-window.md section 2.1.
+2026-01-28 uicontrol 0xaa3ac50e
+2026-01-28 uiwait 500
+2026-01-28 uicontrol 0xaa3ac507
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicontrol 0xaa3ac508
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicontrol 0xaa3ac501
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uikey 27
+2026-01-28 uicontrol 0xca2aedcc
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 mark ui29-house finished
+2026-01-28 uicontrol 0x99887755
+2026-01-28 uiwait 500
+2026-01-28 uicontrol 0x0000500e
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 resume

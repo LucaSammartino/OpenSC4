@@ -462,10 +462,10 @@ fn:MinOfFourFloats	view utilities	renderer	view-utilities.md	core/src/view_utili
 fn:MaxOfFourFloats	view utilities	renderer	view-utilities.md	core/src/view_utilities	-	-
 SC4GeometryUtilities	geometry utilities	renderer	geometry-utilities.md	-	-	-
 SC4MarkedCellView	overlay views	renderer	overlay-views.md	-	-	-
-SC4PathInfoView	overlay views	renderer	network-overlay-views.md	-	-	-
-SC4TrainJunctionView	overlay views	renderer	network-overlay-views.md	-	-	-
+SC4PathInfoView	overlay views	renderer	network-overlay-views.md	core/src/overlay_views	-	-
+SC4TrainJunctionView	overlay views	renderer	network-overlay-views.md	core/src/overlay_views	-	-
 SC4*View	3D scene and models	renderer	-	-	-	-
-cSC4PathView	overlay views	renderer	overlay-views.md	-	-	-
+cSC4PathView	overlay views	renderer	overlay-views.md	core/src/overlay_views	-	-
 cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
 cSC4DispatchVehicleView	3D scene and models	renderer	dispatch.md,dispatch-vehicle-view.md	-	-	-
@@ -659,7 +659,7 @@ cGZWinTextEdit	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinListBox	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinTreeView	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
-cGZWin	widget toolkit	ui	widget-toolkit.md	-	-	-
+cGZWin	widget toolkit	ui	widget-toolkit.md	core/src/ui_windows	-	-
 cGZWinBtn	widget toolkit	ui	widget-button.md	-	-	-
 cGZWinGen	widget toolkit	ui	widget-wingen.md	-	-	-
 cGZWinGenTitleBar	widget toolkit	ui	widget-wingen.md	-	-	-
@@ -905,7 +905,7 @@ cGZApp	application	framework	application.md, framework-misc2.md	-	-	-
 cRZVersion	framework services (RZ)	framework	framework-misc2.md	-	-	-
 cRZExceptionNotification	framework services (RZ)	framework	framework-misc2.md	-	-	-
 cRZCOMDllDirector	framework services (RZ)	framework	renderer-gdrivers-director.md, app-directors.md	-	-	-
-cGZFadeTmpWin	widget toolkit	ui	widget-toolkit.md	-	-	-
+cGZFadeTmpWin	widget toolkit	ui	widget-toolkit.md	core/src/ui_windows	-	-
 nRZHash	framework services (RZ)	framework	lua-host.md	-	-	-
 cRZThreadSignal	framework services (RZ)	framework	framework-gz-services.md	-	-	-
 cGZCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	-	-	-

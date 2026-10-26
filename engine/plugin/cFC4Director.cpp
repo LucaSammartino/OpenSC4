@@ -151,6 +151,7 @@ public:
         fc4::Log("cFC4Director constructed (FreeCity4 %s, dll %s, log level %d)", FC4_VERSION_STRING,
                  fc4::ModulePath(), fc4::LogLevel());
         fc4::ReachPrepare();  // snapshot entries before subsystem hooks
+        fc4::ReachStartupStart(); // opt-in; observe framework/application startup
         // Register the classes of every enabled subsystem (FC4Subsystems.cpp).
         size_t n = 0;
         const fc4::Subsystem* subsystems = fc4::Subsystems(&n);

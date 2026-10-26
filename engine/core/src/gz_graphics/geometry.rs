@@ -163,26 +163,117 @@ fn line(engine: &mut dyn RenderEngine, a: [i32; 2], b: [i32; 2], clip: Rect) -> 
     if a == b {
         return Ok(());
     }
-    // Only the directional horizontal integer-centre contract is settled.
-    // Diagonal ties, clipping phase and thin-clip behavior remain GZG1.
-    if a[1] != b[1]
-        || a[0] & 255 != 128
-        || b[0] & 255 != 128
-        || a[1] & 255 != 128
-        || clip.width() < 2
-        || clip.height() < 2
-    {
+    // SPEC-GAP: GZG1 still requires fractional diamond ties and thin-clip captures.
+    if a.iter().chain(b.iter()).any(|v| v & 255 != 128) || clip.width() < 2 || clip.height() < 2 {
         return Err(Error::Unsupported("GZG1"));
     }
-    let (start, end) = if a[0] < b[0] {
-        (a[0] >> 8, b[0] >> 8)
+    let major = usize::from(b[1].wrapping_sub(a[1]).unsigned_abs() > b[0].wrapping_sub(a[0]).unsigned_abs());
+    let minor = 1 - major;
+    let forward = a[major] < b[major];
+    let (a, b) = if forward { (a, b) } else { (b, a) };
+    let (lo, hi) = if major == 0 { (clip.0, clip.2) } else { (clip.1, clip.3) };
+    let start = ((a[major] >> 8) + i32::from(!forward)).max(lo);
+    let end = ((b[major] >> 8) + i32::from(!forward)).min(hi);
+    let (a, b) = (a.map(|v| v | 1), b.map(|v| v | 1));
+    let delta = b[major].wrapping_sub(a[major]);
+    let slope = b[minor].wrapping_sub(a[minor]);
+    let step = if slope < 0 { -1 } else { 1 };
+    let distance = if step > 0 {
+        256 - (a[minor] & 255)
     } else {
-        ((b[0] >> 8) + 1, (a[0] >> 8) + 1)
+        a[minor] & 255
     };
-    for x in start..end {
-        emit(engine, clip, a[1] >> 8, x, x + 1)?;
+    let period = delta.wrapping_mul(256);
+    // Skip clipped major steps in the original error phase, using 32-bit products.
+    let mut error = distance.wrapping_mul(delta).wrapping_sub(
+        slope
+            .wrapping_abs()
+            .wrapping_mul(start.wrapping_mul(256).wrapping_add(128).wrapping_sub(a[major])),
+    );
+    if period <= 0 {
+        return Err(Error::InvalidInput);
+    }
+    let skipped = if error < 0 {
+        1 + error.wrapping_neg().wrapping_sub(1) / period
+    } else {
+        0
+    };
+    let mut position = (a[minor] >> 8).wrapping_add(step * skipped);
+    error = error.wrapping_add(period.wrapping_mul(skipped));
+    for m in start..end {
+        let (x, y) = if major == 0 { (m, position) } else { (position, m) };
+        emit(engine, clip, y, x, x + 1)?;
+        error = error.wrapping_sub(slope.wrapping_abs().wrapping_mul(256));
+        if error < 0 {
+            position = position.wrapping_add(step);
+            error = error.wrapping_add(period);
+        }
     }
     Ok(())
+}
+
+/// §3.2.6: stored deltas, AA length gate, and axis-dependent non-AA caps.
+pub fn stroke_quad(a: Point, b: Point, thickness: f32, raster_thickness: i32, aa: bool) -> [Point; 4] {
+    let (dx, dy) = ((b[0] as f64 - a[0] as f64) as f32, (b[1] as f64 - a[1] as f64) as f32);
+    let (ax, ay, bx, by) = (a[0] as f64, a[1] as f64, b[0] as f64, b[1] as f64);
+    let corners = if aa {
+        let length = dx as f64 * dx as f64 + dy as f64 * dy as f64;
+        if length <= 1e-8_f32 as f64 {
+            return [[0.; 2]; 4];
+        }
+        let scale = (thickness as f64 * 0.5) / length.sqrt();
+        let (u, v) = (dy as f64 * scale, dx as f64 * scale);
+        [[ax + u, ay - v], [ax - u, ay + v], [bx - u, by + v], [bx + u, by - v]]
+    } else if dy.abs() <= dx.abs() {
+        let k = if dx > 0. { 0.5 } else { -0.5 };
+        let h = raster_thickness as f64 * k;
+        [[ax - k, ay - h], [ax - k, ay + h], [bx + k, by + h], [bx + k, by - h]]
+    } else {
+        let k = if dy > 0. { 0.5 } else { -0.5 };
+        let h = raster_thickness as f64 * k;
+        [[ax + h, ay - k], [ax - h, ay - k], [bx - h, by + k], [bx + h, by + k]]
+    };
+    corners.map(|p| p.map(|v| v as f32))
+}
+
+fn outline_ellipse(points: &[Point]) -> Vec<Point> {
+    let mut quads = Vec::new();
+    for p in points.chunks_exact(2) {
+        let centre = [0, 1].map(|i| ((p[0][i] as f64 + p[1][i] as f64) * 0.5) as f32);
+        let radii = [0, 1].map(|i| ((p[1][i] as f64 - p[0][i] as f64).abs() * 0.5) as f32);
+        let r = radii[0].max(radii[1]);
+        let n = if r <= 1. { 1 } else { (r as f64).sqrt().ceil() as usize };
+        let m = (n + 1) >> 1;
+        let count = 8 * m;
+        #[allow(clippy::approx_constant)]
+        let step = (6.28318_f64 / count as f64) as f32;
+        let mut angle = 0_f32;
+        let mut offset = [1_f64, 0.];
+        let mut previous = [[0.; 2]; 2];
+        for i in 0..=count {
+            // SPEC-GAP: §3.2.7 requires native x87 trig bits for last-bit agreement.
+            let trig = [(angle as f64).cos(), (angle as f64).sin()];
+            let pair = |o: [f64; 2]| {
+                [
+                    [0, 1].map(|j| ((o[j] + centre[j] as f64) + radii[j] as f64 * trig[j]) as f32),
+                    [0, 1].map(|j| (centre[j] as f64 + radii[j] as f64 * trig[j]) as f32),
+                ]
+            };
+            let current = pair(offset);
+            if i > 0 {
+                quads.extend_from_slice(&[previous[0], previous[1], current[1], current[0]]);
+            }
+            previous = current;
+            if [m, 3 * m, 5 * m, 7 * m].contains(&i) {
+                offset = [-offset[1], offset[0]];
+                let rotated = pair(offset);
+                quads.extend_from_slice(&[current[0], current[1], rotated[1], rotated[0]]);
+                previous = rotated;
+            }
+            angle = (angle as f64 + step as f64) as f32;
+        }
+    }
+    quads
 }
 
 fn submit(engine: &mut dyn RenderEngine, kind: u32, p: &[Point], state: &EngineState) -> Result<()> {
@@ -246,32 +337,27 @@ pub(super) fn execute(
                 for p in points.chunks_exact(4) {
                     let mut previous = p[0];
                     let mut quads = Vec::new();
+                    let coefficients = [0, 1].map(|j| {
+                        let [p0, p1, p2, p3] = [0, 1, 2, 3].map(|i| p[i][j] as f64);
+                        [
+                            ((p3 - p0) - 3. * (p2 - p1)) as f32,
+                            (3. * (p0 + p2) - 6. * p1) as f32,
+                            (3. * (p1 - p0)) as f32,
+                        ]
+                    });
                     for i in 1..=16 {
                         let t = i as f64 / 16.;
-                        let u = 1. - t;
                         let next = [0, 1].map(|axis| {
-                            (u * u * u * p[0][axis] as f64
-                                + 3. * u * u * t * p[1][axis] as f64
-                                + 3. * u * t * t * p[2][axis] as f64
-                                + t * t * t * p[3][axis] as f64) as f32
+                            let [a, b, c] = coefficients[axis].map(f64::from);
+                            (((a * t + b) * t + c) * t + p[0][axis] as f64) as f32
                         });
-                        let dx = next[0] as f64 - previous[0] as f64;
-                        let dy = next[1] as f64 - previous[1] as f64;
-                        let length = dx.hypot(dy);
-                        // Literal stroke quad: perpendicular half-width, no joins.
-                        // GZG7 asks for native corner/degenerate/rounding details.
-                        let scale = if length == 0. {
-                            0.
-                        } else {
-                            state.thickness as f64 / (2. * length)
-                        };
-                        let (nx, ny) = (-dy * scale, dx * scale);
-                        quads.extend_from_slice(&[
-                            [(previous[0] as f64 + nx) as f32, (previous[1] as f64 + ny) as f32],
-                            [(next[0] as f64 + nx) as f32, (next[1] as f64 + ny) as f32],
-                            [(next[0] as f64 - nx) as f32, (next[1] as f64 - ny) as f32],
-                            [(previous[0] as f64 - nx) as f32, (previous[1] as f64 - ny) as f32],
-                        ]);
+                        quads.extend_from_slice(&stroke_quad(
+                            previous,
+                            next,
+                            state.thickness,
+                            (state.thickness as f64 + 0.5).floor() as i32,
+                            state.aa != 0,
+                        ));
                         previous = next;
                     }
                     submit(engine, 7, &quads, state)?;
@@ -326,7 +412,7 @@ pub(super) fn execute(
                 }
                 return Ok(());
             }
-            // Non-AA outline geometry and stroke-quad corners remain GZG1.
+            4 => return submit(engine, 7, &outline_ellipse(points), state),
             _ => return Err(Error::Unsupported("GZG1")),
         }
     }
