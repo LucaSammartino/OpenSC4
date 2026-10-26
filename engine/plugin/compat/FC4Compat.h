@@ -129,6 +129,9 @@ enum class Direct : unsigned {
     EffectsDynamicDestroy,
     // terrain.md section 15.5.12.2: populates the native view's texture inputs.
     TerrainStaticInit,               // cdecl (), no receiver or arguments, AL
+    // effects.md 18.9.7: duplicate-preserving visual dictionary operations.
+    EffectsVisualNamesGrow,
+    EffectsVisualNameInsert,
     Count
 };
 

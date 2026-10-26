@@ -25,6 +25,17 @@ public:
 // Raw GZCOM creator: count zero; the director acquires the requested identity.
 cIGZUnknown* CreateFC4EffectsResource();
 
+// effects.md 18.9.7: borrowed counted bytes, raw index and hidden iterator result.
+struct FC4EffectsVisualName {
+    const char* begin;
+    const char* end;
+    const char* capacity;
+    uint32_t index;
+};
+struct FC4EffectsVisualIterator { void* node; void* dictionary; };
+static_assert(sizeof(FC4EffectsVisualName) == 0x10);
+static_assert(sizeof(FC4EffectsVisualIterator) == 8);
+
 // The collection remains a separate native service. These calls construct and
 // destroy C, and publish C into another collection; none calls native resource
 // Read/Write or creates a native effects resource. Tests inject an isolated C.
@@ -43,6 +54,8 @@ struct FC4EffectsResourceBindings {
     void (*readDescription)(uint32_t family, uint16_t version, cIGZIStream*, void*) = nullptr;
     void (*writeDescription)(uint32_t family, cIGZOStream*, const void*) = nullptr;
     void* (*allocateObject)(uint32_t) = nullptr; // allocator C; containers use B above
-    void (*insertVisualName)(void* dictionary, const char*, uint32_t index) = nullptr;
+    void (*growVisualNames)(void* dictionary, uint32_t count) = nullptr;
+    FC4EffectsVisualIterator* (*insertVisualName)(void* dictionary,
+        FC4EffectsVisualIterator* result, const FC4EffectsVisualName* pair) = nullptr;
 };
 cIGZUnknown* CreateFC4EffectsResourceWithBindings(const FC4EffectsResourceBindings& bindings);
