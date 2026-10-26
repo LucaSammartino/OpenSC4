@@ -233,7 +233,8 @@ enum class ScriptOp {
     MySim,        // mysim movein|query: replacement-interface persistence exercise
     Funds,        // funds 0..999999999: set treasury through the budget interface
     Establish,    // establish <name>: name and found an unfounded city
-    GDriverProbe  // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    GDriverProbe, // gdriverprobe: bounded, explicitly requested DX7 shadow probes
+    GZFrameworkProbe // gzfwprobe: register, parse, dispatch and unregister an isolated command
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -275,6 +276,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::ClockMode: return "clockmode";
         case ScriptOp::LightingHour: return "lightinghour";
         case ScriptOp::GDriverProbe: return "gdriverprobe";
+        case ScriptOp::GZFrameworkProbe: return "gzfwprobe";
         case ScriptOp::MySim: return "mysim";
         case ScriptOp::Funds: return "funds";
         case ScriptOp::Establish: return "establish";
@@ -503,6 +505,9 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             return false;
         }
         a.on = v == "on";
+    } else if (name == "gzfwprobe") {
+        a.op = ScriptOp::GZFrameworkProbe;
+        if (!wantArgs(0, "none")) return false;
     } else if (name == "mark") {
         a.op = ScriptOp::Mark;
         if (nargs == 0) {

@@ -118,6 +118,10 @@ struct CacheFixture {
     void* buffer=nullptr;
 };
 uint32_t __fastcall CacheAdd(void* p,void*) { return ++static_cast<CacheFixture*>(p)->refs; }
+bool __fastcall CacheQuery(void* p,void*,uint32_t iid,void** out) {
+    if (iid!=1 && iid!=0xFA59F7B9) return false;
+    *out=p; CacheAdd(p,nullptr); return true;
+}
 uint32_t __fastcall CacheRelease(void* p,void*) {
     auto& c=*static_cast<CacheFixture*>(p);
     if (c.buffer) c.freedBeforeRelease=Slot<void*(__thiscall*)(void*)>(c.buffer,34)(c.buffer)==nullptr;
@@ -132,6 +136,7 @@ void __fastcall CacheInvalidate(void* p,void*) { ++static_cast<CacheFixture*>(p)
 void BufferWorkedCases(FC4TestSeamFn seam) {
     using InitFn=bool(__thiscall*)(void*,uint32_t,uint32_t,uint32_t,uint32_t);
     using NoArg=bool(__thiscall*)(void*);
+    using VoidCall=void(__thiscall*)(void*);
     using Fill=bool(__thiscall*)(void*,uint32_t,const void*);
     using FillRect=bool(__thiscall*)(void*,uint32_t,const void*,const void*);
     using Pixel=uint32_t(__thiscall*)(void*,uint32_t,uint32_t);
@@ -144,7 +149,7 @@ void BufferWorkedCases(FC4TestSeamFn seam) {
         void* p=reinterpret_cast<void*>(seam(kFC4SeamGZFrameworkCreate,nullptr,nullptr));
         Check(p && Slot<InitFn>(p,3)(p,w,h,type,bpp),"worked buffer creation"); return p;
     };
-    std::array<void*,9> table{}; table[1]=reinterpret_cast<void*>(&CacheAdd); table[2]=reinterpret_cast<void*>(&CacheRelease);
+    std::array<void*,9> table{}; table[0]=reinterpret_cast<void*>(&CacheQuery); table[1]=reinterpret_cast<void*>(&CacheAdd); table[2]=reinterpret_cast<void*>(&CacheRelease);
     table[3]=reinterpret_cast<void*>(&CacheInit); table[8]=reinterpret_cast<void*>(&CacheInvalidate);
     CacheFixture cache{table.data()},failed{table.data()}; failed.accepts=false;
     void* b=create(3,2,5,16);
@@ -159,7 +164,7 @@ void BufferWorkedCases(FC4TestSeamFn seam) {
     Check(!Slot<SetCache>(b,38)(b,&failed) && failed.refs==1 && failed.detached && cache.refs==1,"failed replacement detaches old and retains neither");
     Check(Slot<void*(__thiscall*)(void*)>(b,37)(b)==nullptr,"failed attachment leaves null");
     Check(Slot<SetCache>(b,38)(b,&cache),"reattach after failure");
-    Slot<SetKey>(b,23)(b,0x1234); Slot<NoArg>(b,27)(b);
+    Slot<SetKey>(b,23)(b,0x1234); Slot<VoidCall>(b,27)(b);
     Check(cache.invalidations==2 && Slot<Get>(b,36)(b)==3,"key changes explicitly invalidate without dirty counter");
     CacheRelease(&cache,nullptr); Slot<Get>(b,2)(b);
     Check(cache.refs==0 && cache.freedBeforeRelease,"buffer frees pixels before final cache release");
@@ -173,9 +178,9 @@ void BufferWorkedCases(FC4TestSeamFn seam) {
     uint8_t rgba[4]{};
     Check(Slot<RGBA>(b,32)(b,18,52,86,128)==0x88ca && Slot<Unmap>(b,33)(b,0x88ca,&rgba[0],&rgba[1],&rgba[2],&rgba[3]) && rgba[0]==16 && rgba[1]==49 && rgba[2]==82 && rgba[3]==132,"GZB4 packed alpha quirk");
     Slot<SetPixel>(b,22)(b,0,0,0x08ca); Slot<SetKey>(b,23)(b,0xf00088ca);
-    Check(Slot<Pixel>(b,25)(b,0,0)!=0 && Slot<Get>(b,24)(b)==1,"GZB4 key masks alpha and high word");
+    Check(Slot<bool(__thiscall*)(void*,uint32_t,uint32_t)>(b,25)(b,0,0) && Slot<Get>(b,24)(b)==1,"GZB4 key masks alpha and high word");
     uint32_t key=0; Check(Slot<bool(__thiscall*)(void*,uint32_t*)>(b,26)(b,&key) && key==0xf00088ca,"full stored key retained");
-    Slot<NoArg>(b,27)(b); key=0xdeadbeef;
+    Slot<VoidCall>(b,27)(b); key=0xdeadbeef;
     Check(!Slot<bool(__thiscall*)(void*,uint32_t*)>(b,26)(b,&key) && key==0xdeadbeef,"cleared key leaves output");
     Slot<Fill>(b,18)(b,0,nullptr); int32_t rect[4]={-1,-1,4,3},clip[4]={1,1,3,2};
     Check(Slot<FillRect>(b,20)(b,0xabcd,rect,clip) && Slot<Pixel>(b,21)(b,1,1)==0xabcd && Slot<Pixel>(b,21)(b,2,1)==0xabcd && Slot<Pixel>(b,21)(b,0,1)==0,"GZB5 clipped fill");

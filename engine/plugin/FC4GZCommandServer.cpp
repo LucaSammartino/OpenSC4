@@ -13,6 +13,7 @@
 #include "cIGZFrameWork.h"
 #include "cIGZSystemService.h"
 #include "cRZBaseString.h"
+#include "cRZCOMDllDirector.h"
 #include <algorithm>
 #include <atomic>
 #include <cstdarg>
@@ -277,6 +278,25 @@ int32_t __fastcall NativeID(void* p,void*,uint32_t id,cIGZCommandParameterSet* i
 }
 }
 namespace fc4 {
+bool GZFrameworkScriptProbe() {
+    auto* fw=RZGetFrameWork(); // borrowed
+    cIGZCommandServer* server=nullptr;
+    if (!fw || !fw->GetSystemService(0xEB903A32,0xCB90253A,reinterpret_cast<void**>(&server)) || !server) return false;
+    FC4_ACQUIRED(server,"gzfw script command service");
+    constexpr uint32_t id=0x475A29F1;
+    const bool registered=server->RegisterCommand(id,"fc4_gzfw_probe","text");
+    bool ok=registered;
+    if (registered) {
+        const char* commands[]={"fc4_gzfw_probe", "fc4_gzfw_probe plain", "fc4_gzfw_probe \"two words\""};
+        for (const auto* command:commands) {
+            const auto status=Slot<TextFn>(server,19)(server,command,0xffffffff,nullptr);
+            Log("gzfw probe: text='%s' status=%d",command,status);
+            ok=ok && status==0;
+        }
+        ok=server->UnregisterCommand(id) && ok;
+    }
+    FC4_RELEASE(server); return ok;
+}
 cIGZUnknown* GZCommandServerTestCreate(cIGZUnknown* helpers) {
     if (!helpers) return nullptr;
     cIGZSystemService* service=nullptr;

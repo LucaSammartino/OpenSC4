@@ -3,6 +3,7 @@
 class cIGZUnknown;
 class cIGZFrameWork;
 namespace fc4 {
+bool GZFrameworkScriptProbe();
 cIGZUnknown* CreateGZBuffer();
 void GZFrameworkStart(cIGZFrameWork*);
 void GZFrameworkStop();

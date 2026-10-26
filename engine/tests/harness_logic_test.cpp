@@ -196,6 +196,8 @@ void ScriptParseTests() {
     CHECK(One("2000-01-07 pause").actions.at(0).op == ScriptOp::Pause);
     CHECK(One("2000-01-07 resume").actions.at(0).op == ScriptOp::Resume);
     CHECK(One("2000-01-07 digest # now").actions.at(0).op == ScriptOp::Digest);
+    CHECK(One("2026-02-01 gzfwprobe").actions.at(0).op == ScriptOp::GZFrameworkProbe);
+    CHECK(ErrorIs("2026-02-01 gzfwprobe extra", "gzfwprobe takes 0 argument(s) (none), not 1"));
     CHECK(One("2026-02-01 dispatch 1").actions.at(0).op == ScriptOp::Dispatch);
     CHECK(One("2026-02-01 dispatch 1").actions.at(0).type == 1);
     CHECK(ErrorIs("2026-02-01 dispatch 9", "dispatch type must be 0..8"));
