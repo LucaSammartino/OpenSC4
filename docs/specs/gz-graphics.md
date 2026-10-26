@@ -280,7 +280,7 @@ stroke quad for each adjacent pair, and submits kind 7 through DrawNoTransform.
 It does not join the last endpoint of one curve to the first point of the next
 (`0x0082EFE0`). The result-2 route uses fixed-point forward differences and the
 same integer-line helper as kind 1 (`0x0082D5A0`, `0x0082E8A0`). Exact subdivision
-and diagonal tie handling in that integer route remain part of GZG1.
+is specified in §3.2.5; the remaining integer coverage observations are in §3.2.7.
 
 Kind 1/result 2 consumes independent endpoint pairs, converting each component
 to signed fixed point as `floor(component*256+0.5)` before integer-line
@@ -519,8 +519,9 @@ ties and one-pixel-wide/high clips are not established as a complete coverage
 rule here. The helper uses ordered clip limits themselves to infer the minor
 step direction; equality of these limits takes a different branch. To settle
 these cases, capture engine slot 22's ordered packed spans for both directions
-of lines (0.5,0.5)→(4.5,2.5) and (0.5,2.5)→(4.5,0.5), and the four variants
-whose endpoints move by ±1/256 in each coordinate. Compare full clip
+of lines (0.5,0.5)→(4.5,2.5) and (0.5,2.5)→(4.5,0.5). For each line also
+perturb each of its four endpoint components separately by ±1/256 (eight
+variants). Compare full clip
 (0,0,8,8) with clips (2,0,3,8), (0,1,8,2), (2,1,3,2), and (2,1,4,3).
 Record the transformed float bits and the 24.8 arguments at `0x0082D040`,
 not just final pixels, to distinguish conversion from coverage. For ellipse
@@ -633,8 +634,8 @@ common first 23 slots. These engine slots are **not** the context's slots.
 
 The shared QueryInterface supports IID **`0x2AE78A07`** and unknown IID **1**,
 returns the same engine pointer with an added reference, and leaves the output
-unchanged on unsupported IID (`0x0082FD60`–`0x0082FD80`). Hardware-only extension
-slots need further audit (GZG2). The hardware owner is
+unchanged on unsupported IID (`0x0082FD60`–`0x0082FD80`). Hardware extension
+entries and the observation boundary are in §4.4. The hardware owner is
 a common base; SimGL inherits its initialization, state and reference handling,
 with its own device hooks. These owners are not message-server subscribers at
 the drawing boundary; lifecycle is driven through the slots above.
@@ -729,9 +730,86 @@ SimGL Draw has a specialized route only for kind 3, with `+0xD8` enabled and a
 non-null source. In that route it treats the vertex count as a count of point
 pairs; no complete rectangle returns zero. Entry tests and pair count are
 verified in bytes at `0x009922DC`–`0x00992317`. Other inputs reach the later
-fallback path, whose exact delegation and specialized texture subdivision remain
-GZG2. Its Draw and HWSetImage pseudocode are absent because export decompilation
-failed; no claim of exact device rendering is made here.
+fallback path, which calls `0x00A666C0` with the original kind, points and count
+and returns its result (`0x00992B96`–`0x00992BAC`). The specialized path's normal
+completion returns 0; a separate exit returns 3 (`0x00992B7D`–`0x00992B93`).
+These are engine result codes, not Boolean success values. Specialized texture
+subdivision remains subject to the §4.4 observation boundary. Draw and
+HWSetImage export pseudocode failed; these findings use paged instructions.
+
+### 4.4 Hardware extension, image failure and observation boundary (GZG2)
+
+The verified SimGL extension prefix at table `0x00ADB500` is below. Names here
+describe behavior rather than recovered C++ declarations. Entries after slot
+33 are not assigned to this interface merely because adjacent words look like
+function pointers.
+
+| Slot / byte offset | Entry | Established role / argument boundary |
+|---|---|---|
+| 23 / `+0x5C` | `0x009932E0` | deleting destructor, low-bit deletion flag |
+| 24 / `+0x60` | `0x00992BD0` | hardware initialization hook, low-byte success |
+| 25 / `+0x64` | `0x00992CA0` | hardware shutdown hook |
+| 26 / `+0x68` | `0x00992D40` | apply pending device state |
+| 27 / `+0x6C` | `0x00992F10` | rectangle pointer; driver viewport receives left, targetHeight-bottom, width, height |
+| 28 / `+0x70` | `0x00992F50` | projection pointer forwarded to the driver after matrix-mode 1 |
+| 29 / `+0x74` | `0x00992F80` | source-buffer pointer; low-byte image-binding success |
+| 30 / `+0x78` | `0x00993340` | image/device-state operation; payload meaning requires the capture below |
+| 31 / `+0x7C` | `0x009930B0` | image/render-state binding; complete argument interpretation requires capture |
+| 32 / `+0x80` | `0x00993170` | vertex-array pointer and count, 24-byte records; driver primitive selector 0 |
+| 33 / `+0x84` | `0x009931F0` | vertex-array pointer and count, 24-byte records; driver primitive selector 6 |
+
+Base construction (`0x00A64840`) clears words +4, +8 and +0x24, dirty bytes
++0x3D/+0x3E, bytes +0x50/+0x84, and words +0x88 through +0xA8. Do not infer
+defaults for all other fields from these stores; the context supplies its
+drawing defaults through the ordinary setters. Base Shutdown (`0x00A64130`)
+tail-dispatches the virtual hardware shutdown hook at +0x64. It does not itself
+run the buffer engine's unlock sequence.
+
+HWSetImage first releases/clears its old cache pointer at +0xBC. A null source
+then returns false immediately: this early exit does **not** clear +0xC0.
+For a non-null source it obtains the source's associated cache through buffer
+slot 37 (+0x94), retaining a non-null result. If absent it allocates a 0x68-byte
+cache, temporarily retains it, and calls buffer slot 38 (+0x98) to attach it;
+successful attachment retains it in +0xBC, and the temporary reference is
+released. It then clears/releases the old +0xC0 and queries the cache for IID
+`0xEB4D101F` into +0xC0. Success returns true. An absent cache or failed query
+releases/clears both +0xBC and +0xC0 and returns false
+(`0x00992F80`–`0x009930A3`). No old cache is restored on failure.
+
+Worked ownership case: bind a source whose cache exists but rejects
+`0xEB4D101F`. The previous cache reference is released first; the new cache
+gets a reference and loses it on failure; the old texture interface is released;
+both stored pointers finish null and AL=0. A subsequent null-source call also
+returns AL=0. A null-source call made directly after a successful binding clears
+the cache reference but leaves the old texture reference until later cleanup.
+
+**GZG2 observation boundary.** Dispatch, table entries and the failure sequence
+above do not establish exact hardware vertices or buffer AA pixel coverage.
+The following native captures are the remaining acceptance evidence; each must
+include return codes and ordered calls, not just screenshots:
+
+* Capture hooks 27–33 and their driver calls for one rectangle and one triangle
+  crossing clip (1,1,5,5), source 2×3 with six different texels, placement
+  (0.25,-0.5), scales (1,1), (2,0.5), and (1.000001,1). Repeat with tiling off/on
+  and a gradient whose channels independently vary by 1/255 per pixel. Record
+  source bounds returned by slot 13 and every vertex's raw float/color/UV bits.
+  This resolves source-bound rounding, texture splits and gradient conversion
+  without substituting buffer-engine rules for device rules. Include slot-13
+  QI failure, image-hook failure, and allocation failure with output bounds
+  prefilled by four different sentinels.
+* Capture SimGL kind 3 with +0xD8=0/1 and source absent/present, then kind 6.
+  Record which route reaches the base, the condition reaching result 3, texture
+  cache/lock calls and cleanup. Capture slot 30/31 argument words at their call
+  sites, and the concrete object's interface extent, to finish the payload and
+  extension inventory rather than guessing signatures from folded stubs.
+* For buffer AA (`0x008308D0`), record every output byte in a 4×4 target initially
+  black for a white triangle (0,0),(3,0),(0,3), then the same triangle shifted by
+  (0.5,0.5), both windings and clips (0,0,4,4)/(1,1,3,3). Repeat as two triangles
+  sharing an edge, as kind 7 and kind 8, in formats 2,4,5,6,7,8,9, alpha off/on
+  and alpha 128. Record row padding too. This settles edge inclusion, overlap,
+  quantized coverage, format branches and whether untouched bytes stay intact.
+
+These are explicit unverified observations, not native-exact rendering claims.
 
 ## 5. `cGZGraphicSystem`
 
@@ -755,7 +833,7 @@ Driver/control interface table `0x00ADAFF0`:
 | 7–9 | SetGDriver; SetDefaultDriverClassID; SetDriverSettingsIniFilePath |
 | 10–11 | IsScreenSettingAvailable; DowngradeToAvailableScreenSetting |
 | 12–16 | SetUIRenderingMode; RenderBufferToScreen; DisableScreenBuffer; GetScreenPixelFormat; LazyFlush |
-| 17–20 | folded setter at `0x00648F10` (semantics unresolved); SetForceNoTranslucency; IsTranslucencyEnabled; folded float getter at `0x007624E0` (meaning unresolved) |
+| 17–20 | no-op one-word setter `0x00648F10`; SetForceNoTranslucency; IsTranslucencyEnabled; stored binary32 getter `0x007624E0` (§5.4) |
 | 21–23 | EnableCursorEmulation; EnablePageFlipping; IsPageFlippingEnabled |
 
 Entries for slots 5–16 are respectively `0x0098F0A0`, `0x0098FCB0`,
@@ -871,6 +949,93 @@ state for 2D and a projection cached on its first setup; exact matrix, state
 ordering and viewport-change implications are also GZG3. Do not reuse the 3D
 helper's default-state method as a substitute.
 
+### 5.4 Driver preferences, UI state and observation boundary (GZG3)
+
+Driver/control slot 17 consumes one four-byte stack argument and returns without
+reading it or changing the object (`0x00648F10`–`0x00648F12`). No Boolean result
+is established by that stub. Slot 20 loads binary32 at **interface-relative
++0xF0** into x87 ST0 and returns (`0x007624E0`–`0x007624E6`). The driver interface
+is complete object +0x20, so that is complete object +0x110, not +0xF0. Its public
+semantic name is not recovered; it must not be implemented as a constant or a
+query of camera magnification merely because the folded entry has that label.
+
+LoadAllDrivers (`0x009904D0`) uses the supplied settings path only if nonempty
+and the file exists; otherwise it constructs the application-directory path
+`GZGraphic2.ini`. If section `Graphics Drivers` exists, enumerate its entries
+through the driver-load callback. An existing empty section therefore does not
+trigger the missing-section defaults. If the section is absent, try the built-in
+entries in order: `SimGLRef.dll, C4554841` (OpenGL), `SimGLSoft.dll, 7ACA35C6`
+(Software), `SimGLDx7.dll, BADB6906`. A nonzero requested default ID already
+present in the collection bypasses the current-driver INI preference. Otherwise
+start with `0xBADB6906`, read `Current Graphics Driver` / `Driver` as hexadecimal
+with `%X` when present, and look that ID up. If missing, try `0x7ACA35C6`; if
+that too is missing, fail. This path does not select the first enumerated driver.
+The load callback's parsing/plugin failure behavior remains in the capture set.
+
+Worked preference case: with both OpenGL and Software loaded, a valid explicit
+default `0xC4554841` wins over an INI Driver value `7ACA35C6`. With an invalid
+explicit default, that INI selects Software. With no current-driver entry and
+no DirectX driver, Software is the fallback; OpenGL alone is not that fallback.
+
+SetUIRenderingMode is a void operation. It obtains the active driver through
+control slot 3 and tests driver byte-offset +0x144; a false result skips the
+state/projection operations. There is no null-driver guard before that test.
+For a true result the ordered driver calls are below. Arguments are in logical
+call order, not push order; offsets refer to the **driver** table:
+
+| Ordered calls | Arguments |
+|---|---|
+| +0xCC, +0xB4, +0xCC, +0xB0 | 1; 5; 0; 5 |
+| +0xD4, +0xD0, +0xB4, +0xB0 | (0,3,2,1); 0; 2; 1 |
+| +0xB4 five times | 1; 0; 4; 3; 6 |
+| +0x84, +0x80, +0x44, +0x3C | float 1; three floats (1,1,1); 0; 1 |
+| +0x88, +0x10C, +0x12C, +0x130 | (1,1); 0; no arguments; output rectangle pointer |
+| +0xA0, +0xA4, +0xA0, +0xA8 | 1; projection pointer; 0; no arguments |
+
+The +0x130 output is (l,t,r,b). At the first qualifying call, the static
+16-float projection is initialized, in memory order, to
+`(2/(r-l),0,0,0; 0,-2/(b-t),0,0; 0,0,0,0; -1,1,0.5,1)`.
+The divisions use signed integer extents loaded into x87 and final binary32
+stores. The static guard skips recomputation on subsequent calls, even if the
+viewport changes; the translations do not compensate for nonzero l/t.
+The matrix and call ordering are instruction-verified at
+`0x0098EA30`–`0x0098EC73`, rather than inferred from the decompiler's bad stack
+locals. Worked case: first viewport (10,20,650,500) gives scales binary32(0.003125) and
+binary32(-1/240), translation (-1,1,0.5,1). Changing to (0,0,800,600) leaves
+those cached scales in the next call.
+
+**GZG3 observation boundary.** The base graphics table in §5.1 is an entry
+inventory; it does not establish names/types or failure ownership for every IO
+slot. Remaining evidence is narrowed to the following captures on the concrete
+W32 object (base pure-virtual entries are not test targets):
+
+* Trace graphics slots 3–68 at real call sites during buffer creation, file
+  load/save and screen resize. For unresolved entries record argument locations,
+  callee stack cleanup, AL/EAX/ST0 return channel, IID, adjusted this, and every
+  output store. For IO slots 37–49 use valid indexed/24-bit/32-bit BMPs, a missing
+  path, a read-only save path, and truncation at header/palette/first/last row;
+  prefill outputs and count QI/AddRef/Release, open/close, lock/unlock. This
+  distinguishes allocated, borrowed and unchanged-on-failure outputs. Observe
+  real callers for folded entries rather than assigning names from other owners.
+* Record driver discovery and screen allocation at Init with the explicit
+  default and INI cases above; fail each driver factory, canvas acquisition,
+  buffer factory/lock, cache factory and framework registration in turn. Record
+  exact ordered cleanup, initialized byte, retained references and a second Init
+  followed by Shutdown. Record requested/actual size, format, flags and stride
+  for screen buffers with requested depth 0/16/32 and active software/hardware
+  drivers. This resolves partial-init rollback and format defaults.
+* Trace RenderBufferToScreen (`0x0098F110`) with an 8×6 source carrying distinct
+  corner pixels, a smaller 5×4 canvas and dirty rectangle (-1,1,7,5). Repeat
+  screen buffer enabled/disabled, page flipping enabled/disabled, pending
+  LazyFlush clear/set, and each lock/copy/present failure. Record every source
+  and destination copy rectangle, present/flip call and pending-flag mutation.
+  This resolves copy-versus-present and failure rules without assuming that a
+  successful final screenshot proves the intermediate copy extent.
+
+These captures are still required for full graphics-service compatibility;
+the settled preference and UI-state cases do not credit the unobserved IO or
+presentation operations.
+
 ## 6. `cGZAlphaBlt`
 
 ### 6.1 Identity, defaults and complete operation inventory
@@ -935,6 +1100,67 @@ The 32-level count is a service fact, not proof of a particular divisor or
 endpoint rounding rule for every alpha drawing method. The clipping and loader
 details settled below do not close the remaining standalone pixel-kernel
 portion of GZG5.
+
+### 6.2.1 Ordinary alpha kernel and remaining observations (GZG5)
+
+AlphaBltNoClip (`0x00986A50`) takes source buffer, destination buffer, alpha-byte
+buffer, source rectangle and destination point. It locks source, destination,
+then alpha with **0x8040**. Failure of the first returns its false AL without
+an unlock; failure of the second unlocks source; failure of the third unlocks
+destination then source. Normal cleanup unlocks alpha, destination, source and
+returns AL=1. This is a low-byte result, not a defined 32-bit Boolean. No
+rectangle validation is added by this entry. The clipped wrapper passes local
+rectangle copies after the §6.3 clip operation.
+
+For the established ordinary domain, source depth is 16, destination type 4/6
+or 5, alpha bytes are **levels 0…31**, and 1555 source/destination words have
+their high bit clear. Alpha is read at the source rectangle's corresponding
+pixel, with its own byte stride. The initialized lookup table implements for
+each five-bit channel s,d and level a:
+`min(31, floor((32*d+a*(s-d))/32))`.
+The table is built with integer additions and unsigned shifts by five, not
+float interpolation or division by 31 (`0x00985ED0`–`0x00985F21`); the 1555
+kernel's shifts/masks and lookup addresses are verified at
+`0x009854F0`–`0x0098555C`. Type 4/6 channels occupy bits 10–14,5–9,0–4.
+Type 5 uses bits 11–15,**6–10**,0–4; its low green bit (bit 5) is absent from
+the lookup and reconstructed output. It does not interpolate six green bits.
+If source colour-keying is enabled, matching source words leave destination
+unchanged while the source/destination/alpha positions still advance.
+A source depth other than 16, or a destination type outside 4/5/6, reaches
+normal cleanup without pixel writes and still returns AL=1 when all locks
+succeeded. Success is therefore not proof that a format was rendered; there
+is no fallback to an 8888 span-renderer formula in this operation.
+
+Worked cases after InitAlphaSystem: source 0x7FFF, destination 0, destination
+type 4, alpha 31 gives **0x7BDE**, not 0x7FFF; alpha 0 leaves zero. In type 5,
+source 0xFFFF, destination 0 and alpha 31 gives **0xF79E**. With a lock failure
+in the alpha buffer, the trace is source Lock, destination Lock, alpha Lock
+failure, destination Unlock, source Unlock; there are no pixel writes.
+
+**GZG5 observation boundary.** The ordinary table does not establish every
+shade, shadow, bright, stretch, self-alpha or half-source operation. To finish
+those contracts, capture the standalone callees of interface slots 10–31
+in §6.1, separately for clipped and NoClip entries. Use 2×2/3×2 sources with
+distinct pixels, padded strides and destination sentinels; destination types
+2,4,5,6,7,8,9; alpha/constant/additional-alpha values 0,1,15,16,30,31,32,255;
+source words with high alpha bits both clear and set. Record actual parameter
+widths before conversion, all input/output bytes, AL/EAX/ST0, lock flags/order
+and unlocks after failure of each acquisition. For stretch use source 3×2 to
+destination 5×3 with a left/top clip and repeat without it; for half-source use
+different constants for source 2 so averaging order cannot hide in equal inputs.
+Include keyed pixels and alias source/destination in a separate run. These
+observations resolve format acceptance, rounding, sampling phase, additional
+alpha composition, return channels and cleanup independently per operation.
+NoClip comparisons use already valid bounds, not accidental out-of-bounds reads.
+
+Legacy-loader widths, quantization and ownership remain specified in §6.3.2.
+For short reads there is deliberately no invented zero-fill guarantee: capture
+stream read results and destination bytes for truncation after header, within
+palette and midway through a row, with a known initial buffer pattern. Count
+the references and invalid-free attempt described there under open/lock failure.
+Allocator-dependent unread bytes are observations of that run, not stable
+format semantics. Thus GZG5 is narrowed to these pixel/failure observations;
+it is not a claim that all methods share the ordinary kernel.
 
 ### 6.3 Standalone clipping and legacy-loader details
 
@@ -1414,16 +1640,20 @@ entries were checked against the executable's read-only table bytes where the
 export did not expose an owner-named table. Numeric rules explicitly described
 above use instruction evidence where decompiler types/calls are misleading;
 in particular several `_ftol2` conversions are incorrectly labelled as Lua calls
-in the pseudocode. No REA session was used: this lane was instructed that none
-had a binary open.
+in the pseudocode. No REA session was used. The 2026-10-26 additions use the
+export, paged instruction bytes and read-only executable table/constant bytes;
+failed SimGL pseudocode is not treated as a successful decompilation.
 
 This spec settles the interface-level context, engine selection/initialization
 boundary, buffer dispatch and host/service rules listed above. It does **not**
 claim all generic geometry coverage, SimGL vertex emission, all graphics
 service IO helpers or standalone alpha pixel kernels. The Windows canvas event
 translation is settled in §7.4, including the misleading former pump/listener labels.
-Those remaining gaps are explicit follow-up questions, not free design choices.
-They are filed as GZG1–GZG3 and GZG5 in
-[questions/gz-graphics.md](questions/gz-graphics.md). An engine lane can implement
-the settled contracts and linked software kernels while leaving those unresolved
-operations outside any replacement/compatibility claim.
+GZG7 is settled by §3.2.6. GZG1–GZG3 and GZG5 have explicit remaining native
+observation sets in §§3.2.7, 4.4, 5.4 and 6.2.1 respectively. Their disposition
+is recorded in [the answered archive](questions/answered/gz-graphics.md), not
+as unbounded open implementation questions. **No listed runtime capture was
+performed in this round.** These are narrowed evidence requirements, not
+permission to choose arbitrary behavior or credit the unobserved operations as
+native-exact. An engine lane can implement the settled contracts and linked
+software kernels while keeping those observations outside its compatibility claim.
