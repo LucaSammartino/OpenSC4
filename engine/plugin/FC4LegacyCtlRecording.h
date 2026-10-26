@@ -76,7 +76,11 @@ struct Input {
     }
 };
 struct Event { Words call,result; };
-struct Trace { std::vector<Event> events; size_t cursor=0; uint32_t bad=0; bool exhaustive=true,allOutputs=true; };
+struct Trace {
+    std::vector<Event> events;
+    std::vector<void*> parameterTemporaries;
+    size_t cursor=0; uint32_t bad=0; bool exhaustive=true,allOutputs=true;
+};
 inline thread_local Trace* active=nullptr;
 inline thread_local unsigned suppressed=0;
 struct Quiet { Quiet(){++suppressed;} ~Quiet(){--suppressed;} };
@@ -89,7 +93,7 @@ inline bool Recording() { return active && !suppressed; }
 inline void Record(Words call,Words result=None()) {
     if (Recording()) active->events.push_back({std::move(call),std::move(result)});
 }
-inline void ObserveUnknown(void*,bool scoped=false);
+inline void ObserveUnknown(void*);
 inline void ObserveWindow(void*);
 inline void ObserveInterface(void*,uint32_t);
 inline bool __fastcall Query(void* self,void*,uint32_t iid,void** out) {
@@ -107,9 +111,9 @@ template<bool Release> uint32_t __fastcall Ref(void* self,void*) {
     if(record) Record(Call(Release?4:3,self,0),Release?U(n):None());
     return n;
 }
-inline void ObserveUnknown(void* object,bool scoped) {
+inline void ObserveUnknown(void* object) {
     if (!object) return;
-    const bool ok=Patch(object,0,reinterpret_cast<void*>(&Query),scoped) && Patch(object,4,reinterpret_cast<void*>(&Ref<false>),scoped) && Patch(object,8,reinterpret_cast<void*>(&Ref<true>),scoped);
+    const bool ok=Patch(object,0,reinterpret_cast<void*>(&Query)) && Patch(object,4,reinterpret_cast<void*>(&Ref<false>)) && Patch(object,8,reinterpret_cast<void*>(&Ref<true>));
     if (!ok && active) active->exhaustive=false;
 }
 inline Words Parameter(cIGZVariant* v,uint32_t key) {
@@ -183,6 +187,18 @@ inline uint32_t __fastcall Fill(void* self,void*,uint32_t r,uint32_t g,uint32_t 
     Record(Call(7,self,0x1ac,{{6,r&255,g&255,b&255}})); Quiet q;
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,uint32_t,uint32_t)>(Original(self,0x1ac))(self,nullptr,r,g,b);
 }
+inline uint32_t __fastcall ParameterRelease(void* self,void*) {
+    bool record=false;
+    if(Recording()) {
+        auto& pending=active->parameterTemporaries;
+        const auto found=std::find(pending.begin(),pending.end(),self);
+        if(found!=pending.end()) {pending.erase(found);record=true;}
+    }
+    uint32_t n;
+    {Quiet q;n=reinterpret_cast<uint32_t(__fastcall*)(void*,void*)>(Original(self,8))(self,nullptr);}
+    if(record) Record(Call(4,self,0),U(n));
+    return n;
+}
 inline uint32_t __fastcall SetParam(void* self,void*,uint32_t key,cIGZVariant* value) {
     if(Recording()) {
         // The transfer returns an opaque temporary identity to the recording
@@ -193,7 +209,13 @@ inline uint32_t __fastcall SetParam(void* self,void*,uint32_t key,cIGZVariant* v
         const auto payload=Parameter(value,key);
         const bool temporary=value && !payload.empty() && payload[0]!=0;
         Record(Call(7,self,0x1c8,{U(key),payload}),temporary?H(value):None());
-        if(temporary) ObserveUnknown(value,true);
+        // Variants share a table with unrelated inputs and allocations. Only
+        // the reference handed to this setter belongs to this observation;
+        // construction/reference traffic before it remains explicitly partial.
+        if(temporary) {
+            active->parameterTemporaries.push_back(value);
+            if(!Patch(value,8,reinterpret_cast<void*>(&ParameterRelease),true)) active->exhaustive=false;
+        }
     }
     Quiet q;
     return reinterpret_cast<uint32_t(__fastcall*)(void*,void*,uint32_t,cIGZVariant*)>(Original(self,0x1c8))(self,nullptr,key,value);
