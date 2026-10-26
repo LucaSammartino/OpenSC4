@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 
+pub mod dynamic_textures;
 mod geometry;
 mod lifecycle;
 mod terrain_hiding;
@@ -88,7 +89,7 @@ impl Default for SavedState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ModelMaker {
     pub saved: SavedState,
     pub initialized: bool,
