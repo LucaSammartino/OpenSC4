@@ -103,19 +103,24 @@ rollback promises. No font rasterization or in-game pixel equality is claimed.
 | 8.1.2 fitting | fit_string | implemented; same comparator/fit test |
 | 8.2 controls/messages | controls.rs, obtain_control, routing.rs | implemented (FBQ2); fbq2_c39_c40_control_order_configuration_and_factory_boolean, fbq2_c41_c42_c43_message_routes_and_borrowed_notifications; no owner-assigned child rectangles per spec |
 | 8.2.1 enables | enable_child | implemented; C23-C24 test |
-| 8.3 resources | operations.rs, resources.rs; format (3,16), exact arrow, selector/result boundaries | C20/C21/C25/C26 and fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries; open: FBQ1 §8.3.3 ordered icon/button primitive and pixel trace (two bodies / 5,361 B) |
+| 8.3 resources | operations.rs::load_default_icon, resources.rs::draw_default_icon/create_button_buffer | C20/C21/C25/C26, fbq1_loader_installs_before_reporting_the_pixel_observation; open observation (FBQ1 narrowed): §8.3.3 ordered icon glyph and button common-border/glyph drawing traces (two bodies / 5,361 B) |
+| 8.3.1 allocation/format/selectors/results | resources.rs::allocate_buffer/draw_default_icon/create_button_buffer, operations.rs::load_default_icon | implemented (FBQ1 settled channels); fbq1_allocation_and_initialization_failures_precede_drawing, fbq1_full_width_selectors_failed_locks_and_loader_rejection; successful glyph drawing remains the separate 8.3.3 observation |
+| 8.3.2 combo-arrow recipe | resources.rs::create_combo_arrow | implemented (FBQ1); fbq1_arrow_worked_case_uses_converted_colors_and_ordered_panels, fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries |
 | 8.4 buffers | set_icon/set_button_buffer | implemented; C23/C24 and lifecycle tests |
 | 8.5 lifecycle/paint/area | lifecycle.rs defaults, init_property, paint_live, set_area, shutdown | implemented (FBQ2/FBQ4/FBQ5); browser_factory_prefix_and_settled_init, browser_init_paint_refresh_and_final_release_order, fbq4_navigation_removal_and_fbq5_live_creation_paint; procedural pixel boundary is in 8.3 |
-| 8.6 construction/destruction | raw defaults/clears, destroy, BrowserOwner | implemented; shutdown-order and lifecycle tests distinguish direct destruction/final release |
+| 8.6 construction/destruction | raw defaults/clears, destroy, BrowserOwner | implemented (FBQ3); shutdown-order and lifecycle tests distinguish direct destruction/final release |
 | 8.7 properties/forwarding | properties.rs, close_popup, select_directory, remove_subdirectory | implemented (FBQ4); fbq4_style_widths_references_optional_words_and_common_font, fbq4_columns_custom_records_and_unchanged_outputs, fbq4_descriptor_background_and_drive_worked_cases, fbq4_navigation_removal_and_fbq5_live_creation_paint |
 | 9 C10-C43 | existing focused vectors, closure_tests.rs | implemented (FBQ5); existing C10-C27 and named C28-C43 tests above |
-| 10/A inventory | spec-scoped attribution; alternate_send and owned-record defaults | FBQ2/FBQ4/FBQ5/FBQ6 applied; fbq6_older_table_dispatch_and_completion_channels and fbq1_arrow_recipe_failures_and_narrowed_icon_button_boundaries; open: FBQ1 §8.3.3 two pixel recipes; no false comparator target or extra primary slot |
-| widget-controls 4 | same owner | partial: open FBQ1 pixel trace in 8.3; other rows implemented as above |
+| 10/A inventory | spec-scoped attribution; alternate_send and owned-record defaults | FBQ2/FBQ3/FBQ4/FBQ5/FBQ6 applied; fbq6_older_table_dispatch_and_completion_channels, fbq1_loader_installs_before_reporting_the_pixel_observation; open observation (FBQ1 narrowed): §8.3.3 two drawing recipes; no false comparator target or extra primary slot |
+| widget-controls 4 | same owner | partial: open observation (FBQ1 narrowed), win-filebrowser §8.3.3 icon/button drawing trace; other rows implemented as above |
 
 Default lifecycle dispatch now executes the owner property/control/population
 bodies; explicit overrides remain available. Recording services test foreign
-calls, not foreign rendering. FBQ1 glyph paths stop with Unsupported at the
-missing primitive recipe, never invented pixels. Native unsafe inputs (zero
+calls, not foreign rendering. FBQ1 is archived as narrowed: only §8.3.3's
+ordered primitive/pixel trace remains open. Glyph paths report Unsupported
+at that boundary; the loader still installs its buffer and releases its local
+reference before reporting unavailable geometry. No pixel/shadow match is
+claimed. Native unsafe inputs (zero
 row height, null required children, column-order scans outside six records)
 are explicit preconditions. The callback directory-order property mapping and
 new-filter pattern parsing remain one-line SPEC-GAP choices in the code.
