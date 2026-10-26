@@ -16,7 +16,7 @@ but nested commands and simulator/save actions wait until the command returns.
 | `uitext` | `printable ASCII text` | Up to 256 WM_CHAR characters, preserving internal spaces. No implicit Enter. |
 | `uiwait` | `0..60000` | Delay subsequent actions by milliseconds; never sleeps the main thread. |
 
-Mouse input targets only the current process's `GDriverWin`; it neither moves
+Mouse input targets the current process's `cIGZFrameWorkW32::GetMainHWND()`; it neither moves
 the desktop pointer nor changes another slot's focus. Points outside the client
 are refused. Use separate down/move/up actions for road drags. Projection is
 restricted to the identified supported game image and a live city view.

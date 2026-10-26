@@ -445,6 +445,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "reach_contracts", "reach_output", "reach_diagnostics",
                                   // Explicit DX7 shadow selection before city resources, default off.
                                   "gdriver_shadow_select",
+                                  // Opt-in scenario drivers and pre-application reach window.
+                                  "ui_command_catalog", "reach_startup",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

@@ -9,6 +9,7 @@
 #include "compat/FC4Compat.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
+#include "cIGZFrameWorkW32.h"
 #include "cIGZCommandServer.h"
 #include "cIGZCommandParameterSet.h"
 #include "cISC4App.h"
@@ -28,16 +29,20 @@ inline bool IsAction(harness::ScriptOp op) {
         op == ScriptOp::UiKey || op == ScriptOp::UiText || op == ScriptOp::UiWait || op == ScriptOp::UiControl;
 }
 
-// Never find a window by title: another slot may be running the same city.
-inline BOOL CALLBACK FindWindow(HWND window, LPARAM data) {
+// The framework supplies its actual host window; another slot may have the
+// same title, and the host need not have a particular Win32 class name.
+inline HWND GameWindow() {
+    auto* fw = RZGetFrameWork();
+    cIGZFrameWorkW32* win32 = nullptr;
+    if (!fw || !fw->QueryInterface(GZIID_cIGZFrameWorkW32,
+            reinterpret_cast<void**>(&win32)) || !win32) return nullptr;
+    FC4_ACQUIRED(win32, "UI driver Win32 framework");
+    // [abi-ret] public SDK cIGZFrameWorkW32::GetMainHWND returns HWND.
+    HWND window = win32->GetMainHWND();
+    FC4_RELEASE(win32);
     DWORD pid = 0;
     GetWindowThreadProcessId(window, &pid);
-    if (pid != GetCurrentProcessId() || GetWindow(window, GW_OWNER)) return TRUE;
-    char name[80]{};
-    GetClassNameA(window, name, sizeof(name));
-    if (std::strcmp(name, "GDriverWin") != 0) return TRUE;
-    *reinterpret_cast<HWND*>(data) = window;
-    return FALSE;
+    return pid == GetCurrentProcessId() ? window : nullptr;
 }
 
 inline std::string Command(uint32_t id) {
@@ -145,9 +150,8 @@ inline std::string Run(const harness::ScriptAction& a) {
     using harness::ScriptOp;
     if (a.op == ScriptOp::UiWait) return "wait-ms=" + std::to_string(a.type);
     if (a.op == ScriptOp::UiCommand) return Command(a.command);
-    HWND window = nullptr;
-    EnumWindows(FindWindow, reinterpret_cast<LPARAM>(&window));
-    if (!window) return "SKIPPED: no process-local GDriverWin";
+    HWND window = GameWindow();
+    if (!window) return "SKIPPED: no process-local framework window";
     bool ok = true;
     if (a.op == ScriptOp::UiKey) {
         const LPARAM scan = static_cast<LPARAM>(MapVirtualKeyA(a.type, MAPVK_VK_TO_VSC)) << 16;
