@@ -12,6 +12,8 @@ mod palette;
 mod numeric;
 mod terrain;
 mod networks;
+mod blit;
+pub use blit::{rotate_blt, rotate_blt_dual, visible_recursive, Surface, SurfacePixels};
 pub use networks::{Network, SurfaceNetworkFilter};
 pub use terrain::{resample_block, Terrain};
 pub use palette::{interpolate_ramp, TUNING_KEY};
@@ -23,7 +25,7 @@ pub const INTERFACE_ID: u32 = 0xca31_8385;
 
 /// Foreign primitives reuse the widget controls' reference/drawing operations
 /// and the actual cGZWin runtime. No base-window algorithm is reimplemented.
-pub trait Host: base::Host + widget_controls::Foreign + Terrain + Network {
+pub trait Host: base::Host + widget_controls::Foreign + Terrain + Network + Surface {
     fn city_cells(&mut self) -> [usize; 2];
     /// Animation manager slots 5/6; the registration argument is always zero.
     fn animation_target(&mut self, window: Window, register: bool);

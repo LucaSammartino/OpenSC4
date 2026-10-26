@@ -11,6 +11,8 @@ pub(super) struct RecordingHost {
     pub network_interface_present: bool,
     pub network_mask: u32,
     pub occupant_cell: [i32; 2],
+    pub surfaces: std::collections::BTreeMap<Handle, SurfacePixels>,
+    pub fail_lock: Option<Handle>,
 }
 
 impl base::Host for RecordingHost {}
@@ -37,6 +39,20 @@ impl Network for RecordingHost {
     fn network_interface(&mut self, _: Handle) -> Option<Handle> { self.network_interface_present.then_some(200) }
     fn network_type_mask(&mut self, _: Handle) -> u32 { self.network_mask }
     fn occupant_cell(&mut self, _: Handle) -> [i32; 2] { self.occupant_cell }
+}
+
+impl Surface for RecordingHost {
+    fn shutdown_surface(&mut self, s: Handle) { self.events.push(format!("shutdown:{s}")); }
+    fn surface_lock(&mut self, s: Handle, code: u32) -> Result<Option<SurfacePixels>> {
+        self.events.push(format!("lock:{s}:{code:04x}"));
+        if self.fail_lock == Some(s) { return Ok(None); }
+        self.surfaces.get(&s).cloned().map(Some).ok_or(Unsupported::Open("MMW4"))
+    }
+    fn surface_unlock(&mut self, s: Handle, p: SurfacePixels) {
+        self.events.push(format!("unlock:{s}"));
+        self.surfaces.insert(s, p);
+    }
+    fn surface_clear(&mut self, s: Handle, color: [u8; 4]) { self.events.push(format!("clear:{s}:{color:?}")); }
 }
 impl widget_controls::Foreign for RecordingHost {
     fn add_ref(&mut self, h: Handle) { self.events.push(format!("add:{h}")); }
