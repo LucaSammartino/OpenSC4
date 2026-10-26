@@ -281,6 +281,79 @@ missing. The twelve lot-destructor warnings and the separate no-module action cr
 a cause or authorize changes to unrelated services. Action acceptance still needs an engine run of
 the corrected lifetime/setup contract; the earlier 73/73 shadow result is not that test.
 
+#### 3.2.1 Construction-site automata boundary (NM17) *[compat]*
+
+This is the **building construction occupant's** crew, created during SetLot, not the network manager's
+`cSC4NetworkConstructionCrew` in §7.12. The automata-side creation, interface and concrete-layout contract
+belongs to [automata.md §7.6](automata.md#76-native-construction-site-boundary-nm17-compat). A native
+construction occupant may use replacement automata even when network-lot objects remain native.
+
+**Setup order.** After accepting a lot with a building, SetLot (`0x005D0890`) rebuilds the model, divides the
+lot into eight candidate rectangles, attempts the crane, adds ground props, and calls CreateConstructionCrew
+(`0x005D09C5`). After the crew call returns, it adds roof props, creates dust, sparks and the lot texture
+(`0x005D09CA`–`0x005D09E6`). Thus an automaton returned during crew creation must already support the calls
+below; the dust-effect precondition from NM16 has not yet been established at that point.
+
+**Crew requests** (`0x005CFA60`). If the native detail gate at `0x005CFA6F` is below 3, make no crew requests.
+Otherwise draw a ground-attempt count in **[2,4)**. On each attempt, search the eight candidate rectangles
+in a freshly randomized iterator order for one whose x and z spans are both strictly greater than 2.0.
+Stop ground attempts when none qualifies. Choose a model uniformly from `0x0210B000`, `0x0210C000`,
+`0x0210A000`, and request one ground worker in the qualifying rectangle. Then draw **1 or 2** roof attempts;
+before each, require the building rectangle's x and z spans to exceed 2.0, choose between `0x02109000` and
+`0x0210D000`, and request a roof worker there. A null creation does not undo the rectangle reservation or
+stop subsequent attempts. The count bounds are half-open for the ground draw: the integer random helper
+uses the high half of the random-word product, with no added endpoint (`0x009136B1`–`0x009136DE`). The
+model tables are `0x00AA1E68`–`0x00AA1E78`; span comparisons are `0x005CFB48`–`0x005CFB70` and
+`0x005CFBE0`–`0x005CFC04`.
+
+For **each request**, CreateAutomata (`0x005CE580`) does the following in order:
+
+1. Fetch the current city's pedestrian manager (city slot 44, `+0xB0`). For input rectangle R, draw x in
+   `[R.minX + 0.5, (R.maxX − 0.5) − 1.0)` and z analogously, using double range arguments; round each
+   result to `f32`. Reserve the 1 × 1 rectangle from `(x,0,z)` to `(r24(x+1),1,r24(z+1))` by RemoveRectangle.
+   The subtractions occur in the written order, before conversion to the double range arguments
+   (`0x005CE59A`–`0x005CE62F`); the constants are `f32` 0.5 and 1.0.
+2. The spawn x and z are the midpoints of those already rounded rectangle endpoints, each rounded to
+   `f32`; spawn y is the terrain height queried at those rounded midpoint coordinates (terrain slot 13,
+   `+0x34`), rounded to `f32`. Roof workers also start at this terrain height. The saved roof marker
+   controls a later scaffold-height update (`0x005CE634`–`0x005CE677`).
+3. Call pedestrian-manager slot 15 (`+0x3C`) with **seven arguments**: group `0x4101`, spawn-position
+   reference, flags `0x32000`, explicit model-key reference, null callback, priority `0x32`, null orientation.
+   The key's logical type is `0x49A593E7`, group is `0x29A5D1EC`, and instance is the selected model ID.
+   Its actual Windows argument layout and the callee's 28-byte cleanup are in automata.md §7.6.
+4. On null, return without a list entry or AddRef. On success A, call **A slot 30** (`+0x78`) with `(2,false)`,
+   generate a random horizontal direction and call **A slot 14** (`+0x38`) with its three-`f32` orientation,
+   then **A slot 1** (`+0x04`) AddRef. Append A to the construction occupant's list with an initial false
+   first marker and the request's ground/roof marker. No QI, AsOccupant or Release occurs in this caller
+   during successful creation (`0x005CE6B1`–`0x005CE755`). The manager's returned pointer to A is borrowed;
+   this AddRef establishes the separate construction-owner reference.
+
+**After setup.** SetScaffoldHeight obtains each roof worker's position through A slot 7 (`+0x1C`, one
+output-vector pointer), replaces **only y** with the scaffold height, and calls A slot 8 (`+0x20`, one
+input-vector pointer). Ground workers are skipped (`0x005CC394`–`0x005CC3C8`). During Shutdown, for each
+stored worker in list order, call the live pedestrian manager's slot 8 (`+0x20`) with `(A,false)` if that
+manager exists; then Release A once, even if the manager is absent. Finally free the list entries
+(`0x005D0FF5`–`0x005D1075`). This removal request and Release are distinct events; automata.md §7.6 specifies
+the native manager's deferred-removal behaviour and additional embedded-effects dependency.
+
+**Worked starting-site case.** Permit the detail gate, supply a valid lot/building, and arrange the draws
+to select two ground rectangles and one roof rectangle, all wider/deeper than 2.0. For the first ground
+request let R span x 10–20 and z 30–40, with draws x = 12, z = 34 and terrain height 7. The reserved rectangle
+is `(12,0,34)`–`(13,1,35)`; expect position `(12.5,7,34.5)`, group `0x4101`, flags `0x32000`, priority 50
+and model instance `0x0210B000` when its model draw selects index 0. Expect flag-clear, orientation and
+AddRef in that order before the next worker request. With all three requests successful and no other
+owners, each worker ends setup with one manager-list reference and one construction-owner reference;
+there is no extra caller reference from slot 15. Complete the rest of SetLot, including dust creation.
+At scaffold height 9, only the roof worker's y becomes 9; x and z survive. Shutdown requests removal and
+drops the construction reference once per worker. The automata-owned continuation and null/mixed-native
+test cases are in automata.md §7.6.
+
+**Reading the reported crash.** `SimCity 4.exe+0x1D09CA` is the SetLot continuation after the crew call.
+`0x29A5D1EC` is also the model key's group word, stored as data at `0x005CE698`; it is not an interface ID
+or a callable entry. This identifies a value to check when testing argument layout, stack cleanup and
+pointer lifetime, but does not establish the replacement DLL's fault. NM17 answers the native contract;
+the stopped full-profile action acceptance still requires an engine run with a conforming implementation.
+
 ---
 
 ## 4. Records
