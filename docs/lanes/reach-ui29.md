@@ -1,26 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| reach-ui29 UI action drivers; kind engine | Codex / reach-ui29 / reserved branch reach-ui29 (detached HEAD) | WIP partial delivery; code 1a9d05e44, 6570fca0b, 6d46b332b; suite/docs d020a11e2; ABI unchanged, no seam reservation; cargo 7901, clippy clean, CTest 125/125; p1-p6 clean/ref_warnings=0; p3-p6 framework shadows exact; questions none | 1. Remove refused close from candidate. 2. Qualify cell/road/news targets and missing owners. 3. Replay all three census rows, then enqueue engine. |
+| reach-ui29 UI action drivers; kind engine | Codex / reach-ui29 / reserved reach-ui29 (detached HEAD) | WIP partial delivery; merged main 77be16561; code 09c9830cf, e1de80a37; suite aeb81b104; ABI unchanged, no seam reservation; cargo 7959, clippy clean, CTest 129/129; p12-p15 clean/ref=0, shadow 33/33 exact; UI29-HTTP and UI29-TREE filed | 1. Resolve HTTP/tree questions. 2. Qualify cell and causal news input. 3. Complete owner coverage and enqueue engine ready. |
 
-- Seven documented verbs retained; host input now uses SDK cIGZFrameWorkW32::GetMainHWND; hidden/disabled control ancestors are refused.
-- Final source gate: cargo 7901/7901, clippy 0 diagnostics, CMake 46/46, CTest 125/125 (83.1s); final all has no tree-change caveat; later edits only docs/suite metadata.
-- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log. Earlier all with tree-change caveat is superseded.
-- Evidence root: C:/Users/tlori/FreeCity4/build-runs/game-results/reach-ui29-pN.{verdict,log}; traces: this worktree build-runs/ui29-pN.reach.tsv.
-- p1 reused, never resubmitted: clean/ref=0, 36s dialog hold; input skipped because host class lookup failed. p2 fixes that; all 32 original actions complete.
-- p3 West Weburg: clean/ref=0, all 20 actions complete, end 2200-01-09; road placement itself unproved.
-- p4 Bevopolis: clean/ref=0, all 21 actions complete; cell 63,63,250 posts at 478,198; query handler unproved; emergency pause at 2258-04-14 misses end date.
-- p5: clean/ref=0, but hidden sub-budget buttons enter no owner; ViewWebBrowser status=2 (documented failure), no HTTP reach. Superseded by p6 for budget.
-- p6 final DLL: clean/ref=0, end 2029-01-09; 43/44 actions delivered, one already-hidden close refused; harness also closed one popup. Candidate is not a full-suite pass.
-- p3/p4/p5/p6 gzfw_shadow: each monthly sample buffer 140/140, command 75/75, differences=0; p1/p2 plain, no shadow comparison claim.
-- Query action proof p2/p6: OnMouseMove 004cbc70, OnMouseDownL 004d4d70; text proof InsertText 009bf5b7 and InsertTextHighLevel 009c07e1.
-- Sub-budget proof p6: 17 entered methods, including CreateSubBudgetWindow, SetupWindowBig, initOrdinanceBudget, on_init/on_shutdown and DoWinMsg.
-- Before -> observed p6 bytes (not union/suite credit): Query 0 -> 28583; SubBudget 269 -> 19677; TextEdit 270 -> 9791; TreeView 32 -> 0.
-- Before -> observed p6 bytes: WWW 783 -> 649; HTTP 0 -> 0; Nation 355 -> 3351; Volcano 0 -> 0; App 7846 -> 21927 (p3 observes 21945).
-- Startup owners before -> p6: ConfigRuleManager 0 -> 7647; EffectsResource 0 -> 4196; RenderProperties 38 -> 19918; parser commands 0 -> 3381.
-- Startup window 1999-01-01 first-enters ConfigRuleManager 7647 B, parser commands 3381 B, RenderProperties 1178 B, App 18197 B, Nation 3028 B; earlier city-only arming missed these.
-- EffectsResource 4196 B first enters load window 2000-01-01, not startup. These are entered function sizes from docs/abi, not measured exclusive execution bytes.
-- Roster expanded 767 -> 847 to include 80 anonymous command entries; reports from ignored ui-reach-report.py/ui-methods.py. No extracted game data committed.
-- All three suite rows remain ui29-candidates, outside full; end dates now allow wall-time UI actions to finish. Verbs/visible budget IDs documented in docs/ops/ui-drivers.md.
-- Missing acceptance: map layers, tree controls, HTTP/web, volcano, actual lot result and road placement, qualified cell/news targets, all-three-city complete census; no total suite-credit claim.
-- No requests outstanding; shared queue only, at most one at a time; no user Documents/real Plugins writes. No ready enqueue; WIP engine queue record preserves tip.
-- Next: qualify remaining owner paths and candidate action refusals, replay census, then enqueue engine. Questions none; no ABI exports changed.
+- Code: explicit-cell volcano manager action; end-date quit now drains queued/active UI actions and final input delay while preserving the wall deadline.
+- qbuild all PASS: cargo 7959/7959, clippy 0 diagnostics, CMake 29/29, CTest 129/129 (218.5s). Final later edits only suite/docs metadata; focused harness test passed again.
+- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log; native verdict build-runs/build-results/qbuild-20261026-174040-build-ctest.verdict.
+- Evidence root: C:/Users/tlori/FreeCity4/build-runs/game-results/reach-ui29-pN.{verdict,log}; traces: this worktree build-runs/ui29-pN.reach.tsv; report build-runs/ui29-evidence.py.
+- Final DLL SHA256 03895f4b875211465fb961101d1c1c703eb769be74a9a011e95487fd8d925b98; p12/p13/p14/p15 all match.
+- p13 house: clean/ref=0, 50/50 actions, end 2027-07-12 after requested 2026-04-01; one harness popup closure. p14 West Weburg: clean/ref=0, 22/22, end 2197-07-04 after requested 2197-06-01.
+- p15 Bevopolis: clean/ref=0, 23/23, end 2257-08-26 after requested 2257-07-01. p12 volcano: clean/ref=0, 3/3, end 2026-08-24, 70.859 loaded seconds; 55s wall wait completed.
+- End-date overshoot is intentional while UI drains; p8 was clean but incomplete because graceful quit bypassed pending actions. e1de80a37 fixes this; p9-p11 also clean/complete on earlier DLL afb3f2fd.
+- gzfw_shadow p13 18/18, p14 4/4, p15 4/4, p12 7/7 exact; every sample buffer 140/140, command 75/75, differences=0.
+- Query p13: OnMouseDownL 004d4d70 and DescribeBuilding 004ccf60; sub-budget 17 methods; text insertion entered. Road p14: mouse down/up and PlaceNetwork 0063b830 / PlaceNetworkOccupants 00629210; no saved-network assertion.
+- Map p13: ShowWindow 007a6290, DisplayStandardUint8Grid 007a2380, DisplayStandardSint16Grid 007a2c70; 20165 entered bytes. News periodic display 00773980 entered (6754 B owner); causal button path remains unqualified.
+- Volcano p12: 26/28 traced cSTEVolcanoLava methods, 7306 B entered; cell 63,63 maps to world 1016,1016; emergency pause ended and requested date was crossed.
+- Baseline -> newly observed union of p12-p15, entered named-function bytes (not total suite union): Query 0 -> 28452; SubBudget 269 -> 19677; TextEdit 270 -> 9791.
+- Baseline -> newly observed: TreeView 32 -> 0; WWW 783 -> 649; HTTP 0 -> 0; Nation 355 -> 3351; Volcano 0 -> 7306; App 7846 -> 21945. No HTTP/tree gain claimed.
+- Startup owners baseline -> newly observed: ConfigRuleManager 0 -> 7647; EffectsResource 0 -> 4196; RenderProperties 38 -> 19918; parser commands 0 -> 3381.
+- Startup window 1 first-enters Config 7647 B, parser commands 3381 B, RenderProperties 1178 B, Nation 3028 B, App 18197 B; EffectsResource first enters load window 2 (4196 B). Earlier city-only arming missed these.
+- The roster now has 1002 ABI entries including road/map/news/volcano managers. Baselines are sh28 census values; coordinator owns full-suite union/credit, which was not recomputed here.
+- Full/ ui29 rows: house, West Weburg and volcano. Bevopolis stays ui29-candidates: projection posts at 478,198 but Query enters only lifecycle, no mouse handler; no qualified uicell action.
+- Tree template p7 returned null but left a visible child; Down caused AV 009d1676, corrupt/ref=0, no completed trace. Driver removed. UI29-TREE: docs/specs/questions/ui-windows.md.
+- Public WWW LoadDocument argument order/string type remains unqualified; no guessed binding or external-browser coverage. UI29-HTTP: docs/specs/questions/web-network.md.
+- No requests outstanding; shared queue only, one at a time. Missing tree/HTTP and cell/causal-news acceptance; WIP local queue record only, no ready enqueue. Next: answer questions and finish these drivers.
