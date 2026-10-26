@@ -80,6 +80,12 @@ class MethodTests(unittest.TestCase):
             self.reg["resynced"]["fixture"] = resets
             self.assertFalse(self.credit(rows=[self.row()])[0])
 
+    def test_unrelated_attribution_audits_are_skipped_but_incomplete_method_claims_warn(self):
+        self.assertEqual(self.credit(rows=[dict(address="0094c431", bytes="75")]), (set(), {}, []))
+        credited, _, warnings = self.credit(rows=[dict(address="0094c431", shadow_key="fixture_shadow")])
+        self.assertFalse(credited)
+        self.assertIn("missing columns", " ".join(warnings))
+
     def test_tsv_size_owner_name_and_duplicate_collisions_fail_closed(self):
         for field, value in (("bytes", "74"), ("owner", "Wrong"), ("function_name", "Wrong::Method")):
             row = self.row(); row[field] = value

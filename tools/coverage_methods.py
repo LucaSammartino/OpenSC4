@@ -78,8 +78,11 @@ def credit(paths, att, owners, game, reg):
         with path.open(encoding="utf-8-sig", newline="") as stream:
             reader = csv.DictReader(stream, delimiter="\t")
             required = {"address", "function_name", "owner", "bytes", "shadow_key", "evidence_family"}
-            if not required <= set(reader.fieldnames or ()):
-                warnings.append(f"method evidence `{path.name}`: missing columns {sorted(required - set(reader.fieldnames or ()))}")
+            fields = set(reader.fieldnames or ())
+            if not required <= fields:
+                # This directory also holds owner/core/map audits; they make no method claims.
+                if fields & {"shadow_key", "evidence_family"}:
+                    warnings.append(f"method evidence `{path.name}`: missing columns {sorted(required - fields)}")
                 continue
             for row in reader:
                 address = row["address"].strip()
