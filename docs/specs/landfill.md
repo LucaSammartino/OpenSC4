@@ -1057,6 +1057,78 @@ elsewhere, so tiles kept only inside FreeCity4 differ from the original:
   §4.5.2).
 - The model maker draws them.
 
+#### 4.8.1.1 Replacement tile/exemplar lifetime (LG-lotocc28-1) *[compat]*
+
+There are two different owners: the **tile**, retained by occupant references, and its **default
+exemplar**, retained by the tile's holder. One owned exemplar reference per live tile is sufficient for
+that attachment. A borrowed pointer to the exemplar's property holder is valid while that exemplar is
+retained; obtaining that pointer does not create another ownership obligation. This rule does not make
+a borrowed holder an independently owned object or prove a replacement resource implementation correct.
+
+| Boundary | Ownership rule and native evidence |
+|---|---|
+| Successful resource-manager slot 3 `GetResource(key, 0xA52160F5, out, 0, 0)` | The caller receives an owned exemplar view. The manager QIs its resource for the requested IID, then releases its temporary resource view (`0x00973398`–`0x009733B4`); the exemplar QI AddRefs on success (`0x0067C1ED`–`0x0067C1F4`). Balance each successful acquisition once. |
+| `SetDefaultExemplar(E)` | A changed non-null E is AddRef'd, stored, then the previous exemplar is released; attaching the identical pointer does nothing (`0x00458E69`–`0x00458E86`). The native developer releases its separate GetResource acquisition after attaching (§4.8.1 step 7). |
+| Holder access | Tile `AsPropertyHolder` and holder `GetDefaultExemplar` return borrowed views (§4.8.1). The exemplar's own property-holder accessors (exemplar slots 6/7, `0x006C2050`) are borrowed too. A successful **QI**, unlike those accessors, takes a reference. Do not Release a borrowed view without a matching acquisition. |
+| Removal and Shutdown | Occupant-manager slot 21 removes indices, posts `0x99EF1143`, clears flag 1 and releases its occupant ownership; when requested it then calls occupant Shutdown (`0x0049F36F`–`0x0049F3A7`). It does not acquire or release the tile's exemplar directly. Base Shutdown changes status and posts `0x99EF1141`, without detaching the exemplar (`0x005E8980`–`0x005E89A6`). |
+| Actual tile destruction | The embedded holder releases its non-null default exemplar exactly once (`0x005FF3F0`–`0x005FF3F9`). Removal, Shutdown and final destruction are distinct events. Keep the attachment until destruction or an explicit changed attachment, including while messages or observers still retain the removed tile. |
+
+A replacement may transfer its own successful GetResource acquisition into its attachment instead of
+performing a redundant AddRef/Release pair, provided it produces exactly the same **one retained reference**
+and does not also release that transferred acquisition as a temporary. If it implements the published
+`SetDefaultExemplar` call, that call must have the AddRef/store/Release semantics above. Attaching the exact
+developer-loaded E with an explicit attachment AddRef follows the native path. A second GetResource lookup
+is a separate acquisition; it is not a transfer of the developer's acquisition and must not be assumed to
+identify the same object after cache/key changes.
+
+**Native consumers and surviving tiles.** The tile's own property-holder interface belongs to the tile:
+its refcount/QI thunks delegate to the tile identity (§4.8.1). It is not the exemplar's property-holder
+identity. Borrowing the latter internally for fallback reads must not change the former's lifetime or
+publish its AddRef/Release as tile references. Local tile properties still override default-exemplar
+properties. Native model loading asks the occupant's slot 6 for its borrowed holder, then reads properties
+(`0x00490C8E`–`0x00490C9E`); native group membership does likewise for `0xAA1DD396`
+(`0x005E92D5`–`0x005E92E1`). Neither access grants a reference that may be released by the reader. A
+consumer that retains a tile/holder beyond a borrowed call must retain the owning tile, or use a successful
+QI/AddRef and balance it. An explicitly acquired resource view has its own separate balance.
+
+Every surviving tile keeps its own E reference. E in turn owns its attached parent/cohort reference:
+changing that parent AddRefs the new one and releases the old (`0x0067C51B`–`0x0067C53D`). Destroying tile A
+does not invalidate tile B's fallback properties, inherited occupant groups or renderer reads when B still
+retains E. A replacement must preserve that parent/property lifetime too; extra tile references cannot
+repair an incorrectly borrowed or over-released parent/property object.
+
+**Key mutation is separate from ownership.** On a changed ID, `SetTileID` stores the ID, temporarily
+AddRefs the attached E, calls exemplar slot 11 `GetKey(out)` and slot 12 `SetKey(key)` with the new instance,
+then Releases E (`0x00477474`–`0x0047749F`). Same ID does none of this. These are caller-balanced temporary
+references, not an additional permanent attachment. Both key methods return true, copy the three 32-bit
+key words and take no resource reference (`0x0067CD20`–`0x0067CD48`, `0x0067C220`–`0x0067C22F`, underlying
+copies `0x009753EA`–`0x00975419`). SetKey does not load a new exemplar, replace its properties or notify/
+reindex the resource manager's cache. Every holder of E observes the changed key, while its own tile ID
+and E's properties remain as before. Do not add cache eviction, reload, cloning or a second attachment
+reference to this method. Later GetResource requests resolve by the requested key through the resource
+manager; key mutation alone is no promise that a new-key lookup returns E or that an old-key lookup stops
+returning it. This is why the normal external creation recipe attaches the exemplar for the intended tile
+before calling SetTileID (§4.8.1).
+
+**Worked case — two tiles, one resource, delayed destruction.** Let E have R unrelated references
+(cache/other clients), with all resource-manager temporaries initially balanced. Acquire E once for the
+developer: R+1. Attach it to A and B: R+3. Release the developer acquisition: R+2. Reattach E to A and perform
+borrowed holder/model/group reads: still R+2. Change A's ID from `0x02F10010` to `0x02F10011`: the count
+temporarily reaches R+3 and returns to R+2; E's key instance is now `0x02F10011`, B's stored tile ID stays
+`0x02F10010`, and both still read E's original properties and inherited groups. A same-ID call changes
+nothing. Remove A with Shutdown while an observer retains A: E stays at R+2. After queued messages and the
+observer release the last A reference, A's destruction makes it R+1. B's renderer and inherited-group reads
+must still succeed. Remove and finally destroy B: the count returns to R, with destruction of E only if R
+is then zero. Hold R fixed for this test; any independent cache acquisition/release is a separate event.
+
+This specifies the ownership contract, not a cause for either reported corrupt run. The r2 run's retained
+GetResource acquisition can supply the one attachment reference; r5's explicit attachment to the exact
+developer-loaded E supplies it by the native route. Neither observation warrants another permanent AddRef
+or attributing the corruption to construction Shutdown. A test of the count table must distinguish
+resource QI/acquisitions, tile attachment changes, temporary SetTileID holds, tile removal/Shutdown/final
+destruction and parent/property ownership by identity. Until the replacement resource and tile satisfy
+those balances across native consumers, the reported game activation remains unverified.
+
 #### 4.8.2 Effect on pollution's landfill flag
 
 Bit 15 of a cell's garbage value is set when a non-empty tile occupant is created there and cleared when the
@@ -1474,7 +1546,7 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | 3 | +0x0C | `0x004771B0` | `bool Init()` | 0 | AL | `cSC4Occupant::Init` | ok |
 | 4 | +0x10 | `0x00619100` | `bool Shutdown()` | 0 | AL | `cSC4Occupant::Shutdown` | ok |
 | 5 | +0x14 | `0x005FD7E0` | `cISC4Occupant* AsOccupant()` | 0 | EAX | the occupant interface or null | ok |
-| 6 | +0x18 | `0x00477450` | `uint32 SetTileID(uint32 id)` | 4 | **EAX = previous tile ID** | if `id ≠ tileID`: store it and change the **attached exemplar's** key instance to `id` (exemplar `GetKey`/`SetKey`) *[quirk: mutates a shared exemplar]* | **SDK ERROR**: SDK `bool`. A replacement returns the previous ID (non-zero, so a bool-reading caller sees true). No caller found in the shipped code. |
+| 6 | +0x18 | `0x00477450` | `uint32 SetTileID(uint32 id)` | 4 | **EAX = previous tile ID** | if `id ≠ tileID`: store it, temporarily AddRef the **attached exemplar**, change its key instance to `id` (exemplar `GetKey`/`SetKey`), then Release it; no cache reindex (§4.8.1.1) *[quirk: mutates a shared exemplar]* | **SDK ERROR**: SDK `bool`. A replacement returns the previous ID (non-zero, so a bool-reading caller sees true). No caller found in the shipped code. |
 | 7 | +0x1C | `0x00477110` | `int32 GetOrientation()` | 0 | EAX | (read by the model maker) | ok |
 | 8 | +0x20 | `0x004771C0` | `bool SetOrientation(int32)` | 4 | AL = 1 | stores it | ok |
 | 9 | +0x24 | `0x00477120` | `bool IsEmptyLandfillTile()` | 0 | AL | `isEmpty` | ok |

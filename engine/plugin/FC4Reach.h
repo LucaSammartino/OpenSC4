@@ -79,6 +79,10 @@ private:
 // shadow/replace/compare installation, stop before those hooks are restored.
 void ReachPrepare();
 void ReachStart(int32_t julian);
+// Opt-in natural application/city lifecycle. Window 1 has no city date yet.
+void ReachLifecycleStart();
+bool ReachLifecycleEnabled();
+void ReachCheckpoint();
 void ReachNewMonth(int32_t julian);
 void ReachStop();
 

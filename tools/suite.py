@@ -668,7 +668,7 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'all'], default='tier1')
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'reach29', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)
@@ -787,8 +787,9 @@ def main(argv=None, root=ROOT):
             import suite_states
             rows = suite_states.reuse(root, rows, args.states, resolve_dll(root, args.dll))
         if args.reach:
-            extra += ['reach = 1', 'reach_window = month',
-                      'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()]
+            # These are defaults: a reduced explicit roster must survive --reach.
+            extra = ['reach = 1', 'reach_window = month',
+                     'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()] + extra
         directory, results = run_scenarios(root, rows,
             profile=args.profile, dll=args.dll, tag=args.tag or new_tag(), extra=extra,
             wait_seconds=args.wait_seconds, dry_run=args.dry_run, slots=args.slots)
