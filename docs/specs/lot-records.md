@@ -1411,8 +1411,8 @@ slots 9, 18, 19, 25 and 59 are not Lua, grid, aura or socket methods.
 | 11 / +0x2C | GetLotConfigurationObject; `0x006BFEA0` | occupant: cISC4Occupant*; 4 | EAX = matching configuration-object record*, borrowed, or null | Position match described below; no record writes; D (clear lot / preserve objects), Q |
 | 12 / +0x30 | GetFlags; `0x006C2030` | none; 0 | EAX = zero-extended lot flags byte | Read only; D, T, Q, S |
 | 13 / +0x34 | SetFlags; `0x006BF220` | flags: u32, low byte stored; 4 | void, not a bool | Replace lot flags; bit-0 transition levels/unlevels inclusive cells, §3.5; D, Z |
-| 14 / +0x38 | GetBoundingRect; `0x006BF320` | out: CellRect32*; 4 | out = four zero-extended u32 values x1,z1,x2,z2 | No record writes; D, B, T, Q, Z |
-| 15 / +0x3C | GetCenter; `0x006BF560` | out: vec3*; 4 | out = three f32 metres x,y,z; no ST0 result | Formula/example §3.5; no record writes; D, Q, new-lot Init |
+| 14 / +0x38 | GetBoundingRect; `0x006BF320` | out: CellRect32*; 4 | out = four zero-extended u32 values x1,z1,x2,z2; EAX also echoes out, no ownership | No record writes; D, B, T, Q, Z |
+| 15 / +0x3C | GetCenter; `0x006BF560` | out: vec3*; 4 | out = three f32 metres x,y,z; EAX also echoes out, no ownership; no ST0 result | Formula/example §3.5; no record writes; D, Q, new-lot Init |
 | 16 / +0x40 | GetAltitude; `0x006C2060` | none; 0 | ST0 = stored altitude f32, loaded exactly | Read only; D, Q |
 | 17 / +0x44 | SetAltitude; `0x006BF5C0` | altitude: f32; 4 | void | If absolute difference > double 0.001: store altitude and both slopes; equal/unordered does nothing, §3.5; D, Init |
 | 18 / +0x48 | GetCurrentSlope; `0x006C2070` | none; 0 | ST0 = current slope f32 | Read only; D (levelling/foundation tests) |
@@ -1449,7 +1449,7 @@ slots 9, 18, 19, 25 and 59 are not Lua, grid, aura or socket methods.
 | 49 / +0xC4 | GetLotOccupants; `0x006BFF70` | out: occupant-list*; 4 | Output list populated by occupant manager; no scalar result | Inside-lot filter over inclusive rect; counted occupant references in caller's list; no record writes; D, Q |
 | 50 / +0xC8 | GetCapacityByDeveloperType; `0x006C05A0` | devType: u32, ignoreState: bool; 8 | AX = u16 capacity of first matching profile map, else 0 | With ignoreState false allow states 2/3 only; true bypasses guard; profile from slot 46(true); B, population setup |
 | 51 / +0xCC | GetCapacityByWealth; `0x006BF9B0` | wealth: u32; 4 | AX = u16 capacity, else 0 | Slot 46(true); profile purpose + argument wealth → developer type; slot 50(type,false). Not a no-argument total; Q / capacity clients |
-| 52 / +0xD0 | GetAvailableCapacity; `0x006C0640` | devType: u32, includeVacant: bool; 8 | AX = u16 free capacity, else 0 | States 3 only, or 3/4 if includeVacant; first matching map, §3.2.1 arithmetic; no population insertion; D, B, SetPopulation |
+| 52 / +0xD0 | GetAvailableCapacity; `0x006C0640` | devType: u32, includeVacant: bool; 8 | AX = u16 maximum allowed population for this type, else 0; not capacity minus its current population | States 3 only, or 3/4 if includeVacant; first matching map, §3.2.1 arithmetic; no population insertion; D, B, SetPopulation |
 | 53 / +0xD4 | GetPopulation; `0x006C04A0` | devType: u32; 4 | AX = sum of matching counts across population maps, modulo 65536 | Missing keys contribute zero without insertion; B, Q, jobs calculation |
 | 54 / +0xD8 | GetPopulations; `0x006C21E0` | none; 0 | EAX = pointer to live population-map vector, borrowed, never null on a valid lot | No copy/AddRef; S, B, travel-population accumulation |
 | 55 / +0xDC | SetPopulation; `0x006C1940` | devType: u32, population: u16; 8 | AL 1 iff capacity map contains devType, otherwise 0 | Clamp to slot 52(type,false), assign first corresponding population map, recompute wealth; may insert further zero keys, §§3.2.1–3.2.2; D, B |
@@ -1458,7 +1458,7 @@ slots 9, 18, 19, 25 and 59 are not Lua, grid, aura or socket methods.
 | 58 / +0xE8 | AddTravelPopulation; `0x006C0BA0` | source: cISC4Lot*; 4 | void | Add every source population-map entry into travel-population map modulo 65536; add source GetJobs outputs to travel jobs with f32 stores; synchronize capacity property; source not retained; D |
 | 59 / +0xEC | GetTravelDesignate; `0x0081F910` | none; 0 | EAX = cISC4Lot*, borrowed, or null | Read only; D, T, business-unit travel aggregation |
 | 60 / +0xF0 | SetTravelDesignate; `0x006BF660` | designate: cISC4Lot* or null; 4 | void | If changed: AddRef new, store, Release old; no population/trip forwarding or aggregation by this setter; D |
-| 61 / +0xF4 | GetOccupancy; `0x006C0CF0` | out: f32*; 4 | out f32, not ST0; default 0 | Weighted occupancy below; can insert missing zero population keys; D (condition test), Q |
+| 61 / +0xF4 | GetOccupancy; `0x006C0CF0` | out: f32*; 4 | out f32, default 0; EAX also echoes out, no ownership; no ST0 result | Weighted occupancy below; can insert missing zero population keys; D (condition test), Q |
 | 62 / +0xF8 | GetOccupancyByType; `0x006C10F0` | out: ordered-map<u32,f32>*; 4 | Clear/fill caller's map; void | Formula/edge cases §3.2.2; inserts missing zero keys in population maps; wealth recomputation, B |
 | 63 / +0xFC | GetTravelJobs; `0x006BF350` | wealth: u32; 4 | ST0 = travel jobs[wealth−1] for wealth 1…3; +0.0 otherwise | No designate forwarding or recomputation; D, T |
 | 64 / +0x100 | GetJobs; `0x006BF800` | out: Jobs16*; 4 | Three f32 outputs at out+4,+8,+0xC; void, no ST0 result | Leading dword untouched; profile/population or building-exemplar calculation below; D, travel aggregation |
@@ -1499,9 +1499,10 @@ This is a plain holder: its only saved state is **properties** (§3.6; foundatio
 parent or inherited lookup. Own entries are ordered by unsigned u32 ID. All property, variant and list
 interfaces below are the game's normal interfaces; successful getters do not wrap them in independent
 copies. In particular slot 9 and property slot 5 preserve object/variant identity for in-place traffic writes.
-For convenience additions, an existing property object remains the same object and its variant is assigned;
-a missing ID creates a property. Adding a property object through slot 15 instead replaces the entry's
-object, retaining the supplied object and releasing the old one. There is no automatic change notification.
+For typed additions (slots 10–13), an existing property object remains the same object and its variant is
+assigned; a missing ID creates a property. Slots 14 and 16 create a new property object even for an existing
+ID. They insert it through slot 15, which replaces the entry's object, retaining the supplied object and
+releasing the old one. There is no automatic change notification.
 
 Every `ignored: bool` below is a real four-byte stack argument, even though its value has no effect. Omitting
 it is an ABI error. Copy/add methods and remove methods do not infer a return bool from the SDK name.
@@ -1513,12 +1514,12 @@ holder implementation extensively on other object classes.
 | 0 / +0x00 | QueryInterface; `0x006C2280` | IID: u32, out: interface**; 8 | AL 0/1; owned result on success | Subtract 8, restricted primary QI; no additional holder IID; holder clients |
 | 1 / +0x04 | AddRef; `0x006C2290` | none; 0 | EAX = new shared count | Subtract 8, primary AddRef; reference owners |
 | 2 / +0x08 | Release; `0x006C2310` | none; 0 | EAX = remaining count or 0 | Subtract 8, primary Release and possible destruction; reference owners |
-| 3 / +0x0C | HasProperty; `0x005FEB20` | ID: u32; 4 | AL 1 iff own entry exists, else 0 | No mutation/AddRef; property clients, Q |
+| 3 / +0x0C | HasProperty; `0x005FEB20` | ID: u32; 4 | AL 1 iff own entry exists, else 0 | No mutation/AddRef; U (lot scalar-property helpers use slot 9) |
 | 4 / +0x10 | GetPropertyList; `0x005FD9F0` | out: property-list**; 4 | AL 0 for null out; otherwise AL 1 and one owned list reference | New list of existing property objects, ascending ID, retaining each; caller Releases list; no holder mutation; U |
 | 5 / +0x14 | GetPropertyBytes; `0x005FD290` | ID: u32, buffer: void*, inOutBytes: u32*; 12 | AL 0 if absent or variant not byte-block, else 1 | Copy min(input byte count, stored size) bytes; lower count to stored size if necessary; no allocation/ownership transfer; U |
 | 6 / +0x18 | GetPropertyInterface; `0x005FD2D0` | ID: u32, IID: u32, out: interface**; 12 | AL 0 if absent/non-object/null object, otherwise object's QI result; success owns output reference | Delegate variant's GetValUnknown to object's QI; no holder mutation; U |
 | 7 / +0x1C | GetPropertyString; `0x005FD260` | ID: u32, out: cIGZString*; 8 | AL 0 if absent or variant conversion fails, else 1 with output assigned | String assignment/conversion by variant; out is caller-owned, not retained; U |
-| 8 / +0x20 | GetPropertyUint32; `0x005FD230` | ID: u32, out: u32*; 8 | AL 0 if absent or variant conversion fails, else 1 with output assigned | Variant GetValUint32 conversion, not a new property; no holder mutation; scalar property clients |
+| 8 / +0x20 | GetPropertyUint32; `0x005FD230` | ID: u32, out: u32*; 8 | AL 0 if absent or variant conversion fails, else 1 with output assigned | Variant GetValUint32 conversion, not a new property; no holder mutation; U (lot scalar-property helpers use slot 9) |
 | 9 / +0x24 | GetProperty; `0x005FEB70` | ID: u32; 4 | EAX = stored cISCProperty*, borrowed, or null | No AddRef; property/variant/data identity preserved; D, B, T, Q, S |
 | 10 / +0x28 | AddPropertyBytes; `0x005FFA40` | ID: u32, data: const void*, bytes: u32, ignored: bool; 16 | void | Copy byte block into own variant; retain no input buffer; U |
 | 11 / +0x2C | AddPropertyInterface; `0x005FF950` | ID: u32, object: cIGZUnknown*, ignored: bool; 12 | void | Assign variant as object reference; retain nonnull object, release displaced variant contents; U |
@@ -1532,12 +1533,12 @@ holder implementation extensively on other object classes.
 | 19 / +0x4C | EnumPropertiesFiltered; `0x005FDA80` | predicate: PropertyPredicate, callback: PropertyCallback, context: void*; 12 | void | Ascending entries: call predicate(property,context); call callback on true AL; borrowed callback arguments, no retention; U |
 | 20 / +0x50 | EnumProperties; `0x005FDA50` | callback: PropertyCallback, context: void*; 8 | void | Call callback(property,context) once per ascending entry; ignore its result, no retention; U |
 | 21 / +0x54 | CompactProperties; `0x005FF160` | none; 0 | void | Shrink entry-vector capacity to size when different; preserve property identity and values with balanced reference changes; U |
-| 22 / +0x58 | DestroyLot; `0x006C22A0` | deletionFlags: u32; 4 | EAX = former primary pointer, not a usable reference | Subtract 8; destruct lot; if bit 0 set, free allocation; native Release calls this with 1 after Shutdown; no second Shutdown by this entry |
+| 22 / +0x58 | DestroyLot; `0x006C22A0` | deletionFlags: u32; 4 | EAX = former primary pointer, not a usable reference | Subtract 8; destruct lot as below; if bit 0 set, free allocation; final Release calls this with 1 after Shutdown; no second Shutdown by this entry |
 | 23 / +0x5C | WriteLotRecord; `0x006C2330` | stream: cIGZOStream*; 4 | AL as Serializable slot 3 | Adjust property pointer by −4 to Serializable view; write entire lot, not just properties; U (S normally uses Serializable) |
 | 24 / +0x60 | ReadLotRecord; `0x006C3AF0` | stream: cIGZIStream*; 4 | AL as Serializable slot 4 | Adjust by −4, read entire lot with all §3.4 mutations; U (S normally uses Serializable) |
 
-`PropertyPredicate` and `PropertyCallback` are **cdecl** functions with two four-byte arguments, property
-pointer followed by context. Predicate returns bool in AL; callback's return is ignored. Iteration retains
+`PropertyPredicate` and `PropertyCallback` are **cdecl** functions with two four-byte arguments,
+`cISCProperty*` followed by `void*` context. Predicate returns bool in AL; callback's return is ignored. Iteration retains
 neither input nor a per-entry protective reference and saves the original end pointer; structural changes
 to this holder during callbacks are outside the native iterator invariant. On a missing ID, slots 5–8 leave
 all outputs unchanged. On a present ID they use the ordinary variant conversions (foundations §9); slot 6
@@ -1545,8 +1546,14 @@ has the contained object's QI failure/output rules. Slot 5 requires the byte-blo
 returns the variant's internal data pointer. Object-valued properties have the save/load asymmetry of
 foundations §10.2: a write includes them, but a subsequent plain-holder read drops them.
 
-Width/dispatch evidence: typed getter argument forwarding and pops `0x005FD230–006FD300` (the final address is
-`0x005FD300`); byte-block bounds/copy `0x00915714–00915742`; object QI `0x00915A46–00915A5E`; add-method
+DestroyLot disposes the trip list and its payloads, travel-population map, population vector, road-access
+cache and plain holder (releasing its property objects). It Releases any still nonnull configuration and
+travel designate. It does not remove business-unit membership or run terrain levelling: normal final Release
+first performs Shutdown. The destructor sequence is `0x006C25D0–006C26CC`; the deleting wrapper tests only
+deletionFlags bit 0 at `0x006C3008`. Calling DestroyLot directly does not provide a second lifecycle path.
+
+Width/dispatch evidence: typed getter argument forwarding and pops `0x005FD230–005FD300`;
+byte-block bounds/copy `0x00915714–00915742`; object QI `0x00915A46–00915A5E`; add-method
 epilogues `0x005FF856`, `0x005FF94C`, `0x005FFA3C`, `0x005FFB36`, `0x005FDF73`, `0x005FE062`;
 remove pops `0x005FEC0D`, `0x005FEC18`, `0x005FF3D0`; callback cleanup `0x005FDA9D`, `0x005FDAAD`,
 `0x005FDA70`; destruction `0x006C22A0–006C22A7`, `0x006C3000–006C3054`; whole-lot stream thunks
@@ -1591,7 +1598,7 @@ SDK floating signature must not override this integer channel.
 index as in §3.2.2. No state or livability guard is added. A zero building type or empty capacity vector writes
 0. Otherwise start signed-int32 numerator N=0 and denominator D=0. In each C[i], visit keys in ascending u32
 order; index P[i] at each key, inserting zero if missing. Start f32 F=0 and replace F with
-`r24(extended(F) + extended(P[i][key] / capacity))` after each key. Sum capacities as signed-int32 with wrap,
+`r24(extended(F) + extended(P[i][key]) / extended(capacity))` after each key. Sum capacities as signed-int32 with wrap,
 then signed-divide by the number of keys, truncating toward zero, to get mean A. Replace N by the low int32
 of `trunc64(extended(A) × extended(F) + extended(N))`; add A to D with int32 wrap. After all maps write
 `r24(extended(N) / extended(D))` if signed D>0, otherwise write 0. The x87 division and multiply/add have no
@@ -1674,7 +1681,8 @@ change population, state, wealth or trips. Evidence for rounding, reused index a
 
 This is an input fixture, not shipped tuning: an initialized lot has rect (10,20,11,21), location (10,20),
 size 2×2, facing 0, altitude 300.0, state 3, occupant wealth 1, historical false, a valid residential
-configuration/building and profile C=[{`0x1010`:100}], population P=[{`0x1010`:80}]. Its state-change day is
+configuration/building, profile purpose residential with native wealth 1 and C=[{`0x1010`:100}], and population
+P=[{`0x1010`:80}]. Its state-change day is
 200 city days ago. The lot's flags are `0x58` (needs power, has power, vertices locked); counters are zero.
 No unit or travel designate is involved. Assume the month's completed land-value grid gives these cell
 values and the land/development collaborators otherwise admit the lot:
@@ -1686,8 +1694,10 @@ values and the land/development collaborators otherwise admit the lot:
 | (10,21) | 80 |
 | (11,21) | 100 |
 
-1. The land-value simulator's monthly work produces/publishes its grids; it does not store land value in the
-   lot or call lot slot 42. A compatibility read of slot 42 on this lot visits the four cells in the table's
+1. The land-value simulator's pass reads terrain, zoning and the developers' desirability grids at the lot's
+   position; it does not call a live-lot view or store land value in the lot. A dirty, completed pipeline is
+   restarted by the month message; later daily/idle slices perform the work (landvalue.md §§5–6).
+   A compatibility read of slot 42 on this lot visits the four cells in the table's
    order and returns EDX=0, EAX=280, with no ST0 value. The result is not 70 (the mean), 40 (the location
    cell) or a currency conversion. Primary slot 15 writes center (176.0,300.0,336.0); slot 16 returns 300.0
    in ST0. The center output itself leaves no x87 result.
@@ -1703,8 +1713,11 @@ values and the land/development collaborators otherwise admit the lot:
    allowed count for this type, not 100−80. Slot 54 returns the same live vector on repeated reads.
 4. If the population pass now requests slot 55(`0x1010`,90), the clamp is 100, the stored count becomes 90,
    wealth recomputation retains wealth 1 and AL=1. State, state-change day, travel population and travel jobs
-   remain unchanged. A fresh occupancy read writes f32 0.9. This population setter does not itself rerun
-   traffic aggregation or change the published land-value map. A read-only month omits this step entirely.
+   remain unchanged. A fresh occupancy read writes **f32 0.89**, not f32 0.9: F is
+   0.89999997615814208984375 after its f32 store, so 100×F is 89.999997615814208984375;
+   truncation makes N=89, D=100. The final output is f32 0.88999998569488525390625
+   (bits `0x3F63D70A`). This population setter does not itself rerun traffic aggregation or change the
+   published land-value map. A read-only month omits this step entirely.
 5. D/B/T clients reaching counters/trip statistics use slot 3's borrowed holder without Release. The traffic
    source iterator similarly casts through slot 4, but owns a separate reference it acquired to the lot;
    releasing that iterator result reduces the shared count once. A save through the +4 Serializable view
@@ -1713,9 +1726,11 @@ values and the land/development collaborators otherwise admit the lot:
 
 This sequence illustrates data dependencies within a month, not a global ordering barrier between completed
 land-value work and every development pass. Native suitability/location/grid evidence is tract developer
-`0x00707A60` (location, state/age and optional land-value bounds); lot condition uses `0x006C4630`. Monthly
-land-value grid work is `0x006BE2A0` and its total-value getter is `0x006BD740`. The never-called lot aggregate
-is specified for ABI completeness; it must not be inserted into the game's monthly call sequence.
+`0x00707A60` (location, state/age and optional land-value bounds); lot condition uses `0x006C4630`.
+Land-value pipeline work is `0x006BE7B0`, month dispatch is `0x006BF0D0`, and its total-value getter is
+`0x006BD740`. The occupancy f32 store, integer truncation and final output store are
+`0x006C0DCB`, `0x006C0E22–006C0E44`, `0x006C0E79–006C0E8A`. The never-called lot aggregate is
+specified for ABI completeness; it must not be inserted into the game's monthly call sequence.
 
 #### 13.2.7 Other record collaborators
 
