@@ -1403,3 +1403,12 @@ if(TARGET FreeCity4)
     target_link_libraries(fc4_regionalcity_owner_test PRIVATE fc4_capi)
     add_test(NAME regionalcity_owner_test COMMAND fc4_regionalcity_owner_test)
 endif()
+
+# Graphics-rule private transport; native acquisition remains gated by GR9.
+if(TARGET FreeCity4)
+    add_executable(fc4_cfgrules_owner_test tests/cfgrules_owner_test.cpp)
+    target_include_directories(fc4_cfgrules_owner_test PRIVATE plugin)
+    target_compile_options(fc4_cfgrules_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_cfgrules_owner_test PRIVATE fc4_capi)
+    add_test(NAME cfgrules_owner_test COMMAND fc4_cfgrules_owner_test)
+endif()
