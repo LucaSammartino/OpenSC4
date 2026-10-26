@@ -540,6 +540,19 @@ pub trait HardwareDevice: Send + Sync {
     fn submit(&mut self, kind: u32, points: &[Point], state: &EngineState) -> Result<()>;
     fn suspend(&mut self) -> Result<()>;
     fn resume(&mut self) -> Result<()>;
+    fn shutdown(&mut self) {}
+    fn viewport(&mut self, _bounds: Rect) -> Result<()> {
+        Err(Error::Unsupported("GZG2"))
+    }
+    fn matrix_mode(&mut self, _mode: u32) -> Result<()> {
+        Err(Error::Unsupported("GZG2"))
+    }
+    fn projection(&mut self, _matrix: &[f32; 16]) -> Result<()> {
+        Err(Error::Unsupported("GZG2"))
+    }
+    fn vertices(&mut self, _primitive: u32, _records: &[[u32; 6]]) -> Result<()> {
+        Err(Error::Unsupported("GZG2"))
+    }
 }
 pub struct HardwareEngine {
     pub state: EngineState,
@@ -584,9 +597,8 @@ impl RenderEngine for HardwareEngine {
         true
     }
     fn shutdown(&mut self) {
-        self.buffer = None;
-        self.record = None;
-        self.source = None;
+        // §4.4: the base only tail-dispatches its hardware hook.
+        self.device.shutdown();
     }
     fn canvas(&self) -> Rect {
         self.record.map(BufferRecord::canvas).unwrap_or_default()
@@ -652,6 +664,7 @@ pub struct SimGlEngine {
     pub controls: [u8; 3],
     pub specialized: bool,
     pub device_resources: [Option<usize>; 3],
+    pub image_binding: ImageBinding,
 }
 impl SimGlEngine {
     pub fn new(device: Box<dyn HardwareDevice>, service: Option<Arc<dyn DrawService>>) -> Self {
@@ -662,6 +675,7 @@ impl SimGlEngine {
             controls: [0, 1, 0],
             specialized: false,
             device_resources: [None; 3],
+            image_binding: ImageBinding::default(),
         }
     }
     pub fn factory_accepts(target: &dyn Target) -> bool {
@@ -669,6 +683,21 @@ impl SimGlEngine {
     }
     pub fn specialized_pair_count(&self, kind: u32, points: &[Point]) -> Option<usize> {
         (kind == 3 && self.specialized && self.base.source.is_some()).then_some(points.len() / 2)
+    }
+    pub fn hw_viewport(&mut self, bounds: Rect) -> Result<()> {
+        self.base.device.viewport(Rect(
+            bounds.0,
+            self.base.canvas().3 - bounds.3,
+            bounds.width(),
+            bounds.height(),
+        ))
+    }
+    pub fn hw_projection(&mut self, matrix: &[f32; 16]) -> Result<()> {
+        self.base.device.matrix_mode(1)?;
+        self.base.device.projection(matrix)
+    }
+    pub fn hw_vertices(&mut self, triangles: bool, records: &[[u32; 6]]) -> Result<()> {
+        self.base.device.vertices(if triangles { 6 } else { 0 }, records)
     }
 }
 impl RenderEngine for SimGlEngine {
@@ -703,11 +732,14 @@ impl RenderEngine for SimGlEngine {
         Ok(())
     }
     fn draw(&mut self, kind: u32, points: &[Point]) -> Result<u32> {
-        if self.specialized_pair_count(kind, points) == Some(0) {
-            return Ok(0);
+        match self.specialized_pair_count(kind, points) {
+            Some(0) => Ok(0),
+            Some(_) => {
+                // SPEC-GAP: §4.4 requires native specialized vertices and result-3 captures.
+                Err(Error::Unsupported("GZG2"))
+            }
+            None => self.base.draw(kind, points),
         }
-        // Neither specialized subdivision nor fallback delegation is settled.
-        Err(Error::Unsupported("GZG2"))
     }
     fn generic(&mut self, route: GeometryRoute, kind: u32, points: &[Point]) -> Result<()> {
         let state = self.base.state.clone();

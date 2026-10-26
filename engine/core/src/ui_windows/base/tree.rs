@@ -189,9 +189,9 @@ impl Windows {
         self.release(host, w);
         true
     }
-    pub fn deleting_destructor(&mut self, host: &mut impl Host, w: Window, flags: u32) {
+    pub fn deleting_destructor(&mut self, host: &mut impl Host, w: Window, flags: u32) -> Window {
         if !self.valid(w) {
-            return;
+            return w;
         }
         self.child_delete_all(host, w);
         self.shutdown(host, w);
@@ -201,9 +201,12 @@ impl Windows {
         // Direct nondeleting teardown is not a way to preserve live references.
         // Keep allocation storage only when bit zero is clear.
         self.get_mut(w).children.clear();
+        // WT13: map-node destruction does not Release raw variants when Shutdown was skipped.
+        self.get_mut(w).params.clear();
         if flags & 1 != 0 {
             self.windows.remove(&w);
         }
+        w
     }
     pub fn child_from_id(&self, p: Window, id: u32) -> Option<Window> {
         self.get(p)

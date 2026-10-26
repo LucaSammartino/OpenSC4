@@ -199,6 +199,7 @@ generated index: the questions live one file per spec, so read only the file for
 | TUW | tutorial-window |
 | TV | terrain-view |
 | UG | underground-occupants |
+| UI | ui-windows, web-network |
 | UIH | ui-helpers |
 | UIS | ui-script-service |
 | VC | foundations |
@@ -296,7 +297,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
-| gz-framework-core | 8 | 4 | GZF13 | questions/gz-framework-core.md |
+| gz-framework-core | 8 | 5 | GZF14 | questions/gz-framework-core.md |
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
@@ -410,17 +411,18 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
 | ui-script-service | 1 | 0 | UIS2 | questions/ui-script-service.md |
+| ui-windows | 1 | 0 | UI30 | questions/ui-windows.md |
 | underground-occupants | 1 | 4 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
-| vehicles | 2 | 9 | VH12 | questions/vehicles.md |
+| vehicles | 0 | 11 | VH12 | questions/vehicles.md |
 | video-preferences | 0 | 5 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
-| view-utilities | 5 | 13 | VU20 | questions/view-utilities.md |
+| view-utilities | 2 | 16 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
 | watercraft | 0 | 12 | WC13 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
-| web-network | 2 | 0 | Q17 | questions/web-network.md |
+| web-network | 3 | 0 | Q17, UI30 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
 | widget-dragdrop | 1 | 0 | WDD2 | questions/widget-dragdrop.md |
 | widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
@@ -432,4 +434,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **622** | **1677** | | |
+| **total** | **619** | **1683** | | |
