@@ -120,7 +120,7 @@ pub enum Unsupported {
     MissingService,
     AllocationFailure,
     UnqualifiedEvent(u32),
-    ShowMiddleVp3,
+    NeedsShowHost,
     RawReferenceCount,
     FreedOwner,
 }
@@ -207,12 +207,12 @@ pub enum EndResult {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShowPrefix {
     ReturnedAl(bool),
-    /// Qualified stop before the unreviewed full redraw and middle bindings.
+    /// Prefix exit before redraw and bindings; show_dialog supplies continuation.
     AtRedraw,
 }
 
 /// Qualified first-group exit at 0079020d. The retained reference belongs to
-/// the unimplemented continuation. Dropping this token emits no native Release.
+/// the caller's continuation. Dropping this token emits no native Release.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FirstGroupExit {
     NullPreferencesReturn,
@@ -227,7 +227,7 @@ pub struct Owner {
 }
 
 impl Owner {
-    /// Portable boundary choice, not the native constructor (VP3).
+    /// Explicit qualified state entry; new implements the §9.1 constructor.
     pub fn from_raw(state: RawState, domain: Domain) -> Result<Self, Unsupported> {
         if !domain.valid_objects {
             return Err(Unsupported::InvalidObject);
@@ -739,8 +739,7 @@ impl Owner {
         Ok(0)
     }
 
-    /// Full ShowDialog only supports the qualified early returns. For selector
-    /// zero use show_prefix explicitly, with its qualified stop at redraw.
+    /// Host-free guard/selector prefix. Use show_dialog for the complete method.
     pub fn show(&mut self, selector: u32) -> Result<bool, Unsupported> {
         self.live()?;
         if self.state.initialized == 0 {
@@ -754,7 +753,7 @@ impl Owner {
         if selector != 0 {
             return Ok(false);
         }
-        Err(Unsupported::ShowMiddleVp3)
+        Err(Unsupported::NeedsShowHost)
     }
 
     /// §7.1 prefix, ending before first full redraw. A borrowed global P must
@@ -767,7 +766,7 @@ impl Owner {
     ) -> Result<ShowPrefix, Unsupported> {
         match self.show(selector) {
             Ok(al) => return Ok(ShowPrefix::ReturnedAl(al)),
-            Err(Unsupported::ShowMiddleVp3) => {}
+            Err(Unsupported::NeedsShowHost) => {}
             Err(e) => return Err(e),
         }
         if let Some(h) = self.state.host.take() {
