@@ -4,6 +4,7 @@
 
 ## Handoff
 - STOP received 2026-10-26: run 7 ends 16:00; resume after reboot. No merge-queue file written.
+- Resume attempt: git status clean; coordinator STOP remains enforced and denied further reads/checks. Clear STOP before resuming.
 - Implemented SS8 timing/classifier, SS12 handler/target replay, extensions, listener forwarding, cache ownership and system lifecycle in framework.rs.
 - Implemented SS9 defaults, registry/creator lookup, renderer gate, autoplay and shutdown/source survival in framework.rs.
 - Implemented SS10 inherited director state/factories, explicit unchecked-null boundaries, DisableUpdates and PostAppInit CreateInstanceSet in directors.rs.
