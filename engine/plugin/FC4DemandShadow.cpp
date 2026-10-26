@@ -566,6 +566,7 @@ bool RunOurs(const std::vector<fc4_demand_node_state>& seed, std::vector<fc4_dem
 
 // The NewDay comparison; returns the mismatch count, -1 if not compared.
 int ReportDay(bool beforeClean, bool afterClean) {
+    // SPEC-GAP: Unordered bonus/cap min/max selection for captured NaN tax inputs needs DM-GC29-2.
     Update& u = g_u;
     char prefix[48];
     Prefix(prefix, sizeof(prefix));
