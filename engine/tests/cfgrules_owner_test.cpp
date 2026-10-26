@@ -164,6 +164,11 @@ int main() {
     // A required-file parse error is distinct from unavailable measurement.
     s.missing = true;
     CHECK(fc4_cfgrules_owner_init(owner, &b, Bytes("data"), Bytes("user"), false) == 1);
+    std::string diagnostic;
+    CHECK(fc4_cfgrules_owner_parse_error(owner, &diagnostic, [](void* p, FC4ConfigRulesBytes value) {
+        *static_cast<std::string*>(p) = Text(value);
+    }) == 0);
+    CHECK(diagnostic.find("Missing rules file") != std::string::npos);
     CHECK(b.adds == 1 && b.drops == 0);
     fc4_cfgrules_owner_destroy(owner);
     CHECK(a.adds == a.drops && b.adds == b.drops);

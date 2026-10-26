@@ -310,3 +310,20 @@ fn gr10_literal_roots_selection_order_and_missing_required_file() {
         }
     }
 }
+
+#[test]
+fn scr11_rule_files_filter_physical_blocks_before_commands_and_includes() {
+    let mut files = Files::default();
+    files
+        .text
+        .insert("child.sgr".into(), "#< unclosed child block\nnot a command".into());
+    let script = "#< inline #>\nnot a command\nsinclude missing\n#>partialRule kept\nend\nsinclude child.sgr\npartialRule after_child\nend";
+    let parsed = RuleParser::new(&Registry::default(), 0, 0, false)
+        .parse_text(&mut files, "root.sgr", script)
+        .unwrap();
+    assert_eq!(files.reads, ["child.sgr"]);
+    assert_eq!(
+        parsed.rules.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(),
+        ["kept", "after_child"]
+    );
+}

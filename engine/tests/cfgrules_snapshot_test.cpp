@@ -17,7 +17,9 @@ struct Live final : cISC4RenderProperties {
     void SetBoolValue(int32_t, bool) override { ++writes; }
     void SetIntValue(int32_t, int32_t) override { ++writes; }
     void SetFloatValue(int32_t, float) override { ++writes; }
-    int32_t BoolPropertyIDFromName(const char*) override { return 0; }
+    int32_t BoolPropertyIDFromName(const char* name) override {
+        return strcmp(name, "Flag") == 0 || strcmp(name, "FLAG") == 0 || strcmp(name, "f") == 0 ? 0 : -1;
+    }
     int32_t IntPropertyIDFromName(const char*) override { return 0; }
     int32_t FloatPropertyIDFromName(const char*) override { return 0; }
     const char* NameFromBoolPropertyID(int32_t) override { return "Flag"; }
@@ -31,6 +33,7 @@ int main() {
     const float value = copy->FloatValue(0);
     uint32_t bits; memcpy(&bits, &value, 4); assert(bits == 0x80000000);
     assert(copy->BoolPropertyIDFromName("Flag") == 0 && copy->BoolPropertyIDFromName("missing") == -1);
+    assert(copy->BoolPropertyIDFromName("FLAG") == 0 && copy->BoolPropertyIDFromName("f") == 0);
     copy->SetBoolValue(0, false); copy->SetIntValue(0, 9); copy->SetFloatValue(0, 1.25f);
     assert(!copy->BoolValue(0) && copy->IntValue(0) == 9 && copy->FloatValue(0) == 1.25f);
     copy->SetIntValue(-1, 7); copy->SetIntValue(1, 7);

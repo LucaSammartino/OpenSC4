@@ -266,6 +266,9 @@ public:
         initialized_ = status >= 0;
         if (initialized_) properties_ = properties;
         fc4::Log("cfgrules %s Init status=%d", shadow_ ? "shadow-owner" : "query", status);
+        if (status == 1) fc4_cfgrules_owner_parse_error(owner_, nullptr, [](void*, FC4ConfigRulesBytes error) {
+            fc4::Log("cfgrules parse error: %.*s", static_cast<int>(error.len), error.data);
+        });
     }
     void SetOptionsFromConfiguration() override {
         if (!initialized_) { fc4::Log("cfgrules SetOptions refused: uninitialized"); return; }

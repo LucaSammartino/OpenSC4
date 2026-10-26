@@ -56,4 +56,5 @@ int32_t fc4_cfgrules_owner_log(const void*, FC4ConfigRulesBytes path,
                              const FC4ConfigRulesLogInput*, bool* opened);
 int32_t fc4_cfgrules_owner_apply(const void*, uint32_t group, uint32_t option);
 int32_t fc4_cfgrules_owner_auto(const void*, uint32_t group, uint32_t* output);
+int32_t fc4_cfgrules_owner_parse_error(const void*, void* context, void (*emit)(void*, FC4ConfigRulesBytes));
 }

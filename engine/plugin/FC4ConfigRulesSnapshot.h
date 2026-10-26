@@ -13,10 +13,12 @@ class ConfigRulesSnapshot final : public cISC4RenderProperties {
     std::atomic<uint32_t> refs_{1};
     std::vector<std::string> names_[3];
     std::vector<uint32_t> values_[3];
+    // Borrowed name service, used only inside a call on the native owner that
+    // retains it. Preserve native aliases, folding and locale through its IID.
+    cISC4RenderProperties* lookup_;
     int32_t Find(unsigned kind, const char* name) {
-        for (size_t i = 0; i < names_[kind].size(); ++i)
-            if (names_[kind][i] == name) return static_cast<int32_t>(i);
-        return -1;
+        return kind == 0 ? lookup_->BoolPropertyIDFromName(name) : kind == 1
+            ? lookup_->IntPropertyIDFromName(name) : lookup_->FloatPropertyIDFromName(name);
     }
     uint32_t Get(unsigned kind, int32_t index) const {
         return index >= 0 && size_t(index) < values_[kind].size() ? values_[kind][index] : 0;
@@ -28,7 +30,7 @@ class ConfigRulesSnapshot final : public cISC4RenderProperties {
         return index >= 0 && size_t(index) < names_[kind].size() ? names_[kind][index].c_str() : "";
     }
 public:
-    explicit ConfigRulesSnapshot(cISC4RenderProperties& source) {
+    explicit ConfigRulesSnapshot(cISC4RenderProperties& source) : lookup_(&source) {
         const int32_t counts[] = {source.NumBoolProperties(), source.NumIntProperties(), source.NumFloatProperties()};
         for (unsigned kind = 0; kind < 3; ++kind) {
             for (int32_t i = 0; i < counts[kind]; ++i) {
