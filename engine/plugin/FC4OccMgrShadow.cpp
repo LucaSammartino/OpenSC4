@@ -164,7 +164,6 @@ struct Follow {
     uint32_t syncExact = 0, syncTotal = 0;
     uint32_t externalMoves = 0;
     uint32_t externalSyncMoves = 0;
-    uint32_t moveDeliveries = 0;
     std::unordered_set<cIGZMessage2*> postedMoves;
     std::unordered_set<uint64_t> shutdowns;
 };
@@ -266,7 +265,9 @@ void HRelease(void* u, uint64_t t) {
     DropObject(FromToken(t));
 }
 
-void HInit(void*, uint64_t) {}
+void HInit(void* u, uint64_t occ) {
+    if (Ctx(u) == &g_fol) g_follow.shutdowns.erase(occ);
+}
 void HShutdown(void* u, uint64_t occ) {
     if (Ctx(u) == &g_fol) g_follow.shutdowns.insert(occ);
 }
@@ -1454,10 +1455,11 @@ void LogMonth(const Month& mo) {
         char cp[320];
         snprintf(cp, sizeof(cp),
                  "; calls ins/rem/remall/move(post)=%u/%u/%u/%u(%u) returns=%u/%u%s unfollowed=%u nested=%u; "
-                 "sync moves=%u/%u; external move posts=%u; pending orig/core=%u/%u+%u/%u",
+                 "sync moves=%u/%u; external move posts/sends=%u/%u; pending orig/core=%u/%u+%u/%u",
                  g_follow.callIns, g_follow.callRem, g_follow.callRemAll, g_follow.callMove, g_follow.callMovePost,
                  g_follow.retExact, g_follow.retTotal, g_follow.retExact == g_follow.retTotal ? " (exact)" : "",
                  g_follow.unfollowed, g_follow.nested, g_follow.syncExact, g_follow.syncTotal, g_follow.externalMoves,
+                 g_follow.externalSyncMoves,
                  static_cast<unsigned>(g_follow.origMsgs.size()), static_cast<unsigned>(g_follow.coreMsgs.size()),
                  static_cast<unsigned>(g_follow.origSync.size()), static_cast<unsigned>(g_follow.coreSync.size()));
         calls = cp;
@@ -1546,6 +1548,16 @@ void CallMessage(void* ctx) {
 // batched the-wrong-way-round order and is counted. A Destroy after anything
 // else (an occupant shut down outside the manager) is only counted.
 void NoteDestroy(uint64_t occ) {
+    const bool requested = g_follow.shutdowns.erase(occ) != 0;
+    if (g_followCalls && !requested) {
+        // §5.2 step 8: Remove with shutdown=false does not call Shutdown.
+        // gen27's nonadjacent Destroys were of exactly those occupants (the
+        // captured core host saw no shutdown request). A later external
+        // Shutdown cannot be required to adjoin an earlier Remove.
+        g_follow.removed.erase(occ);
+        ++g_follow.destroyElse;
+        return;
+    }
     auto it = g_follow.removed.find(occ);
     if (it == g_follow.removed.end()) {
         ++g_follow.destroyElse;  // shut down outside the manager
@@ -1559,10 +1571,6 @@ void NoteDestroy(uint64_t occ) {
         return;
     }
     ++g_follow.destroyOther;  // its own remove is outstanding, but not just before
-    if (g_follow.destroyOther <= 4) {
-        Log("occmgr shadow destroy origin: %p shutdown-requested=%u", static_cast<void*>(Occ(occ)),
-            unsigned(g_follow.shutdowns.count(occ) != 0));
-    }
     if (g_follow.rmListed++ < 4) {
         char b[160];
         const char* prev = g_follow.origMsgs.empty() ? "nothing" : MsgName(g_follow.origMsgs.back().kind);
@@ -1684,16 +1692,7 @@ void OnMessage(cIGZMessage2* msg) {
                 if (type == kMsgInserted) ++g_follow.ins;
                 if (type == kMsgRemoved) ++g_follow.rem;
                 if (type == kMsgMoved) ++g_follow.mov;
-                if (type == kMsgMoved) {
-                    const bool posted = g_follow.postedMoves.erase(msg) != 0;
-                    if (++g_follow.moveDeliveries <= 8) {
-                        Log("occmgr shadow native delivery: move of %p msg=%p post-seen=%u call=%d move=%d "
-                            "orig/core=%u/%u boundary=%u",
-                            static_cast<void*>(Occ(m.occ)), static_cast<void*>(msg), unsigned(posted), t_inCall,
-                            t_inMove, unsigned(g_follow.origMsgs.size()), unsigned(g_follow.coreMsgs.size()),
-                            unsigned(g_waitingBoundary));
-                    }
-                }
+                if (type == kMsgMoved) g_follow.postedMoves.erase(msg);
                 const bool sync = type == kMsgMoved && (t_inMove != 0 || t_externalMoveSend != 0);
                 (sync ? g_follow.origSync : g_follow.origMsgs).push_back(MsgRec{type, m.occ, m.data4});
                 if (type == kMsgRemoved) {
