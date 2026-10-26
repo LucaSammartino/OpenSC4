@@ -417,7 +417,8 @@ uint32_t CompareLocal(const fc4_date& date, bool binding, bool liveAvailable,
             for (size_t j = 0; j < native.size(); ++j) {
                 ++fields;
                 if (native[j] != replacement[j]) {
-                    if (mismatches < 2) fc4::Log("viewutil detail family=%s sample=%u word=%u native=%08x core=%08x", family.name,sample,static_cast<unsigned>(j),native[j],replacement[j]);
+                    if (mismatches < 8) fc4::Log("viewutil detail family=%s sample=%u input0=%08x input1=%08x word=%u native=%08x core=%08x",
+                        family.name,sample,in[0],in[1],static_cast<unsigned>(j),native[j],replacement[j]);
                     ++mismatches;
                 }
             }
