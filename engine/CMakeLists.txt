@@ -1473,3 +1473,7 @@ if(TARGET FreeCity4)
     add_test(NAME automata_construction_test COMMAND fc4_automata_construction_test "$<TARGET_FILE:FreeCity4>")
     set_tests_properties(automata_construction_test PROPERTIES RUN_SERIAL TRUE)
 endif()
+# City-situation persistence compares unordered map entries (section 7).
+add_executable(fc4_citysit_record_test tests/citysit_record_test.cpp)
+target_include_directories(fc4_citysit_record_test PRIVATE plugin)
+add_test(NAME citysit_record_comparison COMMAND fc4_citysit_record_test)
