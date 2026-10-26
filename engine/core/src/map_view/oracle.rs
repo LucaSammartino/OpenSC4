@@ -142,15 +142,34 @@ pub fn replay_clear_update(
     owner.active = active != 0;
     owner.dirty = dirty != 0;
     owner.overlay_enabled = overlay_enabled != 0;
-    // The adapter admits only disabled or already-registered overlays.
+    // The adapter admits only already-registered overlays.
     owner.overlay.plan(true, &[])?;
     owner.draw_with(&mut Host(&mut boundary), &mut NoSimulators)?;
     Ok([u32::from(owner.dirty), owner.last_redraw_ms as u32])
 }
 
+/// The UI interface delegates non-button records to the inherited window.
+/// Accepted/tutorial-filtered buttons require the full selection/command host.
+pub fn replay_ui_delegation(
+    kind: u32,
+    command: u32,
+    delegate: impl FnOnce() -> Result<bool, OwnerError>,
+) -> Result<bool, OwnerError> {
+    if kind == 3 && command == 0x2872_59f6 {
+        return Err(OwnerError::Foreign(command));
+    }
+    delegate()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ui_delegation_preserves_false_and_refuses_buttons_before_dispatch() {
+        assert_eq!(replay_ui_delegation(2, 0, || Ok(false)), Ok(false));
+        assert_eq!(replay_ui_delegation(3, 42, || Ok(true)), Ok(true));
+        assert!(replay_ui_delegation(3, 0x2872_59f6, || panic!("unbound command executed")).is_err());
+    }
     #[test]
     fn clear_update_replays_queries_and_clock_in_order() {
         let mut calls = Vec::new();

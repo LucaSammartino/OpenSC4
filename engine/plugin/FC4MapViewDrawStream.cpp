@@ -18,6 +18,7 @@ extern "C" bool fc4_drawstream_raster(const uint8_t*, uint32_t, uint32_t, uint32
 extern "C" bool fc4_drawstream_notification(bool, bool, uint32_t, const uint32_t*, uint32_t,
     const uint32_t*, uint32_t*);
 extern "C" bool fc4_drawstream_clear_update(const uint32_t*, void*, bool(__cdecl*)(void*, uint32_t, uint32_t*), uint32_t*);
+extern "C" bool fc4_drawstream_ui_delegation(uint32_t, uint32_t, void*, bool(__cdecl*)(void*, uint32_t*), uint32_t*);
 
 namespace fc4 {
 namespace {
@@ -291,7 +292,7 @@ void __fastcall Update(void* self, void*) {
     Stream dynamicBefore;
     const bool inactive = before[0x142] == 0;
     capture.clearProfile = !inactive && Load<uint32_t>(before.data(), 0x144) == 0 &&
-        (before[0x140] == 0 || before[0x141] != 0) && Load<uint32_t>(before.data(), 0x9d0) == 0;
+        before[0x141] != 0 && Load<uint32_t>(before.data(), 0x9d0) == 0;
     if (inactive || capture.clearProfile) try { DynamicState(self, dynamicBefore); }
     catch (...) { dynamicBefore.Refuse("entry snapshot allocation"); }
     if (capture.clearProfile && (!clockOriginal ||
@@ -414,11 +415,7 @@ bool __fastcall Notify(void* self, void*, void* message) {
     } catch (...) { ++notificationCount.calls; }
     return result;
 }
-bool __fastcall UIMessage(void* self, void*, void* message) {
-    // Inherited window delegation, selection, legend and commands remain unbound.
-    ++uiCount.calls;
-    return uiOriginal(self, nullptr, message);
-}
+#include "FC4MapViewUIBoundary.h"
 void LogMethod(const Counter& counter, const char* address, const char* name, int32_t julian) {
     const auto date = harness::CivilFromJulian(julian);
     Log("drawstream method %s %s (month) %04d-%02d-%02d: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
@@ -435,14 +432,15 @@ void MapViewDrawStreamStartup() {
     notificationOriginal = reinterpret_cast<MessageFn>(target[3]);
     uiOriginal = reinterpret_cast<MessageFn>(window[3]);
     clockOriginal = reinterpret_cast<ClockFn>(Detour(compat::MapViewDrawStreamEntry(3), reinterpret_cast<void*>(&Clock)));
+    baseUIOriginal = reinterpret_cast<MessageFn>(Detour(compat::MapViewDrawStreamEntry(4), reinterpret_cast<void*>(&BaseUI)));
     fillOriginal[0] = reinterpret_cast<FillFn>(Detour(compat::MapViewDrawStreamEntry(1), reinterpret_cast<void*>(&Fill<0>)));
     fillOriginal[1] = reinterpret_cast<FillFn>(Detour(compat::MapViewDrawStreamEntry(2), reinterpret_cast<void*>(&Fill<1>)));
     updateOriginal = reinterpret_cast<UpdateFn>(Detour(compat::MapViewDrawStreamEntry(0), reinterpret_cast<void*>(&Update)));
     const bool overlay = Patch(child, 4, reinterpret_cast<void*>(&SetOverlay));
     const bool notify = Patch(target, 3, reinterpret_cast<void*>(&Notify));
     const bool ui = Patch(window, 3, reinterpret_cast<void*>(&UIMessage));
-    Log("drawstream MapView installed Update=%u u8=%u i8=%u overlay=%u notify=%u ui=%u clock=%u; complete profile=source-zero/no-custom/registered-overlay",
-        updateOriginal != nullptr, fillOriginal[0] != nullptr, fillOriginal[1] != nullptr, overlay, notify, ui, clockOriginal != nullptr);
+    Log("drawstream MapView installed Update=%u u8=%u i8=%u overlay=%u notify=%u ui=%u clock=%u base=%u; complete profile=source-zero/no-custom/registered-overlay",
+        updateOriginal != nullptr, fillOriginal[0] != nullptr, fillOriginal[1] != nullptr, overlay, notify, ui, clockOriginal != nullptr, baseUIOriginal != nullptr);
 }
 void MapViewDrawStreamMonth(int32_t julian) {
     const auto date = harness::CivilFromJulian(julian);

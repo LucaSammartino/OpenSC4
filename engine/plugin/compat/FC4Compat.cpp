@@ -1002,8 +1002,8 @@ bool DrawStreamTables(void*** context, void*** tree, void*** list) {
 uintptr_t MapViewDrawStreamEntry(unsigned which) {
     const auto* version = IdentifiedVersion();
     // _clock's cdecl/no-body-arguments/EAX transport is in docs/abi/functions.tsv.
-    constexpr uintptr_t sites[] = {0x007A2F60, 0x0079ED90, 0x0079F230, 0x009F361F};
-    if (version != &kVersions[0] || which >= 4 || !CheckCode("MapView drawstream", sites[which], version->imageBase)) return 0;
+    constexpr uintptr_t sites[] = {0x007A2F60, 0x0079ED90, 0x0079F230, 0x009F361F, 0x0099A276};
+    if (version != &kVersions[0] || which >= 5 || !CheckCode("MapView drawstream", sites[which], version->imageBase)) return 0;
     return sites[which];
 }
 void** MapViewDrawStreamTable(unsigned which) {

@@ -2,6 +2,34 @@
 use crate::{catch_unwind, AssertUnwindSafe};
 
 #[no_mangle]
+pub unsafe extern "C" fn fc4_drawstream_ui_delegation(
+    kind: u32,
+    command: u32,
+    context: *mut std::ffi::c_void,
+    delegate: Option<unsafe extern "C" fn(*mut std::ffi::c_void, *mut u32) -> bool>,
+    output: *mut u32,
+) -> bool {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(delegate) = delegate else { return false };
+        if output.is_null() {
+            return false;
+        }
+        let result = fc4_core::map_view::replay_ui_delegation(kind, command, || {
+            let mut result = 0;
+            if delegate(context, &mut result) {
+                Ok(result != 0)
+            } else {
+                Err(fc4_core::map_view::OwnerError::Foreign(0))
+            }
+        });
+        let Ok(result) = result else { return false };
+        *output = u32::from(result);
+        true
+    }))
+    .unwrap_or(false)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn fc4_drawstream_clear_update(
     state: *const u32,
     context: *mut std::ffi::c_void,
