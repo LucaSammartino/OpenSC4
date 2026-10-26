@@ -108,6 +108,155 @@ subgroup enable/selection. A failed 5005 button query takes the source-based pat
 `0xEA2871D9`/`0xEA2871E9` invoke HideWindow. Except for the two consumed CA commands, these accepted
 paths continue through the base window handler (`0x007A5E4B`–`0x007A60BF`).
 
+### 1.3 Native snapshot binding (DS29-1) *[compat]*
+
+This is the Windows 1.1.641 binding for a comparison around **one invocation** of `Update` or either
+`DoMessage`. Offsets below are hexadecimal byte offsets from the **complete MapView owner**, denoted O.
+Pointers and vtable entries are 4 bytes; integers are little-endian. The factory allocates **0x9E8 bytes**,
+constructs O, and returns O+0xE0 (`0x00466080`–`0x004660A4`). Do not interpret the factory result as O.
+The layout record belongs here so implementers need not consult an analysis-only layout document.
+
+#### Interface pointers and entry adjustments
+
+| Interface / entry | Native pointer | Adjustment to recover O | Contract |
+|---|---|---|---|
+| MapView, IID `0x67C5BEDE`, vtable `0x00AB8150` | O | 0 | Slot 3 selects a view (`SetDataView`, `0x007A49B0`). |
+| Message target, IID `0x452294AA`, vtable `0x00AB8140` | O+0x04 | −0x04 | Slot 3 is notification `DoMessage`, `0x007A54D0`. |
+| Inherited window / `cGZWinGen`, vtable `0x00AB7EE0` | O+0x08 | −0x08 | Slot 3 is UI `DoMessage`, `0x007A56E0`. |
+| Inherited window-generator interface, vtable `0x00AB7E60` | O+0xE0 | −0xE0 | Factory result; `Init`/window methods use the inherited window pointer. |
+| Direct `Update`, `0x007A2F60` | O | 0 | No explicit arguments, no result. |
+
+Both message entries are x86 member calls with one pointer argument (callee removes 4 argument bytes).
+Notification handling returns true; UI handling returns true on tutorial rejection, otherwise forwards to
+`cGZWinGen::DoMessage` and preserves its result. The UI argument is a window-message record, **not** a
+`cIGZMessage2Standard`: the accepted button path reads u32 words at +0/+4/+8 as 3, `0x287259F6`, control ID.
+The notification argument is an interface: slot 4 returns its type; for `0xA6B79602`, slots 10 and 15 return
+two records whose u32 words at record+4 are compared. Capture those pointees, not just the message address.
+Notification handling subtracts 4 before calling `UpdateHighlights`/`Update`; UI handling subtracts 8
+before calling owner helpers. These are distinct adjustments, not three aliases with identical `this`.
+Evidence: `0x0079DCE0`–`0x0079DD22`, `0x007A0D6E`–`0x007A0D81`, `0x007A54E1`–`0x007A55FF`,
+`0x007A56E3`–`0x007A5746`.
+
+#### Owner layout record
+
+All rows use **owner adjustment 0** after recovering O above. `ptr32` denotes a native interface/storage
+pointer, not a host-size Rust pointer. A bool occupies **one byte**; adjacent bytes must not be merged into
+a u32 flag. “Retained” means the owner holds a reference independently of a temporary lookup reference.
+
+| Offset from O | Size | Type | Field / snapshot meaning |
+|---|---|---|---|
+| +0x000 | 4 | vptr32 | MapView interface. |
+| +0x004 | 4 | vptr32 | Notification target interface. |
+| +0x008…+0x12F | 0x128 | inherited window storage | Includes the window vptr at +0x008 and generator vptr at +0x0E0. Preserve through the window adapter; the parent window pointer at O+0x050 is borrowed. |
+| +0x130 | 1 | bool | MapView initialization latch (§1.1); initially false. |
+| +0x134 | 4 | u32 | Unnamed constructor-zero word; preserve. No state transition is assigned to it by these entry points. |
+| +0x138 | 4 | ptr32 | Retained message server; initially null, acquired by Init. |
+| +0x13C | 4 | ptr32 | Retained `SC4MarkedCellView`; initially null, acquired by Init. |
+| +0x140 | 1 | bool | 3D overlay enabled; initially true. |
+| +0x141 | 1 | bool | Marked-cell view registered with renderer; initially false. |
+| +0x142 | 1 | bool | Active; initially false. |
+| +0x144 | 4 | u32 | Data source E5; initially zero. This is not the selected view ID. |
+| +0x148 | 4 | u32 | Saved developer layer ED; construction gives 3, a nonzero selection defaults it to 1. Debug override does not overwrite it. |
+| +0x14C | 0x400 | u32[256] | Straight ARGB palette. Entry 255 is at +0x548. |
+| +0x54C | 0x400 | u32[256] | Alpha-multiplied palette used for bitmap fill. Entry 255 is at +0x948. |
+| +0x94C | 1 | bool | Effective interpolation flag (E7 OR presence of E8). |
+| +0x94D | 1 | bool | Lot blocking enabled by presence of E8. |
+| +0x950 | 4 | u32 | Lot type-bit mask from E8; meaningful when blocking is enabled. |
+| +0x954 | 4 | u32 | Stored scale EC, including an explicitly invalid value. |
+| +0x958 | 8 | u64 | Unsigned-16 conversion factor; low/high dwords at +0x958/+0x95C. |
+| +0x960 | 8 | i64 | Signed-16 conversion factor; low/high dwords at +0x960/+0x964. |
+| +0x968 | 4 | ptr32 | Retained-highlight tree header/sentinel pointer. |
+| +0x96C | 4 | u32 | Retained-highlight node count. |
+| +0x974 | 4 | ptr32 | Candidate-highlight tree header/sentinel pointer. |
+| +0x978 | 4 | u32 | Candidate-highlight node count. |
+| +0x980 | 4 | u32 | Highlight kind E9; initially zero. |
+| +0x984 | 0x14 | embedded `cRZString` | Effect name EA: vptr +0x984, byte-buffer begin/end/capacity-end at +0x988/+0x98C/+0x990, u32 reference count +0x994. Initially empty, reference count zero. |
+| +0x998 | 4 | u32 | Footprint ARGB EF. |
+| +0x99C | 4 | u32 | Coverage-ring colour EE. |
+| +0x9A0 | 4 | u32 | Remembered desirability request D; initially 99. |
+| +0x9A4 | 4 | u32 | Remembered traffic-volume request T; initially 0x4C. |
+| +0x9A8 | 4 | u32 | Remembered top-level request M; initially zero. |
+| +0x9AC | 1 | bool | Alternate traffic data A; initially false. |
+| +0x9AD | 8 | u8[8] | Kept travel-type bytes, in exemplar order. |
+| +0x9B5 | 1 | u8 | Number of kept travel types, at most eight; initially zero. Only this prefix of +0x9AD is live. |
+| +0x9B6 | 1 | bool | Legend-content flag L (§6); initially false. |
+| +0x9B8 | 4 | ptr32 | Retained signed-16 scratch simgrid for developer layer 5; initially null. **Not** part of the subscription vector. |
+| +0x9BC | 4 | ptr32 | Begin of ordered u32 notification-subscription vector. |
+| +0x9C0 | 4 | ptr32 | End of live subscription words. |
+| +0x9C4 | 4 | ptr32 | End of subscription allocation. All three vector pointers initially null. |
+| +0x9C8 | 4 | ptr32 | Pending-view list sentinel (12-byte node layout below); initially an empty circular list. |
+| +0x9CC | 4 | u32 | Loaded exemplar **instance**, zero or `0x4A0B6800+n`, not bare request n. Initially zero. |
+| +0x9D0 | 4 | ptr32 | Retained custom view EB/IID `0x8A175D6B`; initially null. |
+| +0x9D4 | 4 | u32 | Saved bare view request for ResetDataView; initially zero. |
+| +0x9D8 | 1 | bool | Map enabled for saved-request selection; initially false. |
+| +0x9D9 | 1 | bool | Dirty; initially false. |
+| +0x9DC | 4 | u32 | Last completed-redraw CRT clock bits (§7.1); initialized by a clock call. |
+| +0x9E0 | 1 | bool | Developer debug override; initially false. |
+
+The omitted spans +0x131…133, +0x143, +0x94E…94F, +0x970…973, +0x97C…97F, +0x9B7,
++0x9DA…9DB and +0x9E1…9E7 have no semantic payload for this binding. Preserve native storage; exclude
+them from equality and do not infer zero initialization. Likewise construction does **not** initialize the
+palettes, interpolation/blocking fields, mask, scale/factors, highlight colours or unused travel-type bytes.
+Capture the live entry values; do not manufacture a constructor-wide zero baseline. An absent E8 can leave
+the inactive mask word unchanged. A missing ramp leaves both previous palettes intact (§2.1).
+
+Evidence: constructor stores `0x007A0D8B`–`0x007A0EFB`; selection fields/factors
+`0x007A50F8`–`0x007A535D`, instance commitment `0x007A547B`; parent accessor `0x0099B7EE`;
+subscription vector `0x007A180B`–`0x007A193F`; scratch-grid allocation/retention
+`0x007A2085`–`0x007A2103`. The scratch grid is initialized, told slot 9(true) and slot 6(`0x89D5C471`),
+then rebuilt for layer 5 as in §4.1. It survives subsequent ordinary redraws/view changes; Shutdown calls
+its slots 4 and 2 and clears the pointer (`0x0079FE1D`–`0x0079FE39`). Message-server and marked-cell
+references, custom-view lifecycle, and renderer registration must remain separate identities.
+
+#### Dynamic records, order and comparison
+
+| Storage | Offset within allocation | Type / meaning |
+|---|---|---|
+| Highlight tree header (40 bytes) | +0 | u8 tree colour; remaining bytes before +4 are not record data. |
+| Highlight tree header | +4 / +8 / +0x0C | ptr32 root / leftmost / rightmost; empty root is null, extremes point to header. Header payload is not a highlight. |
+| Highlight node (40 bytes) | +0 / +4 / +8 / +0x0C | u8 tree colour / ptr32 parent / left / right. Null children terminate a branch. |
+| Highlight node | +0x10 / +0x14 | Retained occupant interface (nullable) / retained visual-effect interface (nullable). |
+| Highlight node | +0x18 | binary32 coverage radius. |
+| Highlight node | +0x1C / +0x20 / +0x24 | binary32 world x / y / z. |
+| Pending-view node (12 bytes) | +0 / +4 / +8 | ptr32 next / previous / u32 bare view request. Sentinel +8 is not a request. |
+
+For each highlight tree, enumerate from header.leftmost by in-order successor until the header; preserve
+duplicate occurrences and every payload, with the pointer ordering of §5.0. Tree shape/colour and allocation
+addresses are container bookkeeping, not an additional semantic comparison. Candidate and retained trees
+are distinct; normal highlight reconciliation empties candidates (§5.0). Evidence: constructor headers
+`0x007A0DC6`–`0x007A0E2F`, signed-key insertion `0x007A0AE0`–`0x007A0B1F`, record accesses and count
+updates `0x007A13DA`–`0x007A171D`, drawing payload reads `0x007A4624`–`0x007A47CB`.
+
+Pending requests are **not a set and not FIFO insertion**. Capture sentinel.next through next until the
+sentinel, retaining duplicates and order. Add-request `0x007A61E0` inserts before the existing first node,
+then calls ResetDataView: newest request has precedence. Remove-request `0x007A6220` searches from the
+front, removes only the first matching occurrence, and resets only when one was found. Reset reads the
+front without consuming it, even while map-enabled is false. Set-saved-request `0x007A6270` replaces
++0x9D4 and resets. For example add 7, add 9, add 7 produces `[7,9,7]`; remove 7 leaves `[9,7]`.
+Evidence: links `0x007A61E4`–`0x007A6212`, removal `0x007A6220`–`0x007A6266`, front read
+`0x007A5615`–`0x007A5649`. Subscription words, in contrast, are the contiguous u32 sequence
+`[begin,end)`; preserve their order and live length, not allocation capacity.
+
+A comparison must snapshot **before the selected native entry executes** and compare the corresponding
+exit. Seed the replacement with the live scalar fields, both complete palettes, string bytes, both highlight
+sequences, subscriptions, pending requests and collaborator identities. Represent foreign pointers by stable
+identity tokens, preserving null, aliasing, and the native highlight ordering. Replay the same ordered foreign
+results, pointee/grid data and clock samples; do not call a retained native collaborator a second time to
+obtain the replacement's result. Compare live scalar/array bits (including binary32 payload bits), string
+contents, ordered records and reference/lifecycle events. Capacity, tree balancing, padding and temporary
+addresses need not coincide. Changes inside the marked-cell view, scratch grid, effects and child minimap
+are collaborator outputs, not bytes stored inline in O. Capture those outputs at their specified interfaces.
+Inherited window handling stays a separate delegated boundary with the same O+8 identity and message.
+
+In particular, notification handling can change +0x142 and +0x9D9 and invoke highlight/draw work; UI handling
+can invoke the selection, legend and panel rules of §§1–3, changing their corresponding stored state. Do not
+compare only dirty/clock. Active Update clears +0x9D9, may set +0x141 when registering the marked view, may
+create/rebuild +0x9B8 for layer 5, and for source 76 permanently overrides palette words +0x548/+0x948 with
+`0xCFFFFFFF`/`0xFFFFFFFF`. Temporary interpolation/overlay suppression is restored on a normal return.
+The common tail stores +0x9DC; early exits are exactly §7.1. Update does not commit a new selected instance,
+layer, saved request or pending-list operation. When nested inside SetDataView, its entry can therefore have
+the **new source/layer/palettes but the old +0x9CC**, because instance commitment follows drawing.
+
 ## 2. The data view exemplar *[compat]*
 
 Data view `n` is the exemplar with key (type `0x6534284A`, group `0x690F693F`, instance `0x4A0B6800 + n`), loaded
@@ -679,6 +828,104 @@ diagonal, water-max and depth offset are the marked-cell view's rules in
 exact §2.2 corrections. This owner initializes ignoreDepth=true and useWater=true and leaves useLots
 at the marked-cell constructor's false default. There is no owner-supplied vertical scale or origin
 offset. Overlay registration occurs before child lookup; it does not imply that new cells were produced.
+
+### 4.4 Bitmap surface and presentation boundary (DS29-1) *[compat]*
+
+`Update` produces an unrotated data-overlay surface. Its receiving child is **`cSC4WinMiniMap`**, IID
+`0xCA318385`, not `cGZWinBMP`. The native child interface is at child-owner+0xD8 (vtable `0x00AB838C`);
+slot 3 returns the inherited child window, slot 4 is **SetOverlay(buffer)**, slot 8 is SetFlags, and slot 9
+is **Update()**. MapView does not receive a draw-context argument. Its raster writes and SetOverlay call
+are the observable output of this entry; a later widget paint is a separate invocation with additional inputs.
+
+For a normal active nonzero-source draw, the ordered interface boundary is:
+
+1. Perform any marked-view registration (§4.3), then call inherited owner-window (O+8) slot 11 (+0x2C)
+   to get the parent. Parent slot 37 (+0x94) queries child ID `0x4203`, IID `0xCA318385`, into a retained
+   temporary interface C. On false, skip all surface work and use the clock tail (§7.1).
+2. Call C slot 3 (+0x0C), then the returned window slot 47 (+0xBC) with an output rectangle of four i32
+   words. W=right−left and H=bottom−top; rectangle origin does not offset the new surface.
+3. GZCOM slot 3 (+0x0C) creates class **`0xC470D325`**, requested IID **`0x20732180`** (`cIGZBuffer`),
+   yielding temporary B. The class and interface IDs must not be reversed. B slot 3 (+0x0C) initializes
+   `(W,H,format)`, where the by-value format is two u32 words **(9,32)**. B slot 18 (+0x48) receives
+   **(0,0)** for the initial whole-surface transparent clear. These normally returning results do not
+   gate the subsequent draw. Required successful handles must be valid (§3.1 failure boundaries).
+4. Read the selected source and draw as in §§4.1–4.3. For the standard byte fill, B slot 12 (+0x30)
+   supplies a rectangle whose right−left and bottom−top are the fill dimensions. Converted u16/i16/float
+   paths first produce bytes and enter the same byte fill. `MakeMapColorBuffer` calls B slot 6 (+0x18)
+   **Lock(0x8040)**; on true, slot 34 (+0x88) obtains bits and slot 35 (+0x8C) obtains **byte pitch**,
+   then it writes four-byte palette words and calls slot 7 (+0x1C) **Unlock(0x8040)**. Failed lock skips
+   that fill and its unlock; presentation still follows. These memory writes must be captured as surface
+   output; they do not issue per-cell calls to a widget's `cGZDrawContext`.
+5. Complete marked-cell, incident, footprint and ring work as applicable (§§4.3, 5.2). These may add
+   further buffer locks/writes, with their documented local failure behavior. Call **C slot 4 (+0x10),
+   SetOverlay(B)**. For source 76 only, next call **C slot 9 (+0x24), Update()**. Release MapView's
+   temporary B through B slot 2 (+0x08); do not shut it down while the child retains it.
+6. If +0x9D0 is non-null, call custom-view slot 5 (+0x14), with no arguments. Sample the CRT clock,
+   store +0x9DC, then release temporary C through slot 2. That last release follows the clock store.
+
+With source zero, steps 3–5 are replaced by **C.SetOverlay(null)**; the rectangle lookup still occurs,
+then custom update and the clock/release tail follow. Missing developer/service skips installation and
+the clock store as in §7.1; do not report its allocated/cleared temporary surface as a presented image.
+
+SetOverlay retains B using AddRef when B differs from the previous overlay, stores it, releases the old
+overlay, and **always** marks the child dirty, even for an identical pointer or null. Relative to C, the
+overlay pointer is **+0x1C** and child dirty byte is **+0x26** (child-owner+0xF4/+0xFE). It does not
+synchronously call a draw context. The minimap's Update later rotates/composes this overlay with its
+terrain/zone image according to child flags and camera orientation; source 76 requests that stage immediately.
+Subsequent minimap `GZPaint` presents the composed image (and may add its own camera decoration). Comparing
+only draw-context calls made *inside MapView.Update* would therefore omit the owner’s principal raster output.
+For this owner compare B's W/H/format and logical four-byte pixel rows at SetOverlay, using the captured pitch
+to locate each row; do not compare allocation padding or require the same bits address. Compare the ordered
+SetOverlay/child-Update/reference events separately from any later minimap paint.
+
+Evidence: parent/child/rectangle/create/clear `0x007A2FC8`–`0x007A30A1`; standard fill and bits/pitch
+`0x007A2380`, `0x0079EE56`–`0x0079EE82`, `0x0079EFA7`–`0x0079EFB5`; presentation/tail
+`0x007A481E`–`0x007A4879`; minimap IID adjustment `0x007A6654`–`0x007A6669`, interface table
+`0x00AB838C`, overlay retention/dirty `0x007A7089`–`0x007A70AA`; deferred composition/paint
+`0x007A8640` and `0x007A79B0`.
+
+### 4.5 Worked binding case: Update after a developer-layer change (DS29-1)
+
+Take a same-invocation entry snapshot after selection has supplied source **64**, changing developer layer
+**3→2**. The new view uses an explicitly present scale 256, so +0x958=65535 and +0x960=32767 (§4.2).
+At Update entry +0x148 is already 2; Update does not itself perform the 3→2 store. Let active=true,
+dirty=true, overlay-enabled=false, registered=false, interpolation=false, lot-blocking=false, highlight
+kind/colours zero, custom-view null and debug=false. Let last clock be 5000, the Update-tail clock result
+be 6007, and both highlight collections be empty. Keep an arbitrary pending sequence `[9,7]`, unchanged.
+If this invocation is nested in SetDataView, +0x9CC still contains the previous instance at this point.
+
+The child window rectangle is `[0,0,2,2]`; all required interfaces and buffer operations succeed. The
+building-development service's slot 32 for type `0x1010` supplies the developer; developer slot 14 gives
+the unsigned-16 grid, with positive cell sizes and rows in x-outer/z-inner order **[0,64], [128,256]**.
+Let straight palette entry k be `0xFF000000+k` for all 256 indices and its multiplied copy be the usual
+§3.1 result (the blue byte becomes k−1 for k≥129 and remains k for k≤128). Assume B's rectangle is
+also `[0,0,2,2]` and its captured byte pitch is 8. This is an interface fixture, not a claim about a
+shipped city's dimensions or exemplar ramp.
+
+The native boundary is parent lookup → child query → C.AsIGZWin → rectangle lookup → create B →
+B.Init(2,2,(9,32)) → B.clear(0,0) → source/grid queries → B rectangle query → B.Lock(0x8040) →
+B.bits → B.pitch → pixel writes → B.Unlock(0x8040) → **C.SetOverlay(B)** → release temporary B →
+clock sample/store → release C. There is no child slot-9 Update, since source is 64, and no renderer
+registration, custom call, incident/highlight lock or draw-context call. Source/layer selection and
+u16 helper entry are evidenced by `0x007A438E`–`0x007A43E3`, `0x007A4408`–`0x007A44DC`.
+
+The converted indices are **0,63,127,255**. With rotation 0 each cell paints one pixel, x from the outer
+index and y from the inner index ([map-color-buffer.md](map-color-buffer.md) §2). Thus at SetOverlay:
+
+| Pixel row y | x=0 | x=1 |
+|---|---|---|
+| 0 | `0xFF000000` | `0xFF00007F` |
+| 1 | `0xFF00003F` | `0xFF0000FE` |
+
+Relative to the **Update entry**, the inline owner deltas are exactly dirty **true→false** at +0x9D9 and
+last clock **5000→6007** at +0x9DC. Source 64, layer 2, both factors, all palette words, selections,
+registered=false, subscriptions, highlight records, retained collaborators and pending `[9,7]` are
+unchanged. Separately the child acquires B at C+0x1C and sets C+0x26=true; replacing a prior overlay
+releases that prior reference. The retained child reference survives MapView's release of its temporary B.
+Relative to a snapshot taken **before selection**, more fields can differ (including layer, source,
+palettes and finally the loaded instance); that is a larger call boundary and must not be mixed with
+this Update comparison. A dirty animation tick may use another clock sample for eligibility before
+entering Update; it must still use 6007, not that earlier sample, for this tail commitment.
 
 ## 5. Highlights (`UpdateHighlights`, `0x007A1A00`) *[compat]*
 
