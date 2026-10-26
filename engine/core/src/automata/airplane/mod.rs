@@ -14,6 +14,9 @@ use super::{
 };
 use crate::stream::{InStream, OutStream};
 
+mod closure;
+pub use closure::*;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct AirplaneDriveParameters(pub [f32; 18]);
 
@@ -85,6 +88,15 @@ pub struct Airplane {
     pub dispatch_request: Option<u32>,
     /// Input from the aircraft player-drive flag, independent of the goal stack.
     pub player_driven: bool,
+    pub velocity: Vec3,
+    pub angular_fields: Vec3,
+    pub player_gains: [f32; 12],
+    pub control_fields: [f32; 4],
+    pub fire_search_anchor: Vec3,
+    pub dispatch_state: u32,
+    /// Retained references, in offset order 208/20C/210/214; never borrowed pointers.
+    pub retained_effects_present: [bool; 4],
+    pub fire_filter_present: bool,
 }
 
 impl Default for Airplane {
@@ -93,12 +105,23 @@ impl Default for Airplane {
             record: AircraftPlacementRecord::default(),
             drive_parameters: AirplaneDriveParameters::default(),
             player_parameters: AirplaneDriveParameters::default(),
-            phase: None, // Remaining constructor fields are AF4, not guessed.
+            phase: Some(FlightPhase::Phase0),
             ammunition: Some(3),
             loiter_remaining_seconds: 0.0,
             water_drop_active: false,
             dispatch_request: None,
             player_driven: false,
+            velocity: [0.0; 3],
+            angular_fields: [0.0; 3],
+            player_gains: [
+                0x3ECCCCCD, 0x3E99999A, 0x3E4CCCCD, 0x3F800000, 0x3F000000, 0x3E4CCCCD,
+                0x3DCCCCCD, 0x3E99999A, 0x3DCCCCCD, 0x3E4CCCCD, 0x3E4CCCCD, 0x3DCCCCCD,
+            ].map(f32::from_bits),
+            control_fields: [0.0; 4],
+            fire_search_anchor: [-1.0, -2.0, -3.0],
+            dispatch_state: 0,
+            retained_effects_present: [false; 4],
+            fire_filter_present: false,
         }
     }
 }
@@ -285,25 +308,25 @@ fn length(v: Vec3) -> f64 {
 /// Animation callers retain milliseconds for callbacks, but use this single
 /// converted/capped step for pursuit and physics. None means player drive.
 pub fn physics_seconds(milliseconds: f32, ai_multiplier: Option<f32>) -> f32 {
-    let seconds = milliseconds * f32::from_bits(0x3A83126F);
-    let seconds = match ai_multiplier {
-        Some(multiplier) => seconds * multiplier,
-        None => seconds,
-    };
+    let conversion = f64::from(milliseconds) * f64::from(f32::from_bits(0x3A83126F));
+    let stored = conversion as f32;
     let cap = f32::from_bits(0x3E4CCCCD);
-    // No lower clamp or subdivision. Non-finite caller behavior is not settled
-    // by §3.4.1; literal comparison preserves NaN rather than sanitizing it.
-    if seconds > cap {
-        cap
-    } else {
-        seconds
+    match ai_multiplier {
+        Some(multiplier) => {
+            let seconds = stored * multiplier;
+            if seconds > cap { cap } else { seconds }
+        }
+        None => {
+            // §3.4.1a: player cap compares the unrounded conversion.
+            if conversion > f64::from(cap) { cap } else { stored }
+        }
     }
 }
 
 /// Whole 3D pre-force limiter; the tiny-speed branch has priority over the cap.
 pub fn limit_velocity(velocity: Vec3, max_speed: f32) -> Vec3 {
     let speed = length(velocity);
-    let factor = if speed < f64::from(f32::from_bits(0x38D1B717)) && speed > 0.0 {
+    let factor = if (speed as f32) < f32::from_bits(0x38D1B717) && speed > 0.0 {
         1.0 / speed
     } else if speed as f32 > max_speed && speed > 0.0 {
         f64::from(max_speed) / speed
