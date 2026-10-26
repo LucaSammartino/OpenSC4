@@ -1483,7 +1483,6 @@ if(TARGET FreeCity4)
     add_test(NAME automata_construction_test COMMAND fc4_automata_construction_test "$<TARGET_FILE:FreeCity4>")
     set_tests_properties(automata_construction_test PROPERTIES RUN_SERIAL TRUE)
 endif()
-<<<<<<< HEAD
 # City-situation persistence compares unordered map entries (section 7).
 add_executable(fc4_citysit_record_test tests/citysit_record_test.cpp)
 target_include_directories(fc4_citysit_record_test PRIVATE plugin)
@@ -1502,7 +1501,8 @@ if(TARGET FreeCity4)
             COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effectsres-${mode})
         set_tests_properties(plugin_effects_resource_registration_${mode}_test
             PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
-=======
+    endforeach()
+endif()
 
 # Native graphics-rule provider; the transport remains private to the static link.
 if(TARGET FreeCity4)
@@ -1524,6 +1524,5 @@ if(TARGET fc4_plugin_load_test)
         add_test(NAME plugin_cfgrules_${mode}
             COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --cfgrules-${mode})
         set_tests_properties(plugin_cfgrules_${mode} PROPERTIES RUN_SERIAL TRUE)
->>>>>>> replace-cfgrules30
     endforeach()
 endif()
