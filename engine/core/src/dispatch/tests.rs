@@ -821,6 +821,9 @@ fn messages_and_loaded_init() {
         }
     }
     let w2 = World::new();
+    // The view allocates opaque handles process-wide, independently of the
+    // manager's IDs or the number of records loaded (dispatch.md 4.1.3).
+    w2.next_handle.set(0xF001);
     let d2 = DispatchManager::new(w2.clone(), 2);
     let mut back = Back(entries);
     assert!(d2.read(&mut ByteReader::with_resolver(&bytes, &mut back)));
@@ -828,8 +831,8 @@ fn messages_and_loaded_init() {
     assert_eq!((r.station, r.automaton, r.view_handle), (Some(STATION), Some(a), 0));
     assert_eq!(w2.refs(STATION), 1);
     d2.init();
-    assert!(w2.take().contains(&format!("track {a:#x} 0 -> 1")));
-    assert_eq!(d2.get_dispatch_info(id).unwrap().view_handle, 1);
+    assert!(w2.take().contains(&format!("track {a:#x} 0 -> {}", 0xF001)));
+    assert_eq!(d2.get_dispatch_info(id).unwrap().view_handle, 0xF001);
     // Read appends.
     let mut back = Back(reg.borrow().entries.clone());
     assert!(d2.read(&mut ByteReader::with_resolver(&bytes, &mut back)));

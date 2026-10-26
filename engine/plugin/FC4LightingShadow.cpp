@@ -100,9 +100,13 @@ bool Capture(uint32_t (&fields)[kFields]) {
     return true;
 }
 
-void CompareQueries(int32_t julian) {
+uint32_t CompareQueries(int32_t julian) {
     auto* owner = NativeOwner();
-    if (!owner || !inputsReady) return;
+    if (!owner || !inputsReady) {
+        fc4::Log("lighting queries: unavailable mismatches=1");
+        ++queryLines;
+        return 1; // Missing observations cannot count as an exact capture.
+    }
     uint32_t mismatches = 0, cases = 0;
     // §1.6: these are independently supplied query arguments, not inferred
     // current owner state. Test all presence combinations, including an empty
@@ -176,6 +180,7 @@ void CompareQueries(int32_t julian) {
         date.year, date.month, date.day_of_month, cases, mismatches);
     ++queryLines;
     if (mismatches == 0) ++queryClean;
+    return mismatches;
 }
 
 void Compare(int32_t julian) {
@@ -185,7 +190,7 @@ void Compare(int32_t julian) {
     const int32_t month = date.year * 12 + date.month;
     if (month == lastMonth) return; // One dated line, including the load month.
     lastMonth = month;
-    CompareQueries(julian);
+    const uint32_t queryMismatches = CompareQueries(julian);
     uint32_t native[kFields]{}, expected[kFields]{};
     const bool captured = inputsReady && Capture(native);
     const uint32_t mask = captured ? fc4_lighting_shadow_compare(inputs, native, expected) : (1u << kFields) - 1;
@@ -197,8 +202,9 @@ void Compare(int32_t julian) {
                 i, native[i], expected[i], captured ? 1u : 0u);
         }
     }
-    fc4::Log("lighting shadow %04d-%02d-%02d: scope=exemplar-parameters fields=%u captured=%u mismatches=%u",
-        date.year, date.month, date.day_of_month, kFields, captured ? 1u : 0u, mismatches);
+    mismatches += queryMismatches;
+    fc4::Log("lighting shadow %04d-%02d-%02d: scope=exemplar-and-queries fields=%u captured=%u mismatches=%u",
+        date.year, date.month, date.day_of_month, kFields + 610, captured ? 1u : 0u, mismatches);
     ++lines;
     if (mismatches == 0) ++clean;
 }
@@ -222,7 +228,7 @@ void LightingShadowCityLoaded(cISC4City* city, int32_t julian) {
 }
 void LightingShadowMonth(int32_t julian) { Compare(julian); }
 void LightingShadowCityShutdown() {
-    if (enabled) Log("lighting: shutdown: %u/%u exact; scope=exemplar-parameters resyncs=0", clean, lines);
+    if (enabled) Log("lighting: shutdown: %u/%u exact; scope=exemplar-and-queries resyncs=0", clean, lines);
     if (enabled) Log("lighting: query shutdown: %u/%u exact; fields_per_capture=610 whole_owner=unavailable resyncs=0", queryClean, queryLines);
     enabled = false;
     inputsReady = false;

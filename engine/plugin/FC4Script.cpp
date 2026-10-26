@@ -17,6 +17,7 @@
 #include "FC4Watchdog.h"
 #include "FC4Diag.h"
 #include "FC4DisasterShadow.h"
+#include "FC4DbpfNative.h"
 #include "FC4DispatchShadow.h"
 #include "FC4WriteCapture.h"
 #include "FC4Fpu.h"
@@ -34,6 +35,7 @@
 #include "cFC4ZoneManager.h"
 #include "cFC4PropDeveloper.h"
 #include "cFC4MySim.h"
+#include "FC4GDriverShadow.h"
 
 #include "SC4Rect.h"
 #include "SC4String.h"
@@ -727,6 +729,9 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         case ScriptOp::LightingHour:
             result = PropDevScriptLightingHour(a.speed);
             break;
+        case ScriptOp::GDriverProbe:
+            result = GDriverShadowProbe();
+            break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";
@@ -826,6 +831,15 @@ void ScriptOnTick() {
         }
     }
     if (g_waiting.empty() || g_inTick) return;
+    // Complete both readers on stable pre-save bytes across normal ticks.
+    // A synchronous drain inside PreSave can exceed the watchdog interval.
+    // Keep the save and every action behind it in their existing order.
+    if (DbpfShadowPending())
+        for (const auto* action : g_waiting)
+            if (action->op == harness::ScriptOp::Save) {
+                DbpfShadowWait();
+                return;
+            }
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them

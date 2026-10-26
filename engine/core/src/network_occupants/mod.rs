@@ -30,6 +30,7 @@ pub mod piece;
 pub mod power_line;
 pub mod power_pole;
 pub mod record;
+pub mod surface;
 pub mod underground;
 pub mod xform;
 

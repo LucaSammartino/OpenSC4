@@ -6,6 +6,15 @@
 class cIGZString;
 constexpr uint32_t kFC4_IID_NativeOverlay = 0x895D6544;
 
+// overlay-manager section 2.7.1 (OV16): slot3 writes exactly two uint32_t
+// words through one stack pointer, with no return value. Slot4 takes no
+// arguments; its opaque driver handle is not an acquired reference.
+class FC4IOverlaySource : public cIGZUnknown {
+public:
+    virtual void Dimensions(uint32_t* widthHeight) = 0;
+    virtual uint32_t Texture() = 0;
+};
+
 // overlay-manager.md §3. Do not inherit the SDK overlay declaration: its
 // overloaded slots 3..6 and output-first slot 24 describe a different ABI.
 class FC4INativeOverlay : public cIGZUnknown {

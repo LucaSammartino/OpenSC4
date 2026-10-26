@@ -62,7 +62,7 @@ generated index: the questions live one file per spec, so read only the file for
 | DP | dispatch |
 | DQ | demand, demolition |
 | DR | drive-tool |
-| DS | disasters |
+| DS | disasters, map-view |
 | DT | dates |
 | EF | effects |
 | EFP | effects, effects-parser |
@@ -201,6 +201,7 @@ generated index: the questions live one file per spec, so read only the file for
 | UG | underground-occupants |
 | UIH | ui-helpers |
 | UIS | ui-script-service |
+| VC | foundations |
 | VH | vehicles |
 | VIC | view-input-controls |
 | VP | video-preferences |
@@ -230,19 +231,19 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisor-window | 1 | 4 | AW6 | questions/advisor-window.md |
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 7 | 4 | AF12 | questions/aircraft.md |
+| aircraft | 0 | 11 | AF12 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
 | app-directors | 3 | 0 | ADIR4 | questions/app-directors.md |
-| application | 12 | 6 | AP19 | questions/application.md |
-| audio | 8 | 12 | AU51 | questions/audio.md |
-| audio-ambience | 4 | 11 | AA15 | questions/audio-ambience.md |
+| application | 13 | 7 | AP20 | questions/application.md |
+| audio | 3 | 17 | AU51 | questions/audio.md |
+| audio-ambience | 3 | 12 | AA15 | questions/audio-ambience.md |
 | audio-preferences | 3 | 0 | APW4 | questions/audio-preferences.md |
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
-| automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
+| automata | 9 | 44 | A5, AM13, AT34 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -265,24 +266,24 @@ generated index: the questions live one file per spec, so read only the file for
 | commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
-| data-formats | 3 | 60 | EX58 | questions/data-formats.md |
+| data-formats | 4 | 61 | EX59 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
-| demand | 0 | 13 | DQ14 | - |
+| demand | 0 | 13 | DQ14 | questions/demand.md |
 | demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 3 | 44 | DS48 | questions/disasters.md |
-| dispatch | 1 | 12 | DP14 | questions/dispatch.md |
+| dispatch | 0 | 13 | DP14 | questions/dispatch.md |
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 0 | 29 | EF26, EFP7 | questions/effects.md |
+| effects | 0 | 30 | EF27, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 2 | 3 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 8 | 9 | AO4, HG9, RN6, SV2 | questions/foundations.md |
+| foundations | 8 | 10 | AO4, HG9, RN6, SV2, VC30 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | freshness | 5 | 0 | FS6 | questions/freshness.md |
@@ -291,11 +292,12 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
-| graphics-rules | 4 | 5 | GR10 | questions/graphics-rules.md |
+| graphics-rules | 4 | 6 | GR11 | questions/graphics-rules.md |
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
-| gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
-| gz-graphics | 5 | 2 | GZG8 | questions/gz-graphics.md |
+| growth-developer | 0 | 0 | - | questions/growth-developer.md |
+| gz-framework-core | 8 | 4 | GZF13 | questions/gz-framework-core.md |
+| gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
@@ -304,7 +306,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
 | landvalue | 2 | 10 | LV11 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
-| legacy-control | 1 | 13 | LC16 | questions/legacy-control.md |
+| legacy-control | 3 | 13 | LC19 | questions/legacy-control.md |
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
@@ -313,7 +315,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 2 | 13 | LR16 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
-| map-view | 1 | 15 | QV17 | questions/map-view.md |
+| map-view | 1 | 16 | DS30, QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
@@ -325,10 +327,10 @@ generated index: the questions live one file per spec, so read only the file for
 | nation | 0 | 4 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
-| network-geometry | 0 | 8 | NG9 | questions/network-geometry.md |
-| network-manager | 0 | 17 | NM18 | questions/network-manager.md |
-| network-occupants | 17 | 30 | NO46 | questions/network-occupants.md |
-| network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
+| network-geometry | 1 | 8 | NG16 | questions/network-geometry.md |
+| network-manager | 3 | 20 | NM21 | questions/network-manager.md |
+| network-occupants | 16 | 35 | NO48 | questions/network-occupants.md |
+| network-overlay-views | 1 | 2 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
@@ -341,10 +343,10 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 11 | OV17 | questions/overlay-manager.md |
-| overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
+| overlay-manager | 5 | 12 | OV18 | questions/overlay-manager.md |
+| overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
-| particles | 6 | 7 | PT14 | questions/particles.md |
+| particles | 0 | 13 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 1 | PN4 | questions/pedestrians.md |
@@ -364,8 +366,8 @@ generated index: the questions live one file per spec, so read only the file for
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
 | region-screen | 4 | 0 | QR5 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
-| regional-city | 8 | 1 | RY10 | questions/regional-city.md |
-| regional-city-records | 9 | 0 | RR10 | questions/regional-city-records.md |
+| regional-city | 6 | 3 | RY10 | questions/regional-city.md |
+| regional-city-records | 2 | 7 | RR10 | questions/regional-city-records.md |
 | render-properties | 4 | 4 | RP9 | questions/render-properties.md |
 | render3d | 2 | 2 | RND5 | questions/render3d.md |
 | renderer-driver | 6 | 11 | RD13 | questions/renderer-driver.md |
@@ -379,13 +381,13 @@ generated index: the questions live one file per spec, so read only the file for
 | rigid-body-2d | 7 | 0 | RB8 | questions/rigid-body-2d.md |
 | rz-draw | 1 | 0 | RZD2 | questions/rz-draw.md |
 | rz-sparse-matrix | 5 | 0 | SM6 | questions/rz-sparse-matrix.md |
-| rz-strings | 6 | 6 | RZS12 | questions/rz-strings.md |
+| rz-strings | 4 | 8 | RZS12 | questions/rz-strings.md |
 | sc-resources | 1 | 11 | SCR12 | questions/sc-resources.md |
 | simgrid | 2 | 1 | SG4 | questions/simgrid.md |
 | snapshots | 9 | 0 | SN10 | questions/snapshots.md |
 | sound-framework | 4 | 0 | SY5 | questions/sound-framework.md |
 | sound-renderer | 3 | 0 | SRN4 | questions/sound-renderer.md |
-| sound-system | 12 | 0 | SS13 | questions/sound-system.md |
+| sound-system | 12 | 12 | SS13 | questions/sound-system.md |
 | span-render-1555 | 2 | 5 | SR1556 | questions/span-render-1555.md |
 | span-render-4444 | 3 | 4 | SP8 | questions/span-render-4444.md |
 | span-render-565 | 6 | 2 | SR566 | questions/span-render-565.md |
@@ -393,7 +395,7 @@ generated index: the questions live one file per spec, so read only the file for
 | span-render-8888 | 5 | 1 | SR8889 | questions/span-render-8888.md |
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
-| terrain | 8 | 36 | TR45 | questions/terrain.md |
+| terrain | 8 | 38 | TR47 | questions/terrain.md |
 | terrain-view | 2 | 1 | TV4 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
@@ -408,10 +410,10 @@ generated index: the questions live one file per spec, so read only the file for
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
 | ui-script-service | 1 | 0 | UIS2 | questions/ui-script-service.md |
-| underground-occupants | 2 | 3 | UG6 | questions/underground-occupants.md |
+| underground-occupants | 1 | 4 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 2 | 9 | VH12 | questions/vehicles.md |
-| video-preferences | 5 | 0 | VP6 | questions/video-preferences.md |
+| video-preferences | 0 | 5 | VP6 | questions/video-preferences.md |
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 5 | 13 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
@@ -424,10 +426,10 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
 | widget-slider | 2 | 0 | WSL3 | questions/widget-slider.md |
 | widget-spinner | 2 | 0 | WSP3 | questions/widget-spinner.md |
-| widget-toolkit | 11 | 9 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 5 | 12 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | widget-wingen | 2 | 1 | WGN4 | questions/widget-wingen.md |
-| win-filebrowser | 3 | 3 | FBQ7 | questions/win-filebrowser.md |
+| win-filebrowser | 0 | 6 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **666** | **1588** | | |
+| **total** | **622** | **1677** | | |

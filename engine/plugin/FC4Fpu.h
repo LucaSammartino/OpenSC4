@@ -18,8 +18,8 @@
 // they compute. Our DLL's mere presence raises the main thread to 53-bit
 // somewhere between PreAppInit and PostAppInit, and nothing in the game can
 // restore 24-bit afterwards, so FreeCity4 re-asserts it itself at PostAppInit
-// through the game's own helper (FpuReassert24Bit). Apart from that one call
-// FreeCity4 never changes the main thread's x87 control word.
+// through the game's own helper (FpuReassert24Bit). Simulation entries also
+// restore it when new-city setup or a yielded Lua call left it raised (§18.2).
 //
 // It is logged:
 //   fpu <where>: x87 CW=0x007F (PC 24-bit, RC nearest) MXCSR=0x00001F80 [thread …]
@@ -52,6 +52,10 @@ void FpuSetReference(const char* where);
 // helper, so it inherits the game's notion of the 24-bit word rather than a
 // hardcoded one. Logs the call and its effect; no-op off the main thread.
 void FpuReassert24Bit(const char* where);
+// foundations §18.2: simulation arithmetic must run at 24 bits even when a
+// caller outside the simulation left Lua's 53-bit mode on the main thread.
+// No-op when already correct or on another thread; every restore is logged.
+void FpuSimulationEntry(const char* where);
 // Every framework tick (observer): logs a change of the control word once,
 // with the tick number, and runs the guard.
 void FpuTick();
