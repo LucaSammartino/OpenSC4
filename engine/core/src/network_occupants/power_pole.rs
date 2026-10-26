@@ -16,7 +16,7 @@ use crate::stream::{InStream, OutStream};
 mod links;
 mod model;
 pub use links::PoleLinkHost;
-pub use model::{PoleDrawContext, PoleModelHost, PoleRenderHost, PoleTextures};
+pub use model::{PoleDrawContext, PoleLifecycleHost, PoleModelHost, PolePickHost, PoleRenderHost, PoleTextures};
 
 /// Native pool allocation size, not the size of this portable Rust state.
 pub const POWER_POLE_POOL_OBJECT_SIZE: usize = 0x124;
@@ -144,6 +144,8 @@ pub enum PoleUnsupported {
     CellWalkNO33NO43,
     ModelBoundsPickDrawNO33NO43,
 }
+
+pub mod pool;
 
 /// External occupant manager, effects and reciprocal pole calls only.
 pub trait PoleHost: References {
@@ -292,6 +294,7 @@ pub struct PowerPole {
     pub bytes_54_55: [u8; 2],
     pub scale_64: f32,
     pub stale: bool,
+    pub bounds_cells: [u32; 4],
     pub subscribed: bool,
     pub effect: RefValue,
 }
@@ -312,6 +315,7 @@ impl PowerPole {
             bytes_54_55: [0; 2],
             scale_64: 1.0,
             stale: true,
+            bounds_cells: [0; 4],
             subscribed: false,
             effect: RefValue::Null,
         }
@@ -406,8 +410,7 @@ impl PowerPole {
     }
 
     /// §4.3's specified prefix. Caller must perform shared init_once first.
-    /// This deliberately does not masquerade as full Init: full model/resource
-    /// decisions remain NO33. `set_distressed` and attachment tables are owned.
+    /// Legacy prefix helper. Full initialization is `init` in the model module.
     pub fn init_published_state(
         &mut self,
         statics: &PoleStatics,

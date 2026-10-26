@@ -36,6 +36,7 @@
 #include "cFC4PropDeveloper.h"
 #include "cFC4MySim.h"
 #include "FC4GDriverShadow.h"
+#include "FC4GZFramework.h"
 
 #include "SC4Rect.h"
 #include "SC4String.h"
@@ -483,6 +484,16 @@ std::string RunFunds(const harness::ScriptAction& a, cISC4City* city) {
     return b;
 }
 
+std::string RunBudgetWindow(cISC4City* city) {
+    // Borrowed city getter; no reference is acquired or released here. Budget
+    // slot 24 takes no arguments (docs/abi/interfaces.tsv; budget.md method inventory).
+    auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
+    if (!budget) return "ok=0 (skipped: no city budget)";
+    // SPEC-GAP: budget.md specifies a replacement return, not a native return channel.
+    budget->ShowBudgetWindow();
+    return "ok=1 (ShowBudgetWindow requested)";
+}
+
 std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
     if (!city) return "ok=0 (skipped: no city)";
     if (city->GetEstablished()) return "ok=1 (already established; name unchanged)";
@@ -689,6 +700,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             result = ui_driver::Run(a); break;
         case ScriptOp::Funds: result = RunFunds(a, city); break;
         case ScriptOp::Establish: result = RunEstablish(a, city); break;
+        case ScriptOp::BudgetWindow: result = RunBudgetWindow(city); break;
         case ScriptOp::Zone:
         case ScriptOp::PriceZone:
         case ScriptOp::Dezone: result = RunZone(a, city); break;
@@ -709,6 +721,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             digest = true;
             break;
         case ScriptOp::Mark: result = "marked"; break;
+        case ScriptOp::GZFrameworkProbe: result = GZFrameworkScriptProbe() ? "ok=1 (GZ command round trip)" : "ok=0 (GZ command round trip failed)"; break;
         case ScriptOp::MySim: result = MySimScriptAction(a.on); break;
         case ScriptOp::Save:
             NetMgrShadowBeforeSave(city, julian);  // netmgr_shadow = 1 only: the records the save writes

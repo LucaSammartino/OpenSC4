@@ -15,6 +15,7 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4LotDevInterfaces.h"
@@ -548,9 +549,9 @@ void RunStep(void* p) {
     }
 
     AppendF(body, "record=%zu bytes roundtrip=%s night=%u cursor=%u mode=%u lit=%u lots=%u sampled=%u compared=%u "
-                  "mismatches=%u rawAL=%u first=%s",
+                  "mismatches=%u rawAL=%u cw=0x%04X first=%s",
             rec.size(), same ? "same" : "DIFFERENT", n, cursor, static_cast<unsigned>(mode),
-            static_cast<unsigned>(lit), lots, sampled, k.compared, k.mismatches, k.rawTruth, k.first.Str());
+            static_cast<unsigned>(lit), lots, sampled, k.compared, k.mismatches, k.rawTruth, X87ControlWord(), k.first.Str());
     Line(r, body);
 
     fc4_lotdev_destroy(core);

@@ -20,7 +20,7 @@
 //! `positions.rs` (39, 40), `boundary.rs` (42, 43) and `foundation.rs`
 //! (48–61) add the rest of §17 to the same type.
 
-use super::geometry::{area_slope_of, development_cost};
+use super::geometry::{area_slope_with_precision, development_cost};
 use super::tuning::Tuning;
 use super::{CellRect, LotDeveloperHost};
 use crate::x87::{ftol32, r24};
@@ -299,7 +299,7 @@ impl TerrainView {
     /// Slot 29 `GetAreaSlope(rect, withWater)` (§11.4).
     pub fn area_slope(&self, host: &dyn LotDeveloperHost, rect: CellRect, with_water: bool) -> f32 {
         let mut f = |x: i32, z: i32| self.altitude_by_vertex(host, x, z, with_water);
-        area_slope_of(rect, &mut f)
+        area_slope_with_precision(rect, &mut f, host.invocation_precision())
     }
 
     /// Slot 30 `GetLotSlope(lot, withWater)`.

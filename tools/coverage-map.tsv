@@ -224,7 +224,7 @@ cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.m
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4*DispatchSource	automata (vehicles, animation)	simulation	-	-	-	-
 cSC4NetworkOccupantModelInstance	network occupants	simulation	network-occupants.md	core/src/network_occupants	-	-
-cSC4NetworkOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
+cSC4NetworkOccupant	network occupants	simulation	network-occupants.md	core/src/network_occupants	netocc_shadow	-
 cSC4Network*Occupant*	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundOccupant	network occupants	simulation	network-occupants.md	-	-	-
 cSC4UndergroundConnectionOccupant	network occupants	simulation	network-occupants.md	-	-	-
@@ -234,15 +234,15 @@ fn:GZCOM_CreatecSC4NetworkOccupant	network occupants	simulation	network-occupant
 fn:SC4WriteGZPersistRef	network occupants	simulation	network-occupants.md	-	-	-
 fn:SC4ReadGZPersistRef	network occupants	simulation	network-occupants.md	-	-	-
 (anonymous_namespace)::ConvertV5FlagsToCurrentFlags	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
-cSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
+cSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	core/src/network_occupants	netocc_shadow	-
+cSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	core/src/network_occupants	netocc_shadow	-
 # the pole's connection records and the two factories (network-occupants.md §4, §5)
 cSC4PowerPoleOccupant::tConnection	network occupants	simulation	network-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4PowerPoleOccupant	network occupants	simulation	network-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4PowerLineOccupant	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PipeOccupant	network occupants	simulation	network-occupants.md	-	netocc_shadow	-
+cSC4PipeOccupant	network occupants	simulation	network-occupants.md	core/src/network_occupants	netocc_shadow	-
 cSC4SubwayOccupant	network occupants	simulation	network-occupants.md	-	-	-
-cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	-	netocc_shadow	-
+cSC4PipeConnectionOccupant	network occupants	simulation	underground-occupants.md	core/src/network_occupants	netocc_shadow	-
 cSC4SubwayConnectionOccupant	network occupants	simulation	underground-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4PipeOccupant	network occupants	simulation	underground-occupants.md	-	-	-
 fn:GZCOM_CreatecSC4SubwayOccupant	network occupants	simulation	underground-occupants.md	-	-	-
@@ -846,10 +846,10 @@ cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
 cGZFramework	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZCOM	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	-
+cGZCommandServer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	gzfw
 cGZMiscCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZToolCommandSystemSupport	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
-cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	-
+cGZBuffer	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	gzfw_shadow	gzfw
 cGZFileSystem	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cGZScriptTerp	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 cRZFile	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_files	-	-

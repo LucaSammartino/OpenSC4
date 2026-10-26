@@ -75,6 +75,7 @@
 
 #include <cstring>
 #include <vector>
+#include "FC4GZFramework.h"
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {
@@ -320,6 +321,12 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             fc4::DemolitionVisitOccupants(*static_cast<SC4List<cISC4Occupant*>*>(a),
                                          [](void*, uint64_t) {}, nullptr);
             return fc4::RefWarningCount() - before;
+        }
+        case kFC4SeamGZFrameworkCreate: {
+            if (b) return reinterpret_cast<intptr_t>(fc4::GZCommandServerTestCreate(static_cast<cIGZUnknown*>(a)));
+            auto* buffer = fc4::CreateGZBuffer();
+            if (buffer) buffer->AddRef();
+            return reinterpret_cast<intptr_t>(buffer);
         }
         default:
             return 0;

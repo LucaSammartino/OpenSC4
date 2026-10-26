@@ -169,6 +169,19 @@ fn commodity_balance_rounds_operations_without_rounding_loaded_doubles() {
 }
 
 #[test]
+fn vc29_balance_uses_invocation_precision_without_changing_storage() {
+    use crate::x87::Precision::{Bits24, Bits53};
+    let mut c = RegionalCity::new(2);
+    c.set_produced(3, 16_777_216.0);
+    c.set_imported(3, 1.0);
+    c.set_demanded(3, 16_777_216.0);
+    for (pc, expected) in [(Bits24, 0.0), (Bits53, 1.0), (Bits53, 1.0), (Bits24, 0.0)] {
+        assert_eq!(c.get_commodity_balance_with_precision(3, pc), expected);
+        assert_eq!(c.get_imported(3), 1.0);
+    }
+}
+
+#[test]
 fn moving_and_copy_outputs() {
     let mut c = RegionalCity::new(2);
     c.position = (3, 4);
