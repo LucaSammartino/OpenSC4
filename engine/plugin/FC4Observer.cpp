@@ -119,6 +119,7 @@
 #include "FC4DbpfNative.h"
 #include "FC4AppShadow.h"
 #include "FC4ViewUtilShadow.h"
+#include "FC4SpanRender8888.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -891,6 +892,7 @@ public:
                 OverlaysShadowMonth(CurrentCity(), julian);
                 SCResShadowLine("month", julian);
                 LegacyCtlShadowMonth(julian);
+                SpanRender8888Month(julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.
