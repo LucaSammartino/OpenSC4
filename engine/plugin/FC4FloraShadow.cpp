@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4FloraShadow.h"
+#include "FC4WriteCapture.h"
 
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
@@ -404,14 +405,16 @@ void TakeCensus(Census& c, bool inputs) {
             const bool lotTagAvailable = o->GetLotTag(persisted.lot_tag);
             persisted.flags = static_cast<uint8_t>(o->GetFlags());
             persisted.highlight = static_cast<uint8_t>(o->GetHighlight());
-            CaptureStream record;
+            // Instance holders can contain variants (lot-records §2.3). The
+            // simulator-only CaptureStream rejects them and produces a short record.
+            WriteCapture record(true);
             void* serializable = nullptr;
             bool exact = false;
             if (o->QueryInterface(GZIID_cIGZSerializable, &serializable) && serializable != nullptr) {
                 auto* ser = static_cast<cIGZSerializable*>(serializable);
                 FC4_ACQUIRED(ser, "QueryInterface");
-                exact = ser->Write(record) && record.Good()
-                    && fc4_flora_instance_record_shadow(record.Data(), record.Size(), &persisted, lotTagAvailable);
+                exact = ser->Write(record) && record.GetError() == 0
+                    && fc4_flora_instance_record_shadow(record.Bytes().data(), record.Bytes().size(), &persisted, lotTagAvailable);
                 FC4_RELEASE(ser);
             }
             ++records;
@@ -423,13 +426,13 @@ void TakeCensus(Census& c, bool inputs) {
                     std::memcpy(positionBits, persisted.position, sizeof(positionBits));
                     Log("flora record sample: bytes=%u type=%08X birth=%u seed=%u state=%d orientation=%u "
                         "position=%08X,%08X,%08X lot=%u flags=%02X highlight=%u",
-                        static_cast<unsigned>(record.Size()), persisted.flora_type, persisted.birth,
+                        static_cast<unsigned>(record.Bytes().size()), persisted.flora_type, persisted.birth,
                         persisted.last_seed, persisted.state, persisted.orientation, positionBits[0],
                         positionBits[1], positionBits[2], persisted.lot_tag, persisted.flags, persisted.highlight);
                     char hex[513]{};
-                    const size_t count = std::min(record.Size(), size_t{256});
+                    const size_t count = std::min(record.Bytes().size(), size_t{256});
                     for (size_t i = 0; i < count; ++i) {
-                        std::snprintf(hex + i * 2, 3, "%02X", record.Data()[i]);
+                        std::snprintf(hex + i * 2, 3, "%02X", record.Bytes()[i]);
                     }
                     Log("flora record sample bytes: %s", hex);
                 }
