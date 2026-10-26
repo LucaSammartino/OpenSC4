@@ -77,18 +77,6 @@ implementer of the class tables and records.
   §7.2), so where is that copy kept in a save, and under which key? `0x005D9940` writes the key, `0x005D9820` reads
   it. [as read]
 
-<!-- from: re-ugbase (2026-10-20) -->
-- **NO40 - §3.2, §3.6:** the geometry the model builders make: `CreateUndergroundModel` (`0x0065D810`),
-  `MakeCustomUndergroundPiece` (`0x0065D160`), `CreateWalls` / `AddWallQuad` (`0x0065E260`, `0x0065CFF0`), the mesh
-  transform (slot 85, `0x0065B700`), `ComputeBox` (`0x00659E00`), and the connection's `CreateGeometry`,
-  `CreatePieceModel`, `CreateWalls`, `CreateFloor` and `Draw` (`0x006562B0`, `0x00655850`, `0x00655F10`,
-  `0x00656010`, `0x00656E90`); which descriptor words they read and how the ratio tables T1 and T2 enter the
-  vertices. [as read]
-  **Progress 2026-10-23 (re-netocc-poles5):** §3.6.2/tests 49–50 settle the connection's standalone
-  CreateFloor/CreateWalls/AddWallQuad behavior without an attached occupant, clearing/append semantics,
-  attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
-  underground base geometry and Draw/transform/box algorithms remain open.
-
 <!-- from: re-powerpoles (2026-10-21) -->
 - **NO42 - §4.1, §4.4:** what the pole's saved bool `+0x110` means (record row 11); nothing read in this lane sets
   it. [as read]

@@ -1,5 +1,22 @@
 # network-occupants: answered questions (archive)
 
+<!-- from: re-ugbase (2026-10-20) -->
+- **NO40 - §3.2, §3.6:** the geometry the model builders make: `CreateUndergroundModel` (`0x0065D810`),
+  `MakeCustomUndergroundPiece` (`0x0065D160`), `CreateWalls` / `AddWallQuad` (`0x0065E260`, `0x0065CFF0`), the mesh
+  transform (slot 85, `0x0065B700`), `ComputeBox` (`0x00659E00`), and the connection's `CreateGeometry`,
+  `CreatePieceModel`, `CreateWalls`, `CreateFloor` and `Draw` (`0x006562B0`, `0x00655850`, `0x00655F10`,
+  `0x00656010`, `0x00656E90`); which descriptor words they read and how the ratio tables T1 and T2 enter the
+  vertices. [as read]
+  **Progress 2026-10-23 (re-netocc-poles5):** §3.6.2/tests 49–50 settle the connection's standalone
+  CreateFloor/CreateWalls/AddWallQuad behavior without an attached occupant, clearing/append semantics,
+  attached early exits and the shared-A-drop wall V quirk. Descriptor-dependent piece/geometry dispatch,
+  underground base geometry and Draw/transform/box algorithms remain open.
+  **ANSWERED 2026-10-26 (re-no29):** DIFFERS — narrowed to stated runtime observations, not full owner
+  closure. §§3.2.1–3.2.2 specify the custom vertex kernel, ratio indexing, wall selection/UVs and base
+  bounds; §§3.6.5–3.6.6 specify connection descriptor words, build/deformation/UV order, bounds and Draw
+  passes with worked cases. §3.2.3 NO40-A/B and §3.6.6 NO40-C specify exact capture sites, input variants
+  and expected settled outputs for the unresolved selector arguments and transform/ceiling details.
+
 <!-- from: core-netocc-close5 (2026-10-23) -->
 - **NO32 - sections 2.4, 2.5 and 2.7 base-owner closure inputs:** what are the numeric UV tables
   `0x00AA7D98`/`0x00AA7D88`, the three packed render states made by StaticInit, and the zoom-table
