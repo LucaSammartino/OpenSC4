@@ -464,6 +464,11 @@ const ClassEntry kNetworkManagerClasses[] = {
 const ClassEntry kNetworkLotClasses[] = {
     {kFC4_CLSID_cSC4NetworkLotManager, "cSC4NetworkLotManager", &CreateFC4NetworkLotManager},
 };
+const ClassEntry kNetworkLotObjectClasses[] = {
+    // Internal objects from network-manager.md sections 2.3/2.4; created by this manager in live use.
+    {kFC4_CLSID_cFC4NetworkLot, "cSC4NetworkLot", &CreateFC4NetworkLot},
+    {kFC4_CLSID_cFC4NetworkLotConfiguration, "cSC4NetworkLotConfiguration", &CreateFC4NetworkLotConfiguration},
+};
 // docs/specs/network-tools.md §1: the network tools (glue29). The tool
 // classes have no GZCOM class ID of their own (question NM11: the manager's
 // factory builds them directly), so the replacement is registered as one
@@ -633,6 +638,9 @@ const Subsystem kSubsystems[] = {
     // network-rules.md section 2.4.3: the rule owners have no factory/IID.
     // Select the existing manager/tool hosts below, never invent class IDs.
     {"netrules", nullptr, nullptr, 0, false},
+    // Manager-created lot/configuration views; use with netlot for live replacement.
+    {"netlotobj", nullptr, kNetworkLotObjectClasses,
+        sizeof(kNetworkLotObjectClasses) / sizeof(kNetworkLotObjectClasses[0]), false},
     // data-formats section 8.1: use the FC4 exemplar/cohort factories and their
     // property holders. Packed-file segments remain a separate replacement.
     {"formats", nullptr, nullptr, 0, false},
