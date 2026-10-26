@@ -46,3 +46,14 @@
 
 <!-- from: core-overlay-manager-close5 (2026-10-23) -->
 - **OV11 - §4.2 simultaneous wrap flags:** when both repeat bit1 and replacement-matrix bit5 are set, does repeat/repeat or repeat/clamp take precedence? Slot21 sets bit5 without clearing bit1. [literal first matching rule: bit1 selects repeat/repeat, otherwise bit5 selects repeat/clamp; no native precedence claim]
+
+<!-- from: replace-overlays28 (2026-10-26) -->
+- **OV17 - §4.6 native rectangle-consumer call ABI:** please specify the callable argument order and ECX
+  subobject for `0x007541C0`, `0x007543C0`, `0x007545C0`, `0x00754910`, `0x00755560`, `0x00755700`,
+  `0x00754C60` and `0x00754F10`. Section 4.6 establishes by-value vertex rectangles for the first six,
+  a rectangle pointer for the last two, a context, and an extra extension pointer for the two extension
+  consumers. `functions.tsv` establishes 20/24/8 argument bytes and return channels, but neither source
+  identifies their parameter order or whether ECX is the view base or its `cISTETerrainView` at +0x0C.
+  This asks only for the call boundary, not the consumers' geometry algorithms (already OV8).
+  [source dimensions/acquisition/release and frame-zero/source-handle submission are implemented from
+  OV16; native Draw and terrain-view routing remain stopped rather than installing an unproved call ABI]
