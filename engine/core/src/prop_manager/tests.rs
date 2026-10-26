@@ -711,6 +711,42 @@ fn t4_get_lot_props_boundary() {
     assert!(!l3.contains(&0x306));
 }
 
+/// PL24: retain the written A7.2 contract for the observed kind-0, flags-7 props.
+#[test]
+fn pl24_untyped_lot_props_at_observed_upper_bounds() {
+    // SPEC-GAP: PL24's native upper-bound contract is unresolved; assert the published strict bounds.
+    let cases = [
+        ((7, 44, 8, 45), [144.0_f32, 285.8455, 723.09265], 0),
+        (
+            (31, 46, 33, 47),
+            [f32::from_bits(0x4401_0094), f32::from_bits(0x438a_b871), 768.0],
+            2,
+        ),
+    ];
+    for (rect, boundary, axis) in cases {
+        let g = Game::new();
+        let m = manager(&g);
+        assert!(m.init());
+        g.lots.borrow_mut().insert(0x900, rect);
+        let mut inside = boundary;
+        inside[axis] = f32::from_bits(boundary[axis].to_bits() - 1);
+        let mut outside = boundary;
+        outside[axis] = f32::from_bits(boundary[axis].to_bits() + 1);
+        for (token, position) in [(0x301, inside), (0x302, boundary), (0x303, outside)] {
+            g.add_occ(token, position, usage::LOT, true);
+            g.occs.borrow_mut().get_mut(&token).unwrap().flags = 7;
+            assert_eq!(g.occ(token).prop_type, 0);
+            g.bump(token, 1); // the occupant manager's reference
+        }
+        let mut list = Vec::new();
+        assert!(m.get_lot_props_at(&mut list, rect.0, rect.1));
+        assert_eq!(list, vec![0x301], "rect={rect:?}, axis={axis}");
+        assert_eq!(g.refs(0x301), 2);
+        assert_eq!(g.refs(0x302), 1, "upper-bound entry released");
+        assert_eq!(g.refs(0x303), 1, "outside entry released");
+    }
+}
+
 /// PL21-U/C/R/W: grid membership and caller-list retention are distinct.
 #[test]
 fn pl21_lot_grid_membership_and_caller_retention() {

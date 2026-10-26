@@ -592,6 +592,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        PropLotShadowTick();
         AppShadowTick(static_cast<int32_t>(PublishedJulian()));
         FpuTick();
         // close_dialogs (FC4Dialogs.h): a modal loop ticks us once per pass
@@ -635,6 +636,9 @@ public:
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
+                // Follow calls before any load-time probe creates and removes occupants.
+                // Their queued messages can arrive after every PostCityInit handler returns.
+                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 PopupDialogsOnCityLoad();
                 SimGridProbeAtCityLoaded();  // glue-simgrids4 tooling (simgrids_probe)
                 SimGridsShadowFixtures();  // constructed cases, separate from natural power calls
@@ -649,7 +653,6 @@ public:
                 NetRulesShadowCityLoaded();
                 NetToolDragShadowLoaded(CurrentCity());
                 QueryToolShadowObserve(CurrentCity(), 0, true);
-                OccMgrShadowCityLoaded(CurrentCity());   // occmgr_shadow = 1 only
                 CityDetailShadowCityLoaded(CurrentCity());  // citydetail_shadow = 1 only
                 TerrainShadowCityLoaded(CurrentCity());  // terrain_shadow = 1 only
                 DisastersShadowCityLoaded(CurrentCity());  // disasters_shadow = 1 only

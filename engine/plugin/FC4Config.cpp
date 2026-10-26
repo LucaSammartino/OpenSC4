@@ -286,6 +286,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // FC4Dialogs.h)
                                   "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date", "script",
                                   "sim_turbo_wait_days", "close_dialogs",
+                                  "sim_fixed_step",  // golden harness; default off
+                                  "script_save_grace_ms",  // golden full-save allowance; default off
                                   "tract_shadow", "tract_seed", "tract_grow_log",
                                   // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
                                   "commercial_shadow", "commercial_shadow_cells", "civic_shadow", "civic_seed",
@@ -436,7 +438,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "compare_record_limit", "compare_case_limit",
                                   // Native entry census; opt-in only.
                                   "reach", "reach_cap", "reach_window", "reach_include_probes",
-                                  "reach_contracts", "reach_output",
+                                  "reach_contracts", "reach_output", "reach_diagnostics",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

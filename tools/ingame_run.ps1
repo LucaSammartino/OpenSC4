@@ -438,6 +438,15 @@ try {
             $luaRelative = $Matches[1].Trim()
             if ([IO.Path]::IsPathRooted($luaRelative)) { throw 'lua_script must name an existing repo-relative .lua file' }
             $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+            # The shared queue runs main's launcher with a lane's staged DLL.
+            # Scripts and helpers must come from that DLL's checkout as well.
+            if ($Dll) {
+                $luaCheckout = [IO.DirectoryInfo](Split-Path -Parent ([IO.Path]::GetFullPath($Dll)))
+                while ($luaCheckout -and -not (Test-Path -LiteralPath (Join-Path $luaCheckout.FullName '.git'))) {
+                    $luaCheckout = $luaCheckout.Parent
+                }
+                if ($luaCheckout) { $repoRoot = $luaCheckout.FullName }
+            }
             $luaSource = [IO.Path]::GetFullPath((Join-Path $repoRoot $luaRelative))
             if (-not $luaSource.StartsWith($repoRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
                 [IO.Path]::GetExtension($luaSource) -ine '.lua' -or -not (Test-Path -LiteralPath $luaSource -PathType Leaf)) {
@@ -520,7 +529,9 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
         if (-not $stallSeen) { $stallSeen = Get-Date }
         elseif ((Get-Date) - $stallSeen -gt [TimeSpan]::FromSeconds(30)) { $verdict = "stalled (fallback): " + $stalls[$stalls.Count - 1].Value; Start-Sleep -Seconds 5; break }
     } else { $stallSeen = $null }
-    if (-not $loadedAt -and $text -match "config \(city load: budget Init\)") { $loadedAt = Get-Date }
+    # The budget Init hook is absent when budget is disabled (the shadows profile).
+    # The plugin starts its autotest clock only after a loaded city's first tick.
+    if (-not $loadedAt -and $text -match "config \(city load: budget Init\)|autotest: clock started;") { $loadedAt = Get-Date }
     if (-not $loadedAt) { if ($p.HasExited) { break }; continue }
 
     # A slot game leaves the screen once its city has loaded. SW_MINIMIZE, which hands the activation on when the game

@@ -100,6 +100,9 @@ void PropLotShadowCityLoaded(cISC4City* city);
 // lotconf's load comparison follows the native manager's PostCityInit fill.
 void PropLotShadowConnectionsReady(cISC4City* city);
 void PropLotShadowMonth(cISC4City* city, int32_t julian);
+// Natural occupant-manager calls, canonical identity only (no reference kept).
+void PropLotShadowMutation(uint64_t occupant, bool inserted);
+void PropLotShadowTick();
 void PropLotShadowPreSave(cISC4City* city);
 void PropLotShadowCityShutdown();
 

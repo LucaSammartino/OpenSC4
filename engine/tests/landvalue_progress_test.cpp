@@ -8,9 +8,9 @@
 namespace {
 void Check(bool ok) { if (!ok) std::abort(); }
 void Interval(const fc4::LandValueStepProgress& a, const fc4::LandValueStepProgress& b,
-              uint64_t first, uint64_t end, bool discarded = false, bool curve = true) {
+              uint64_t first, uint64_t end, bool fallback = false, bool curve = true) {
     const auto r = fc4::LandValueDecodeTractInterval(a, b, curve);
-    Check(r.valid && r.first == first && r.end == end && r.discardedStatistics == discarded);
+    Check(r.valid && r.first == first && r.end == end && r.zoningFallback == fallback);
 }
 }
 
@@ -36,8 +36,15 @@ int main() {
     a.state = 3; a.ignoreZoning = false;
     b = a; b.ignoreZoning = true; b.tract.state = 0;
     Interval(a, b, 5, 6, true);
+    const auto firstScanTail = fc4::LandValueDecodeTractInterval(a, b, true);
     a = b; b.tract.state = 1; b.tract.x = -2; b.tract.z = 3;
-    Interval(a, b, 0, 1); // retry starts its own statistics
+    Interval(a, b, 0, 1); // retry restarts counting, retaining first-scan extrema
+    b.state = 5;
+    const auto secondScan = fc4::LandValueDecodeTractInterval(a, b, true);
+    Check(firstScanTail.valid && firstScanTail.zoningFallback &&
+          firstScanTail.first == 5 && firstScanTail.end == 6);
+    Check(secondScan.valid && !secondScan.zoningFallback &&
+          secondScan.first == 0 && secondScan.end == 6); // both scans remain capture inputs
     a.state = 4; b.state = 6;
     Interval(a, b, 0, 0, false, false); // absent curve skips intrinsic writes
     a.state = 5; a.slope = {1, 0, 0, 1, 0, 0, 1, 1};

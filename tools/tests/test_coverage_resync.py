@@ -77,3 +77,13 @@ class ResyncEvidenceTests(unittest.TestCase):
         self.assertEqual(reg["shadows"]["netmgr"], (2, 2))
         self.assertEqual(reg["resynced"]["netmgr"], 1)
         self.assertFalse(row["verified"])
+
+
+class ReplaceRunKeysTests(unittest.TestCase):
+    def test_keys_come_from_the_runs_ini(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "regress-probe.out"
+            self.assertIsNone(cov.replace_run_keys(out))
+            out.with_name("regress-probe-replace.ini").write_text(
+                "enable = landvalue, advisors\nautotest_end = quit\n", encoding="utf-8")
+            self.assertEqual(cov.replace_run_keys(out), {"landvalue", "advisors"})

@@ -28,6 +28,25 @@
 namespace fc4 {
 namespace harness {
 
+// Tooling only: the scheduler's virtual millisecond is one agent delivery.
+// Frame/interval timers see no wall time. The empty-frame guard also bounds
+// paused frames with no idle agents (and frames containing only disabled agents).
+class FixedStepClock {
+public:
+    static constexpr uint32_t kDeliveries = 64;
+    void BeginFrame() { base_ += kDeliveries + 1; used_ = 0; reads_ = 0; }
+    uint32_t Now() {
+        if (++reads_ >= 4096) FinishFrame();
+        return base_ + used_;
+    }
+    void Delivered() { if (used_ < kDeliveries) ++used_; reads_ = 0; }
+    void FinishFrame() { used_ = kDeliveries; }
+private:
+    uint32_t base_ = 0;
+    uint32_t used_ = 0;
+    uint32_t reads_ = 0;
+};
+
 // A civil date (Gregorian, as the core's julian.rs).
 struct Date {
     int32_t year = 0;
@@ -210,7 +229,10 @@ enum class ScriptOp {
     Dispatch,
     PortProps,
     ClockMode, // clockmode 0|1|2: enable transitions, then select normal/day/night
-    LightingHour // lightinghour 0..23: genuine lighting manager SetTimeOfDay
+    LightingHour, // lightinghour 0..23: genuine lighting manager SetTimeOfDay
+    MySim,        // mysim movein|query: replacement-interface persistence exercise
+    Funds,        // funds 0..999999999: set treasury through the budget interface
+    Establish     // establish <name>: name and found an unfounded city
 };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
@@ -251,6 +273,9 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::PortProps: return "portprops";
         case ScriptOp::ClockMode: return "clockmode";
         case ScriptOp::LightingHour: return "lightinghour";
+        case ScriptOp::MySim: return "mysim";
+        case ScriptOp::Funds: return "funds";
+        case ScriptOp::Establish: return "establish";
     }
     return "?";
 }
@@ -263,6 +288,7 @@ struct ScriptAction {
     int32_t x0 = 0, z0 = 0, x1 = 0, z1 = 0;  // zone, pricezone, dezone; network: the run's ends
     int32_t type = 0;                        // zone, pricezone (dezone: 0); network: the network type
     int32_t speed = 0;                       // speed
+    int32_t funds = 0;                       // treasury target, whole simoleons
     bool on = false;                         // turbo
     bool fast = false;                       // save
     float height = 0.0f;                     // terrain (metres)
@@ -406,7 +432,15 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         }
         return true;
     };
-    if (name == "zone" || name == "pricezone") {
+    if (name == "mysim") {
+        a.op = ScriptOp::MySim;
+        if (!wantArgs(1, "movein or query")) return false;
+        if (tok[2] != "movein" && tok[2] != "query") {
+            *error = "mysim expects movein or query";
+            return false;
+        }
+        a.on = tok[2] == "movein";
+    } else if (name == "zone" || name == "pricezone") {
         a.op = name == "zone" ? ScriptOp::Zone : ScriptOp::PriceZone;
         if (!wantArgs(5, "x0 z0 x1 z1 type") || !rect()) return false;
         if (!detail::ParseCount(tok[6], 15, &a.type)) {
@@ -430,6 +464,19 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         if (!wantArgs(1, "0, 1 or 2")) return false;
         if (!detail::ParseCount(tok[2], 2, &a.speed)) {
             *error = name + " '" + tok[2] + "' is not 0, 1 or 2";
+            return false;
+        }
+    } else if (name == "funds") {
+        a.op = ScriptOp::Funds;
+        if (!wantArgs(1, "amount 0..999999999")) return false;
+        if (!detail::ParseCount(tok[2], 999999999, &a.funds)) {
+            *error = "funds '" + tok[2] + "' is not 0..999999999";
+            return false;
+        }
+    } else if (name == "establish") {
+        a.op = ScriptOp::Establish;
+        if (a.text.empty() || a.text.size() > 80 || a.text.find_first_of("\t\r\n") != std::string::npos) {
+            *error = "establish takes a city name of 1..80 bytes (no tabs)";
             return false;
         }
     } else if (name == "lightinghour") {
@@ -619,7 +666,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial, dispatch, clockmode, lightinghour)";
+                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)";
         return false;
     }
     *out = a;
@@ -675,6 +722,11 @@ public:
     }
     size_t Size() const { return actions_.size(); }
     size_t Remaining() const { return actions_.size() - next_; }
+    // Only an explicit leading establish can bootstrap a city with no new days.
+    bool BootstrapDue(int32_t julian) const {
+        return next_ < actions_.size() && actions_[next_].op == ScriptOp::Establish &&
+               actions_[next_].julian <= julian;
+    }
     const ScriptAction* First() const { return actions_.empty() ? nullptr : &actions_.front(); }
     const ScriptAction* Last() const { return actions_.empty() ? nullptr : &actions_.back(); }
 

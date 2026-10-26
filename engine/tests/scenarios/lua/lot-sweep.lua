@@ -1,7 +1,7 @@
 -- Each lot's return is preserved, including failures; do not stop at the first.
 dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/fc4.lua')
 
-function fc4.lot_sweep(name, flatten)
+function fc4.lot_sweep(name, flatten, qualified)
     fc4.start(name)
     fc4.city('SimSpeedPause')
     local width, depth = fc4.city('GetCitySize')
@@ -10,6 +10,21 @@ function fc4.lot_sweep(name, flatten)
     local suffix = ''
     if width == 128 then suffix = '-128' end
     local lots = dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/lot-sweep-catalog' .. suffix .. '.lua')
+    if qualified then
+        if flatten or width ~= 128 then error('qualified sites require West Weburg') end
+        local sites = dofile(FC4_ROOT .. '/engine/tests/scenarios/lua/lot-sweep-grown-sites.lua')
+        local j = 1
+        while sites[j] do
+            local k = 1
+            while lots[k] do
+                if lots[k][1] == sites[j][1] then
+                    lots[k][2], lots[k][3] = sites[j][2], sites[j][3]
+                end
+                k = k + 1
+            end
+            j = j + 1
+        end
+    end
     fc4.try_city('SetCityEstablished')
     if flatten then
         -- The companion dated plugin script prepares terrain. Check its effect
@@ -35,7 +50,14 @@ function fc4.lot_sweep(name, flatten)
         local x, z, w, d = lot[2], lot[3], lot[4], lot[5]
         fc4.log('lot-begin iid=' .. lot[1] .. ' category=' .. lot[6] .. ' name=' .. lot[7])
         -- Clear disjoint footprints on the grown city, retain the rest of it.
-        fc4.try_city('Demolish', {x, z, x + w - 1, z + d - 1, 'None'})
+        local pad = 0
+        if qualified then pad = 2 end
+        local x1, z1, x2, z2 = x - pad, z - pad, x + w - 1 + pad, z + d - 1 + pad
+        if x1 < 0 then x1 = 0 end
+        if z1 < 0 then z1 = 0 end
+        if x2 >= width then x2 = width - 1 end
+        if z2 >= depth then z2 = depth - 1 end
+        fc4.try_city('Demolish', {x1, z1, x2, z2, 'None'})
         local status = fc4.try_city('PlaceLot', {fc4.iid(lot[1]), x, z, 0, false, false})
         fc4.log('lot-result iid=' .. lot[1] .. ' category=' .. lot[6] .. ' status=' .. fc4.text(status))
         batch = batch + 1
