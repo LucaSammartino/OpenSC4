@@ -135,7 +135,7 @@ selection is not a certified successful no-op; establish a new selected path bef
 
 - **State:** the marked cells (x, z), a colour for all of them or one per cell, the cell size (w, h) and its
   inverse (`SetCellSize`, `0x007DC1D0`), and the switches `SetShouldIgnoreDepthBuffer` (`0x007DC1A0`) and
-  `SetShouldUseWaterAltitude` (`0x007DC1B0`). `SetCellColor(r, g, b, a)` (`0x007DCB30`) packs the colour into bytes.
+  `SetShouldUseWaterAltitude` (`0x007DC1B0`). `SetCellColor(rgbaFloatVector)` (`0x007DCB30`) packs the colour into bytes.
 - `Init` (`0x007DC200`): the packed state, colour write without depth write, no texture, culling, blending source
   alpha / one minus source alpha, the depth test less-or-equal unless the depth buffer is ignored; and an occupant
   filter for lots.
@@ -177,8 +177,8 @@ validation/reject branch; resulting bits depend on native floating-point state a
 SetCellColor stores the common colour and clears the per-cell colour vector's logical size, retaining
 storage. Update uses common colour exactly when that vector is empty; otherwise it indexes one
 packed colour per cell without a length guard. SetOutlineColor stores its packed value and sets
-outlineEnabled=true. There is no proved independent disable method in this inventory; constructor
-starts disabled and kPreferOpaque suppresses the second pass. No default outline colour is promised.
+outlineEnabled=true. Constructor starts disabled and kPreferOpaque suppresses the second pass;
+§2.3 states the precise independent-disable evidence limit. No default outline colour is promised.
 `0x007DCCF0` copies a vector of packed u32 colours; `0x007DCD30` appends a pair of 32-bit cell
 coordinates; ClearCells `0x007DCD00` empties cells only, retaining allocation and colours. These
 mutations do not deduplicate or sort. `0x007DC1C0` stores useLots. SetCellSize stores the two float
@@ -226,6 +226,55 @@ altitude indices (0,0),(0,1),(1,1),(1,0). W=H=4,w=h=8,cell(7,7) collapses all co
 (32,32), rather than being skipped. For a 16m cell with terrain y=2, water y=10 and lot y=3,
 the frustum sees y=10 but accepted unraised lot geometry draws at y=3. Setting RGBA floats
 (1,.5,0,1) gives packed **0xFFFF8000** and clears per-cell colours.
+
+### 2.3 Public mutations and independent outline-control boundary (OVV4)
+
+These are native `this` operations on the primary view pointer; stack cleanup sizes describe
+the binary interface, not four-scalar substitutes for the colour-vector arguments:
+
+| Entry | Inputs / effect | Callee removes |
+|---|---|---|
+| SetCellColor 0x007DCB30 / SetOutlineColor 0x007DC2F0 | One address of four binary32 r,g,b,a values. Intended normalized range [0,1]; all bit patterns are accepted without checking. Conversion and packing are §2.2. No status result. | 4 bytes |
+| Depth 0x007DC1A0 / water 0x007DC1B0 / lots 0x007DC1C0 | One boolean byte from a 4-byte stack slot; store at +0x0D/+0x0E/+0x0F respectively. No repacking, clearing or resource acquisition. | 4 bytes |
+| SetCellSize 0x007DC1D0 | Two binary32 scalars w,h; store at +0x1C/+0x20, store reciprocals at +0x24/+0x28. No validation. | 8 bytes |
+| Packed-colour assignment 0x007DCCF0 | One address of a native three-pointer vector of u32 packed colours; deep assignment to +0x30/+0x34/+0x38, preserving source ownership. Self-assignment is a no-op. Returns the destination vector subobject, not a success boolean (tail 0x00462C10–0x00462D08). | 4 bytes |
+| Append-cell 0x007DCD30 | Two 32-bit scalar coordinates x,z; append their 8-byte pair to the vector at +0x10/+0x14/+0x18. No sort, duplicate rejection or colour-vector extension. No status result. | 8 bytes |
+| ClearCells 0x007DCD00 | No argument; set the cell-vector end to begin, retain storage. Colours, common/outline state, size and flags survive. | 0 bytes |
+| AddRegionCells 0x004B9250 | One region reference. Signed inclusive bounds at region +0/+4/+8/+0x0C, x outer then z inner; append cells whose bit is set. Region +0x14/+0x18 bound relative x,z; +0x20 points to x-column pointers, each column holds z bits in u32 words. No clearing or deduplication. | 4 bytes |
+
+At full cell capacity N, AddRegionCells allocates room for N+max(N,1) pairs, copies the old pairs,
+appends, frees old storage and replaces all three pointers (0x004B92E1–0x004B937E). It has no
+failure boolean, local exception handler or safe rollback for a null allocator result; successful
+allocation and well-formed containers are preconditions for a successful mutation. Integer overflow,
+arbitrary vector pointers and too few per-cell colours are not successful-input contracts.
+
+Outline-enabled is a **separate byte at +0x44**, packed outline colour at +0x48. The 17 recovered
+marked-cell entries (§3.2) contain a constructor clear (0x007DCC74), an unconditional true store
+in SetOutlineColor (0x007DC312), and the Update read (0x007DCAC7). None of the remaining entries
+clears that byte: in particular ClearCells, SetCellColor, Shutdown and Init do not. Neither the
+five-slot primary nor six-slot secondary table (§3.5) contains an outline setter/disable slot.
+Thus **no independently callable outline-disable operation is identified in the recovered owner
+surface**. A zero-alpha colour does not disable the second pass: its blend factors are one/one,
+so nonzero RGB can still add colour. kPreferOpaque suppresses that pass without changing +0x44.
+
+**Narrowed runtime observation:** the binary evidence above cannot establish the absence of a
+source-inline reset in every external caller. To establish such a path, capture a live marked-cell
+primary pointer P after SetOutlineColor, keep P alive with a nonempty valid cell vector and
+kPreferOpaque=false, and place a byte-write watchpoint on **P+0x44**. A native **1→0 write outside
+construction/destruction**, with its writer PC and call stack, followed by Update submitting only
+the normal pass while P and the cells survive, establishes the missing independent reset operation.
+Record the triggering action and any arguments at that writer; merely hiding all cells, toggling
+kPreferOpaque, or failing to observe a write does not establish it. No reset API is invented for
+implementation pending that observation. This is the sole remaining OVV4 fact, rather than an
+unspecified colour/state gap.
+
+**Worked mutation/pass case (UNEXECUTED):** append (2,3) twice; assign two packed colours; set
+common floats (1,.5,0,1). Both cells survive in order, per-cell size becomes zero and common packed
+colour is **0xFFFF8000**, little-endian bytes **00 80 FF FF**. SetOutlineColor to (1,0,0,0):
+packed **0x00FF0000**, +0x44=true. With both cells accepted and kPreferOpaque=false, expect one
+normal batched submission containing two quads, then one additive submission containing both,
+despite outline alpha zero. ClearCells, append one cell, Shutdown/Init: the outline remains enabled.
+Set kPreferOpaque=true: only the normal pass is submitted. Restore false: the additive pass returns.
 
 ## 3. The terrain vertex-buffer extension (`cSTEVertBufExtn`) *[compat]*
 
@@ -293,25 +342,28 @@ Independent discriminators derived from these instructions (no portable implemen
 | Flush; small submission without CreateBuffer | Null lock pointer: no new copy/draw. |
 | Grow index vector with room for vertices | Grow storage; no driver unlock/draw. |
 
-### 3.2 Method checklist and proof limits (OVV6)
+### 3.2 Recovered method/address checklist (OVV6)
 
-The export currently names **49 non-template entries**, not the question's unverified 54. The full
-named checklist follows; presence in this checklist does not certify the entire body. Three additional
-unnamed marked-cell wrappers are also identified. Library list/deque helpers are not counted as owners.
+The recovered owner-specific checklist has **54 distinct out-of-line addresses**: 49 names whose
+owner prefix matches these six owners, three unnamed marked-cell wrappers, and two unnamed train
+destruction entries. Shared folded operations in §3.5 and inline stores are listed separately, not
+counted again for each owner. This reconciles the numerical 54-entry requirement with explicit
+membership; it does not reconstruct the unavailable provenance of an earlier task's list.
+Library templates merely mentioning an owner in a type argument and the terrain caller are excluded.
+The checklist is the recovered binary surface, not a claim that original source-level inline method
+names or every conceivable external caller can be recovered. All worked cases remain UNEXECUTED.
 
 | Owner | Named methods and addresses | Proved scope / residual |
 |---|---|---|
 | cSC4PathView (15) | ctor 0x007DDD50; Init 0x007DCD90; Shutdown 0x0053C940; SetThickness 0x008B6DE0; SetPathTexture 0x007DCE20; NewPath 0x007DDC50; AddPathVertex 0x007DDB30; ClearPaths 0x007DDBE0; Update 0x007DD9B0; GetEndOffsets 0x007DCE60; GetJointOffsets 0x007DCF20; DrawArrowhead 0x007DD0D0; DrawPath 0x007DD410; destructor thunk 0x007DDDB0; deleting destructor 0x007DDDC0 | §1.2 inputs/finite geometry; §3.4 shared lifetime; allocation/caller discipline partial |
 | cSC4PathView::PathInfo (1) | destructor-labelled helper 0x008EBCD0 | Called on point-deque subobject; no separate full-record constructor/destructor ABI inferred from label |
-| SC4MarkedCellView (14) | AddRegionCells 0x004B9250; SetShouldIgnoreDepthBuffer 0x007DC1A0; SetShouldUseWaterAltitude 0x007DC1B0; SetCellSize 0x007DC1D0; Init 0x007DC200; Shutdown 0x007DC2C0; SetOutlineColor 0x007DC2F0; DrawCells 0x007DC3A0; Update 0x007DC9F0; SetCellColor 0x007DCB30; ctor 0x007DCC10; destructor thunk 0x007DCC80; deleting destructor 0x007DCC90; ClearCells 0x007DCD00 | §2.2; complete region allocation/failure and independent outline-disable residual |
+| SC4MarkedCellView (17) | AddRegionCells 0x004B9250; SetShouldIgnoreDepthBuffer 0x007DC1A0; SetShouldUseWaterAltitude 0x007DC1B0; use-lots store 0x007DC1C0; SetCellSize 0x007DC1D0; Init 0x007DC200; Shutdown 0x007DC2C0; SetOutlineColor 0x007DC2F0; DrawCells 0x007DC3A0; Update 0x007DC9F0; SetCellColor 0x007DCB30; ctor 0x007DCC10; destructor thunk 0x007DCC80; deleting destructor 0x007DCC90; packed-colour assignment 0x007DCCF0; ClearCells 0x007DCD00; append-cell 0x007DCD30 | §§2.2–2.3; independent inline outline reset narrowed to the runtime observation there |
 | cSTEVertBufExtn (7) | CreateBuffer 0x0075C9F0; CopyTerrainRow 0x0075CA30; ReleaseVertexBufferExtension 0x0075CA90; SetIndexBuffer 0x0075CAB0; FlushBuffer 0x0075CAD0; DrawPrimsIndexedUsingVertBuf 0x0075CB50; GetVertexBufferExtension 0x0075CD40 | §3.1 covers all seven mapped static helper bodies; no invented COM ctor |
-| SC4PathInfoView (5) | Init 0x00542EE0; ctor 0x00542F50; destructor thunk 0x00542F90; deleting destructor 0x00542FA0; Update 0x00542FC0 | network-overlay-views §§1.1–1.2 and §3.4 below; setter/static-init residuals |
-| SC4TrainJunctionView (7) | Init 0x005633C0; Shutdown 0x00563730; GetArrowBitmapQuad 0x005637E0; ctor 0x005649D0; GetPathBitmap 0x00564A60; DrawTrainJunction 0x00564BE0; Update 0x005657A0 | network-overlay-views §2.1; §3.4 below adds unnamed deletion chain; marker rotation, cell setters/caller discipline residual |
+| SC4PathInfoView (5) | Init 0x00542EE0; ctor 0x00542F50; destructor thunk 0x00542F90; deleting destructor 0x00542FA0; Update 0x00542FC0 | network-overlay-views §§1.1–1.2; folded depth/Shutdown and inline filter mutations included there |
+| SC4TrainJunctionView (9) | Init 0x005633C0; Shutdown 0x00563730; GetArrowBitmapQuad 0x005637E0; ctor 0x005649D0; destructor thunk 0x00564A20; deleting destructor 0x00564A30; GetPathBitmap 0x00564A60; DrawTrainJunction 0x00564BE0; Update 0x005657A0 | network-overlay-views §§2.1–2.2; shared lifetime in §3.4; inline hover/press stores and marker helper are separate |
 
-Additional unnamed wrappers: marked-cell use-lots byte store 0x007DC1C0; packed-colour vector
-assignment 0x007DCCF0; append cell(x,z) 0x007DCD30. AddRegionCells scans signed inclusive x outer,
-z inner and appends set mask cells (`0x004B9250–0x004B92DC`); the full growth/failure path remains
-unaudited. Marked-cell depth switch is a byte store and does not repack initialized state. Init
+The three unnamed marked-cell wrappers and AddRegionCells growth/failure contract are specified
+in §2.3. Marked-cell depth switch is a byte store and does not repack initialized state. Init
 sets its flag and returns true even without the render service; Shutdown releases/nulls its filter
 and clears the flag. Its deleting destructor releases the filter, both vectors and base/free;
 it does not draw/flush (`0x007DCC90`).
@@ -321,13 +373,12 @@ Primary view-interface tables: **0x00ABB648** (path), **0x00ABB614** (marked), *
 AddRef 0x005BE3E0, Release 0x005BCB30, owner Update, Pick 0x00735290. The first three adjust this
 by +4 and forward to shared unknown/refcount methods; Pick returns false without a hit. No bounds
 or transform getter/setter appears in these interfaces. Shared zero-release destructor dispatch is
-not proved merely by these thunks; §3.4 supplies the separately checked dispatch chain. OVV6 remains
-open: the historical 49 named +3 identified unnamed entries do not establish the claimed 54-entry
-inventory, and remaining setters/public-interface completeness are residual. No whole-owner/runtime/
-replacement/default claim follows. All vectors in this spec are instruction-derived expectations,
-not game runs.
+not proved merely by these thunks; §3.4 supplies the separately checked dispatch chain and §3.5
+publishes every recovered interface slot and folded/inline operation. The 54-entry checklist is
+address-based; it is not runtime or replacement credit. All vectors in this spec are instruction-derived
+expectations, not game runs.
 
-### 3.3 Publication qualification by owner (2026-10-23) *[compat]*
+### 3.3 Publication qualification by owner (updated 2026-10-26) *[compat]*
 
 This ledger qualifies the native contracts added in §§1.2, 2.2, 3.1–3.2 and
 network-overlay-views §§1.1–1.2, 2.1. **Supported** means the stated finite-input rule has primary
@@ -343,12 +394,12 @@ primary for numeric widths, dispatch and constants; decompilation supplies navig
 
 | Owner | Supported method contracts | Partial / unknown public surface |
 |---|---|---|
-| cSC4PathView | Constructor defaults; Init/Shutdown flag behavior; float SetThickness; selected-record SetPathTexture; packed-colour/float-priority NewPath; horizontal duplicate rejection; finite endpoint/miter/3D-arrow/UV DrawPath and ordered Update; ClearPaths resource order. §§1.2, 3.4. | Partial: allocation-failure recovery and exact nonfinite/x87 exceptional outcomes. Unknown: completeness of any additional public setters/getters. Shared QI/AddRef/Release and deletion are supported only by the explicit tables in §3.4. |
-| PathInfo | ClearPaths releases each binding before invoking 0x008EBCD0 on the deque subobject, then frees the node (0x007DDBF0–0x007DDC09). | Partial: 0x008EBCD0 destroys deque storage; its name does not prove a standalone record-destructor calling convention. Unknown: independent public construction/refcount/setters; none inferred. |
-| SC4MarkedCellView | Constructor; boolean byte setters; float size/reciprocal setter; common/outline float-reference colour conversion; packed-colour vector assignment; append/ClearCells; Init/Shutdown; finite grid/terrain/water/lot ordering and Update passes; §3.4 deletion. | Partial: AddRegionCells inclusive scan/append, not complete growth/failure behavior. Unknown: independent outline-disable API or proof of its absence (OVV4). Arbitrary unsafe terrain indices and short colour arrays are not successful-input guarantees. |
-| cSTEVertBufExtn | All seven named static helper bodies, within §3.1's caller sequence: borrowed index input, two compact copied rows, u16 rebasing, capacity equality, lock failure, flush/release distinction. | Partial: allocation failure/invalid ranges and caller use after Release. Unknown: any additional public helper surface. This process-wide helper has no established owner COM vtable or constructor. |
-| SC4PathInfoView | Constructor/Init; Update colour bytes/pulse **step**, format/state, strip cap versus full-vector arrows/bars, heights/cross/traversal/failure boundaries; §3.4 shared lifetime and deletion. | Partial: scratch alpha when fewer than three strip vertices are written. Unknown: pulse **initial value**, public filter/depth setters (NOV2). No per-instance pulse reset inferred. |
-| SC4TrainJunctionView | Constructor sentinels; Init packed state/direction table/resource calls; Shutdown; finite horizontal-chord bitmap classification, quad/UV, draw order/transparency/frame stacking/origin/model selection; §3.4 deletion dispatch. | Partial: resource-provider output initialization on failure, marker rotation-helper handedness and remaining model state. Unknown: actual cell setters, current/target identities (NOV3), additional public interface completeness. Destruction is not an implicit Shutdown. |
+| cSC4PathView | Constructor defaults; Init/Shutdown flag behavior; float SetThickness; selected-record SetPathTexture; packed-colour/float-priority NewPath; horizontal duplicate rejection; finite endpoint/miter/3D-arrow/UV DrawPath and ordered Update; ClearPaths resource order. §§1.2, 3.4–3.5. | The recovered method/interface checklist is §§3.2, 3.5. Successful allocation and valid vectors are required; exact exceptional/nonfinite x87 outcomes are not generalized from finite geometry. |
+| PathInfo | ClearPaths releases each binding before invoking 0x008EBCD0 on the deque subobject, then frees the node (0x007DDBF0–0x007DDC09). | This is deque cleanup, not a standalone full-record destructor ABI. Record creation/mutation/ownership uses NewPath, AddPathVertex, SetPathTexture and ClearPaths (§1.2); no independent COM interface is identified. |
+| SC4MarkedCellView | Constructor; boolean byte setters; float size/reciprocal setter; common/outline float-reference colour conversion; packed-colour vector assignment; append/ClearCells and region growth; Init/Shutdown; finite grid/terrain/water/lot ordering and Update passes; §3.4 deletion. | Independent inline outline reset is narrowed to §2.3's exact watchpoint observation (OVV4). Arbitrary unsafe terrain indices, failed allocation and short colour arrays are not successful-input guarantees. |
+| cSTEVertBufExtn | All seven named static helper bodies, within §3.1's caller sequence: borrowed index input, two compact copied rows, u16 rebasing, capacity equality, lock failure, flush/release distinction. | Invalid ranges, failed allocation and caller use after Release are outside the successful-input sequence. The recovered helper surface has no COM vtable or constructor (§3.5). |
+| SC4PathInfoView | Constructor/Init; exact colours and loader-zero shared pulse; format/state, strip cap versus full-vector 3D arrows/bars, heights/cross/traversal/failure boundaries; folded depth/Shutdown, inline full-u32 filter; §3.4 lifetime. | Scratch alpha when fewer than three strip vertices are written has no initialized-value guarantee. NOV2's state/setter residuals are answered in network-overlay-views §§1.1–1.2. |
+| SC4TrainJunctionView | Constructor; Init state/directions/resources; Shutdown and observed caller order; horizontal-chord classification, quad/UV, order/transparency/stacking/origin; hover/pressed stores; marker basis/state; §3.4 deletion. | Failed providers need not initialize output slots; no graceful missing-resource-service contract. Empty/degenerate routes have the stated unsafe/numeric boundaries. NOV3 is answered in network-overlay-views §§2.1–2.2; destruction does not imply Shutdown. |
 
 Audit anchors for the R1 additions (these are evidence ranges, not an assembly transcript):
 
@@ -356,10 +407,10 @@ Audit anchors for the R1 additions (these are evidence ranges, not an assembly t
 |---|---|
 | Path record and state | 0x007DDC64–76 float compare/C0 branch; 0x007DCE20–5F selected binding/repeat replacement; 0x007DDD50 constructor; 0x007DDB30 horizontal rejection. Equal-newest-first supersedes the former §7 example. |
 | Ribbon, arrows, UV | 0x007DCE60 horizontal offsets; 0x007DCFF8–0x007DD09F squared miter/threshold; 0x007DD10F–188 3D length, float stores and double 4.5; DrawPath 0x007DD410 (1194 bytes), especially 0x007DD5E0–0x007DD732 projections and 0x007DD78D–0x007DD8B9 final pair/state/submission. Arithmetic descriptions state finite geometry, not a universal bit-exact floating-point emulator. |
-| Marked-cell conversion, grid, passes | 0x007DCB37–CF and 0x007DC2F0 float loads, bias/store and byte subtraction; DrawCells 0x007DC3A0, 0x007DC500–593 terrain/water/frustum before lot, 0x007DC5C3–6C7 lot flags/replacement/releases, 0x007DC7D0–8E7 grid clamp/index conversion; Update 0x007DC9F0. Constructor suppression does not answer OVV4. |
+| Marked-cell conversion, grid, passes | 0x007DCB37–CF and 0x007DC2F0 float loads, bias/store and byte subtraction; DrawCells 0x007DC3A0, 0x007DC500–593 terrain/water/frustum before lot, 0x007DC5C3–6C7 lot flags/replacement/releases, 0x007DC7D0–8E7 grid clamp/index conversion; Update 0x007DC9F0. Independent outline-reset evidence is bounded by §2.3. |
 | Row batching and failure | 0x0075C9F0, 0x0075CA30, 0x0075CA90, 0x0075CAB0, 0x0075CAD0; submission 0x0075CB50 (429 bytes), 0x0075CCAA–C1 word load/store and wrap; acquisition 0x0075CD40–0x0075CE53 division and capacity. No driver return is invented for the void submission/flush helpers. |
-| Diagnostic path view | Update 0x00542FC0 (2914 bytes, two exported ranges): pulse before manager lookup, 0x00543110–BC byte colours/25 cap, 0x00543231–0x005435FF full-vector 3D arrows, 0x00543600–0x00543A63 bar precedence/cross; Init 0x00542EE0 and constructor 0x00542F50. Static initialization remains unknown. |
-| Train view | Init 0x005633C0 (866 bytes); quad 0x005637E0–0x00563968; classifier 0x00564A60–0x00564BDF; DrawTrainJunction 0x00564BE0 (1194 bytes); Update 0x005657A0. Byte/word arguments, float/immediate transparency and .01 increment are checked independently of decompiler types. No proof of marker handedness or current/target names follows. |
+| Diagnostic path view | Update 0x00542FC0 (2914 bytes, two exported ranges): pulse before manager lookup, 0x00543110–BC byte colours/25 cap, 0x00543231–0x005435FF full-vector 3D arrows, 0x00543600–0x00543A63 bar precedence/cross; Init 0x00542EE0 and constructor 0x00542F50. Loader-zero pulse and folded/inline state producers: network-overlay-views §1.2. |
+| Train view | Init 0x005633C0 (866 bytes); quad 0x005637E0–0x00563968; classifier 0x00564A60–0x00564BDF; DrawTrainJunction 0x00564BE0 (1194 bytes); Update 0x005657A0. Byte/word arguments, float/immediate transparency and .01 increment are checked independently of decompiler types. Marker basis/state and hover/press producers are in network-overlay-views §2.2. |
 
 ### 3.4 Shared view reference lifetime and owner cleanup (OVV6, bounded) *[compat]*
 
@@ -397,11 +448,69 @@ Train's model helper 0x004201B0 null-checks the stored pointer and dispatches th
 slot 2. No validity guarantee for arbitrary corrupt model pointers is implied. Train Shutdown's
 six-binding release order remains a separate contract in network-overlay-views §2.1.
 
-This proves shared QI/AddRef/Release and the connected deletion paths individually. It does not
-prove all external callers balance references or invoke train Shutdown before deletion. The two
-newly traced unnamed train cleanup entries are evidence of dispatch, not a reconciliation of the
-historical 54-entry claim; the source membership of that claim is still missing. Public setters,
-filter/depth switches and independent outline-disable completeness remain separate open questions.
+This proves shared QI/AddRef/Release and the connected deletion paths individually. The observed
+path-info and train owning callers unregister, Shutdown and Release as specified in
+network-overlay-views §§1.2, 2.1; no guarantee of correct arbitrary external callers is implied.
+The two unnamed train cleanup addresses are now explicit members of §3.2's 54-address checklist.
+
+### 3.5 Full recovered interfaces, folded operations and lifecycle case (OVV6)
+
+Slot numbers are zero-based, offsets are bytes. P is the primary view and U=P+4 the secondary
+unknown pointer; these are not interchangeable `this` values. The primary tables and their entire
+five-slot contents are:
+
+| Owner / primary table | Slot 0 (+0) QI | Slot 1 (+4) AddRef | Slot 2 (+8) Release | Slot 3 (+0x0C) Update | Slot 4 (+0x10) Pick |
+|---|---|---|---|---|---|
+| Path / 0x00ABB648 | 0x005BCB40 | 0x005BE3E0 | 0x005BCB30 | 0x007DD9B0 | 0x00735290 |
+| Marked / 0x00ABB614 | 0x005BCB40 | 0x005BE3E0 | 0x005BCB30 | 0x007DC9F0 | 0x00735290 |
+| Path-info / 0x00A99F48 | 0x005BCB40 | 0x005BE3E0 | 0x005BCB30 | 0x00542FC0 | 0x00735290 |
+| Train / 0x00A9D974 | 0x005BCB40 | 0x005BE3E0 | 0x005BCB30 | 0x005657A0 | 0x00735290 |
+
+QI takes (u32 ID, pointer to output pointer), removes 8 argument bytes, returns boolean AL;
+AddRef/Release take no arguments and return u32 EAX (§3.4). Update takes one context pointer
+and removes 4 argument bytes. Pick removes **16 argument bytes** (four opaque 32-bit arguments),
+returns false in AL and touches none of the pointed-to outputs (0x00735290–94). Its folded symbol
+name is not evidence of any other owner's picking behavior.
+
+Each secondary table has **six**, not five, slots. Table bases and owner-specific deleting slot 3
+are in §3.4; their other slots are identical:
+
+| Slot / offset | Target | Contract on U |
+|---|---|---|
+| 0 / +0 | 0x005BCB50 | QI thunk via P; same ID/output/ref rule. |
+| 1 / +4 | 0x005BE420 | AddRef thunk via P. |
+| 2 / +8 | 0x005BCB60 | Release thunk via P, including deletion at count 0 or 1. |
+| 3 / +0x0C | Owner thunk in §3.4 | Adjust U−4, deleting body with one u32 flags argument; bit0 controls object free. Returns P, removes 4 bytes. |
+| 4 / +0x10 | 0x0090D981 | RemoveRef: decrement count only if >0, return resulting u32; never dispatch deletion, including 1→0. |
+| 5 / +0x14 | 0x009D7E63 | Return current u32 count without mutation. The export's folded cRZString::ToChar label does not make this a string pointer. |
+
+Slots 4–5 take no stack arguments. Instructions at 0x0090D981–8F and 0x009D7E63–66 independently
+prove these semantics; original image words at 0x00ABB5FC/0x00ABB630/0x00A99F30/0x00A9D95C
+prove their placement. No secondary bounds, model-transform, depth, filter, colour or cell setter
+slot follows these six entries.
+
+**Folded/inline surface:** path-info depth is 0x007DC1A0 and Shutdown is 0x0053C940, both shared
+with named entries already in §3.2. Its full-u32 filter mutation is inline. Train hover and pressed
+cell mutations are inline in the player-drive mouse handlers. See network-overlay-views §§1.2,
+2.2 for arguments, offsets and effects. Path's GetEndOffsets/GetJointOffsets are ribbon geometry
+helpers, not view-bounds getters. The four view interfaces expose no bounds/transform getter or
+setter; path-info/train ask network slot 17 for current visible bounds, marked drawing uses terrain
+and context frustum tests, and path drawing uses its stored paths. Updates set the model transform
+for their own drawing; this does not constitute a public transform property. PathInfo is a record
+owned by path-list nodes, with deque cleanup 0x008EBCD0, not a separately reference-counted view.
+The seven terrain-extension entries are process-wide helpers (§3.1), with no constructor, destructor
+or reference interface inferred. A caller must follow acquisition/flush/release order; RAII alone
+does not supply the native shared state transitions.
+
+**Worked lifetime case (UNEXECUTED):** construct a train view P (count=0), primary AddRef→1,
+QI(1,&out)→true with out=U and count=2. Secondary slot 5 returns 2. Secondary slot 4 returns 1,
+without deletion. QI with ID 2 returns false, leaves a prefilled out sentinel unchanged and keeps
+count=1. After a successful Init, use the observed owner sequence: unregister, Shutdown releases
+six bindings and nulls both models, then primary Release→0 dispatches the deleting body. Its
+model-null checks cause no second model release; the object is freed once. On a separate freshly
+constructed object, Release at count=0 also deletes; RemoveRef at count=0 instead returns zero
+without deletion. The same refcount rules apply to the other three views, with the owner-specific
+cleanup listed in §3.4. This distinguishes secondary RemoveRef from Release and tests U/P adjustment.
 
 ## 4. Users
 
@@ -419,9 +528,10 @@ vertex-buffer extension.
 
 See [questions/overlay-views.md](questions/overlay-views.md): OVV1 retains the lot-flag identities
 (`0x304`, `0x100000`). The repeat factor is supplied to SetPathTexture (§1.2); its unwritten
-NewPath value is not a default. OVV4 retains the independent outline-disable API/absence question;
-OVV6 retains inventory and lifecycle/setter gaps (§3.2). OVV2, OVV3, OVV5 and OVV7 have been
-answered in the archive; their instruction-derived contracts do not certify complete owners.
+NewPath value is not a default. OVV4 is answered for the recovered callable surface and narrowed
+to the exact inline-reset watchpoint observation in §2.3. OVV6 is answered by §§3.2–3.5's explicit
+54-address membership, full tables and folded/inline operations. All OVV2–OVV7 entries are in the
+archive; their instruction-derived contracts do not themselves certify runtime or replacement behavior.
 
 ## 7. Conformance expectations (UNEXECUTED)
 

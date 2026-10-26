@@ -18,15 +18,48 @@ cites an instruction address.
 
 | Item | Value |
 |---|---|
-| Class | `cGZWin` (framework base window; abstract in practice, always a base of `cGZWinGen`, widgets, game windows) |
+| Class | `cGZWin` (framework base window; normally a base of `cGZWinGen`, widgets and game windows) |
 | Interface | `cIGZWin`, IID `0x22BA0121` (ui-windows.md §2.1) |
-| Own vtable | `0x00ADC8D8` (written by both constructors and by the destructor). Not yet in `docs/abi/vtables.tsv` (§11 WT1) |
+| Own vtable | `0x00ADC8D8`, 151 callable slots, 0–150 (§1.1; WT1). Written by both constructors and by the destructor; absent from the ABI export table |
 | Constructors | `0x0099D938` (no arguments: window manager taken from `RZ::WM()`), `0x0099DA5A` (`winMgr`, `keyboard` explicit) |
 | Destructor | `0x0099E1A2` |
 | Functions | 167 named `cGZWin::*` in `re/names_windows.tsv` |
 
-Virtual-slot numbers below are `cIGZWin` slots (byte offset = slot × 4). Slots 148–151 exist only on concrete
-vtables (for example `cGZWinGen`, 152 slots); slot **149** is the internal `is_point_transparent` (`0x0099BBBE`).
+Virtual-slot numbers below are `cIGZWin` slots (byte offset = slot × 4). The interface occupies slots 0–147;
+the base implements three further virtuals, 148–150. `cGZWinGen` adds its own slot 151; that extension is not a
+base-window slot.
+
+### 1.1 Own vtable and default stubs (WT1)
+
+The image contains **151 consecutive function pointers** from `0x00ADC8D8` through `0x00ADCB30` (inclusive),
+not 152 methods. Slots 0–147 have the documented `cIGZWin` ordering. The following word at `0x00ADCB34` is
+zero padding before `cGZFadeTmpWin`'s table at `0x00ADCB38`, which likewise has 151 methods. It is not a
+callable base slot 151. In particular, do not inherit `cGZWinGen::AsIGZWin` into this table. Both constructors
+and the base destructor select this table (`0x0099D942`, `0x0099DA63`, `0x0099E1A6`). The last three entries are:
+
+| Slot | Byte offset | Target | Behavior |
+|---|---|---|---|
+| 148 | `+0x250` | `0x009D060A` | Deleting wrapper shared with `cGZFadeTmpWin`; base teardown, optional storage free (§8.1, §14.7) |
+| 149 | `+0x254` | `0x0099BBBE` | `is_point_transparent` (§5.2) |
+| 150 | `+0x258` | `0x0099D0ED` | `create_private_buffer` (§14.5.1) |
+
+There are **no pure-virtual trap entries or null function entries** in slots 0–150. The following defaults are
+constant-result stubs: they do not inspect the window or arguments, and they alter only the return byte.
+Other slots are ordinary methods, including accessors and forwards; an unrelated folded function name in the
+export does not change their slot meaning.
+
+| Slots | Meaning | Target | Result byte | Stack argument bytes consumed |
+|---|---|---|---|---|
+| 88 | `GZPaint` | `0x00949ADE` | 1 | 0 |
+| 129, 133, 141, 142 | character, kill-focus, mouse-enter, mouse-exit defaults | `0x0093878E` | 0 | 4 |
+| 130, 131, 140, 143 | key-down/up, capture-changed, command defaults | `0x0093877E` | 0 | 8 |
+| 134–138 | mouse-down L/R, mouse-up L/R, mouse-move defaults | `0x009378BC` | 0 | 12 |
+| 139 | mouse-wheel default | `0x00938789` | 0 | 16 |
+
+Evidence: raw image words in the table ranges above; the short target routines at `0x00949ADE–E0`,
+`0x0093877E–82`, `0x00938789–92`, `0x009378BC–C0`. Worked cases: invoking base slot 88 returns true without
+changing state; invoking slot 143 with any two dwords returns false without changing state. A table inventory
+must count 151 functions, record slot 148 as `0x009D060A`, and exclude the zero word after slot 150.
 
 ## 2. Object layout *[compat]*
 
@@ -89,7 +122,28 @@ classes' mouse-down handlers set them (§18; WT2 answered 2026-10-23).
 | `0x400000` | (cleared on any visibility change) | clear | `SetFlag` `0x0099DCD2` |
 | `0x8000000` | (triggers re-propagation of draw buffer/area) | clear | §3.1 |
 
-Bits `0x100` and `0x8000` are set by default; nothing in `cGZWin` itself tests them (open, WT3).
+**Default flags read by other owners (WT3).** The base does not test `0x100` or `0x8000`, but they are not
+unused. Preserve both in the constructor's `0x8903` default; changing either alone through SetFlag has no
+base side effect (§3.1).
+
+- **`0x100`: dialog mouse dragging enabled.** `cGZWinGenDlg::GZOnMouseDownL` saves the mouse-down offset
+  (§18), tests this window's slot 67 with mask `0x100`, and sets flag `0x400` when true. It acquires capture
+  regardless of that test and returns true (`0x009C2312–45`). Its mouse-move handler tests `0x100` again:
+  when set it consumes the move and, only while `0x400` is also set, calls slot 57 `GZWinOffset` with
+  `(x − savedX, y − savedY)` from `+0xA0/+0xA4` (`0x009C2381–C3`). With `0x100` clear it converts the
+  coordinates to the parent's window coordinates (slot 61) and sends type 13 to the parent (slot 144),
+  returning that send's byte (`0x009C23C5–FC`). Mouse-up clears `0x400` if set and releases capture
+  (`0x009C2348`). These are subclass effects, not movement performed by base SetFlag.
+- **`0x8000`: manager focus eligibility.** Manager slot 37 `SetFocus` (`0x009DB804`) tests a different,
+  valid requested window's slot 67 with this mask (`0x009DB832–43`). If clear it leaves focus unchanged
+  and sends neither kill-focus nor set-focus notification. If set it may replace the old focus, notifying
+  the old/new windows with types 16/17 as specified in widget-winmgr.md §6.3. The validity and same-window
+  checks precede the flag test; this bit does not make an invalid window focusable.
+
+Worked cases: in a dialog with saved offset `(4,6)`, flags `0x100|0x400`, and a mouse move `(14,21)`, observe
+one `GZWinOffset(10,15)` and a true result. Clear `0x100`: the same move instead forwards type 13 to the
+parent without an offset call. With manager focus A and another valid window B, clearing B's `0x8000`
+then requesting B leaves A focused; setting it then requesting B produces type 16 to A and type 17 to B.
 
 ### 3.1 `SetFlag(mask, on)` (slot 68, `0x0099DB6B`)
 
@@ -294,6 +348,16 @@ corruption, not a supported harmless repeat; no stable subsequent callback/retur
 mutation vectors below keep at least one active occurrence per queued removal. Clearing lists through Shutdown
 inside a callback likewise is not covered by deferred-removal safety.
 
+**Temporary reference effects.** AddMessageFilter and RemoveMessageFilter each first AddRef a non-null
+argument temporarily and Release it before returning, including an unsuccessful Remove. A newly inserted
+active or pending entry owns its own additional reference, independent of that temporary
+(`0x0099D83E–5C`, `0x0099D873–E8`, helper `0x004F20C0–D5`). While draining, each pending pointer is also
+temporarily AddRef'd for the lookup/erase and then Released before advancing to the next pending entry
+(`0x0099E6CF–0x0099E71E`, helper `0x00966956–6F`). These temporary pairs do not change the net ownership
+rules above. Worked count case: B has one caller and one active reference (count 2). A queues removal of B:
+after Remove returns B has count 3 (caller, active, pending). Nested and outer DoMessage returns leave 3.
+An outer paint pass offers B once more, then drains; after the pass B has count 1, owned only by its caller.
+
 ### 7.3 Dispatch table (jump table at `0x0099CEF9`, 20 entries, type 1–20)
 
 | Type | Handler slot | Handler | Arguments passed |
@@ -377,9 +441,10 @@ branch does not first store a decremented count. In particular zero is a destruc
 Slot 148 is the concrete deleting destructor: it completes derived teardown including the base destructor,
 and frees allocation storage when argument bit 0 is set; with bit 0 clear it tears down without freeing.
 Other argument bits do not select an array path in the verified concrete wrappers cGZWinGen `0x0099B485–A0`
-and cGZWinTextEdit `0x009BFF52–6D`. The base vtable's own full inventory remains WT1; these wrappers and the
-shared Release call establish the lifetime contract for ordinary concrete windows without inventing an
-unpublished base deleting-wrapper address. Directly invoking a deleting destructor bypasses reference counting
+and cGZWinTextEdit `0x009BFF52–6D`. The base table's slot 148 is `0x009D060A`, shared with cGZFadeTmpWin:
+it calls the base destructor, tests only argument bit 0, optionally calls GlobalHeapFree, and returns the
+original object address (§1.1, §14.7). Thus arguments 0 and 2 both tear down without freeing; arguments 1
+and 3 both tear down and free. Directly invoking a deleting destructor bypasses reference counting
 and is not a supported way to preserve live references.
 
 **Manager requests and retained child blocks (WT12).** DestroyWindow (`0x009DC4AC`) with a positive signed
@@ -510,19 +575,25 @@ Callbacks below mutate only once and otherwise return false. Reference observati
 | Same retained block, but caller also owns C | Last old-block unlock releases that reference but does not destroy C; caller's final Release does |
 | Unparented live W; direct SetParentWin(W), without subsequent traversal | Returns true and stores self as parent/notification target; no cycle rejection or reference acquisition |
 | ChildAdd(null) or unregistered pointer; existing valid list member | Returns false; no child Init or insertion; cycles are a separate unsafe domain |
+| Construct a registered root W, acquire one caller reference, then immediate manager DestroyWindow(W), with no other owners or children | Construction starts at 0; caller AddRef makes 1; manager temporarily raises it to 2, shuts down, Releases back to 1; W remains registered until caller's final Release |
+
+The last case is not permission to traverse a destroyed object: for the retired-block vectors the parent
+and reader lock must remain live, and the child may already be shut down. For invalid/self/cyclic parenting,
+test the finite pointer-storage or rejection step only; do not require recursive tree work to complete.
 
 ## 11. Open questions
 
-Filed in `docs/specs/questions/widget-toolkit.md`: WT1 (own vtable rows), WT2 (unset fields), WT3 (bits `0x100`,
-`0x8000`; the manager's `SetFocus` reads `0x8000`, widget-winmgr.md §6.3), WT5 (`ChildDeleteAll` termination) and
-WT6 (instance-ID counter start), both answered.
+Current open entries are in `docs/specs/questions/widget-toolkit.md`. WT1 (§1.1), WT3 (§3), WT10 (§7.2),
+WT11 (§7.3), WT12 (§§2, 4.2, 8.1) and WT13 (§14.7) are answered; worked cases are there and in §10.1.
+Their static behavior requires no outstanding runtime observation. Native invalid-pointer faults and cyclic
+tree nontermination are unsafe boundaries, not defined successful operations.
 
 ## 12. Coverage of owner patterns (honest)
 
 | Owner pattern (`tools/coverage-map.tsv`) | State after this slice |
 |---|---|
-| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), `ChildStepFront`/`ChildStepBack`/`ChildMoveRelative`/`IsWinInChildChain` (§4.3), the `GZOnSetFocus`/`GZOnMouseWheel` defaults, parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. WT14 closes concrete slot 150, the base-owned graphics calls and ownership boundary in §§14.5.1–14.5.3 and 14.6; graphics services remain separate owners, not unspecified base-window operations. **Whole owner since 2026-10-23** (re-gzwin7): §18 adds `create_private_buffer`, the small accessors and the last helpers (and answers WT2, the fields `+0xA0..+0xA4`), so all 157 functions of the owner are placed. The draw-context, buffer, graphics-system and colour-manager slots stay cited by number; WT1, WT3, WT5 and WT6 stay open |
-| `cGZFadeTmpWin` (not an owner pattern of this lane; listed for completeness) | constructor, `StealBuffer`, `Plot` specified (§14.7); destructor not |
+| `cGZWin` (the class itself; matched by `cGZWin*`) | **specified** for layout, flags, children, z-order, geometry, hit testing, dispatch, filters, lifecycle, fade in and out, accelerator wiring (§13.4), painting (`Plot`, `PlotComposite`, `PlotPresent`, `PrivateBuffer`, `SetBufferToDrawTo`, §14), mouse routing and `UpdateCursor` (§15), key equivalents (§16), and (round 3, §17) the draw rectangles `+0x24`/`+0x34`/`+0xB8` (`SetAreaToDrawTo`, `SetAreaToDrawToRecursive`, `SetBufferToDrawToRecursive`, `recalc_blt_area`), `child_private_buffers`, the invalidation trio, coordinate converters and parent-chain forwarders (`WindowToWindowCoordinates`, `IsWinInParentChain`, `MoveRelativeTo`, `ChildToFront(id)`, `PullToFront`, `SetFocus`), `ChildStepFront`/`ChildStepBack`/`ChildMoveRelative`/`IsWinInChildChain` (§4.3), the `GZOnSetFocus`/`GZOnMouseWheel` defaults, parameters (`GetParam`/`SetParam`/`EnumParams`), `EnumChildren`, `SortChildren`, `CenterWindowInRect`/`FitRectToWindow`, colour conversion and the two private-buffer transparency helpers. WT14 closes concrete slot 150, the base-owned graphics calls and ownership boundary in §§14.5.1–14.5.3 and 14.6; graphics services remain separate owners, not unspecified base-window operations. **Whole owner since 2026-10-23** (re-gzwin7): §18 adds `create_private_buffer`, the small accessors and the last helpers (and answers WT2, the fields `+0xA0..+0xA4`), so all 157 functions of the owner are placed. The draw-context, buffer, graphics-system and colour-manager slots stay cited by number. WT1/WT3 and WT10–12 are settled in §§1.1, 3, 4.2, 7 and 8.1; WT5/WT6 were already answered |
+| `cGZFadeTmpWin` (listed separately for completeness) | **specified**: constructor, `StealBuffer`, `Plot`, and the shared deleting destructor with no extra derived teardown (§14.7, WT13) |
 | `cGZWinGen` | **specified** in widget-wingen.md (re-gzwingen7, whole owner); a parallel partial contract is in [widget-generator.md](widget-generator.md) (inventory, lifetime, callback dispatch, client layout, capture and drawing boundary) |
 | `cGZWinHTML` | Partial window-side contract in [widget-html-window.md](widget-html-window.md); document grammar remains in [html-document.md](html-document.md). |
 | `cGZWinCustom` | Parent forwarding and fill drawing in [widget-custom.md](widget-custom.md); construction/secondary-interface attribution remains open. |
@@ -821,6 +892,31 @@ when `a < 0` (alpha 0, period 0). Worked example, default `p2` 500: elapsed 250 
 
 `cGZFadeTmpWin::Plot` (`0x0099C291`): while the fade runs, `cGZWin::Plot` then `InvalidateSelfAndParents`; once it
 has ended, it calls manager slot 23 `DestroyWindow(this)` (`0x0099C2BC`, call through `+0x5C`) and returns true.
+
+**Destructor and reference effects (WT13).** The fade table at `0x00ADCB38` differs from the base table only
+at slot 89 (`Plot`). Slot 148 is the same deleting wrapper `0x009D060A` (table word `0x00ADCD88`); there is
+no separate derived cleanup body. It calls `cGZWin::~cGZWin` once, then frees the object's allocation only
+when argument bit 0 is set, and returns the original object address. Bits above bit 0 have no effect
+(`0x009D060D–23`). It neither AddRefs nor Releases the window, its source window, a buffer, or a variant in
+addition to the base effects. Final inherited Release calls this wrapper with 1 (§8.1); with bit 0 clear,
+the retained allocation contains a destroyed base object, not a reusable live fade window.
+
+In particular, parameter `0xE6E998FE` belongs to the **base** parameter map: the constructor passes its
+new variant to base SetParam, which acquires the map reference (`0x0099EA40–5D`, `0x0099D804–08`). There
+is no derived balancing Release. An initialized window's base Shutdown Releases every parameter value
+and clears the map (`0x0099D301–08`, `0x0099D357–7E`). A never-initialized window skips that work: final
+map destruction only frees map nodes, without releasing their raw variant pointers
+(`0x0099E1F5–FD`, `0x0099D2AB–C1`, `0x0099D229–51`, `0x0099CCA3–CF`). Thus a stored parameter reference
+can leak in that boundary case; do not invent derived cleanup to compensate. A previously completed
+Shutdown leaves the map empty, so destruction does not Release those values again. Private-buffer teardown
+and unregistration follow the base sequence, with no second derived buffer Release.
+
+Worked cases (each uses a fresh, childless registered object and a nonbusy manager): replace the fade
+parameter with a recording variant V, then initialize and invoke slot 148 with 0: V receives one Release
+through base Shutdown, the window unregisters, and its storage is retained. Repeat with argument 3:
+the same effects precede one storage free. Repeat with argument 2: no storage free. On a fresh object
+never initialized, storing V then invoking slot 148(1) frees the window and its map nodes but records no
+Release of V during teardown. These cases distinguish inherited teardown from extra derived reference work.
 
 This corrects §8.2: **there is a fade-out**, but only for a window with bit `0x20` whose private buffer is destroyed
 (for example hidden by `SetFlag(1, false)` with `0x10000` set, §3.1) while it holds a painted image; it uses the second

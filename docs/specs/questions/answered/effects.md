@@ -1,5 +1,40 @@
 # effects: answered questions (archive)
 
+- **EF26 - Typed renderer record codec dependencies for the replacement resource (replace-effectsres28):**
+  EF25 settles the resource primary/persistence interface and the complete outer
+  directory sequence. The replacement now has that physical interface layout,
+  shared lifetime, collection publication and the empty-directory stream path.
+  Full nonempty resource Read/Write still needs a clean interface to the separate
+  renderer value codecs. Section 18.9.5 names particle writer `005AFFF0`, decal
+  writer `005A3E00`, dynamic writer `00583620`, visual writer `005AB590` and
+  camera writer `005AB340`; sections 3 and particles section 2 name associated
+  readers. `docs/abi/functions.tsv` supplies calling convention/argument counts,
+  but several entries have unnamed arguments, and e.g. particle reader A is
+  thiscall while reader B is cdecl. Please specify each helper's ordered typed
+  parameters, receiver (if any), return channel, section-version input (if any),
+  and borrowed/owned argument contract. Alternatively, specify the complete
+  binary record order/version masks for decal and dynamic descriptions, plus
+  the native tractor/wiggle reconstruction from their two serialized vec3s.
+  We can then retain the existing description classes as independent renderer
+  dependencies without calling native cSC4EffectsResource Read/Write or guessing
+  how to call a non-interface helper. Nonempty payload is currently refused;
+  no game acceptance or replacement credit is claimed.
+
+  **ANSWERED 2026-10-26 (re-ef30):** DIFFERS — effects.md §18.10 specifies all
+  twelve ordered typed codec contracts, receivers, stack cleanup, version
+  selection and borrowed lifetimes. Both particle A and old visual Read use
+  description receivers; the other ten use stream then value arguments.
+  No helper takes an explicit section version or returns a success Boolean.
+  Decal Write and old visual Read return borrowed stream pointers in EAX;
+  other results are not semantic return values. Native constructed renderer
+  values own their decoded members; the resource can use these independent
+  dependencies, including particle nested reconstruction. Decal/dynamic wire
+  tables and masks are supplied as well. Corrects the optional camera to a
+  counted float curve and the visual selector to version exactly 1 versus
+  all other values. EF26-C1 gives an 86-byte decal decode, publication and
+  normalized write-back; C2–C7 cover version/ABI/lifetime cases. These are
+  static predictions, not game acceptance or replacement credit.
+
 - **EF25 - Effects-resource creation and complete primary interface (replace-effectsres28):**
 
 The requested `effectsres` factory would replace CLSID `2A5118AD` while leaving
