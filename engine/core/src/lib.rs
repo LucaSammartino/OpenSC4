@@ -190,3 +190,4 @@ pub mod regional_city;
 pub mod region;
 pub mod pedestrians;
 pub mod model_maker;
+pub mod model_background_loader;
