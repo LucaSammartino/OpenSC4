@@ -548,7 +548,7 @@ void SettleStep(void*) {
             ++g_n.rebuilt;
         } else {
             ++g_n.origOnly;
-            // SPEC-GAP: NM16 leaves the provenance of these extra removals open;
+            // SPEC-GAP: NM18 leaves the provenance of these extra removals open;
             // preserve every mismatch and report both handler-boundary flags.
             PendingDiff("terrain: the original destroyed %p at %u,%u, ours kept it (placed before/after handler=%d/%d)",
                         static_cast<void*>(FromToken(c)), cx, cz,

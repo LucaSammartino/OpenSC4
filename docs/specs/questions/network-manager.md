@@ -3,7 +3,7 @@
 
 ## From netocc-cities29 (2026-10-26)
 
-- **NM16 — terrain removals beyond §7.6's destruction decisions:** in `gen-tegel-s0-default`, the shadow
+- **NM18 — terrain removals beyond §7.6's destruction decisions (formerly filed as NM16):** in `gen-tegel-s0-default`, the shadow
   reports 14 extra original removals around cells (65,69..70), (65..66,77), (80..81,69..70). The original's
   component 53 and every component-11 lot/config/zone/wealth entry agree. The core queries with mask 0x1FFF,
   applies the kind/pipe/subway/0x80000 gates and the specified four-corner altitude test. Which native handler
