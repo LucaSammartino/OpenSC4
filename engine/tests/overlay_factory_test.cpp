@@ -3,6 +3,7 @@
 // checks the corrected native IID too; it cannot prove terrain-view interception.
 #include "FC4OverlayOwner.h"
 #include "FC4OverlayBindings.h"
+#include "FC4OverlayRectangles.h"
 #include "cIGZMessage2.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZCOMDirector.h"
@@ -80,6 +81,100 @@ public:
     bool operator<(const cIGZMessage2& other) const override { return type < other.GetType(); }
 };
 
+// These receivers consume individual stack words rather than the adapter's
+// Rectangle type, independently checking the three layouts in section 4.6.1.
+struct NativeRectangleSink {
+    uint32_t count = 0, route = UINT32_MAX;
+    void* receiver = nullptr;
+    void* context = nullptr;
+    void* extension = nullptr;
+    int32_t vertices[4]{};
+    static void Record(void* p, uint32_t route, void* context, void* extension,
+                       int32_t x0, int32_t z0, int32_t x1, int32_t z1) {
+        auto& sink = *static_cast<NativeRectangleSink*>(p);
+        ++sink.count;
+        sink.route = route;
+        sink.receiver = p;
+        sink.context = context;
+        sink.extension = extension;
+        const int32_t words[] = {x0, z0, x1, z1};
+        std::copy_n(words, 4, sink.vertices);
+    }
+    template<uint32_t Route>
+    static void __fastcall Land(void* p, void*, int32_t x0, int32_t z0,
+                               int32_t x1, int32_t z1, void* context) {
+        Record(p, Route, context, nullptr, x0, z0, x1, z1);
+    }
+    template<uint32_t Route>
+    static void __fastcall Extension(void* p, void*, void* context, void* extension,
+                                    int32_t x0, int32_t z0, int32_t x1, int32_t z1) {
+        Record(p, Route, context, extension, x0, z0, x1, z1);
+    }
+    template<uint32_t Route>
+    static uint8_t __fastcall Water(void* p, void*, int32_t x0, int32_t z0,
+                                   int32_t x1, int32_t z1, void* context) {
+        Record(p, Route, context, nullptr, x0, z0, x1, z1);
+        return Route == 5; // both AL values must be ignored by DrawRect
+    }
+    template<uint32_t Route>
+    static void __fastcall Shadow(void* p, void*, const int32_t* rectangle, void* context) {
+        CHECK(reinterpret_cast<uintptr_t>(rectangle) % 4 == 0);
+        Record(p, Route, context, nullptr, rectangle[0], rectangle[1], rectangle[2], rectangle[3]);
+    }
+    static fc4::overlay_rectangles::Calls Calls() {
+        namespace rectangles = fc4::overlay_rectangles;
+        return {{reinterpret_cast<rectangles::Land>(NativeRectangleSink::Land<0>),
+                 reinterpret_cast<rectangles::Land>(NativeRectangleSink::Land<1>)},
+                {reinterpret_cast<rectangles::Extension>(NativeRectangleSink::Extension<2>),
+                 reinterpret_cast<rectangles::Extension>(NativeRectangleSink::Extension<3>)},
+                {reinterpret_cast<rectangles::Water>(NativeRectangleSink::Water<4>),
+                 reinterpret_cast<rectangles::Water>(NativeRectangleSink::Water<5>)},
+                {reinterpret_cast<rectangles::Shadow>(NativeRectangleSink::Shadow<6>),
+                 reinterpret_cast<rectangles::Shadow>(NativeRectangleSink::Shadow<7>)}};
+    }
+};
+
+void CheckNativeRectangles() {
+    using fc4::overlay_rectangles::Submit;
+    NativeRectangleSink view;
+    auto calls = NativeRectangleSink::Calls();
+    // The worked call's four words have already been expanded by DrawRect.
+    const int32_t vertices[] = {2, 5, 8, 12};
+    auto* context = reinterpret_cast<void*>(0x02345000);
+    auto* extension = reinterpret_cast<void*>(0x03456000);
+    for (uint32_t route = 0; route != 8; ++route) {
+        uintptr_t before = 0, after = 0;
+        __asm mov before, esp
+        const bool submitted = Submit(calls, &view, context, extension, route, vertices);
+        __asm mov after, esp
+        CHECK(submitted && before == after); // callee cleanup: 20, 24 or 8 bytes
+        CHECK(view.count == route + 1 && view.route == route && view.receiver == &view);
+        CHECK(view.context == context && std::equal(vertices, vertices + 4, view.vertices));
+        CHECK(view.extension == (route == 2 || route == 3 ? extension : nullptr));
+    }
+    CHECK(!Submit(calls, &view, context, extension, 8, vertices));
+    CHECK(!Submit(calls, &view, context, extension, UINT32_MAX, vertices));
+    CHECK(!Submit(calls, nullptr, context, extension, 0, vertices));
+    CHECK(!Submit(calls, &view, nullptr, extension, 0, vertices));
+    CHECK(!Submit(calls, &view, context, extension, 0, nullptr));
+    CHECK(!Submit(calls, &view, context, nullptr, 2, vertices));
+    CHECK(!Submit(calls, &view, context, nullptr, 3, vertices));
+    CHECK(view.count == 8);
+    for (uint32_t route = 0; route != 8; ++route)
+        CHECK(!Submit({}, &view, context, extension, route, vertices));
+    // Water and shadow routes never require or forward the extension.
+    CHECK(Submit(calls, &view, context, nullptr, 4, vertices));
+    CHECK(Submit(calls, &view, context, nullptr, 6, vertices));
+    CHECK(view.count == 10 && view.extension == nullptr);
+    // No emptiness filter, sign conversion or second maxima increment belongs
+    // here; preserve all four words even for reversed/extreme vertex bounds.
+    const int32_t extreme[] = {INT32_MAX, INT32_MIN, -1, 0};
+    for (uint32_t route = 0; route != 8; ++route) {
+        CHECK(Submit(calls, &view, context, extension, route, extreme));
+        CHECK(std::equal(extreme, extreme + 4, view.vertices));
+    }
+}
+
 struct Drawing {
     uint32_t resets = 0, acquires = 0, releases = 0, rowReads = 0, parameterReads = 0;
     bool extension = true, nativeTextures = false;
@@ -89,6 +184,7 @@ struct Drawing {
     std::vector<Texture> textures;
     std::vector<uint32_t> driverTextures, driverStages;
     std::vector<Rectangle> rectangles;
+    NativeRectangleSink nativeView;
     std::vector<int32_t> starts = std::vector<int32_t>(64, 0);
     std::vector<int32_t> ends = std::vector<int32_t>(64, 64);
     static Drawing& Of(uintptr_t p) { return *reinterpret_cast<Drawing*>(p); }
@@ -127,7 +223,12 @@ struct Drawing {
     static void Rect(uintptr_t p, uint32_t route, const int32_t* vertices) {
         Rectangle r{route, {}};
         std::copy_n(vertices, 4, r.vertices);
-        Of(p).rectangles.push_back(r);
+        auto& d = Of(p);
+        d.rectangles.push_back(r);
+        CHECK(fc4::overlay_rectangles::Submit(NativeRectangleSink::Calls(), &d.nativeView,
+            &d, d.extension ? &d : nullptr, route, vertices));
+        CHECK(d.nativeView.route == route && d.nativeView.context == &d);
+        CHECK(std::equal(vertices, vertices + 4, d.nativeView.vertices));
     }
     static int32_t Water(uintptr_t, int32_t*) { return 0; }
     static void Parameters(uintptr_t p, float* values) {
@@ -467,6 +568,7 @@ void CheckNative(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
 }
 int main(int argc, char** argv) {
     if (argc != 3) return 2;
+    CheckNativeRectangles();
     char cwd[MAX_PATH];
     if (!GetCurrentDirectoryA(MAX_PATH, cwd)) return 2;
     const std::string dir = std::string(cwd) + "/overlay-factory-" + std::to_string(GetCurrentProcessId());
