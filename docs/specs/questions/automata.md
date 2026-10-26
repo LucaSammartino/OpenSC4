@@ -97,3 +97,46 @@ contracts. AT22 stays open.
   vehicle/pedestrian/aircraft/watercraft routes (including a concrete aircraft using the automaton
   constructor), but no separate automaton factory: confirm which route can support the complete inherited
   owner without delegating its missing methods back to native code. [blocked; no new wrapper or factory]
+
+<!-- from: automata-cities29 (2026-10-26); imported by re-at30 -->
+The branch's AT24–AT28 are AT29–AT33 here: main already used AT24 and AT25.
+
+- **AT29 — concrete carjacked/limo records (branch AT24):** Publish the complete ordered wire fields,
+  leading version (if any), nesting, accepted versions and reference IIDs for
+  `cSC4CarjackedVehicle` (`0xCBB32B0A`) and `cSC4MayorLimo` (`0x4C0DD224`).
+  automata-managers.md §1 specifies their construction, not their records;
+  docs/abi/vtables.tsv assigns both Write `0053ce00`, Read `00524490`, distinct
+  from Vehicle. Census sh28-census3 reports unsupported records in 23 and 9
+  scenarios respectively (e.g. maxisland-bevopolis, maxisland-derris-heights).
+  Blocks replay of these two cases; no presumed alias or opaque-byte bypass.
+- **AT30 — ambulance record (branch AT25):** Publish the complete ordered wire fields, leading
+  version, nesting, accepted versions and reference IIDs for `cSC4Ambulance`
+  (`0x6C1ACDE1`). automata-managers.md §1 identifies an emergency subclass but
+  not its record; ABI assigns Write `00504bf0`, Read `00504c10` rather than the
+  emergency base's methods. Unsupported in 12 census scenarios, e.g.
+  lua-lots-grown and maxisland-east-weburg. Blocks this case's full replay.
+- **AT31 — tank record framing (branch AT26):** vehicles.md §§1, 6, 12.13 say Vehicle plus
+  two owner dwords, but do not specify whether Tank Write `0054aa30` / Read
+  `0054a8e0` add a leading version wrapper, its value/acceptance, or the order
+  and meanings of those dwords. Please specify the exact wire sequence (or
+  explicitly confirm no wrapper and two raw dwords). Unsupported class
+  `0xEBE0DCAD` in maxisland-norte-delano and paradis-zoe blocks those two cases.
+- **AT32 — mass-transit train record (branch AT27):** Publish the complete ordered wire
+  sequence, wrapper versions, nesting, reference IIDs and failure semantics for
+  `cSC4MassTransitTrain` (`0x4C22AE53`). automata-managers.md §1 specifies its
+  constructor, but neither that section nor vehicles.md §12.1 defines its record.
+  docs/abi/vtables.tsv assigns Write `0053cb30` and Read `0053cb50`, distinct
+  from Train. The new run automata-cities29-2/paradis-braus.log reports this
+  unsupported class during its initial owner capture (line 2137); that run
+  stalled before the first month. Blocks this concrete class's replay; do not
+  presume that it aliases Train or discard its trailing bytes.
+- **AT33 — fire-truck record framing (branch AT28):** Publish the full ordered record,
+  wrapper version/acceptance, inherited Emergency Read behavior and reference
+  IIDs for `cSC4FireTruck` (`0xAA222B83`). vehicles.md §7.2 describes its crew
+  and §1 says Emergency plus a reference, but automata.md §6.4 specifies the
+  complete wrapper only for PatrolCar. ABI assigns FireTruck Write `00532ee0`
+  and Read `00532f20`, distinct from PatrolCar. The shared-queue run
+  automata-cities29-5/maxisland-norte-delano.log line 2145 has one unsupported
+  fire truck at load: `derived[0xAA222B83]=0/1`, one of 12 automaton failures.
+  The eight-line diagnostic cap hides it behind other classes, but the complete
+  per-class summary retains it. Blocks this load case; no presumed PatrolCar alias.
