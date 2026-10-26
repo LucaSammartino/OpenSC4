@@ -1,5 +1,103 @@
 # Native lot configuration editor answered questions
 
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE15 — Static family resources and PostInit view/alpha setup**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §33 specifies Sys/FamilyNames.ini path construction, entry radix/overwrite behavior, view/buffer/alpha/model call order and failure/retry behavior. Worked cases and exact callback/PostInit/Init closure mapping are included.
+
+Resolve static family path/name-resource parsing and PostInit view, alpha
+and model setup, using the inventory companion's exact non-C methods.
+Init once timing/section names and LE8 Shutdown field mapping are closed.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE16 — Edit input, capture and cycling remainder**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §34 specifies input/capture/drag pipelines and live building/flora cycling, with no lot-ID-vector edit. Absent current ID reads list-end: LE16-R specifies the exact guarded-memory observation; no heap-independent result is promised. Worked cases and row mapping distinguish valid cycling from that malformed state.
+
+Resolve keyboard/mouse/capture and cycling interiors beyond §11, §17 and
+§21 wrapper dispatch. Hit numeric/fallback geometry is LE9; water/terrain
+mode commands and both movement overloads are closed in §25.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE17 — Rasterization, name/help and 3D preparation**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §35 resolves type names, foundation/wall name fallbacks, shared help, redraw/message wrappers, drawing order and the 3D-refresh caller protocol; LE17-R1–R5 narrowly specify remaining raster/3D/texture observations with fixtures, call arguments and buffer/terrain evidence. Worked cases and §36.1 row mapping explicitly retain partial drawing/3D/resource rows; no complete-owner or measured runtime claim.
+
+Resolve ordinary drawing interiors, remaining object-name/help helpers,
+3D preparation and refresh. Preserve acquisition/lock/release, reverse
+draw order, marker and height-label contracts. SetTitle is closed in §25.3.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE18 — Shared constructor/decoder attribution**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §36 retains five shared dependencies/427 current bytes, separates actual entries from historical interiors and prevents exclusive editor credit. LE18-R records concrete shared-path reachability; exclusive original source provenance cannot be proved by runtime absence and would need an unavailable original symbol/link map. Worked accounting case and R-row mapping included.
+
+Resolve source ownership separately from reachability for the five shared
+bodies/427 bytes listed in §18. Editor dependency is established; exclusive
+ownership is not. Historical interior fragments are not additional bodies.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE13 — Selected-object popup remainder and add/select wrappers**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §31 completes types 3/5, one-or-no detail marker, all 20 edge keys/labels, add-mode clear/accept/cancel behavior and texture wrapper, with worked cases and named closure rows. Dialog implementation is §29, not inferred from dispatch.
+
+Resolve 0x00487B30 types 3/5, exact detail markers, edge table 0x00A8E6C8
+and add/select wrappers still marked non-C in the inventory companion.
+Separate command effects from dialog implementations. Foundation/outside
+popups are §26.2, including their differing confirmation result IDs.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4/LE7 -->
+**LE14 — Shared grid sort/search semantics and selector name fallbacks**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §32 resolves primary-grid slot targets, ascending/descending CRT collation, texture comparator, half-open search ranges/counts and exact-match flag; chooser row zero is searchable. Family/individual fallback rules, worked cases and selector/chooser closure mapping are included.
+
+Establish direction/collation for grid +0x20C and flag/range meaning for
++0x214 in selector/chooser calls. Determine whether row zero can match;
+raw start arguments are not a semantic exclusion. Resolve name-helper
+fallbacks for selectors 0x004827D0, 0x004832E0, 0x00482DC0 and 0x0047CC30.
+Callback dispatch, prop letter-search byte handling and raw arguments are
+already specified. Malformed hex parsing remains RZAtoUint32HexA.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE11 — Retaining-wall and foundation selector bodies**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §29 specifies unfiltered enumeration, two-column rows, preselection, selection capacities, empty OK writes, return values and lifetime/failure order, with worked wall/foundation cases and both selector closure rows.
+
+Resolve 0x00480910 and 0x00485D60 row schemas, enumeration/filtering,
+preselection, empty selection, acceptance, missing-control and cancel/failure
+behavior. Foundation popup dispatch is §26.2; the dialog itself remains open.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE12 — SetLotSize arithmetic and refresh**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §30 specifies full-unsigned comparisons versus low-byte storage, aspect-dependent x87 scale selection, outer sizing using the horizontal margin twice, degenerate values and conditional dirty/unconditional draw order; worked cases identify both affected rows.
+
+Resolve 0x00486080 scale selection, rectangle sizing, integer/float widths,
+byte truncation, degenerate dimensions and dirty/refresh order. The size
+dialog wrapper in §16 is already resolved.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3/LE5 -->
+**LE9 — Hit-test coordinate conversion and fallback geometry**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §27 supplies exact reciprocal spills, integer hit tests, grid-before-resize fallback and unbounded negative-side strips; masked-invalid objects may hit zero. Worked cases and DoHitTest closure mapping are in the section.
+
+Resolve 0x00483DC0 numeric conversion, invalid/overflow inputs, and
+inside/grid/resize fallback after the established selected/forward/popup
+priority. Include edge boundary examples and masked-x87 invalid behavior;
+do not extrapolate finite-only comparison rules.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3 -->
+**LE10 — Rectangle conversions and invalid integer results**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §28 supplies four signed-32 rectangle members and division order; _ftol2 uses signed-64 intermediate/low-32 return, so masked invalid yields zero. Pixel fence consequences and helper closure mapping are included.
+
+Resolve 0x0047B310 and 0x0047B390 coordinate/rectangle widths, conversion
+order and invalid/overflow results, including the shared _ftol2 dependency
+used by pixel fence paths. §25 closes both movement overloads, payload
+request/copy extent and water/terrain modes; §9.5–§9.6 closes finite fence
+toggles and bounds-mover comparisons. No deterministic heap-corruption
+outcome is promised for the §25.1 overrun.
+
 **LE3 — Complete object geometry, fences and numeric edge cases**
 
 **ANSWERED 2026-10-24 (re-lotcfg-editor-le10):** DIFFERS — §25.1–§25.2 resolves physical type-7 request/copy extent, water/terrain mode commands and both movement overloads; LER01–05. Remaining hit/conversion geometry is LE9–LE10. No deterministic adjacent-heap outcome is asserted.
