@@ -4,6 +4,7 @@
 
 ## Handoff
 - STOP received from lane guard: run 7 ends 16:00; resume after reboot. No merge-queue file written.
+- Connection-drop resume: Git status is clean; the coordinator STOP remains enforced and rejected the guard-status command. Pending game results were not read; no further checks or requests were started.
 - Code milestone: `03ebb82c0`, monthly method evidence for all five documented slot addresses; shipped and constructed-direct counters remain separate.
 - Complete comparisons cover every destination byte, including trailing bytes with odd strides; methods are void/stateless and make no calls on other objects per spec sections 1.1/7.
 - Native-context fixture forwards are excluded from shipped method counts; their comparisons remain in the existing context fixture reports.
