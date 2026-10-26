@@ -83,6 +83,38 @@ const ExecutableVersion kVersions[] = {
             0x004664A0,  // cS3DTextureBinding::AddRef (texture-bindings.md §2)
             0x008090E0,  // cS3DTextureBinding::Release (texture-bindings.md §2)
             0x00649BA0,  // native pole GetAttachmentPoints (network-occupants.md §4.6.3)
+            // Terrain-view rectangle consumers (overlay-manager.md section 4.6.1).
+            0x007541C0,  // static land, rectangle value then context
+            0x007543C0,  // dynamic land
+            0x007545C0,  // static extension land, context/extension/rectangle value
+            0x00754910,  // dynamic extension land
+            0x00755560,  // static water, rectangle value then context
+            0x00755700,  // dynamic water
+            0x00754C60,  // static shadow, rectangle pointer then context
+            0x00754F10,  // dynamic shadow,
+            0x0058C580,  // collection constructor (effects.md 18.7.2)
+            0x0058D0E0,  // collection publication (effects.md 18.7.3)
+            0x005B1660,  // EffectsParticleConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x00582FE0,  // EffectsDecalConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005836A0,  // EffectsDynamicConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005812F0,  // EffectsBrushConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x00580F10,  // EffectsAttractorConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005BC9D0,  // EffectsScrubberConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005BDF10,  // EffectsSequenceConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005BE300,  // EffectsSoundConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x00581C10,  // EffectsCameraConstruct (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005B0B50,  // EffectsParticleReadOld (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005B1DC0,  // EffectsParticleRead (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005AFFF0,  // EffectsParticleWrite (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005A4B50,  // EffectsDecalRead (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005A3E00,  // EffectsDecalWrite (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005837C0,  // EffectsDynamicRead (effects.md 18.8-18.10; effects-owners.md 5)
+            0x00583620,  // EffectsDynamicWrite (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005ABFD0,  // EffectsVisualReadOld (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005ABF50,  // EffectsVisualRead (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005AB590,  // EffectsVisualWrite (effects.md 18.8-18.10; effects-owners.md 5)
+            0x005B1C80,  // EffectsParticleDrop (effects.md 18.8-18.10; effects-owners.md 5)
+            0x00583700,  // EffectsDynamicDestroy (effects.md 18.8-18.10; effects-owners.md 5),
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -532,7 +564,34 @@ uintptr_t DirectCall(Direct which) {
                                          "UpdateResourcesFromDirectory", "LoadPackageScripts",
                                          "placeable pool allocate", "placeable constructor",
                                          "texture binding AddRef", "texture binding Release",
-                                         "pole GetAttachmentPoints"};
+                                         "pole GetAttachmentPoints",
+                                         "overlay land rectangle", "overlay dynamic land rectangle",
+                                         "overlay extension land rectangle", "overlay dynamic extension land rectangle",
+                                         "overlay water rectangle", "overlay dynamic water rectangle",
+                                         "overlay shadow rectangle", "overlay dynamic shadow rectangle",
+                                         "effects collection construct", "effects collection publish",
+                                         "EffectsParticleConstruct",
+                                         "EffectsDecalConstruct",
+                                         "EffectsDynamicConstruct",
+                                         "EffectsBrushConstruct",
+                                         "EffectsAttractorConstruct",
+                                         "EffectsScrubberConstruct",
+                                         "EffectsSequenceConstruct",
+                                         "EffectsSoundConstruct",
+                                         "EffectsCameraConstruct",
+                                         "EffectsParticleReadOld",
+                                         "EffectsParticleRead",
+                                         "EffectsParticleWrite",
+                                         "EffectsDecalRead",
+                                         "EffectsDecalWrite",
+                                         "EffectsDynamicRead",
+                                         "EffectsDynamicWrite",
+                                         "EffectsVisualReadOld",
+                                         "EffectsVisualRead",
+                                         "EffectsVisualWrite",
+                                         "EffectsParticleDrop",
+                                         "EffectsDynamicDestroy",
+};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};

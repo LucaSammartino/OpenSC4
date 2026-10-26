@@ -2300,6 +2300,31 @@ the view per cell through the TR37 call below.
 - **Replacement rule.** Make the same call in the same slots, with the same `+0xEC` guard. Without it the view's
   index buffer keeps the old triangulation until its next whole-grid rebuild, which happens only in its `Init`.
 
+**Exact six indices (TR46).** Indices are **relative to the start of the bound pair of vertex
+rows**, not to vertex zero of the whole city. Put `A=x`, `B=x+1`, `C=x+W`, `D=x+W+1`, with
+`W=vertsX`. Select the row below, then apply the hide overrides. Every result is stored as u16.
+
+| `flags & 0x3000` | `flags & 0x0200` | First three indices | Last three indices |
+|---|---|---|---|
+| zero | zero | A, C, D | A, D, B |
+| zero | nonzero | D, C, A | B, D, A |
+| nonzero (either or both bits) | zero | A, C, B | B, C, D |
+| nonzero (either or both bits) | nonzero | B, C, A | D, C, B |
+
+If `0x0020` is set, replace the first triple with `A,A,A`; if `0x0040` is set, replace the
+last triple with `A,A,A`. These overrides are independent, and winding reversal does not change
+a hidden triple. Other flag bits have no effect here. Thus the table and two independent
+overrides cover all sixteen split/winding/hide combinations (and both encodings of the split).
+The destination starts at byte offset `2·(z·S+6x)` in `0x00B4C6F4`, where `S=0x00B4C700`
+is the row stride in u16 indices. No `z·W` is added to the values. Instruction evidence:
+`0x00752B11`–`0x00752B4E` (u16 flags and destination), `0x00752B54`–`0x00752C09`
+(split), `0x00752C0C`–`0x00752CCA` (other diagonal, winding and hide overrides).
+
+Worked case: `W=5`, cell `(x=2,z=1)`, `S=24`. The six words start at byte offset 72.
+Flags 0 give `(2,7,8, 2,8,3)`; `0x1000` gives `(2,7,3, 3,7,8)`; `0x0200` gives
+`(8,7,2, 3,8,2)`; `0x1220` gives `(2,2,2, 8,7,3)`; adding `0x0040` to that last
+case gives six copies of 2. Changing only z changes the destination, not those six values.
+
 #### 15.5.13.5 The load path: `Read` hands `DoPostCityInit` an existing view
 
 `Read` (§13.2) calls `SC4ReadGZSerializable(stream, 0xC9B84E10, &+0xE8, 0)` (`0x005D9730`). That function zeroes
@@ -2448,6 +2473,264 @@ the hash nodes were not traced, so their file origin is not specified here). The
 are refreshed by step 4 of the base pass. **Replacement rule:** a replacement that runs `StaticInit` (required
 anyway by §15.5.12.2) reads these statics in place and applies the rules above; it does not need to re-derive their
 contents. The two passes post nothing and touch only the texture layers of the records.
+
+### 15.5.14 Independent view replacement with the original terrain (TR45) *[compat]*
+
+**The 22-slot interface is insufficient.** There is no virtual `Init` or `Shutdown` in
+`cISTETerrainView3D`, and the original terrain does not query a separate lifecycle interface. The
+factory and saved-object paths both enter native `0x0075C420` unconditionally. A factory override
+alone therefore supplies an object **on which the native view implementation will run**; it does
+not replace that implementation. This corrects view3d.md §14. The following boundary applies with
+the original terrain enabled, independently of any replacement of the terrain simulator.
+
+Let `V` be the object base and `I = V+0x0C`. These are pointer identities, not interchangeable
+interface pointers. The external entry and field contract is:
+
+| Path | Required behaviour / receiver | Evidence |
+|---|---|---|
+| New city, successful factory | CLSID `0xC9B84E10`, IID `0x6771477D` returns owned reference `I`; terrain stores `I−12` at `T+0xE8`. Success with a null out pointer still proceeds to Init and is unsafe. | `0x0074957A`–`0x007495A9` |
+| Factory failure | Original terrain allocates `0xE8` bytes, runs native constructor `0x007567C0`, then base slot 1 AddRef. This is a native view, not another call to the overriding factory. | `0x007495AB`–`0x007495D1` |
+| Saved reference | Serializable Read runs before PostCityInit. `SC4ReadGZSerializable` queries the referenced object's **class ID** `0xC9B84E10`; that query must return owned reference `V`, not `I`. A null saved reference permits the new-city factory path. | §15.5.13.5, `0x005D96C0`, `0x005D9730` |
+| PostCityInit, either path | Direct thiscall `Init(V,T)`, one stack argument, callee pops 4. Its result is ignored: no success test or alternate lifecycle follows. Terrain then sets ready byte `T+0xEC=1` and runs §15.5.1 steps 6–9. | `0x007495D4`–`0x00749655` |
+| Per-cell flag changes | Direct thiscall `SetTriangleIndicesForCell(V,z,x)`, callee pops 8, no used result; synchronous after the terrain flag write, guarded by `T+0xEC`, with the flip-on-change exception in §15.5.13.4. | six terrain call sites: `0x007411E1`, `0x00741251`, `0x0074187D`, `0x007418DD`, `0x0074193D`, `0x0074208C` |
+| Draw callback | Base vtable slot 3 is `Update(context)`, slot 4 is the base Pick wrapper. `Update` is **not** a slot of the 22-slot interface. Native Init registers `V` on layers 0 and 2 (§15.5.4). Query `0xC989F960` also returns `V`. | base table `0x00AB4480`; §15.5.10 slot 0 |
+| Published interface | Terrain slot 66 returns `I`; consumers call the 22 slots there, including slot 18 `GetOverlayManager(0)` during PostCityInit. | `0x0074963D`–`0x00749644`; §15.5.6 |
+| Published collaborators | Terrain reads `V+0x70` and `V+0x74` directly into `T+0xF0/F4`, AddRef'ing each non-null result; it also AddRef's the slot-18 result into `T+0xF8`. They must be the initialized ripple/wave and overlay objects with the contracts already described, not opaque replacement bookkeeping. | `0x00749606`–`0x00749655` |
+| Redisplay altitude bounds | The original terrain reads float32 values at `V+0x64` and `V+0x68` directly. They are the view's maximum/minimum altitude caches, refreshed from terrain slots 22/21 on an enabled Update (§15.5.5); they can remain stale between Updates. | `0x0074273E`–`0x00742762`; `0x0075BFF5`–`0x0075C003` |
+| Terrain shutdown | Release `T+0xF8`, then `F4`, then `F0`; if `E8` is non-null, direct thiscall `Shutdown(V)`, no arguments, then base slot 2 Release, then clear `T+0xE8` and ready byte `EC`. External consumers can still own references: teardown is not postponed to final Release. | `0x0074377B`–`0x007437D4` |
+| Final destruction | If the native destructor is retained, it directly calls native Shutdown when `V+0x18` is set. A replacement destructor must preserve teardown-once semantics. | `0x007569AE`–`0x007569B0` |
+
+**Retaining the native direct entries requires the native object, not just padding.** The complete
+`0xE8` layout and constructor invariants are §15.5.2; native Init/Shutdown use the collaborator
+pointers, embedded containers and dirty rectangles, and Init also constructs process-wide buffers,
+subscribes `V+0x10`, and registers all §15.5.4 callbacks. Native per-cell indexing reads `V+0x20`
+and writes the process-wide index array using the process-wide dimensions (§15.5.13.4). A private
+replacement index array is not updated by that call. If native view slots, message thunks or the
+native destructor are retained, their direct internal calls remain native too: SetAllTriangleIndices
+at `0x00755FD4`, RemoveCellLevelling at `0x007586E8`, and LevelCell at `0x00759880` call the same
+index helper. It is not sufficient to make AddRef/Release and the public view slots callable.
+
+**Independent replacement boundary.** To substitute an independent implementation while keeping
+the original terrain, the host must additionally redirect the direct Init, Shutdown and per-cell
+index entries (or all their incoming paths), preserve the external field reads above, and supply
+the base draw callback, message-target and serializable identities as well as `I`. These are
+requirements on such a host bridge; the original program offers no interface route that performs
+them. Disabling native Init by pre-setting `V+0x18` is not a lifecycle route: the terrain ignores
+its failure return and still publishes fields and marks the view ready. The `terrainview` switch
+can be independent of `terrain` only when this boundary is covered on both fresh and loaded cities.
+
+**Read/write contract.** The serializable interface is `V+0x14`, IID `0xE4FDA3D4`; its slots 3/4/5
+are Write/Read/GetGZCLSID (the export's LoadGridFlag/SaveGridFlag labels are reversed). The payload
+is u16 version 1 followed by one grid-display byte; the class ID is `0xC9B84E10`. Read sets byte
+`V+0x19=1` before checking the stream, accepts only version 1, and restores the **process-wide**
+grid byte; Init then leaves that restored byte alone. Other renderer caches are reconstructed.
+Evidence: `0x007527D5`–`0x00752819`, `0x00752CD0`–`0x00752D07`, §15.5.4 step 2. The fresh-view
+choice in §15.5.13.5 is available to a replacement **terrain**; it does not bypass original terrain's
+direct Init when replacing only the view.
+
+**Worked boundary case.** A factory returns `0x1200000C` for IID `0x6771477D`. Original terrain
+stores `0x12000000`, directly initializes that address with `T`, sets ready, then reads collaborators
+at `0x12000070/74` and calls slot 18 on `0x1200000C`. Hiding a triangle in cell `(x=2,z=1)` next
+calls the direct index entry on `0x12000000` with arguments `(1,2)` before returning to the caller.
+On shutdown the direct teardown precedes base Release even if a zone developer still holds `I`.
+For a load test, serialize version 1 and grid byte 1, restore the reference through class-ID QI to
+`0x12000000`, then deliver PostCityInit: no second factory construction occurs and exactly one
+Init is attempted on that same base. An override which observes only the 22 interface slots will
+miss Init, the index notification, and Shutdown in both tests. No runtime observation is needed
+to establish this boundary; these are direct instruction-verified calls.
+
+### 15.5.15 Frame submission: verified stream and remaining capture boundary (TR46) *[compat]*
+
+This section settles the index question and the submission order below. **It does not establish
+an exact complete frame for all view modes.** The remaining vertex-cache and auxiliary-pass
+observations are specified at the end; until obtained, this answer is a narrowing of TR46, not
+evidence of equal frames or permission to omit those passes. Terrain-view.md §§3–9 describes
+their broader behaviour. Context-call semantics are draw-context.md §9.
+
+#### 15.5.15.1 One Update, and the land/water split
+
+`Update(V,C)` (`0x0075BFD0`) returns 1, including when disabled. First inspect the render-terrain
+byte at `[[C+0x38]+0x0C]+0x1FC`. If zero, perform **none** of the following work: no altitude-cache
+refresh, extension acquisition or context calls (`0x0075BFDE`–`0x0075BFE6`). Otherwise:
+
+1. If `V+0x20` is non-null, call terrain slot 22 then slot 21, storing their x87 results as
+   float32 at `V+0x64` then `V+0x68` (`0x0075BFF5`–`0x0075C003`).
+2. Acquire the optional vertex-buffer extension (§15.5.9); remember context depth offset
+   `C+0xBC`, then submit `SetDepthOffset(−3)` (`0x0075C00C`–`0x0075C020`).
+3. On its first use, pack the fixed state with ordered arguments
+   `(1,1,1,0,0,1,1,3,1,1,0,0,0xFFFFFFFF,0xFFFFFFFF)`. Every enabled Update submits
+   `SetRenderState(fixedState)` then the no-argument `SetModelTransform()`
+   (`0x0075C02E`–`0x0075C069`). Packing is not itself a context submission.
+4. If `C+0x50=0`, call DrawTerrainLayers; otherwise call DrawWaterLayers. These are **alternative
+   Updates**, not consecutive passes in one Update (`0x0075C06E`–`0x0075C080`). Native
+   registration invokes the view on layer 0 and again on layer 2 (§15.5.4).
+5. Release an acquired extension, then `SetDepthOffset(savedOffset)`. Finally, only on layer 0
+   with plumbing display byte `0x00B4BC5C` set, call DrawPlumbingInfo. Its calls therefore follow
+   the outer depth restoration (`0x0075C085`–`0x0075C0AD`). No general final state reset follows.
+
+#### 15.5.15.2 Land order and the plain row submissions
+
+DrawTerrainLayers (`0x0075BEE0`) performs, in order: draw-frustum optimization; if `V+0xB8`
+is set, clear it and rebuild view-frustum rectangles then view-frustum height culling; check
+terrain type and reload its textures on change; handle zoom (`C+0x14`) then rotation (`C+0x18`)
+changes; if `V+0x31=0`, call terrain slot 67 with `&V+0x34`, rebuild cliff colours at
+`0x007558B0`, and set `V+0x31=1`. Next, if land-surface tuning byte `0x00B0D719` is set,
+draw the land surface. **Always** call DrawSideCliffs after that conditional surface. If the
+grid byte `0x00B4C741` is set, call DrawGrid and then `SetRenderState(fixedState)`, even if
+DrawGrid's own guards submit nothing (`0x0075BF85`–`0x0075BFC4`).
+
+For the following plain path, `W=0x00B4C74C`, `S=0x00B4C700`, land vertex base
+`L=0x00B4C758`, land/water index base `J=0x00B4C6F4`. Each row uses a separate bound vertex
+pair and that row's indices. `left[r]` is the int in `0x00B4C6D8[r]`, `right[r]` the
+**exclusive vertex-column bound** in `0x00B4C6D4[r]`. Do not interchange these two globals.
+
+DrawTerrainSurface (`0x0075BD10`) first copies the terrain record's three bytes at `+0x13/14/15`
+to each selected land vertex's `+0x0E/0D/0C`. It changes **RGB only**: alpha is not reset.
+The copy covers rows `[V+0x98,V+0x9C)` and columns `[V+0xB0,V+0xB4)`. Then submit
+`EnableTextureStateFlag(0,0)` and the floor rows, ascending r in `[V+0x98,V+0xA0)`:
+
+| Condition / order | Context call and arguments |
+|---|---|
+| Only when land-row byte `0x00B4C6D0[r]` or `[r+1]` is nonzero | `SetVertexBuffer(0x0B,2W,L+32Wr)` |
+| next | `SetIndexBuffer(S,J+2Sr)` |
+| next | `DrawPrimsIndexed(0,6·left[r],6·(right[r]−left[r]−1))` |
+
+The plain floor helper does not add a positive-count guard. Evidence:
+`0x00752122`–`0x0075219D`. Format `0x0B` uses the existing 32-byte records. Initialization
+sets x/z to `16x/16z`, alpha at `+0x0F` to 255, and dwords `+0x18/+0x1C` to zero
+(`0x00752430`–`0x00752504`). Heights come from §15.5.12.1; texture coordinates are the
+cached values from UpdateTextureCoordinates, not values recomputed by the row helper.
+
+After the floor rows, copy terrain bytes `+0x10/11/12` to land vertex `+0x0E/0D/0C` over the
+same rectangle. Then, in this exact order, submit:
+`EnableBlendStateFlag(1)`, `SetBlendFunc(4,1)`, `EnableTextureStateFlag(1,0)`,
+`SetTexEnvModeForStage(1,0)`, `SetTexFiltering(1,7,0)`, `SetTexWrapModes(3,3,0)`;
+draw the textured surface; then `EnableBlendStateFlag(0)`
+(`0x0075BE30`–`0x0075BEC7`). Do not combine the RGB copies into one pre-frame update.
+
+**Textured rows** (`0x0075B460`). Gather ascending visible cell rows as for the floor and
+recompute their cached spans only when that row's texture-dirty bit is set. A rebuild clears
+the row's old span cache and dirty bit and reads the three u16 texture IDs at terrain record
+`+0x16/1A/1E` from both bounding vertex rows (`0x0075ABA0`, unsigned loads at
+`0x0075AC5D/71/92`). Batch selection `0x0075B1D0` walks the earliest remaining row and its
+cached keys, skips already processed keys and keys with no clipped span, then gathers that
+key from later rows. It is not a single global sort of all visible keys. A span is clipped
+to `[left[r],right[r]−1]`; a degenerate interval can be gathered but submits no primitives
+(`0x0075B010`, `0x0075B677`–`0x0075B697`).
+
+For each selected key k: first `SetTexture(binding,0)`, where base ID is `k & 0xFFFF0FFF`,
+family member is `(k>>12)&15`, level is `0x00B4C70C`, and binding is that member of the
+level/base-ID table (§15.5.12.2; `0x0075B4F7`–`0x0075B526`). For each gathered row, first
+bind `SetVertexBuffer(0x0B,2W,L+32Wr)`, then `SetIndexBuffer(S,J+2Sr)`. For each clipped
+span `[a,b]`, write alpha at `+0x0F` of vertices a through b **inclusive on both rows**:
+scan at most three layer IDs, stop at ID 0, use the matching key's weight **byte** at
+`+0x18/1C/20`, otherwise zero. Then, only if `b>a`, submit
+`DrawPrimsIndexed(0,6a,6(b−a))`. The colour/alpha data must be observed at draw time:
+the same bound buffer is mutated after SetVertexBuffer and again between textures
+(`0x0075B5F0`–`0x0075B665`).
+
+#### 15.5.15.3 Cliffs and water: state and row order
+
+DrawSideCliffs (`0x00753E00`) saves its incoming offset, then submits
+`SetDepthOffset(1)`, `SetTexEnvModeForStage(1,0)`, `SetIndexBuffer(S,edgeIndices)`.
+Visit edge numbers 0,1,2,3; draw only those matching `V+0x5C` or `V+0x60` (the visible
+edge numbers are converted by `(6−edge) mod 4` in `0x00756778`–`0x007567A6`). Within an
+edge visit strata 0,1,2, binding, in order, `SetVertexBuffer(0x0A,2N,stratumBuffer)` and
+`SetTexture(firstFamilyMember,0)`. Here N is W on even edges, vertsZ on odd edges, and
+the texture IDs are respectively `0x11,0x10,0x15` at the current level. The buffers are
+24-byte vertices, with one row for the stratum top and one for its bottom
+(`0x00753E3E`–`0x00753E5E`, `0x00754082`–`0x007540AE`).
+
+Restrict the vertex interval to the intersections with the draw-frustum's two ground lines;
+reverse that interval on edges 1 and 2, and clamp to `[0,N−1]`. Scan the inclusive interval
+for top-height > bottom-height. On entering a run at vertex i, start at `max(i−1,0)`;
+on leaving at j draw `(type=0, first=6·start, count=6·(j−start))` if positive. For a run
+still open at the interval end, use `min(nextVertex,N−1)` as j. This includes the cell
+before the first raised vertex. Always restore the incoming offset at the end. The
+rounding and exact edge index words still require the capture below; do not substitute
+the land-cell index table for `edgeIndices`.
+
+DrawWaterLayers (`0x007572A0`) does nothing when plumbing display is on. Otherwise call
+terrain slot 83; only if its AL result and water tuning byte `0x00B0D718` are nonzero:
+if `V+0x48=0`, recompute water colours; draw water box **before** water surface.
+
+The box (`0x007551C0`) is skipped if terrain minimum > float32 sea level (terrain slots
+21 and 29; sea level is rounded to float32 before the comparison, `0x007551CF`–`0x007551E7`).
+Otherwise submit, in order, `EnableCullFaceFlag(0)`, `EnableTextureStateFlag(0,0)`,
+`SetIndexBuffer(S,edgeIndices)`, `SetDepthFunc(1)`. Visit all four edges in numeric order:
+`SetDepthOffset(−1)` on a visible edge, −5 otherwise, then
+`SetVertexBuffer(1,2W,waterBoxEdgeBuffer)` — the count argument is 2W even on an odd edge.
+Those vertices have stride 16. Its clipping and top/bottom run submissions follow the
+same pattern as the cliffs. At the end, in order, restore its incoming depth offset,
+`SetDepthFunc(3)`, `EnableTextureStateFlag(1,0)`, `EnableCullFaceFlag(1)`.
+
+Water surface (`0x00752240`) submits `EnableBlendStateFlag(1)`, `SetBlendFunc(4,5)`,
+`SetTexEnvModeForStage(1,0)`, `SetTexture(currentLevelWaterBinding,0)`, `SetDepthFunc(1)`.
+For ascending r in `[V+0xA4,V+0xAC)`, when water-row byte `0x00B4C6CC[r]` or `[r+1]`
+is nonzero and `right[r]−left[r]−1>0`, submit, **in this order**:
+`SetIndexBuffer(S,J+2Sr)`, `SetVertexBuffer(0x0B,W,waterBase+32Wr)`,
+`DrawPrimsIndexed(0,6·left[r],6·(right[r]−left[r]−1))`. The W count differs from the
+floor's 2W, although both reference two rows. Then `SetDepthFunc(3)` and
+`EnableBlendStateFlag(0)` (`0x0075236D`–`0x007523D2`). Water uses the same per-cell index
+array J, including its hide/winding changes, rather than synthesizing unflipped triangles.
+
+#### 15.5.15.4 Caches, worked submissions, and the outstanding observation
+
+Draw-frustum rectangles/height culling rebuild on **each land Update**, before any surface
+submission; the water Update consumes those cached results. View-frustum caches rebuild
+only through the `V+0xB8` gate. The first optimization phase is rectangles, visible-edge
+conversion, then height culling (`0x00756762`–`0x007567AD`). Rectangle clipping widens each
+cell row to include the next vertex row's column interval (§3 of terrain-view.md).
+For an examined vertex row, land visibility admits equality of maximum land height and
+minimum visible height; water requires maximum water height at least both minimum visible
+height and minimum land height. Either bounding vertex row can admit a cell row. These
+are geometric tests, not tests of whether a texture ID, triangle or water depth is nonzero.
+The resulting land/water start/end rows have the padding and clamping described in
+terrain-view.md §3; `V+0xA0=(V+0x9C)−1`, `V+0xAC=(V+0xA8)−1`.
+
+The height-message copy, edge-height refresh and lighting are separate producers
+(§15.5.12.1, §15.5.13); the draw helper does not refresh them by rereading altitude.
+Texture-span rebuilds are separate again. Native cliff-colour rebuild `0x007558B0`
+consults the lighting object `0x00B43DDC` slot 23 with the four edge normals and writes
+the three stratum buffers, including bottom-row colours. Its `_ftol2` conversions must
+not be replaced by nearest-integer casts; its complete colour bytes remain part of the
+observation below. Neither it nor the frustum/span rebuild is itself a draw-context call.
+
+**Worked row fixture.** With W=5, S=24, r=1, left=1, right=4 and a visible land row,
+the floor subsequence is `SetVertexBuffer(11,10,L+160)`,
+`SetIndexBuffer(24,J+48)`, `DrawPrimsIndexed(0,6,12)`. For cell x=1 flags 0 and cell
+x=2 flags `0x1220`, the twelve referenced u16 words are
+`(1,6,7,1,7,2, 2,2,2,8,7,3)`. A textured span `[1,3]` has the same first/count but
+first sets alpha for six vertices (columns 1,2,3 on rows 1 and 2). If a matching layer's
+weight word is `0x01AB`, that vertex gets alpha `0xAB`, not a conversion of 427.
+The corresponding water-row subsequence binds indices **first**, then
+`SetVertexBuffer(11,5,waterBase+160)`, then the same `(0,6,12)` draw. This fixture tests
+these row subsequences, not an entire frame with cliffs/grid silently discarded.
+For a complete empty-frame case, set the render-terrain byte to zero: return 1, no
+context calls, and even the altitude caches remain unchanged.
+
+**TR46 is narrowed to the following native runtime observation.** No native frame was run
+in this RE round. A complete equal-call frame cannot be asserted from the partial cache
+descriptions or decompiler output alone. The remaining formulas have not been established
+by this answer; they are not claimed to be inherently unrecoverable statically. The following
+runtime capture would settle the comparison for its recorded inputs. Obtain it before granting full-frame
+replacement credit; these omissions remain explicit, not default zero/empty behaviour:
+
+| Remaining datum | Observation that settles it |
+|---|---|
+| Complete vertex/index bytes, resource-dependent UV, colour and cliff edge-index contents | At each native Update entry, snapshot context zoom/rotation/layer, render flags, camera/frustum coefficients, terrain records and water depths, dirty/lighting rectangles and texture IDs/bindings. Snapshot the land/water/edge buffers before and after each named cache producer, and copy **referenced bytes at every draw**, after alpha writes. Include the edge index array `0x00B4C6FC`, not just J. Record native resource identities alongside the binding handles. |
+| Exact frustum and edge rounding/equality behaviour | Record `0x00752E80`, `0x007535A0`, `0x00753210`, `0x007539D0` outputs: row starts/ends, left/right arrays and land/water visibility bytes. Include ground-line intersections just below, exactly on and just above a 16-metre boundary; equal land/water/visibility heights; all four rotations. Record x87 control word and input float bits so those boundary cases can be reproduced. |
+| Grid, plumbing, levelled-cell and extension streams | Trace every context entry through return of Update, including calls beneath DrawGrid `0x00757650`, DrawPlumbingInfo `0x00759A80`, the extension-backed row helper `0x0075B790` and extension flush `0x0075CAD0`. Include packed-state bytes, model/texture transforms and restoration calls. Obtain one trace with each optional mode on and off, a LevelCell fixture, and extension acquisition both failing and succeeding. The plain-path rows above do not specify the extension's batching or the full auxiliary-pass vertices. |
+
+For each capture keep layer-0 and layer-2 Updates separately ordered, after Init and the
+same delivered messages. Capture both the first dirty frame and an unchanged second frame,
+then an interior height edit, an edge edit, a texture-only edit, a lighting change and a
+zoom/rotation change. Record SetVertexBuffer/SetIndexBuffer count arguments even where the
+context currently ignores them. Compare the entire ordered call/argument stream and
+draw-time data, normalizing pointer addresses to buffer offsets and binding handles to
+resource identities, while preserving duplicate calls and state restores. The replacement
+must use the same capability/preferences and entry state. A pointer-only trace, a final
+buffer dump, equal triangle totals, or an omitted optional pass cannot settle this question.
 
 ## 15.6 The slots §4–§10 left undefined (TR24, TR25) *[compat]*
 

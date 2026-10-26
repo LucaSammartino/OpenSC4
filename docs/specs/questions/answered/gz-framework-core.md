@@ -101,3 +101,40 @@ name sets, void diagnostics, guarded printf Output/OutputLevel with different
 level selection and unchecked overflow/allocation behavior. GZC53–GZC74 cover
 these contracts. Remaining GZF1–GZF9 work is explicitly retained; none of those
 broader owner closures is claimed by these answers.
+
+## GZF13 — Buffer secondary drawing face
+
+<!-- from: replace-gzfw29 (2026-10-26) -->
+- **GZF13 — Buffer secondary drawing face (2026-10-26, replace-gzfw29):**
+  Section 6 and span-render-8 §10.7 establish that QI(`0x86D72B57`) returns
+  primary+4, but neither specifies its table beyond QI/AddRef/Release. Please
+  specify the complete secondary table, each method's stack arguments, cleanup,
+  return channel, and how its color/drawing operations relate to primary slots.
+  The replacement currently implements only those three specified secondary
+  methods; the 47 primary entries and hardware cache are implemented/tested.
+  Key-off control `gzfw29-min-off-r4e` is clean through 2026-04-03, ref_warnings=0;
+  key-on `gzfw29-min-on-r4e` faults before the first day, RTC=0/ref_warnings=0,
+  jumping to `0x6F6E6160`. Both used DLL SHA256 prefix `240183d7`.
+  In the earlier same-DLL `gzfw29-min-on-r4d.log`, lines 1047–1050 record an FC4
+  buffer at `0x0522EF60`; fault line 4088 has ECX=`0x0522EF64` (its secondary
+  face), EBP=`0x0522EF60`, EDX=`FreeCity4.dll+0x14CF26C`. The first return
+  address is `0x008D889F`, inside the ABI-listed `RZDrawBltEdge` range starting
+  at `0x008D8800`; no game code was read to derive this report. Final r4e
+  reproduces the same invalid target and primary+4 receiver relationship.
+  Evidence: main `build-runs/game-results/gzfw29-min-{on,off}-r4e.{log,verdict}`
+  and `gzfw29-min-on-r4d.log`. Stop this replacement qualification item pending
+  the secondary interface contract; no inferred drawing slots are implemented.
+
+**ANSWERED 2026-10-26 (re-gzf30):** DIFFERS —
+[§6.7](../../gz-framework-core.md#67-secondary-drawing-color-face-gzf13)
+specifies the complete five-entry secondary table `0x00AC13EC`. In addition to
+the three receiver-adjusting lifetime entries, slot 3 sets four low-byte RGBA
+components and slot 4 gets four byte outputs, each with 16-byte callee cleanup
+and an AL boolean result. These are independent drawing-color metadata, not
+primary pixel map/unmap methods. All-255 RGBA is the absent-color sentinel;
+the setter still succeeds, while the getter fails without output writes.
+`RZDrawBltEdge` calls this getter at `0x008D889C`, returning to `0x008D889F`.
+GZB9 and GZC75–GZC80 give implementation-facing dispatch, sentinel, byte-width,
+ownership, pixel-independence and aliasing cases. The requested contract is
+settled statically; no runtime observation is needed to define these entries.
+Replacement game qualification remains with `replace-gzfw29`.

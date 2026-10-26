@@ -48,10 +48,43 @@ pub fn route_transparency(near: bool, selected: bool) -> f32 {
         (false, false) => 0.4,
     }
 }
+/// Initialized fields of NO 2.2's 0x38-byte model record; padding +2/+3 is unwritten.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MarkerState {
+    pub kind: [u8; 2],
+    pub rotation: [[f32; 3]; 3],
+    pub translation: Vec3,
+    pub scale: f32,
+}
+pub fn marker_state(direction: Vec3, translation: Vec3) -> MarkerState {
+    let h = (direction.x * direction.x + direction.z * direction.z).sqrt();
+    let (x, y) = if h > 0.0 {
+        let x = Vec3::new(direction.z / h, 0.0, -direction.x / h);
+        // Stored binary32 X feeds Z cross X, rather than a repaired orthonormal basis.
+        let y = Vec3::new(
+            direction.y * x.z,
+            direction.z * x.x - direction.x * x.z,
+            -direction.y * x.x,
+        );
+        (x, y)
+    } else {
+        (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0))
+    };
+    MarkerState {
+        kind: [2, 5],
+        rotation: [
+            [x.x, y.x, direction.x],
+            [x.y, y.y, direction.y],
+            [x.z, y.z, direction.z],
+        ],
+        translation,
+        scale: 1.0,
+    }
+}
 pub struct TrainJunctionView {
     pub initialized: bool,
     pub state: Option<RenderState>,
-    /// Raw stored pairs, not guessed current/target setters (NOV3).
+    /// Hover cell, then pressed/accepted junction (NO 2.2).
     pub cell_pairs: [Cell; 2],
     /// Outer None = constructor's unwritten binding slot; inner None = provider null.
     pub bindings: [Option<Option<Handle>>; 6],
@@ -71,6 +104,22 @@ impl Default for TrainJunctionView {
     }
 }
 impl TrainJunctionView {
+    /// Inline mouse-move result; failed picking clears only the hover pair.
+    pub fn set_hover_cell(&mut self, picked: Option<Cell>) {
+        let cell = picked.unwrap_or(Cell(-1, -1));
+        if self.cell_pairs[0] != cell {
+            self.cell_pairs[0] = cell;
+        }
+    }
+    /// Inline store after network picking and acceptance; not a native setter slot.
+    pub fn set_pressed_cell(&mut self, cell: Cell) {
+        if self.cell_pairs[1] != cell {
+            self.cell_pairs[1] = cell;
+        }
+    }
+    pub fn clear_pressed_cell(&mut self) {
+        self.cell_pairs[1] = Cell(-1, -1);
+    }
     pub fn init(&mut self, process: &mut OverlayProcess, resources: &mut impl Resources) -> Result<bool> {
         if self.initialized {
             return Ok(true);
@@ -143,7 +192,6 @@ impl TrainJunctionView {
             .copied()
             .ok_or(Boundary::Undefined("edge byte outside direction table"))
     }
-    /// Returns true if a marker plan could not be rendered because NOV3 is open.
     #[allow(clippy::too_many_arguments)]
     pub fn draw_train_junction(
         &mut self,
@@ -154,7 +202,7 @@ impl TrainJunctionView {
         network: &mut impl NetworkHost,
         resources: &mut impl Resources,
         renderer: &mut impl Renderer,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         let first = *routes
             .keys
             .first()
@@ -193,15 +241,19 @@ impl TrainJunctionView {
                 origin.z,
             );
             resources.retain(model);
-            renderer.emit(Command::UnresolvedMarker {
+            renderer.emit(Command::ModelState {
                 model,
-                translation,
-                direction: first_direction,
+                state: marker_state(first_direction, translation),
             });
+            renderer.emit(Command::ModelTransparency {
+                model,
+                mode: 1,
+                value: route_transparency(matched, true),
+            });
+            renderer.emit(Command::DrawModel { model, flags: 0 });
             resources.release(model);
-            return Ok(true);
         }
-        Ok(false)
+        Ok(())
     }
     #[allow(clippy::too_many_arguments)]
     fn draw_route(
@@ -242,7 +294,6 @@ impl TrainJunctionView {
         }
         self.stacking_offset = Some(0.1);
         let (min, max) = network.visible_cells();
-        let mut unsupported_marker = false;
         for x in min.0..=max.0 {
             for z in min.1..=max.1 {
                 let cell = Cell(x, z);
@@ -250,18 +301,13 @@ impl TrainJunctionView {
                     for entry in 0..4 {
                         let routes = network.routes(occupant, entry);
                         if !routes.keys.is_empty() {
-                            unsupported_marker |= self
-                                .draw_train_junction(cell, occupant, &routes, process, network, resources, renderer)?;
+                            self.draw_train_junction(cell, occupant, &routes, process, network, resources, renderer)?;
                         }
                     }
                 }
             }
         }
-        if unsupported_marker {
-            Err(Boundary::Unsupported("NOV3 marker rotation/model state"))
-        } else {
-            Ok(())
-        }
+        Ok(())
     }
 }
 impl ViewOwner for TrainJunctionView {

@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#[path = "closure_tests.rs"]
+mod closure;
 use super::*;
 use crate::neighbors::{deal_type, DealData};
 use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, ResKey};
@@ -268,7 +270,6 @@ fn wire_round_trip_header_and_object_read() {
     c.unknown_strings[1] = b"opaque".to_vec();
     c.connections = vec![NeighborConnection::with(2, -1, 5), NeighborConnection::with(9, 64, 10)];
     c.pending = vec![change(9, 100, 128, 1), change(9, 99, 128, 1)];
-    c.commodities.remove(&3);
     c.set_imported(1, 5.0);
     c.set_exported(1, 7.0);
     c.other_deals = vec![deal((6, 5), (4, 5), deal_type::BUY_POWER, 100)];
@@ -374,6 +375,8 @@ struct Pack {
     writes: usize,
     closed: bool,
     finish: bool,
+    close_result: bool,
+    cleanup: Vec<&'static str>,
 }
 impl Package for Pack {
     fn open(&mut self, _: &[u8], _: bool) -> bool {
@@ -394,11 +397,20 @@ impl Package for Pack {
         self.records.insert(k, b.to_vec());
         true
     }
-    fn finish(&mut self) -> bool {
+    fn is_open(&mut self) -> bool {
+        self.cleanup.push("is_open");
         self.finish
     }
-    fn close(&mut self) {
+    fn close(&mut self) -> bool {
+        self.cleanup.push("close");
         self.closed = true;
+        self.close_result
+    }
+    fn shutdown(&mut self) {
+        self.cleanup.push("shutdown");
+    }
+    fn release(&mut self) {
+        self.cleanup.push("release");
     }
 }
 #[test]
@@ -434,10 +446,10 @@ fn path_gate_output_preservation_finish_and_one_record() {
     p.unreadable.clear();
     p.finish = false;
     p.closed = false;
-    assert!(!write_path(&mut p, b"city", &c));
+    assert!(write_path(&mut p, b"city", &c));
     assert!(!p.closed);
     assert!(p.records.contains_key(&RECORD_KEY));
-    assert!(!read_path(&mut p, b"city", &mut out, &context(), &mut life));
+    assert!(read_path(&mut p, b"city", &mut out, &context(), &mut life));
     assert_eq!(out.unwrap().serial, 123);
 }
 
@@ -683,12 +695,12 @@ fn edge_bytes_and_remove_cleanup() {
     c.pending.push(change(2, -1, 5, 1));
     c.create_symmetric_connections(&mut h);
     assert_eq!(h.words[&1], 0x0402);
-    assert_eq!(h.words[&2], 0x12340278);
+    assert_eq!(h.words[&2], 0x12345602);
     h.events.clear();
     c.pending.push(change(2, -1, 5, 0));
     c.create_symmetric_connections(&mut h);
     assert_eq!(h.words[&1], 0x0400);
-    assert_eq!(h.words[&2], 0x12340078);
+    assert_eq!(h.words[&2], 0x12345600);
     assert_eq!(h.events, ["delete", "place", "ready"]);
     h.events.clear();
     c.create_symmetric_connections(&mut h);

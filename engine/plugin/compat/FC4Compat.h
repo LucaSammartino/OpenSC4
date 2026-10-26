@@ -90,6 +90,39 @@ enum class Direct : unsigned {
     TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
     // network-occupants.md §4.6.3: concrete *native* primary pole only.
     PoleAttachmentPoints,  // thiscall (orientation low byte, xyz[4]), pop 8, AL
+    // overlay-manager.md section 4.6.1: thiscall on the COMPLETE terrain-view base.
+    OverlayLandRect,                 // rectangle value, context; pop 20, void
+    OverlayLandRectDynamic,          // rectangle value, context; pop 20, void
+    OverlayLandRectExtension,        // context, extension, rectangle value; pop 24, void
+    OverlayLandRectDynamicExtension, // context, extension, rectangle value; pop 24, void
+    OverlayWaterRect,                // rectangle value, context; pop 20, AL (ignored)
+    OverlayWaterRectDynamic,         // rectangle value, context; pop 20, AL (ignored)
+    OverlayShadowRect,               // rectangle pointer, context; pop 8, void
+    OverlayShadowRectDynamic,        // rectangle pointer, context; pop 8, void
+    // effects.md 18.7.3, 18.9: collection services, never resource Read/Write.
+    EffectsCollectionConstruct, // thiscall C, no args; EAX=this
+    EffectsCollectionPublish,   // thiscall source C, destination C; void
+    EffectsParticleConstruct,
+    EffectsDecalConstruct,
+    EffectsDynamicConstruct,
+    EffectsBrushConstruct,
+    EffectsAttractorConstruct,
+    EffectsScrubberConstruct,
+    EffectsSequenceConstruct,
+    EffectsSoundConstruct,
+    EffectsCameraConstruct,
+    EffectsParticleReadOld,
+    EffectsParticleRead,
+    EffectsParticleWrite,
+    EffectsDecalRead,
+    EffectsDecalWrite,
+    EffectsDynamicRead,
+    EffectsDynamicWrite,
+    EffectsVisualReadOld,
+    EffectsVisualRead,
+    EffectsVisualWrite,
+    EffectsParticleDrop,
+    EffectsDynamicDestroy,
     Count
 };
 
