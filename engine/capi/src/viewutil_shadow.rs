@@ -368,9 +368,9 @@ mod tests {
             // SAFETY: fixed disjoint buffers, all sixteen optional-pointer masks.
             unsafe { fc4_viewutil_shadow_state(0x007f9b40, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr()) };
             assert_eq!(owner, before);
-            for i in 0..12 {
+            for (i, value) in out[..12].iter().enumerate() {
                 assert_eq!(
-                    out[i],
+                    *value,
                     if mask & (1 << (i / 3)) != 0 {
                         (i as f32).to_bits()
                     } else {
