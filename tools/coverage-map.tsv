@@ -17,6 +17,7 @@
 pattern	subsystem	area	spec	core	shadow	replace
 # ---- simulation: simulators and developers with a spec, a core, a shadow or a replacement
 cSC4Simulator	simulator	simulation	simulator.md	core/src/simulator.rs	-	simulator
+cSC4LimitTimerCalibrator	simulator	simulation	simulator.md, small-owners-b9.md	-	-	-
 cSC4BudgetSimulator*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
 cSC4DepartmentBudget*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
 cSC4LineItem*	budget	simulation	budget.md	core/src/budget	budget_shadow	budget
@@ -214,7 +215,10 @@ cSC4ControllerGrid	automata (vehicles, animation)	simulation	automata-support.md
 cSC4PropOccupantAutomataController	automata (vehicles, animation)	simulation	automata-support.md, prop-occupant.md	-	-	-
 tControllerQInfo	automata (vehicles, animation)	simulation	automata.md	-	-	-
 cSC4NetworkToolUI	city tools and input	ui	network-tool-ui.md	-	-	-
-cSC4NetworkPreview	city tools and input	ui	-	-	-	-
+cSC4NetworkPreview	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4NetworkLayoutView	3D scene and models	renderer	network-layout-view.md	-	-	-
+cSC4NetworkLayoutCustomView	3D scene and models	renderer	network-layout-view.md	-	-	-
+fn:GZCOM_cSC4NetworkLayoutCustomViewCLSID	3D scene and models	renderer	network-layout-view.md	-	-	-
 cSC4NetworkLayout*View	3D scene and models	renderer	-	-	-	-
 cSC4FirePlaneDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
 cSC4PoliceHelicopterDispatchSource	automata (vehicles, animation)	simulation	aircraft.md	-	-	-
@@ -257,7 +261,7 @@ cSC4TextDecalOccupant	occupants and props	simulation	lot-records.md	-	-	-
 cSC4Occupant*	occupants and props	simulation	occupant-manager.md, lot-records.md	-	-	-
 cSC4*OccupantFilter	occupants and props	simulation	occupant-manager.md, flora.md, demolition.md	-	-	-
 cSC4*Occupant	occupants and props	simulation	occupant-manager.md, lot-records.md, prop-occupant.md, flora.md, landfill.md, disasters.md	-	-	-
-cSC4GameOfLifeSimulator	other simulation	simulation	-	-	-	-
+cSC4GameOfLifeSimulator	other simulation	simulation	game-of-life.md, game-of-life-control.md	-	-	-
 SC4QuadGrid	other simulation	simulation	render3d.md	-	-	-
 cSC4TutorialRegistry	tutorial	simulation	tutorial-registry.md	core/src/tutorial	-	-
 cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
@@ -334,9 +338,9 @@ cGZLuaScriptServer	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 SCLuaHelp	Lua host	framework	lua-host.md	-	-	-
 cLUAExtensionsCollector*	Lua host	framework	lua-host.md	core/src/lua_script_server	-	-
 fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
-# the game.* extension functions (LUAExtension_camera_jump, _trigger_event, ...): lua-host.md §8 covers how they reach the
-# host, not what each one does
-fn:LUAExtension_*	Lua host	framework	-	-	-	-
+# the game.* extension functions (LUAExtension_camera_jump, _trigger_event, ...): advisors.md §8.3 and
+# lua-game-extensions.md (re-luaext8) give each body
+fn:LUAExtension_*	Lua host	framework	advisors.md, lua-game-extensions.md	-	-	-
 # ---- audio
 cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	core/src/audio_ambience	-	-
 cSC4AudioEventHandler	audio	audio	audio.md	core/src/audio	-	-
@@ -345,6 +349,13 @@ cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
 cSC4AudioEventHandlerDisasterFire	audio	audio	audio-scape.md	-	-	-
 cSC4AudioPreferencesWinProc	windows and panels	ui	audio-preferences.md	-	-	-
+cSC4AudioCOMDirector	audio	audio	audio.md,audio-filters.md	-	-	-
+cSC4AudioAEMSEventSystem	audio	audio	audio.md,audio-owner-closure.md	-	-	-
+cSC4AudioAEMSSoundBank	audio	audio	audio.md	-	-	-
+cSC4AudioAmbienceLayer	audio	audio	audio-ambience.md,audio-owner-closure.md	-	-	-
+cSC4AudioListener	audio	audio	audio.md,audio-owner-contracts.md	-	-	-
+cSC4AudioSemManager	audio	audio	audio.md,audio-owner-contracts.md	-	-	-
+cSC4AudioEmanationModel*	audio	audio	audio.md,audio-owner-closure.md	-	-	-
 cSC4Audio*	audio	audio	-	-	-	-
 cGZSndSys	audio	audio	sound-system.md	-	-	-
 cGZSndMgr	audio	audio	sound-system.md	-	-	-
@@ -367,10 +378,10 @@ cRZRadio	audio	audio	radio.md	-	-	-
 cRZDiskRadioStation	audio	audio	radio.md	-	-	-
 cGZPlayList	audio	audio	sound-system.md	-	-	-
 cSC4SoundDescription	audio	audio	audio.md	-	-	-
-tSound	audio	audio	-	-	-	-
+tSound	audio	audio	audio.md,audio-owner-closure.md	-	-	-
 cSC4MadCowPlayerWin	audio	audio	intro-video-player.md	-	-	-
 # cGroupLayer: the sound group layer under the ambience layer (every caller is cSC4AudioAmbienceLayer)
-cGroupLayer	audio	audio	-	-	-	-
+cGroupLayer	audio	audio	audio-ambience.md,audio-owner-closure.md	-	-	-
 # ---- renderer
 nSGLDX7*	3D driver (DirectX 7)	renderer	renderer-driver.md	core/src/gdriver	-	-
 nRZSimGL*	3D driver (DirectX 7)	renderer	-	-	-	-
@@ -421,6 +432,8 @@ cSC4RenderProperties*	render properties	renderer	render-properties.md	core/src/r
 cSC4ModelRegEffects	model effects	renderer	graphics-formats.md	core/src/model_reg_effects	-	-
 cSC4ModelMaker	model maker	renderer	model-maker.md	-	-	-
 cSC4ModelBackgroundLoader	model background loader	renderer	model-maker.md	-	-	-
+cSC4ModelBasedParticlesEffect	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
+cSC4ModelMakerUtility	model maker	renderer	model-maker-utility.md, graphics-formats.md	-	-	-
 cSC4Model*	3D scene and models	renderer	-	-	-	-
 cSC4ConfigRuleManager	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
 cSC4RuleParser	graphics rules	renderer	graphics-rules.md	core/src/graphics_rules	-	-
@@ -455,7 +468,8 @@ SC4*View	3D scene and models	renderer	-	-	-	-
 cSC4PathView	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView::PathInfo	overlay views	renderer	overlay-views.md	-	-	-
 cSC4PathView*	3D scene and models	renderer	-	-	-	-
-cSC4DispatchVehicleView	3D scene and models	renderer	-	-	-	-
+cSC4DispatchVehicleView	3D scene and models	renderer	dispatch.md,dispatch-vehicle-view.md	-	-	-
+cSC4DispatchVehicleView::TrackInfo	3D scene and models	renderer	dispatch-vehicle-view.md	-	-	-
 fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
 cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	effects
 cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
@@ -473,17 +487,32 @@ cSC4GameEffect	effects	renderer	effects.md	core/src/effects	-	-
 cSC4ParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4GeometrySourcedParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4DecalEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4DynamicParticleEffect	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
+cSC4CameraEffect	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
+cSC4ViewInputControlEffect	city tools and input	ui	effects-owners.md	-	-	-
 cSC4*Effect	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4DynamicParticleSystem	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4DynamicParticleDescription	effects (particles, decals, visuals)	renderer	effects.md,effects-owners.md	-	-	-
+cSC4ParticlesDescriptionBase::cTractorPoint	effects (particles, decals, visuals)	renderer	particles.md, tiny-owners-b9.md	-	-	-
+cSC4ParticlesDescriptionBase::cWiggle	effects (particles, decals, visuals)	renderer	particles.md, tiny-owners-b9.md	-	-	-
+cSC4MBParticle	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
+cSCParticleSimulatorBase	effects (particles, decals, visuals)	renderer	particles.md,effects-owners.md	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
 cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	core/src/effects/particle_owners	-	-
+cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4CameraDescription	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
+cSC4DecalDescription	effects (particles, decals, visuals)	renderer	effects.md	-	-	-
+cSC4EffectDescription	effects (particles, decals, visuals)	renderer	effects.md, tiny-owners-b9.md	-	-	-
+cSC4ShakeDescription	effects (particles, decals, visuals)	renderer	effects.md, tiny-owners-b9.md	-	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
 cGZGraphicSystem	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
+cGZGraphicSystemW32	2D drawing and fonts	renderer	gz-graphics-w32.md, gz-graphics.md	-	-	-
+cGZScreenBuffer	2D drawing and fonts	renderer	gz-graphics-w32.md, span-render-4444.md	-	-	-
 cGZGraphicSystem*	2D drawing and fonts	renderer	-	-	-	-
 cGZGraphicCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
 cGZDrawContext	2D drawing and fonts	renderer	gz-graphics.md	-	-	-
@@ -551,11 +580,18 @@ cSC4ViewInputControlPlayerDrive	city tools and input	ui	drive-tool.md	-	-	-
 cSC4ViewInputControlQuery	city tools and input	ui	city-tools-input.md	core/src/query_tool	-	-
 cSC4ViewInputControlPlaceLot	city tools and input	ui	city-tools-input.md	-	-	-
 cSC4ViewInputControlEffectDisaster	city tools and input	ui	com-directors-misc.md	-	-	-
+cSC4ViewInputControlDispatch	city tools and input	ui	dispatch-vehicle-view.md	-	-	-
+cSC4ViewInputControlNetworkTool	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4ViewInputControlNetworkIntxTool	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4ViewInputControlTollBooth	city tools and input	ui	network-tool-owners.md	-	-	-
+cSC4ViewInputControlGameOfLife	city tools and input	ui	game-of-life-control.md, game-of-life.md	-	-	-
 cSC4ViewInputControl*	city tools and input	ui	-	-	-	-
 cSC4MySimInputControl*	city tools and input	ui	mysim-tools.md	-	-	-
-cSC4MyStreetSimInputControl	city tools and input	ui	-	-	-	-
+cSC4MyStreetSimInputControl	city tools and input	ui	my-street-sim-control.md	-	-	-
 cSC4SubBudgetWindow	windows and panels	ui	budget-window.md, budget-window-bodies.md	core/src/budget_window	-	-
 cSC4BudgetUIWinProc	windows and panels	ui	budget-window.md, budget-window-bodies.md	-	-	-
+cSC4BudgetUIIncomeWinProc	windows and panels	ui	budget-dialogs.md	-	-	-
+cSC4BudgetUIExpenseWinProc	windows and panels	ui	budget-dialogs.md	-	-	-
 cSC4BudgetUI*	windows and panels	ui	-	-	-	-
 cSC4WinSnapshotAlbum	windows and panels	ui	snapshots.md	-	-	-
 cSC4WinSnapshotTaker	windows and panels	ui	snapshots.md	-	-	-
@@ -575,6 +611,7 @@ cSC4PanelUIWinProc	windows and panels	ui	small-windows.md	-	-	-
 cSC4SituationUIImageWinProc	windows and panels	ui	advisor-face.md	-	-	-
 cSC4LegendDialogWinProc	windows and panels	ui	widget-misc2.md	-	-	-
 cSC4QueryDialogWinProc	windows and panels	ui	city-tools-input.md, widget-misc2.md	-	-	-
+cSC4VideoPreferencesWinProc	windows and panels	ui	video-preferences.md	-	-	-
 cSC4*WinProc	windows and panels	ui	-	-	-	-
 cSC4WinMapView	windows and panels	ui	map-view.md	core/src/map_view	-	-
 cSC4WinLotConfigurationEditor	windows and panels	ui	lot-configuration-editor.md	-	-	-
@@ -660,6 +697,7 @@ cGZWinDlg	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWinTreeView::GZWinTreeView_TreeNode	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWin::ChildList	widget toolkit	ui	widget-misc.md	-	-	-
 cGZWinTextEdit::UndoRedoAction	widget toolkit	ui	widget-misc.md	-	-	-
+cGZWinCustom	widget toolkit	ui	widget-custom.md	-	-	-
 cGZWin*	widget toolkit	ui	-	-	-	-
 cGZLegacyControl	widget toolkit	ui	legacy-control.md	core/src/legacy_control	-	-
 fn:unscript	widget toolkit	ui	widget-misc.md	-	-	-
@@ -699,7 +737,7 @@ fn:getUnquotedString	resource and exemplar editor	ui	-	-	-	-
 fn:convertStringToFloatValue	resource and exemplar editor	ui	-	-	-	-
 # ---- framework
 cSC4App	application	framework	application.md	core/src/application	-	-
-cWinSC4App	application	framework	-	-	-	-
+cWinSC4App	application	framework	app-shell-window.md	-	-	-
 cSC4AutomataCOMDirector	application	framework	automata-managers.md	-	-	-
 cSC4ResourceLibCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cSC4COMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
@@ -708,6 +746,7 @@ cGZToolsCOMDirector	application	framework	app-directors.md	core/src/application/
 cGZResManCOMDirector	application	framework	app-directors.md	core/src/application/directors	-	-
 cGZGraphicWin32COMDirector	application	framework	com-directors-misc.md	-	-	-
 cGZCOMDirector	application	framework	framework-misc3.md	-	-	-
+cGZScriptCOMDirector	application	framework	script-com-director.md, gz-framework-core.md	-	-	-
 cGZ*COMDirector	application	framework	-	-	-	-
 cSC4Preferences	application	framework	application.md	-	-	-
 cSC4GameDataRegistry	application	framework	app-directors.md	core/src/game_data_registry	-	-
@@ -747,6 +786,20 @@ SL	persistence and resources	framework	sl-library.md	-	-	-
 nSCRes	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
+nSCRes::cSetCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cArrayCreateCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cEvalCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cNamespaceCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cEndBlockCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cListCommandsCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cCreateCommand	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cCommandParser::cMacroDefinition	persistence and resources	framework	sc-resources.md, sc-resources-commands.md	-	-	-
+nSCRes::cDefineCommand	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cEndDefCommand	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cParseError	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cBlockCommand	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cBlockCommandT	persistence and resources	framework	sc-resources-commands.md	-	-	-
+nSCRes::cFileParser::cInputFileSpec	persistence and resources	framework	sc-resources-commands.md, graphics-rules.md	-	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-
 cSCStringDetokenizer	strings and language	framework	rz-strings.md	-	-	-
 cSCStringDetokenizerDefault	strings and language	framework	advice-tokens.md	-	-	-
@@ -787,6 +840,9 @@ NetworkFileCache	web and network	framework	web-network.md	core/src/www	-	-
 HTTPMessage	web and network	framework	-	-	-	-
 cGZMessageServer	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageServer2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
+cSC4Framework	framework services (GZ)	framework	app-shell-window.md, gz-framework-core.md	-	-	-
+cSC4MessageServer	framework services (GZ)	framework	app-shell-window.md, framework-gz-services.md	-	-	-
+cSC4MessageServer2	framework services (GZ)	framework	app-shell-window.md, framework-gz-services.md	-	-	-
 cGZMessageQueue2	framework services (GZ)	framework	framework-gz-services.md	-	-	-
 cGZMessageQueueManager2	framework services (GZ)	framework	framework-gz-services.md	core/src/gz_messages/manager.rs	-	-
 cGZFramework	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
@@ -861,6 +917,7 @@ cISC4SimGrid	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cISC4BuildingOccupant::BuildingProfile	framework services (GZ)	framework	demand.md, framework-misc3.md	-	-	-
 cISC4CivicBuildingSimulator::ConditionalBuildingStatus	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cISC4ResidentialSimulator::tQueryData	framework services (GZ)	framework	framework-misc3.md	-	-	-
+cISC4NetworkTool::tPlacementParams	framework services (GZ)	framework	network-tool-owners.md	-	-	-
 cRZRefCount	framework services (RZ)	framework	framework-misc3.md	-	-	-
 cGZCOMLibrary	framework services (GZ)	framework	framework-misc3.md	-	-	-
 cGZKeyMessage	framework services (GZ)	framework	framework-misc3.md, framework-misc2.md	-	-	-
@@ -882,6 +939,7 @@ cRZOFStream	framework services (RZ)	framework	framework-rz-files.md	core/src/rz_
 cRZ*	framework services (RZ)	framework	-	-	-	-
 nGZLog::cService	framework services (GZ)	framework	gz-framework-core.md	core/src/gz_framework	-	-
 nGZ*	framework services (GZ)	framework	-	-	-	-
+cIGZSndUpdateTarget	framework services (GZ)	framework	tiny-owners-b9.md	-	-	-
 cIGZ*	framework services (GZ)	framework	-	-	-	-
 nRZ*	framework services (RZ)	framework	-	-	-	-
 fn:GZCOM_CreatecGZMessageServer2	framework services (GZ)	framework	gzcom-factories.md	-	-	-
@@ -930,6 +988,11 @@ fn:GZCOM_cSC4DisasterManagerPipeBurstCLSID	framework services (GZ)	framework	gzc
 fn:GZCOM_cSC4DisasterManagerVolcanoCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
 fn:GZCOM_cSC4PathInfoFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
 fn:GZCOM_cSC4PropPlacementPropertiesFactoryCLSID	framework services (GZ)	framework	gzcom-factories.md	-	-	-
+fn:GZCOM_nSCRes_cFileParserCLSID	persistence and resources	framework	sc-resources-commands.md	-	-	-
+fn:GZCOM_cSC4EffectsManagerCLSID	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
+fn:GZCOM_cSC4EffectsParserCLSID	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
+fn:GZCOM_cSC4EffectsResourceFactoryCLSID	effects (particles, decals, visuals)	renderer	tiny-owners-b9.md	-	-	-
+fn:GZCOM_CreatecSC4EffectsParser	effects (particles, decals, visuals)	renderer	effects-parser.md, tiny-owners-b9.md	-	-	-
 fn:GZCOM_*	framework services (GZ)	framework	-	-	-	-
 cISC4*	framework services (GZ)	framework	-	-	-	-
 # ---- catch-alls
@@ -941,41 +1004,41 @@ cSTEChangeTerrainUI	city tools and input	ui	sim-misc.md	-	-	-
 (anonymous_namespace)::cParser	network rules	simulation	network-rules.md, sim-misc.md	-	-	-
 nsGZWinUtils	widget toolkit	ui	widget-misc2.md	-	-	-
 RZ	framework services (RZ)	framework	framework-misc2.md	-	-	-
-nsTexUtil	3D scene and models	renderer	-	-	-	-
+nsTexUtil	3D scene and models	renderer	small-owners-b9.md	-	-	-
 MiscGraphTextInfo	widget toolkit	ui	widget-misc2.md	-	-	-
-SCLuaTableRef	Lua host	framework	-	-	-	-
-cSourceFileDebugInfo	audio	audio	-	-	-	-
-tControllerTime	automata (managers, records)	simulation	-	-	-	-
+SCLuaTableRef	Lua host	framework	lua-game-extensions.md	-	-	-
+cSourceFileDebugInfo	audio	audio	audio-owner-closure.md	-	-	-
+tControllerTime	automata (managers, records)	simulation	automata.md	-	-	-
 cADVString	advisors	simulation	advisors.md, sim-misc.md	-	-	-
 fn:gAdviceMessageBox	advisors	simulation	sim-misc2.md	-	-	-
 LinearRandomIterator	occupants and props	simulation	lot-developer.md, sim-misc.md	-	-	-
 MatrixRow	widget toolkit	ui	-	-	-	-
 FerryStationInformation	network manager	simulation	sim-misc.md, traffic-network.md	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	-	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cLightEffectCommand	effects	renderer	effects.md	-	-	-
 MiscGraphPicture	widget toolkit	ui	widget-misc2.md	-	-	-
 cGXCOMDirector	2D drawing and fonts	renderer	com-directors-misc.md	-	-	-
-SFX	audio	audio	-	-	-	-
-SC43DGridElement	3D scene and models	renderer	-	-	-	-
+SFX	audio	audio	audio.md,audio-owner-closure.md	-	-	-
+SC43DGridElement	3D scene and models	renderer	render3d.md, small-owners-b9.md	-	-	-
 MiscGraphArrow	widget toolkit	ui	widget-misc2.md	-	-	-
 cTablePropertyReader	advisors	simulation	sim-misc.md	-	-	-
 SC4CellRegion	sim grids	simulation	zones.md, sim-misc2.md	-	-	-
 cTutorialString	tutorial	simulation	sim-misc2.md	-	-	-
 BoundaryIterator	sim grids	simulation	sim-misc2.md	-	-	-
 tBehaviorTemplate	automata (managers, records)	simulation	automata.md, sim-misc2.md	-	-	-
-cGroup_SC4RH	audio	audio	-	-	-	-
+cGroup_SC4RH	audio	audio	audio-ambience.md, tiny-owners-b9.md	-	-	-
 MiscGraphRect	widget toolkit	ui	widget-misc2.md	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	-	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	-	-	-	-
-_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	-	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cShakeEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cDecalEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
+_GLOBAL__N__Z29GZCOM_CreatecSC4EffectsParserv::cGroupEffectCommand	effects	renderer	effects.md,effects-parser.md	-	-	-
 CookieData	web and network	framework	-	core/src/www	-	-
 ilist	container helpers	framework	sim-misc2.md	-	-	-
-cEaseSound	audio	audio	-	-	-	-
-cAmbienceOccupantFilterIsNature	audio	audio	-	-	-	-
+cEaseSound	audio	audio	tiny-owners-b9.md	-	-	-
+cAmbienceOccupantFilterIsNature	audio	audio	audio-filters.md	-	-	-
 ThreadPlatformData	framework services (RZ)	framework	framework-misc2.md	-	-	-
 SC4QuadGridQuadrant	3D scene and models	renderer	sim-misc2.md	-	-	-
 AnyString	persistence and resources	framework	sim-misc2.md	-	-	-
 cAutomataOccupantFilter	automata (managers, records)	simulation	occupant-manager.md, sim-misc2.md	-	-	-
-LimitTimer	timers	framework	-	-	-	-
+LimitTimer	timers	framework	simulator.md, small-owners-b9.md	-	-	-
 cPortLot	port developers	simulation	sim-misc2.md	-	-	-
 ScanningIterator	sim grids	simulation	lot-developer.md, sim-misc2.md	-	-	-
 tCrimePropOccupantFilter	crime	simulation	-	-	-	-
@@ -1018,6 +1081,10 @@ cSC4TrafficSimulator::FerryTerminal	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4Blimp	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4AutoFlushInputMessageQueue	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC4AutoDisableAppSwitching	other SC4 classes	other	sim-misc2.md	-	-	-
+cSC4EffectsModelProcessor	effects (particles, decals, visuals)	renderer	effects-owners.md	-	-	-
+cSC4EffectsResourceFactory	effects	renderer	effects-owners.md	-	-	-
+cSC4CameraParams	effects	renderer	effects-owners.md	-	-	-
+cSC4EffectDescription::cDescriptionRec	effects	renderer	effects.md,effects-parser.md	-	-	-
 cSC4*	other SC4 classes	other	-	-	-	-
 cSC24BitRGBColorCustomizer	other SC4 classes	other	sim-misc2.md	-	-	-
 cSC*	other SC4 classes	other	-	-	-	-
@@ -1069,6 +1136,8 @@ fn:SC4ReadStringRecord	other free functions	other	small-helpers2.md	-	-	-
 fn:SC4WriteAppLoadSaveVersion	other free functions	other	small-helpers2.md	-	-	-
 fn:SC4WriteGZSerializable	other free functions	other	lot-records.md, small-helpers2.md	-	-	-
 fn:SC4WriteStringRecord	other free functions	other	small-helpers2.md	-	-	-
+fn:SC4InterpolateGrid	other free functions	other	grid-interpolation.md	-	-	-
+fn:MakeMapColorBuffer	other free functions	other	map-color-buffer.md, map-view.md	-	-	-
 fn:SafeGetAltitude	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinFont	other free functions	other	small-helpers2.md	-	-	-
 fn:SetGZWinImage	other free functions	other	small-helpers2.md	-	-	-
@@ -1091,6 +1160,24 @@ fn:operator.new	other free functions	other	small-helpers2.md	-	-	-
 fn:sNotify	other free functions	other	small-helpers2.md	-	-	-
 fn:NULL_about	other free functions	other	framework-misc3.md	-	-	-
 fn:SetTableNumber	other free functions	other	framework-misc3.md	-	-	-
+fn:ParseRateCurveCommands	effects	renderer	effects.md	-	-	-
+fn:ParseRangedVector3	effects	renderer	effects.md	-	-	-
+fn:ParseDrawOptions	effects	renderer	effects.md	-	-	-
+fn:ParseFloatRange	effects	renderer	tiny-owners-b9.md	-	-	-
+fn:ParseRangedFloat	effects	renderer	tiny-owners-b9.md	-	-	-
+fn:GetSC4AudioCOMDirector	audio	audio	tiny-owners-b9.md	-	-	-
+fn:GetGZSoundCOMDirector	audio	audio	tiny-owners-b9.md	-	-	-
+fn:GetHitManCOMDirector	audio	audio	tiny-owners-b9.md	-	-	-
+fn:CreatecHitMan	audio	audio	hit-music.md, tiny-owners-b9.md	-	-	-
+fn:CreatecHitDebugInfo	audio	audio	tiny-owners-b9.md	-	-	-
+fn:CreatecRZRadio	audio	audio	radio.md, tiny-owners-b9.md	-	-	-
+fn:CreatecRZDiskRadioStation	audio	audio	radio.md, tiny-owners-b9.md	-	-	-
+fn:EnumFunc_UpdateView	audio	audio	hit-music.md, tiny-owners-b9.md	-	-	-
+fn:_PostEventMessage	audio	audio	audio-preferences.md	-	-	-
+fn:GetSCLuaCOMDirector	Lua host	framework	app-directors.md, tiny-owners-b9.md	-	-	-
+fn:GZCOM	framework services (GZ)	framework	system-service-pointer.md, tiny-owners-b9.md	-	-	-
+fn:SendFatalExceptionNotification	application	framework	app-shell-window.md	-	-	-
+fn:D3DXMatrixIsIdentity	3D driver (DirectX 7)	renderer	renderer-driver.md, tiny-owners-b9.md	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
 # ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)

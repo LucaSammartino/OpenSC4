@@ -641,6 +641,8 @@ its id count (all false) and calls `_AddFilter(id, kind)` for each id in list or
    (`0x004E71E0`–`0x004E7247`). Another kind value appends nothing.
 
 The same class id listed twice, or by two layers, yields the same filter object in each list *[compat]*.
+**Correction (2026-10-25, re-audioclose8):** each list entry does hold a reference: `_AddFilter` AddRefs once more
+before appending (`0x004E717D`) and `_RemoveAllFilters` releases one per entry (audio-owner-closure.md §2.3).
 How the kinds and interfaces are used is §8.4.
 
 Direct repeated CreateFilters resets interface counters `+0x138/+0x13C/+0x140` and the three
