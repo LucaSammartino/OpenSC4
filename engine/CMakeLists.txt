@@ -1477,3 +1477,8 @@ endif()
 add_executable(fc4_citysit_record_test tests/citysit_record_test.cpp)
 target_include_directories(fc4_citysit_record_test PRIVATE plugin)
 add_test(NAME citysit_record_comparison COMMAND fc4_citysit_record_test)
+
+# Network-manager NM18: provenance of old-neighbour replacements.
+add_executable(fc4_netmgr_terrain_observation_test tests/netmgr_terrain_observation_test.cpp)
+target_include_directories(fc4_netmgr_terrain_observation_test PRIVATE plugin)
+add_test(NAME netmgr_terrain_observation COMMAND fc4_netmgr_terrain_observation_test)

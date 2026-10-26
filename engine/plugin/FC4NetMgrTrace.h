@@ -9,6 +9,7 @@
 #include "cISC4NetworkTool.h"
 #include "cISC4OccupantManager.h"
 #include "cISC4NetworkLotConfiguration.h"
+#include "FC4NetMgrTerrainObservation.h"
 
 namespace nmtrace {
 struct Patch { void** entry; void* original; void* replacement; };
@@ -16,9 +17,11 @@ inline std::vector<Patch> patches;
 inline std::vector<Patch> lotPatches;
 inline bool active = false, complete = false;
 inline unsigned toolDepth = 0, replaceDepth = 0;
+inline uint64_t toolCall = 0, nextToolCall = 0;
+inline uint32_t sequence = 0;
 inline std::vector<std::vector<uint64_t>> seeds;
-struct Removal { bool tool, replace; int32_t x, z; };
-inline std::map<uint64_t, Removal> removals;
+inline std::map<uint64_t, fc4::netmgr::Removal> removals;
+inline std::vector<fc4::netmgr::Insertion> insertions;
 
 inline void* Original(void* self, size_t slot) {
     void** entry = *static_cast<void***>(self) + slot;
@@ -59,7 +62,7 @@ inline void Stop(std::vector<Patch>& saved = patches) {
     if (restored) saved.clear();
 }
 
-inline uint64_t Describe(cISC4Occupant* occupant, const char* event) {
+inline uint64_t Describe(cISC4Occupant* occupant, const char* event, uint32_t data = 0) {
     void* p = nullptr;
     if (!occupant || !occupant->QueryInterface(0xA821EF94, &p) || !p) return 0;
     auto* n = static_cast<cISC4NetworkOccupant*>(p);
@@ -67,9 +70,12 @@ inline uint64_t Describe(cISC4Occupant* occupant, const char* event) {
     uint32_t x = 0, z = 0;
     n->GetOccupiedCell(x, z);
     const uint64_t id = fc4::TokenOf(n);
-    fc4::Log("netmgr terrain trace %s: id=%p cell=%u,%u flags=%08X tool_depth=%u replace_depth=%u",
-             event, p, x, z, n->GetNetworkFlag(), toolDepth, replaceDepth);
-    if (std::strcmp(event, "remove") == 0) removals.emplace(id, Removal{toolDepth != 0, replaceDepth != 0,
+    const uint32_t serial = ++sequence;
+    fc4::Log("netmgr terrain trace %s: id=%p cell=%u,%u flags=%08X tool_depth=%u replace_depth=%u call=%llu seq=%u data=%u",
+             event, p, x, z, n->GetNetworkFlag(), toolDepth, replaceDepth, toolCall, serial, data);
+    if (std::strcmp(event, "remove") == 0) removals.emplace(id, fc4::netmgr::Removal{toolCall, serial,
+                                                     static_cast<int32_t>(x), static_cast<int32_t>(z)});
+    if (std::strcmp(event, "insert") == 0) insertions.push_back({id, toolCall, serial, data,
                                                      static_cast<int32_t>(x), static_cast<int32_t>(z)});
     FC4_RELEASE(n);
     return id;
@@ -85,9 +91,12 @@ inline void __fastcall Destroy(void* self, void*, const SC4Vector<cISC4NetworkOc
         }
         seeds.push_back(std::move(ids));
     }
+    const uint64_t previous = toolCall;
+    toolCall = ++nextToolCall;
     ++toolDepth;
     original(self, list);
     --toolDepth;
+    toolCall = previous;
 }
 
 inline cISC4NetworkTool* __fastcall GetTool(void* self, void*, int32_t type, bool unique) {
@@ -108,7 +117,7 @@ inline bool __fastcall Replace(void* self, void*, cISC4NetworkTool* tool, cISC4O
 
 inline bool __fastcall Remove(void* self, void*, cISC4Occupant* occupant, bool shutdown, uint32_t data) {
     const auto original = reinterpret_cast<bool(__thiscall*)(void*, cISC4Occupant*, bool, uint32_t)>(Original(self, 21));
-    if (active) Describe(occupant, "remove");
+    if (active) Describe(occupant, "remove", data);
     const bool result = original(self, occupant, shutdown, data);
     if (active && !result) complete = false;
     return result;
@@ -117,15 +126,18 @@ inline bool __fastcall Remove(void* self, void*, cISC4Occupant* occupant, bool s
 inline bool __fastcall Insert(void* self, void*, cISC4Occupant* occupant, uint32_t data) {
     const auto original = reinterpret_cast<bool(__thiscall*)(void*, cISC4Occupant*, uint32_t)>(Original(self, 20));
     const bool result = original(self, occupant, data);
-    if (active) Describe(occupant, "insert");
+    if (active && result) Describe(occupant, "insert", data);
     return result;
 }
 
 inline void Start(cISC4City* city, uint32_t type, const uint32_t* data) {
     seeds.clear();
     removals.clear();
+    insertions.clear();
     active = true;
     toolDepth = replaceDepth = 0;
+    toolCall = nextToolCall = 0;
+    sequence = 0;
     complete = Install(city->GetNetworkManager(), 5, 0x006108D0, reinterpret_cast<void*>(&GetTool));
     complete = Install(city->GetNetworkManager(), 8, 0x006110B0, reinterpret_cast<void*>(&Replace)) && complete;
     complete = Install(city->GetOccupantManager(), 20, 0x0049EF60, reinterpret_cast<void*>(&Insert)) && complete;
