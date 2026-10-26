@@ -324,6 +324,10 @@ enum : uint32_t {
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
+// Native GZ owner construction, one caller reference. b=0 buffer, b=1 server;
+// server a is a borrowed helper command service queried/retained by the seam.
+constexpr uint32_t kFC4SeamGZFrameworkCreate = 0x475A0001;
+
 using FC4TestSeamFn = intptr_t(__cdecl*)(uint32_t op, void* a, void* b);
 
 namespace fc4 {

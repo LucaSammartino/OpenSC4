@@ -1207,3 +1207,6 @@ mod regionalcity_owner;
 
 // Private graphics-rule owner transport; native acquisition requires GR9.
 mod cfgrules_owner;
+
+// Private static-link GZ framework owners; no public DLL ABI changes.
+mod gzfw_owner;

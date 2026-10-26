@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4TestSeam.h"
+#include "FC4GZFramework.h"
 #include "cFC4LotConfiguration.h"
 #include "FC4AutomataShadow.h"
 #include "FC4AdvisorsShadow.h"
@@ -298,6 +299,12 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return NetworkLotOwnershipTest(static_cast<cIGZUnknown*>(a), static_cast<cIGZUnknown*>(b));
         case kFC4SeamNetworkCrewOwnership:
             return NetworkCrewOwnershipTest();
+        case kFC4SeamGZFrameworkCreate: {
+            if (b) return reinterpret_cast<intptr_t>(fc4::GZCommandServerTestCreate(static_cast<cIGZUnknown*>(a)));
+            auto* buffer=fc4::CreateGZBuffer();
+            if (buffer) buffer->AddRef();
+            return reinterpret_cast<intptr_t>(buffer);
+        }
         default:
             return 0;
     }

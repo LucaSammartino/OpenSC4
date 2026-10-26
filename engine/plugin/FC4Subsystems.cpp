@@ -12,6 +12,7 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 #include "FC4Subsystems.h"
+#include "FC4GZFramework.h"
 #include "FC4LegacyCtlShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "cFC4PowerLineOccupant.h"
@@ -563,6 +564,10 @@ const ClassEntry kRegionalCityClasses[] = {
     {0x6A037C24, "cSC4RegionalCity", &CreateFC4RegionalCity},
 };
 
+const ClassEntry kGZFrameworkClasses[] = {
+    {0xC470D325, "cGZBuffer", &CreateGZBuffer},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -651,6 +656,8 @@ const Subsystem kSubsystems[] = {
     // data-formats section 8.1: use the FC4 exemplar/cohort factories and their
     // property holders. Packed-file segments remain a separate replacement.
     {"formats", nullptr, nullptr, 0, false},
+    // The command server is a framework service, not a documented COM CLSID.
+    {"gzfw", nullptr, kGZFrameworkClasses, sizeof(kGZFrameworkClasses) / sizeof(kGZFrameworkClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

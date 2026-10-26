@@ -606,7 +606,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4QueryToolShadow.h
         # Default-off GZ framework constructed-buffer and command differential.
         plugin/FC4GZFrameworkShadow.cpp
-        plugin/FC4GZFrameworkShadow.h)
+        plugin/FC4GZFrameworkShadow.h
+        plugin/FC4GZFramework.h
+        plugin/FC4GZBuffer.cpp
+        plugin/FC4GZCommandServer.cpp)
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -1428,4 +1431,11 @@ if(TARGET fc4_plugin_load_test)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --netlot-object-factories)
     set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
         PROPERTIES RUN_SERIAL TRUE)
+endif()
+
+if(TARGET FreeCity4)
+    add_executable(fc4_gzfw_owner_test tests/gzfw_owner_test.cpp)
+    target_include_directories(fc4_gzfw_owner_test PRIVATE plugin "${FC4_GZCOM_DIR}/include")
+    target_compile_options(fc4_gzfw_owner_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME gzfw_native_owners COMMAND fc4_gzfw_owner_test "$<TARGET_FILE:FreeCity4>")
 endif()
