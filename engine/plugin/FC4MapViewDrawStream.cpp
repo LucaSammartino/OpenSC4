@@ -63,6 +63,43 @@ void* Detour(uintptr_t site, void* hook) {
     return trampoline;
 }
 using OwnerBytes = std::array<uint8_t, 0x9e8>;
+// DS29-1 dynamic state: no capacity/padding bytes enter the transcript.
+// Nonempty highlight trees need the full effect/occupant adapter, so refuse
+// complete credit for that profile rather than omitting their payloads.
+void DynamicState(const void* owner, Stream& stream) {
+    auto bytes = [&](size_t beginOffset, size_t endOffset, uint32_t operation) {
+        const auto* begin = Load<const uint8_t*>(owner, beginOffset);
+        const auto* end = Load<const uint8_t*>(owner, endOffset);
+        const auto size = reinterpret_cast<uintptr_t>(end) - reinterpret_cast<uintptr_t>(begin);
+        if (size > 1024 * 1024) { stream.Refuse("dynamic state capacity"); return; }
+        stream.Data(Domain::State, operation, 0, begin, size);
+    };
+    bytes(0x988, 0x98c, 0x984);
+    bytes(0x9bc, 0x9c0, 0x9bc);
+    const auto* sentinel = Load<const void*>(owner, 0x9c8);
+    if (!sentinel) { stream.Refuse("missing pending sentinel"); return; }
+    const void* node = Load<const void*>(sentinel, 0);
+    std::vector<uint32_t> pending;
+    while (node != sentinel) {
+        if (!node || pending.size() == 4096) { stream.Refuse("pending list capacity"); return; }
+        pending.push_back(Load<uint32_t>(node, 8));
+        node = Load<const void*>(node, 0);
+    }
+    stream.Data(Domain::State, 0x9c8, 0, pending.data(), pending.size() * 4);
+    for (const auto offset : {0x968u, 0x974u}) {
+        const auto* header = Load<const void*>(owner, offset);
+        const auto count = Load<uint32_t>(owner, offset + 4);
+        if (!header || count != 0 || Load<const void*>(header, 4) != nullptr) {
+            stream.Refuse("nonempty highlight collection requires collaborator adapter");
+            continue;
+        }
+        stream.Call(Domain::State, offset, 0, {0});
+    }
+}
+void Append(Stream& target, const Stream& source) {
+    for (const auto& event : source.Events()) target.Append(event);
+    if (!source.Valid()) target.Refuse(source.Reason());
+}
 struct Surface {
     uint32_t width = 0, height = 0;
     uint8_t* bits = nullptr;
@@ -240,6 +277,9 @@ UpdateFn updateOriginal = nullptr;
 void __fastcall Update(void* self, void*) {
     Frame capture; capture.owner = self;
     OwnerBytes before; std::memcpy(before.data(), self, before.size());
+    Stream dynamicBefore;
+    if (before[0x142] == 0) try { DynamicState(self, dynamicBefore); }
+    catch (...) { dynamicBefore.Refuse("entry snapshot allocation"); }
     {
         Scope<Frame> scope(frame, &capture);
         updateOriginal(self, nullptr);
@@ -251,6 +291,8 @@ void __fastcall Update(void* self, void*) {
         if (inactive) {
             capture.native.Data(Domain::State, 0, 0, self, before.size());
             capture.core.Data(Domain::State, 0, 0, before.data(), before.size());
+            DynamicState(self, capture.native);
+            Append(capture.core, dynamicBefore);
         }
         const auto detail = Inspect(capture.native, capture.core);
         if (updateCount.calls.load() < 5 || std::strcmp(detail.field, "none") != 0)
@@ -306,8 +348,10 @@ bool __fastcall Notify(void* self, void*, void* message) {
     auto* owner = static_cast<uint8_t*>(self) - 4; // map-view §1.3
     OwnerBytes before; std::memcpy(before.data(), owner, before.size());
     Notification capture; capture.message = message;
+    Stream dynamicBefore;
     std::vector<uint32_t> subscriptions;
     try {
+        DynamicState(owner, dynamicBefore);
         if (!message || !MessageHooks(message)) capture.native.Refuse("unsupported notification interface");
         const auto* begin = Load<const uint32_t*>(owner, 0x9bc);
         const auto* end = Load<const uint32_t*>(owner, 0x9c0);
@@ -326,17 +370,20 @@ bool __fastcall Notify(void* self, void*, void* message) {
             capture.core.Call(Domain::Message, 10, 1, {capture.valueSeen[0] ? 1u : 0u, capture.values[0]});
             capture.core.Call(Domain::Message, 15, 1, {capture.valueSeen[1] ? 1u : 0u, capture.values[1]});
         }
-        uint32_t output[3]{};
+        uint32_t output[3]{before[0x142] ? 1u : 0u, before[0x9d9] ? 1u : 0u, 0};
         const uint32_t* values = capture.valueSeen[0] && capture.valueSeen[1] ? capture.values : nullptr;
         const bool replay = capture.typeSeen && fc4_drawstream_notification(before[0x142] != 0, before[0x9d9] != 0,
             capture.type, subscriptions.data(), static_cast<uint32_t>(subscriptions.size()), values, output);
-        if (!replay || output[2] != 0) capture.core.Refuse("notification requires collaborator adapter");
+        const bool pure = capture.type != 0x26d31ec1 && capture.type != 0x26d31ec2;
+        if (!replay || output[2] != 0 || !pure) capture.core.Refuse("notification requires collaborator adapter");
         before[0x142] = static_cast<uint8_t>(output[0]); before[0x9d9] = static_cast<uint8_t>(output[1]);
         capture.native.Data(Domain::State, 0, 0, owner, before.size());
         capture.core.Data(Domain::State, 0, 0, before.data(), before.size());
+        DynamicState(owner, capture.native);
+        Append(capture.core, dynamicBefore);
         capture.native.Call(Domain::Return, 3, 0, {result ? 1u : 0u});
         capture.core.Call(Domain::Return, 3, 0, {1});
-        notificationCount.Add(capture.native, capture.core, replay && output[2] == 0);
+        notificationCount.Add(capture.native, capture.core, replay && output[2] == 0 && pure);
     } catch (...) { ++notificationCount.calls; }
     return result;
 }
