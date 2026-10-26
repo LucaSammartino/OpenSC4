@@ -4,6 +4,12 @@ Source: `docs/specs/render3d.md`. Foreign interfaces use handles and traits;
 no C ABI or plugin is added. Existing view3d host boundaries remain unchanged.
 The table records whole-section closure, including explicit open boundaries.
 
+This is a partial owner ready for continued core development. Whole-owner
+implementation credit remains pending: Init and initialized teardown, model
+processing, drawing and driver orchestration are absent. The public `shutdown`
+currently covers only the never-initialized guard. RND1 and RND4 remain explicit
+`Unsupported` boundaries; this module cannot yet replace the game's renderer.
+
 | Spec section | Code item | Spec case / test | Closure |
 |---|---|---|---|
 | 1 Identity, references, lifetime | `Render3d::new`, `query_interface`, `release` | `identity_case_1_and_constructor_defaults`, `last_release_case_2_including_initial_zero` | Complete for constructed owner; initialized teardown in §9 |

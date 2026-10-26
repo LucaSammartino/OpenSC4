@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! City renderer owner, from docs/specs/render3d.md. No ABI or plugin wiring.
 //!
+//! This is a partial owner; see README.md for section closure. Init, initialized
+//! teardown, model processing and drawing are not implemented. Do not wire it
+//! into a live city until those sections are complete.
+//!
 //! Handles denote foreign interfaces, never memory addresses. Getters are pure
 //! shared borrows. The caller serializes mutations; there is no interior cache.
 
