@@ -135,7 +135,7 @@ def launch(root, state_path, spec_path=None, provider=None):
         args = dict(spec['args'])
         name = args['name']
         if not spec.get('resume'):  # a resumed lane is already counted among the unmerged ones
-            checked([sys.executable, str(root/'tools/lanes.py'), 'slots', '--game-slots', '6'], root)
+            checked([sys.executable, str(root/'tools/lanes.py'), 'slots'], root)
         check = [sys.executable, str(root/'tools/lanes.py'), 'check', name, '--kind', args['kind'],
                  '--touches', ','.join(spec['touches'])]
         if spec.get('resume'):

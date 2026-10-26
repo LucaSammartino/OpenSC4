@@ -36,47 +36,25 @@ def stage(st):
 
 
 def collect():
-    export = cov.find_input("ghidra/export/windows", None)
-    exe = cov.find_input("bin/SimCity4.exe", None)
-    _, lo, hi = cov.pe_text(exe)
-    regress = cov.newest_regress()
-    att = cov.Attribution(export, REPO / "re" / "names_windows.tsv", REPO / "docs" / "abi" / "vtables.tsv",
-                          REPO / "docs" / "abi" / "interfaces.tsv", REPO / "tools" / "coverage-libs.tsv",
-                          REPO / "tools" / "coverage-ranges.tsv", lo, hi,
-                          REPO / "tools" / "coverage-noncode-refs.tsv")
-    owner, _ = att.run()
-    rows = cov.read_map(REPO / "tools" / "coverage-map.tsv")
-    replace_list, shadow_list = cov.regress_lists(REPO / "tools" / "regress.ps1")
-    keys = cov.subsystem_keys(REPO / "engine" / "plugin" / "FC4Subsystems.cpp")
-    reg = cov.read_regress(regress)
-    shadow_ev, _ = cov.read_shadow_evidence(REPO / "tools" / "coverage-shadows.tsv", REPO)
-    cov.map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
-    row_of = {}
-
-    def match(o):
-        for i, r in enumerate(rows):
-            if fnmatch.fnmatchcase(o, r["pattern"]):
-                return i
-        return None
+    data = cov.load_report_data()
+    att, owner, rows = data["att"], data["owner"], data["rows"]
+    regress, methods = data["regress"], data["methods"]
 
     agg = defaultdict(int)
-    stat_b = {s: 0 for s in STAT}  # the four headline totals, summed on the row's own flags (not on the colour)
-    for va in att.order:
-        size, o = att.funcs[va], owner[va]
-        if o is not None and o.startswith("lib:"):
-            continue
+    stat_b = {s: 0 for s in STAT}
+    for va, size, index, _ in data["game"]:
+        o = owner[va]
+        flags = [cov.coverage_methods.function_status(rows, index, va, methods, s) for s in STAT]
+        for s, flag in zip(STAT, flags):
+            if flag:
+                stat_b[s] += size
         if o is None:
-            k = ("unattributed", "unattributed", "unattributed", 0)
+            k = ("unattributed", "unattributed", "unattributed", stage(flags))
         elif o == cov.SHARED:
-            k = ("shared", "shared helpers", "shared", 0)
+            k = ("shared", "shared helpers", "shared", stage(flags))
         else:
-            if o not in row_of:
-                row_of[o] = match(o)
-            r = rows[row_of[o]]
-            for s in STAT:
-                if r[s]:
-                    stat_b[s] += size
-            k = (r["area"], r["subsystem"], o, stage([r[s] for s in STAT]))
+            r = rows[index]
+            k = (r["area"], r["subsystem"], o, stage(flags))
         agg[k] += size
     tree = defaultdict(lambda: defaultdict(list))
     for (a, s, o, st), b in agg.items():

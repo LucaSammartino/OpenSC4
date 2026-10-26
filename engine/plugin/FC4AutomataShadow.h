@@ -20,6 +20,12 @@
 //   automata_shadow = 1             (env FC4_AUTOMATA_SHADOW)
 //   automata_owners_shadow = 1      (env FC4_AUTOMATA_OWNERS_SHADOW)
 //   helicopter_shadow = 1          (env FC4_HELICOPTER_SHADOW)
+//   watercraft_shadow = 1          (env FC4_WATERCRAFT_SHADOW)
+// Watercraft compares complete saved records and position/destination/heading
+// getters on reachable boats, plus an independent constructor/SetState/
+// PushState/PopState sequence on a private native factory instance each month.
+// It does not Init, animate, or register that fixture. AI, physics, ferry and
+// route stepping are explicitly unmeasured; this is partial owner coverage.
 // The helicopter switch is an independent, partial AF11 metadata comparison:
 // class and four nested record versions only; private COM fixture when no
 // saved aircraft-manager reference names a helicopter. It does not tick or
