@@ -176,12 +176,35 @@ mod tests {
     }
 
     #[test]
+    fn water_post_reads_live_sea_level_only_for_nonpositive_depths() {
+        let mut t = source();
+        let mut cache = TerrainViewHeights::new(&t);
+        for (x, depth) in [0.0, -0.0, -3.0].into_iter().enumerate() {
+            t.set_water_depth(x as i32, 0, depth);
+            t.set_water_depth(x as i32, 1, (x + 1) as f32);
+        }
+        t.set_sea_level_raw(275.0);
+        let whole = VertRect::new(0, 0, 2, 1);
+        // The view subscribes to the height messages, not SeaLevelChanged.
+        assert_eq!(cache.handle_post(&t, &post(msg::SEA_LEVEL_CHANGED, whole)), Ok(false));
+        assert_eq!(cache.water(), &[250.0; 6]);
+        assert_eq!(cache.handle_post(&t, &post(msg::WATER_CHANGED, whole)), Ok(true));
+        assert_eq!(cache.water(), &[275.0, 275.0, 275.0, 271.0, 282.0, 293.0]);
+        assert_eq!(cache.terrain(), &[240.0, 250.0, 260.0, 270.0, 280.0, 290.0]);
+    }
+
+    #[test]
     fn terrain_copy_preserves_float_bits_and_water_addition_rounds_once() {
         let mut t = source();
+        let payload = 0x7FC1_2345;
+        t.set_raw_altitude(0, 0, f32::from_bits(payload));
+        t.set_water_depth(0, 0, 0.0);
         t.set_raw_altitude(2, 1, -0.0);
         t.set_raw_altitude(1, 1, 16_777_216.0);
         t.set_water_depth(1, 1, 1.0);
         let cache = TerrainViewHeights::new(&t);
+        assert_eq!(cache.terrain()[0].to_bits(), payload);
+        assert_eq!(cache.water()[0], 250.0);
         assert_eq!(cache.terrain()[5].to_bits(), (-0.0_f32).to_bits());
         assert_eq!(cache.water()[4], 16_777_216.0);
     }
