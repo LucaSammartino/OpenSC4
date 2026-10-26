@@ -2283,10 +2283,12 @@ implementation `0x004AB778`) unless a site is listed otherwise.
 
 ## 15. Open items
 
-The [owner audit in §§17–21](audio-owner-contracts.md) adds unresolved implementation questions in
-[questions/audio.md](questions/audio.md), AU42–AU43. AU41 is settled in §19.2; AU40 and AU44 in §18.4 and
-§7.4.1 respectively. The remaining questions qualify the coverage of those sections;
-an owner appearing in the inventory does not imply that all its numerical behavior is settled.
+The [owner audit in §§17–21](audio-owner-contracts.md) is completed for AU42 by
+[audio-scape.md](audio-scape.md) §§3–7 and for AU43 by
+[audio-preferences.md](audio-preferences.md) §§1–7. AU50's remaining manager algorithms
+are §8.3.2 and audio-owner-closure §7. AU41 is settled in §19.2; AU40 and AU44 in §18.4
+and §7.4.1 respectively. Other questions in [questions/audio.md](questions/audio.md)
+still qualify their own sections; an inventory entry alone does not establish closure.
 
 | # | Question | What would settle it |
 |---|---|---|

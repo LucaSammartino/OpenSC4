@@ -27,4 +27,3 @@
   fixture has no foreign position effect; the new resolve/play stages cannot close these bodies
   without those contracts. [Keep local fixture separate; implement known get-sound/QI/property/
   play operations as explicit stages, never assume missing word+14 or successful native dispatch.]
-

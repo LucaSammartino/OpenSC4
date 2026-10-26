@@ -368,7 +368,7 @@ The action order, including audio effects, is:
 | OK | Temporarily retain application if present and call slot 17 SavePreferences, ignoring its result, then release it; load lists if needed; rebuild/post Region then Mayor lists; acquire radio if available and read current path; skip once only if the read succeeds and IsSongEnabled is false; PreferencesChanged; EndDialog; release temporary radio reference. |
 | Modal loop returns by another route | DoModalWin calls EndDialog; EndDialog itself performs no restore, SavePreferences, exclusion rebuild or PreferencesChanged. |
 
-Restore assignment order is `0x004F2520`–`0x004F2576`; Cancel starts at `0x004F3613`;
+Restore assignment order is `0x004F2520`–`0x004F2576`; Cancel starts at `0x004F3D07`;
 OK is the `0xEA5509E4` branch of `0x004F35F0`. There is no additional Revert/Defaults
 control action in this handler; the restore operation is Cancel's UpdatePreferences.
 Any other control ID follows §7.2's song-range/no-op rules. EndDialog's preview-end post
@@ -383,7 +383,7 @@ was open. Its radio lists can remain from a live edit even after P has been rest
 
 1. False unless `w` is visible (`cIGZWin` slot 71).
 2. False unless `w` equals the window view returned by the dialog holder `+4`'s slot 3
-   (`+0x0C`), or the grid exists and its window (slot 5) is `w` (`0x004F42AA`–`0x004F42D3`).
+   (`+0x0C`), or the grid exists and its window (slot 5) is `w` (`0x004F429B`–`0x004F42BF`).
 3. By `m[0]`:
 
 | `m[0]` | `m[1]` | Action | Returns |
