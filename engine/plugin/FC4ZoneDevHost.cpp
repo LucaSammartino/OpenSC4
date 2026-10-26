@@ -826,7 +826,10 @@ void LotBoundingRect(void* u, uint64_t lot, fc4_cell_rect* out) {
     *out = fc4_cell_rect{0, 0, -1, -1};
     if (lot == 0) return;
     SC4Rect<int32_t> r;
-    if (LotOf(lot)->GetBoundingRect(r)) *out = fc4_cell_rect{r.topLeftX, r.topLeftY, r.bottomRightX, r.bottomRightY};
+    // zones §8.3 / lot-records §2: slot 14 supplies the inclusive rectangle.
+    // SPEC-GAP: slot 14 has no specified status result; consume its output unconditionally.
+    LotOf(lot)->GetBoundingRect(r);
+    *out = fc4_cell_rect{r.topLeftX, r.topLeftY, r.bottomRightX, r.bottomRightY};
 }
 float LotAltitude(void* u, uint64_t lot) {
     ZD_TEST(lot_altitude, lot);
