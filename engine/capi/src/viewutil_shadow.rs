@@ -286,6 +286,21 @@ unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: 
             store(out, 0, ray.origin);
             store(out, 3, ray.direction);
         }
+        0x007f91c0 => {
+            // §7.2 empty/absent vertex data, without reading unpublished
+            // mesh group fields. Compare every word of the native pick record.
+            let mut pick = Pick {
+                ray: Ray {
+                    origin: vector(out, 0),
+                    direction: vector(out, 3),
+                },
+                nearest_distance: f32::from_bits(out[10]),
+            };
+            if let Ok(hit) = mesh_pick_checked(&mut pick, &Mesh::default(), &Transform::default()) {
+                out[31] = u32::from(hit);
+                out[10] = pick.nearest_distance.to_bits();
+            }
+        }
         0x007f9b40 => {
             if let Some(area) = view.get_ground_plane_visible_area_rectangle(None) {
                 for (i, p) in [area.inner.min, area.inner.max, area.outer.min, area.outer.max]
@@ -337,6 +352,22 @@ unsafe extern "C" fn fc4_viewutil_shadow_state(op: u32, owner: *mut u32, input: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_mesh_pick_preserves_the_pick_and_borrowed_mesh_words() {
+        let mut owner = [0xcccc_cccc; 0x470 / 4];
+        owner[1] = (6 << 16) | 12;
+        owner[2] = 0;
+        let before_owner = owner;
+        let input = [0; 64];
+        let mut out = [0x4120_0000; 32];
+        let mut expected = out;
+        expected[31] = 0;
+        // SAFETY: all three fixed-size buffers are initialized and disjoint.
+        unsafe { fc4_viewutil_shadow_state(0x007f91c0, owner.as_mut_ptr(), input.as_ptr(), out.as_mut_ptr()) };
+        assert_eq!(out, expected);
+        assert_eq!(owner, before_owner);
+    }
 
     #[test]
     fn constructor_preserves_padding_beside_byte_flags() {

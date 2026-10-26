@@ -155,11 +155,12 @@ Family cachedFamilies[] = {
 Family stateFamilies[] = {
     {0x007f6df0,"constructor"}, {0x007f83f0,"failed-update"},
     {0x007f9080,"ray-failure"}, {0x007f9b40,"warm-visible-area"},
+    {0x007f91c0,"mesh-pick-empty"},
     {0x0080b000,"iterator-destructor"}, {0x0080b3b0,"iterator-next"}
 };
 Family pendingFamilies[] = {
     {0x007f6910,"draw-box"}, {0x007f7f60,"city-frustum-box"},
-    {0x007f9160,"viewport-ground"}, {0x007f91c0,"mesh-pick"},
+    {0x007f9160,"viewport-ground"},
     {0x007f9a40,"model-pick"}, {0x007f9ea0,"ground-corners"},
     {0x007f9f50,"draw-build"}, {0x0080b320,"iterator-select"}
 };
@@ -178,6 +179,13 @@ uint32_t CompareState(const fc4_date& date, bool binding, const Owner& snapshot,
             std::array<uint32_t,64> in{};
             in[0]=sample % 16; in[1]=sample;
             std::array<uint16_t,16> indices{};
+            if (family.va == 0x007f91c0) {
+                // §7.2: absent vertex data or zero vertices returns before
+                // group access. VU17 still blocks nonempty mesh fixtures.
+                nativeOwner.fill(0xcccccccc);
+                nativeOwner[1]=12 | (sample < 16 ? (sample+1) << 16 : 0);
+                nativeOwner[2]=sample < 16 ? 0 : static_cast<uint32_t>(reinterpret_cast<uintptr_t>(in.data()));
+            }
             if (family.va == 0x0080b000) {
                 // §13.3: never ask the native heap to free local storage.
                 // Vary every other flag bit and preserve all borrowed fields.
@@ -208,6 +216,8 @@ uint32_t CompareState(const fc4_date& date, bool binding, const Owner& snapshot,
             case 0x007f9080:
                 native[31]=Entry<bool(__thiscall*)(void*,int32_t,int32_t,Vector*,Vector*)>(family.va)(self,
                     static_cast<int32_t>(in[0]),static_cast<int32_t>(in[1]),&out[0],&out[1]); break;
+            case 0x007f91c0:
+                native[31]=Entry<bool(__cdecl*)(void*,void*,const void*)>(family.va)(native.data(),self,in.data()); break;
             case 0x007f9b40:
                 Entry<void(__thiscall*)(void*,Vector*,Vector*,Vector*,Vector*)>(family.va)(self,
                     in[0]&1?&out[0]:nullptr,in[0]&2?&out[1]:nullptr,in[0]&4?&out[2]:nullptr,in[0]&8?&out[3]:nullptr); break;
@@ -545,7 +555,7 @@ void Compare(int32_t julian, bool load) {
     fc4::Log("viewutil-subset shadow %04d-%02d-%02d: bodies=34/50 excluded=camera-angles,city-width fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, subsetFields, subsetMismatches);
     subsetClean += subsetMismatches == 0;
-    fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-cached-private-state bodies=42/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
+    fc4::Log("viewutil shadow %04d-%02d-%02d: phase=%s scope=local-cached-private-state bodies=43/50 live=%u rotation=%d samples=%u fields=%u resyncs=0 mismatches=%u",
         date.year, date.month, date.day_of_month, load ? "load" : "month", available ? 1u : 0u,
         liveRotation, samples, fields, mismatches);
     ++lines;
@@ -569,14 +579,14 @@ void ViewUtilShadowCityLoaded(cISC4City* city, int32_t julian) {
     if (!active) return;
     unsigned short cw=0;
     __asm { fnstcw cw }
-    Log("viewutil: ON; VU15/VU16 local, cached and private state (42/50 bodies); scalar capture=f32; x87_cw=%04x; isolated storage; default-off",cw);
+    Log("viewutil: ON; VU15/VU16 local, cached and private state (43/50 bodies); scalar capture=f32; x87_cw=%04x; isolated storage; default-off",cw);
     if (auto* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     Compare(julian, true);
 }
 void ViewUtilShadowMonth(int32_t julian) { Compare(julian, false); }
 void ViewUtilShadowCityShutdown() {
     if (active) {
-        Log("viewutil: %u/%u exact (42/50 bodies), resyncs=0", clean, lines);
+        Log("viewutil: %u/%u exact (43/50 bodies), resyncs=0", clean, lines);
         Log("viewutil-subset: %u/%u exact (34/50 bodies; excludes camera-angles,city-width), resyncs=0", subsetClean, lines);
         Log("viewutil-rotation: %u/%u exact, resyncs=0",rotationFamily.exact,rotationFamily.total);
         for (const auto& family : localFamilies) Log("viewutil-%s: %u/%u exact, resyncs=0",family.name,family.exact,family.total);
