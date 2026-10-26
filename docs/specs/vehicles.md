@@ -1593,7 +1593,7 @@ The remaining Vehicle displacement/reattachment instruction audit is tracked
 in VH1. Tank's owner boundary is fully stated in §12.13; projectile-asset
 simulation is delegated to the effects interface rather than invented here.
 
-### 12.15 Vehicle player-motion scheduling (VH1, partial)
+### 12.15 Vehicle player-motion scheduling (VH1)
 
 Vehicle requires a drive state and drive parameters; absent state, absent
 parameter container, or failure of both direct/service parameter retrieval
@@ -1626,10 +1626,9 @@ In the off-network movement branch, slot 187 receives the substep elapsed
 time, drive state, distance, parameters and network result. Each such movement
 call is followed by collision slot 190 with unset direction and initial
 fraction 1. A hit resolves collision and terminates the loop; an ordinary
-miss proceeds to the next step. Dashboard work follows the loop. The geometry
-inside slot 187 and the on-network reattachment branch remain explicitly
-unclosed in VH1; the scheduling contract does not substitute straight-line
-movement for those operations. Evidence: `0x00561158–0x00561204`.
+miss proceeds to the next step. Dashboard work follows the loop. Section 12.16
+defines slot 187 and the on-network movement/reattachment branch. Evidence:
+`0x00561158–0x00561204`.
 
 | Vehicle scheduling setup | Required observation |
 |---|---|
@@ -1640,3 +1639,187 @@ movement for those operations. Evidence: `0x00561158–0x00561204`.
 | Missing state or parameters | False before owner movement. |
 | Damage counter equals threshold / exceeds threshold | Continue / true before inherited tick and movement. |
 | Off-network collision at step 1 of 2 | One movement, one collision query, one resolution; skip step 2. |
+
+### 12.16 Vehicle player-drive geometry (VH1)
+
+Together with §§12.10, 12.12, 12.13 and 12.15, this closes the owner-side VH1
+physics contract. The following network/path queries and collision probes are
+foreign geometry inputs; the vehicle owns the anchors, facing, flags and drive
+state changes described here. Tank projectile simulation remains behind the
+effects interface specified in §12.13; firing does not directly damage occupants.
+
+#### Coordinates and branch selection
+
+Use the existing centre `C` (`+0x40`), facing `D` (`+0x58`), radius `r`
+(`+0x7C`), front anchor `H` (`+0x264`) and saved path facing `F` (`+0x270`).
+Drive-state `+0x44` is the **rear anchor** `B`, not the centre; `+0x50` is
+its motion direction `V`, and `+0x38` is the direction baseline copied by
+on-network motion. Steering angle is drive-state `+0x5C`. A vector is unset
+when all three component differences from `(-1,-2,-3)` are strictly below
+binary32 `0.0001`; equality at the tolerance makes it set. Normalize a vector
+only when its 3D length exceeds binary32 `0.00001`.
+
+After inherited ticking, query `PlayerDriveGetNetwork` at `H`, with no output
+position, obtaining an occupant and a surface boolean. When state `+0x8C`
+equals −1, the off-network boolean is whether the occupant is absent;
+otherwise it is the inverse of the surface boolean. Changes to that boolean
+notify owner slot 102 with `(10, boolean)` and store state byte `+0x228`.
+Use the on-network branch only when this boolean is false **and** the returned
+occupant is nonnull. The decision is made once before speed integration and
+substeps. The other branch sets flag `0x2000`; if its returned occupant differs
+from the retained one, it calls placement slot 132 with that occupant, key zero,
+no points and preparation-only true. The on-network branch clears `0x2000`.
+Evidence: `0x00560500–0x00560574`, `0x00560647–0x00560655`,
+`0x00560998–0x005609A6`, `0x00561065–0x0056108C`.
+
+The yaw rotation used below is, for finite ordinary inputs,
+`R=(cos(a)×D.x + sin(a)×D.z, D.y, cos(a)×D.z − sin(a)×D.x)`.
+This is steering of the proposed motion, not a direct replacement of the
+vehicle's facing. The routines use x87 sine/cosine and binary32 matrix/vector
+temporaries; do not assume every arithmetic operation rounds to binary32.
+In particular the network branch retains cosine in the x87 calculation while
+storing sine, whereas the off-road branch stores cosine before constructing
+its matrix. Evidence: `0x005606A5–0x0056080B`, `0x0055ED32–0x0055EE38`.
+
+#### On-network displacement and reattachment
+
+Before the loop, if flag `0x2000` was set or `H` is unset, obtain the returned
+occupant's path interface and ask owner slot 171 for direction-based path
+filters, using `R` and true. Request candidate keys at `H` with path type 1,
+entry filter `0xFF`, that exit filter and distance 16. In candidate order,
+request each key's points with secondary argument zero and project `H` onto
+them through the path interface. Accept the first nonnull collection whose
+projected height differs from the original `H.y` by **strictly less than 4**;
+restore `H` after rejecting a projected candidate. If this finds none, repeat
+with both filters `0xFF` and distance 16. Pass occupant, selected key, selected
+points (possibly null) and true to slot 132. If points were selected, store
+the projection's segment index. This search has no nearest-candidate sort or
+owner-side random draw. Evidence: `0x00560812–0x00560998`, candidate helper
+`0x0055BF70–0x0055C022`.
+
+For each of the `N` steps in §12.15:
+
+1. Call signed advancement slot 133 (§12.9) with the fixed substep distance,
+   start `H`, a separate output front point, the live segment index and point
+   collection, and remainder at `+0x260`. A negative step retains that helper's
+   backwards extrapolation along the current segment. If it returns false,
+   call `ChooseNewPlayerDriveDestination` with the current direction scratch
+   vector (initially `D`, subsequently the chosen facing below). Failure
+   disables the owner through slot 13 with false and returns true immediately.
+   Success continues this substep using the advancement output; it does not
+   repeat advancement against the new path in this substep.
+2. Form the difference of the current indexed pair of **stored path points**.
+   With length above the threshold, normalize it; if `F` is set, replace each
+   component by `(new + new + F) × f32(1/3)`. The sums and resulting components
+   have binary32 stores, and the result is **not renormalized**. With a
+   degenerate segment use `F` unchanged when set, otherwise `(0,0,1)`.
+3. Copy the output front to the previous-position fields `+0x4C..+0x54`.
+   Apply centre `outputFront − chosenFacing × r × 0.5` and that facing through
+   slot 16. Save the facing in `F`, copy the output to `H`, and clear flag
+   `0x20`. Store rear anchor `B=outputFront − chosenFacing × r`; copy the
+   chosen facing to both drive-state `+0x50` and `+0x38`.
+4. Query collision slot 190 with the usual unset direction and fraction 1.
+   A hit resolves collision and ends substepping; a miss continues. Geometry
+   has already been written when this query occurs.
+
+The half-radius products used for the centre and full-radius products used for
+the rear are distinct binary32 temporaries. A smoothed facing shorter than one
+therefore also shortens the front-to-centre/rear separation. Evidence:
+`0x005609BA–0x00560A04`, `0x00560A06–0x00560BD5`,
+`0x00560BD5–0x00560D9B`.
+
+On path exhaustion, `ChooseNewPlayerDriveDestination` requests the neighbor
+in direction `(lowByte(pathKey)+2) mod 4`, with additional arguments zero and
+true. No neighbor returns false. At a neighbor, slot 171 supplies filters using
+the supplied direction and true. Ask for type-1 candidates at `H` with those
+filters and distance 4; try the first key, then fall back to a query retaining
+the first filter and using `0xFF` for the second. Try only the first key from
+each returned list. A usable collection calls slot 132 with neighbor, key,
+points and true and returns true; otherwise false. There is no direct random
+draw here. Evidence: `0x0055F938–0x0055FA55`.
+
+After the network loop, steering outside the parameter `+0x34` bounds requests
+another path on the current occupant: the negative test also requires live
+points, while the positive test does not. Slot 171 supplies direction filters;
+the path request uses type 1, `H`, and false as its final argument. For a new,
+nonnull collection different from the current collection, project a copy of
+`H`; only an absolute height difference below 4 permits slot 132 with true
+and replacement of the segment index. Copy that projected point to the
+previous-position fields. Do not apply another movement step here.
+
+There is then an additional side-path request only with positive slot-38
+speed, live points, and drive-state byte `+0xE6` or `+0xE7`. Construct the
+horizontal side vector `(-D.z,0,D.x)`, negating it when `+0xE6` is set (that
+byte wins if both are set), normalize it and scale its length to 5. Add it
+to **facing `D`**, not to centre `C`, to form the direction argument. Ask the
+path interface at byte slot `+0x9C` using current key, `C`, that argument,
+binary32 `0.8`, and output point/key/index. On success project the returned
+key's collection; an absolute projected-height difference from `C.y` below
+4 permits slot 132 with the tick's network occupant, returned key, null
+points and true, followed by the returned segment index. These post-loop
+queries can run after a collision terminated the loop. Evidence:
+`0x00560DA0–0x00561060`.
+
+#### Off-network anchors, steering and obstacle response
+
+Slot 187 (`0x0055ED10`) receives elapsed substep time, drive state, signed
+distance `d`, parameters and the tick's network result. Its geometry uses
+`d`, not another elapsed-time multiplier. At `d=0`, return true without
+initializing anchors, querying heights or applying a transform. The caller's
+separate slot-190 query still follows it.
+
+For nonzero distance, compute `R` from the current facing and steering. If `H`
+is unset, initialize `H=C+D×r×0.5`. Compute proposed front `H+R×d` and proposed
+rear `B+V×d`. Normalize their difference to get `U`, or use current `D` when
+its length is at most the threshold. Advance the **old** rear by `U×d`, then
+call `PlayerDriveGetNetwork` with that rear as both input and output, allowing
+it to replace the height. Form prospective front `B+U×r`. Probe the segment
+from old `H` to that front through slot 189, with outputs for the horizontal
+hit point and horizontal normal. This probe precedes the caller's separate
+slot-190 collision phase. Evidence: `0x0055ED10–0x0055F079`.
+
+On a probe miss, set `H=B+U×r`, first overwrite `H.y` with `B.y`, then resolve
+`H`'s height with another in-place network query. Recompute `U` from `H−B`
+with the same normalization/fallback rule, and reset `B=H−U×r`. Update each
+rear-direction component by `V += (U−V)×parameter(+0x38)`; there are binary32
+stores before adding the scaled differences. Do not clamp that coefficient,
+multiply it by `dt`, normalize the blended direction, or replace baseline
+`+0x38`. Evidence: `0x0055F229–0x0055F380`.
+
+On a probe hit, take `H.x/H.z` from its hit point, set `H.y=B.y`, and resolve
+`H`'s height in place. Normalize the horizontal `(U.x,U.z)` to `W`. For the
+supplied horizontal normal `n`, form
+`J = W − (n × f32(1.1)) × dot(W,n)` and store its components as binary32;
+let `q` be the binary32 stored length of `J`. No normalization of `n` or
+zero-horizontal-length guard is inserted by this owner. At `q >= f32(0.9)`,
+replace `U` by `(J.x/q,0,J.z/q)` and set new speed to the binary32 value of
+current speed tween × q. At smaller q, new speed is zero and `U` retains
+its pre-hit value. Clear acceleration accumulator `+0x28`; if the speed
+tween target differs from new speed, capture its current value as start,
+set its target, and zero its elapsed/duration words. Store new state speed
+`+0x2C` and `V=U`, then reset `B=H−U×r`. Evidence:
+`0x0055F083–0x0055F224`; constants at `0x00A8FAF4/0x00A88218` are binary32
+`1.100000023841858/0.8999999761581421`.
+
+In both outcomes apply centre `H−(H−B)×0.5` and facing `U` through slot 16,
+then return true. This midpoint computation follows the rear/height changes;
+it is not simply the old centre plus rotated direction times distance. This
+helper does not replace the saved path-facing vector `F`. Evidence:
+`0x0055F383–0x0055F3EF`.
+
+#### Worked geometry cases
+
+The cases below supply flat, unchanged heights and no collision unless a hit
+is specified. All vectors are `(x,y,z)`; foreign queries return exactly the
+paths or probe results stated. Speed/substep selection is independently
+covered by §12.15.
+
+| Setup | Required result |
+|---|---|
+| Network points `(0,0,0),(10,0,0)`, index 0, `H=(2,0,0)`, unset `F`, radius 4, distance 3 | `H=(5,0,0)`, facing `(1,0,0)`, centre `(3,0,0)`, rear `(1,0,0)`; both state directions become `(1,0,0)`; one collision query after placement. |
+| Same, but saved `F=(0,0,1)` | Facing `(2×f32(1/3),0,f32(1/3))`; centre `H−facing×2`, rear `H−facing×4`. Facing length remains below one. |
+| Same unsmoothed path and start, distance −3 | Front `(−1,0,0)`, centre `(−3,0,0)`, rear `(−5,0,0)`; facing stays `(1,0,0)`, index 0. |
+| Reattachment candidate projection is 4 above `H.y`; next candidate is 3 above | Reject the first, restore the input front, accept the second and its index. |
+| Off-road `C=(0,0,0)`, `D=(1,0,0)`, unset `H`, rear `(−2,0,0)`, rear direction `(0.5,0,0)`, radius 4, steering 0, distance 1, blend parameter 0.25 | Initialize front `(2,0,0)`; finish front `(3,0,0)`, rear `(−1,0,0)`, centre `(1,0,0)`, facing `(1,0,0)`, rear direction `(0.625,0,0)`. Baseline direction is unchanged. |
+| Same off-road geometry, probe hit at horizontal `(2.5,0)`, normal `(1,0)` | Horizontal response length is about 0.1, below 0.9: speed and accumulator become zero, facing stays `(1,0,0)`; front `(2.5,0,0)`, rear `(−1.5,0,0)`, centre `(0.5,0,0)`. |
+| Off-road distance zero with unset front | Helper returns true and leaves the front unset; no slot-189/height/transform call inside the helper. The tick still performs its slot-190 query. |
