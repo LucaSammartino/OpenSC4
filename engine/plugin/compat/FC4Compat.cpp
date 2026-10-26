@@ -531,7 +531,8 @@ uintptr_t DirectCall(Direct which) {
                                          "lua _dofile_from_resource", "lua print",
                                          "UpdateResourcesFromDirectory", "LoadPackageScripts",
                                          "placeable pool allocate", "placeable constructor",
-                                         "texture binding AddRef", "texture binding Release"};
+                                         "texture binding AddRef", "texture binding Release",
+                                         "pole GetAttachmentPoints"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
