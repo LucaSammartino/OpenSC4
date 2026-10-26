@@ -14,6 +14,8 @@ mod dirty;
 pub use dirty::*;
 mod backing;
 pub use backing::*;
+mod shake;
+pub use shake::*;
 
 pub const CLASS_ID: u32 = 0xE9C6_22D8;
 
@@ -74,6 +76,7 @@ pub struct Render3d {
     ui_matrix: [f32; 16],
     dirty: DirtyQueue,
     grid: Option<QuadGrid>,
+    shakes: Shakes,
     state: State,
 }
 
@@ -93,6 +96,7 @@ impl Render3d {
             ui_matrix: [0.0; 16],
             dirty: DirtyQueue::default(),
             grid: None,
+            shakes: Shakes::default(),
             state: State::default(),
         }
     }
@@ -136,6 +140,7 @@ impl Render3d {
             host.destroy_helper(context);
         }
         self.clear_dirty_rectangle_queue(host);
+        self.shakes.clear();
         self.references = 0;
         self.destroyed = true;
         0
@@ -191,5 +196,7 @@ mod backing_tests;
 mod dirty_tests;
 #[cfg(test)]
 mod grid_tests;
+#[cfg(test)]
+mod shake_tests;
 #[cfg(test)]
 mod tests;
