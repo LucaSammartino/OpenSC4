@@ -33,12 +33,12 @@ pass-order boundary reviewable; it does not close the prebuilt occupant owner.
 | §10.3 Clip 0: null/contained early-out; six-plane cut unspecified | `clip`, `UnspecifiedClipMode` | `mode_zero_only_rejects_the_unspecified_cut`; open: NO29 |
 | §13 test 24: returned instance, corner-height deformation | `PrebuiltPiece::get_model_instances`, `Deformation::from_corners` | `model_conformance_24_returns_separate_instance_with_corner_heights` |
 
-### Remaining owners (not closed)
+### Other owner audit
 
-The model-only subset above remains the only whole owner closed. The detailed
-tables below map the settled pole, pylon and connection contracts to core code
-and tests, with explicit Unsupported boundaries only for the remaining spec
-questions. NO12–NO14, NO30, NO32–NO35, NO37 and NO43 are answered in the spec;
+The detailed tables map pole, pylon and connection contracts to core code and
+tests. Power pole, its connection record and power line are implemented for the
+published core contracts; base, prebuilt, underground, pylon and underground
+connection still have implementation work. NO12–NO14, NO30, NO32–NO35, NO37 and NO43 are answered in the spec;
 the rows below distinguish applied answers from remaining implementation work.
 UG5/NO40 retain the runtime observation in network §3.6.6 (NO40-C).
 
@@ -59,9 +59,9 @@ UG5/NO40 retain the runtime observation in network §3.6.6 (NO40-C).
 | cSC4UndergroundConnectionOccupant | network §3.6; underground §§1,4–9 | `ConnectionRecord`, `UndergroundConnection`, `ConnectionStatics`; records, creation searches/surface, lifetime and interface rules tested; geometry/bounds/Draw/messages open: UG5/NO40; detailed table below |
 | cSC4PowerLineOccupant | network §§1,5.1 | implemented: NO13 applied by `PowerLine::{set_connected_poles_acquired,get_connected_poles_acquired,shutdown_acquired}`; `power_line::lifecycle_tests::line_layout_and_shutdown_forwarding_conformance_74`, `tests::{pole_line_pylon_qi,power_line_slots}`; native view adjustment remains adapter responsibility |
 | cSC4PowerLineOccupant | network §§5.2,11,13 tests 2,18 | implemented: `PowerLine::{from_record,record}`, `PowerLineRecord`; `tests::{power_line_record_round_trip,power_line_live_record_keeps_saved_cells_and_float_bits}`; creation belongs to power-line tool |
-| cSC4PowerPoleOccupant | network §§1,4.1–4.2 | constructor/getters/highlight/enumeration and identity tested; full model/pool/bounds open: NO33; detailed table below |
-| cSC4PowerPoleOccupant | network §4.3 | `PowerLineControl`, `PoleStatics::init_once`, `PowerPole::init_published_state`; open: NO33 |
-| cSC4PowerPoleOccupant | network §§4.4,11,13 tests 2,4,16,17 | nested record/shared tables/IIDs/cleanup and signed property quote tested; native pool open: NO33 |
+| cSC4PowerPoleOccupant | network §§1,4.1–4.2 | implemented: identity, constructor, getters, model, bounds, pick and pool policy; NO33/NO43 applied; detailed table below |
+| cSC4PowerPoleOccupant | network §4.3 | implemented: `PoleStatics::initialize`, `PowerPole::{init,set_default_exemplar}`; `pole_init_guard_exemplar_refresh_and_destruction_conformance_71_73`; legacy `init_published_state` remains a prefix helper |
+| cSC4PowerPoleOccupant | network §§4.4,11,13 tests 2,4,16,17,62 | implemented: nested record/shared tables/IIDs/cleanup/quote and portable pool policy; `pool::tests::native_pool_policy_conformance_62` plus record/quote tests below |
 | cSC4PylonOccupant | network §§1,6.1–6.3,11,13 tests 2,19,20,40–42,45–48 | record, constructor, placements, setters, timer, cached bounds/transforms, pick and ordinary textures tested; model composition/Draw/messages open: NO36; detailed table below |
 
 Network §§0,8,9 are overview/other owners. Section 13 tests 14–17,19–23,25
@@ -72,36 +72,36 @@ wiring.
 ### cSC4PowerPoleOccupant
 
 `power_pole.rs` owns the settled contracts below; tests are in
-`tests_power_pole.rs` unless qualified. NO34/NO35 are implemented, not open.
-Raw native pool allocation and complete model/wire/render computations remain
-explicitly unsettled by NO33/NO43. `PoleUnsupported` exposes the cell-walk,
-diagonal-floor and model/bounds/Pick/Draw boundaries; no foreign trait returns
-an original-owner result. Terrain, manager, stream, renderer and effect calls
-remain foreign primitives. `fresh()` implements published constructor defaults;
-`new(fields)` and the legacy `init_published_state` are explicit state/prefix
-helpers and do not stand in for complete initialization.
+`tests_power_pole.rs` unless qualified. Status: implemented (NO33–NO35/NO43).
+Model/lifecycle/bounds/Pick/Draw are in `power_pole/model.rs`, connection
+construction/refresh in `power_pole/links.rs`, pool policy in `power_pole/pool.rs`.
+Terrain, manager, stream, renderer and effect calls remain foreign primitives.
+Pool tokens represent the specified offsets and rings, not native addresses;
+the adapter owns actual native storage and interface adjustment. `fresh()`
+implements constructor defaults; `new(fields)` and `init_published_state` are
+explicit state/prefix helpers, while `init` implements the full lifecycle.
 
 | Spec section | Code item | Covering test or explicit open remainder |
 |---|---|---|
 | network §1.1, §1.3 identity/type | `NetOccClass::PowerPole`, `PowerPole::fresh` | `tests::class_ids_and_types`, `pole_constructor_shared_tables_and_geometry_conformance_43_44` |
 | network §1.2, §4.1 QI/delegate and null-this | `identity::{query_interface,null_this_returns_true}`; delegate is a foreign interface query | `tests::pole_line_pylon_qi`; core-only metadata, no ABI thunk claim |
 | network §1.4 | network flag queries belong to the network-piece owner | no additional pole algorithm |
-| network §4.1 constructor/layout | `PoleFields::default`, `PowerPole::fresh`, `PoleConnection` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`; native 0x124 pool open: NO33 |
+| network §4.1 constructor/layout/pool | `PoleFields::default`, `PowerPole::fresh`, `PoleConnection`, `pool::PolePool` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`, `pool::tests::native_pool_policy_conformance_62` (112 blocks, full marker, 84 threshold, deletion/free-list/sole-pool behavior) |
 | network §4.2 connection/cell/preview/highlight/sort/model enumeration | getters, `set_preview`, `set_highlight`, `sort_value`, `model_instances` | `connection_views_and_published_state`, `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
-| network §4.2 bounds/transform/Pick, §4.3 full Init/model/default-exemplar refresh | `PoleUnsupported::ModelBoundsPickDrawNO33NO43`; state-prefix helper is not full Init | open: NO33, NO43 |
+| network §4.2 bounds/transform/Pick, §4.3 Init/model/default-exemplar refresh | `model::{occupant_bounds,local_bounds,pick,get_transform,set_transform,init,set_default_exemplar}` | `model::tests::{occupant_bounds_conformance_54_55,pole_pick_conformance_68,own_transform_and_model_query_do_not_move_position_or_delegate,pole_init_guard_exemplar_refresh_and_destruction_conformance_71_73}`; NO33/NO43 applied |
 | network §4.3 tuning/quote/static lifetime | `PowerLineControl::load`, `PoleStatics::{initialize,demolition_cost,shutdown}`, `POLE_TEXTURES` empty bindings | `tests::control_variables`, `pole_quote_conversion_once_and_independent_controls_conformance_17`, `static_controls_load_once_and_cost_preserves_both_words`; variant conversion is foreign |
 | network §4.3 insertion message / §4.7 shutdown | `on_inserted_message`, `insert_lines`, `shutdown` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
 | network §4.4 record gates/codec/shared table/cleanup | `PowerPole::{write,read_into}`, nested `PoleConnection::vertices`, `read_wall_into` | `pole_nested_record_iids_shared_overwrite_and_failure_cleanup_conformance_16`, `pole_legacy_v4_future_versions_and_raw_bool_read` |
 | network §4.5 creation/consumption | power-line tool and power simulator are foreign owners | no additional pole algorithm |
 | network §4.6 table selection/points and shared overwrite | `AttachmentTables`, `init_connection_points`, `attachment_points` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`, pole record tests |
 | network §4.6 insert/remove/break and retained records | `insert_lines`, `remove_connection_record`, `remove_connection`, `break_all_connections` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
-| network §4.6 line-cell lookup/delegation; wire construction/cell walk | `line_cells`, `line_cells_to`; precise walk returns `PoleUnsupported` | connection test above; open: NO33, NO43 (wire sampling is also assigned to power-line-tool) |
+| network §4.6 line-cell lookup/delegation; wire construction/cell walk | `line_cells`, `line_cells_to`, `links::{add_connection,rebuild_wires,enable_connection}` | `pole_cell_walk_conformance_65`; `links::tests` cover counted duplicates, nonowners, unsigned ordering, wet refresh accumulation and coincident cells; NO33/NO43 applied |
 | network §4.7 distress | `set_distressed`, `stop_distress_effect` | `pole_connections_effects_messages_and_model_attributes_conformance_38_39` |
-| network §4.7 position/model/zoom/Draw/DrawPowerlines | `PoleUnsupported::ModelBoundsPickDrawNO33NO43` | open: NO33, NO43; the published summaries are not complete algorithms |
-| network §4.7.1 unrotated floor/wall inputs, alpha, UVs, ordered edges | `create_floor`, `wall_quad`, `create_walls` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`; diagonal rotation open: NO43 |
+| network §4.7 position/model/zoom/Draw/DrawPowerlines | `model::{set_position_with_model,load_model,change_zoom_level,draw}`, `wire_quads`, `wire_submissions` | `model::tests::{model_resource_failure_preserves_old_delegate_success_releases_in_order,zoom_always_rebuilds_model_and_geometry_but_textures_only_on_shared_change,draw_has_three_lighting_queries_two_shade_resets_and_inherited_wire_state,failed_model_load_does_not_suppress_faces_and_null_plus_zoom_change_loads_twice}`, `pole_wire_quads_conformance_69` |
+| network §4.7.1 floor/wall inputs, diagonal rotation, alpha, UVs, ordered edges | `create_floor`, `wall_quad`, `create_walls` | `pole_constructor_shared_tables_and_geometry_conformance_43_44`, `pole_diagonal_floor_conformance_66`; NO43 applied |
 | network §7.2 reference ownership, §11 quirks 2,6,11,12,21,22,24,25 | distinct ref IIDs, shared table mutation, retained records, signed quote, highlight | record, quote and connection tests above; safe `Option` getter exposes the native unchecked-index precondition |
-| network §11 quirk 23 off-map position | full position/model path remains unsettled | open: NO33; specified y fallback must accompany that implementation |
-| network §12 / §13 tests 2,4,16,17,35,38,39,43,44 | implementations/tests above | test 4 native allocation open: NO33; test 35 identity metadata tested, actual forwarding is ABI glue |
+| network §11 quirk 23 off-map position | `set_position`, `model::set_position_with_model` | `pole_position_corner_ties_nan_off_map_and_extended_reciprocal`, `model::tests::pole_position_updates_delegate_but_keeps_own_transform_and_clean_bounds`; off-map floor height uses position.y |
+| network §12 / §13 tests 2,4,16,17,35,38,39,43,44,54,55,62–73 | implementations/tests above, `model::destroy_resources` | tests above plus `pole_distress_retry_and_stop_modes_conformance_73`; test 35 native forwarding is adapter work, not a core algorithm |
 
 ### cSC4PowerPoleOccupant::tConnection
 

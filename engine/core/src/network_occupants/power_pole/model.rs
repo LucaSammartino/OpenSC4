@@ -100,7 +100,10 @@ pub trait PoleRenderHost: PoleModelHost {
 impl PowerPole {
     /// §4.7: model positioning precedes rebuilt faces and effect positioning.
     pub fn set_position_with_model(
-        &mut self, position: [f32; 3], terrain_width: f32, corners: Option<[f32; 4]>,
+        &mut self,
+        position: [f32; 3],
+        terrain_width: f32,
+        corners: Option<[f32; 4]>,
         host: &mut (impl PoleModelHost + PoleHost),
     ) -> Result<(), PoleUnsupported> {
         self.fields.position = position;
@@ -108,7 +111,11 @@ impl PowerPole {
         self.fields.model_y = match corners {
             Some(corners) => {
                 let mut lowest = corners[0];
-                for height in &corners[1..] { if *height < lowest { lowest = *height; } }
+                for height in &corners[1..] {
+                    if *height < lowest {
+                        lowest = *height;
+                    }
+                }
                 lowest
             }
             None => position[1],

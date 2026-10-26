@@ -267,12 +267,15 @@ fn pole_init_guard_exemplar_refresh_and_destruction_conformance_71_73() {
 #[test]
 fn pole_position_updates_delegate_but_keeps_own_transform_and_clean_bounds() {
     let mut p = PowerPole::fresh();
+    // §4.3 Init establishes the cached view before the tool places the pole.
+    p.model_ids = [2, 3];
     p.model = reference(80);
     p.fields.transform.translation = [91.; 3];
     p.stale = false;
     p.bounds_cells = [1, 2, 3, 4];
     let mut host = Host::default();
-    p.set_position_with_model([10., 20., 30.], 16., Some([7., 8., 9., 10.]), &mut host).unwrap();
+    p.set_position_with_model([10., 20., 30.], 16., Some([7., 8., 9., 10.]), &mut host)
+        .unwrap();
     assert_eq!(host.transform.translation, [11., 22., 33.]);
     assert_eq!(p.fields.transform.translation, [91.; 3]);
     assert_eq!(p.fields.model_y, 7.);
