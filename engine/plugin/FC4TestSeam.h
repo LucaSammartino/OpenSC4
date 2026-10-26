@@ -323,6 +323,7 @@ enum : uint32_t {
     kFC4SeamNetworkCrewOwnership = 78,  // specified slot-5 shutdown and reentrant unregister
     kFC4SeamNetOccPoleLink = 0x4E4F0002, // a = FC4NetOccPoleLinkTest*, b = null
     kFC4SeamDemolitionLotBuilding = 0xD3000001, // a = borrowed lot; returns borrowed occupant token
+    kFC4SeamDemolitionLotOccupants = 0xD3000002, // a = query-owned occupant list; returns reference warnings
 };
 
 class cIGZUnknown;

@@ -218,6 +218,17 @@ bool DemolitionRealisticFilterIncludes(cISC4Occupant* o) {
     return !RealisticRejects(o);
 }
 
+void DemolitionVisitOccupants(SC4List<cISC4Occupant*>& list, fc4_token_callback cb, void* ctx) {
+    for (cISC4Occupant*& o : list) {
+        if (o != nullptr) {
+            FC4_ACQUIRED(o, "GetLotOccupants");
+            cb(ctx, TokenOf(o));
+            FC4_RELEASE_CREATED(o);
+            o = nullptr; // SC4List's destructor releases non-null pointer elements.
+        }
+    }
+}
+
 // ---- the occupant manager's box and cell-rect queries (OM §8) -------------------------------------
 
 std::shared_ptr<void> DemolitionOccupantsInBox(cISC4City* city, float x0, float z0, float x1, float z1,
@@ -714,8 +725,9 @@ void DestroyNetworkOccupants(void* u, const uint64_t* tokens, size_t count) {
         }
     }
     reinterpret_cast<cFC4NetworkManager*>(nm)->DestroyNetworkOccupants(list);  // slot 6 void
-    for (cISC4Occupant* o : list) {
+    for (cISC4Occupant*& o : list) {
         if (o != nullptr) o->Release();
+        o = nullptr; // the SDK list destructor must not release the same reference again
     }
 }
 
@@ -764,10 +776,12 @@ void LotsInCellRect(void* u, const fc4_cell_rect* r, fc4_token_callback cb, void
     if (lm == nullptr) return;
     fc4::GameList<cISC4Lot*> lots;
     fc4::AsGame(lm)->GetLotsInCellRect(lots, r->x1, r->z1, r->x2, r->z2, false);  // slot 7
-    for (cISC4Lot* l : lots) {
+    for (cISC4Lot*& l : lots) {
         if (l != nullptr) {
+            FC4_ACQUIRED(l, "GetLotsInCellRect");
             cb(ctx, TokenOf(l));
-            FC4_RELEASE_CREATED(l, "GetLotsInCellRect");  // one reference each (OM/lot manager contract)
+            FC4_RELEASE_CREATED(l);  // one reference each (OM/lot manager contract)
+            l = nullptr; // GameList's destructor also releases non-null pointer elements
         }
     }
 }
@@ -796,12 +810,7 @@ void LotOccupants(void*, uint64_t t, fc4_token_callback cb, void* ctx) {
     // Slot 49 GetLotOccupants [abi-ret] via-call: one reference each.
     SC4List<cISC4Occupant*> list;
     fc4::AsGame(l)->GetLotOccupants(list);
-    for (cISC4Occupant* o : list) {
-        if (o != nullptr) {
-            cb(ctx, TokenOf(o));
-            FC4_RELEASE_CREATED(o, "GetLotOccupants");
-        }
-    }
+    DemolitionVisitOccupants(list, cb, ctx);
 }
 
 void LotSize(void*, uint64_t t, uint8_t* sx, uint8_t* sz) {
@@ -907,7 +916,10 @@ bool CreateLotIfPossible(void* u, int32_t x, int32_t z, uint32_t facing) {
     cISC4Lot* created = nullptr;
     const bool ok = fc4::AsGame(lm)->CreateLotIfPossible(x, z, 1, 1, static_cast<int32_t>(facing), created, false,
                                                         false, nullptr);  // slot 22
-    if (created != nullptr) FC4_RELEASE_CREATED(created, "CreateLotIfPossible");
+    if (created != nullptr) {
+        FC4_ACQUIRED(created, "CreateLotIfPossible");
+        FC4_RELEASE_CREATED(created);
+    }
     return ok;
 }
 

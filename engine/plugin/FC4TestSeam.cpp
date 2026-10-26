@@ -315,6 +315,12 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             const auto host = fc4::MakeDemolitionHost(nullptr);
             return static_cast<intptr_t>(host.lot_building(nullptr, reinterpret_cast<uintptr_t>(a)));
         }
+        case kFC4SeamDemolitionLotOccupants: {
+            const long before = fc4::RefWarningCount();
+            fc4::DemolitionVisitOccupants(*static_cast<SC4List<cISC4Occupant*>*>(a),
+                                         [](void*, uint64_t) {}, nullptr);
+            return fc4::RefWarningCount() - before;
+        }
         default:
             return 0;
     }

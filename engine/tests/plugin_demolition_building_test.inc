@@ -12,6 +12,27 @@ void* __fastcall GetResult(Interface* self, void*) {
     ++self->calls;
     return self->result;
 }
+struct Occupant {
+    void** vtbl;
+    uint32_t refs = 1, acquisitions = 0, releases = 0;
+};
+bool __fastcall Query(Occupant*, void*, uint32_t, void** out) {
+    if (out) *out = nullptr;
+    return false;
+}
+uint32_t __fastcall AddRef(Occupant* self, void*) {
+    ++self->acquisitions;
+    return ++self->refs;
+}
+uint32_t __fastcall Release(Occupant* self, void*) {
+    ++self->releases;
+    return --self->refs;
+}
+struct Allocator {
+    static bool Available() { return true; }
+    static void* Allocate(uint32_t size) { return std::malloc(size); }
+    static void Free(void* p) { std::free(p); }
+};
 } // namespace demolition_building_test
 
 void DemolitionBuildingInterfaceChecks(FC4TestSeamFn seam) {
@@ -36,4 +57,21 @@ void DemolitionBuildingInterfaceChecks(FC4TestSeamFn seam) {
     building.result = nullptr;
     CHECK(seam(kFC4SeamDemolitionLotBuilding, &lot, nullptr) == 0);
     CHECK(lot.calls == 3 && building.calls == 2);
+    // A query-supplied reference is registered before release, without an
+    // extra AddRef or a false over-release warning in the audit.
+    occupantVt.slots[0] = reinterpret_cast<void*>(&Query);
+    occupantVt.slots[1] = reinterpret_cast<void*>(&AddRef);
+    occupantVt.slots[2] = reinterpret_cast<void*>(&Release);
+    Occupant queried{occupantVt.slots.data()};
+    {
+        // SDK-compatible layout; this test allocator needs no game framework.
+        // Its destructor, like SC4List's, releases non-null pointer values.
+        fc4::GameList<cISC4Occupant*, Allocator> list;
+        AddRef(&queried, nullptr); // one owned reference supplied by a query
+        CHECK(list.push_back(reinterpret_cast<cISC4Occupant*>(&queried)));
+        CHECK(list.push_back(nullptr));
+        CHECK(seam(kFC4SeamDemolitionLotOccupants, &list, nullptr) == 0);
+        for (auto* value : list) CHECK(value == nullptr);
+    }
+    CHECK(queried.refs == 1 && queried.acquisitions == 1 && queried.releases == 1);
 }

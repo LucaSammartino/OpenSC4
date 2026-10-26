@@ -372,6 +372,10 @@ void DemolitionHostReleaseAll(DemolitionHostContext* ctx);
 bool DemolitionDefaultFilterIncludes(cISC4Occupant* o);
 bool DemolitionRealisticFilterIncludes(cISC4Occupant* o);
 
+// Visits query-owned references, then releases and clears each list value so
+// the SDK list destructor only frees nodes (one release per query reference).
+void DemolitionVisitOccupants(SC4List<cISC4Occupant*>& list, fc4_token_callback cb, void* ctx);
+
 // Every occupant the manager lists in the world box / the standard-city-cell
 // rectangle, one reference each until the list goes (`holdIn`: kept in the
 // context until DemolitionHostReleaseHeld). The box query is occupant manager
