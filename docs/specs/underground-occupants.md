@@ -98,7 +98,8 @@ From the pipe-corner geometry table (24-byte points at `0x00B0BA68`, x at +0 and
 
 With the shipped table: `L = (11.31371, 7.33553, 6.35335, 4.96035, 3.97818)`, so the ratios are 0.648375,
 0.5615625, 0.4384375 and 0.351625. The descriptor (§1) points at these tables; the base recomputes them in `Init`
-(network-occupants.md §3.2); how they enter the vertices is NO40. Finally, unless the base's static set-up already ran
+(network-occupants.md §3.2); their index-position height weighting is specified in §3.2.1 there.
+Finally, unless the base's static set-up already ran
 (`0x00B45250`), it runs it and returns its result; otherwise true. A second call returns false and does nothing.
 
 ## 3. Subway occupant *[compat]*
@@ -193,7 +194,7 @@ view-dependent-model predicate; main slot 41 reloads zoom-dependent textures, no
 Main slot 36 enumerates one adjusted model-instance pointer with one AddRef. SetPosition copies position
 only. The unattached connection floor/wall builders and their slope-UV quirk are specified in
 network-occupants.md §3.6.2, with conformance cases in its §13 tests 49–50. Descriptor-dependent
-geometry/drawing and remaining message/view/transform decisions remain UG5.
+geometry and drawing are refined by the 2026-10-26 rules below; messages are specified in the next paragraph.
 
 *[compat; UG5 message subset, 2026-10-24]* Connection message decisions are now fully specified in
 network-occupants.md §3.6.4/tests 60–61. Insertion queries the layer interface and compares both
@@ -207,8 +208,31 @@ messages compare the two payloads' u32 at +4, not their pointer identities. Ever
 The model-view bounds wrapper `0x00654140` adjusts this by −0x24C and delegates the two output
 vectors to primary slot 10. `0x00654160` is the attached Refresh(true) call, despite its exported
 GetWorldBounds label. Together with the mislabelled `0x00648360` layer-interface query (§4 table),
-these names must not be used to invent transform accessors. Complete geometry, Draw and
-view-dependent transform/bounds generation remain open under UG5/NO40.
+these names must not be used to invent transform accessors.
+
+*[compat; UG5 answer narrowed to runtime observations, 2026-10-26, re-no29]*
+Network-occupants.md §3.6.5 now specifies the twelve-word pipe/subway connection descriptor,
+resource ownership, ordered CreatePieceModel/CreateWalls/CreateFloor calls, upper/lower indexed
+height changes, UV generation, colour replacement and bounding algorithm. §3.6.6 specifies
+packed value/mask words, all Draw passes, segment-normal lighting, mesh/material submission and
+the rebuild-byte lifetime. These rules extend the already settled creation/neighbors, callback,
+records, refs, notifications, enumeration, messages and position contracts above.
+
+**Worked UG5 cases:** with position=(8,100,8), surface corners spanning x/z=0…16 and
+y=(80,81,82,83), original heights=(100,101,102,103), bounds are (0,80,0)…(16,103,16),
+even if a loaded mesh extends further. Starting +17C=true with empty geometry, two ordinary
+pass-0 Draw calls each rebuild and return 2 without clearing +17C; the next ordinary pass 1
+rebuilds and clears it, returning 1. The following pass 1 skips the rebuild. A self-lit call
+does not clear it. With ten custom vertices in segment mode, draw four overlapping windows
+starting at vertices 0,2,4,6; ordinary mode makes one ten-vertex submission.
+
+The exact view-dependent matrix words, attached ceiling query's side argument and original
+template/shade input bytes remain the specific observation NO40-C in network-occupants.md
+§3.6.6: it names capture addresses, bounded array lengths and view/attachment variants.
+Shared base piece selection and compact-transform composition have separate observations
+NO40-A/B in §3.2.3 there. No geometry owner is declared fully closed until the relevant
+observations agree with the independent algorithms; original-owner result callbacks do not
+stand in for mesh generation. No save-version, IID or offset ambiguity remains in UG5.
 
 ## 5. Vtables and thunks
 
@@ -261,10 +285,9 @@ occupants' vtables.
 - **UG3:** subway pieces `0x300` and `0x4B00` (the ones whose floor comes from the second vertex list), and what the
   zipper piece type answer selects.
 - ~~**UG4:**~~ answered 2026-10-21 (re-ugbase): they are the connections' occupant types (network-occupants.md §3.6).
-- **UG5:** connection owner closure remains partial; §4 and network-occupants.md §3.6.1 now specify record
-  validation/refs, creation inputs and neighbor decisions, static cleanup, packed states, model enumeration,
-  position copying and linked-reference/model-state changes. Full geometry, drawing and view/message behavior
-  still require a trace.
+- ~~**UG5:**~~ narrowed 2026-10-26 (re-no29): §4 links the settled connection algorithms and worked
+  cases. The remaining exact matrix/ceiling/input-data observation is network-occupants.md §3.6.6 NO40-C;
+  this is not a claim of full geometry-owner closure. See the answered archive for the original question.
 
 ## 9. Conformance tests
 
