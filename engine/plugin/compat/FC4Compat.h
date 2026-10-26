@@ -94,6 +94,15 @@ enum class Direct : unsigned {
     // terrain-view.md §9.3). ECX is the view object base, not IID 0x6771477D.
     TerrainViewInit,      // thiscall (primary cISTETerrain*), pop 4, AL
     TerrainViewShutdown,  // thiscall (), pop 0, result ignored
+    // overlay-manager.md section 4.6.1: thiscall on the COMPLETE terrain-view base.
+    OverlayLandRect,                 // rectangle value, context; pop 20, void
+    OverlayLandRectDynamic,          // rectangle value, context; pop 20, void
+    OverlayLandRectExtension,        // context, extension, rectangle value; pop 24, void
+    OverlayLandRectDynamicExtension, // context, extension, rectangle value; pop 24, void
+    OverlayWaterRect,                // rectangle value, context; pop 20, AL (ignored)
+    OverlayWaterRectDynamic,         // rectangle value, context; pop 20, AL (ignored)
+    OverlayShadowRect,               // rectangle pointer, context; pop 8, void
+    OverlayShadowRectDynamic,        // rectangle pointer, context; pop 8, void
     Count
 };
 
