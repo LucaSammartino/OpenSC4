@@ -273,9 +273,10 @@ Bytes following slot 6 are strings, not further methods.
 | Control notification / initialize dialog | `0x004F35F0` / `0x004F44C0` |
 
 Persistent preferences are separate from the window's state: window references at `+4` / `+8`,
-modal-notification flag at `+0x0C`, preferences pointer at `+0x10`. Construction and the
-complete song enumeration/exclusion format remain AU43. Do not assume a preference rewrite
-merely because a window notification was consumed.
+modal-notification flag at `+0x0C`, preferences pointer at `+0x10`. The full construction,
+defaults, song discovery/exclusion persistence, controls and close ordering are
+[audio-preferences.md](audio-preferences.md) §§1–7, with AU43 worked cases in §9.1.
+Do not assume a preference rewrite merely because a window notification was consumed.
 
 ### 21.2 Sound and preference IO
 
@@ -291,8 +292,9 @@ otherwise zero, followed by three zero arguments. Independently, it posts messag
 system suppresses the direct call but does not suppress the message. *[compat]*
 
 EndDialog posts `0xAA650861` when its modal-notification flag is set, detaches the dialog
-from its parent and releases the held window reference (`0x004F2480`). Shutdown
-`0x004F2210` releases its held window reference. Exact OK/cancel/revert ordering remains AU43.
+through its manager and releases the held window reference (`0x004F2480`). Shutdown
+`0x004F2210` clears P and releases its held **grid** reference. Exact OK/cancel ordering
+and Cancel's restore operation are audio-preferences §§6.5–6.6, 7.3 (AU43).
 
 ### 21.3 Slider rule and notification acceptance
 
@@ -308,12 +310,12 @@ wrapping, and clamp with unsigned comparisons to minimum/maximum. Instruction ev
 loads by adding 2^32. Do not replace this with a double literal 0.001 and nearest rounding.
 Out-of-range slider input is not guaranteed monotonic after integer wrap. *[compat]*
 
-DoWinProcMessage rejects a disabled window or a window other than its own primary/modal view.
+DoWinProcMessage rejects a hidden window or a source other than its dialog window view or grid window.
 For an accepted source, key notification type 5 with Escape (27) invokes the cancel control
 `0xEA5509E3` and returns false. Type `0x9A1552D2` routes to control `0x8A550C56` and also
 returns false. Type 3 is a control notification envelope: recognized notification kinds filter
 which controls are forwarded, and unrecognized kinds return true without dispatch. The complete
-filter matrix and individual control actions are AU43. Handling work and returning false are
+filter matrix and individual control actions are audio-preferences §§7.1–7.5 (AU43). Handling work and returning false are
 therefore compatible outcomes; do not equate the return with whether audio settings changed.
 
 ### 21.4 Additional conformance vectors
@@ -336,7 +338,7 @@ These are spec vectors for implementers; no executable tests or engine files are
 | AU9-12 | Slider 500; min 100, max 1100 | Volume 600; minimum is an offset rather than a multiplier. |
 | AU9-13 | 31 entries in each default music list | Only first 30 selections from each list persisted. |
 | AU9-14 | Escape from an accepted enabled preferences window | Cancel handler invoked; DoWinProcMessage returns false. |
-| AU9-15 | Same Escape from disabled or unrelated window | False with no cancel action. |
+| AU9-15 | Same Escape from hidden or unrelated window | False with no cancel action. |
 
-AU40 and AU44 have additional vectors in audio §§18.4 and 7.4.1. AU41–AU43 still need
-additional vectors when settled, especially numerical edge cases and failure rollback.
+AU40, AU41 and AU44 have additional vectors in audio §§18.4, 19.2 and 7.4.1.
+AU42 vectors are audio-scape §11 and audio §20.4; AU43 vectors are audio-preferences §9.

@@ -1,6 +1,21 @@
 # audio: answered questions
 
 <!-- from: re-audio9 (2026-10-23) -->
+- **AU43 — preferences construction and song/control rules:** supplement §21 settles the sound IO,
+  slider arithmetic and some source/notification filtering. Recover construction/defaults, complete
+  OK/cancel/revert ordering, dialog control actions/filter matrix, song discovery and exclusion-list
+  persistence (`0x004F2A70`–`0x004F5120`). Existing ui-windows coverage is framework inventory only.
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio-preferences.md §§1–7 supplies
+  construction/defaults, discovery/table format, complete control/filter matrix and close
+  rules; §§3.9, 6.6 and 9.1 make persistence, transaction order and worked cases explicit.
+  OK saves flags/mode before rebuilding the process-static radio lists; Cancel restores
+  the snapshot and updates audio but neither saves nor rebuilds lists. Directory scans
+  enable custom tunes without adding grid rows. Source filtering uses IsVisible, not
+  IsEnabled; accepted type-3 messages can return true without dispatch. Supplement §21
+  now links the completed contract and corrects Shutdown's grid-reference ownership.
+
+<!-- from: re-audio9 (2026-10-23) -->
 - **AU42 — full scape group/instance contract:** supplement §20 inventories all 19 primary slots,
   but slots 7–17, resource format, parameter smoothing, timer widths, capacity outputs and allocation
   failures need full behavior. Relevant range `0x004F51E0`–`0x004F7B60`; service tick `0x004F67C0`.

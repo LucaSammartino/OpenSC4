@@ -1,12 +1,6 @@
 # audio: open questions
 <!-- Engine questions for docs/specs/audio.md; append new entries below. -->
 
-<!-- from: re-audio9 (2026-10-23) -->
-- **AU43 — preferences construction and song/control rules:** supplement §21 settles the sound IO,
-  slider arithmetic and some source/notification filtering. Recover construction/defaults, complete
-  OK/cancel/revert ordering, dialog control actions/filter matrix, song discovery and exclusion-list
-  persistence (`0x004F2A70`–`0x004F5120`). Existing ui-windows coverage is framework inventory only.
-
 <!-- from: core-audio-close11 (2026-10-24) -->
 - **AU45 — completed dispatch versus vector 12:** section 7.2's completed dispatch table routes
   `0x49E64801` to HandleAutomataMessages as an accepted no-op, while section 16 vector 12 says only

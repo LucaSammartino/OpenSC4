@@ -183,6 +183,37 @@ reads the list as it is (audio.md §7.2.1).
 
 `HandleControlMessage` runs the same body inline, for k = 0 and then k = 1, on `0x8A550C50` and on OK.
 
+### 3.9 Discovery versus persistence (AU43)
+
+Sections 1–3 and 6–7 are the complete construction/song/control contract requested by
+audio.md question AU43. Discovery is not a directory-generated song grid: the grid's rows
+come only from the two exemplar tables. Directory scanning in §3.6 merely decides whether
+the custom-tunes checkbox is enabled. File-name comparison for that scan is case-folded;
+the patterns include playlists and shortcuts as well as audio files. Missing shipped files
+disable their individual buttons but do not remove entries or rewrite preference flags.
+`IsSongEnabled` checks full paths for shipped entries and defaults to true for an unmatched
+path, even when custom mode is 0; it does not consult directory presence or the exclusion
+list. That helper is separate from the radio's interpretation of mode/list messages.
+
+The load-once byte is set **before** StaticInit and the exemplar reads. An absent song-table
+resource leaves that table empty; it does not reset the byte for a retry on the next open
+(`0x004F2910`–`0x004F29AB`, `0x004F5120`). Construction of a dialog neither resets this
+process-wide guard nor reloads the tables. `SetDefaultMusicListPreferences` copies exemplar
+default flags, capped at 30 per bank; it is not called to reset preferences on every open.
+
+Persistent song state is the **two 30-byte flag arrays and mode byte in P** (§2.2). The
+application's SavePreferences writes the live preferences block to `SimCity 4.cfg` as
+documented in [application.md](application.md) §13.1 (record version `0x15`). This owner
+does not serialize file-name strings, exclusion lists, directory results or the preview flag.
+`UpdateExclusionList` clears/repopulates the process-static list and posts its address as a
+raw Pointer2 (`+0x44` setter), not a reference-counted payload or a persisted copy. The list
+object survives dialog destruction; its contents may change on a later rebuild. Its names
+are the file strings from the exemplar entries, in entry order, without folder prefixes;
+mode is a byte and the inclusion test compares bytes **literally**, not normalized booleans
+(`0x004F3410`–`0x004F35EC`). For normal flags/mode 0 or 1 this yields §3.8's polarity.
+Neither individual song toggles nor a custom-mode toggle posts a rebuild immediately.
+Only music-enable handling, OK, and explicit UpdateExclusionList calls do so here.
+
 ## 4. Volumes *[compat]*
 
 ### 4.1 `ReadTunerVariables` (`0x004F22C0`)
@@ -318,12 +349,41 @@ OK and Cancel call it, and `DoModalWin` calls it again after the loop *[quirk]*.
 posts `0xAA650861 (0, 0)` again when a song was previewed, since `+0x0C` is never cleared. Each call's AddRef and tail
 `Release` balance, so the object lives until the caller's own release.
 
+### 6.6 Construction and close transaction boundaries (AU43)
+
+Constructor `0x004F2450` clears the two counted holders and P pointer as 32-bit fields,
+the preview flag as a **byte**, and the reference count as a 32-bit field, and calls
+`0x00449010` on `W+0x14` (`0x004F2456`–`0x004F2470`). Thus the initial saved effects/music
+volumes are 1024/800, both enable fields are on, the two 30-byte arrays are all 1 and
+custom mode is 0; it does not zero the entire 0x80-byte object. InitDialog replaces those
+used fields with the live snapshot before setting up controls. Slider initialization can
+normalize a below-floor **saved** volume to 0 (§4.3), so Cancel restores that normalized
+copy, not necessarily the original raw below-floor value.
+
+The action order, including audio effects, is:
+
+| Close action | Ordered effects |
+|---|---|
+| Cancel or accepted Escape | Restore effects-enable byte, effects-volume word, music-enable word, music-volume word, mode byte, Region 30 bytes, Mayor 30 bytes; UpdateSoundSys (direct sound-system master-volume event if available, then radio-volume message); PreferencesChanged; EndDialog. No SavePreferences, rebuild or current-song check. |
+| OK | Temporarily retain application if present and call slot 17 SavePreferences, ignoring its result, then release it; load lists if needed; rebuild/post Region then Mayor lists; acquire radio if available and read current path; skip once only if the read succeeds and IsSongEnabled is false; PreferencesChanged; EndDialog; release temporary radio reference. |
+| Modal loop returns by another route | DoModalWin calls EndDialog; EndDialog itself performs no restore, SavePreferences, exclusion rebuild or PreferencesChanged. |
+
+Restore assignment order is `0x004F2520`–`0x004F2576`; Cancel starts at `0x004F3613`;
+OK is the `0xEA5509E4` branch of `0x004F35F0`. There is no additional Revert/Defaults
+control action in this handler; the restore operation is Cancel's UpdatePreferences.
+Any other control ID follows §7.2's song-range/no-op rules. EndDialog's preview-end post
+precedes window destruction; the modal-loop cleanup calls EndDialog a second time, even
+after OK/Cancel. Save failure, missing radio or failed path read does not abort closure.
+Cancel performs no disk rollback of a SavePreferences made elsewhere while the dialog
+was open. Its radio lists can remain from a live edit even after P has been restored.
+
 ## 7. Messages and controls *[compat]*
 
 ### 7.1 `DoWinProcMessage(w, m)` (`0x004F4280`, slot 3, RET 8)
 
 1. False unless `w` is visible (`cIGZWin` slot 71).
-2. False unless `w` is the dialog window, or the grid exists and its window (slot 5) is `w`.
+2. False unless `w` equals the window view returned by the dialog holder `+4`'s slot 3
+   (`+0x0C`), or the grid exists and its window (slot 5) is `w` (`0x004F42AA`–`0x004F42D3`).
 3. By `m[0]`:
 
 | `m[0]` | `m[1]` | Action | Returns |
@@ -339,6 +399,14 @@ posts `0xAA650861 (0, 0)` again when a song was previewed, since `+0x0C` is neve
 | other | — | — | false |
 
 "Handle" is `HandleControlMessage(id, w, value)` (`0x004F35F0`, RET 0xC); it always returns true.
+
+The first gate calls **IsVisible**, slot 71 (`+0x11C`), not IsEnabled (slot 72).
+The type-3 rows return true even when their ID/value filter prevents dispatch. The
+`0x287259F8` row also does nothing if the effects-checkbox interface cannot be acquired;
+otherwise it forwards that checkbox's boolean state, rather than the notification value.
+There is no song-existence/enabled recheck in the direct song-toggle branch, and no separate
+control-ID whitelist for list notifications. Thus filtering this envelope and executing a
+control action are distinct stages (`0x004F4280`–`0x004F44AC`).
 
 ### 7.2 `HandleControlMessage(id, w, value)`
 
@@ -429,6 +497,34 @@ A failed message allocation is not checked in either path.
 | APW-C7 | OK while the radio plays a Region song whose flag is 0 | `0x2A611B51` posted, then `0x231BBF91` |
 | APW-C8 | toggle message for `0x2A5BA8A7 + 30` | `P+0x68` changes |
 | APW-C9 | Escape key (type 5, `0x1B`) | Cancel path, `DoWinProcMessage` returns false |
+
+### 9.1 AU43 worked cases
+
+1. Start with a Region table whose successive properties are `(titleA,fileA,0)`,
+   `(titleB,fileB)`, missing, `(titleD,fileD,1)`. The three entries have default flags
+   0,0,1 and IDs base+0, base+1, base+3. Their grid rows are packed; the missing property
+   does not add a row. A folder containing only those shipped file names, with different
+   letter case, does not enable custom tunes. Adding `mine.PLS` does, without adding a row.
+2. P Region flags are `[1,0]`, mode 0. Rebuild yields `[fileA]`, message data1=1,
+   Pointer2=Region static list, data3=0. Toggling only the first song off updates P but
+   leaves that list unchanged. A later music-enable action rebuilds it empty. Cancel
+   restores `[1,0]` and emits master/radio-volume then PreferencesChanged, but leaves the
+   list empty and does not save the file. This exposes the live-list/snapshot distinction.
+3. P flags `[1,0]`, mode 1 produce `[fileB]` on rebuild. On OK the save occurs **before**
+   the Region and Mayor list messages. A successful radio read returning fileB's full
+   shipped path causes exactly one Next post before PreferencesChanged and preview-end.
+   A missing radio, failed read, or unmatched custom path causes no Next post and still closes.
+4. A visible accepted dialog receives type 3, button notification `0x287259F6`, music ID
+   `0x8A550C50`: true, no action. The same ID with toggle `0x287259F7` updates P, updates
+   audio, then posts both list rebuilds. Type 3 with an unknown notification also returns
+   true with no action. Hidden or unrelated sources return false before all dispatch.
+5. Effects ID `0x8A550C52` with notification `0x287259F8`, value 1: consumed true without
+   action. With value 0 and an unchecked checkbox, store false from the checkbox state,
+   update audio, return true. Escape from an accepted visible source restores and closes
+   but returns false. An enabled state alone does not establish acceptance.
+6. Preview Next twice posts preview-start once and Next twice. Cancel posts preview-end,
+   destroys/clears the held window; DoModalWin's later EndDialog posts preview-end again.
+   The preview byte remains 1. The two EndDialog AddRef/Release pairs balance independently.
 
 ## 10. Function inventory (owner `cSC4AudioPreferencesWinProc`, tools/coverage.py --owners)
 
