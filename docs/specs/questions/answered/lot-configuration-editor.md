@@ -21,7 +21,7 @@ mode commands and both movement overloads are closed in §25.
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
 **LE17 — Rasterization, name/help and 3D preparation**
 
-**ANSWERED 2026-10-26 (re-le30):** MATCHES — §35 resolves type names, shared help, redraw/message wrappers and drawing order; LE17-R1–R4 narrowly specify remaining raster/3D/texture observations with fixtures, call arguments and buffer/terrain evidence. Worked cases and row mapping explicitly retain partial drawing/3D/resource rows; no complete-owner or measured runtime claim.
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §35 resolves type names, foundation/wall name fallbacks, shared help, redraw/message wrappers, drawing order and the 3D-refresh caller protocol; LE17-R1–R5 narrowly specify remaining raster/3D/texture observations with fixtures, call arguments and buffer/terrain evidence. Worked cases and §36.1 row mapping explicitly retain partial drawing/3D/resource rows; no complete-owner or measured runtime claim.
 
 Resolve ordinary drawing interiors, remaining object-name/help helpers,
 3D preparation and refresh. Preserve acquisition/lock/release, reverse
