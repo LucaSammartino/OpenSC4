@@ -676,7 +676,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
     } else {
         *error = "unknown action '" + tok[1] +
                  "' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, save, terrain, "
-                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, span565probe)";
+                 "disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)";
         return false;
     }
     *out = a;
