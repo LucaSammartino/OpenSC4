@@ -1456,3 +1456,11 @@ if(TARGET FreeCity4)
     target_link_libraries(fc4_propdev_tag_test PRIVATE fc4_capi)
     add_test(NAME propdev_tag_test COMMAND fc4_propdev_tag_test)
 endif()
+
+# Legacy-control recording must preserve native interface validation between builds.
+if(TARGET FreeCity4)
+    add_executable(fc4_legacyctl_hooks_test tests/legacyctl_hooks_test.cpp)
+    target_include_directories(fc4_legacyctl_hooks_test PRIVATE plugin)
+    target_compile_options(fc4_legacyctl_hooks_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME legacyctl_hooks_contract COMMAND fc4_legacyctl_hooks_test)
+endif()
