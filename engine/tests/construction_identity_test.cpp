@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4ConstructionIdentity.h"
+#include "FC4ConstructionSetup.h"
 #include <cstdio>
 
 namespace {
@@ -29,9 +30,49 @@ struct Owner : Occupant, fc4::ConstructionView {
 };
 int failures = 0;
 #define CHECK(expr) do { if (!(expr)) { ++failures; std::printf("line %d: %s\n", __LINE__, #expr); } } while (0)
+
+// An Init-only native construction subscribes to callbacks but has no dust
+// effect. Exercise the creation boundary, including a rejected lot, without
+// ever publishing that partial native state to the manager's shutdown drain.
+struct SetupLot {
+    void* building = nullptr;
+    void* GetBuilding() const { return building; }
+};
+struct SetupConstruction {
+    uint32_t setups = 0, dustRefs = 0, dustReleases = 0, shutdowns = 0;
+    void SetLot(cISC4Lot* lot) {
+        if (!reinterpret_cast<SetupLot*>(lot)->GetBuilding()) return;
+        ++setups;
+        ++dustRefs; // native SetLot creates and retains one dust effect
+    }
+    void Shutdown() {
+        CHECK(setups == 1 && dustRefs == 1);
+        ++shutdowns;
+        --dustRefs;
+        ++dustReleases;
+    }
+};
+void SetupBoundary() {
+    SetupLot lot;
+    SetupConstruction construction;
+    uint32_t creates = 0;
+    auto create = [&]() { ++creates; return &construction; };
+    CHECK(fc4::CreateConfiguredConstruction(static_cast<SetupLot*>(nullptr), create) == nullptr);
+    CHECK(fc4::CreateConfiguredConstruction(&lot, create) == nullptr);
+    CHECK(creates == 0 && construction.setups == 0 && construction.shutdowns == 0);
+    lot.building = &lot;
+    CHECK(fc4::CreateConfiguredConstruction(&lot, []() -> SetupConstruction* { return nullptr; }) == nullptr);
+    CHECK(fc4::CreateConfiguredConstruction(&lot, create) == &construction);
+    CHECK(creates == 1 && construction.setups == 1 && construction.dustRefs == 1);
+    // Bulk teardown clears the optional prop-manager cache; that does not
+    // release the construction-owned dust reference ahead of native Shutdown.
+    construction.Shutdown();
+    CHECK(construction.shutdowns == 1 && construction.dustRefs == 0 && construction.dustReleases == 1);
+}
 }
 
 int main() {
+    SetupBoundary();
     Owner owner;
     fc4::ConstructionView* acquired = nullptr;
     auto* source = static_cast<Occupant*>(&owner);

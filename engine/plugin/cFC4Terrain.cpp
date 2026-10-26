@@ -25,6 +25,7 @@
 #include "FC4LotDevInterfaces.h"  // animation-tick manager slots 5/6
 #include "FC4RefAudit.h"
 #include "cFC4Message2Standard.h"
+#include "compat/FC4Compat.h"
 
 #include "fc4.h"
 
@@ -49,7 +50,9 @@
 #include "SC4List.h"
 
 #include <atomic>
+#include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <vector>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -103,6 +106,7 @@ constexpr uint16_t kFlagFlipExternal = 0x2000;
 std::atomic<fc4_terrain*> g_activeCore{nullptr};
 std::atomic<uint32_t> g_cellsX{0};
 std::atomic<uint32_t> g_cellsZ{0};
+std::atomic<TerrainDrawVertex*> g_drawVertices{nullptr};
 
 // ---- the host context -----------------------------------------------------------------------------
 
@@ -112,7 +116,9 @@ std::atomic<uint32_t> g_cellsZ{0};
 // touched under the object's critical section.
 struct HostContext {
     cISC4City* city = nullptr;  // borrowed for one call
-    cIGZUnknown* self = nullptr;  // the terrain, for the messages' void1/IGZUnknown
+    cIGZUnknown* self = nullptr;  // the terrain, for the messages' IGZUnknown
+    void (*syncDraw)(void*) = nullptr;
+    void* drawOwner = nullptr;
     int inside = 0;
     std::atomic<uint32_t> guardRefused{0};
     std::atomic<uint32_t> posts{0};
@@ -231,6 +237,18 @@ bool HostNextBurnCell(void* u, int32_t* x, int32_t* z) {
     return HostMayAct(c, "next_burn_cell") ? false : false;  // exhausted
 }
 
+cFC4Message2Standard* MakeTerrainPost(const fc4_terrain_post& p, cIGZUnknown* sender) {
+    auto* m = FC4MakeMessage(p.msg_type, static_cast<intptr_t>(p.data1), static_cast<intptr_t>(p.data2),
+                           static_cast<intptr_t>(p.data3));
+    if (m == nullptr) return nullptr;
+    m->SetData4(static_cast<intptr_t>(p.data4));
+    // terrain.md section 8.1 / 15.5.12.1: data1 is the packed X rectangle.
+    // foundations.md section 5.1: SetVoid1 aliases data1; the retained sender
+    // belongs in the separate IGZUnknown field, leaving all four words intact.
+    if (sender != nullptr) m->SetIGZUnknown(sender);
+    return m;
+}
+
 // §8.1: MessagePost(msg, false) with four data words. The core hands these
 // over after each entry point released the handle, so this is never re-entrant
 // and never runs under the terrain's lock.
@@ -238,22 +256,14 @@ void HostPost(void* u, const fc4_terrain_post* p) {
     auto* c = static_cast<HostContext*>(u);
     if (c == nullptr || p == nullptr) return;
     c->posts.fetch_add(1, std::memory_order_relaxed);
+    if ((p->msg_type == 0x278E6003u || p->msg_type == 0x678E6E3Au) && c->syncDraw != nullptr) {
+        c->syncDraw(c->drawOwner);
+    }
     if (c->testMode) return;
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
-    cFC4Message2Standard* m =
-        FC4MakeMessage(p->msg_type, static_cast<intptr_t>(p->data1), static_cast<intptr_t>(p->data2),
-                       static_cast<intptr_t>(p->data3));
+    cFC4Message2Standard* m = MakeTerrainPost(*p, c->self);
     if (m == nullptr) return;
-    m->SetData4(static_cast<intptr_t>(p->data4));
-    // foundations §5: a message carries void1 = IGZUnknown = the sender. The
-    // four data words are the payload of §8.1; the sender is what a consumer
-    // reads back through GetVoid1()/GetIGZUnknown(), and a null one is what a
-    // consumer dereferences when it does not check.
-    if (c->self != nullptr) {
-        m->SetVoid1(c->self);
-        m->SetIGZUnknown(c->self);
-    }
     ms->MessagePost(m, false);
     m->Release();
 }
@@ -291,6 +301,10 @@ cISC4City* CurrentCity() {
 }
 
 uint16_t VertexFlags(uint32_t x, uint32_t z) {
+    auto* vertices = g_drawVertices.load(std::memory_order_acquire);
+    const uint32_t cx = g_cellsX.load(std::memory_order_acquire);
+    const uint32_t cz = g_cellsZ.load(std::memory_order_acquire);
+    if (vertices != nullptr && x <= cx && z <= cz) return vertices[x + z * (cx + 1)].flags;
     fc4_terrain* core = g_activeCore.load(std::memory_order_acquire);
     return core != nullptr ? fc4_terrain_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z))
                            : uint16_t{0};
@@ -299,9 +313,14 @@ uint16_t VertexFlags(uint32_t x, uint32_t z) {
 void SetFlagBit(uint32_t x, uint32_t z, uint16_t bit, bool on) {
     fc4_terrain* core = g_activeCore.load(std::memory_order_acquire);
     if (core == nullptr) return;
-    uint16_t f = fc4_terrain_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z));
+    uint16_t f = VertexFlags(x, z);
     f = on ? static_cast<uint16_t>(f | bit) : static_cast<uint16_t>(f & ~bit);
     fc4_terrain_set_vertex_flags(core, static_cast<int32_t>(x), static_cast<int32_t>(z), f);
+    auto* vertices = g_drawVertices.load(std::memory_order_acquire);
+    const uint32_t cx = g_cellsX.load(std::memory_order_acquire);
+    if (vertices != nullptr && x <= cx && z <= g_cellsZ.load(std::memory_order_acquire)) {
+        vertices[x + z * (cx + 1)].flags = f;
+    }
 }
 
 }  // namespace
@@ -327,7 +346,23 @@ bool WriteNullRef(cIGZOStream& out) { return out.SetUint32(0); }
 
 class cFC4STESurfaceWater final : public cFC4ISTESurfaceWater, public cIGZSerializable {
 public:
-    cFC4STESurfaceWater() = default;
+    // terrain.md §2.2, §15.5.5: the native view reads water +0x18.
+    uint32_t nativeReserved_[4]{};
+    WaterDrawVertex* vertices_ = nullptr;
+
+    cFC4STESurfaceWater() {
+        std::lock_guard<std::mutex> guard(InstanceMutex());
+        vertices_ = SharedVertices();
+        Instances().push_back(this);
+    }
+
+    // The city may create a distinct water interface before terrain Init.
+    // Its native view reads that object's +0x18, not necessarily terrain +0x24.
+    static void PublishDrawVertices(WaterDrawVertex* vertices) {
+        std::lock_guard<std::mutex> guard(InstanceMutex());
+        SharedVertices() = vertices;
+        for (auto* water : Instances()) water->vertices_ = vertices;
+    }
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override {
         if (ppvObj == nullptr) return false;
@@ -390,13 +425,25 @@ public:
     }
 
 private:
-    ~cFC4STESurfaceWater() = default;
+    ~cFC4STESurfaceWater() {
+        std::lock_guard<std::mutex> guard(InstanceMutex());
+        auto& instances = Instances();
+        instances.erase(std::find(instances.begin(), instances.end(), this));
+    }
+
+    static std::mutex& InstanceMutex() { static std::mutex mutex; return mutex; }
+    static std::vector<cFC4STESurfaceWater*>& Instances() {
+        static std::vector<cFC4STESurfaceWater*> instances;
+        return instances;
+    }
+    static WaterDrawVertex*& SharedVertices() { static WaterDrawVertex* vertices = nullptr; return vertices; }
 
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     mutable std::vector<uint16_t> bodyMap_;              // slot 9's backing grid
     mutable float velocity_[3] = {0.0f, 0.0f, 0.0f};     // slot 11's shared vector
 };
+static_assert(offsetof(cFC4STESurfaceWater, vertices_) == 0x18, "native view water array");
 
 float cFC4STESurfaceWater::GetWaterDepthAtVertex(int32_t index) const {
     fc4_terrain* core = g_activeCore.load(std::memory_order_acquire);
@@ -602,12 +649,18 @@ public:
     // For the test seam.
     fc4_terrain* Core() const { return core_; }
     HostContext* Host() { return &host_; }
+    using ViewInit = bool(__thiscall*)(void*, cFC4ISTETerrain*);
+    using ViewShutdown = void(__thiscall*)(void*);
+    using TerrainStaticInit = bool(__cdecl*)();
+    bool InitView(TerrainStaticInit staticInit, ViewInit init, ViewShutdown shutdown);
 
 private:
     bool Enter() const;
     void Leave() const;
     bool CreateCore(uint32_t cellsX, uint32_t cellsZ);
     void DestroyCore();
+    void SyncDrawVertices();
+    void StopView();
     void Subscribe();
     void Unsubscribe();
     void OnViewUpdate(cIGZMessage2Standard* s);
@@ -624,6 +677,10 @@ private:
     bool subscribed_ = false;
     bool plumbingDisplay_ = false;  // §15.1: a global byte, not a field
     bool tickRegistered_ = false;
+    bool viewInitialized_ = false;
+    ViewShutdown viewShutdown_ = nullptr;
+    std::vector<TerrainDrawVertex> drawVertices_;
+    std::vector<WaterDrawVertex> waterVertices_;
     int32_t scrubbing_ = 0;
 
     mutable CRITICAL_SECTION lock_;
@@ -643,6 +700,8 @@ cFC4STETerrain::cFC4STETerrain() {
     // table has to be filled.
     hostTable_ = MakeHost(&host_);
     host_.self = Primary();
+    host_.drawOwner = this;
+    host_.syncDraw = [](void* owner) { static_cast<cFC4STETerrain*>(owner)->SyncDrawVertices(); };
     // §1: the terrain owns the surface water at +0x24. The city may also build
     // one through the class factory; both are views over the same core.
     water_ = new cFC4STESurfaceWater();
@@ -660,6 +719,7 @@ cFC4STETerrain::cFC4STETerrain() {
 }
 
 cFC4STETerrain::~cFC4STETerrain() {
+    StopView();
     DestroyCore();
     if (f_.view != nullptr) {
         // The view came from GZCOM()->GetClassObject: its QI took one reference.
@@ -742,6 +802,10 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
     f_.sizeX = 16.0f * static_cast<float>(cellsX);
     f_.sizeZ = 16.0f * static_cast<float>(cellsZ);
     f_.vertexCount = vx * vz;
+    drawVertices_.resize(f_.vertexCount);
+    waterVertices_.resize(f_.vertexCount);
+    f_.vertices = drawVertices_.data();
+    cFC4STESurfaceWater::PublishDrawVertices(waterVertices_.data());
     f_.seaLevel = fc4_terrain_sea_level(core_);
     f_.cachedMin = fc4_terrain_cached_height(core_, 0);
     f_.cachedMax = fc4_terrain_cached_height(core_, 1);
@@ -758,14 +822,69 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
     g_activeCore.store(core_, std::memory_order_release);
     g_cellsX.store(cellsX, std::memory_order_release);
     g_cellsZ.store(cellsZ, std::memory_order_release);
+    SyncDrawVertices();
+    g_drawVertices.store(drawVertices_.data(), std::memory_order_release);
     return true;
+}
+
+void cFC4STETerrain::SyncDrawVertices() {
+    if (core_ == nullptr) return;
+    for (uint32_t i = 0; i < f_.vertexCount; ++i) {
+        const int32_t x = static_cast<int32_t>(i % f_.vertsX);
+        const int32_t z = static_cast<int32_t>(i / f_.vertsX);
+        auto& v = drawVertices_[i];
+        v.altitude = fc4_terrain_altitude_at_index(core_, i);
+        // SPEC-GAP: the core exposes face normals, not smoothed rendering normals; retain the face normal here.
+        v.normal[1] = 1.0f;
+        fc4_terrain_face_normal(core_, 16.0f * static_cast<float>(x < static_cast<int32_t>(f_.cellsX) ? x : x - 1),
+                                16.0f * static_cast<float>(z < static_cast<int32_t>(f_.cellsZ) ? z : z - 1), v.normal);
+        // LevelCell/RemoveCellLevelling own these two bits in the native array.
+        v.flags = static_cast<uint16_t>((fc4_terrain_vertex_flags(core_, x, z) & ~0x60u) | (v.flags & 0x60u));
+        auto& w = waterVertices_[i];
+        w.depth = fc4_terrain_water_depth_at_index(core_, i);
+        fc4_terrain_water_velocity(core_, x, z, w.velocity);
+        w.sediment = fc4_terrain_sediment(core_, x, z);
+    }
+}
+
+bool cFC4STETerrain::InitView(TerrainStaticInit staticInit, ViewInit init, ViewShutdown shutdown) {
+    // NM20: native slot 15 borrows this view and reads its retained PRIMARY
+    // terrain, including +0x6C. Publication/readiness must follow Init.
+    if (viewInitialized_) return true;
+    if (f_.view == nullptr || staticInit == nullptr || init == nullptr || shutdown == nullptr) return false;
+    // terrain.md section 15.5.12.2: the native view's process-wide texture
+    // tables depend on terrain StaticInit. It is idempotent, has no receiver,
+    // and must run before the view's first Init allocates those tables.
+    if (!staticInit() || !init(f_.view, this)) return false;
+    viewShutdown_ = shutdown;
+    viewInitialized_ = true;
+    f_.viewReady = 1;
+    return true;
+}
+
+void cFC4STETerrain::StopView() {
+    if (!viewInitialized_) return;
+    f_.viewReady = 0;
+    viewInitialized_ = false;
+    void* view = f_.view;
+    f_.view = nullptr;
+    f_.renderObject = nullptr;
+    // Unregister borrowed draw-context users before releasing the terrain or
+    // freeing its arrays (terrain-view.md §9.3). Shutdown drops the view's ref.
+    viewShutdown_(view);
+    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(view));
 }
 
 void cFC4STETerrain::DestroyCore() {
     if (core_ == nullptr) return;
     g_activeCore.store(nullptr, std::memory_order_release);
+    g_drawVertices.store(nullptr, std::memory_order_release);
     fc4_terrain_destroy(core_);
     core_ = nullptr;
+    f_.vertices = nullptr;
+    cFC4STESurfaceWater::PublishDrawVertices(nullptr);
+    drawVertices_.clear();
+    waterVertices_.clear();
     g_cellsX.store(0, std::memory_order_release);
     g_cellsZ.store(0, std::memory_order_release);
 }
@@ -823,6 +942,7 @@ bool cFC4STETerrain::Shutdown() {
     }
     SetAnimationTick(false);
     Unsubscribe();
+    StopView();
     DestroyCore();
     f_.initialized = 0;
     f_.city = nullptr;
@@ -858,8 +978,6 @@ void cFC4STETerrain::DoPostCityInit() {
         // first view-update message 0xA6B79602 arrives - which is also what a
         // harness with no view sees (conformance test 20).
         fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
-        fc4_terrain_post_city_init(core_);
-        f_.viewReady = 1;  // §8.1 gate
         // §2.3 (+0xE8) / §15.1 slot 66: the 3D terrain view (class 0xC9B84E10),
         // which the original's DoPostCityInit creates. zones.md §5.2: the zone
         // developer's PostCityInit handler takes the terrain view from slot 66
@@ -884,6 +1002,13 @@ void cFC4STETerrain::DoPostCityInit() {
                     kFC4_CLSID_cSTETerrainView);
             }
         }
+        if (InitView(reinterpret_cast<TerrainStaticInit>(compat::DirectCall(compat::Direct::TerrainStaticInit)),
+                     reinterpret_cast<ViewInit>(compat::DirectCall(compat::Direct::TerrainViewInit)),
+                     reinterpret_cast<ViewShutdown>(compat::DirectCall(compat::Direct::TerrainViewShutdown)))) {
+            Log("terrain: NM20 view initialized: base=%p drawing=%p primary=%p vertices=%p ready=%u",
+                f_.view, GetView(), Primary(), f_.vertices, f_.viewReady);
+        }
+        fc4_terrain_post_city_init(core_);
     }
     Leave();
 }
@@ -1270,12 +1395,14 @@ void cFC4STETerrain::SetAltitudeRect(SC4Rect<int32_t> const& r, float h, bool re
 void cFC4STETerrain::SetAltitudeAtVertex(int32_t index, float h) {
     Enter();
     if (core_ != nullptr) fc4_terrain_set_altitude_at_vertex(core_, static_cast<uint32_t>(index), h);
+    SyncDrawVertices();
     Leave();
 }
 
 void cFC4STETerrain::SetAltitudeXZ(int32_t x, int32_t z, float h) {
     Enter();
     if (core_ != nullptr) fc4_terrain_set_altitude(core_, x, z, h);
+    SyncDrawVertices();
     Leave();
 }
 
@@ -1526,6 +1653,89 @@ cIGZUnknown* CreateFC4SurfaceWater() {
 
 // ---- test seam op 59 ------------------------------------------------------------------------------
 
+namespace {
+// An initialized native-compatible view fixture. Calls use the real x86
+// receiver/stack contract; no native code or invalid native draw is executed.
+struct TerrainViewFixture {
+    void** baseVtable;
+    uint32_t reserved04[2]{};
+    void** drawingVtable;
+    uint32_t reserved10[2]{};
+    uint8_t initialized = 0;
+    uint8_t reserved19[3]{};
+    void* city = nullptr;
+    fc4::cFC4ISTETerrain* terrain = nullptr;
+    uint32_t initCalls = 0, shutdownCalls = 0, releases = 0, draws = 0, errors = 0;
+    uint16_t drawnFlags = 0;
+    bool visible = true, failInit = false;
+    uint32_t staticInitCalls = 0;
+    bool staticReady = false, failStaticInit = false;
+};
+static_assert(offsetof(TerrainViewFixture, drawingVtable) == 0x0C, "NM20 receiver");
+static_assert(offsetof(TerrainViewFixture, terrain) == 0x20, "NM20 retained primary terrain");
+
+TerrainViewFixture* g_terrainStaticFixture = nullptr;
+bool __cdecl TerrainFixtureStaticInit() {
+    auto* view = g_terrainStaticFixture;
+    ++view->staticInitCalls;
+    if (view->failStaticInit) return false;
+    view->staticReady = true;
+    return true;
+}
+
+bool __fastcall TerrainFixtureQuery(TerrainViewFixture*, void*, uint32_t, void** out) {
+    if (out != nullptr) *out = nullptr;
+    return false;
+}
+
+uint32_t __fastcall TerrainFixtureRelease(TerrainViewFixture* view, void*) {
+    ++view->releases;
+    if (view->terrain != nullptr || view->initialized != 0) ++view->errors;
+    return 0;
+}
+
+bool __fastcall TerrainFixtureInit(TerrainViewFixture* view, void*, fc4::cFC4ISTETerrain* terrain) {
+    ++view->initCalls;
+    auto* t = static_cast<fc4::cFC4STETerrain*>(terrain);
+    if (!view->staticReady || t->f_.viewReady != 0 || t->f_.vertices == nullptr) ++view->errors;
+    if (view->failInit) return false;
+    if (reinterpret_cast<void*>(terrain) != t->Primary()) ++view->errors;
+    view->terrain = terrain;
+    terrain->AddRef();
+    view->initialized = 1;
+    return true;
+}
+
+void __fastcall TerrainFixtureShutdown(TerrainViewFixture* view, void*) {
+    ++view->shutdownCalls;
+    auto* t = static_cast<fc4::cFC4STETerrain*>(view->terrain);
+    if (t == nullptr || t->Core() == nullptr || t->f_.vertices == nullptr || t->f_.viewReady != 0 ||
+        t->GetView() != nullptr) ++view->errors;
+    view->terrain->Release();
+    view->terrain = nullptr;
+    view->initialized = 0;
+}
+
+void __fastcall TerrainFixtureDraw(void* receiver, void*, void* context, uint32_t x, uint32_t z,
+                                    float* uv, float alpha, bool force) {
+    auto* view = reinterpret_cast<TerrainViewFixture*>(static_cast<uint8_t*>(receiver) - 0x0C);
+    if (*reinterpret_cast<void**>(static_cast<uint8_t*>(context) + 0x4C) != receiver ||
+        x != 44 || z != 3 || uv[6] != 1.0f || alpha != 1.0f) ++view->errors;
+    if (!view->visible && !force) return;
+    if (view->terrain == nullptr || view->initialized == 0) {
+        ++view->errors;
+        return;
+    }
+    // NM20: +0x6C and flags at vertex +0x22, stride 0x24, through the
+    // retained primary terrain. This would fail on the pre-fix lifecycle.
+    auto* t = static_cast<fc4::cFC4STETerrain*>(view->terrain);
+    auto* vertices = *reinterpret_cast<fc4::TerrainDrawVertex**>(reinterpret_cast<uint8_t*>(view->terrain) + 0x6C);
+    if (vertices != t->f_.vertices || vertices == nullptr || t->f_.viewReady != 1) ++view->errors;
+    else view->drawnFlags = vertices[x + z * (t->CellCountX() + 1)].flags;
+    ++view->draws;
+}
+}  // namespace
+
 intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     using namespace fc4;
     if (in == nullptr || in->struct_size < sizeof(FC4TerrainGlueTestInput)) return -1;
@@ -1536,11 +1746,14 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     in->brushLevel = 0;
     in->mismatches = 0;
 
+    auto* earlyWater = new cFC4STESurfaceWater();
+    earlyWater->AddRef();
     auto* t = new cFC4STETerrain();
     t->AddRef();
     t->Host()->testMode = true;
     if (!t->Init()) {
         t->Release();
+        earlyWater->Release();
         return -1;
     }
 
@@ -1559,6 +1772,29 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
         check(t->LocationIsInBounds(0.0f, 0.0f));
         check(!t->LocationIsInBounds(-1.0f, 0.0f));
         check(t->CellCountX() == t->CellCountX());
+
+        // The queued native heights/water readers unpack data1/data2, not
+        // the sender pointer. Inspect an older post after making another one.
+        fc4_terrain_post post{};
+        post.msg_type = 0x278E6003u;
+        post.data1 = (3u << 16) | 44u;
+        post.data2 = (2u << 16) | 30u;
+        post.data3 = 0x00140020u;
+        post.data4 = 7;
+        auto* first = MakeTerrainPost(post, t->Primary());
+        post.msg_type = 0x678E6E3Au;
+        post.data1 = (1u << 16) | 33u;
+        auto* second = MakeTerrainPost(post, t->Primary());
+        check(first != nullptr && second != nullptr && first != second);
+        if (first != nullptr && second != nullptr) {
+            check(first->GetType() == 0x278E6003u && first->GetData1() == ((3u << 16) | 44u));
+            check(first->GetData2() == post.data2 && first->GetData3() == post.data3 &&
+                  first->GetData4() == post.data4);
+            check(first->GetIGZUnknown() == t->Primary() && second->GetIGZUnknown() == t->Primary());
+            check(second->GetType() == post.msg_type && second->GetData1() == post.data1);
+        }
+        if (first != nullptr) first->Release();
+        if (second != nullptr) second->Release();
 
         // Slot 66 must preserve null and select the view sub-interface,
         // rather than handing consumers the five-slot object-base vtable.
@@ -1637,7 +1873,74 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     }
 
     in->reentrantGuardRefused = t->Host()->guardRefused.load(std::memory_order_relaxed);
+    // terrain-view.md §4.4.1 / lot-models.md §4: the cell model borrows the
+    // drawing sub-interface from context +0x4C, including forced/offscreen draws.
+    void* baseVtable[3]{reinterpret_cast<void*>(&TerrainFixtureQuery), nullptr,
+                       reinterpret_cast<void*>(&TerrainFixtureRelease)};
+    void* drawingVtable[16]{};
+    drawingVtable[15] = reinterpret_cast<void*>(&TerrainFixtureDraw);
+    TerrainViewFixture view{};
+    g_terrainStaticFixture = &view;
+    view.baseVtable = baseVtable;
+    view.drawingVtable = drawingVtable;
+    t->f_.view = &view;
+    auto checkView = [&](bool ok) { ++in->slotsChecked; if (!ok) ++in->mismatches; };
+    const auto initView = reinterpret_cast<cFC4STETerrain::ViewInit>(&TerrainFixtureInit);
+    const auto stopView = reinterpret_cast<cFC4STETerrain::ViewShutdown>(&TerrainFixtureShutdown);
+    const auto initStatics = &TerrainFixtureStaticInit;
+    checkView(!t->InitView(nullptr, initView, stopView));
+    checkView(view.initCalls == 0 && view.staticInitCalls == 0 && t->f_.viewReady == 0);
+    view.failStaticInit = true;
+    checkView(!t->InitView(initStatics, initView, stopView));
+    checkView(view.initCalls == 0 && view.staticInitCalls == 1 && t->f_.viewReady == 0);
+    view.failStaticInit = false;
+    view.failInit = true;
+    checkView(!t->InitView(initStatics, initView, stopView));
+    checkView(t->f_.viewReady == 0 && view.terrain == nullptr);
+    view.failInit = false;
+    checkView(t->InitView(initStatics, initView, stopView));
+    checkView(t->GetView() == reinterpret_cast<cISTETerrainView*>(reinterpret_cast<uint8_t*>(&view) + 0x0C));
+    checkView(t->InitView(initStatics, initView, stopView) && view.initCalls == 2 && view.staticInitCalls == 3);
+    checkView(t->AddRef() == 3);  // caller + initialized view + this probe
+    t->Release();
+    t->SetAltitudeXZ(44, 3, 275.0f);
+    auto* vertices = static_cast<TerrainDrawVertex*>(t->f_.vertices);
+    const uint32_t index = 44 + 3 * (t->CellCountX() + 1);
+    checkView(vertices[index].altitude == 275.0f);
+    t->FlipInternalTriangulation(44, 3, true);
+    // A native view may write the levelling bits directly; the next sync must retain them.
+    vertices[index].flags |= 0x60;
+    t->SetAltitudeXZ(44, 3, 276.0f);
+    checkView((vertices[index].flags & 0x60) == 0x60);
+    auto* water = static_cast<uint8_t*>(t->f_.surfaceWater);
+    auto* waterVertices = *reinterpret_cast<WaterDrawVertex**>(water + 0x18);
+    checkView(waterVertices != nullptr && waterVertices[index].depth == t->GetWaterDepthAtFlatIndex(index));
+    auto* lateWater = new cFC4STESurfaceWater();
+    lateWater->AddRef();
+    checkView(earlyWater->vertices_ == waterVertices && lateWater->vertices_ == waterVertices);
+    uint8_t context[0x50]{};
+    *reinterpret_cast<void**>(context + 0x4C) = t->GetView();
+    float uv[8]{0, 0, 1, 0, 0, 1, 1, 1};
+    using Draw = void(__thiscall*)(void*, void*, uint32_t, uint32_t, float*, float, bool);
+    auto draw = reinterpret_cast<Draw>(drawingVtable[15]);
+    draw(t->GetView(), context, 44, 3, uv, 1.0f, false);
+    checkView(view.draws == 1 && (view.drawnFlags & 0x1000) != 0);
+    view.visible = false;
+    draw(t->GetView(), context, 44, 3, uv, 1.0f, false);
+    checkView(view.draws == 1);
+    draw(t->GetView(), context, 44, 3, uv, 1.0f, true);
+    checkView(view.draws == 2 && (view.drawnFlags & 0x1000) != 0);
     t->Shutdown();
+    checkView(view.shutdownCalls == 1 && view.releases == 1 && view.errors == 0);
+    g_terrainStaticFixture = nullptr;
+    checkView(t->GetView() == nullptr && t->f_.vertices == nullptr);
+    checkView(earlyWater->vertices_ == nullptr && lateWater->vertices_ == nullptr);
+    checkView(t->AddRef() == 2);  // view returned its retained reference
+    t->Release();
+    earlyWater->Release();
+    lateWater->Release();
+    t->Shutdown();
+    checkView(view.shutdownCalls == 1 && view.releases == 1);
     t->Release();
     return static_cast<intptr_t>(in->mismatches);
 }

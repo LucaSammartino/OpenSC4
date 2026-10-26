@@ -78,6 +78,7 @@ struct Record {
 }
 
 pub(crate) struct World {
+    precision: Cell<fc4_core::x87::Precision>,
     me: RefCell<Weak<World>>,
     events: EventLog,
     sim: RefCell<Option<Rc<ResidentialSim>>>,
@@ -124,6 +125,7 @@ pub(crate) struct World {
 impl World {
     fn new() -> Rc<World> {
         let w = Rc::new(World {
+            precision: Cell::new(fc4_core::x87::Precision::Bits24),
             me: RefCell::new(Weak::new()),
             events: EventLog::default(),
             sim: RefCell::new(None),
@@ -338,6 +340,10 @@ impl GridProvider<f32> for World {
 }
 
 impl ResidentialHost for World {
+    fn invocation_precision(&self) -> fc4_core::x87::Precision {
+        self.precision.get()
+    }
+
     fn acquire_services(&self) {
         self.ev("acquire_services", vec![]);
     }
@@ -765,6 +771,13 @@ fn triple_f32(v: &Json, what: &str) -> R<[f32; 3]> {
 }
 
 fn env(w: &World, op: &Json) -> R<()> {
+    if let Some(v) = opt(op, "precision_bits") {
+        w.precision.set(match u32_of(v, "precision_bits")? {
+            24 => fc4_core::x87::Precision::Bits24,
+            53 => fc4_core::x87::Precision::Bits53,
+            _ => return Err("precision_bits must be 24 or 53".into()),
+        });
+    }
     if let Some(v) = opt(op, "cells") {
         let (x, z) = pair_i(v, "cells")?;
         w.city.set(CityDims {
@@ -1312,6 +1325,8 @@ fn call(w: &World, op: &Json) -> R<()> {
         "get_cell_hq_by_wealth" => jf(s.get_cell_hq_by_wealth(ai(0)?, ai(1)?, ai(2)? as u8)),
         "get_global_eq" => jf(s.get_global_eq()),
         "get_global_hq" => jf(s.get_global_hq()),
+        "get_global_eq_register" => Json::Float(s.global_quotient_register(true)),
+        "get_global_hq_register" => Json::Float(s.global_quotient_register(false)),
         "get_cell_life_expectancy" => ji(s.get_cell_life_expectancy(ai(0)?, ai(1)?)),
         "get_global_le" => ji(s.get_global_le()),
         "get_cell_workforce_percent" => jf(s.get_cell_workforce_percent(ai(0)?, ai(1)?)),

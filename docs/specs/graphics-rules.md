@@ -244,11 +244,18 @@ zero when no store exists, otherwise stores the supplied byte, and has no other 
 driver change between them. This is a reversible acquisition operation, not permission to leave
 backing-store use enabled.
 
-Obtain the actual view's renderer through `cISC4App::GetMainWindow()`, child-window ID `0x6104489A`,
-then `GetChildAs(0x9A47B417, 0xFA47B3F9, output view)`, then view slot 4 (`+0x10`, `GetRenderer`,
-`0x0043FD00`). This last pointer is borrowed; query IID **`0x681BD529`** to retain a
+Obtain the actual view's renderer through the **window manager**, not a `cISC4App` getter. Acquire
+service `0xA417445E`, IID `0x000005A4` (`cIGZWinMgr`), through framework slot 5 (`+0x14`, service ID,
+IID, output pointer; `0x004177D2–0x004177E1`). Its slot 3 (`+0x0C`, `GetMainWindow`, shared body
+`0x009DB37A`) returns a borrowed main window. On that window call slot 34 (`+0x88`,
+`GetChildWindowFromID`) with child-window ID `0x6104489A`; the result is also borrowed. On that child
+call slot 36 (`+0x90`, `GetChildAs`) with `(0x9A47B417, 0xFA47B3F9, output view)`, then view slot 4
+(`+0x10`, `GetRenderer`, `0x0043FD00`). The view output is counted; this last renderer pointer is
+borrowed. Query IID **`0x681BD529`** on the renderer to retain a
 `cISC43DRender` reference. See [view3d-window.md](view3d-window.md) for the view's interface boundary.
-The renderer QI returns its main interface for this IID (`0x007C1894–0x007C18DE`).
+The renderer QI returns its main interface for this IID (`0x007C1894–0x007C18DE`). Release each
+acquired reference once after use; do not release either borrowed window or the borrowed renderer.
+See §2.7 for the acquisition lifetime and independent-Init contract.
 
 There is also a route before a view exists: GZCOM slot 3 (`+0x0C`; class ID, IID, output pointer)
 with renderer class ID **`0xE9C622D8`**, IID **`0x681BD529`**, and output-interface pointer, as used at
@@ -400,6 +407,108 @@ to the second, fields 13 and 14 become exactly `driver-x` and `Card X`. If it in
 strings, both remain empty. An absent service produces `Unknown`, `Unknown` and no slot-25 call.
 An interface fixture can distinguish the two output references and verify exactly one call and its
 matching Release independently of the sound hardware installed on the test machine.
+
+### 2.7 Independent Init, ownership and the GR11 fault boundary
+
+**Native caller contract.** Startup creates class `0x0A1D8285` for IID `0x0A1D8284` through GZCOM
+slot 3, calls manager slot 3 with the application's render properties, and immediately calls manager
+slot 4 with no arguments (`0x0044C487–0x0044C4AB`). The first call is **void Init**, the second is
+`SetOptionsFromConfiguration`. The caller does not test an Init status. An adapter's status 0 is
+adapter evidence, not a native return contract. The application has already selected its current
+graphics driver before these calls (`0x0044C420–0x0044C45D`); Init measures that live driver.
+
+Init retains/replaces its properties reference, gathers, then parses or installs fallback (§§1, 2.2).
+It does not apply rules until slot 4 is called. A second Init with the same properties still gathers
+and parses, without a second properties AddRef/Release pair (`0x007D189C–0x007D18D2`). The other
+examined application users apply selected options through slot 6 and obtain recommendations through
+slot 7 (`0x0044A1CC–0x0044A29D`, `0x0044A333–0x0044A403`). These calls consume the manager interface;
+they require no manager storage layout or renderer/view sub-object. Standard unknown IID `1` is
+also supported through the base QI (`0x007CE140–0x007CE166`, `0x009457C6–0x009457DE`); no additional
+application-specific manager IID or post-Init notification is required by these paths.
+
+**State and lifetime.** There is no additional saved-state restoration after §§2.3–2.4. On hardware
+the final operations are the extra Clear, Flush and `SetUIRenderingMode`, followed by readback
+inspection and reference cleanup (`0x008D256C–0x008D2588`, `0x008D2771–0x008D2782`). Software
+returns before that setup. A failed/null color-buffer result still takes the hardware cleanup path.
+This establishes UI defaults; it does not restore a previous target, image, clear color or vertex
+binding. Keep acquisition synchronous at the graphics/UI boundary, with the same current driver.
+No extra renderer Init/Shutdown, driver selection, window creation/destruction, event pump or view
+registration is part of gathering. The backing-store enable byte alone is saved and restored by the
+independent presence measurement in §2.4.
+
+The following ownership distinctions are part of the interface-only acquisition contract. A borrowed
+result contributes **no** reference for the receiver to release. If it must outlive the synchronous
+use, obtain an explicit AddRef/QI reference and release that reference only. A successful QI or
+framework/GZCOM output contributes one acquired reference to balance, even when another interface
+pointer denotes the same underlying object.
+
+| Acquisition | Receiver's ownership / completion rule | Evidence |
+|---|---|---|
+| `RZ::GS()` or `RZ::WM()` convenience getter | Borrowed cached service pointer; do not Release that getter result | `0x00913C1A–0x00913C45`, `0x00913C46–0x00913C71` |
+| Framework service output, or GS QI for either probe IID | Acquired reference; Release once per successful acquisition | `0x004177D2–0x004177E1`, `0x0098DEFB–0x0098DF2D`, §2.3 |
+| 3D GS slot 3, current driver | Borrowed driver; keep the GS/current-driver lifetime stable and do not Release this getter result | table `0x00ADA9F8`, slot 3 body `0x00407BA0–0x00407BA3` |
+| Window-manager slot 3, then window slot 34 | Borrowed main window, then borrowed child; neither lookup grants an owned reference | `0x009DB37A–0x009DB37D`, `0x0099DE74–0x0099DEC3` |
+| Window slot 36, `GetChildAs` | On success, one acquired view reference from the child's QI; Release once, without calling Shutdown | `0x0099B8AB–0x0099B8CF`, `0x007E567C–0x007E5695` |
+| View slot 4, `GetRenderer` | Borrowed renderer; its subsequent QI grants a separate acquired renderer reference | `0x0043FD00–0x0043FD06`, §2.4 |
+| GZCOM renderer output, before a view exists | Own only this uninitialized renderer facade; measure and Release it without Init; do not manufacture a view window | §2.4 |
+
+**Worked interface cases (GR11).** These are source-derived fixtures, not reported game results.
+
+1. Let an existing view have an owner-held lifetime and a disabled, existing backing store. Record
+   window, view, renderer, GS and driver identities before an independent Init. The hardware path
+   performs §2.3's 20 draws, 21 clears, 21 Flush calls and two UI-mode calls. Backing-store getters
+   return 0, 1, 0 around the temporary enable/restore. Balance the acquired view and renderer
+   references; do not release the borrowed root/child/renderer/driver. The same live view and driver
+   remain obtainable afterwards, backing-store use is still disabled, and no view/window Shutdown
+   occurs. Do not expect the previous color buffer or arbitrary prior 3D state to survive.
+2. With a software driver and no view yet, use only the uninitialized renderer facade for presence.
+   There are no probe draws, clears, Flush or UI-mode calls. Releasing the facade does not create,
+   publish or shut down a view, and no view is required merely to complete Init. Its uninitialized
+   Shutdown exits immediately (`0x007C7075–0x007C707C`). Absence of a view is not by itself evidence
+   that no backing store exists.
+3. Use valid rules containing a property assignment and initialize a fresh manager twice with the
+   same properties object. There are two gathers/parses and only one retained properties reference;
+   no rule-property setter is called until slot 4. On hardware the probe runs twice. Releasing the
+   independent manager balances its retained properties reference without a view lifecycle call.
+
+**What the reported fault establishes.** At executable `+0xE2C06` (`0x004E2C06`), the native
+predicate `0x004E2C00` dereferences the shared **view-window reference**, before calling its slot 22
+(`+0x58`, `GetCurrentViewLevel`) and comparing the result with **1**. The getter itself is
+`0x007E57F0`. The reported null read therefore occurs before this view-level call, not in a driver
+draw, FSAA readback or rules evaluation. The stack's `0x004E51AD` follows an audio-ambience condition
+call in `cSC4AudioAmbienceLayer::CanHandle` (`0x004E519B–0x004E51AD`). The key-off
+`+0x3529C0` fault instead belongs to `cSTETerrainView3D::DrawTexturedTerrainQuad` (`0x007529C0`);
+it is a distinct dereference and supplies no state-restoration rule for this manager.
+
+Native publication occurs at view construction (`0x007F0FC4` → `0x00602120`) and is refreshed at
+pre-city initialization (`0x007F45FE` → `0x00602590`). View Shutdown clears the shared view reference
+without checking which view previously published it (`0x007F1529` → `0x00602130`). Thus even a
+temporary view's lifecycle can disturb this shared reference; a temporary **renderer facade** in
+§2.4 is a different object. None of these view publication/clearing operations belongs to manager
+Init, the FSAA probe, or the backing-store getter/setter. This is a reason to check acquisition
+lifetimes, not evidence that a borrowed reference was actually released in the reported runs.
+
+**Remaining runtime observation.** Static inspection cannot identify the first loss of the view in
+these particular runs. To settle GR11's residual crash attribution, an RE-side observer must replay
+the same source/DLL, save, script and graphics mode for both switch settings and record:
+
+- Entry/exit of each independent Init/gather, including probe count, current-driver identity and
+  the public window-tree view identity before acquisition, after acquisition and after cleanup.
+- Every view construction, pre-city publication and Shutdown above, with view identity, thread and
+  caller stack, including any temporary view. Record the first write that makes the reference
+  consumed by `0x004E2C00` null, or establish that no view was published before its first use. A
+  read-only RE diagnostic watchpoint may identify that writer; its storage is not an implementation
+  interface. Also record the matching ownership acquisitions/releases that led to a Shutdown.
+- At the first failed predicate, whether a live view is still obtainable through §2.4 and whether
+  the native lifecycle cleared its publication, or an unexpected writer changed it. An acquisition
+  cleanup that shuts down a view is an ownership/lifecycle deviation; a first loss elsewhere needs
+  that writer's cause investigated. A completed provider call with a live view does not explain a
+  later null reference by itself.
+
+The supplied 77/77 properties, 12/12 recommendations, 13/13 shadow snapshots and zero reference
+warnings do not observe these lifetimes. They cannot settle that first writer or the s0 acceptance
+condition. No new runtime result, crash fix, additional restore, native-layout dependency or
+replacement acceptance is claimed by this answer.
 
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
@@ -840,6 +949,7 @@ to the environment float inclusively (`0x007CE936–0x007CE943`).
 
 `cSC4App::PostFrameWorkInit` and `DoPreferencesChanged` (command-line.md) call `SetOptionsFromConfiguration`; the
 graphics options dialog uses slots 6 and 7.
+The startup factory/Init/evaluate sequence and independent acquisition lifetimes are specified in §2.7 (GR11).
 
 ## 9. Quirks
 
@@ -866,6 +976,8 @@ GR1–GR3 are resolved in §§2, 4.2 and 7.
 6. **Unknown property:** `property noSuchThing 1` is a parse error.
 7. **Software:** a matching rule that sets `forceSoftwareDriver true` clears `hardwareDriver` for the rules after it.
 8. **Log name:** on a machine named `ALPHA` the log is `ALPHA-config-log.txt` in the application directory.
+9. **Independent Init (GR11):** §2.7's worked cases distinguish counted/borrowed acquisition, preserved
+   view lifetime and backing-store enabledness, software early exit, and evaluation after Init.
 
 Concrete scripts, injected inputs and independent expected results are in
 [graphics-rules-vectors.md](graphics-rules-vectors.md). They are proof-derived fixtures, not claims of

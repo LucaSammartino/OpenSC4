@@ -90,6 +90,10 @@ enum class Direct : unsigned {
     TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
     // network-occupants.md §4.6.3: concrete *native* primary pole only.
     PoleAttachmentPoints,  // thiscall (orientation low byte, xyz[4]), pop 8, AL
+    // The terrain's native rendering collaborator (terrain.md §15.5.4;
+    // terrain-view.md §9.3). ECX is the view object base, not IID 0x6771477D.
+    TerrainViewInit,      // thiscall (primary cISTETerrain*), pop 4, AL
+    TerrainViewShutdown,  // thiscall (), pop 0, result ignored
     // overlay-manager.md section 4.6.1: thiscall on the COMPLETE terrain-view base.
     OverlayLandRect,                 // rectangle value, context; pop 20, void
     OverlayLandRectDynamic,          // rectangle value, context; pop 20, void
@@ -123,6 +127,8 @@ enum class Direct : unsigned {
     EffectsVisualWrite,
     EffectsParticleDrop,
     EffectsDynamicDestroy,
+    // terrain.md section 15.5.12.2: populates the native view's texture inputs.
+    TerrainStaticInit,               // cdecl (), no receiver or arguments, AL
     Count
 };
 
@@ -386,5 +392,11 @@ bool Span8888SlotEntry(unsigned slot, void*** entry, uintptr_t* function);
 
 // feature-manager.md §§2,7: original layout, live app-owned count >0.
 bool FeatureManagerSupported(const void* object);
+
+// gz-graphics 2.1 and widget-controls 5.1/6.1: draw-stream recorder tables.
+bool DrawStreamTables(void*** context, void*** tree, void*** list);
+// map-view §1.3/4.4 and map-color-buffer §1. Version-checked observer sites.
+uintptr_t MapViewDrawStreamEntry(unsigned which);
+void** MapViewDrawStreamTable(unsigned which);
 }  // namespace compat
 }  // namespace fc4
