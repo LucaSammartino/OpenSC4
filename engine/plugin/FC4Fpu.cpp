@@ -279,6 +279,12 @@ void FpuReassert24Bit(const char* where) {
     FpuCheck(where);
 }
 
+void FpuSimulationEntry(const char* where) {
+    // Foundations §18.4: Lua/modal re-entry inherits live PC. Only startup
+    // repairs the separately measured DLL-load precision change.
+    FpuCheck(where);
+}
+
 void FpuTick() {
     if (g_mainTid == 0) g_mainTid = GetCurrentThreadId();  // ticks run on the main thread
     if (!OnMain()) return;

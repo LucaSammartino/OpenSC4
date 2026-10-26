@@ -1574,6 +1574,10 @@ fn avenue_style_is_one_block() {
     tex.sort();
     // Zone 1 (cells 10 and 11) wins over zone 8 (cell 12), wealth 0.
     let t = road_texture(1, 0);
+    // §8.7: accepted cells are visited in bucket order (61, 124, 187),
+    // rather than flood discovery order (middle, west, east). This order
+    // also assigns UpdateLot's random draws to their cells.
+    assert_eq!(s.textures, vec![(90, t), (91, t), (92, t)]);
     assert_eq!(tex, vec![(90, t), (91, t), (92, t)]);
     let mut var: Vec<(u64, u32)> = s.variations.clone();
     var.sort();

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! LR12 isolated record observation: no Init and no reference resolution into live objects.
 use super::Lot;
-use crate::stream::{ByteReader, ByteWriter, OutStream, RefResolver, RefValue, SaveObject};
+use crate::stream::{ByteReader, ByteWriter, InStream, OutStream, RefResolver, RefValue, SaveObject};
 
 struct Identities;
 impl RefResolver for Identities {
@@ -126,11 +126,64 @@ pub fn reencode_owner(class_id: u32, bytes: &[u8]) -> Option<Vec<u8>> {
     Some(output.0.into_bytes())
 }
 
+/// Observe a wall's serialized *current state*, without invoking wall Read.
+/// §7/T88's load repair belongs only to reencode_owner. Keeping both paths
+/// checks the original Write's full payload as well as the Read transition.
+pub fn reencode_wall_snapshot(bytes: &[u8]) -> Option<Vec<u8>> {
+    use super::{OccupantRecord, RetainingWallRecord, IID_LOT, RETAINING_WALL_RECORD_VERSION};
+    let mut ids = Identities;
+    let mut input = ByteReader::with_resolver(bytes, &mut ids);
+    let mut wall = RetainingWallRecord::new();
+    super::read_header(&mut input, RETAINING_WALL_RECORD_VERSION, &mut wall.base)?;
+    wall.wall_type = input.get_u32()?;
+    wall.edge_mask = input.get_i32()?;
+    for hash in &mut wall.edge_hashes {
+        *hash = input.get_i32()?;
+    }
+    wall.position = super::get_vec3(&mut input)?;
+    wall.size = super::get_vec3(&mut input)?;
+    wall.lot = input.get_ref_as(IID_LOT)?;
+    if input.error() != 0 || input.remaining() != 0 {
+        return None;
+    }
+    let mut output = IdentityWriter(ByteWriter::new());
+    wall.write(&mut output).then(|| output.0.into_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lot_records::LotRecord;
     use crate::traffic_simulator::TripData;
+
+    #[test]
+    fn wall_snapshot_and_load_are_distinct_comparisons() {
+        use crate::lot_records::{OccupantRecord, RetainingWallRecord, CLSID_LOT, CLSID_RETAINING_WALL_OCCUPANT};
+        let mut wall = RetainingWallRecord::new();
+        wall.wall_type = 0xc96d2137;
+        wall.edge_mask = 8; // retain a zero-hash edge as well as repairing others
+        wall.edge_hashes = [1, 0, -1, 0];
+        wall.position = [-0.0, 299.696, 960.0];
+        wall.size = [128.0, 0.2437, 96.0];
+        wall.lot = RefValue::Host {
+            token: 37,
+            class_id: CLSID_LOT,
+        };
+        let mut writer = IdentityWriter(ByteWriter::new());
+        assert!(wall.write(&mut writer));
+        let bytes = writer.0.into_bytes();
+        assert_eq!(reencode_wall_snapshot(&bytes).unwrap(), bytes);
+        let loaded = reencode_owner(CLSID_RETAINING_WALL_OCCUPANT, &bytes).unwrap();
+        assert_eq!(&loaded[40..44], &13_i32.to_le_bytes());
+        assert_eq!(&loaded[..40], &bytes[..40]);
+        assert_eq!(&loaded[44..], &bytes[44..]);
+        for end in 0..bytes.len() {
+            assert!(reencode_wall_snapshot(&bytes[..end]).is_none(), "truncation at {end}");
+        }
+        let mut trailing = bytes;
+        trailing.push(0);
+        assert!(reencode_wall_snapshot(&trailing).is_none());
+    }
 
     #[test]
     fn inline_trip_inventory_requires_complete_record() {

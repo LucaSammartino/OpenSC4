@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 import suite
 import suite_coverage as metric
+import suite_health
 
 
 def batch(root, tag='test', profile='shadows', bodies=None, enable='foo'):
@@ -35,6 +36,33 @@ def batch(root, tag='test', profile='shadows', bodies=None, enable='foo'):
 
 
 class SuiteCreditTests(unittest.TestCase):
+    def test_reconciled_historical_success_cannot_be_selected_after_failed_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            body = 'foo shadow 2000-02-01: mismatches=0\nreach summary reached=1 saved=1\n'
+            batch(root, 'original', bodies={'one': body})
+            retry = batch(root, 'retry', bodies={'one': body})
+            (retry / 'one.verdict').write_text('verdict: corrupt\n')
+            (retry / 'one.reach.tsv').write_text(
+                'address\tentries\tfirst_window\tskipped\n00405000\t1\t1\t\n')
+            self.assertTrue(metric.load(root, 'original')['scenarios'][0]['selection_ready'])
+            suite_health.reconcile(root, 'current', ['original', 'retry'])
+            evidence = metric.load(root, 'current')
+            self.assertEqual(evidence['reached'], {0x401000, 0x405000})
+            self.assertFalse(any(r['selection_ready'] for r in evidence['scenarios']))
+
+    def test_logged_native_refusal_does_not_erase_observed_exact_comparisons(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            batch(root, profile='replace', bodies={'one':
+                'script: fixture: 1 action(s)\n'
+                'script: line 1 2000-01-01 zone -> ok=0 error=5\n'
+                'foo shadow 2000-02-01: mismatches=0; resyncs=0\n'})
+            evidence = metric.load(root, 'test')
+            self.assertEqual(evidence['replaced'], {'foo'})
+            self.assertEqual(evidence['scenarios'][0]['row']['actions_failed'], '1')
+            self.assertFalse(evidence['scenarios'][0]['selection_ready'])
+
     def test_only_entered_implemented_bytes_are_exercised_or_verified(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -154,10 +182,29 @@ class SuiteCreditTests(unittest.TestCase):
 
 def item(name, addresses, wall=100, verdict='clean'):
     return dict(name=name, reached=set(addresses), wall_seconds=wall,
+                selection_ready=True,
                 row=dict(verdict=verdict, end_reached='1'))
 
 
 class WeightedTierTests(unittest.TestCase):
+    def test_census_allows_twenty_percent_incomplete_but_requires_every_row(self):
+        items = [dict(item(str(i), [i]), row=dict(profile='shadows'), selection_ready=i < 8)
+                 for i in range(10)]
+        expected = {str(i) for i in range(10)}
+        readiness = metric.selection_readiness(items, expected)
+        self.assertTrue(readiness['census_passed'])
+        self.assertEqual(readiness['clean_complete_share'], .8)
+        self.assertFalse(metric.selection_readiness(items[:-1], expected)['census_passed'])
+        items.append(dict(items[0], selection_ready=False))
+        self.assertFalse(metric.selection_readiness(items, expected)['census_passed'])
+
+    def test_clean_verdict_without_complete_evidence_is_not_a_tier_candidate(self):
+        rows = [dict(item('incomplete', [1]), selection_ready=False), item('complete', [2])]
+        plan = metric.greedy(rows, {1: 1000, 2: 10}, fraction=.95)
+        self.assertEqual(plan['selected'], ['complete'])
+        self.assertFalse(plan['achieved'])
+        self.assertEqual(plan['full_bytes'], 1010)
+
     def test_missing_trace_is_unknown_but_an_observed_empty_trace_is_zero(self):
         evidence = dict(item('missing', []), first={}, windows=[], trace_present=False)
         evidence['row']['profile'] = 'shadows'

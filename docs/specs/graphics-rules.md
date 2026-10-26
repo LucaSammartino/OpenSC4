@@ -244,11 +244,18 @@ zero when no store exists, otherwise stores the supplied byte, and has no other 
 driver change between them. This is a reversible acquisition operation, not permission to leave
 backing-store use enabled.
 
-Obtain the actual view's renderer through `cISC4App::GetMainWindow()`, child-window ID `0x6104489A`,
-then `GetChildAs(0x9A47B417, 0xFA47B3F9, output view)`, then view slot 4 (`+0x10`, `GetRenderer`,
-`0x0043FD00`). This last pointer is borrowed; query IID **`0x681BD529`** to retain a
+Obtain the actual view's renderer through the **window manager**, not a `cISC4App` getter. Acquire
+service `0xA417445E`, IID `0x000005A4` (`cIGZWinMgr`), through framework slot 5 (`+0x14`, service ID,
+IID, output pointer; `0x004177D2–0x004177E1`). Its slot 3 (`+0x0C`, `GetMainWindow`, shared body
+`0x009DB37A`) returns a borrowed main window. On that window call slot 34 (`+0x88`,
+`GetChildWindowFromID`) with child-window ID `0x6104489A`; the result is also borrowed. On that child
+call slot 36 (`+0x90`, `GetChildAs`) with `(0x9A47B417, 0xFA47B3F9, output view)`, then view slot 4
+(`+0x10`, `GetRenderer`, `0x0043FD00`). The view output is counted; this last renderer pointer is
+borrowed. Query IID **`0x681BD529`** on the renderer to retain a
 `cISC43DRender` reference. See [view3d-window.md](view3d-window.md) for the view's interface boundary.
-The renderer QI returns its main interface for this IID (`0x007C1894–0x007C18DE`).
+The renderer QI returns its main interface for this IID (`0x007C1894–0x007C18DE`). Release each
+acquired reference once after use; do not release either borrowed window or the borrowed renderer.
+See §2.7 for the acquisition lifetime and independent-Init contract.
 
 There is also a route before a view exists: GZCOM slot 3 (`+0x0C`; class ID, IID, output pointer)
 with renderer class ID **`0xE9C622D8`**, IID **`0x681BD529`**, and output-interface pointer, as used at
@@ -401,11 +408,113 @@ strings, both remain empty. An absent service produces `Unknown`, `Unknown` and 
 An interface fixture can distinguish the two output references and verify exactly one call and its
 matching Release independently of the sound hardware installed on the test machine.
 
+### 2.7 Independent Init, ownership and the GR11 fault boundary
+
+**Native caller contract.** Startup creates class `0x0A1D8285` for IID `0x0A1D8284` through GZCOM
+slot 3, calls manager slot 3 with the application's render properties, and immediately calls manager
+slot 4 with no arguments (`0x0044C487–0x0044C4AB`). The first call is **void Init**, the second is
+`SetOptionsFromConfiguration`. The caller does not test an Init status. An adapter's status 0 is
+adapter evidence, not a native return contract. The application has already selected its current
+graphics driver before these calls (`0x0044C420–0x0044C45D`); Init measures that live driver.
+
+Init retains/replaces its properties reference, gathers, then parses or installs fallback (§§1, 2.2).
+It does not apply rules until slot 4 is called. A second Init with the same properties still gathers
+and parses, without a second properties AddRef/Release pair (`0x007D189C–0x007D18D2`). The other
+examined application users apply selected options through slot 6 and obtain recommendations through
+slot 7 (`0x0044A1CC–0x0044A29D`, `0x0044A333–0x0044A403`). These calls consume the manager interface;
+they require no manager storage layout or renderer/view sub-object. Standard unknown IID `1` is
+also supported through the base QI (`0x007CE140–0x007CE166`, `0x009457C6–0x009457DE`); no additional
+application-specific manager IID or post-Init notification is required by these paths.
+
+**State and lifetime.** There is no additional saved-state restoration after §§2.3–2.4. On hardware
+the final operations are the extra Clear, Flush and `SetUIRenderingMode`, followed by readback
+inspection and reference cleanup (`0x008D256C–0x008D2588`, `0x008D2771–0x008D2782`). Software
+returns before that setup. A failed/null color-buffer result still takes the hardware cleanup path.
+This establishes UI defaults; it does not restore a previous target, image, clear color or vertex
+binding. Keep acquisition synchronous at the graphics/UI boundary, with the same current driver.
+No extra renderer Init/Shutdown, driver selection, window creation/destruction, event pump or view
+registration is part of gathering. The backing-store enable byte alone is saved and restored by the
+independent presence measurement in §2.4.
+
+The following ownership distinctions are part of the interface-only acquisition contract. A borrowed
+result contributes **no** reference for the receiver to release. If it must outlive the synchronous
+use, obtain an explicit AddRef/QI reference and release that reference only. A successful QI or
+framework/GZCOM output contributes one acquired reference to balance, even when another interface
+pointer denotes the same underlying object.
+
+| Acquisition | Receiver's ownership / completion rule | Evidence |
+|---|---|---|
+| `RZ::GS()` or `RZ::WM()` convenience getter | Borrowed cached service pointer; do not Release that getter result | `0x00913C1A–0x00913C45`, `0x00913C46–0x00913C71` |
+| Framework service output, or GS QI for either probe IID | Acquired reference; Release once per successful acquisition | `0x004177D2–0x004177E1`, `0x0098DEFB–0x0098DF2D`, §2.3 |
+| 3D GS slot 3, current driver | Borrowed driver; keep the GS/current-driver lifetime stable and do not Release this getter result | table `0x00ADA9F8`, slot 3 body `0x00407BA0–0x00407BA3` |
+| Window-manager slot 3, then window slot 34 | Borrowed main window, then borrowed child; neither lookup grants an owned reference | `0x009DB37A–0x009DB37D`, `0x0099DE74–0x0099DEC3` |
+| Window slot 36, `GetChildAs` | On success, one acquired view reference from the child's QI; Release once, without calling Shutdown | `0x0099B8AB–0x0099B8CF`, `0x007E567C–0x007E5695` |
+| View slot 4, `GetRenderer` | Borrowed renderer; its subsequent QI grants a separate acquired renderer reference | `0x0043FD00–0x0043FD06`, §2.4 |
+| GZCOM renderer output, before a view exists | Own only this uninitialized renderer facade; measure and Release it without Init; do not manufacture a view window | §2.4 |
+
+**Worked interface cases (GR11).** These are source-derived fixtures, not reported game results.
+
+1. Let an existing view have an owner-held lifetime and a disabled, existing backing store. Record
+   window, view, renderer, GS and driver identities before an independent Init. The hardware path
+   performs §2.3's 20 draws, 21 clears, 21 Flush calls and two UI-mode calls. Backing-store getters
+   return 0, 1, 0 around the temporary enable/restore. Balance the acquired view and renderer
+   references; do not release the borrowed root/child/renderer/driver. The same live view and driver
+   remain obtainable afterwards, backing-store use is still disabled, and no view/window Shutdown
+   occurs. Do not expect the previous color buffer or arbitrary prior 3D state to survive.
+2. With a software driver and no view yet, use only the uninitialized renderer facade for presence.
+   There are no probe draws, clears, Flush or UI-mode calls. Releasing the facade does not create,
+   publish or shut down a view, and no view is required merely to complete Init. Its uninitialized
+   Shutdown exits immediately (`0x007C7075–0x007C707C`). Absence of a view is not by itself evidence
+   that no backing store exists.
+3. Use valid rules containing a property assignment and initialize a fresh manager twice with the
+   same properties object. There are two gathers/parses and only one retained properties reference;
+   no rule-property setter is called until slot 4. On hardware the probe runs twice. Releasing the
+   independent manager balances its retained properties reference without a view lifecycle call.
+
+**What the reported fault establishes.** At executable `+0xE2C06` (`0x004E2C06`), the native
+predicate `0x004E2C00` dereferences the shared **view-window reference**, before calling its slot 22
+(`+0x58`, `GetCurrentViewLevel`) and comparing the result with **1**. The getter itself is
+`0x007E57F0`. The reported null read therefore occurs before this view-level call, not in a driver
+draw, FSAA readback or rules evaluation. The stack's `0x004E51AD` follows an audio-ambience condition
+call in `cSC4AudioAmbienceLayer::CanHandle` (`0x004E519B–0x004E51AD`). The key-off
+`+0x3529C0` fault instead belongs to `cSTETerrainView3D::DrawTexturedTerrainQuad` (`0x007529C0`);
+it is a distinct dereference and supplies no state-restoration rule for this manager.
+
+Native publication occurs at view construction (`0x007F0FC4` → `0x00602120`) and is refreshed at
+pre-city initialization (`0x007F45FE` → `0x00602590`). View Shutdown clears the shared view reference
+without checking which view previously published it (`0x007F1529` → `0x00602130`). Thus even a
+temporary view's lifecycle can disturb this shared reference; a temporary **renderer facade** in
+§2.4 is a different object. None of these view publication/clearing operations belongs to manager
+Init, the FSAA probe, or the backing-store getter/setter. This is a reason to check acquisition
+lifetimes, not evidence that a borrowed reference was actually released in the reported runs.
+
+**Remaining runtime observation.** Static inspection cannot identify the first loss of the view in
+these particular runs. To settle GR11's residual crash attribution, an RE-side observer must replay
+the same source/DLL, save, script and graphics mode for both switch settings and record:
+
+- Entry/exit of each independent Init/gather, including probe count, current-driver identity and
+  the public window-tree view identity before acquisition, after acquisition and after cleanup.
+- Every view construction, pre-city publication and Shutdown above, with view identity, thread and
+  caller stack, including any temporary view. Record the first write that makes the reference
+  consumed by `0x004E2C00` null, or establish that no view was published before its first use. A
+  read-only RE diagnostic watchpoint may identify that writer; its storage is not an implementation
+  interface. Also record the matching ownership acquisitions/releases that led to a Shutdown.
+- At the first failed predicate, whether a live view is still obtainable through §2.4 and whether
+  the native lifecycle cleared its publication, or an unexpected writer changed it. An acquisition
+  cleanup that shuts down a view is an ownership/lifecycle deviation; a first loss elsewhere needs
+  that writer's cause investigated. A completed provider call with a live view does not explain a
+  later null reference by itself.
+
+The supplied 77/77 properties, 12/12 recommendations, 13/13 shadow snapshots and zero reference
+warnings do not observe these lifetimes. They cannot settle that first writer or the s0 acceptance
+condition. No new runtime result, crash fix, additional restore, native-layout dependency or
+replacement acceptance is claimed by this answer.
+
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
 1. A rule parser (`cSC4RuleParser`) is made. When `cardVersion` is longer than 26 characters, its 4 characters at
    offset 8 and at offset 22, read as hexadecimal, are the card's vendor and device IDs.
-2. The files `Graphics Rules.sgr` (the data directory) and `Graphics Options.sgr` (the user data directory) are
+2. The files `Graphics Rules.sgr` and `Graphics Options.sgr` (the distinct native bases in §3.1) are
    given to the parser, with the symbol `prefsFirstTime` set to true or false from an application flag
    (`+0xF0C` of application slot 38) *[inferred: the first run]*. `cardIdentity` starts as a copy of `cardName`.
 3. On success, the rules and option groups move into the manager, and when the card was found in a `vendor` block
@@ -442,6 +551,86 @@ After a required-file error, later registered files are still visited. The parse
 hook once, its end hook only if the aggregate succeeded, and its finish hook in either case.
 `DoParseFile` treats a false `ReadLine` result as end of input and does not separately classify a
 read failure (`0x00680F64–0x00680F78`). This is not an all-files transaction or an I/O-integrity check.
+
+### 3.1 Native path acquisition and file selection (GR10)
+
+The directory provider is the existing **`cISC4App`, IID `0x26CE01C0`**. Its slots below are
+zero based on the public application face, not on another application interface. Application QI
+returns that face at whole-object `+0x0C` and AddRefs it (`0x004492A7–0x004492C2`). The native
+`SL` helpers use the application pointer cached by `SL::OnAppCreate` (`0x00601C00`); they do not
+acquire a separate directory or filesystem service. See [application.md §9](application.md#9-directories)
+for the getters' stored-path contracts. Treat their returned strings as opaque bases rather than
+deducing a folder from an exported method name.
+
+Let **P** be the rules base, **U** the options base, and **A** the automatic-log base:
+
+| Use | Native helper | `cISC4App` slot / byte offset | Arguments after `this` | Complete path |
+|---|---|---|---|---|
+| Required rules | `SL::DataDirectory`, `0x00602230` | **53 / `+0xD4`** | output string reference, signed language index **−1** | P followed by literal `Graphics Rules.sgr` |
+| Optional options | `SL::UserDataDirectory`, `0x00602270` | **58 / `+0xE8`** | output string reference | U followed by literal `Graphics Options.sgr` |
+| Automatic configuration log (§6.2) | `SL::AppDirectory`, `0x00602210` | **51 / `+0xCC`** | output string reference | A followed by stored `computerName`, then literal `-config-log.txt` |
+
+The dispatch and arguments are instruction-checked at `0x00602230–0x00602249`,
+`0x00602270–0x00602287` and `0x00602210–0x00602227`. Slot 53 is exported as
+`GetPluginDirectory`; its negative index copies the base without adding a language subfolder
+(`0x0044BF90–0x0044BFAC`). Slot 58 is exported as `GetRegionsDirectory`, but is the plain
+stored user-base getter (`0x00449E80`). **Neither slot 51 nor slot 56 obtains a rule-file base.**
+The `.../Apps/` and `.../Plugins/` values reported for those two slots in GR10 therefore do not
+justify appending either rule filename to them.
+
+Construction is literal string append, not a path-join/search API: no separator, `Apps/`,
+`Plugins/`, `Data/`, language folder or parent traversal is inserted. The supplied bases normally
+include a trailing separator. If P were `C:/R` without one, the registered rules path would be
+`C:/RGraphics Rules.sgr`, not `C:/R/Graphics Rules.sgr`. The manager appends the filename byte
+ranges at `0x007CFF38–0x007CFF53` and `0x007CFF9B–0x007CFFB6`; the shared append body
+preserves the existing prefix (`0x0040EBC0`). A relative or empty base is not repaired: the
+resulting relative filename uses ordinary operating-system path resolution, not a game search.
+
+**Parser acquisition and open order.** The COM call at `0x007CFE36–0x007CFE49` uses
+`GZCOM` slot 3 (`+0x0C`) with **class ID `0x5CF9459A`, IID `0x1CF94583`, output interface
+pointer**. This creates `nSCRes::cFileParser`; it is not a filesystem search service. On that
+interface the manager calls slot 3 (`+0x0C`, Init, no arguments), slot 5 (`+0x14`, SetParser,
+the constructed rule-command parser), then slot 6 (`+0x18`, AddInputFilePath) twice:
+
+1. Register **P + `Graphics Rules.sgr`**, flags **1**, at `0x007CFF83–0x007CFF93`.
+2. Register **U + `Graphics Options.sgr`**, flags **0**, at `0x007CFFC1–0x007CFFD1`.
+
+Slot 8 (`+0x20`, ParseFiles, no arguments) then parses those registrations in that order
+(`0x007D003B–0x007D0041`, `0x0068135C–0x00681387`). Registration copies the supplied filename
+and records its parent for include handling; it does not locate an existing copy
+(`0x00681DA0–0x00681E23`). Each top-level attempt constructs a `cRZTextFile` with that full
+filename and opens it with arguments **(1, 2, 7)** (`0x00680EC7–0x00680EE2`): read access,
+open existing. The underlying `cRZFile` opens the supplied path through the Windows file API
+(`0x0093066E–0x00930682`, `0x00919B00–0x00919C77`). There is no game-filesystem mount,
+resource-key lookup, archive lookup, directory enumeration or alternate-directory retry here.
+In particular, neither the parser nor the manager tries the other base after open failure.
+Explicit `include`/`sinclude` directives can name additional files; their parent-relative joining
+is the separate contract in [sc-resources.md §4.2](sc-resources.md#42-input-and-failure-contract).
+
+**Duplicate and missing-file outcomes.** In this table P and U are distinct directories;
+“present” means an accessible, otherwise valid file with the indicated basename. These are
+top-level selection rules, before any explicit includes in the selected contents.
+
+| Copies of the indicated basename | `Graphics Rules.sgr` | `Graphics Options.sgr` |
+|---|---|---|
+| In both P and U | Read P's copy only; U's copy is ignored. | Read U's copy only, after the rules attempt; P's copy is ignored. |
+| In P only | Read P's copy. | Attempt U, ignore its optional open failure; P's copy is ignored. |
+| In U only | Attempt P, record required open failure; U's copy is ignored. | Read U's copy after the rules attempt. |
+| In neither | Attempt P and record required open failure. | Attempt U and ignore its optional open failure. |
+
+A valid required rules file with no options file still succeeds. A missing required rules file
+makes the aggregate parse fail even if the options file exists and parses; the options attempt
+still occurs. Neither file present also fails. Failed aggregate parsing does not publish either
+temporary list, and `Init` installs fallback rules (`0x007D18C2–0x007D18CD`). As in §1, native
+`Init` has no success/status return; GR10's reported status is a replacement-side observation.
+Optional-file syntax errors retain the partial-contribution behavior already specified above.
+
+Source-derived path fixture: with P=`C:/R/`, U=`C:/U/`, A=`C:/A/` and stored computer name
+`HOST`, the two registered paths are exactly `C:/R/Graphics Rules.sgr` and
+`C:/U/Graphics Options.sgr`, in that order. A conflicting `C:/U/Graphics Rules.sgr` or
+`C:/R/Graphics Options.sgr` contributes nothing unless explicitly included. The automatic log
+path is independently `C:/A/HOST-config-log.txt`. These are expected examples, not executed
+native/replacement parity evidence.
 
 ## 4. The language *[compat]*
 
@@ -716,6 +905,22 @@ delegated by `Sprintf` to native CRT `__snprintf` (`0x0090F83F–0x0090F8DB`), w
 binary64 argument and default precision. The exact exceptional-value spelling is still an
 explicit GR6 evidence gap, not permission to adopt a host formatter silently.
 
+### 6.2 Automatic log directory (GR10)
+
+When automatic logging is enabled, `SetOptionsFromConfiguration` obtains **A** through
+`SL::AppDirectory`: `cISC4App` IID `0x26CE01C0`, **slot 51 / `+0xCC`**, with an output string
+reference (§3.1). It then appends the stored `computerName` byte range followed by
+`-config-log.txt` (`0x007D19E5–0x007D1A27`). No separator, subfolder or filename sanitization is
+inserted. This uses neither the rules base P nor the options base U; the measured `.../Apps/`
+return for slot 51 applies to this log path.
+
+The manager supplies that complete path to the log file's slot 28 (`+0x70`, SetPath), then
+calls slot 3 (`+0x0C`, Open) with **(2, 1, 1)** (`0x007D1A2C–0x007D1A45`): write access,
+create/replace. It does not create missing parent directories or retry under another base.
+Open failure leaves logging ineffective while rule evaluation still proceeds (§6).
+`LogConfigurationToFile(path)` remains the separate explicit-path operation: the caller's
+path is used directly, without acquiring or prepending any of these three bases.
+
 ## 7. Fallback rules (`SetFallbackRules`, `0x007D13C0`)
 
 When the files cannot be parsed, `Using fallback rules.` is logged and three rules are built in:
@@ -744,6 +949,7 @@ to the environment float inclusively (`0x007CE936–0x007CE943`).
 
 `cSC4App::PostFrameWorkInit` and `DoPreferencesChanged` (command-line.md) call `SetOptionsFromConfiguration`; the
 graphics options dialog uses slots 6 and 7.
+The startup factory/Init/evaluate sequence and independent acquisition lifetimes are specified in §2.7 (GR11).
 
 ## 9. Quirks
 
@@ -770,6 +976,8 @@ GR1–GR3 are resolved in §§2, 4.2 and 7.
 6. **Unknown property:** `property noSuchThing 1` is a parse error.
 7. **Software:** a matching rule that sets `forceSoftwareDriver true` clears `hardwareDriver` for the rules after it.
 8. **Log name:** on a machine named `ALPHA` the log is `ALPHA-config-log.txt` in the application directory.
+9. **Independent Init (GR11):** §2.7's worked cases distinguish counted/borrowed acquisition, preserved
+   view lifetime and backing-store enabledness, software early exit, and evaluation after Init.
 
 Concrete scripts, injected inputs and independent expected results are in
 [graphics-rules-vectors.md](graphics-rules-vectors.md). They are proof-derived fixtures, not claims of

@@ -2,48 +2,73 @@
 //! Settled lifecycle orchestration, win-filebrowser §§8.5–8.7.
 use super::*;
 
-pub trait BrowserHost: IconIo + BrowserIo {
+pub trait BrowserHost: PopulationIo {
     fn set_width(&mut self, window: Handle, width: u32);
     fn set_height(&mut self, window: Handle, height: u32);
     fn base_destroy(&mut self, window: Handle);
 }
 
-/// Primitive factory operations for the specified AddControls prefix. The
-/// creation order/configuration remains FBQ2, so this is not full AddControls.
-pub trait ControlIo: BrowserForeign {
+/// Individual child operations; construction order and configuration live here.
+pub trait ControlIo: IconIo {
     fn component(&mut self, class: u32, iid: u32) -> Option<Handle>;
     fn builtin(&mut self, class: u32, iid: u32) -> Option<Handle>;
+    fn builtin_spec(&mut self, class: u32, iid: u32, _layout: [u32; 3]) -> Option<Handle> {
+        self.builtin(class, iid)
+    }
+    fn component_result(&mut self, class: u32, iid: u32) -> (bool, Option<Handle>) {
+        let value = self.component(class, iid);
+        (value.is_some(), value)
+    }
+    fn control(&mut self, control: Handle, operation: ControlOp);
+    fn control_name(&mut self, index: usize) -> Vec<u8>;
+    fn confirmation_caption(&mut self) -> Vec<u8>;
 }
 pub fn obtain_control(index: usize, f: &mut impl ControlIo) -> Result<Option<Handle>> {
     let (class, iid) = match index {
-        0 | 5 => (0xdaa6_b9bf, 0xdaa6_b9be),
-        2 | 3 | 4 | 9 => (0x22ec_fc47, 0x0000_8810),
+        0 | 1 | 5 => (0xdaa6_b9bf, 0xdaa6_b9be),
+        2 | 3 | 4 | 8 | 9 => (0x22ec_fc47, 0x0000_8810),
         6 => (0x231a_1c58, 0x231a_1c57),
-        // The table does not establish the remaining factory classes.
-        _ => return Err(Unsupported::Open("FBQ2")),
+        7 => (0x59b, 0x412c_e496),
+        10..=12 => (0x592, 0x212c_dc1f),
+        _ => return Err(Unsupported::Precondition("FileBrowser child index")),
     };
-    if let Some(control) = f.component(class, iid) {
-        return Ok(Some(control));
+    let (success, control) = f.component_result(class, iid);
+    if success {
+        return control
+            .map(Some)
+            .ok_or(Unsupported::Precondition("factory true with null child"));
     }
-    let control = f.builtin(class, iid);
-    if let Some(control) = control {
-        f.add_ref(control);
-    }
-    Ok(control)
+    let layout = match index {
+        0 | 1 | 5 => [744, 0x19bff, 0],
+        6 => [656, 0x11ff, 0xd8],
+        7 => [316, 1, 0xd8],
+        10..=12 => [276, 0, 0xd8],
+        _ => [436, 0, 0],
+    };
+    let control = f.builtin_spec(class, iid, layout);
+    let control = control.ok_or(Unsupported::Precondition("null built-in child"))?;
+    f.add_ref(control);
+    Ok(Some(control))
 }
 
-/// Explicit virtual-override boundary for the *unsettled* primary bodies.
-/// The default never pretends to implement their missing owner algorithms.
-/// Tests may supply overrides to reach later, independently settled Init paths.
+/// Virtual dispatch remains overridable; defaults execute the settled owner.
 pub trait BrowserOverrides<H: BrowserHost> {
-    fn property(&mut self, _: &mut FileBrowser, _: u32, _: &[u32], _: &mut H) -> Result<()> {
-        Err(Unsupported::Open("FBQ4"))
+    fn property(&mut self, b: &mut FileBrowser, slot: u32, args: &[u32], f: &mut H) -> Result<()> {
+        b.init_property(slot, args, f)
     }
-    fn add_controls(&mut self, _: &mut FileBrowser, _: &mut H) -> Result<bool> {
-        Err(Unsupported::Open("FBQ2"))
+    fn add_controls(&mut self, b: &mut FileBrowser, f: &mut H) -> Result<bool> {
+        b.add_controls(f)
     }
-    fn refresh(&mut self, _: &mut FileBrowser, _: Refresh, _: &mut H) -> Result<()> {
-        Err(Unsupported::Open("FBQ5"))
+    fn refresh(&mut self, b: &mut FileBrowser, kind: Refresh, f: &mut H) -> Result<()> {
+        match kind {
+            Refresh::DirectoryList => {
+                b.populate_directory_list(f)?;
+            }
+            Refresh::FileList => {
+                b.populate_file_list(f)?;
+            }
+        }
+        Ok(())
     }
 }
 pub struct Unsettled;
@@ -76,7 +101,6 @@ impl FileBrowser {
         for index in 0..7 {
             self.load_default_icon(index, f)?;
         }
-        // Slot 93/94 bodies remain FBQ4; preserve their explicit virtual calls.
         overrides.property(self, 93, &[], f)?;
         overrides.property(self, 94, &[], f)?;
         if self.current.is_empty() {
@@ -122,7 +146,7 @@ impl FileBrowser {
             if let Some(buffer) = buffer {
                 f.add_ref(buffer);
             } else {
-                Self::create_default_button_buffer(&mut buffer, f)?;
+                self.create_button_buffer(selector, &mut buffer, f)?;
             }
             self.set_button_buffer(selector, buffer, f);
             let buffer = buffer.ok_or(Unsupported::Precondition("FileBrowser Init temporary Release"))?;
@@ -137,8 +161,7 @@ impl FileBrowser {
         Ok(true)
     }
 
-    /// Placement is supplied explicitly until FBQ2 settles background geometry.
-    /// No background operation means the native optional-background path is off.
+    /// Explicit draw operation is retained for callers with a resolved context.
     pub fn paint<H: BrowserHost>(
         &mut self,
         background: Option<Draw>,
@@ -149,7 +172,6 @@ impl FileBrowser {
             f.draw(operation);
         }
         if self.dirty {
-            f.invalidate(self.window());
             self.update_path_live(f, overrides)?;
             self.dirty = false;
         }

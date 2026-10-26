@@ -70,7 +70,7 @@ question entries are RY3 to RY6 in [questions/regional-city.md](questions/region
 | §6.2, `CreateSymmetricConnections` | "duplicate pending records are removed" | Of entries with equal type and cell (the flag is not compared) the **earlier** ones are removed and the **last** stays (§4.1). The outline is expanded into §4. |
 | §3 slot 13 | listed with the "getters shared with other classes" | `GetWorkforcePercentage` returns the **address** of the stored float, not a float value (§5.4). |
 | §5, commodity map | produced, demanded, exported, imported, cost per unit | That is the in-memory order of the five doubles. In the **file** the order is produced, demanded, **imported, exported**, cost per unit (as foundations.md §11.2 says). An implementation that stores them in one order must write them in the other. |
-| §1, `SC4ReadRegionalCity` | stream form only | The path form has a version gate and a finish step that can turn a good read into a failure (§2.2). |
+| §1, `SC4ReadRegionalCity` | stream form only | The path form has a version gate; finish checks IsOpen and preserves the stream result (§2.2, RR9). |
 | application.md §11.9 | `cSC4App::Read` "returns true only when all three succeed" | It returns **true even when the regional-city read fails**; the previous regional city then stays (§2.4). |
 
 ## 2. Reading and writing a record in a package
@@ -82,8 +82,11 @@ opened, or the object cannot be created or fails its `Read`, `*out` is **not tou
 read, so the object is subscribed to its messages before the caller sees it.
 
 `SC4WriteRegionalCity(package, city)` (`0x005DC1A0`) opens the record `0xCA027EDB / 0xCA027EE1 / 0` for writing with
-the helper that puts the `u16 1` prefix in front (the original passes one extra flag, value 1, whose meaning is not
-decoded: RR9). If the record cannot be opened it returns false. It asks the object for its serializable interface
+the helper that puts the `u16 1` prefix in front. The helper's last argument **is this stream version**, not a
+compression or replacement flag (RR9): the argument is written through the stream's u16 writer and retained as a
+u16 (`0x005DC1A8`–`0x005DC1BD`, `0x005D9E03`–`0x005D9E10`). Separately, the helper always passes **true** to
+`OpenOStream(key, &stream, flag)` (package slot 8, `+0x20`, `0x005D9DF2`–`0x005D9DFC`); changing the prefix
+version would not change that boolean. If the record cannot be opened it returns false. It asks the object for its serializable interface
 (IID `0xE4FDA3D4`) and returns `Write`'s result; an object that does not answer returns false.
 
 `Write` emits the layout of foundations.md §11.2, version 13, always. The counts of the connection list and the two
@@ -108,18 +111,37 @@ Details that region.md §8 and region-model.md §5.1 do not give:
    (`SC4WriteAppLoadSaveVersion`, `0x005DBFA0`).
 2. **A file outside 62 to 65 is never patched.** The write fails and the file is left as the package layer leaves it,
    so a neighbour saved by an older or newer build keeps its old queue and deals *[compat]*.
-3. **The finish step decides the result.** After the stream form the package is told to commit (a call on the package,
-   its slot `+0x1C`, meaning *[inferred]*); only if that succeeds are the remaining close calls made and the stream
-   result returned. If the commit fails the path form returns **false even though the record was read or written**
-   (in the read case `*out` has already been set and keeps its reference).
-4. **Only the one record is replaced** in the write form; every other record of the file is untouched. How the package
-   layer rebuilds its index is its business and not decoded (RR9). An implementation may rewrite the package.
+3. **Finish preserves the stream result (RR9).** The package view held by these wrappers tests **IsOpen** at
+   `+0x1C`; it does not commit there. The target (`0x005D1760` → `0x0096DFBD`) only tests the two access bits.
+   If true, the wrapper calls `+0x20` (Close), `+0x14` (Shutdown), then `+0x08` (Release). If false, it skips
+   those remaining calls. It returns the saved stream result in either case, ignoring the cleanup return values
+   (`0x005DC2A7`–`0x005DC2D0`, `0x005DC367`–`0x005DC390`). Thus neither a false open-state check nor a false
+   Close result turns a successful read/write into false. The nearby `+0x18` call opens with read/write booleans;
+   these offsets refer to the held package view, not `cISC4DBSegment`'s stream interface.
+4. **Only the one logical record is replaced** in the write form. The packed-file close-record path invokes
+   `WriteRecordInternal` for a writable record (`0x00971991`). That routine removes the old key's index entry,
+   releases its old allocation, then installs a new entry after writing the replacement (`0x00971617`);
+   compression is selected separately by the key/size policy `ShouldRecordBeCompressed` (`0x0096FF01`).
+   This is not a transaction or a whole-file rewrite guarantee: failure after removing the old entry need not
+   restore it. Unrelated logical records must survive a successful update. An engine may rewrite the package.
 5. The read form does not set the object's file path; callers do (region-model.md §5.1, `SetFilePath`).
 
 Callers of the path read: the region's `LoadCitiesFromDirectory` and `ReloadCity`, `MoveCity`, the nation's
 `ResetTutorialCities`, the region screen's launch command, and `SC4CreateSavePathForCity` (to learn an existing file's
 serial number). Callers of the path write: `cSC4App::SaveCity` (the neighbour rewrite, foundations.md §11.1 and §3.7
 step 7, application.md §11.16 step 13) and `cSC4Region::MoveCity`.
+
+**Worked package cases (RR9).** In an application-version-65 package containing regional record R and unrelated
+record S, a successful write changes R and preserves S's decoded payload and key. A mock package that reports
+false at the final `+0x1C` test still returns a successful stream result; one that reports true there and false
+from Close also returns success and still receives Shutdown/Release. This replaces the former commit-failure
+test. The stream prefix must remain `01 00` regardless of whether R's stored payload is compressed.
+
+The precise **physical allocation** choice (reuse a freed hole, append at EOF, or compact under a threshold)
+is not established here. To settle it, patch R in copies of one DBPF with and without a sufficiently large
+free extent, using smaller, same-size and larger replacement payloads; record old/new index offsets, hole
+table, file size and file writes through Close. That distinguishes append/reuse from a whole-file rebuild;
+the decoded R/S case above does not distinguish them. No byte-placement rule is imposed on an engine.
 
 ### 2.3 What a save writes where *[compat]*
 
@@ -265,8 +287,19 @@ wide add entries:     dir := pairFlag
 "North or East edge" is the test `x ≥ 0` and `z ≤ cellCountZ - 1`, which holds for exactly those two sides. The
 **drive-side property** is the boolean exemplar property `0x49BE9565` of `0x6534284A / 0xA998D30B / 1`, read once when
 the automata manager starts (global `0x00B21CC1`); the shipped data hold **true**, so only the North/East flip applies
-(its meaning is open: RR4). The direction bit is passed to `CreateConnection` as its `flag` (neighbors.md §6.3), where
+(its broader traffic meaning is bounded below). The direction bit is passed to `CreateConnection` as its `flag` (neighbors.md §6.3), where
 it flips the orientation of the marker prop.
+
+**Scope of the drive-side switch (RR4).** The executable instruction export contains just the property-load
+argument at `0x00513247`–`0x00513251` and this global's read at `0x004AA939`: no other absolute-address consumer
+was found. The proven meaning is **wide regional connection marker orientation**, true retaining the direction
+above and false reversing it. It is not evidence that this byte selects the lane used by moving vehicles.
+The property's human-facing name and whether true denotes right-hand traffic are not established by these two
+sites. To settle that interpretation, override only `0x49BE9565`, restart to reload the automata exemplar, and
+compare an identical wide border pair's prop rotations and moving vehicles' lane/direction on saved paths.
+Hold locale, path resources and other properties fixed; otherwise a locale-based path switch confounds it.
+Worked case: west-edge Highway adds at `(-1,10)` and `(-1,11)` give directions false/true when the property is
+true, true/false when false. Their network IDs, sorted order and first/second-half flags do not change.
 
 ### 4.4 Connection type to network type
 
@@ -284,6 +317,34 @@ For Pipe the occupant filter layer is **3** and for Subway **2**; for all other 
 regional-city.md §6.2.1).
 (These network numbers are the same ones neighbors.md §6.5 uses for the reverse mapping.)
 
+**Numbering and incomplete wide pairs (RR5).** These are the network manager/tool/occupant IDs, also declared
+by the public `cISC4NetworkOccupant` enumeration: road 0, rail 1, elevated highway 2, street 3, water pipe 4,
+power line/pole 5, avenue 6, subway 7, elevated light rail 8, monorail 9, one-way road 10, dirt road 11,
+ground highway 12. The pending-connection IDs are a separate enumeration; do not pass Road's connection ID 2
+as its tool ID. Street and one-way road have no separate connection type in this table.
+
+No producer in §3.2 validates wide-pair cardinality: `ChangeSymmetricConnection` accepts **one connection**,
+and incoming reconstruction mirrors each connection independently. Thus a neighbour record with one Highway
+connection, or a single such public call, can produce an odd queue. There is no repair, rejection or deferred
+pair: the final unpaired first half runs the first-half row of §4.5 and the queue is then drained. It creates
+the connection and its marker (neighbors.md §6.3), but makes no network-placement call and has no piece-presence
+rollback. "Builds nothing" describes the network pieces, not the connection record or marker.
+
+For a usual adjacent pair the second-half tool invocation draws a **wide network**; the three-cell strip is
+longitudinal, not three lanes of width. Any lateral expansion belongs to that network tool's solving and
+placement rules ([network-tools.md](network-tools.md) §§3–5). The explicit demolition set does not itself
+include the first half's parallel strip. Pairing is global across sorted wide additions, so distant cells or
+different wide types can also consume the same pair parity; no adjacency guarantee may be added.
+
+Worked case: in an empty 64-by-64 city with a suitable neighbour, queue only `{Highway,-1,10,add}`. Expect
+one CreateConnection/marker request, zero demolition and placement requests, then an empty queue and
+ConnectionsReady. With a second entry at `(-1,11)`, only that entry clears `(0,11),(1,11),(2,11)` and invokes
+the highway tool. To establish whether the **unmodified stock UI** ever generates a singleton, trace the
+three queue producers while making/deleting/moving wide crossings and save both sides of each crossing.
+To settle its rendered appearance and lane footprint, load the singleton/pair fixtures and record the
+marker props and network occupant cells after solving, including a blocker in the first strip. The static
+record/call result above does not promise a complete highway, a particular model or a crash-free renderer.
+
 ### 4.5 Apply each entry, in sorted order
 
 | Entry | Behaviour |
@@ -296,7 +357,7 @@ regional-city.md §6.2.1).
 | **remove**, no such connection | Skipped. |
 | **remove**, the connection exists | `DeleteConnection(type, x, z)` on `N` (neighbors.md §6.4), then the side clean-up of §4.7. |
 
-### 4.6 Adding a connection with `pairFlag` true *[inferred]*
+### 4.6 Adding a connection with `pairFlag` true *[compat]*
 
 Let the **edge cell** be the entry's cell and the **inner cell** the cell just inside the city on that edge
 (`x + 1`, `z + 1`, `x - 1` or `z - 1` according to the side). Let the **strip** be the inner cell and the two cells
@@ -319,22 +380,55 @@ coordinate). Each entry clears its own strip, at its own lateral coordinate.
    then look for the result at the **inner cell**: for a PowerPole, an occupant of type `0x2890D4DE` there; for other
    types, a network occupant (type `0xC772BF98`) of this network. **If none is found, the connection just created is
    deleted again** (`DeleteConnection(type, x, z)`): a connection never survives without a piece next to its edge.
-   Then, for every network occupant of this network at the inner cell, set the edge byte of its side to **2** (see
-   below). If any of those occupants had an edge byte of **4** on some side (a link to the next cell), the same side
-   byte is set to 2 on the occupants of the neighbouring cell in that direction, searched in the order West, North,
-   East, South (the first side holding a 4 wins). Finally the segment placement of the first sentence is run again so
+   Then, for every network occupant of this network at the inner cell, set the edge byte of the city-border side to
+   **2** (see below). Retain the **last matching occupant's original** grouped-edge mask. When it is nonzero,
+   choose its first grouped side in West, North, East, South order, query the neighbouring cell in that direction,
+   and set the same **city-border side** byte to 2 on matching occupants there. Finally the segment placement of the first sentence is run again so
    the network recomputes its pieces.
 
 The **edge byte** is part of a network occupant's connection word: a 32-bit value with one byte per side, West in the
-low byte, then North, East, South (a side is shifted by `8 × rank`). The mask `0x04040404` picks out the "link" value 4
-in each byte. The meaning of the other values (the written 2 on an add, 0 on a remove) is not decoded (RR3).
+low byte, then North, East, South (a side is shifted by `8 × rank`). Bits 0–1 of a byte are the edge type;
+bit 2 is a **grouped edge**, not proof of an ordinary traversable link. The mask `0x04040404` extracts those
+group bits. Add writes the complete border byte as **2**, a nonzero active edge type with its group bit clear;
+remove writes **0**, an inactive edge. Both the active-edge query without groups and `ConnectsToNeighbor`
+recognise the low two bits (`0x00619320`–`0x00619356`, `0x00620EE0`–`0x00620EF5`;
+[network-occupants.md](network-occupants.md) §2.10). No inference that 2 means a vehicle's travel direction is
+needed. The saved group mask is overwritten for each matching occupant, not ORed across them
+(`0x004AB20A`–`0x004AB26A`); a later matching occupant without group bits prevents propagation.
 
-### 4.7 Removing a connection *[inferred]*
+**Call boundary (RR3).** The segment operation is tool slot 7 (`+0x1C`),
+`PlaceNetworkOccupants(innerX, innerZ, endX, endZ, 0, null, true, -1)`
+(`0x004AAFE1`–`0x004AAFF3`). Mask 0 requests a straight run, null supplies no callback, true commits into
+the city, and -1 selects the tool's own network type, rather than passing a network-mask sentinel. The tool
+clamps coordinates, solves and inserts occupants as specified in network-tools.md §3. The caller ignores
+the boolean and instead tests the resulting occupants, as above. The two point bounds passed to occupant
+manager slot 41 (`+0xA4`) both designate the inner cell; its type is power pole `0x2890D4DE` for the pole
+presence test, otherwise network occupant `0xC772BF98`, and its final argument is `0xFFFFFFFF`
+(`0x004AB06D`–`0x004AB09B`). Network results additionally require QI `0xA821EF94` and `IsOfType(networkID)`.
+This typed rectangle query is not a filter-pointer overload or a test against every layer's occupants.
+
+Before demolition, the non-pole test calls traffic network map slot 11 (`+0x2C`) with **x,z only**, then tests
+the returned value for nonzero (`0x004AADC9`–`0x004AADD2`). There is **no requested-network ID** in this test:
+it means a traffic-map entry is already present, not necessarily that it carries the incoming network.
+The demolition admissions and utility exclusions are exactly regional-city.md §6.2.1: this is a layer
+filter permitting eligible buildings, props, flora and networks, not a network-only bulldozer. Power-pole
+adds additionally dezone the selected set; other adds do not request that extra dezone operation.
+
+Worked calls: for a west Road add at `(-1,5)`, request the road tool (network 0), clear candidates
+`(0,5),(1,5),(2,5)` except cells with nonzero traffic-map results, and place from `(0,5)` to `(2,5)` with
+the four trailing arguments above. An eligible unlocked surface building in a selected cell is removable;
+a system-locked one or a layer-3 pipe is not admitted for that road request (§6.2.1). For a matching inner
+occupant with word `0x00000400`, a west add gives `0x00000402` and propagates the **West** byte to matching
+occupants at `(0,4)` (North group). A second, later matching occupant with word 0 instead suppresses that
+propagation. West removal clears byte 0, leaving the North group bit intact before re-solving. Assert the
+requests and words **before** the final solve; model/piece selection is the tool's output.
+
+### 4.7 Removing a connection *[compat]*
 
 After the connection is deleted, for every network occupant of the entry's network at the **inner cell** (the
 occupants returned for that cell with the network occupant filter), the edge byte of the entry's side is set to
-**0**. If any of them had a link value 4 on a side, the same byte is cleared on the occupants of the neighbouring cell
-in that direction (same search order as §4.6). Then the segment placement is run once more to recompute. A removal
+**0**. Use the last matching occupant's original group mask, choosing its first grouped side as in §4.6;
+the same city-border byte is cleared on matching occupants of that neighbouring cell. Then the segment placement is run once more to recompute. A removal
 **never demolishes** anything and does not touch the power pole occupants, which carry no edge byte.
 
 ### 4.8 Finish
@@ -385,12 +479,48 @@ connection list with references to the city's **live** connection objects, and i
 map from the demand simulator's summary rather than adding to it. `UpdateImportExport` is exactly foundations.md §11.3;
 it resets only imported and exported of the three commodities and leaves produced, demanded and cost per unit alone.
 
+**Stored metadata (RR7).** Construction initializes original/last language and country (`+0xA8`–`+0xB4`),
+birth date (`+0xB8`) and world longitude/latitude/base elevation (`+0x148`, `+0x14C`, `+0x150`) to zero.
+Read loads them; Write stores them. Neither `UpdateCityCache` overload nor `SetupPreferences`/`SetupCity`
+fills them from the application's locale, wall clock, terrain or the live city's similarly named fields.
+The regional-city interface has **getters only** for the language/country pairs (slots 29–30); its setters
+for birth date (42, `0x004ABC30`), world position (46, `0x004ABC80`) and elevation (48, `0x004ABCB0`) are
+ordinary field assignments. There are no direct callers to those three setters in the export. This
+does not prove that a plug-in or unresolved virtual caller never uses them. The empty/default evidence
+does not justify discarding a nonzero value read from a file.
+
+Worked case: load an established record with original/last language-country pairs `(1,2)`/`(3,4)`,
+birth date 123, longitude 12.5, latitude -3 and elevation 7. Both cache refreshes leave these values alone;
+setting birth date to 456 changes only that field; a subsequent Write retains the other metadata.
+To settle original producers beyond Read, watch writes to those fields (not only the setter entry points)
+while founding, renaming, importing, moving and saving a city in different locales. Capture the writing
+instruction and stack and distinguish initialization/deserialization from a new value computed by the
+game. A plug-in producer requires the same trace with that plug-in loaded; no shipped-file sample proves
+an unused plug-in contract. The three opaque strings have their own preservation case in regional-city.md §2.
+
 ### 5.4 `GetWorkforcePercentage` *[compat]*
 
-Slot 13 returns, in the integer result register, the **address** of the stored float (object offset `+0x30`); it does
-not return a float value. The residential simulator's counterpart, which `UpdateCityCache` reads, does the same. A
-caller of the original must dereference the result. An implementation that replaces this class must keep the address
-convention for plug-ins compiled against the original (the SDK header declares a plain float return: RR6).
+Slot 13 returns, in EAX, the **address** of the stored float (object offset `+0x30`); it does not produce an x87
+result or consume a stack argument (`0x00800640`–`0x00800643`). The public gzcom-dll SDK header does declare
+`GetWorkforcePercentage` as a plain `float` return. That declaration disagrees with this Windows binary: a caller
+compiled to read ST(0) has no valid result supplied by this method. Replacements using the native slot must
+preserve the address convention; this is not permission to reinterpret the address bits as an IEEE float.
+
+The residential counterpart is **different**: slot 31 (`+0x7C`, `0x006FC860`) takes a caller-provided pointer
+to four bytes of result storage, writes the fraction there, returns that pointer in EAX and removes the
+four-byte argument. It does not return a pointer to a persistent member. `UpdateCityCache(city)` explicitly
+passes temporary storage, then copies the four bytes at the returned address into this record's `+0x30`
+(`0x004AD397`–`0x004AD3A8`; both residential return paths at `0x006FC98D`–`0x006FC9D5`). Its SDK declaration
+also says plain `float`; it does not describe this calling sequence.
+
+Worked ABI case (RR6): with workforce bits `0x3F000000` at record address `R + 0x30`, slot 13 returns
+`R + 0x30`, leaves those bytes intact and supplies no new x87 value. For the residential method a caller
+must provide a separate four-byte destination and read the destination through the returned pointer.
+The cache call above is a verified dereferencing caller. The export has no direct calls to the shared
+four-byte slot-13 body (also used for unrelated address getters); unresolved virtual calls do not establish
+that **every** executable caller dereferences it. To settle that exhaustive claim, trace calls through the
+regional-city vtable slot 13 and record each return consumer while exercising the region statistics UI and
+city load/save. No scalar-return contract may be inferred from the header meanwhile.
 
 ## 6. City thumbnails
 
@@ -547,16 +677,15 @@ On the 417 city files of the six shipped regions (DBPF index, QFS decompression 
 2. A new road connection with no network piece in the inner cell is created and then deleted again (§4.6 step 5).
 3. Of a wide pair only the second half demolishes and places a piece; the first half only creates the connection (§4.5).
 4. `cSC4App::Read` returns true when the regional-city read failed (§2.4).
-5. A path write whose finish step fails reports false although the record was written (§2.2).
+5. A path write ignores cleanup failure and returns the saved stream result (§2.2).
 6. A save with the flag set reuses the old pictures and does not render (§6.3).
 
 ## 9. Open questions
 
-See [questions/regional-city-records.md](questions/regional-city-records.md): RR1 (the PreSave flag), RR2 (the second
-capture pass and the border-mask colours), RR3 (arguments and values of the network calls in §4), RR4 (the drive-side
-property), RR5 (network numbering and the unpaired half), RR6 (`GetWorkforcePercentage` in the SDK header), RR7
-(unwritten fields), RR8 (callers of the new-city preference slots), RR9 (the stream flag of the writer and the package
-update). The answers and refinements for regional-city.md are filed as RY3 to RY6 in
+See [questions/regional-city-records.md](questions/regional-city-records.md): RR1 (the PreSave flag) and RR2 (the second
+capture pass and the border-mask colours). RR3–RR9 are answered in §§2, 4, 5 and regional-city.md §7.1;
+the remaining runtime observations are stated at the applicable rules, without assigning unproven meanings.
+The answers and refinements for regional-city.md are filed as RY3 to RY6 in
 [questions/regional-city.md](questions/regional-city.md).
 
 ## 10. Conformance tests
@@ -564,7 +693,7 @@ update). The answers and refinements for regional-city.md are filed as RY3 to RY
 1. **Path-form gate.** A package whose application version record is 61 or 66 fails both path forms and the write
    leaves the file untouched; a package with no version record passes; one whose record exists but is unreadable fails.
 2. **Application read.** `cSC4App::Read` on a package whose regional-city record is missing returns true and keeps the
-   previous regional city; if the package's commit fails after a good stream write, the path write returns false.
+   previous regional city. The package cases in §2.2 check that path forms preserve the stream result through cleanup.
 3. **Pending entry layout.** The entries `{9, 100, 128, 1}` and `{9, 99, 128, 1}` are the 26 bytes
    `09000000 64000000 80000000 01` and `09000000 63000000 80000000 01`, preceded by the `u32` count 2.
 4. **Conversion.** With Fulham at (2, 8) as the current city and Kensington at (2, 6), both 2 x 2: a Road created at

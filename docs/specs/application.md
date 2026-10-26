@@ -249,6 +249,74 @@ Always returns true.
 | `0xBA44EB51` GameInIdleState | if the global manager at `0x00B43CA8` exists, call its slot +0xAC |
 | `0xFA0C6390` mouse, `0x7A104750` | restart the input-idle timer +0x378 |
 
+### 6.2.1 Observing mode while a delivery is suspended (AP19) *[compat]*
+
+**The transition belongs to the app target's delivery, not to another subscriber's delivery.**
+For the four mode-changing types above, the app reads the type through message slot 4, stores
+the corresponding 32-bit mode, and returns true. These branches do not pump or call another
+subscriber between the store and return. Evidence: type read and mode 0 branch
+`0x00451ED3–0x00451F11`, mode 1 `0x00451F65–0x00451F76`, mode 2
+`0x00451F9F–0x00451FC8`. An input-derived model starts at constructor mode 0 (§1.2) and
+applies these deliveries in the order **the app** handles them. Slot 25 is the output being
+tested; reading it, or the same field directly, cannot supply an independent expected mode.
+
+**An ordinary late subscription has no early-delivery guarantee.** The SC4 server-2 send
+snapshots the exact-type targets in registration order, then appends wildcard targets, unlocks,
+and calls their DoMessage methods in that order. A target can enter a modal loop before the
+next target is called; nested sends and framework ticks can run inside that loop. The original
+outer delivery remains on the native call stack. Its remaining callbacks are not posted messages.
+Evidence: snapshot/type selection `0x00473825–0x00473883`, wildcard pass
+`0x00473993–0x00473996`, `0x00473A30–0x00473A33`, unlocked callback loop
+`0x0047399C–0x004739CB`; see [framework-gz-services.md §4.3](framework-gz-services.md#43-messagesend-synchronous).
+
+AddNotification has only target and type arguments. It appends an absent target; adding an
+existing target does not move it (`0x0092E858–0x0092E89A`, return with two arguments at
+`0x0092E8B2`). Removing/readding cannot move a target ahead of existing subscribers and
+cannot change a send's already copied list. Wildcard registration places it after all exact-type
+targets. MessagePost's front-of-queue flag is unrelated to subscriber order. There is no
+before-send callback, priority insertion or replay operation in the server-2 interface (§15 and
+framework-gz-services.md §4.1).
+
+**Conditional public observation arrangement.** An exact-type, non-pumping recorder installed
+at startup can capture the four inputs before a later modal target, provided its position next
+to the app target is established for each type. No intervening target may sample, pump or
+reenter lifecycle operations. A recorder immediately before the app must finish without making
+a comparison and let the app handle the input before sampling; one immediately after the app
+can commit the input on receipt. This preserves samples inside a subsequent modal loop.
+Registration time alone does not establish this arrangement. In particular PreAppInit is sent
+at `0x0044C633–0x0044C636` **before** the app registers its mode notifications at
+`0x0044C6FB–0x0044C74F`. Installing there can get ahead of the app, but does not prove that
+no previously registered target lies between recorder and app. PostAppInit does not confer a
+priority either. A late observer cannot repair its coverage by pumping, posting a marker, or
+waiting for LoadCity to return; an entire running city can occur inside the suspended delivery.
+
+**Worked reentrancy case.** For PostCityInitComplete let the copied order be app, modal target,
+late recorder; start both models at 0. Let a nested PreCityShutdown reach the app and recorder
+while the modal target is active:
+
+| Event | Mode from app deliveries / native mode | Late recorder's mode |
+|---|---|---|
+| App handles outer PostCityInitComplete | 2 | 0 |
+| Modal target runs startup and monthly observations | 2 throughout, until another app mode input | 0; missing input |
+| Nested PreCityShutdown is delivered | 0 | 0 |
+| Modal target returns; outer send reaches late recorder | 0 | 2; stale outer input |
+
+The late callback order is therefore not a valid replacement for app delivery order. For the
+reported Bevopolis startup/May/June observations, an independently captured preceding app
+PostCityInitComplete, with no intervening app mode input, predicts 2 for all three. The late
+shutdown/initialization callbacks alone cannot reconstruct that history.
+
+**Runtime observation still required for the affected installation.** Trace, without changing
+delivery, the four types' ordered target identities and the app target's entry/normal return,
+with thread, nested-send identity, and sample/modal timestamps, starting before the first city
+transition. Derive expected modes from those input types at app returns, not from slot 25.
+This either verifies a public recorder placement as above or supplies the missing independent
+input trace itself. A read-only control-flow trace is an observation of the original, not a new
+public callback a replacement must provide. Static code establishes the ordering rules but
+does not establish a safe plugin installation point in the reported runs. Without that trace
+or a verified recorder order, retain their missing-input comparisons as unresolved; no exact
+app/app-startup credit follows from the delayed callbacks alone.
+
 ### 6.3 PostSC4AppMessage (`0x00449BA0`, (type, post))
 
 Builds a standard message 2 with the type and the app interface as data, then `post` true: message
@@ -658,8 +726,11 @@ Result starts false; it is the return value.
 6. Package: a new `cSC4DBSegment` (0x1DC bytes), Init (slot +0x10), path := temp (slot +0x2C), open for
    writing (slot +0x18 with (0, 1)). Init or open failure: result false, go to step 8.
 7. Messages and writes as in foundations.md section 3.7 steps 1-5 (the PreSave data carry the package,
-   the path strings and flag != 0). After PostSave, result := true; then the package is closed (segment
-   slot +0x28) and result := the close result; the package is shut down and released.
+   the path strings and flag != 0). After PostSave, destroy the root stream, then SaveClassObjects
+   supplies result (slot +0x28 on its acquired interface). Close the persistence segment at +0x20,
+   without testing that return, then shut down and release it (`0x004563D9–0x00456423`). See
+   [data-formats.md §8.3.2](data-formats.md#832-restarting-registered-file-observations-after-a-save-ex58-compat)
+   for the later completion and re-registration boundary.
 8. Unregister the city DB segment (section 11.5).
 9. Only when result is true, replace the file (city slot +0x3C is called first, no arguments, unnamed):
    - If a file exists at target: backup := target with `_` appended
@@ -1164,10 +1235,20 @@ its previous contents; neither creates the file or updates directory caches.
 ## 15. Message pumps (iface slots 4 and 5) *[compat]*
 
 *Added 2026-10-22 (re-app).* `RunMessageServerPump(min, max, ms)` (`0x004499F0`, message server `0x00B43CC8`) and
-`RunMessageServer2Pump` (`0x00449A70`, message server 2) deliver queued messages one at a time (server slot 10 tells
-whether one waits, slot 9 with 0 delivers it) until the queue is empty, `max` messages were delivered, or more than
-`min` were and the elapsed time (a timer of unit 4 started on entry, *[inferred: milliseconds]*) exceeds `ms`.
+`RunMessageServer2Pump` (`0x00449A70`, message server 2) repeatedly invoke the server tick: slot 10 tests
+whether messages wait and slot 9 is called with 0. The loop stops when the queue is empty or its tick-iteration
+limit `max` is reached. After each tick, before incrementing the iteration counter (initially 0), it also stops
+if that counter is greater than `min` and elapsed time exceeds `ms` (timer unit 4, *[inferred: milliseconds]*).
 Without the server nothing happens. The city life cycle uses (100, 500, 5000) (§11).
+
+**Reentrancy and observation (AP19).** A server-2 tick is not a single-notification step: its default
+drain-all flag permits it to consume the whole post queue, including messages added during delivery
+(`0x0092E078–0x0092E0CE`). The app pump's bounds count tick invocations and check elapsed time only
+after a tick returns (`0x00449AA3–0x00449ACD`); they cannot preempt a callback or its modal loop.
+Neither a pump return, an empty queue, a subsequently delivered marker, nor EndModal proves that
+an enclosing synchronous delivery or SaveCity has returned. Nested pumps can themselves finish
+inside such a call. Use §6.2.1's app-input observation for mode, and data-formats.md §8.3.2 for save
+completion; neither boundary is supplied by an ordinary later framework tick.
 
 ## 16. Conformance vectors for owner closure *[compat]*
 

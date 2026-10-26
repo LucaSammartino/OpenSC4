@@ -160,3 +160,65 @@ readings has been checked in game. The current choice is in brackets.
   **ANSWERED 2026-10-26 (re-nm28):** MATCHES — §3.2 gives the original PreCityShutdown, cache-clear, network-lot/network-manager, occupant-drain and later prop-manager order; §8.5 preserves balanced lot ownership. Message/tick services and owned children must survive native callbacks. At 0x005D0F94 the null object is the dust effect (complete construction object +0x13C), created by successful SetLot setup, not a network-service lookup. Worked cases cover lot/occupant references and valid construction setup. The reports do not prove how that reference became null or explain the separate action crash; action acceptance remains pending an engine run.
 - ~~**NM17 - section 3.2 (native construction setup with replacement automata):** After implementing NM15/NM16's configuration references and configuration-before-occupant destruction, the merged-source DLL (`a11e2915`) still fails `gen27-konradshohe-s1-grow` at 2026-01-30 with the full current house profile plus `netlotobj`: 26/216 actions execute, ref_warnings=0, followed by an execute/read access violation at no-module address `0x29A5D1EC` immediately after a replacement automaton is created (native frame `SimCity 4.exe+0x1D09CA`; shared `build-runs/game-results/netlot28-nm16-s1grow-a.log:8164`). The same DLL/profile with `netlotobj` omitted reproduces it (`netlot28-nm16-s1control-a`, 26/216, ref0). Keeping `netlotobj` and all other house keys but disabling `automata` completes all 216 actions, reaches 2028-01-30 and quits cleanly (`netlot28-nm16-s1-noautomata-a`, ref0). These measurements narrow the interaction but establish no native cause. What additional observable interface/setup/ownership contract must the native construction path's returned automaton objects satisfy, beyond the valid SetLot/dust-effect precondition of NM16? Please specify the called interfaces, ownership and any required concrete layout at this boundary; route the automata portion to its owner. The full-profile s1 acceptance remains stopped; no unrelated automata or construction behavior was guessed.~~
   **ANSWERED 2026-10-26 (re-nm29):** MATCHES — network-manager.md §3.2.1 and automata.md §7.6 specify the seven-argument creation ABI, Windows model-key word order, immediate flag/orientation/AddRef calls, borrowed return plus independent manager/construction ownership, scaffold updates and deferred removal. Retained native internal creation directly accesses embedded occupant/exemplar/property-holder views and model-key fields/vector; retained native removal requires the embedded effects object. Worked starting-site, native-factory, null-result and release cases distinguish those contracts. The reported execute address equals the passed model-group constant; this is not proof of a particular DLL failure. Full-profile action acceptance still needs an engine run.
+
+<!-- from: automata-actions29 and netocc-cities29 (2026-10-26); answered/narrowed by re-nm30 -->
+
+- ~~**NM20 - section 9; native consumer after generated s2 network actions:** Please identify the
+  consumer/interface boundary at `SimCity 4.exe+0x3529C0` (`0x007529C0`), its required object view,
+  nullability and ownership contract, and the subsystem that supplies that object. With the fixed
+  NM17/AT25 automata boundary, the full house list's `gen27-konradshohe-s2-grow.script` stops at
+  **84/216** actions: `aa29-at25-house-s2-b.log` reads null+`0x6C` on 2026-09-01. Removing only
+  `automata` produces the **same fault and 84/216** on 2026-08-31 in `aa29-at25-s2-noauto-b.log`;
+  that log explicitly confirms automata is off. Both runs use DLL SHA256 prefix `afb59058`.
+  Logs and exact requests are in main's `build-runs/game-results/` and `build-runs/game-queue/done/`.
+  The last scripted call is line 88, `network 40 51 40 19 5`, returning `ok=0`, followed by tool
+  Shutdown. This timing does not establish that placement caused the fault: please route the
+  boundary to another spec if necessary. Section 9 specifies the placement sequence but does not
+  identify this later consumer. A full-house repeat on the earlier same-source DLL (`6c4bb917`,
+  `aa29-at25-house-s2-a.log`) has the same fault at 84/216. In contrast, s1 completes 216/216 and
+  quits cleanly (`aa29-at25-house-s1-a.log`). [current choice: leave s2 unaccepted; stop this item
+  rather than invent a layout, null fallback or native ownership rule]~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — routed from §9 to terrain-view.md §4.4.1 and lot-models.md §4: 0x007529C0 is terrain-view slot 15, consuming receiver+0x14 = base+0x20 terrain, then terrain+0x6C. cSC4CellTextureModel::Draw calls it through draw-context+0x4C and returns to 0x005E0487. The terrain owns/supplies the initialized view, which retains terrain; no null fallback exists. Worked lifetime case included. Remaining NM20-A requires the native sequence/control and first cache/terrain-pointer write with Init/Shutdown history; the supplied 84/216 crashes remain failed. Originally also filed as NM18 by automata-actions29; netocc-cities29 retains NM18.
+
+- ~~**NM18 — terrain removals beyond §7.6's destruction decisions (formerly filed as NM16):** in `gen-tegel-s0-default`, the shadow
+  reports 14 extra original removals around cells (65,69..70), (65..66,77), (80..81,69..70). The original's
+  component 53 and every component-11 lot/config/zone/wealth entry agree. The core queries with mask 0x1FFF,
+  applies the kind/pipe/subway/0x80000 gates and the specified four-corner altitude test. Which native handler
+  or network-tool side effect removes these pieces, and at what point should the comparison capture their
+  terrain/candidate inputs? Is the §7.6 query/filter or the ownership of the resulting removals incomplete?
+  `build-runs/suite/netocc-cities29-before5/gen-tegel-s0-default.log` reproduces 14 errors, netmgr exact 2/3,
+  clean/ref_warnings=0. A late listener registered after city Init checks each held candidate immediately
+  after 0x278E6003 / 0x6A3B0AFD. `netocc-cities29-probe1/gen-tegel-s0-default.log` still reports 14 errors;
+  every listed extra removal has `placed after handler=0`. This disproves a simple later-in-the-tick removal
+  explanation; moving the check alone is not justified. The diagnostic now also captures placement at the
+  candidate query. This blocks the 795 terrain-detail occurrences in the supplied census, including Tegel
+  and the gen27 Konradshohe/Spandau cases. No mismatch, candidate or tolerance has been removed or relaxed.
+  The current boundary probe reproduces Tegel with the shadows-profile simulator settings:
+  `C:/Users/tlori/FreeCity4/build-runs/game-results/netocc-cities29-profile5-tegel.log`, clean/ref_warnings=0,
+  netocc exact 2/2, netmgr exact 1/3 (16 mismatches). Every reported extra removal was placed at the query
+  and absent at the late terrain listener (`placed before/after handler=1/0`). Thus already-removed query
+  results and a simple later-tick check do not explain these cases.
+  A separate timing case is now proved in `netocc-cities29-broad6-06.log` (gen27 Tegel grow): some pieces
+  reported as original-only removals were still placed at the late terrain listener (`1/1`). The comparison
+  now checks every candidate, including predicted destructions, at each handler boundary; the next-tick
+  path remains the fallback for explicitly selected early-listener mode. NM18 remains about the `1/0` cases.
+  With that correction, `netocc-cities29-bound8-grow.log` reports 12 rather than 17 errors, and
+  `netocc-cities29-bound8-default.log` reports 10 rather than 16. Both are clean/ref_warnings=0; every
+  remaining reported extra removal has `1/0`. These logs are in the main checkout's `build-runs/game-results`.~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — §7.6.1 distinguishes direct destruction seeds from tool closure and neighbour replacement; §7.6 records the actual x87/store boundary. Worked A/B/B′ case included. Remaining NM18-A requires ordered slot-50 seeds, closure/solve provenance and actual pre-consumption altitude operands for the Tegel 1/0 identities; existing logs cannot assign those removals to a caller.
+
+- ~~**NM19 — Port of Shiganshina's first lot/random divergence (§§8.5, 8.7, 17.3):** the census sample
+  `C:/Users/tlori/FreeCity4/build-runs/run7/census3/paradis-port-of-shiganshina.shadows.txt` first differs on
+  2041-01-01: lot (1,25), config `4BA69450`, exists only in the original, with variation 1, rotation 3,
+  flip 0, usable 1 and current compatibility false; zone/wealth are 0/0 in both. There are also two different
+  compatible choices and generator next-word indices 386/383. Component 53 and all zone/wealth cells agree.
+  After the avenue hash-order/bounds fix, which message or direct entry should first affect this edge lot,
+  and which inputs must be retained before the native handler changes them? In particular, does the specified
+  replay need transient forced/locked lot state not represented by component 11, or another native draw path?
+  Do not infer an answer from the later incompatible configuration alone. The new diagnostic reports the
+  first random disagreement's message and four data words without resyncing the generator or hiding errors.
+  Fresh attempts `netocc-cities29-probe4-paradis` (corrupt during load) and `netocc-cities29-profile5-paradis`
+  (stalled at the script's 2040-12-12 terrain action) cannot reach the census's first differing month;
+  the latter starts with an exact netmgr load sample. This blocks that distinct census-only case, not a
+  claim that the avenue fix has passed it. All comparison checks remain enabled.~~
+  **ANSWERED 2026-10-26 (re-nm30):** DIFFERS — §8.5 NM19 specifies transient forced configuration and lot locks, their absence from component 11, the post-object-creation re-read, and a no-selection-draw forced/locked worked case. Remaining NM19-A requires the first event/direct-entry trace with those inputs, avenue queries and generator state; the later census and failed fresh attempts do not identify the first message or prove a new draw path.

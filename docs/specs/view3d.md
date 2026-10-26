@@ -992,9 +992,11 @@ drawing is safe, an intermediate-value comparison across those calls is not.
   `SC4DrawContext` at `+0x11C`. The simulation reaches it only through `cISC4View3DWin` slot 4 `GetRenderer` and
   through the draw pass (landfill.md §4.7.5, power.md §1003).
 - **The 2D blitter is replaceable freely.** Only the pixels are *[compat]* (§7.3, test 22).
-- **The terrain view is replaceable as a unit** if it answers `cISTETerrainView3D` (22 slots) and is reachable
-  through `cISTETerrain` slot 66. It is rendering-only: terrain.md §13.2 saves a two-value record for it and nothing
-  in the simulation reads its state.
+- **The terrain view has an additional native boundary** (TR45, terrain.md §15.5.14). Its 22-slot
+  `cISTETerrainView3D` interface and terrain slot 66 do not cover lifecycle or draw registration. Original terrain
+  directly calls view Init, Shutdown and the per-cell index helper, and reads view fields including altitude
+  caches and collaborator pointers. An independent view replacement must cover those paths and the base draw,
+  message and serializable interfaces. Terrain.md §13.2 saves its version/grid-byte record.
 - **`cSC4View3DWin` is not replaceable from this spec alone** — ui-windows.md §14 gives its 149-method surface and
   its catalog menus. What this spec adds is only the paint contract.
 - **Nothing in the drawing layer is saved** except the two View3D references (`view + 0xF0`, `view + 0xF4`) and the

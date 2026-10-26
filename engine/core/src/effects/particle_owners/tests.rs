@@ -11,6 +11,9 @@ struct Foreign {
     calls: Vec<String>,
     terrain: bool,
     created: u32,
+    creations: Vec<decal::Creation>,
+    projections: Vec<[u32; 7]>,
+    placements: Vec<decal::Placement>,
 }
 impl geometry::Resources for Foreign {
     fn retain(&mut self, r: u64) {
@@ -54,9 +57,34 @@ impl decal::Renderer for Foreign {
     fn release_service(&mut self) {
         self.calls.push("release-service".into());
     }
-    fn create(&mut self) -> u32 {
+    fn create(&mut self, creation: decal::Creation) -> u32 {
         self.calls.push("create".into());
+        self.creations.push(creation);
         self.created
+    }
+    fn get_projection(&mut self, _: u32) -> [u32; 7] {
+        self.calls.push("get-projection".into());
+        [17, 19, 0, 0, 0, 0, 0]
+    }
+    fn set_projection(&mut self, _: u32, p: [u32; 7]) {
+        self.calls.push("projection".into());
+        self.projections.push(p);
+    }
+    fn place(&mut self, _: u32, p: decal::Placement) {
+        self.calls.push("place".into());
+        self.placements.push(p);
+    }
+    fn enable(&mut self, _: u32, enabled: bool) {
+        assert!(enabled);
+        self.calls.push("enable".into());
+    }
+    fn city_size_z(&mut self) -> f64 {
+        self.calls.push("city-z".into());
+        1024.
+    }
+    fn city_size_x(&mut self) -> f64 {
+        self.calls.push("city-x".into());
+        512.
     }
     fn remove(&mut self, handle: u32) {
         self.calls.push(format!("remove:{handle}"));
@@ -102,10 +130,15 @@ fn body() -> PhysicalDescription {
         angular_velocity: 0.,
         acceleration: [2., 0.],
         friction: false,
+        half_extents: [32., 16.],
+        half_height: 2.,
+        response: 80.,
+        friction_rates: [0.; 3],
+        tail: [0; 6],
     }
 }
 fn decal() -> decal::Decal {
-    decal::Decal::new(decal::Description {
+    let mut decal = decal::Decal::new(decal::Description {
         flags: 0x48,
         resource: 0,
         layer: 0,
@@ -116,7 +149,12 @@ fn decal() -> decal::Decal {
         opacity: vec![1.],
         colour: vec![[1.; 3]],
         aspect: vec![1.],
-    })
+        variances: [0.; 3],
+        mapping_scale: 1.,
+        uv: [0.; 2],
+    });
+    decal.variance = Some([1.; 3]);
+    decal
 }
 
 #[test]
@@ -241,7 +279,14 @@ fn decal_copy_preserves_handle_and_pointer_replacement_is_balanced() {
     assert!(f.calls.is_empty());
     d.started = true;
     d.handle = 42;
-    assert_eq!(d.set_description(&d.description.clone(), &mut f), Err(Unsupported::PT9));
+    let mut rng = RzRandom::new(
+        123,
+        &FixedSeeds {
+            wall_clock: 1,
+            process_clock: 2,
+        },
+    );
+    assert_eq!(d.set_description(&d.description.clone(), &mut f, &mut rng), Ok(()));
     assert!(d.started);
     assert_eq!(d.handle, 42);
     assert_eq!(f.calls, ["release:2"]);
@@ -287,7 +332,7 @@ fn po19_through_po27_dynamic_messages_sectors_and_lifetimes() {
     f.calls.clear();
     assert_eq!(d.draw(&mut f), Ok(true));
     assert_eq!(f.calls, ["reset-shading"]);
-    let id = d.add_particle(&body(), None, 1., 7, &mut f);
+    let id = d.add_particle(&body(), None, 7, &mut f);
     f.calls.clear();
     assert_eq!(d.draw(&mut f), Ok(true));
     assert_eq!(f.calls, ["reset-shading"]);
@@ -306,7 +351,7 @@ fn po19_through_po27_dynamic_messages_sectors_and_lifetimes() {
 fn po22_dynamic_live_zero_time_reaches_unsettled_transform_without_integrating() {
     let mut d = dynamic::DynamicParticles::new(16.);
     let mut f = Foreign::default();
-    let id = d.add_particle(&body(), Some(8), 1., 9, &mut f);
+    let id = d.add_particle(&body(), Some(8), 9, &mut f);
     assert_eq!(d.tick(0, [100.; 2]), Err(Unsupported::PT10));
     assert!(d.steps.is_empty());
     assert!(d.entries[&id].body.is_some());
@@ -324,14 +369,17 @@ fn po28_through_po31_noncontact_body_stores_dead_sweep_and_list_order() {
     assert_eq!(s.objects[&a].description.velocity, [4., 4.]);
     let b = s.add_object(&body(), true);
     assert_eq!(s.advance_time(0.5), Err(Unsupported::PT11));
-    // Both lists have integrated before the explicit collision-domain boundary.
+    // Explicit static root +08 is not integrated (particles §17.2 correction).
     assert_eq!(s.objects[&a].description.position, [4.5, 6.]);
-    assert_eq!(s.objects[&b].description.position, [2.5, 4.]);
-    s.joints.push([a, b]);
-    s.sectors.insert(1, vec![a, b]);
+    assert_eq!(s.objects[&b].description.position, [1., 2.]);
+    s.joints.push(Joint {
+        bodies: [a, b],
+        anchors: [[0.; 2]; 2],
+        distance: 3.,
+        breaking: 1.,
+    });
     s.remove_object(a);
     assert!(s.joints.is_empty());
-    assert_eq!(s.sectors[&1], [b]);
     assert!(!s.objects[&a].live);
     let before = s.objects[&a].clone();
     s.integrate_list(false, 0.5).unwrap();
@@ -537,9 +585,13 @@ fn particle_description() -> descriptions::ParticleDescriptionBase {
     }))
 }
 #[test]
-fn po36_particle_value_copy_is_deep_and_unknown_globals_remain_unknown() {
-    let unknown = descriptions::ParticleDescriptionBase::new(None);
-    assert_eq!(unknown.value.get_scalar(0xe0), None);
+fn po36_particle_value_copy_is_deep_and_pt3_scalar_defaults_are_zero() {
+    let defaults = descriptions::ParticleDescriptionBase::new(None);
+    for base in [0x7c, 0xe0, 0xf4, 0x18c] {
+        for offset in [base, base + 4, base + 8] {
+            assert_eq!(defaults.value.get_scalar(offset).unwrap().to_bits(), 0);
+        }
+    }
     let mut a = particle_description();
     a.value.floats.insert(0x88, vec![2., 4.]);
     a.value.strings.insert(0x160, b"before".to_vec());
@@ -845,7 +897,6 @@ fn ordinary_description_preparation_and_parameter_projection() {
     assert_eq!(names, [b"fire_terrain".to_vec(), b"fire_water".to_vec()]);
     assert_eq!(m.collision_effects, Some([1, 2]));
     let mut p = ParticleSimulator::new(EmitterDesc::new(0, 0., 0.));
-    assert_eq!(p.init_native_services(), Err(Unsupported::PT13));
     p.component_update(1.);
     assert_eq!(p.accumulated_time(), 0.);
     assert_eq!(p.set_float_parameter(99, &[]), Err(Unsupported::PT13));
@@ -873,13 +924,689 @@ fn decal_sampling_and_pending_handle_cleanup() {
         created: 42,
         ..Foreign::default()
     };
-    assert_eq!(d.start(0, &mut f), Err(Unsupported::PT9));
-    assert!(!d.started);
+    assert_eq!(d.start(0, &mut f), Ok(()));
+    assert!(d.started);
     assert_eq!(d.handle, 42);
     f.calls.clear();
-    assert_eq!(d.start(0, &mut f), Err(Unsupported::PT9));
-    assert_eq!(f.calls, ["terrain"]);
+    assert_eq!(d.start(0, &mut f), Ok(()));
+    assert!(f.calls.is_empty());
     f.calls.clear();
     d.teardown(&mut f);
     assert_eq!(f.calls, ["remove:42", "release-service"]);
+}
+
+#[test]
+fn pt2_literal_suffix_and_directory_call_order() {
+    #[derive(Default)]
+    struct Directory {
+        calls: Vec<String>,
+        found: bool,
+    }
+    impl ordinary::EventDirectory for Directory {
+        fn lookup(&mut self, name: &[u8]) -> Option<u64> {
+            self.calls.push(String::from_utf8(name.to_vec()).unwrap());
+            self.found.then_some(7)
+        }
+        fn transform(&mut self, id: u64, t: ordinary::Transform) {
+            assert_eq!(id, 7);
+            assert_eq!(t.translation, [10., 20., 30.]);
+            assert_eq!(t.scale, 1.);
+            assert_eq!(t.rotation, ordinary::Transform::default().rotation);
+            self.calls.push("transform".into());
+        }
+        fn start(&mut self, id: u64, mode: u32) {
+            assert_eq!((id, mode), (7, 0));
+            self.calls.push("start".into());
+        }
+        fn release_created(&mut self, id: u64) {
+            assert_eq!(id, 7);
+            self.calls.push("release".into());
+        }
+    }
+    let mut directory = Directory {
+        found: true,
+        ..Directory::default()
+    };
+    ordinary::fire_event(b"smoke", b"_water\0ignored", [10., 20., 30.], &mut directory);
+    assert_eq!(directory.calls, ["smoke_water", "transform", "start", "release"]);
+    directory.calls.clear();
+    directory.found = false;
+    ordinary::fire_event(b"smoke", b"water", [10., 20., 30.], &mut directory);
+    assert_eq!(directory.calls, ["smokewater"]);
+}
+
+#[test]
+fn pt1_worked_prepack_factors_use_aspect_not_opacity() {
+    let mut d = particle_description();
+    d.value.vectors.insert(0x94, vec![[0.25, 0.5, 1.]]);
+    d.value.floats.insert(0xa0, vec![0.5]);
+    d.value.floats.insert(0xac, vec![2.]);
+    d.value.floats.insert(0xb8, vec![3.]);
+    let mut r = RzRandom::new(
+        123,
+        &FixedSeeds {
+            wall_clock: 1,
+            process_clock: 2,
+        },
+    );
+    let motion = ordinary::Motion::new(&d).unwrap();
+    let mut record = motion.init(&mut r).unwrap();
+    record.factors = [1., 2., 1., 0.5, 2., 0.5, 1.];
+    assert_eq!(
+        motion.draw_factors(&record, 0.5),
+        ordinary::DrawFactors {
+            colour: [0.5, 0.25, 1.],
+            opacity: 0.25,
+            basis_lengths: [2., 12.],
+        }
+    );
+    d.value.floats.insert(0xac, vec![2., 6.]);
+    assert_eq!(
+        ordinary::Motion::new(&d)
+            .unwrap()
+            .draw_factors(&record, 0.5)
+            .basis_lengths,
+        [4., 24.]
+    );
+}
+
+#[test]
+fn pt13_services_are_idempotent_and_use_two_width_queries() {
+    #[derive(Default)]
+    struct Services {
+        calls: Vec<String>,
+        widths: usize,
+    }
+    impl ordinary::TerrainServices for Services {
+        fn retain(&mut self, r: u64) {
+            self.calls.push(format!("retain:{r}"));
+        }
+        fn release(&mut self, r: u64) {
+            self.calls.push(format!("release:{r}"));
+        }
+        fn cell_count_x(&mut self, _: u64) -> i32 {
+            self.calls.push("x".into());
+            3
+        }
+        fn cell_count_z(&mut self, _: u64) -> i32 {
+            self.calls.push("z".into());
+            -2
+        }
+        fn cell_width(&mut self, _: u64) -> f64 {
+            self.calls.push("width".into());
+            self.widths += 1;
+            if self.widths == 1 {
+                16.
+            } else {
+                8.
+            }
+        }
+    }
+    let mut foreign = Services::default();
+    let mut state = ordinary::NativeServices {
+        terrain: Some(1),
+        description: Some(3),
+        resource: Some(4),
+        ..Default::default()
+    };
+    state.init(2, &mut foreign);
+    assert_eq!(state.extent, [48., -16.]);
+    assert_eq!(foreign.calls, ["retain:2", "release:1", "x", "width", "z", "width"]);
+    foreign.calls.clear();
+    state.init(99, &mut foreign);
+    assert!(foreign.calls.is_empty());
+    assert!(state.shutdown(&mut foreign));
+    assert_eq!(foreign.calls, ["release:2", "release:3", "release:4"]);
+    assert_eq!(state.extent, [48., -16.]);
+    foreign.calls.clear();
+    assert!(!state.shutdown(&mut foreign));
+    assert!(foreign.calls.is_empty());
+    state.terrain = Some(2);
+    state.init(2, &mut foreign);
+    assert_eq!(foreign.calls, ["x", "width", "z", "width"]);
+}
+
+#[test]
+fn pt13_transform_generations_source_box_ray_and_pointer_channels() {
+    let d = particle_description();
+    let mut motion = ordinary::Motion::new(&d).unwrap();
+    motion.transforms[0].generation = 255;
+    let a = ordinary::Transform {
+        translation: [1., 2., 3.],
+        generation: 17,
+        ..Default::default()
+    };
+    let b = ordinary::Transform {
+        translation: [10., 20., 30.],
+        scale: 2.,
+        ..Default::default()
+    };
+    motion.set_transforms([a, b], false);
+    assert_eq!(motion.previous_center, [12., 24., 36.]);
+    assert_eq!(motion.working_box, [[12., 24., 36.]; 2]);
+    assert_eq!(motion.transforms[0].generation, 0);
+    assert_eq!(motion.emission_box, [[-1.; 3], [1.; 3]]);
+    motion.description.value.words.insert(0, 0x1000);
+    motion.set_transforms([a, b], false);
+    assert_eq!(motion.transforms[0].generation, 2);
+    assert_eq!(motion.transforms[0].flags & 1, 1);
+    assert_eq!(motion.previous_center, [0.; 3]);
+    assert_eq!(motion.working_box, motion.emission_box);
+    assert_eq!(motion.set_float(9, &[1., -2., 3., 2., 1., 4.]), Some(Ok(true)));
+    assert_eq!(motion.point, [5., 0., 11.]);
+    assert_eq!(motion.point_scale, 1.);
+    for (id, v) in [
+        (0, vec![2.]),
+        (1, vec![3.]),
+        (3, vec![4.]),
+        (4, vec![5., 6., 7.]),
+        (10, vec![8., 9., 10.]),
+        (11, vec![11.]),
+        (15, vec![12., 13., 14.]),
+    ] {
+        assert_eq!(motion.set_float(id, &v), Some(Ok(true)));
+    }
+    assert_eq!(
+        (motion.speed_scale, motion.size_scales[0], motion.opacity_scale),
+        (2., 3., 4.)
+    );
+    assert_eq!(motion.parameter_colour, [5., 6., 7.]);
+    assert_eq!(motion.point, [8., 9., 10.]);
+    assert_eq!(motion.point_scale, 11.);
+    assert_eq!(motion.component_velocity, [12., 13., 14.]);
+    assert_eq!(motion.set_float(5, &[0.; 3]), Some(Err(Unsupported::PT1)));
+    assert_eq!(motion.set_float(99, &[]), Some(Ok(false)));
+    let mut queries = 0;
+    assert!(motion.set_pointer(7, || {
+        queries += 1;
+        [[2.; 3], [4.; 3]]
+    }));
+    assert_eq!(queries, 0);
+    motion.description.value.words.insert(0, 0x80);
+    assert!(motion.set_pointer(7, || {
+        queries += 1;
+        [[2.; 3], [4.; 3]]
+    }));
+    assert_eq!(queries, 1);
+    assert_eq!(motion.emission_box, [[2.; 3], [4., 2., 4.]]);
+}
+
+#[test]
+fn pt9_worked_creation_trace_and_independent_flags() {
+    for flags in 0..128 {
+        let mut d = decal();
+        d.description.flags = flags;
+        d.description.resource = 123;
+        d.description.size = vec![3.];
+        d.description.rotation = vec![0.25];
+        d.description.aspect = vec![0.5];
+        d.description.opacity = vec![0.75];
+        d.description.colour = vec![[0.25, 0.5, 1.]];
+        d.description.mapping_scale = 4.;
+        d.description.uv = [0.125, 0.25];
+        d.center = [10., 20.];
+        d.size_scale = 2.;
+        d.mapping = [2., 1.];
+        let mut f = Foreign {
+            terrain: true,
+            created: 7,
+            ..Default::default()
+        };
+        d.start(0, &mut f).unwrap();
+        assert_eq!(
+            f.creations,
+            [decal::Creation {
+                binding: if flags & 0x20 != 0 {
+                    decal::Binding::Alternate(123)
+                } else {
+                    decal::Binding::Resource(123)
+                },
+                center: [10., 20.],
+                size: 6.,
+                angle: 0.25,
+            }]
+        );
+        let expected = [
+            17,
+            19,
+            0.5_f32.to_bits(),
+            (if flags & 8 == 0 { 1_f32 } else { 8. }).to_bits(),
+            (if flags & 8 == 0 { 1_f32 } else { 4. }).to_bits(),
+            0.125_f32.to_bits(),
+            0.25_f32.to_bits(),
+        ];
+        assert_eq!(f.projections, [expected]);
+        let mut calls = vec!["terrain", "service", "create", "get-projection", "projection"];
+        if flags & 2 != 0 {
+            calls.push("enable");
+        }
+        calls.extend(["opacity:0.75", "colour", "layer"]);
+        assert_eq!(f.calls, calls);
+        assert_eq!(d.elapsed, Some(0.));
+        f.calls.clear();
+        d.update(0., &mut f).unwrap();
+        assert_eq!(
+            f.calls,
+            if flags & 0x40 != 0 {
+                vec!["opacity:0.75"]
+            } else {
+                vec!["place", "opacity:0.75"]
+            }
+        );
+        if flags & 0x40 == 0 {
+            assert_eq!(f.placements[0].size, 6.);
+            assert_eq!(f.placements[0].angle, 0.25);
+        }
+        d.stop(0, &mut f);
+        assert_eq!(&f.calls[f.calls.len() - 2..], ["remove:7", "release-service"]);
+    }
+    let mut d = decal();
+    d.description.flags = 0;
+    d.texture = Some(42);
+    let mut f = Foreign {
+        terrain: true,
+        created: 7,
+        ..Default::default()
+    };
+    d.start(0, &mut f).unwrap();
+    assert_eq!(f.creations[0].binding, decal::Binding::Texture(42));
+}
+
+#[test]
+fn pt9_start_modes_store_phase_seconds_and_transforms_use_turns() {
+    for lifetime in 0..5 {
+        for mode in 0..4 {
+            let mut d = decal();
+            d.description.flags = 0x40;
+            d.description.lifetime_mode = lifetime;
+            d.description.duration = 4.;
+            d.inverse_lifetime = 0.25;
+            d.description.opacity = vec![0., 1.];
+            let mut f = Foreign {
+                terrain: true,
+                created: 7,
+                ..Default::default()
+            };
+            d.start(mode, &mut f).unwrap();
+            if mode != 0 && lifetime == 2 {
+                assert!(f.calls.is_empty());
+                continue;
+            }
+            let q = if mode != 0 && lifetime == 3 { 1. } else { 0. };
+            assert_eq!(d.elapsed, Some(q));
+            f.calls.clear();
+            d.update(0., &mut f).unwrap();
+            assert_eq!(f.calls, [format!("opacity:{}", q * 0.25)]);
+        }
+    }
+    let mut d = decal();
+    d.description.flags = 0x40;
+    let mut f = Foreign::default();
+    let a = ordinary::Transform {
+        flags: 1,
+        translation: [1., 2., 3.],
+        scale: 2.,
+        ..Default::default()
+    };
+    let b = ordinary::Transform {
+        flags: 1,
+        translation: [10., 20., 30.],
+        scale: 3.,
+        ..Default::default()
+    };
+    d.set_transforms(a, b, &mut f).unwrap();
+    assert_eq!(d.center, [13., 39.]);
+    assert_eq!(d.size_scale, 6.);
+    assert_eq!(d.angle, 0.);
+    let mut turned = a;
+    turned.rotation = [[0., 0., 1.], [0., 1., 0.], [-1., 0., 0.]];
+    d.set_transforms(turned, ordinary::Transform::default(), &mut f)
+        .unwrap();
+    assert!((d.angle - 0.25).abs() < 1e-7);
+    d.explicit = true;
+    d.handle = 7;
+    let before = d.clone();
+    d.set_transforms(a, b, &mut f).unwrap();
+    assert_eq!(d, before);
+    assert!(f.calls.is_empty());
+}
+
+#[test]
+fn pt9_variance_draw_order_and_whole_city_service_case() {
+    let seeds = FixedSeeds {
+        wall_clock: 1,
+        process_clock: 2,
+    };
+    let mut rng = RzRandom::new(123, &seeds);
+    let mut expected = rng.clone();
+    let mut d = decal();
+    d.description.flags = 0x10;
+    d.description.variances = [0.25, 0.5, 0.75];
+    let factors = [
+        expected.range_f64(0.75, 1.25) as f32,
+        expected.range_f64(0.5, 1.5) as f32,
+        expected.range_f64(-0.75, 0.75) as f32,
+    ];
+    let mut f = Foreign::default();
+    d.set_description(&d.description.clone(), &mut f, &mut rng).unwrap();
+    assert_eq!(d.variance, Some(factors));
+    assert_eq!(rng.mul_state(), expected.mul_state());
+    assert_eq!(f.calls, ["city-z", "city-x", "city-x"]);
+    assert_eq!(d.center, [256., 512.]);
+    assert_eq!(d.size_scale, 512.);
+    d.description.variances = [0.; 3];
+    expected.range_f64(1., 1.);
+    expected.range_f64(1., 1.);
+    d.set_description(&d.description.clone(), &mut f, &mut rng).unwrap();
+    assert_eq!(d.variance, Some([1.; 3]));
+    assert_eq!(rng.mul_state(), expected.mul_state());
+}
+
+#[test]
+fn pt8_null_empty_mesh_and_wave_worked_prefix() {
+    struct Empty {
+        queries: usize,
+    }
+    impl geometry::Resources for Empty {
+        fn retain(&mut self, _: u64) {
+            panic!("unexpected retain");
+        }
+        fn release(&mut self, _: u64) {
+            panic!("unexpected release");
+        }
+        fn group_count(&mut self, _: u64) -> usize {
+            self.queries += 1;
+            0
+        }
+        fn group(&mut self, _: u64, _: usize) -> u64 {
+            panic!("unexpected group");
+        }
+        fn material(&mut self, _: u64, _: u64) -> (bool, Option<u64>) {
+            panic!("unexpected material");
+        }
+        fn lookup(&mut self, _: [u32; 3], _: u32) -> Option<u64> {
+            panic!("unexpected lookup");
+        }
+        fn model_interface(&mut self, _: u64, _: u32) -> Option<u64> {
+            panic!("unexpected model");
+        }
+        fn ordinary_shutdown(&mut self) {
+            panic!("unexpected shutdown");
+        }
+    }
+    let mut g = geometry::GeometryParticles::default();
+    let mut f = Empty { queries: 0 };
+    let vectors = [[0.; 3], [0., 1., 0.]];
+    assert_eq!(g.project_source(vectors, &mut f), Ok(true));
+    assert_eq!(f.queries, 0);
+    g.source = Some(1);
+    assert_eq!(g.project_source(vectors, &mut f), Ok(true));
+    assert_eq!(f.queries, 1);
+    let mut cache = [2., 2.];
+    assert_eq!(geometry::wave_prefix(&mut cache, 0.25, 4., &[400.], 0.5), Some(400.));
+    assert_eq!(cache, [3., 2.]);
+    // §21.2 samples the fractional double clock, even beyond f32 phase precision.
+    for clock in [0.5, 1.5, 16_777_216.5] {
+        assert_eq!(
+            geometry::wave_prefix(&mut cache, 0.25, 4., &[0., 800.], clock),
+            Some(400.)
+        );
+        assert_eq!(cache, [3., 2.]);
+    }
+    assert_eq!(geometry::wave_prefix(&mut cache, 0.25, 0., &[], 0.5), None);
+    assert_eq!(cache, [3., 2.]);
+}
+
+#[test]
+fn pt10_radius_key_order_reference_counts_and_terrain_prefix() {
+    let mut d = dynamic::DynamicParticles::new(1.); // reciprocal 0.25
+    let mut description = body();
+    description.half_extents = [3., 4.];
+    let mut f = Foreign::default();
+    let id = d.add_particle(&description, None, 7, &mut f);
+    assert_eq!(d.entries[&id].radius, 2);
+    assert_eq!(d.entries[&id].sector, None);
+    let keys = dynamic::neighborhood((0, 1), 1);
+    assert_eq!(
+        keys.iter().copied().map(dynamic::packed_sector).collect::<Vec<_>>(),
+        [0, 1, 0x10000, 0x10001, 0x20000, 0x20001]
+    );
+    for &key in &keys {
+        d.activate_sector(key, &mut f).unwrap();
+    }
+    let acquisitions = f.calls.clone();
+    for &key in &keys {
+        d.activate_sector(key, &mut f).unwrap();
+    }
+    assert_eq!(f.calls, acquisitions);
+    for &key in &keys {
+        d.deactivate_sector(key);
+        assert_eq!(d.sectors[&key].references, 1);
+    }
+    for &key in &keys {
+        d.deactivate_sector(key);
+        assert!(!d.sectors.contains_key(&key));
+        d.deactivate_sector(key);
+    }
+    assert_eq!(dynamic::packed_sector((65536, 0)), 0x10000);
+    description.height = 11.;
+    description.height_velocity = -1.;
+    description.half_height = 2.;
+    dynamic::terrain_prefix(&mut description, 10., 0.005);
+    assert_eq!(description.height, 12.);
+    assert_eq!(
+        description.height_velocity,
+        (-1_f64 - f64::from(0.005_f32) * f64::from(f32::from_bits(0x411ccccd))) as f32
+    );
+    let second = d.add_particle(&body(), None, 8, &mut f);
+    assert_eq!(d.link_particles(7, 99, [[0.; 2]; 2], 3., 1.), Ok(false));
+    assert_eq!(d.link_particles(7, 8, [[0.; 2]; 2], 3., 1.), Ok(true));
+    assert_eq!(
+        d.bodies.joints[0].bodies,
+        [d.entries[&id].body.unwrap(), d.entries[&second].body.unwrap()]
+    );
+}
+
+#[test]
+fn pt10_static_filter_is_ordered_and_only_a_necessary_prefix() {
+    struct Candidate {
+        calls: Vec<u32>,
+        excluded: bool,
+        accepted: u32,
+    }
+    impl dynamic::StaticCandidate for Candidate {
+        fn object(&mut self, _: u64) -> Option<u64> {
+            self.calls.push(0x18);
+            Some(1)
+        }
+        fn category(&mut self, _: u64, id: u32) -> bool {
+            self.calls.push(id);
+            if id == 0x029244db {
+                self.excluded
+            } else {
+                id == self.accepted
+            }
+        }
+        fn interface(&mut self, _: u64, id: u32) -> Option<u64> {
+            self.calls.push(id);
+            Some(2)
+        }
+    }
+    let mut f = Candidate {
+        calls: vec![],
+        excluded: false,
+        accepted: 0x27812822,
+    };
+    assert_eq!(dynamic::static_candidate(7, &mut f), Some(2));
+    assert_eq!(
+        f.calls,
+        [0x18, 0x029244db, 0x27812821, 0x27812820, 0x27812822, 0x87dda3a9]
+    );
+    f.calls.clear();
+    f.excluded = true;
+    assert_eq!(dynamic::static_candidate(7, &mut f), None);
+    assert_eq!(f.calls, [0x18, 0x029244db]);
+    f.calls.clear();
+    f.excluded = false;
+    f.accepted = 0;
+    assert_eq!(dynamic::static_candidate(7, &mut f), None);
+    assert_eq!(
+        f.calls,
+        [0x18, 0x029244db, 0x27812821, 0x27812820, 0x27812822, 0x27812823, 0x27812824]
+    );
+}
+
+#[test]
+fn pt11_rb_admission_and_integration_worked_cases() {
+    let mut d = body();
+    d.position = [64., 128.];
+    d.velocity = [0.; 2];
+    d.acceleration = [0.; 2];
+    let mut s = Simulator::default();
+    let a = s.add_object(&d, false);
+    assert_eq!(s.objects[&a].angular_response, 3.);
+    assert_eq!(s.objects[&a].axes, None);
+    assert_eq!(s.objects[&a].bounds, [0.; 2]);
+    assert_eq!(s.objects[&a].spans, [1; 2]);
+    assert!(s.sector_events.is_empty());
+    s.integrate_list(false, 0.).unwrap();
+    assert_eq!(s.objects[&a].key, 0x40004001);
+    assert_eq!(s.objects[&a].bounds, [32., 16.]);
+    assert_eq!(s.sector_events, [(true, a, 0x40004001)]);
+    s.sector_events.clear();
+    s.integrate_list(false, 0.).unwrap();
+    assert!(s.sector_events.is_empty());
+    let b = s.add_object(&d, true);
+    assert_eq!(s.objects[&b].key, 0x40004001);
+    assert_eq!(s.objects[&b].axes, Some([1., 0.]));
+    for (word, low) in [(0x3727c5ab, true), (0x3727c5ac, false), (0, true)] {
+        d.response = f32::from_bits(word);
+        let id = s.add_object(&d, false);
+        assert_eq!(s.objects[&id].low_response, low);
+        assert_eq!(s.objects[&id].description.response.to_bits(), word);
+    }
+    d.half_extents = [32.; 2];
+    for (position, key) in [([-32.; 2], 0x3fff3fff), ([32.; 2], 0x40004000)] {
+        d.position = position;
+        let id = s.add_object(&d, true);
+        assert_eq!(s.objects[&id].key, key);
+    }
+    d = body();
+    d.position = [1., 2.];
+    d.height = 3.;
+    d.height_velocity = 2.;
+    d.acceleration = [2., -2.];
+    let mut s = Simulator::default();
+    let id = s.add_object(&d, false);
+    s.integrate_list(false, 0.5).unwrap();
+    assert_eq!(s.objects[&id].description.position, [2.5, 4.]);
+    assert_eq!(s.objects[&id].description.velocity, [4., 3.]);
+    assert_eq!(s.objects[&id].description.height, 4.);
+    d.velocity = [5., 7.];
+    d.acceleration = [0.; 2];
+    d.friction = true;
+    d.friction_rates = [2., 4., 0.];
+    let id = s.add_object(&d, false);
+    s.integrate_list(false, 0.5).unwrap();
+    assert_eq!(s.objects[&id].description.velocity, [4., 5.]);
+    d.velocity = [-2., -3.];
+    d.angular_velocity = -4.;
+    d.friction_rates = [0.; 3];
+    let id = s.add_object(&d, false);
+    s.integrate_list(false, 0.).unwrap();
+    assert_eq!(s.objects[&id].description.velocity.map(f32::to_bits), [0; 2]);
+    assert_eq!(s.objects[&id].description.angular_velocity.to_bits(), 0);
+    for sign in [1., -1.] {
+        d.angle = 3. * sign;
+        d.angular_velocity = sign;
+        d.friction = false;
+        let id = s.add_object(&d, false);
+        s.integrate_list(false, 1.).unwrap();
+        assert_eq!(s.objects[&id].description.angle, 4. * sign);
+    }
+}
+
+#[test]
+fn pt11_coincident_rb_c0_sector_order_and_joint_equalities() {
+    let mut d = body();
+    d.position = [0.; 2];
+    d.velocity = [0.; 2];
+    d.acceleration = [0.; 2];
+    d.response = 1.;
+    let mut s = Simulator::default();
+    let a = s.add_object(&d, false);
+    let b = s.add_object(&d, false);
+    s.integrate_list(false, 0.).unwrap();
+    let mut aa = s.objects[&a].clone();
+    let mut bb = s.objects[&b].clone();
+    aa.angular_response = 1.;
+    bb.angular_response = 1.;
+    let mut samples = [0.5, 0.].into_iter();
+    resolve(&mut aa, &mut bb, [0., 1.], [0.; 2], [0.; 2], &mut || {
+        samples.next().unwrap()
+    })
+    .unwrap();
+    assert_eq!(aa.description.position, [4., 0.]);
+    assert_eq!(bb.description.position, [-4., 0.]);
+    let epsilon = f32::from_bits(0x38d1b717);
+    assert_eq!(aa.description.velocity, [1., epsilon]);
+    assert_eq!(bb.description.velocity, [-1., -epsilon]);
+    let random = local_random(0x12345678, 0x23456789);
+    let seed = ((0x23456789_u32 << 16) | 0x23456789) ^ 0x12345678;
+    assert_eq!(random.lcg_state(), seed);
+    assert_eq!(random.mul_state(), seed);
+    assert_eq!(random.cached_gaussian(), None);
+    assert_eq!(
+        sector_keys(0x40004000, [2, 2]),
+        [0x40004000, 0x40004001, 0x40014000, 0x40014001]
+    );
+    let c = s.add_object(&d, false);
+    s.integrate_list(false, 0.).unwrap();
+    let key = s.objects[&a].key;
+    assert_eq!(
+        s.collision_phases(&[key]),
+        [
+            CollisionPhase::Pair(a, b),
+            CollisionPhase::Pair(a, c),
+            CollisionPhase::Static(a),
+            CollisionPhase::Low(a),
+            CollisionPhase::Pair(b, c),
+            CollisionPhase::Static(b),
+            CollisionPhase::Low(b),
+            CollisionPhase::Static(c),
+            CollisionPhase::Low(c)
+        ]
+    );
+    s.objects.get_mut(&b).unwrap().description.position = [3., 0.];
+    s.link(Joint {
+        bodies: [a, b],
+        anchors: [[0.; 2]; 2],
+        distance: 3.,
+        breaking: 0.,
+    });
+    s.update_joints(&mut || panic!("no random draws at distance equality"))
+        .unwrap();
+    assert_eq!(s.joints.len(), 1);
+    s.joints[0].distance = 2.;
+    s.update_joints(&mut || panic!("no response at zero relative speed"))
+        .unwrap();
+    assert_eq!(s.joints.len(), 1);
+    s.map_object(a, false);
+    assert_eq!(s.sectors[&key].ordinary, [b, c]);
+    assert_eq!(s.sectors[&key].total, 2);
+}
+
+#[test]
+fn pt11_friction_clamps_strict_negatives_and_preserves_negative_zero() {
+    let mut description = body();
+    description.friction = true;
+    description.velocity = [-0.; 2];
+    description.acceleration = [-0.; 2];
+    let mut simulator = Simulator::default();
+    let id = simulator.add_object(&description, false);
+    simulator.integrate_list(false, 0.).unwrap();
+    assert_eq!(
+        simulator.objects[&id].description.velocity.map(f32::to_bits),
+        [0x8000_0000, 0]
+    );
 }

@@ -1068,6 +1068,7 @@ Evidence: `0x00735720–0x00735819`, including separately exported tail blocks `
 DrawShadowRect (`0x007356D0`) likewise expands maxima by one, but supplies the expanded rectangle by address
 to land shadow consumers `0x00754C60` (static) or `0x00754F10` (dynamic). Exact terrain-owned vertex/index-array
 formats inside those consumers remain unproved here; these dispatch rules do not claim their geometry bodies.
+Their callable argument order, ECX object and stack cleanup are specified in §4.6.1.
 
 Both shadow passes ask view-manager slot 9's result for slot 14 outputs `(q,s,rgb)`, with q/s binary32 scalars.
 They set the texture environment colour to rgb. The comparison minimum is **binary64 zero** at `0x00A80990`:
@@ -1087,6 +1088,76 @@ state snapshot/restore. Draw's common exit clears texture transform **stage 0**,
 word saved from context `+0xBC`, and releases/zeros the acquired vertex-buffer extension. These actions also
 occur for an empty selection after normal setup, but not for the early dynamic-snapshot return.
 Evidence: `0x007391F9–0x00739203`, `0x007392E2–0x007392EF`, `0x00739378–0x0073939B`.
+
+#### 4.6.1 Native rectangle-consumer call boundary (OV17)
+
+All eight direct entry points below use 32-bit x86 **thiscall**. ECX is the **complete
+`cSTETerrainView3D` object base**, the pointer retained at manager `+0x8C`. Its `cISTETerrainView`
+interface is at base `+0x0C`; when starting with that interface pointer, subtract `0x0C` to obtain the
+ECX required here. The retained manager pointer already is the complete view base. There is no stack
+argument for this pointer. Evidence: view Init preserves its incoming base at `0x0075C42E` and passes
+it unchanged to all four manager Init calls at `0x0075C6B6–0x0075C6E7`; manager Init retains that
+argument at `0x0073CB65–0x0073CB87`. The two rectangle dispatchers load it directly into ECX at
+`0x007356F2`, `0x0073573F`, `0x00735797` and `0x007357D3`. Independently, QueryInterface returns
+base `+0x0C` for terrain-view IID `0x6771477D` at `0x00752744–0x0075275F`.
+
+In the following tables, **rectangle value** means exactly 16 consecutive argument bytes: four
+signed 32-bit integers `(x0,z0,x1+1,z1+1)` in that order, after the expansion in §4.6. The **rectangle
+pointer** addresses a caller-owned, 4-byte-aligned 16-byte object with that same layout, available
+through the call. Context and extension are each one 32-bit pointer; context is the draw context
+passed to DrawRect/DrawShadowRect, and extension is the acquired pointer at manager `+0x94`.
+The argument sequences below are in callable, left-to-right order, which is also their order at
+increasing stack addresses after the return address. Dynamic/static selection adds no argument.
+
+| Consumer | Argument sequence (ECX excluded) | Argument bytes / callee cleanup | Result channel | Cleanup instruction address |
+|---|---|---|---|---|
+| `0x007541C0` land, static | rectangle value, context | 20 / 20 | void | `0x007543B2` |
+| `0x007543C0` land, dynamic | rectangle value, context | 20 / 20 | void | `0x007545B3` |
+| `0x007545C0` extension land, static | context, extension, rectangle value | 24 / 24 | void | `0x00754901` |
+| `0x00754910` extension land, dynamic | context, extension, rectangle value | 24 / 24 | void | `0x00754C51` |
+| `0x00755560` water, static | rectangle value, context | 20 / 20 | byte in AL; DrawRect ignores it | `0x007556F4` |
+| `0x00755700` water, dynamic | rectangle value, context | 20 / 20 | byte in AL; DrawRect ignores it | `0x00755894` |
+| `0x00754C60` shadow land, static | rectangle pointer, context | 8 / 8 | void | `0x00754F04` |
+| `0x00754F10` shadow land, dynamic | rectangle pointer, context | 8 / 8 | void | `0x007551B4` |
+
+For an exact stack layout, let S be ESP at consumer entry, before its prologue; S holds the 4-byte
+return address. Every offset in this table is relative to S. Rectangle values have no hidden pointer
+or hidden result argument.
+
+| Call family | Stack words after the return address |
+|---|---|
+| Ordinary land / water | `+0x04`: x0; `+0x08`: z0; `+0x0C`: x1+1; `+0x10`: z1+1; `+0x14`: context |
+| Extension land | `+0x04`: context; `+0x08`: extension; `+0x0C`: x0; `+0x10`: z0; `+0x14`: x1+1; `+0x18`: z1+1 |
+| Shadow land | `+0x04`: rectangle pointer; `+0x08`: context |
+
+The normal-return ESP is S plus 4 plus the argument-byte count. The caller must not remove those
+argument bytes again. For shadows, the separate 16-byte rectangle object is caller storage, outside
+the 8 argument bytes: native DrawShadowRect reclaims its local object after the consumer returns
+(`0x0073570F` / `0x0073571A`). That local-storage adjustment does not change the consumer's 8-byte
+callee cleanup. Argument construction evidence: ordinary land `0x007357D0–0x0073580E`, water
+`0x0073573C–0x0073577A`, extension land `0x00735790–0x007357C4`, shadows `0x007356D0–0x00735715`.
+Extension entry points read the second stack argument as the extension receiver for CreateBuffer at
+`0x007545C5–0x007545CD` / `0x00754915–0x0075491D`, independently confirming that order.
+
+**Worked calls, all eight destinations.** Let the complete view base be `0x01234000` (terrain-view
+interface `0x0123400C`), context `0x02345000`, extension `0x03456000`, and input cell rectangle
+`(2,5,7,11)`. The expanded vertex rectangle is `(2,5,8,12)`. Let ESP before installing the consumer
+arguments be `0x0012F000`, with any caller locals already reserved. For each shadow example, the
+16-byte rectangle local starts at `0x0012F000` and contains `(2,5,8,12)`. Each row is a separate call;
+ECX is `0x01234000` throughout. Listed words start at entry ESP `+0x04`, excluding the return address.
+
+| Destination | Entry ESP | Argument words, increasing addresses | ESP after return |
+|---|---|---|---|
+| `0x007541C0` | `0x0012EFE8` | 2, 5, 8, 12, `0x02345000` | `0x0012F000` |
+| `0x007543C0` | `0x0012EFE8` | 2, 5, 8, 12, `0x02345000` | `0x0012F000` |
+| `0x007545C0` | `0x0012EFE4` | `0x02345000`, `0x03456000`, 2, 5, 8, 12 | `0x0012F000` |
+| `0x00754910` | `0x0012EFE4` | `0x02345000`, `0x03456000`, 2, 5, 8, 12 | `0x0012F000` |
+| `0x00755560` | `0x0012EFE8` | 2, 5, 8, 12, `0x02345000` | `0x0012F000` |
+| `0x00755700` | `0x0012EFE8` | 2, 5, 8, 12, `0x02345000` | `0x0012F000` |
+| `0x00754C60` | `0x0012EFF4` | `0x0012F000`, `0x02345000` | `0x0012F000` |
+| `0x00754F10` | `0x0012EFF4` | `0x0012F000`, `0x02345000` | `0x0012F000` |
+
+These are call-boundary vectors; they do not specify the consumers' geometry algorithms (OV8).
 
 ### 4.7 Camera input and composition boundary (OV7, proven subset)
 

@@ -152,6 +152,32 @@ struct Run {
     uint32_t compared = 0;
 };
 
+// The view handle is an opaque host result, allocated process-wide, not a
+// saved dispatch field (dispatch.md 4.1, 4.1.3, 7). Replay Init's tracking on
+// a second core with those captured host results; never track native vehicles.
+struct ViewReplay {
+    std::vector<FC4DispatchInfo> infos;
+    std::vector<bool> used;
+    uint32_t errors = 0;
+};
+
+uint32_t TrackSnapshotVehicle(void* user, uint64_t automaton, uint32_t kind) {
+    auto& replay = *static_cast<ViewReplay*>(user);
+    size_t found = replay.infos.size();
+    for (size_t i = 0; i < replay.infos.size(); ++i) {
+        const auto& info = replay.infos[i];
+        if (TokenOf(info.automaton) != automaton) continue;
+        const uint32_t expectedKind = info.type == 0 || info.type == 6 ? 1 : 0;
+        if ((info.type != 0 && info.type != 1 && info.type != 5 && info.type != 6) || kind != expectedKind)
+            continue;
+        if (found != replay.infos.size()) { ++replay.errors; return 0; } // ambiguous capture
+        found = i;
+    }
+    if (found == replay.infos.size() || replay.used[found]) { ++replay.errors; return 0; }
+    replay.used[found] = true;
+    return replay.infos[found].viewHandle;
+}
+
 // Our shadow core's record, with the references numbered as the capture's.
 std::vector<uint8_t> WriteOurs(const WriteCapture& cap, uint32_t* unknownRefs) {
     ShadowOStream out;
@@ -188,6 +214,7 @@ void RunStep(void* p) {
 
     CoreDiffs d;
     uint32_t compared = 0;
+    ViewReplay viewReplay;
 
     // 1. the record round trip (§7): the original's own Write into memory,
     //    read into the shadow core, written back and compared byte for byte.
@@ -280,9 +307,7 @@ void RunStep(void* p) {
                 TokenOf(info.pylon) != s.pylon) {
                 d.Add("info(%u) fields differ", ids[k]);
             }
-            if (info.viewHandle != s.view_handle) {
-                d.AddQ("DP10", "info(%u) unsaved viewHandle orig=%u ours=%u", ids[k], info.viewHandle, s.view_handle);
-            }
+            viewReplay.infos.push_back(info);
         }
     }
 
@@ -294,6 +319,32 @@ void RunStep(void* p) {
         if (TokenOf(ap) != sap) d.Add("activePylon orig=0x%llx ours=0x%llx", static_cast<unsigned long long>(TokenOf(ap)),
                                       static_cast<unsigned long long>(sap));
     }
+
+    // Keep the raw Read core for saved state/getters above: Init intentionally
+    // clears tool/pylon state, so applying it there would discard live inputs.
+    viewReplay.used.resize(viewReplay.infos.size(), false);
+    auto replayHost = MakeReadOnlyHost();
+    replayHost.user = &viewReplay;
+    replayHost.track_vehicle = &TrackSnapshotVehicle;
+    auto* viewCore = fc4_dispatch_create(&replayHost, 0);
+    CaptureIStream viewInput(g_capture);
+    if (!viewCore || !fc4_dispatch_read(viewCore, viewInput.Get()) || !fc4_dispatch_init(viewCore)) {
+        d.Add("view Init replay failed");
+    } else {
+        for (size_t i = 0; i < viewReplay.infos.size(); ++i) {
+            const auto& info = viewReplay.infos[i];
+            fc4_dispatch_info restored{};
+            ++compared;
+            const bool trackable = info.automaton &&
+                (info.type == 0 || info.type == 1 || info.type == 5 || info.type == 6);
+            if (!fc4_dispatch_get_info(viewCore, info.id, &restored) ||
+                restored.view_handle != info.viewHandle || viewReplay.used[i] != trackable)
+                d.Add("info(%u) view Init differs orig=%u ours=%u tracked=%u", info.id,
+                    info.viewHandle, restored.view_handle, viewReplay.used[i] ? 1u : 0u);
+        }
+        if (viewReplay.errors) d.Add("view tracking input mismatches=%u", viewReplay.errors);
+    }
+    if (viewCore) fc4_dispatch_destroy(viewCore);
 
     r.compared = compared;
 

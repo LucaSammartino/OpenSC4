@@ -6,9 +6,6 @@
   power-line pieces each connection type builds or removes at the edge cell, what it demolishes and dezones, how the
   parity of types 3, 8 and 12 and the drive-side setting pick a direction, and which edge network flags it changes.
   The spec gives only the outline. [as read]
-<!-- from: re-regionalcity (2026-10-20) -->
-- **RY2 - §2:** what the record's three unknown strings (`+0xE4`, `+0x10C`, `+0x134`) hold; no getter reads them and
-  the samples leave them empty. [as read]
 <!-- from: re-regional-city-records (2026-10-21) -->
 - **RY3 - §6.2 (RY1):** RY1 is answered in [regional-city-records.md](../regional-city-records.md) §4 (duplicates, sort,
   pairing and direction bits, type-to-network table, the add and remove sequences, the rollback of a connection that
@@ -31,15 +28,6 @@
   (regional-city-records.md §2.2); and application.md §11.9 says `cSC4App::Read` returns true only when the
   regional-city read succeeded, whereas it returns true even when that read fails (regional-city-records.md §2.4).
   [verified; the application.md line is another spec's, filed here for the maintainer]
-
-<!-- from: core-regionalcity9 (2026-10-24) -->
-- **RY7 - foundations §11.2 / regional-city §2, Read edge cases:** Does Read clear the constructor's
-  commodity entries 1–3 before loading a map (foundations §14.20 requests a byte-identical round trip with
-  two commodities)? What do negative signed commodity and deal counts do? Are object-level Read failures
-  atomic, and are duplicate map/POI keys last-wins? The core wire decoder replaces maps (last key wins),
-  rejects a commodity count interpreted unsigned above the specified limit, treats negative deal counts
-  as an empty signed loop, and publishes a new object only after successful decoding. These are literal
-  readings; no additional failure behavior or default entries are inferred for a decoded wire map.
 
 <!-- from: glue-regionalcity-shadow13 (2026-10-24) -->
 - **RY8 - §5 commodity balance / foundations §18.2–18.3:** Does "computed in double precision"

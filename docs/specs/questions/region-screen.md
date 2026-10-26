@@ -17,3 +17,8 @@
   a city of a region or of the Downloads folder is placed by `cSC4Region::MoveCity` on the active region with the tile's
   top-left cell (a Downloads file is read only to carry its path and serial number), and the tile's previous city is
   deleted with its file by `MoveCity`. What the screen shows afterwards (CY8 there) is open. [the maintainer may close QR2]
+
+<!-- from: impl-region30 (2026-10-26) -->
+- **QR5 - §3:** `ComputeBaseLimits` sets scroll limits from region size and cloud area, but the spec gives no
+  projection, padding or clamp formula. What are the resulting limits, including for an empty region? The core
+  stops this item at `Unsupported::Open("QR5")`; snapshot masks separately remain open RGV5.

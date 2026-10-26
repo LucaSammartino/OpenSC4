@@ -107,8 +107,8 @@ name map at `0x103065` with **1148** names. On disk:
 
 | Record | On disk |
 |---|---|
-| visual-effect description | `u32 flags & 0x1FF`, `u32 priority`, `u32` component count, then that many **variable-length** component records, `u32` binding count, then that many 24-byte bindings (`u32 & 0xF`, string, `f32`, `u32`), then a string, then (section version > 1) 3 × `u32` |
-| component record | **variable**: string (`u32 len` + chars), `u8` type, `u32 flags & 3`, 56-byte transform, `u8`,`u8` LOD, `u16`,`u16` copies/spacing, 4 × `f32`, `u16`,`u16` select group/weight, `u32` index |
+| visual-effect description | `u32 flags` (read mask `0x1FF`), `u32 priority`, `u32` component count, then that many **variable-length** component records, `u32` binding count, then that many bindings (`u32` with read mask `0xF`, string, `f32`, `u32`), then a string, then (section version **not equal to 1**) 3 × `u32`; bindings have 24-byte memory stride, not fixed disk size |
+| component record | **variable**: string (`u32 len` + chars), `u8` type, `u32 flags` (read mask 3), 56-byte transform, `u8`,`u8` LOD, `u16`,`u16` copies/spacing, 4 × `f32`, `u16`,`u16` select group/weight, `u32` index |
 
 So a parser must read the component records as a variable-length sequence inside the effect record; there is no
 fixed `0x6C`-byte stride on disk (readers `0x005ABF50` effect, `0x005AB690` component, `0x005ABEC0` binding).
@@ -122,7 +122,7 @@ fixed `0x6C`-byte stride on disk (readers `0x005ABF50` effect, `0x005AB690` comp
 | `+0x08` components | `u32` count, then the component records | |
 | `+0x14` parameter bindings | `u32` count, then `{u32 & 0xF, string, f32, u32}` | render |
 | `+0x2C` | string | |
-| `+0x20`..`+0x28` | three `u32`, only when the section version is above 1 | the last two are uninitialised (`0xCCCCCCCC`) in the shipped file |
+| `+0x20`..`+0x28` | three `u32`, when the section version is **not 1** | version 1 instead sets `+0x20` to zero and leaves `+0x24,+0x28` unchanged; the last two are uninitialised (`0xCCCCCCCC`) in the shipped version-2 file |
 
 **Component record** (`0x6C` bytes in memory, reader `0x005AB690`):
 
@@ -2853,7 +2853,7 @@ already documented collection fields (§18.7.1); they are not disk offsets.
 | 12 | u16 **1**, dynamic/model-particle count and records | C+58; record writer `00583620` |
 | 13 | u16 **2**, visual-description count and records | C+18; record writer `005AB590`; component/binding framing is §3 |
 | 14 | visual name/index entries, then string **end** and u32 **FFFFFFFF** | visual dictionary only; traverse buckets in ascending order, following each node chain (§18.7.1); each entry is string then u32 index |
-| 15 | u8 camera-present; if nonzero, the collection camera value | C+D0 byte; preserve its byte value. Camera value: u16 **0**, position triple (three f32), then four f32 in stored order (`005AB340`) |
+| 15 | u8 camera-present; if nonzero, the collection camera value | C+D0 byte; preserve its byte value. Camera value: u16 **0**, **counted f32 curve**, then four f32 in stored order (`005AB340`); see §18.10.4 |
 | 16 | effect-ID-binding count and records | C+F0; each record: string, u32 group, u32 instance; preserve order and duplicates |
 | 17 | u16 **0**, message-trigger count and records | C+FC; each record: u32 message ID, string; preserve order and duplicates (`005AB390`) |
 
@@ -2967,6 +2967,256 @@ is not the native Boolean contract.
 | EF25-R5 | Seed a dynamic description D and nonempty primary name/key; read valid otherwise-empty root-3 input | dynamic vector retains D because the section is skipped; name/key unchanged; writing next emits root 4 and D in the dynamic section |
 | EF25-R6 | Seed a visual-map entry `old` and camera value K; read empty visual vector/map with terminator pair and camera-present 0 | vector is empty, old map entry remains, K's stored value remains but presence is false; no global reset is implied |
 | EF25-R7 | Map input contains `(end,7)`, then `(x,FFFFFFFF)`, then `(end,FFFFFFFF)`, followed by valid empty tail | first two pairs are ordinary entries, third ends the map and is not inserted; tail is consumed and AL=1 |
+
+### 18.10 Typed renderer value codecs (EF26) *[compat]*
+
+These are independent renderer-description dependencies of the resource in
+§18.9. Calling them does not call native effects-resource Read/Write. This
+section defines their typed boundary so a replacement can retain the existing
+renderer description owners. It also gives decal/dynamic wire records and
+worked inputs. All addresses are Windows GOG 1.1.641; evidence is the local
+export and instruction bytes, not game execution. Offsets below are hexadecimal.
+
+#### 18.10.1 Ordered parameters, receivers and return channels
+
+I means a nonnull, already acquired **cIGZIStream interface pointer**, O the
+corresponding **cIGZOStream interface pointer** (§18.9.4). Neither means the
+stream's underlying buffer or its canonical unknown face. A description
+argument is a pointer representing a reference to the **constructed native
+type** below, not an output-pointer cell, serialized bytes, or an array of
+records. Each invocation processes exactly one record at the current cursor.
+
+| Symbol used below | Exact description argument |
+|---|---|
+| Particle | `cSC4ParticlesDescriptionBase` value at the start of the live `cSC4ParticlesDescription`; no vptr or base adjustment. Base extent `204`, reference count at `204` excluded (§18.8.3; particles §2). |
+| Decal | Constructed `cSC4DecalDescription` value, extent `64` (100 decimal); no interface header. Its owned vectors must already be valid. |
+| Dynamic | Primary pointer to the live `cSC4DynamicParticleDescription`, extent `40`. Pass the **object start**, including its reference base; its payload begins at `+08`. Do not pass `Dynamic+08`. |
+| Visual | Constructed `cSC4EffectDescription` value, extent `38`, no interface header; owns component/binding vectors and a string. |
+| Camera value | The collection's value at **C+D4 = R+D8**, extent `1C`: one owned float-vector container and four f32. This is distinct from a type-8 `cSC4CameraDescription` component and its virtual Read/Write. |
+
+The argument lists in the next table are in **logical order**, first argument
+in the first stack cell above the return address. They exclude the receiver.
+All pointers and stack cells are four bytes. A cdecl row has **no ECX input**;
+the caller removes eight argument bytes. A thiscall row uses the stated ECX
+receiver and removes four argument bytes in the callee. There is no hidden
+return-storage argument, count, flags argument or section-version argument.
+Read descriptions/receivers are mutable; Write descriptions are borrowed const
+values. Streams are mutable because the cursor advances.
+
+| Record / helper | Convention / receiver | Ordered explicit typed arguments | Return channel on normal completion |
+|---|---|---|---|
+| Particle Read A `005B0B50` | thiscall; ECX=Particle | I | No semantic return; EAX is residue of the final stream call. |
+| Particle Read B `005B1DC0` | cdecl; none | I, mutable Particle reference | No semantic return; EAX is final stream-call residue. |
+| Particle Write `005AFFF0` | cdecl; none | O, const Particle reference | No semantic return; EAX is final stream-call residue. |
+| Decal Read `005A4B50` | cdecl; none | I, mutable Decal reference | No semantic return; EAX/AL may be overwritten by the mode fixup. |
+| Decal Write `005A3E00` | cdecl; none | O, const Decal reference | **EAX=O**, borrowed, from the final vec2 writer. Not a Boolean. |
+| Dynamic Read `005837C0` | cdecl; none | I, mutable Dynamic reference | No semantic return; EAX is final stream-call residue. |
+| Dynamic Write `00583620` | cdecl; none | O, const Dynamic reference | No semantic return; EAX is final stream-call residue. |
+| Visual Read, old `005ABFD0` | thiscall; ECX=Visual | I | **EAX=I**, borrowed, from the string adapter. Not a Boolean. |
+| Visual Read, current `005ABF50` | cdecl; none | I, mutable Visual reference | No semantic return; EAX is final stream-call residue. |
+| Visual Write `005AB590` | cdecl; none | O, const Visual reference | No semantic return; EAX is final stream-call residue. |
+| Collection-camera Read `005AB2F0` | cdecl; none | I, mutable Camera value reference | No semantic return; EAX is final stream-call residue. |
+| Collection-camera Write `005AB340` | cdecl; none | O, const Camera value reference | No semantic return; EAX is final stream-call residue. |
+
+In particular, do not turn the ABI inventory's generic `eax` annotation into
+an AL success test. The resource ignores **all twelve** helper results. The
+two specified stream-pointer results acquire no reference. None returns an
+owned description or ST0/EDX value, and none provides an independent record
+success/failure result. Primitive stream Boolean results are not aggregated or
+checked by these record bodies. Exceptions can interrupt a partially mutated
+description/cursor; there is no rollback or resource-wide transaction (§18.9.6).
+
+Evidence: particle arguments/selection `005A52BB–005A52DC`, reader A's ECX use
+`005B0B58`, pop `005B0F3A`, reader B's second argument `005B1DD6`; writer
+`005AFFF0–005B001F`, return `005B03EA–005B03EC`. Decal arguments and return
+`005A4B50–005A4B83`, `005A4C07–005A4C1D`, `005A3E00–005A3E29`,
+`005A3EA5–005A3EB4`; vec2 writer returns O at `005DA540`. Dynamic arguments
+`005837C0–005837E5`, `00583620–00583650`. Visual arguments/selection
+`005A5E00–005A5E1B`, bodies `005ABFD0–005AC027`, `005ABF50–005ABFC1`,
+`005AB590–005AB5F4`; string adapter returns I at `00581288`. Camera arguments
+and complete bodies `005AB2F0–005AB33E`, `005AB340–005AB38B`.
+
+#### 18.10.2 Version selection, initialization and ownership
+
+The **resource** consumes each section's u16 version and u32 record count and
+selects/iterates the helpers. The helpers do not consume that section header.
+The optional camera has its own version inside its value, as shown below.
+
+| Family | Resource's Read selection | Write framing supplied by resource / helper |
+|---|---|---|
+| Particle | Section version **exactly 1** selects A; **every other u16** selects B. | Resource emits section version 2 and count; writer emits one B-format payload. |
+| Decal | Consume but otherwise ignore section version; always `005A4B50`. | Resource emits section version 1 and count; writer has no version bytes. |
+| Dynamic | Section exists only for root 4. Consume but ignore its section version; always `005837C0`. Root 3 omits the entire section. | Resource always writes root 4, dynamic section version 1 and count; writer has no version bytes. |
+| Visual | Section version **exactly 1** selects old `005ABFD0`; **every other u16**, including 0, selects `005ABF50`. | Resource emits section version 2 and count; writer always includes the three trailing u32. |
+| Optional collection camera | Resource consumes presence byte. Only a nonzero byte invokes the value reader, which consumes and ignores its own u16 version. | Resource writes presence byte; if nonzero, value writer emits u16 0, then value payload. No camera value/count/version follows a zero presence byte. |
+
+This refines §3's former “version above 1” visual wording: the native branch
+tests equality with 1, not a greater-than comparison. The old visual reader
+reads flags, priority, components, bindings and string, then sets Visual+20 to
+zero; it reads no trailing u32 and leaves Visual+24,+28 unchanged. The current
+reader consumes all three words. Both mask incoming visual flags to `1FF`.
+The writer emits stored flags, including higher bits, without that read mask.
+The same distinction applies to component/binding read masks in §3: they
+normalize on Read; Write emits the stored values.
+
+Every description/stream argument is **borrowed for the call**. These helpers
+do not QI, AddRef, Release, seek, close, or retain the stream or the description
+itself. The caller keeps both alive. In particular Particle+204 and Dynamic's
+reference-base words are not serialized or changed by their codecs. The
+resource supplies its already retained particle/dynamic entry, or its actual
+decal/visual vector element; it does not pass a pointer to the entry's pointer.
+
+Construct values before Read, using their renderer owner, with valid native
+owned members. Read replaces/resizes those members in place, allocating owned
+storage and releasing superseded storage as their container operations require.
+String adapter `005811F0` copies the text supplied through I slot 15 into the
+destination's own string; the destination does not borrow the stream's text.
+Write traverses owned values without taking ownership, consuming them or
+normalizing them. Output strings go through O slot 14 as const NUL-terminated
+characters (§18.9.5). A replacement using these dependencies must therefore
+hand them native constructed renderer values, with their matching destruction
+and allocator contracts; a foreign-language vector/string layout is not the
+native type. An adapter can expose the same typed operation without exposing
+native containers to the resource implementation.
+
+The particle readers handle their nested element allocation/reconstruction
+internally. The resource need not reconstruct tractor/wiggle values from
+serialized vec3s, or reinterpret those vectors as fixed-size file records.
+Their retained native shapes are §18.8.3; the older particles §2 shorthand
+for nested elements is not a substitute for this typed dependency boundary.
+Reader A omits flags B at Particle+04 and the timed-effect vector at +1CC;
+it leaves their existing values intact. B reads both, masking incoming +04
+to FF and +08 to 7FF; A also masks +08 to 7FF. The particle writer writes the
+B sequence with all three stored flag words and the timed-effect vector.
+
+Normal resource construction/collection publication remains §§18.7,18.9;
+these codecs neither insert a name/index entry nor publish to the manager.
+Evidence: decal loop `005A52FA–005A53DE`, dynamic gate/header
+`005A5C8C–005A5CAF` and call `005A5D8C–005A5D9F`, visual header/branch
+`005A5DB0–005A5E1B`, camera presence `005A5F66–005A5F8B`; old visual zero
+store `005AC01D`; incoming flag masks `005B0B7E`, `005B1DEC–005B1E10`,
+`005ABF6A`, `005ABFE8`; unmasked visual/component/binding writes
+`005AB59C–005AB5A1`, `005AB3F0`, `005AB54A–005AB554`.
+
+#### 18.10.3 Decal and dynamic record sequences
+
+The following tables describe **wire order**, not native memory images. Scalar
+byte order is supplied by the stream (little endian for the shipped directory).
+f32 is binary32; a vec2/vec3 is two/three successive f32. A list is u32 count
+then its values in order; a string is u32 byte length followed by its bytes,
+without NUL. Counts/strings do not imply disk alignment or native container
+headers. Read masks/fixups below do not apply to Write.
+
+| Decal wire order | Encoding | Destination/source in Decal |
+|---|---|---|
+| 1 | u32 flags | +00; Read masks to `7F` |
+| 2 | u32 texture ID | +04 |
+| 3, 4 | u8, u8 | +08, +09; +0A,+0B memory padding is absent from disk |
+| 5 | f32 length | +0C |
+| 6, 7, 8 | three independent counted f32 lists | +10, +1C, +28 |
+| 9 | counted vec3 list | +34 |
+| 10 | counted f32 list | +40 |
+| 11–14 | four f32 | +4C, +50, +54, +58 |
+| 15 | vec2 | +5C,+60 |
+
+After the last vec2, if decoded **byte +09 is zero**, replace it by 2 and OR
+flags +00 with `40`. Otherwise leave it and the masked flags alone. This is
+independent of section version. Write preserves both mode bytes and the full
+stored flags; it neither applies a mask nor repeats this fixup. With all five
+lists empty, a decal payload is **58 decimal bytes**, not its 100-byte native
+extent. Every f32 list uses `005DB4B0`: a count **below 1,000,000** resizes then
+reads its values; a count at least that large consumes only the count, leaves
+the old list intact and proceeds to the next field. The vec3-list reader
+`005A4AD0` has no corresponding million-element check; it resizes to its u32
+count and reads three f32 per element. These are stream-alignment behaviors,
+not a general malformed-input acceptance guarantee.
+
+| Dynamic wire order | Encoding | Destination/source in Dynamic |
+|---|---|---|
+| 1 | u32 flags | +08; Read masks to `7F` |
+| 2 | string | +0C |
+| 3 | u32 scalar model ID | +30 |
+| 4 | counted u32 model-ID list | +34; preserve order and duplicates |
+| 5–10 | six f32 | +18,+1C,+20,+24,+28,+2C, in that order |
+
+Dynamic's vptr/reference count at +00,+04 are absent from disk. The u32-list
+reader `005DB350` has the same **count < 1,000,000** gate as the f32-list
+reader; at or above the limit it consumes only the count and retains the old
+list. Writer `005DAEA0` writes the actual list length and every stored ID; it
+does not impose that input gate or remove duplicates. A payload with empty
+name and empty ID list is **40 decimal bytes**. Section versions and counts
+belong to the resource and are not included in these payload sizes.
+
+Evidence: complete decal bodies `005A4B50–005A4C1D`, `005A3E00–005A3EB4`;
+post-read correction `005A4C07–005A4C18`; list writers `005DAD50–005DAD99`
+(f32), `005A3CC0–005A3D0D` (vec3); list readers `005DB4B0–005DB51B`,
+`005A4AD0–005A4B44`. Complete dynamic bodies `005837C0–00583849`,
+`00583620–0058369C`; model-ID list helpers `005DB350–005DB3B9`,
+`005DAEA0–005DAEE9`. Float values use stream slot 12 as 32-bit values/output
+destinations, not doubles or pointers passed to the output operation.
+
+#### 18.10.4 Optional camera value and worked conformance cases
+
+**Corrects the former §18.9.5 camera row:** the 12 memory bytes at Camera+00
+are a **float-vector container**, not three position coordinates. After its
+u16 version, the value codec reads/writes a u32 curve count, that many f32,
+then four f32 at Camera+0C,+10,+14,+18. Thus its wire size is **22 + 4n** bytes,
+including its own version and excluding the outer presence byte. Reading
+uses `005DB4B0`, including the million-element gate above; writing uses
+`005DAD50`. This agrees with the retained collection layout in §18.7.2 and
+does not change the separate type-8 camera-component codec. Evidence:
+`005AB2FF–005AB339`, `005AB34C–005AB386` and the two list helpers.
+
+**EF26-C1 — one nonempty decal decoded and handed on.** Supply an otherwise
+empty root-4 resource in §18.9.5 order, particle section `(2,0)` and decal
+section `(1,1)`. The one decal payload has the following bytes, expressed as
+typed values; the left column is its **hexadecimal wire offset**:
+
+| Wire offset | Supplied value(s) |
+|---|---|
+| 00 | u32 `FFFFFFA5` flags |
+| 04 | u32 `12345678` texture |
+| 08,09 | u8 7, u8 0 |
+| 0A | f32 6 |
+| 0E,12 | u32 1, f32 2 (first curve) |
+| 16,1A | u32 1, f32 3 (second curve) |
+| 1E,22 | u32 1, f32 4 (third curve) |
+| 26,2A | u32 1, vec3 (0.25,0.5,1) (color curve) |
+| 36,3A | u32 1, f32 0.75 (fourth f32 curve) |
+| 3E,42,46,4A | f32 1.25, 2.5, -3, 1.5 |
+| 4E | vec2 (-2,8) |
+
+The resource owns one constructed Decal entry at index 0 in C+78. At absolute
+resource cursor **0E**, it invokes `005A4B50` with first argument I and second
+argument the **entry's value address**, no receiver/version argument. The
+helper consumes **56 hex = 86 decimal bytes**. The next shake-section header
+starts at absolute **64**, without alignment padding. The entry now has flags
+`00000065` (`FFFFFFA5 & 7F = 25`, then OR 40), texture `12345678`, bytes 7 and
+2, length 6, float curves [2], [3], [4], [0.75], color curve [(0.25,0.5,1)],
+and the four final floats and vec2 above. Its owned vectors contain values;
+they are not pointers into I's buffer.
+
+Complete the empty remaining sections and terminator normally. Publish R
+through **primary slot 5** to a separate, empty destination collection. Its
+decal vector receives entry 0 with those decoded values (§18.7.3), even with
+no name/visual reference. Destroy R and its source collection; the destination
+entry and its owned curves remain valid. Write that destination entry with
+`005A3E00`, arguments O then its const Decal value address: output is again
+86 bytes, with flags `00000065` and mode byte 2 in place of the input values;
+every other supplied finite value is preserved. EAX is O and acquires no
+reference. The field offsets 0A,0E,... deliberately test unaligned disk data.
+
+Additional independent predictions for dependency adapters (static cases,
+not measured game goldens):
+
+| Case | Input / operation | Required observation |
+|---|---|---|
+| EF26-C2 | Particle section version 1, one valid A payload | Receiver is the retained Particle itself in ECX; sole argument I; callee pop 4. No +04 or +1CC input is consumed or assigned. |
+| EF26-C3 | Particle section version 0, one valid B payload | Invoke B with I then Particle, no ECX dependency; caller removes 8. Version is not a third argument; B consumes its extra flag word and timed-effect vector. |
+| EF26-C4 | Visual version 1; preseed +20,+24,+28 as 7,8,9; valid empty component/binding lists and string | Old reader consumes no trailing words; result words 0,8,9; EAX=I without acquisition. Repeating with version 0 selects the current reader and consumes all three supplied words. |
+| EF26-C5 | Dynamic flags `FFFFFFA5`, name `dyn`, scalar model ID 9, model IDs [5,5,2], six floats 1,2,3,4,5,6 | Payload size 55 decimal; flags become 25 hex at object +08. Name/list are owned; base words are untouched. Write emits flags 25 and duplicate IDs in the same order; no inner version. |
+| EF26-C6 | Presence byte 7; camera value u16 `FFFF`, curve [7], final floats 1,2,3,4 | Reader ignores inner version and consumes **26** value bytes. Stored presence stays 7. Write emits presence 7 then inner version 0, curve count 1/value 7, and four scalars. Presence 0 skips the whole value and retains the previous stored value. |
+| EF26-C7 | Direct writer calls on valid values, including flags with high bits set | Five writers receive O then the const value pointer and no version/receiver. They write full stored flag words. Only Decal Write has the specified EAX=O result; no writer supplies an AL success contract. |
 
 ## 19. Effects-script command contracts *[compat]*
 

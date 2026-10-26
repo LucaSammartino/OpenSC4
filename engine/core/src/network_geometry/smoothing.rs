@@ -280,6 +280,7 @@ fn side_vertices(x: i32, z: i32, k: u32) -> [(i32, i32); 2] {
 /// The cross-sections of one side (`GetCrossSections`, `0x00636360`):
 /// previous (the opposite side of this cell), this (the side), next (the
 /// side shifted one cell outward). [inferred] Q NG14.
+// SPEC-GAP: NG15 asks for the exact cross-section vertex pairs and constraint insertion order on nonflat multi-cell runs.
 pub fn cross_sections(x: i32, z: i32, side: u32, off: i32, cells: (u32, u32)) -> [[i32; 2]; 3] {
     let (dx, dz) = [(-1, 0), (0, -1), (1, 0), (0, 1)][side as usize & 3];
     let own = |vs: [(i32, i32); 2]| {

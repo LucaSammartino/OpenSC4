@@ -93,9 +93,9 @@ fn stored_pair(v: [f64; 2]) -> Result<Pair> {
     Ok([store(v[0])?, store(v[1])?])
 }
 
-/// §3 unsigned component-min, not body priority or same-body rejection.
+/// §3 / PT12 unsigned component-wise maximum.
 pub fn primary_sector(current: u32, a: u32, b: u32) -> bool {
-    current == (a & 0xffff_0000).min(b & 0xffff_0000) + (a & 0xffff).min(b & 0xffff)
+    current == (a & 0xffff_0000).max(b & 0xffff_0000) + (a & 0xffff).max(b & 0xffff)
 }
 
 /// §4 directional corner selection. Ties, including either signed zero, do not

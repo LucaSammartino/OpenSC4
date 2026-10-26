@@ -6,6 +6,7 @@
 #include "FC4CompareData.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4ConfigRulesTrace.h"
 #include <windows.h>
 #include <tlhelp32.h>
 #include <intrin.h>

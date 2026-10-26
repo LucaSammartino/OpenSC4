@@ -92,14 +92,10 @@ impl ParticleDescriptionBase {
         for offset in [0x108, 0x1b8] {
             value.vectors.entry(offset).or_default();
         }
-        // Parser reset has its own contract. Base construction preserves PT3:
-        // absent words explicitly mean unknown, not guessed zero defaults.
+        // particles.md §2 PT3: the three scalar seeds are positive zero.
         for base in [0x7c, 0xe0, 0xf4, 0x18c] {
             for offset in [base, base + 4, base + 8] {
-                value.words.remove(&offset);
-                if let Some(g) = &globals {
-                    value.scalar(offset, g.scalar);
-                }
+                value.scalar(offset, globals.as_ref().map_or(0., |g| g.scalar));
             }
         }
         value.vectors.remove(&0x94);

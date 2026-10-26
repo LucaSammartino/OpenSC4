@@ -21,8 +21,51 @@
 
 namespace fc4 {
 namespace {
-struct Counts { uint32_t lines = 0, clean = 0, listed = 0; } g_narrow, g_wide;
+struct MethodCount { uint64_t calls = 0, complete = 0, mismatches = 0; };
+struct Counts {
+    uint32_t lines = 0, clean = 0, listed = 0;
+    MethodCount methods[4];
+} g_narrow, g_wide;
 Counts g_plan, g_power;
+struct DragContext : NetToolContext {
+    bool available = true;
+    uint32_t queries = 0, hits = 0;
+};
+bool UndergroundEnd(void* u, int32_t x, int32_t z, uint32_t type) {
+    auto& context = *static_cast<DragContext*>(u);
+    auto* manager = context.city->GetOccupantManager(); // borrowed
+    if (!manager) { context.available = false; return false; }
+    const uint32_t layer = type == 4 ? 0x49C05B9F : 0xCA16374F;
+    const SC4Point<int> cell{x, z};
+    // NG8: two complete, unfiltered overlap queries; the second is only
+    // needed when no occupant answers the tool's own underground layer.
+    for (unsigned phase = 0; phase != 2; ++phase) {
+        SC4List<cISC4Occupant*> occupants;
+        ++context.queries;
+        const bool ok = manager->GetOccupantsByStandardCityCells(occupants, &cell, &cell,
+            static_cast<cISC4OccupantFilter*>(nullptr), 0xFFFFFFFF);
+        cIGZUnknown* accepted = nullptr;
+        if (ok) for (auto* occupant : occupants) {
+            if (!occupant) { context.available = false; continue; }
+            void* view = nullptr;
+            if (!occupant->QueryInterface(phase == 0 ? layer : 0x8A139184, &view) || !view) continue;
+            auto* acquired = static_cast<cIGZUnknown*>(view);
+            FC4_ACQUIRED(acquired, "NG8 end QueryInterface");
+            using Layer = uint32_t (__thiscall*)(void*);
+            const bool matches = phase == 0 ||
+                reinterpret_cast<Layer>((*static_cast<void***>(view))[38])(view) == layer;
+            if (matches) {
+                if (accepted) FC4_RELEASE(accepted);
+                accepted = acquired;
+            } else FC4_RELEASE(acquired);
+        }
+        if (!ok) context.available = false;
+        manager->ReleaseOccupantList(occupants);
+        if (accepted) { FC4_RELEASE(accepted); ++context.hits; return true; }
+        if (!ok) return false;
+    }
+    return false;
+}
 struct Probe {
     cFC4ISC4NetworkToolFull* tool;
     uint32_t type;
@@ -85,6 +128,9 @@ bool PowerlineDraft(void* u, fc4_nettool_run* run, uint32_t, uint32_t neighbourM
     context.selection = {};
     context.selectionReady = run->dragged_count < 2 ||
         ReadNetToolPowerlineSelection(&context, &context.selection);
+    // power-line-tool section 2: slot 53 clears valid after selection when
+    // no pole records were generated, before the public getter is observed.
+    if (context.selection.poles == 0) context.selection.valid = 0;
     run->valid_count = context.selection.valid;
     // Incomplete observations remain unavailable, never a successful sample.
     return true;
@@ -116,6 +162,25 @@ bool ClearPlanningOrigin(cISC4City* city, int32_t& x, int32_t& z) {
             if (clear) { x = ix; z = iz; return true; }
         }
     }
+    uint32_t dry = 0, empty = 0, clearCells = 0, firstType = 0;
+    for (int32_t iz = 2; iz < static_cast<int32_t>(city->CellCountZ()) - 2; ++iz) {
+        for (int32_t ix = 2; ix < static_cast<int32_t>(city->CellCountX()) - 2; ++ix) {
+            cISC4Occupant* occupant = nullptr;
+            const bool hit = occupants->GetFirstOccupantByStandardCityCell(
+                occupant, ix, iz, static_cast<cISC4OccupantFilter*>(nullptr));
+            if (occupant) {
+                FC4_ACQUIRED(occupant, "GetFirstOccupantByStandardCityCell");
+                if (firstType == 0) firstType = static_cast<uint32_t>(occupant->GetType());
+                FC4_RELEASE(occupant);
+            }
+            const bool water = host.cell_has_water(host.user, ix, iz);
+            dry += !water;
+            empty += !hit;
+            clearCells += !water && !hit;
+        }
+    }
+    Log("nettool plan origin unavailable: dry-cells=%u empty-cells=%u clear-cells=%u first-occupant-type=%08x",
+        dry, empty, clearCells, firstType);
     return false;
 }
 void LogPlanningInputs(NetToolContext& context, const fc4_netgeom_host& host, int32_t x, int32_t z) {
@@ -169,7 +234,10 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
     // The registry replacement does not own the native manager's private
     // factory. Calling that factory directly works with enable=nettool too.
     int32_t originX = 0, originZ = 0;
+    const bool hasOriginalManager = manager != nullptr;
     if (manager && !ClearPlanningOrigin(city, originX, originZ)) manager = nullptr;
+    if (!manager) Log("%s unavailable inputs julian=%d manager=%d city-cells=%ux%u clear-origin=%d",
+        label, julian, hasOriginalManager ? 1 : 0, city->CellCountX(), city->CellCountZ(), manager ? 1 : 0);
     constexpr int32_t offsets[][4] = {
         {0,0,0,0}, {0,0,4,0}, {4,0,0,0},
         {0,0,0,4}, {0,4,0,0}, {0,0,12,0},
@@ -253,7 +321,7 @@ void RunPlanning(cISC4City* city, int32_t julian, bool power) {
                         p.failure, failure, p.valid, valid, p.drag.straight, state.straight_count,
                         p.drag.total, state.dragged_count, static_cast<uint32_t>(p.drag.cells.size()),
                         static_cast<uint32_t>(cells.size()), p.cost, cost);
-                        if (!power && cells.size() == 1) LogPlanningInputs(context, gh, cells[0].x, cells[0].z);
+                        if (!power) for (const auto& cell : cells) LogPlanningInputs(context, gh, cell.x, cell.z);
                     }
                 }
                 if (initialized && !SehGuard("nettool plan undo", &UndoPlan, &p)) ++unavailable;
@@ -291,16 +359,16 @@ void Run(cISC4City* city, int32_t julian, bool wide) {
         ++n.lines;
         return;
     }
-    // Whitelist dimensions only. Draw replay has no write callbacks. Existing
-    // network alignment/auto-extension is not supplied by this host; any live
-    // difference remains visible, never replaced with the native answer (NG9).
-    NetToolContext context;
+    // Read the same live underground overlap/QI inputs as the native draw
+    // (NG8), including at julian 0. No placement or terrain write callbacks.
+    DragContext context;
     context.city = city;
     const auto source = MakeNetGeomHost(&context);
     fc4_netgeom_host host{};
     host.struct_size = sizeof(host);
     host.user = &context;
     host.cells = source.cells;
+    host.extends_diagonal_end = &UndergroundEnd;
     fc4_netgeom* core = fc4_netgeom_create(&host, nullptr, 0);
     // Fixed inputs exercise both axes, reversal, one-cell drags, pre-adjust,
     // staircase and snap. They are native/core same-process calls in the city,
@@ -324,6 +392,7 @@ void Run(cISC4City* city, int32_t julian, bool wide) {
                 p.start = {static_cast<uint32_t>(v[0]), static_cast<uint32_t>(v[1])};
                 p.end = {static_cast<uint32_t>(v[2]), static_cast<uint32_t>(v[3])};
                 p.snap = snap != 0;
+                context.available = true;
                 fc4_netgeom_reset(core);
                 const bool ok = fc4_netgeom_draw_line(core, type, v[0], v[1], v[2], v[3], p.snap);
                 fc4_netgeom_state state{};
@@ -331,7 +400,12 @@ void Run(cISC4City* city, int32_t julian, bool wide) {
                     fc4_netgeom_get_state(core, &state);
                 FC4_X87_CHECK("nettool drag shadow");
                 ++vectors;
-                if (!observed) { ++unavailable; continue; }
+                for (auto& method : n.methods) ++method.calls;
+                if (!observed || !context.available) {
+                    ++unavailable;
+                    for (auto& method : n.methods) ++method.mismatches;
+                    continue;
+                }
                 std::vector<fc4_netgeom_cell> cells(fc4_netgeom_get_cells(core, nullptr, 0));
                 fc4_netgeom_get_cells(core, cells.data(), static_cast<uint32_t>(cells.size()));
                 uint32_t cellDiffs = cells.size() != p.cells.size() ? 1u : 0u;
@@ -341,6 +415,10 @@ void Run(cISC4City* city, int32_t julian, bool wide) {
                 }
                 const uint32_t diff = cellDiffs + (ok != p.ok) +
                     (state.straight_count != p.straight) + (state.dragged_count != p.total);
+                n.methods[0].mismatches += diff; // Draw: partial owner-field/call coverage
+                ++n.methods[1].complete; n.methods[1].mismatches += cellDiffs;
+                ++n.methods[2].complete; n.methods[2].mismatches += state.straight_count != p.straight;
+                ++n.methods[3].complete; n.methods[3].mismatches += state.dragged_count != p.total;
                 mismatches += diff;
                 if (diff && n.listed++ < 12) Log(
                     "%s diff type=%u drag=(%d,%d)-(%d,%d) snap=%d mismatches=%u "
@@ -357,8 +435,23 @@ void Run(cISC4City* city, int32_t julian, bool wide) {
     ++n.lines;
     if (mismatches == 0 && unavailable == 0 && vectors != 0) ++n.clean;
     Log("%s julian=%d: mismatches=%u unavailable=%u vectors=%u scope=draw-only "
-        "fields=return,ordered-cells,straight,total exact=%u/%u", label, julian,
-        mismatches + unavailable, unavailable, vectors, n.clean, n.lines);
+        "fields=return,ordered-cells,straight,total exact=%u/%u end_queries=%u end_hits=%u resyncs=0", label, julian,
+        mismatches + unavailable, unavailable, vectors, n.clean, n.lines, context.queries, context.hits);
+    if (julian > 0) {
+        fc4_date date{};
+        fc4_date_from_julian(julian, &date);
+        const char* family = wide ? "nettool_wide_drag" : "nettool_drag";
+        const char* methods[] = {"0x0063AF40 cSC4NetworkTool::DrawNetworkLine",
+            "0x0062CA30 cSC4NetworkTool::GetDraggedCells",
+            "0x00407AC0 cSC4NetworkTool::GetStraightStepCount",
+            "0x00809240 cSC4NetworkTool::GetTotalStepCount"};
+        for (unsigned i = 0; i != 4; ++i) {
+            const auto& method = n.methods[i];
+            Log("%s method %s (month) %04d-%02d-%02d: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+                family, methods[i], date.year, date.month, date.day_of_month,
+                method.calls, method.complete, method.mismatches);
+        }
+    }
 }
 }
 void NetToolDragShadowLoaded(cISC4City* city) {

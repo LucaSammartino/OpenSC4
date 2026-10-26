@@ -57,13 +57,16 @@ void Compare(const char* event, int32_t julian) {
             bytes += b.size();
             if (!compared || result.status != 0) {
                 ++mismatches;
-                if (++badKinds[kind] <= 2) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u",
+                // SPEC-GAP: §2.8/NO46 leaves the prebuilt record format open; retain
+                // its parse failures and report the captured record version.
+                if (++badKinds[kind] <= 2) Log("netocc difference: class=%08X object=%u capture=%u status=%u at=%u expected=%02X actual=%02X lengths=%u/%u record_version=%u",
                     cls, id, captured ? 1u : 0u, compared ? result.status : 4u, result.first,
-                    result.expected, result.actual, result.expectedLen, result.actualLen);
+                    result.expected, result.actual, result.expectedLen, result.actualLen,
+                    b.size() < 2 ? 0u : static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8));
             }
         }
     }
-    // An empty sample must never be credited as an exact shadow.
+    // SPEC-GAP: NO47 leaves empty-city census accounting open; do not credit an empty sample.
     if (records == 0) ++mismatches;
     fc4_date date{};
     char dateText[16] = "?";

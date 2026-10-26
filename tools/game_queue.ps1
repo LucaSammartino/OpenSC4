@@ -82,6 +82,7 @@ $Suffix = if ($Instance) { "-$Instance" } else { "" }
 $Out = Join-Path $Here "build-runs"
 $Work = Join-Path $Out "game-queue-work$Suffix"
 $QueueLog = Join-Path $Out "game-queue$Suffix.log"
+$StarvedMinutes = 15   # a normal (non-parallel) request waiting this long starts without its root being idle
 $DocsRegions = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4\Regions"
 $Utf8 = New-Object Text.UTF8Encoding($false)
 # "-Roots a,b" and "-SlotList 4,5" arrive as one string under powershell -File: split them here.
@@ -439,7 +440,10 @@ function Waiting($mine) {
             $prio = if ($coord -and (PeekPriority $r.FullName) -eq "high") { 0 } elseif ($coord) { 1 } else { 2 }
             $young = ((Get-Date) - $r.LastWriteTime).TotalSeconds -lt 2   # still being written
             $head = $false
-            $parallel = PeekParallel $r.FullName
+            # A normal request needs its root idle, but lanes' parallel requests keep a root busy for hours: after
+            # $StarvedMinutes minutes in the queue it starts alongside them (slots are isolated; 2026-10-26 four lane requests
+            # waited up to 2.4 h while 8 of 12 slots sat idle).
+            $parallel = (PeekParallel $r.FullName) -or ($prio -ne 0 -and ((Get-Date) - $r.LastWriteTime).TotalMinutes -ge $StarvedMinutes)
             if ($prio -ne 0 -and -not $parallel) { $head = -not $headSeen; $headSeen = $true }
             $all += @{ root = $root; req = $r; prio = $prio; young = $young; parallel = $parallel; head = ($prio -eq 0 -or $parallel -or $head); rootBusy = $busy; i = $order++ }
         }

@@ -530,12 +530,11 @@ at `+0x13C`, and adds:
 
 | Offset | Meaning |
 |---|---|
-| `+0x170`/`+0x174`/`+0x178` | u32 triplet (written by the record; NO4, §12) |
-| `+0x17C` | u32 |
-| `+0x180` | byte |
-| `+0x184`…`+0x19C` | 7 floats — the **shear transform** inputs; `RecomputeShearTransform` `0x0061D230` uses the constant `0.0625` (`0x00AA81E4`); the ctor seeds `+0x184…+0x1AC` from `0x00B45298` and then zeroes `+0x184…+0x19C` |
-| `+0x194` | float gate: if ≠ 0, `+0x198…+0x1A4` hold 4 more floats; v < 4 records used the legacy `+0x1A8`/`+0x1AC` pair + 2 more |
-| `+0x1B0` | vector (u32) |
+| `+0x178`/`+0x17C`/`+0x180` | three f32 saved by the prebuilt envelope (§2.8.1); semantics remain NO4 |
+| `+0x184`…`+0x198` | six f32 shear-transform values; `RecomputeShearTransform` `0x0061D230` uses `0.0625` (`0x00AA81E4`); these are not a separately serialized array |
+| `+0x19C` | u32 gate: **raw word** nonzero means four more f32 follow in the record |
+| `+0x1A0`…`+0x1AC` | those four optional f32 |
+| `+0x1B0` | saved opaque u32 |
 | `+0x1B4` | byte |
 | `+0x1B8`/`+0x1BC` | int pair, ctor sets both to **−1** |
 | `+0x1C0`/`+0x1C1` | bytes |
@@ -550,7 +549,7 @@ override and using `FUN_00466590`; caches into `+0x140`; if the result lacks `Ha
 pathinfo slot 0x68; then `ResetPathInfo`.
 
 `Shutdown` `0x0061D0D0` releases the model. `Write` `0x0061D8E0` (version 4) / `Read` `0x0061D9B0` (versions
-3…4) are the base record plus the prebuilt fields; the field list is §12 (NO4).
+3…4) use §2.8.1. NO4 remains about field meanings, not their stream representation.
 
 The **bridge** subclass adds: `QueryInterface` `0x00604BC0` (class ID `0x49CC1BCD`), `Init` `0x00604BF0` = the
 prebuilt `Init`, `Shutdown` `0x00604C10` releases the `+0x1D0` model/structure list then the prebuilt
@@ -567,6 +566,78 @@ by `Shutdown` `0x006474F0`); `Write` `0x00647580` (v2) writes the has-pair bool 
 `0xE4FDA3D4`); `Read` `0x00647610` (v2) uses `SC4ReadGZSerializable` IID `0x8A4BD52B`; `Init` `0x006471C0` = the
 prebuilt `Init` + `ClearNetworkFlag(0x4000)`. Creation and pairing are traffic-network.md §4.8 and
 network-geometry.md §6.
+
+#### 2.8.1 Ordered prebuilt, bridge and tunnel envelopes (NO46) *[compat]*
+
+All integer fields below are little-endian; f32 occupies four bytes. The record functions receive the
+serializable view **S = primary object + 8**, just as §2.3 does. This corrects the earlier table's mixing
+of view-relative offsets and primary offsets, and its interpretation of stream slot `+0x30` as u32:
+that slot is Float32, whereas `+0x24` is Uint32 and `+0x14` is Uint8.
+
+The complete prebuilt class `0x49C1A034` writes, in this order:
+
+| Order | Stream field | Object location / rule |
+|---|---|---|
+| 1 | u16 **4** | subclass version, **before** the network-base version |
+| 2 | complete §2.3 record | starts with u16 **8**, then the occupant base, transform, corners, edges, parts, box, flags, path override, path resource key and demolition cost in that section's order |
+| 3 | three f32 | primary `+0x178`, `+0x17C`, `+0x180` (S `+0x170…+0x178`) |
+| 4 | u32 | primary `+0x1B0` (S `+0x1A8`), opaque and retained |
+| 5 | u8 | primary `+0x1B4` (S `+0x1AC`), opaque byte, not normalized to bool |
+| 6 | u32 G | primary `+0x19C` (S `+0x194`) |
+| 7 | four f32, **only if G ≠ 0 as a u32** | primary `+0x1A0`, `+0x1A4`, `+0x1A8`, `+0x1AC` (S `+0x198…+0x1A4`) |
+
+Evidence: version/base call `0x0061D8EA–0x0061D8F4`; fields and raw-word gate
+`0x0061D901–0x0061D996`, with the matching read gate at `0x0061DA87–0x0061DA97`.
+In particular G=`0x80000000` includes the four fields; interpreting G as floating minus zero would
+incorrectly omit them. The suffix after the complete base block is **21 bytes**, or **37** with G nonzero.
+There is no prebuilt reference field or extra count in that suffix.
+
+Read consumes the outer u16 first and accepts only 3 or 4. Another version returns false without
+reading the base. After an accepted version it reads the full base; only a successful base read
+permits the suffix. For version 3, after the three f32 of row 3 it consumes and discards **six u32**,
+then reads rows 4–7, then consumes and discards **one u32**. Version 4 has neither discarded block
+(`0x0061DA18–0x0061DA68`, `0x0061DAD1–0x0061DAE5`). An omitted optional block does not zero the
+existing four live fields. The envelope performs no arithmetic on its f32 fields. The final result
+for an accepted version is the stream-error test, including when a failed base bypasses the suffix.
+
+Read→Write always emits outer version 4 and base version 8. Version-3 discarded words disappear;
+opaque saved fields remain. The inherited read conversions still apply: network flags lose
+`0xE000`, corner/part alpha is canonicalized and older transforms/flags/path overrides follow §2.3.
+Do not treat an entire captured subclass record as bytes that must survive these conversions unchanged.
+
+The **bridge** `0x49CC1BCD` uses exactly this envelope: its serializable vtable `0x00AA725C`
+slots 3/4 are `0x0061D8E0`/`0x0061D9B0`. There is **no bridge version before 4**, and no bridge
+suffix after row 7. Bridge-specific live structure lists are not extra fields of this record.
+
+The **tunnel** `0x8A4BD52B` instead has this full order:
+
+| Order | Stream field | Rule |
+|---|---|---|
+| 1 | u16 **2** | tunnel version; Read accepts exactly 2, otherwise stops here |
+| 2 | complete prebuilt envelope above | starts 4, 8 on Write; Read accepts its 3/4 outer version |
+| 3 | u8 P | Write emits 1 only when the paired portal exists and QI for `cIGZSerializable`, IID `0xE4FDA3D4`, succeeds; otherwise 0 |
+| 4 | serializable reference, only if P ≠ 0 | nonzero P on Read requests IID **`0x8A4BD52B`**, `loadNow=false`; the writer uses the serializable interface |
+
+The pair is primary `+0x1D0` (S `+0x1C8`). Before reading a present reference, Read releases and
+clears the old pair; P=0 also releases and clears it. The input byte is tested for nonzero, so e.g.
+P=2 writes back as 1 if the resolved object supports serialization. Write releases its temporary QI
+reference. Evidence: `0x0064758A–0x006475ED`, `0x00647625–0x006476AC`.
+
+References here are the segment-stream form of foundations.md §2.7: u32 object ID, followed by u32
+class ID iff the ID is nonzero; the referenced object's record is elsewhere. The helpers require
+segment interfaces `0x6999A8FB` on Write / `0x4999A8F5` on Read; a generic non-segment stream does
+not supply this reference payload. The inherited cached-path resource key is a different reference:
+§2.3 row 12 uses three u32 and resolves IID `0xA9667793`. All other inherited fields, including any
+occupant-base reference, retain the format and IIDs of §2.3 and lot-records.md §2.3.
+
+**Worked codec cases.** With an otherwise valid v8 base, choose the three f32 as (1,2,3), the opaque
+word `0x11223344`, byte `0xA5`, G=`0x80000000` and the optional f32 as (4,5,6,7). A prebuilt or bridge
+record begins with 4 then the base's 8 and has a 37-byte suffix after the base; all these suffix fields
+survive Read→Write. Repeat with G=0: suffix 21 bytes, no four-float block. A v3 input with six distinct
+discarded words before the opaque word and one after the optional block writes back with 28 fewer
+suffix bytes and outer version 4. A null-pair tunnel begins 2,4,8 and ends with one zero byte, without
+a reference. A present pair ends with 1, its nonzero object ID and class ID `0x8A4BD52B`; it is not an
+inline second tunnel record. Compare the inherited base after its documented canonicalization.
 
 
 ### 2.9 Geometry *[compat]*
@@ -3159,6 +3230,22 @@ the trace is Clip, Bind, FlipAndLight. An alpha byte 128 still sets the instance
 ---
 
 ## 13. Conformance tests
+
+**Empty-sample accounting (NO47) [choice].** Record comparison and exercised-owner credit are separate
+results. Preserve the sample, its scenario/date, `records=0`, `bytes=0` and every zero class count.
+When both captures are empty and neither capture failed, the empty sequences compare equal, with
+zero differing records, and the sample is **unexercised** for every network-occupant class. It adds
+no exercised-owner denominator or verification credit. An unsupported/nonempty record or capture
+failure remains a comparison failure, even if no record was successfully decoded.
+
+For `lua-lots-empty` load, report **equal, unexercised (0 records)**; retain the two later exercised
+samples and their own verdicts. If a scenario summary requires verified ownership, this scenario's
+load is N/A for that requirement, not a verified pass. A campaign can report “all comparable
+samples equal” only alongside the number of unexercised samples; it cannot turn that into “every
+owner verified in every scenario”. The previous deliberate one-mismatch sentinel is an accounting
+policy, not an original codec discrepancy. Report it separately while adopting this convention;
+do not erase its historical failing result or conflate it with NO46's parse errors. This convention
+does not grant absent owners credit and does not assert that this census was rerun.
 
 Each test names its section. A "city" is a fresh 64 × 64 city unless stated otherwise.
 

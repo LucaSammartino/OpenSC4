@@ -17,6 +17,12 @@
 //   landvalue_shadow = 1         (env FC4_LANDVALUE_SHADOW)
 //   landvalue_shadow_cells = N   differing tracts listed per grid and line
 //                                (env FC4_LANDVALUE_SHADOW_CELLS, default 4, 1..64)
+//   landvalue_shadow_inputs = 1  sample terrain inputs at city init, daily
+//                                notifications and pass ends (default off;
+//                                env FC4_LANDVALUE_SHADOW_INPUTS). The reported
+//                                observed_changed_input_passes counts comparison
+//                                intervals with observed changes, not proven
+//                                changes within native Step work (LV9/LV10).
 //
 // It needs the ORIGINAL land value simulator (the default: `landvalue` is not
 // enabled). Its own message target (started at PostAppInit) hears:
@@ -30,7 +36,7 @@
 //     reading the terrain, the zones, the lot developer's area slope and the
 //     growth developers' desirability maps live and read-only, and the two are
 //     compared tract by tract;
-//   - SimNewDay (posted): the listed developers' desirability maps are
+//   - PostCityInit and SimNewDay (posted): the listed developers' desirability maps are
 //     snapshotted while their GrowthAndDeclineListsAreValid (slot 10) is true
 //     (landvalue.md §7.4, LV2); a map republished after the original's pass
 //     read it is retried with the map from before the developer's last
@@ -74,7 +80,7 @@ void LandValueShadowStop();
 struct FC4LandValueShadowTestInput {
     cISC4City* city;
     int32_t julian;
-    uint32_t event;  // 0 = LandValueMapChanged (a pass end), 1 = SimNewDay, 2 = PostCityShutdown
+    uint32_t event;  // 0 = pass end, 1 = SimNewDay, 2 = PostCityShutdown, 3 = PostCityInit
 };
 // A pass end: its difference count, -1 (not run: no city, no original, ours)
 // or -2 (ran, nothing compared). A day: the maps that changed, or -1. A

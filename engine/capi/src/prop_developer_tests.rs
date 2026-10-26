@@ -455,3 +455,93 @@ pub(super) fn sweep_round_trip(rec: &[u8]) -> Result<Vec<u8>, String> {
         r
     }
 }
+
+#[test]
+fn pv18_effect_transport_advances_only_owned_semantics_and_rng() {
+    use fc4_core::rng::{FixedSeeds, RzRandomSuper};
+    unsafe {
+        let mut state = fc4_prop_effect_state {
+            present: 1,
+            interval: 10,
+            duration: 2,
+            start_day: 100,
+            end_day: 102,
+            timer: 13,
+            chance: 100,
+            state: 1,
+        };
+        let (mut words, next) = RzRandomSuper::new(
+            1,
+            &FixedSeeds {
+                wall_clock: 1,
+                process_clock: 1,
+            },
+        )
+        .raw_state();
+        let mut index = next as u32;
+        let mut result = fc4_prop_effect_result::default();
+        assert!(fc4_prop_developer_shadow_effect(
+            &mut state,
+            16,
+            [0; 4].as_ptr(),
+            100,
+            words.as_mut_ptr(),
+            &mut index,
+            &mut result
+        ));
+        assert_eq!(
+            (state.start_day, state.end_day, state.timer, state.state),
+            (110, 102, 15, 0)
+        );
+        assert_eq!(
+            (result.state_called, result.state_changed, result.requested_state),
+            (1, 1, 0)
+        );
+        assert_eq!(
+            (
+                result.timer_called,
+                result.timer_mask,
+                result.timer_on,
+                result.random_drawn
+            ),
+            (1, 2, 1, 1)
+        );
+        assert_eq!(index, 1);
+        assert_eq!(std::mem::size_of::<fc4_prop_effect_state>(), 32);
+        assert_eq!(std::mem::size_of::<fc4_prop_effect_result>(), 32);
+
+        let initial = (state, words, index, result);
+        for slot in [0, 13, u32::MAX] {
+            assert!(!fc4_prop_developer_shadow_effect(
+                &mut state,
+                slot,
+                [0; 4].as_ptr(),
+                100,
+                words.as_mut_ptr(),
+                &mut index,
+                &mut result
+            ));
+            assert_eq!((state, words, index, result), initial);
+        }
+        index = 625;
+        assert!(!fc4_prop_developer_shadow_effect(
+            &mut state,
+            16,
+            [0; 4].as_ptr(),
+            100,
+            words.as_mut_ptr(),
+            &mut index,
+            &mut result
+        ));
+        assert_eq!(state, initial.0);
+        assert!(!fc4_prop_developer_shadow_effect(
+            &mut state,
+            16,
+            std::ptr::null(),
+            100,
+            words.as_mut_ptr(),
+            &mut index,
+            &mut result
+        ));
+    }
+}

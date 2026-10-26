@@ -4,9 +4,9 @@ Examples: python tools/suite.py run --set smoke --profile shadows --tag smoke1
           python tools/suite.py report smoke1 [--against smoke2]
 The queue must include this checkout in its roots. Requests opt into isolated
 parallel slots. No file in Documents is written by this tool.
-An exception after the target date and an accepted quit request is reported as
-clean-exit-crash, with its address; it still does not pass successful(). Earlier
-exceptions, missing quit evidence and harness errors retain their verdicts.
+The known original-game null access at SimCity 4.exe+0x1D0F94 after the target
+and an accepted quit is clean, retaining its raw verdict and exception evidence.
+Other quit exceptions are clean-exit-crash and do not pass successful().
 """
 import argparse
 import csv
@@ -138,6 +138,31 @@ def label_for(tag, name, profile):
     return label
 
 
+def city_path(row):
+    return (Path.home() / 'Documents/SimCity 4/Regions' / row['region'] /
+            ('City - ' + row['city'] + '.sc4'))
+
+
+def city_limits(row, script=None):
+    """Bound slow native work using tile hints, save bytes and scripted duration.
+
+    These are explicit suite INI overrides; plugin defaults remain off. File
+    size is a conservative fallback when the catalogue has no tile-size hint.
+    """
+    source = city_path(row)
+    size = source.stat().st_size if source.is_file() else 0
+    text = script.read_text(encoding='utf-8-sig') if script else ''
+    hints = row['notes'].lower() + '\n' + text[:200]
+    scale = (4 if re.search(r'\blarge\b|\b256\b', hints) or size >= 4_000_000 else
+             2 if re.search(r'\bmedium\b|\b128\b', hints) or size >= 1_000_000 else 1)
+    dates = re.findall(r'^(\d{4}-\d\d-\d\d)\s', text, re.M)
+    days = max(0, (date.fromisoformat(row['end']) - date.fromisoformat(min(dates))).days) if dates else 0
+    seconds = max(750, min(7200, 120 + ((days + 29) // 30) * 45 * scale))
+    grace = 30000 * scale
+    return dict(seconds=str(seconds), timeout=str(seconds + 150 * scale + grace // 1000)), {
+        'autotest_stall_grace_ms': str(grace)}
+
+
 def make_batch(root, scenarios, profile, dll, tag, extra=()):
     if not NAME.fullmatch(tag):
         raise ValueError('tag: use 1..40 letters, digits, dots, underscores or dashes')
@@ -171,12 +196,26 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                        region=row['region'], city=row['city'], seconds='750',
                        timeout='900', end_date=row['end'], turbo='1', parallel='1')
         ini = dict(base_ini, autotest_unpause='2', autotest_end='quit', popup_dialogs='0', close_dialogs='1')
+        limits, allowances = city_limits(row, source_script)
+        request.update(limits)
+        ini.update(allowances)
         for field, key in (('_prepared_city', 'prepared_city'), ('_export_city', 'export_city')):
             if row.get(field):
                 ini[key] = row[field]
         if load_only(row):
-            request.update(seconds='12', timeout='180', turbo='0')
+            # PostCityInit shadows and reach arming can still be running well
+            # after LoadCity returned. A twelve-second fallback killed these
+            # god-mode runs before they could emit their reach summary.
+            load_seconds = int(allowances['autotest_stall_grace_ms']) // 1000 * 2
+            request.update(seconds=str(load_seconds), timeout=str(load_seconds + 180), turbo='0')
             del request['end_date']
+            # Either archive shadow starts the background whole-install scan.
+            # Autotest waits for that scan before RequestQuit. These short
+            # god-mode load probes cover city/load shadows; advancing scenarios
+            # retain both archive shadows and their full evidence.
+            for key in ('dbpf_shadow', 'dbpf_bounds_shadow'):
+                if key in ini:
+                    ini[key] = '0'
         if source_script:
             script = directory / 'scripts' / (row['name'] + source_script.suffix)
             script.parent.mkdir(exist_ok=True)
@@ -198,7 +237,7 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
             # the plugin applies this bounded opt-in only inside full saves.
             dated = (root / ini['script']).read_text(encoding='utf-8-sig')
             if re.search(r'(?m)^\s*\d{4}-\d\d-\d\d\s+save(?:\s|$)', dated):
-                ini['script_save_grace_ms'] = '60000'
+                ini['script_save_grace_ms'] = str(max(60000, int(allowances['autotest_stall_grace_ms'])))
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
@@ -261,7 +300,8 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
                   inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
                   only_load=only_load, real_seconds=None, wall_seconds=None,
                   load_seconds=None, seconds_per_month=None, reach_windows=[],
-                  raw_verdict='missing', exception_address='-', exceptions=[])
+                  raw_verdict='missing', exception_address='-', exceptions=[], known_quit_faults=0,
+                  calendar_stall=None)
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
@@ -272,12 +312,24 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     end_line = None
     quit_line = None
     quit_dispatch_failed = False
+    emergency_first = emergency_last = None
+    emergency_tick = 0
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
         try:
             timestamp = datetime.fromisoformat(line[:23])
         except ValueError:
             timestamp = None
+        status = re.search(r'status @tick (\d+): julian=(\d+).*?\bpause=(\d+).*?\bemergency=(\d+)', body)
+        if status and timestamp:
+            tick = int(status[1])
+            if status[3] == status[4] == '1':
+                if not emergency_first or status[2] != emergency_first[1] or tick <= emergency_tick:
+                    emergency_first = (timestamp, status[2])
+                emergency_tick = tick
+                emergency_last = (timestamp, line_no, body)
+            else:
+                emergency_first = emergency_last = None
         if 'DLL_PROCESS_ATTACH:' in body:
             attached = timestamp
         if 'autoload: calling LoadCity(' in body:
@@ -393,6 +445,18 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         result['verdict'] = harness_verdict[1]
         result['invalid_reason'] = 'harness verdict overrides plugin verdict'
     result['raw_verdict'] = result['verdict']
+    # A forced exit can end a calendar stall while the main thread keeps ticking.
+    # Preserve the launcher verdict; require a sustained final emergency episode,
+    # never a brief/recovered disaster pause or an unexplained process crash.
+    if (result['verdict'] == 'exited' and 'exited (code -1) without a verdict' in verdict_text
+            and result['end_reached'] != '1' and not result['exceptions']
+            and not re.search(r'WATCHDOG:.*(?:stalled|stuck)', text)
+            and emergency_first and emergency_last
+            and (emergency_last[0] - emergency_first[0]).total_seconds() >= 60):
+        result['verdict'] = 'stalled'
+        result['invalid_reason'] = 'emergency pause: calendar stopped while OnTick continued; forced exit'
+        result['calendar_stall'] = dict(line=emergency_last[1], text=emergency_last[2],
+            seconds=(emergency_last[0] - emergency_first[0]).total_seconds(), julian=emergency_first[1])
     if quit_dispatch_failed and result['verdict'] == 'clean':
         result['verdict'] = 'harness-error'
         result['invalid_reason'] = 'native quit command could not be queued; shutdown untested'
@@ -411,6 +475,13 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
             and all(e['after_end'] and e['after_quit'] for e in result['exceptions'])):
         result['verdict'] = 'clean-exit-crash'
         result['invalid_reason'] = 'exception after end date during quit'
+        if (all(e['location'].lower() == 'simcity 4.exe+0x1d0f94'
+                and 'code 0xC0000005 ACCESS_VIOLATION (reading address 0x00000000)' in e['text']
+                for e in result['exceptions'])
+                and not re.search(r'WATCHDOG:.*(?:stalled|stuck)', text)):
+            result['verdict'] = 'clean'
+            result['known_quit_faults'] = len(result['exceptions'])
+            result['invalid_reason'] = ''
     result['action_lines'] = [a[1] for a in actions.values()]
     result['actions_ok'] = sum(a[0] for a in actions.values())
     result['actions_failed'] = len(actions) - result['actions_ok'] + parse_errors
@@ -462,7 +533,7 @@ def add_lua_evidence(result, text):
     return result
 
 
-def write_results(directory, manifest, results):
+def write_results(directory, manifest, results, *, reach_cache=None):
     rows = []
     findings = []
     per_key = {key: dict(key=key, scenarios_run=0, scenarios_exact=0, first_mismatch='-')
@@ -471,7 +542,7 @@ def write_results(directory, manifest, results):
         name = request['scenario']['name']
         row = dict(results.get(name, parse_log('', request['scenario']['end'])),
                    scenario=name, profile=manifest['profile'],
-                   dll_sha256=manifest['dll_sha256'])
+                   dll_sha256=request.get('dll_sha256', manifest['dll_sha256']))
         row.setdefault('log', '-')
         rows.append(row)
         for key, value in row['per_key'].items():
@@ -488,7 +559,14 @@ def write_results(directory, manifest, results):
     write_tsv(directory / 'findings.tsv', ['key', 'scenario', 'log', 'first_mismatch'], findings)
     import suite_select
     from collections import Counter
-    reached = {name: suite_select.reach(directory / (name + '.reach.tsv'))[0] for name in results}
+    # Completed request traces are immutable. Keep the cache local to this
+    # harvest operation; never cache a live/incomplete trace across resumes.
+    if reach_cache is None:
+        reach_cache = {}
+    for name in results:
+        if name not in reach_cache:
+            reach_cache[name] = suite_select.reach(directory / (name + '.reach.tsv'))[0]
+    reached = {name: reach_cache[name] for name in results}
     scenarios = {r['scenario']['name']: r['scenario'] for r in manifest['requests']}
     counts = Counter(address for addresses in reached.values() for address in addresses)
     metrics, windows = [], []
@@ -518,7 +596,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                                         ('build-runs/game-results', '.running'),
                                         ('build-runs/game-results', '.verdict')))}
     waiting = [name for name in pending if name not in active] if submit else []
-    results = {}
+    results, reach_cache = {}, {}
     try:
         while pending:
             stopping = stop_file is not None and stop_file.exists()
@@ -531,6 +609,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                 temporary.write_text(request['request'], encoding='utf-8')
                 temporary.replace(path)
                 active.add(name)
+            changed = False
             for name, request in list(pending.items()):
                 if name not in active:
                     continue
@@ -558,7 +637,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                 elif request['scenario']['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
                     parsed['actions_pending'] = 1  # requested script produced no execution evidence
                 parsed['log'] = str(log) if log.exists() else '-'
-                source_city = Path.home() / 'Documents/SimCity 4/Regions' / request['scenario']['region'] / ('City - ' + request['scenario']['city'] + '.sc4')
+                source_city = city_path(request['scenario'])
                 parsed['city_bytes'] = source_city.stat().st_size if source_city.is_file() else None
                 (directory / f'{name}.verdict').write_text(verdict_text, encoding='utf-8')
                 (directory / f'{name}.json').write_text(json.dumps(parsed, indent=2) + '\n', encoding='utf-8')
@@ -570,7 +649,9 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
                 print(f'{name}: {parsed["verdict"]}; end={parsed["end_reached"]}; '
                       f'actions={parsed["actions_ok"]} ok/{parsed["actions_failed"]} failed; '
                       f'shadow={parsed["shadow_exact_lines"]}/{parsed["shadow_lines"]}', flush=True)
-                write_results(directory, manifest, results)
+                changed = True
+            if changed:
+                write_results(directory, manifest, results, reach_cache=reach_cache)
             if stopping and not active:
                 for name, request in pending.items():
                     results[name] = parse_log('', request['scenario']['end'], 'verdict: not-submitted')
@@ -585,7 +666,7 @@ def wait_for_batch(root, directory, manifest, wait_seconds, *, submit=False, slo
             if pending:
                 time.sleep(min(2, max(0, deadline - time.monotonic())))
     finally:
-        write_results(directory, manifest, results)
+        write_results(directory, manifest, results, reach_cache=reach_cache)
     return results
 
 

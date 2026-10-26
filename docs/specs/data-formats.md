@@ -2219,6 +2219,96 @@ before closing it; passive coverage of every such file needs additional lifecycl
 not a claim that the existing public messages already provide it. No game-wide coverage verdict is
 implied by this static contract.
 
+### 8.3.2 Restarting registered-file observations after a save (EX58) *[compat]*
+
+**PostSave, a framework tick, and modal-loop exit are not save completion.** There is no
+ordinary save message after SaveCity has returned. The app's path-taking SaveCity (cISC4App
+slot 15, `0x00455E20`) performs the following later work, in order:
+
+| Boundary after PostSave | What has actually finished |
+|---|---|
+| Root-stream destruction `0x004563D9–0x004563E0` | Root stream is released; class serialization is still pending. |
+| SaveClassObjects `0x004563EB–0x004563F4` | Its Boolean becomes the save result. Persistence Close is then called at `0x004563FD`, without testing its return; Shutdown/Release follow. |
+| UnregisterCityDBSegment `0x00456449` | The old registered backing segment is removed/closed (§8.3). Existing acquired interfaces do not keep its file readable. |
+| Replacement/rollback `0x0045644E–0x004565B0` | The temp file is renamed to the target, or failure cleanup/backup restoration is attempted. |
+| City path assignment, RegisterCityDBSegment `0x004565B3–0x0045662F` | The success target or remembered old path is selected, then reopening and registration are attempted. |
+| Regional writes `0x004566BE–0x0045680F` | On success, neighboring regional-city files are updated; this is still inside SaveCity. |
+| Scoped-helper destruction `0x00456814–0x0045683F` | App-switch, game-pause, input-queue and cursor helpers are destroyed. |
+| Native return `0x00456844–0x00456850` | The final Boolean is returned in AL; only execution at the caller's continuation proves the call has returned. |
+
+Registration is an **attempt**, including after failure/rollback, not a post-return notification.
+RegisterCityDBSegment opens a new segment for reading. On successful open it stores the segment
+and calls resource-manager registration (`0x00454B63–0x00454B88`); on failed open it shuts down
+and releases it (`0x00454B97–0x00454BA5`). SaveCity does not test a registration result after
+the call at `0x0045662F`. Thus even a successful save return alone does not prove that a
+readable backing package was re-registered. Neither a timestamp, a file at the expected path,
+an unchanged interface address, nor a notification-derived generation counter proves both facts.
+The flag-only SaveCity (slot 16) forwards to slot 15 (`0x00454E04–0x00454E15`);
+RequestSaveCity also calls slot 15. Observing only harness-owned requests misses independent
+native callers. RequestSaveCity's optional success dialog is not a universal completion event
+([application.md §11.12](application.md#1112-requestsavecitynotify-flag-iface-slot-9-0x00455ae0)).
+
+**Sufficient completion observation.** For a save owned by the observer, its synchronous call's
+return establishes completion. For an independent native save, a read-only entry/return trace
+of the actual slot-15 body, matched by thread, app identity and invocation nesting, establishes
+the equivalent fact. Record the caller continuation actually reached and the returned Boolean;
+seeing the return instruction's address while still stopped before it is not yet a return.
+Wait until every overlapping/nested save invocation has returned before restarting a batch.
+Do not call SaveCity again, close someone else's segment, or synthesize a completion message
+to obtain this observation. Such a trace is a runtime observation requirement, not an additional
+public callback supplied by the game. Ordinary notification subscription alone has no guaranteed
+post-return boundary, and delivery of its PreSave can itself be delayed by an earlier modal
+subscriber (application.md §6.2.1). A later tick can occur inside the save or its cleanup.
+
+After that return, freshly traverse the registered resource segments using §8.3. Record the
+current city identity and GetCitySaveFilePath; require that the successfully acquired readable
+packed backing segment for that path is actually present. Reacquire interfaces and the independent
+expected file bytes after completion/replacement; do not reuse the old closed segment or its
+pre-save bytes. A separate read-only file reader can test the completed on-disk package, but
+its existence does not establish **registered-file** coverage when traversal lacks that package.
+Keep each reading interval non-pumping and non-reentrant. Any new save or city/file lifecycle
+change during a sliced batch invalidates that batch again. Holding references, an empty message
+queue, or waiting a fixed number of ticks cannot replace this guard.
+
+**Replay and dated-sample accounting (conformance convention).** The original has no notion of
+a verifier's dated batch. For §8.3 coverage, one completed batch must compare the entire promised
+file set against independently captured bytes of the same observed generation. If a native save
+interrupts it, abandon that acquisition and restart the **whole** promised set after the boundary
+above, including files already compared and unchanged DATs, with all expectations recaptured.
+This does not assert that saving closed every DAT; it prevents combining results from two
+acquisitions into one purported coherent batch. Preserve the interrupted attempt and any refusals
+in diagnostics; it did not pass. Missing promised files and failed comparisons must remain visible,
+not disappear through a smaller rediscovered set. A renamed backing path needs an explicit mapping
+to the same city's replacement file, rather than silently dropping the old promised city member.
+
+A full successful replay can fill a per-date **live registered-file** sample if the city identity
+and simulation date are still the promised ones throughout recapture and comparison, and no
+further invalidation occurs. Count the completed replacement once and record that it restarted;
+do not combine its successes with the interrupted batch or label that first attempt exact.
+If the date/city changes, the new acquisition is a sample of the new date/city. It cannot fill the
+old obligation. Likewise post-save bytes cannot validate a promise specifically about the frozen
+pre-save/load-instant bytes, even if the date is unchanged. A caller that promises that precise
+instant needs a complete capture there; replay does not retroactively provide it.
+
+**Worked native-save case.** Let a load-date live-file batch promise N files at date D, with
+eight readers remaining when PreSave interrupts it. During a modal loop, a framework tick arrives:
+none of those eight old readers is thereby safe to resume, and PostSave is not a restart signal.
+Observe the matching native save return, then discover the newly registered readable city backing
+path. If the city and D are unchanged, capture all N expected files afresh and repeat all N files'
+promised metadata/payload/bounds comparisons on newly acquired readers. All pass: one completed
+date-D replacement batch, one interrupted attempt, one restart. Repeating only the eight pending
+files, reusing earlier expected bytes, or omitting the backing file cannot produce an exact batch.
+If recapture occurs at D+1, retain the date-D obligation as incomplete and report the new result
+at D+1. If backing registration failed, report it missing even when the save returned true.
+
+**Runtime evidence still needed for the Lua case.** At the reported 12:47:11.807 tick, establish
+whether its thread was still within the save begun around PreSave at 12:46:59.019. Record that
+invocation's actual caller continuation/Boolean, the subsequent fresh registered backing path
+and readable acquisition, and city/date at full-batch recapture and completion. The reported
+generation 2 at 12:47:12.370 alone does not supply these observations. February/March successes
+do not fill the interrupted load-date batch. The static contract therefore leaves that run's
+missing completion/replay evidence unresolved; it does not upgrade its reported 2/3 exactness.
+
 ## 9. Quirks and choices (summary)
 
 | # | Behaviour | Tag |

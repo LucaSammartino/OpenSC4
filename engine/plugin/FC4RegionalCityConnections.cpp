@@ -108,14 +108,14 @@ std::unique_ptr<SC4List<cISC4Occupant*>> Query(Context& c, int32_t x, int32_t z,
     auto out = std::make_unique<SC4List<cISC4Occupant*>>();
     auto* manager = AsGame(c.city->GetOccupantManager());
     const SC4Point<int> cell{x, z};
-    if (manager) manager->GetOccupantsByStandardCityCellsTyped(*out, &cell, &cell, type, 0);
+    QueryBorderOccupants(manager, *out, cell, type);
     return out;
 }
 bool Present(void* p, int32_t x, int32_t z, uint32_t kind) {
     auto& c = C(p);
     if (kind == 0) {
         auto* map = reinterpret_cast<cFC4ISC4TrafficNetworkMap*>(c.city->GetTrafficNetwork());
-        return map && map->FindNetworkTile(x, z, 0x1F4F, true);
+        return TrafficPresent(map, x, z);
     }
     auto poles = Query(c, x, z, 0x2890D4DE);
     if (!poles->empty()) return true;
@@ -156,7 +156,7 @@ void Segment(void* p, uint32_t n, int32_t x, int32_t z, int32_t ex, int32_t ez) 
     if (!tool) return;
     FC4_ADDREF(tool);
     tool->Init();
-    tool->ToolSlot07(x, z, ex, ez, 0, 0, 1, UINT32_MAX);
+    PlaceBorderSegment(tool, x, z, ex, ez);
     tool->Shutdown();
     FC4_RELEASE(tool);
 }

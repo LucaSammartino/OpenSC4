@@ -337,6 +337,24 @@ fn nt31_retained_powerline_price_precision() {
 }
 
 #[test]
+fn earthwork_product_obeys_the_game_precision_control() {
+    let price = extras::CostInputs {
+        cells: vec![extras::CostCell {
+            in_run: false,
+            prebuilt: false,
+            type_mask: 0,
+            corners: [45.0, 0.0, 0.0, 0.0],
+            terrain: [0.0; 4],
+        }],
+        earthwork_cost: 0.1,
+        ..extras::CostInputs::default()
+    };
+    // The extended product is just above 4.5, but the game's 24-bit x87
+    // multiply rounds it to 4.5 before the final nearest-even operation.
+    assert_eq!(extras::cost_of_solution(&price), 4);
+}
+
+#[test]
 fn t05_street_is_straight_only() {
     let t = flat();
     let mut g = geo();
@@ -739,7 +757,7 @@ fn t17_cell_cost() {
     });
     assert_eq!(extras::cost_of_solution(&c), 1);
     c.cells[0].corners = [325.0, 300.0, 300.0, 300.0];
-    assert_eq!(extras::cost_of_solution(&c), 2); // 2.5 → 2
+    assert_eq!(extras::cost_of_solution(&c), 2); // 24-bit product 2.5 rounds to even.
 }
 
 #[test]
@@ -836,27 +854,26 @@ fn t21_smoothing_codes() {
     g.draw_network_line(ROAD, (10, 10), (20, 10), true, &ramp, &Ends);
     assert_eq!(g.place(&ramp, &mut Ends), 0);
     assert_eq!(g.failure, code::SMOOTHING);
-    // Without the ends the ordered propagation reaches closure before the
-    // first pick (NT36); the free run finds a supportable profile.
+    // Without the ends, the section 9.8 plane windows still prevent flattening
+    // this 30 m-per-cell ramp into the road's 11.2 m-per-cell slope limit.
     let mut g = geo();
     g.draw_network_line(ROAD, (10, 10), (20, 10), true, &ramp, &NoHost);
-    assert_eq!(g.place(&ramp, &mut NoHost), 11);
-    assert_eq!(g.failure, 0);
+    assert_eq!(g.place(&ramp, &mut NoHost), 0);
+    assert_eq!(g.failure, code::SMOOTHING);
     // A 40 m dip: level 0 cannot solve (the run is held at the terrain).
-    // At level 1 the dip's vertices have the narrowest ranges (their minimum
-    // is the sea level 250), so they are picked first at their own height
-    // and the rest of the run follows them down: the terrain is cut, which
-    // p10 = 10000 allows.
+    // At later levels the plane windows make the surrounding 300 m vertices
+    // narrower than the dip's range. Picking them first forces the dip above
+    // its 285 m terrain-support ceiling (25 m maximum raise).
     let dip = shaped(|x, _| if x == 15 { 260.0 } else { 300.0 });
     let mut g = geo();
     g.draw_network_line(ROAD, (10, 10), (20, 10), true, &dip, &NoHost);
     g.validate(&dip, &mut NoHost);
     g.create_cell_infos(&dip, &NoHost);
     assert!(!g.smoothen(0, &dip, &mut NoHost));
-    assert_eq!(g.place(&dip, &mut NoHost), 11);
-    assert_eq!(g.level, Some(1));
-    assert_eq!(g.network.height(10 * 65 + 15), Some(260.0));
-    assert_eq!(g.network.solution()[0].1, 260.0);
+    assert_eq!(g.place(&dip, &mut NoHost), 0);
+    assert_eq!(g.failure, code::TERRAIN_SUPPORT);
+    assert!(g.network.height(10 * 65 + 15).unwrap() > 285.0);
+    assert_eq!(g.network.solution()[0].1, 300.0);
     // The loop helper: the last level's code wins.
     let mut n = 0;
     let r = smoothing::smoothing_loop(false, |_| {
@@ -1022,17 +1039,39 @@ fn tunnel_offsets_and_means() {
 }
 
 #[test]
-fn diagonal_end_extension() {
-    struct Ext;
+fn underground_end_extension_uses_steps_and_preserves_staircase() {
+    struct Ext(std::cell::RefCell<Vec<(i32, i32)>>);
     impl GeometryHost for Ext {
         fn extends_diagonal_end(&self, x: i32, z: i32, _t: u32) -> bool {
-            (x, z) == (6, 5)
+            self.0.borrow_mut().push((x, z));
+            true
         }
     }
     let t = flat();
     let mut g = geo();
-    // (0, 0) → (5, 4): end direction 5 (+x +z), the next cell (6, 5).
-    g.draw_network_line(ROAD, (0, 0), (6, 4), true, &t, &Ext);
-    assert_eq!(g.run.dragged_count, 7);
-    assert_eq!(g.run.cells.last(), Some(&(6, 5)));
+    let host = Ext(Default::default());
+    g.draw_network_line(PIPE, (4, 4), (6, 4), false, &t, &host);
+    assert_eq!(*host.0.borrow(), [(3, 4), (7, 4)]);
+    assert_eq!(g.run.cells, [(3, 4), (4, 4), (5, 4), (6, 4), (7, 4)]);
+    assert_eq!((g.run.straight_count, g.run.dragged_count), (5, 5));
+    host.0.borrow_mut().clear();
+    g.draw_network_line(PIPE, (4, 4), (6, 5), false, &t, &host);
+    assert_eq!(*host.0.borrow(), [(3, 3), (7, 6)]);
+    assert_eq!(
+        g.run.cells,
+        [(3, 3), (4, 3), (4, 4), (5, 4), (5, 5), (6, 5), (6, 6), (7, 6)]
+    );
+    assert_eq!((g.run.straight_count, g.run.dragged_count), (0, 5));
+    assert_eq!(
+        g.run.steps.iter().map(|s| s.last - s.first + 1).collect::<Vec<_>>(),
+        [1, 2, 2, 2, 1]
+    );
+    host.0.borrow_mut().clear();
+    g.draw_network_line(ROAD, (4, 4), (6, 4), false, &t, &host);
+    assert!(host.0.borrow().is_empty()); // base slot 64 is false
+    g.draw_network_line(PIPE, (4, 4), (4, 4), false, &t, &host);
+    assert!(host.0.borrow().is_empty()); // length gate, even with matching neighbours
+    g.draw_network_line(PIPE, (0, 4), (1, 4), false, &t, &host);
+    assert_eq!(*host.0.borrow(), [(2, 4)]); // unsigned bounds gate skips (-1,4)
+    assert_eq!((g.run.straight_count, g.run.dragged_count), (3, 3));
 }

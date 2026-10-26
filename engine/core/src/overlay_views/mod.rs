@@ -135,11 +135,21 @@ pub enum Command {
     Transparency(f32),
     ResetTransparency,
     Draw(Draw),
-    /// A plan only: NOV3 explicitly leaves actual model rotation/state unsupported.
-    UnresolvedMarker {
+    /// Adjusted model interface slot 10; unwritten record padding is not represented.
+    ModelState {
         model: Handle,
-        translation: Vec3,
-        direction: Vec3,
+        state: MarkerState,
+    },
+    /// Primary model slot 18, with the native integer argument and transparency.
+    ModelTransparency {
+        model: Handle,
+        mode: u32,
+        value: f32,
+    },
+    /// Adjusted model interface slot 12; the Renderer supplies its current context.
+    DrawModel {
+        model: Handle,
+        flags: u32,
     },
 }
 pub trait Renderer {
@@ -172,7 +182,7 @@ pub type Result<T> = std::result::Result<T, Boundary>;
 pub trait ViewOwner {
     fn deleting_cleanup(&mut self, resources: &mut impl Resources);
 }
-/// Portable model of §3.4, not a native ABI or an atomic reference implementation.
+/// Portable model of §§3.4–3.5, not a native ABI or an atomic reference implementation.
 pub struct View<T: ViewOwner> {
     pub owner: T,
     primary: u32,
@@ -210,6 +220,14 @@ impl<T: ViewOwner> View<T> {
             return Err(Boundary::Undefined("deleted view"));
         }
         self.count = self.count.wrapping_add(1);
+        Ok(self.count)
+    }
+    /// Secondary slot 4 differs from Release: even 1 -> 0 never deletes the owner.
+    pub fn remove_ref(&mut self) -> Result<u32> {
+        if self.deleted {
+            return Err(Boundary::Undefined("deleted view"));
+        }
+        self.count = self.count.saturating_sub(1);
         Ok(self.count)
     }
     pub fn release(&mut self, resources: &mut impl Resources) -> Result<u32> {

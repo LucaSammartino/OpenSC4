@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "vc29_precision",
+  "spec": ["foundations 18.4", "residential-education-health 4.7", "residential-education-health 4.8"],
+  "description": "Same newcomer inputs at PC24 and PC53: preserve float grid and global sum stores, but keep register arithmetic and the final global division at invocation precision.",
+  "steps": [
+    {"op": "residential_env", "cells": [4, 4], "precision_bits": 24, "tuning_props": {"0x6941A67F": {"f32": [0, 100, 200, 100]}, "0xC929C433": {"f32": 0}, "0x0929C439": {"f32": 0}, "0xC929CC58": {"f32": 0.1}, "0xC929CC8D": {"f32": 0.1}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [3, 0, 0], "new": [7, 0, 0], "eq": [0.1, 0, 0], "hq": [0.1, 0, 0], "age": 30},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "bits": true, "eq": ["0x3DCCCCCE", "0x00000000", "0x00000000"], "hq": ["0x3DCCCCCE", "0x00000000", "0x00000000"]},
+    {"op": "residential_set", "state": {"population": 7}},
+    {"op": "residential_call", "method": "get_global_eq_register", "expect": 0.10000000894069672},
+    {"op": "residential_call", "method": "get_global_hq_register", "expect": 0.10000000894069672},
+    {"op": "residential_env", "precision_bits": 53},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [3, 0, 0], "new": [7, 0, 0], "eq": [0.1, 0, 0], "hq": [0.1, 0, 0], "age": 30},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "bits": true, "eq": ["0x3DCCCCCD", "0x00000000", "0x00000000"], "hq": ["0x3DCCCCCD", "0x00000000", "0x00000000"]},
+    {"op": "residential_call", "method": "get_global_eq_register", "expect": 0.09999999829701015},
+    {"op": "residential_call", "method": "get_global_hq_register", "expect": 0.09999999829701015},
+    {"op": "residential_env", "precision_bits": 24},
+    {"op": "residential_call", "method": "get_global_eq_register", "expect": 0.10000000149011612}
+  ]
+}

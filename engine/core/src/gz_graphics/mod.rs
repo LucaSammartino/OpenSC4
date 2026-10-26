@@ -2,14 +2,21 @@
 //! Widget-facing GZ graphics, from gz-graphics.md. See README.md for closure.
 //! Arc owns foreign references; getters borrow them. No native layouts or ABI.
 mod alpha;
+mod canvas_contract;
 mod context;
+mod driver_contract;
 mod engine;
 mod geometry;
+mod image_contract;
 mod services;
+pub use alpha::{alpha_blt, alpha_blt_no_clip, AlphaSource};
 pub use alpha::{clipped_alpha_rectangles, generic_buffer_clip, generic_buffer_clip_stretch, AlphaFileIo};
+pub use canvas_contract::*;
 pub use context::*;
+pub use driver_contract::{DriverSettings, UiArgument};
 pub use engine::*;
 pub use geometry::{cubic_segments, fixed_point, polygon_spans, PixelSpan};
+pub use image_contract::{ImageBinding, ImageCache, ImageSource, ImageTexture};
 pub use services::*;
 use std::sync::Arc;
 

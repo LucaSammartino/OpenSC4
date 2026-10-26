@@ -634,6 +634,64 @@ corner mismatches if `d < 0.0f` or `d > 0.01` (the double `0x3F847AE147AE147B`).
 So a network that the terrain edit left floating by more than 1 cm, or buried at all, is destroyed. A pipe or subway
 survives every kind but 3.
 
+**Precision boundary (NM18).** The helper explicitly stores the occupant's altitude as binary32,
+then obtains the terrain altitude in ST0 and subtracts it from that saved value. It does not insert
+another binary32 store of the terrain result or of the difference before comparing with zero and
+the binary64 0.01 constant (`0x00610620–0x00610653`, repeated through `0x00610730`). Here `r24`
+denotes the game's x87 arithmetic precision, not permission to add host float stores at every
+interface return. A numeric probe must retain the returned terrain value at its actual precision
+and the x87 control word, as well as the saved occupant f32. Corners are tested in the order above,
+and evaluation stops at the first mismatch.
+
+#### 7.6.1 Direct decisions versus tool removals (NM18) *[compat]*
+
+The filtered list in step 3 is the **seed input to destruction**, not an enumeration of every old
+occupant that will cease to be placed. The manager makes the slot-6 call at `0x00613C46–0x00613C4B`;
+§7.2 dispatches each nonempty layer group to tool slot 50. The downstream contract is
+[network-tools.md §10](network-tools.md#10-destroyoccupantsandresolvelist-slot-50-0x0062a5c0):
+
+- closure can add adjoining immovable prebuilt pieces, all pieces of a selected intersection/complex
+  structure, and the paired end of a tunnel;
+- destruction and the neighbour solve can remove an **old** neighbour occupant and insert a new one
+  at its cell, even though that neighbour passed the direct terrain test;
+- the removal notifications and resulting network-lot teardown are effects of these tool operations,
+  not a second evaluation of this section's corner predicate.
+
+Thus “placed at the terrain query, absent after the handler” proves an old object's removal, but
+does not prove that the direct filter selected it, that its cell is now empty, or that another terrain
+listener selected it. Keep old-object identity and cell occupancy as separate observations. The
+query/filter is still the one in §7.6; total removal ownership extends through §7.2 into the tool.
+The underground-refit path below is another nested tool operation and must be distinguished from
+the direct surface destruction call.
+
+**Worked comparison case.** Let ordinary adjacent surface pieces A and B both be present at query.
+Only A has a mismatching corner. Pass [A] to surface tool 0. In the ordinary neighbour-rebuild case
+of network-tools §10, A is removed, old B is removed during rebuilding, and B′ is inserted at B's
+cell. Before/after placement for old B is 1/0; B's direct decision is still “keep”, while its cell
+contains B′. Expect removal notifications for A and B and an insertion for B′. A direct-decision
+comparison compares [A] with the slot-50 seed, while a downstream tool comparison also expects B's
+replacement. Neither comparison may count this as an unexplained extra direct selection.
+
+**NM18-A — remaining Tegel observation.** The supplied `netocc-cities29-bound8-default` result
+(10 remaining mismatches) and `bound8-grow` result (12) do not contain the tool's closure/solve
+provenance, so static analysis cannot assign each of their 1/0 cases to one of these paths.
+Retain the mismatch until one run records, within each terrain-message delivery:
+
+1. Message ID, all four data words, long-operation/dirty state, ordered query identities and flags,
+   cell and **the altitude inputs before the native handler consumes or changes them**. A query-boundary
+   capture alone is insufficient if an earlier nested tool operation changes a later candidate's inputs;
+   record that candidate's actual helper calls before the first destructive tool call too.
+2. Each layer's ordered slot-50 seed vector, and membership added by closure, with source identity
+   and reason (neighbour/prebuilt, structure, tunnel pair).
+3. Every occupant-manager removal and insertion, old/new identity and cell, with its active tool phase
+   (initial destruction, remove/replace, solve/insertion, underground refit) or other caller and message nesting.
+
+For cells (65..66,69..70), (65..66,77), (80..81,69..70), the first removal of each retained old
+identity settles whether it is a direct seed, closure/rebuild effect or another native caller. If
+the direct seed itself differs, replay the captured corner operands and precision first. Checking
+only at a later listener, moving to the next tick, or inferring closure merely from the cell pattern
+does not settle NM18-A. The known earlier 1/1 timing cases are separate evidence.
+
 **`0x6A3B0AFD`** (and the tail of step 4), the **underground refit**:
 
 1. If `dirty` is not empty (`x1 ≤ x2` and `z1 ≤ z2`, signed, `0x00613C94`–`0x00613CA6`): query the occupants in
@@ -943,6 +1001,58 @@ Steps 2 and 3 run even when the cell has no network lot.
 **SetLotConfigurationForNextPiece(cfg)** (slot 13, `0x0060CB80`) sets `forced` (with a reference). The next
 `DoNetworkOccupantInserted` uses it whatever its compatibility and whatever the piece ID, and locks the lot.
 
+#### NM19: transient inputs and the first divergent lot *[compat]*
+
+Component 11 is not a complete snapshot of a live lot-manager operation. It omits `forced`, every
+lot's `locked` byte, pending/hash history and the generator. In particular, `UpdateLot` checks
+`locked` **before** compatibility (`0x0060E338–0x0060E340`); a locked lot can remain incompatible
+with current zone, wealth, slope, rotation or flip indefinitely. Load-created lots start unlocked;
+the record does not restore that transient protection (§4.2).
+
+The next-configuration setter retains its argument and releases the previous one
+(`0x0060CB89–0x0060CBA6`). At insertion, a non-null `forced` bypasses the missing-piece-group and
+compatibility checks (`0x0060DD23–0x0060DD28`, `0x0060DD66–0x0060DD6B`) and consumes **no
+configuration-selection draw**. `CreateLotObjects` still makes its normal prop/flora draws.
+After that call the native insertion **re-reads** `forced`: if then non-null it locks the lot,
+releases that reference and clears it (`0x0060DF1D–0x0060DF3D`). Capture nested direct setter calls
+in order if callbacks occur; do not assume a post-handler null proves it was null on entry.
+
+**Worked case.** With empty object arrays, set forced F, although F is incompatible with zone/wealth
+0/0 and there is no piece-ID group for n. A subsequent insertion creates a locked F lot with no
+generator advance. A later `UpdateLot` at that key keeps F and makes no draw. Save/load preserves
+its configuration ID but not the lock. Given one compatible replacement A after load, the next
+`UpdateLot` removes F and chooses A with exactly one selection draw. These outcomes distinguish
+transient locking from current compatibility without fabricating a new random path.
+
+**NM19-A — remaining first-event observation.** The census's 2041-01-01 lot (1,25), configuration
+`0x4BA69450`, variation 1, rotation 3, flip 0, usable 1 and generator positions 386/383 is a later
+sample, not the event that produced it. It cannot determine a first message or prove forced state.
+The two fresh attempts cited in the question failed before that month and supply no such trace.
+The native entry graph remains the §8.5 table: queued zoning/lot-state passes and usable-change
+handling, including their avenue floods, can reach `UpdateLot`; removal messages delete lots.
+Object draws additionally enter through direct `RedevelopLot` and `0xA9B6C2D6` (§17.1). There is
+no extra edge-cell random rule established by this evidence.
+
+To settle this case, begin at the last exact sample in a run that reaches the affected month, and
+retain inputs **before** every native lot-manager handler and direct setter/redevelopment entry:
+message ID/data1–4 or direct slot/arguments, nesting, ordered pending keys and bucket state, all live
+lots' occupant/configuration identities and lock bytes, forced configuration (or null), and the
+terrain/traffic/zone/wealth inputs actually queried. Capture the complete generator at the quiescent
+boundary prescribed in §17.3; trace nested entries and draw positions separately, without copying
+an in-flight generator into the replay. For each affected cell retain
+piece ID, position-to-cell result, rotation/flip, usability/flags, configuration-group order,
+compatibility inputs and object candidate lists. Avenue traversal must retain neighbour queries
+when they happen, rather than reconstructing them from the post-handler city. Hold references or
+copy scalar data so that native removal/reconfiguration does not invalidate the capture.
+
+Replay from those inputs, log generator positions before/after each operation and each selection
+or object draw, and stop at the **first** changed lot or draw disagreement. Its enclosing message
+or direct call identifies the first entry affecting (1,25), or shows an earlier divergence elsewhere
+that moved the shared generator. An unexpected advance outside the listed entries requires its
+native caller before adding a draw rule. Do not resync the generator or adopt post-handler chosen
+configurations/locks as replay inputs. This observation, including direct entries and transient
+state, is required in addition to the message/four-word diagnostic already present.
+
 **ProcessUpdateList()** (`0x0060FA10`): while `pending` is not empty, take its first key in iteration order, call
 `UpdateRoadsInCell(key >> 8, key & 0xFF)`, then erase the key. `UpdateAvenueStyle` erases further keys itself
 (§8.7).
@@ -1013,6 +1123,10 @@ bucket 127), `0x0143` (323, bucket 130) and `0x00C3` (195, bucket 2). Processing
    (resize with `count + 1`, then head-push unless present); then process by rule 1's iteration, skipping keys
    already erased by an avenue flood. After the pass, compare the shadow's `B` with the original's (read the same
    way): a check, never a copy. Do not substitute ascending key order or adopt the original's output order.
+
+This contract determines the pending set's order. Full live-operation replay additionally needs the
+transient forced/locked state and direct entries specified under **NM19** above; the component-11
+record plus `B` and the random generator alone is not a complete snapshot of those operations.
 
 Rehash example (from the rules above, not game output; reproduced by a simulation of rules 3, 4 and 6): a zoning
 change of the 12 × 12 rect x 10–21, z 10–21 in a city of at least 23 × 23 cells inserts the 196 keys of x 9–22,
@@ -1263,6 +1377,13 @@ this order:
 - `RemoveOrReplaceOccupant` (§7.4) is the single-cell path. It keeps an intersection whole by putting a plain piece
   back.
 - Terrain edits remove what they leave floating or buried (§7.6).
+
+**NM20: a draw after generated actions.** The fault at `0x007529C0` belongs to
+[terrain-view.md §4.4.1](terrain-view.md#441-native-receiver-terrain-lifetime-and-generated-action-fault-nm20-compat),
+which specifies the drawing-interface receiver, retained terrain and cell-texture caller, with a
+worked lifetime case and the remaining runtime observation NM20-A. It is outside this placement
+notification sequence. Neither the preceding `ok=0` nor tool Shutdown establishes a terrain-view
+shutdown or a cause in automata. Keep the supplied s2 runs unaccepted pending that observation.
 
 **Lots that need networks.**
 
@@ -1648,6 +1769,13 @@ set's iteration order (§8.5 *[compat]* note, NM13), which FreeCity4 currently r
 *[choice]*. The two orders agree whenever at most one cell of the pass draws. For exact replay when several draw,
 the capture also takes `pending`'s bucket count `B` (§8.5) and the step processes keys in the original's order;
 the §8.5 replay contract (rules 1-6) gives what to capture, when, and the typed replay.
+
+**NM19 supplement.** Those rules supply random/hash state, not all live city inputs. Retain the
+pre-handler forced reference, lot lock bytes and queried inputs described under §8.5 NM19. Observe
+the direct setter and redevelopment entries as well as messages; a monthly component-11 equality
+check cannot recover transient state that a native handler has consumed. NM19-A gives the exact
+first-event trace needed for the Port of Shiganshina case. Nothing in this supplement permits
+absorbing a generator disagreement or copying a native chosen configuration into the replay.
 
 ### 17.4 Worked vectors (from foundations §6.1; implementers compare their generator against these)
 

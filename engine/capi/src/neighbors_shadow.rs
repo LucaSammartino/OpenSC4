@@ -514,6 +514,10 @@ pub unsafe extern "C" fn fc4_neighbors_shadow_create(input: *const fc4_neighbors
         // Init loads the tuning and the price curve; its push only sets the
         // overlay's L lists, which the month's first push replaces.
         sim.init();
+        // Init pushes an empty L list before the captured deals are adopted.
+        // That is setup, not part of the original's month (which may be busy
+        // and do nothing). Keep the original's pre-delivery city statistics.
+        *sh.cities.borrow_mut() = slice(i.cities, i.city_count).to_vec();
         for d in deals {
             sim.adopt_deal(&NeighborDeal::from_data(d));
         }

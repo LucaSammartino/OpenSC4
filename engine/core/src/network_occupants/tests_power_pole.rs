@@ -470,6 +470,10 @@ fn pole_connections_effects_messages_and_model_attributes_conformance_38_39() {
     );
     p.fields.connections[0].pole = reference(1);
     h.log.clear();
+    // §4.6.2: the pointer overload is inert on null, including cleared records.
+    p.remove_connection(&RefValue::Null, false, &mut h);
+    assert_eq!(p.connection_count(), 2);
+    assert!(h.log.is_empty());
     p.remove_connection(&reference(1), false, &mut h);
     assert_eq!(p.connection_count(), 1);
     assert_eq!(h.log, ["release1", "post"]);

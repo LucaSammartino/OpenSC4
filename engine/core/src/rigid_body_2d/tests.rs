@@ -25,12 +25,12 @@ fn assert_pair(actual: Pair, expected: Pair) {
 #[test]
 fn rb_p1_p2_unsigned_mixed_halves() {
     for (a, b) in [(0x0002_0009, 0x0005_0003), (0x0005_0003, 0x0002_0009)] {
-        assert!(primary_sector(0x0002_0003, a, b));
+        assert!(primary_sector(0x0005_0009, a, b));
         assert!(!primary_sector(a, a, b));
         assert!(!primary_sector(b, a, b));
     }
     assert!(primary_sector(0xffff_0000, 0xffff_0000, 0xffff_0000));
-    assert!(primary_sector(0x0001_0002, 0x8000_0002, 0x0001_ffff));
+    assert!(primary_sector(0x8000_ffff, 0x8000_0002, 0x0001_ffff));
     assert!(!primary_sector(0x8000_0002, 0x8000_0002, 0x0001_ffff));
 }
 

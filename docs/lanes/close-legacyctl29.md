@@ -1,25 +1,24 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| close-legacyctl29: legacy replay (engine) | Codex / close-legacyctl29 / detached; code a2df43ca5; ABI unchanged | ready for partial landing: cargo 7884/0, clippy clean, CTest 124/124; final H/C clean, ref_warnings=0, shadow 72/72 and 2/2 exact; whole row unverified | 1. Coordinator enqueue pinned tip and review method credit. 2. Resolve LC8/LC17/LC18 and remaining capture before whole-row credit. |
+| close-legacyctl29: DBPF regression repair (engine) | Codex / close-legacyctl29 / detached; code e0502c7ee; ABI unchanged | ready: cargo 7901/0, clippy clean, CTest 126/126; r5-final clean, refs=0, DBPF 3/3 exact, legacyctl unchanged; 14:50 enqueue deadline missed | 1. Coordinator decide late landing versus revert. 2. Preserve partial legacy-control credit; whole row remains unverified. |
 
-Code: recording widget host/private replay transport, small-method hooks and per-method counters; 5367aa903..a2df43ca5. Default-off legacyctl_shadow; no public ABI export/version change.
-Final qbuild all PASS: Rust 7884/0, clippy 0 diagnostics, native 78/78 edges, CTest 124/124; owned fmt 4/4. Logs: build-runs/qbuild-{test,clippy}.log and build-runs/build-results/qbuild-20261026-114847-build-ctest.verdict.
-Final game evidence: C:/Users/tlori/FreeCity4/build-runs/game-results/; H=close-legacyctl29-r4-house2032, C=close-legacyctl29-r4-city2 (.log/.verdict); both DLL SHA256 7a1b83a055bb470ff038cbcd162a65d090fce5aced8dacdd9420b7bb02cae4b6.
-H: clean through 2032-01-08, ref_warnings=0, 72/72 exact monthly summaries; one recovered 8328-ms no-OnTick stall (.log:6001,6112). C: Kensington clean through 2006-05-02, ref_warnings=0, watchdog_stalls=0, 2/2 exact summaries.
-Table counts are complete/calls, identical in H and C; every monthly method line has mismatches=0 and resyncs=0. Empty/unhooked entries receive no credit.
+Code: merged main (da6663fcc); scoped recorder hooks (9b731563c), narrowed to COM factory only (e0502c7ee); regression test added. No public C ABI/export/version changes.
+Cause: Setup permanently replaced COM CreateInstance's vtable entry with a DLL address; DBPF correctly rejected Interface(com,4). Restore that slot after the last nested/overlapping capture; keep widget observations installed. DBPF validation is unchanged.
+Diagnosis: close-legacyctl29-r5-diagnose.log:2828 reports COM-interface-outside-supported-image; files=1, records=187, refusals=1. The broader r5-fixed attempt restored DBPF but reduced SetParent complete to 0; excluded from acceptance.
+Final evidence root: C:/Users/tlori/FreeCity4/build-runs/game-results/; F=close-legacyctl29-r5-final (.log/.verdict), same shadows profile, priority high, turbo, requested 2026-03-01; clean through 2026-04-13, ref_warnings=0, watchdog_stalls=0.
+F first DBPF sample 2026-01-27: files=11 opened=11 records=111826 compressed=88769 refusals=0 mismatches=0; packed_roots=10 packed_children=1; packed-root/child discovery present (13 discovery lines across run).
+F DBPF: 3/3 samples exact, all refusals=0; full first sample plus February/March rotation. Native image checks were not weakened.
+F legacyctl: 3/3 summaries exact; compared=7976 builds=775; all 46 February/March summary+method payloads byte-identical to diagnosis after removing log prefixes. No trace differences; all method mismatches/resyncs=0.
+Final qbuild all PASS: cargo 7901/0, clippy 0 diagnostics, native 49/49 edges, CTest 126/126 including legacyctl_hooks_contract. Logs: build-runs/qbuild-{test,clippy}.log, fc4verify-ctest.log, build-results/qbuild-20261026-144746-build-ctest.verdict. Tree-change note reflects committing already-tested source during the gate; no source edits after invocation.
+Final DLL SHA256: 192ae15dba503455d30d90514ef84a22dc77fd2fedd33b170836173428c3d0b7.
+Deadline: code fixed/committed and final game submitted at 14:48:40, gate passed before 14:50; game verdict arrived after 14:51. The 14:50 merge-enqueue deadline was missed; coordinator must decide late landing versus revert. No further implementation started.
+Previous full evidence (older DLL): close-legacyctl29-r4-house2032 clean through 2032-01-08, refs=0, 72/72 exact; close-legacyctl29-r4-city2 Kensington clean, refs=0, 2/2 exact. Current round measures the requested DBPF regression only.
+Per-method complete/calls below remain unchanged; unhooked/unreached entries receive no credit. Existing questions: LC8/LC17/LC18 in docs/specs/questions/legacy-control.md; none filed this round.
 | Interface slots | Method and complete/calls | Limit |
 |---|---|---|
-| Primary 0,1 | QueryInterface 2367/2367; AddRef 3270/3270 | Exact observed calls |
-| Primary 3 | SetParameters 0/775 | Final trees/defaults and temporary metadata lifetimes unobserved |
-| Primary 5,6 | GetID 204/204; SetID 0/0 | SetID unreached |
-| Primary 7,8,9 | SetOwnControl 775/775; ImplementInterface 0/0; SetParent 775/775 | ImplementInterface unreached |
-| Primary 2,4,10 | Release; GetControlVocabulary; scalar deleting destructor | Unhooked/unmeasured |
-| Control-area 0..7 | QI/AddRef/Release; stubs 3/4/7; SetArea 5; GetArea 6 | Unpatched/unmeasured: LC17 |
-| Legacy 0,1,2,4 | QI/AddRef/Release/SetOwnControl thunks | No separate-address evidence |
-| Legacy 3 | GetControl 1564/1564 | Includes 775 explicit post-build getter probes |
-| Legacy 5,6 | ForceControl 14/14; UseWinProc 775/775 | Exact observed calls |
-| Legacy 7 | GetScriptFragment 0/0 | Populated fragment/lifetime comparison missing; LC8 |
-Interpreters: FlatRect 34/34; Common 775/1550 (second pass only complete); Slider 1/2 (resource-bearing first pass incomplete); Outline/Folders 0/0. All compared effects exact; fifteen other type captures absent.
-Missing acceptance: complete final trees (class/ID/rect/flags/parent order), all interpreter/resource/complex payload effects, private-list/variant lifetimes, populated fragment serialization comparison; whole row remains unverified.
-Earlier r2-month1 corruption and r2-month2's 68 FlatRect differences precede the private-list/defined-byte/pass-local fixes; they are excluded from acceptance. r2-month3/house2032/city2 were also exact on earlier DLL 32c4761c.
-Questions remain LC8/LC17/LC18 in docs/specs/questions/legacy-control.md; no new questions or source changes this final round. No outstanding game/build request. Next: coordinator review partial landing; defer whole-row credit until missing observations are implemented.
+| Primary 0..4,10 | QI 2367/2367; AddRef 3270/3270; SetParameters 0/775 | Release/vocabulary/destructor unmeasured; build incomplete |
+| Primary 5..9 | GetID 204/204; SetID 0/0; Own 775/775; ImplementInterface 0/0; Parent 775/775 | Unreached methods retain no credit |
+| Control-area 0..7 | All unpatched/unmeasured | LC17 |
+| Legacy 0..7 | GetControl 1564/1564; ForceControl 14/14; UseWinProc 775/775; Fragment 0/0 | Thunks unmeasured separately; LC8 |
+| Interpreters | FlatRect 34/34; Common 775/1550; Slider 1/2; Outline/Folders 0/0 | First-pass/resource gaps; fifteen other type captures absent |
+Whole-row acceptance still missing: final trees/defaults, every interpreter/resource/complex effect, temporary/private-list/variant lifetimes, populated fragment serialization. No outstanding game/build request. Next: coordinator review deadline and partial landing.

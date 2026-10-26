@@ -19,6 +19,7 @@ def diagnose(text, verdict_text, end, *, only_load=False):
                   if 'WATCHDOG: main thread' in line and 'stalled' in line), None)
     point = '-'
     address = exception['address'] if exception else '-'
+    location = exception['location'] if exception else '-'
     if exception:
         point = f"line {exception['line']}: {exception['text']}"
     elif stall:
@@ -29,6 +30,9 @@ def diagnose(text, verdict_text, end, *, only_load=False):
         if match:
             address = match[1]
             point += ' / ' + context
+            module = re.search(r'\(([^()]+\+0x[0-9a-fA-F]+)\)', context)
+            if module:
+                location = module[1]
     else:
         # A process exit is not an exception address. Keep the last completed
         # action/window/clock marker, never infer the instruction that faulted.
@@ -38,15 +42,30 @@ def diagnose(text, verdict_text, end, *, only_load=False):
             i, line = progress[-1]
             point = f'line {i}: {line}'
     verdict = result['verdict']
+    held = next((line for line in verdict_text.splitlines()
+                 if line.startswith('held: the city was held by a dialog ')), '')
     if not text and 'lua_script must name an existing repo-relative .lua file' in verdict_text:
         cause = 'launcher-lua-checkout'
         point = 'launcher rejected the staged Lua path before starting the game'
     elif verdict == 'no-load' and 'autotest: clock started;' in text:
         cause = 'launcher-load-detection'
+    elif verdict == 'invalid' and result['end_reached'] != '1' and held:
+        cause = 'dialog-held'
+        point = held
     elif verdict == 'invalid' and 'days_per_second=0.00' in raw and 'date=2000-01-01' in raw:
         cause = 'unestablished-city'
     elif verdict == 'invalid' and result['invalid_reason'] == 'end date not reached':
         cause = 'window-exhausted'
+    elif result['calendar_stall']:
+        cause = 'emergency-calendar-stall'
+        evidence = result['calendar_stall']
+        point = (f"line {evidence['line']}: {evidence['text']} / calendar fixed for "
+                 f"{evidence['seconds']:g} s while OnTick continued; forced exit; "
+                 'watchdog and timeout did not fire')
+    elif result['known_quit_faults']:
+        cause = 'known-original-quit-fault'
+    elif verdict == 'clean-exit-crash':
+        cause = 'clean-exit-crash'
     elif exception:
         cause = 'exception'
     elif stall:
@@ -55,8 +74,26 @@ def diagnose(text, verdict_text, end, *, only_load=False):
         cause = 'unhandled-exit-no-address'
     else:
         cause = verdict
+    watchdog = next((suite.ENVELOPE.sub('', line) for line in lines
+                     if 'WATCHDOG:' in line and ('stalled' in line or 'stuck' in line)), '-')
+    name = re.search(r'stalled\s*-\s*(.*?)\s+for\s+\d+\s*ms', watchdog)
+    watchdog_name = name[1] if name else '-'
+    saving = next((line for line in reversed(lines)
+                   if 'script: full-save watchdog grace' in line or 'script: line ' in line), '')
+    stall_sample = '\n'.join(lines[stall[0]:stall[0] + 80]) if stall else ''
+    if stall and ('SaveCity' in point or 'RunSave' in stall_sample
+                  or ('full-save watchdog grace' in saving and 'SaveCity(' not in saving)):
+        cause = 'save-watchdog'
+    owner = ('harness' if cause in ('launcher-lua-checkout', 'launcher-load-detection',
+              'unestablished-city', 'window-exhausted', 'dialog-held', 'save-watchdog', 'rejected',
+              'no-load', 'queue-timeout', 'not-submitted', 'missing', 'emergency-calendar-stall') else
+             'known-original-game' if result['known_quit_faults'] else
+             'none' if verdict == 'clean' else 'game-or-engine')
     return dict(verdict=verdict, cause=cause, verdict_line=raw, address=address,
-                first_exception_or_stall=point, end_reached=result['end_reached'])
+                first_exception_or_stall=point, end_reached=result['end_reached'],
+                watchdog=watchdog, watchdog_name=watchdog_name, owner=owner, location=location,
+                known_quit_faults=result['known_quit_faults'],
+                last_lines=' / '.join(lines[-5:]) or '-')
 
 
 def triage(directory):
@@ -67,10 +104,9 @@ def triage(directory):
         name = scenario['name']
         log = directory / (name + '.log')
         verdict = directory / (name + '.verdict')
-        if not verdict.exists():
-            continue  # Unsubmitted rows have no failure evidence to diagnose.
+        verdict_text = verdict.read_text(encoding='utf-8', errors='replace') if verdict.exists() else 'verdict: missing\n'
         row = diagnose(log.read_text(encoding='utf-8', errors='replace') if log.exists() else '',
-                       verdict.read_text(encoding='utf-8', errors='replace'), scenario['end'],
+                       verdict_text, scenario['end'],
                        only_load=suite.load_only(scenario))
         rows.append(dict(scenario=name, **row, reach='present' if
                          (directory / (name + '.reach.tsv')).exists() else 'missing',
@@ -79,6 +115,21 @@ def triage(directory):
         raise ValueError('no returned verdicts in this tag')
     output = directory / 'triage.tsv'
     suite.write_tsv(output, list(rows[0]), rows)
+    suite.write_tsv(directory / 'causes.tsv', list(rows[0]),
+                    sorted((r for r in rows if r['cause'] != 'clean'),
+                           key=lambda r: (r['owner'], r['cause'], r['location'], r['scenario'])))
+    grouped = collections.defaultdict(list)
+    for row in rows:
+        if row['cause'] != 'clean':
+            grouped[(row['owner'], row['cause'], row['verdict'], row['location'], row['watchdog_name'])].append(row)
+    groups = []
+    for (owner, cause, verdict, location, watchdog_name), members in sorted(grouped.items()):
+        groups.append(dict(owner=owner, cause=cause, verdict=verdict, location=location,
+                           watchdog_name=watchdog_name, count=len(members),
+                           scenarios=','.join(r['scenario'] for r in members),
+                           evidence=members[0]['first_exception_or_stall'], log=members[0]['log']))
+    suite.write_tsv(directory / 'cause_groups.tsv', ['owner', 'cause', 'verdict', 'location',
+                    'watchdog_name', 'count', 'scenarios', 'evidence', 'log'], groups)
     return rows, output
 
 
@@ -92,7 +143,8 @@ def main(argv=None):
         rows, output = triage(suite.ROOT / 'build-runs/suite' / args.tag)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
-    print(f'triage: {len(rows)} returned results; {output}')
+    returned = sum(row['verdict'] not in ('missing', 'not-submitted', 'queue-timeout') for row in rows)
+    print(f'triage: {returned}/{len(rows)} returned results; {output}; causes.tsv')
     for cause, count in sorted(collections.Counter(row['cause'] for row in rows).items()):
         print(f'{cause}: {count}')
 

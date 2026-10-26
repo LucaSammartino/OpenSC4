@@ -28,6 +28,11 @@ class GamePriorityTests(unittest.TestCase):
         self.assertRegex(runner, r'\$p\.PriorityClass = \[Diagnostics\.ProcessPriorityClass\]\$GamePriority')
         self.assertTrue(re.search(r'if \(\$GamePriority -and \$p\)', runner))
 
+    def test_a_normal_request_that_waited_fifteen_minutes_starts_alongside_parallel_ones(self):
+        queue = (ROOT / 'tools/game_queue.ps1').read_text(encoding='utf-8')
+        self.assertRegex(queue, r'\$StarvedMinutes = 15')
+        self.assertRegex(queue, r'\$parallel = \(PeekParallel \$r\.FullName\) -or \(\$prio -ne 0 -and \(\(Get-Date\) - \$r\.LastWriteTime\)\.TotalMinutes -ge \$StarvedMinutes\)')
+
 
 if __name__ == '__main__':
     unittest.main()

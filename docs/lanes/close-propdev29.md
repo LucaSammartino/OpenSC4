@@ -1,0 +1,24 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| close-propdev29 prop developer (engine) | Codex / close-propdev29 / reserved branch close-propdev29 (detached HEAD) | ready under final-round partial-coverage instruction; code bb03b5530, 33ffc3b01; cargo 7903 passed, clippy 0 diagnostics, CTest 126/126; ABI export added in 66e7f077a; gen27 clean, ref_warnings=0, shadow 0/24 exact, resynced lines=0; questions none | 1. Resolve effect receiver mismatch. 2. Complete remaining outputs and measure house shadows before verified credit. |
+
+- Acceptance: partial landing authorized by the final-round instruction; whole-owner verified credit NOT met, zero fully certified methods, gen27 0/24 exact.
+- PV18 core fix: registration forwards both calendar bytes; missing/short properties supply (0,0), including interval zero.
+- ABI: calendar host extension accepts legacy prefix; 66e7f077a added `fc4_prop_developer_shadow_effect`; no ABI version bump. This round adds no exports.
+- Capture fix: freeze insertion properties/state/class/type/position/power/trigger/date at the genuine native handler entry; replay at the recorded nested boundary, preserving pre-tag inputs.
+- bb03b5530: compare creation C AddRef/holder/lookup-or-add/property-value/u32-write/Release spans, immediate scalar output, reference deltas and nested boundaries; reject undeclared primary/holder layouts.
+- 33ffc3b01: compare slot-13 float arguments/time bytes via the independent prop core; compare every followed step's saved owner projection, including incomplete/failed effects.
+- Final CTest: propdev 5/5 passed; negative cases reject wrong/missing/reordered writes/holds, unreadable output, custom layouts and stale dispatch; log `build-runs/fc4verify-ctest.log` (2026-10-26 14:21 UTC).
+- Final `qbuild all` PASS, run once this round on unchanged code: cargo 7903/0 (`build-runs/qbuild-test.log`); clippy zero diagnostics (`build-runs/qbuild-clippy.log`).
+- Final native gate PASS: 43/43 edges (`build-runs/fc4verify-build.log`), CTest 126/126 (`build-runs/fc4verify-ctest.log`); previous owned Rust fmt 5 files, diff_lines=0; source unchanged this round.
+- Required house shadows: NOT RUN on this source; exactness and runtime resync counts remain unmeasured.
+- Gen27 diagnostic: `close-propdev29-r1-gen27-1`, simulator + propdev shadow, script `gen27-konradshohe-s1-default`, target 2028-01-28; NOT a full house-profile request.
+- Gen27 final verdict CLEAN to 2028-01-28; foreign exceptions/stalls/rtc/overruns/ref_warnings all 0; MAIN `build-runs/game-results/close-propdev29-r1-gen27-1.verdict` and same-label `.log`; DLL sha256 prefix 98a8e55c.
+- Initial request rejected for top-level script; evidence `build-runs/close-propdev29-r5-gen27-rejected.txt`. Shared queue repaired it externally and started slot 7 at 14:29:50; lane did not resubmit. Final log: 24 months, 0 exact, 0 resynced lines; house baseline 0/72 cited by coordinator remains a different profile.
+- Method evidence measured: 24 DoMessage lines, final calls=42460 complete=0 mismatches=1823 resyncs=0 (raw final method line, same gen27 log); mismatch total includes deliberately incomplete operations. Effect diagnostics report `reason=receiver`; cause unresolved at code freeze.
+- Compared partly: DoMessage return on agent/night/insertion paths; scanner/records, selectors, removals, creation arguments/results/tag spans; night CRT/state; dated/timer/chance/state/time-byte/RNG effects.
+- No owner method is fully certified; UpdateTract/CreateProp and registration/night helpers remain partial. Unchecked prop interface methods: QueryInterface/AddRef/Release/Init/Shutdown, Add/RemovePropRequester, UpdateAllOptionalProps, Show/Toggle/AreSignsAndLabelsVisible, destructor, Read/Write/GetGZCLSID and their thunks. Wealth requester methods (spec section 8.3) all lack complete output comparison.
+- Remaining monthly failures still deliberately include every successful creation and Day with dated props. The existing `created ... (not compared)` and `full-operations-exact=0` claims were not weakened.
+- Missing outputs: ordered model/frame calls and queued notification lifetimes, registration list/map holds and clock effects, member/wealth final RNG; other owner interface/lifecycle/persistence methods remain unverified.
+- Next: complete remaining method outputs, then measure house shadows and supported gen27 action request; verified credit still requires every propdev line exact, zero resyncs, clean verdict and ref_warnings=0.
+- Questions: none. Ready local merge-queue entry, kind engine, final detached HEAD; supervisor publishes the reserved branch and coordinator attaches checked credit. House comparison, effect receiver diagnosis and whole-owner exactness/completeness remain unmet; gen27 runtime ref audit passed.

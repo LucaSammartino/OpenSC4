@@ -63,13 +63,19 @@ pub unsafe extern "C" fn fc4_lotowner_verify(
     len: u32,
     output: *mut u8,
     capacity: u32,
+    snapshot: bool,
 ) -> i32 {
     if record.is_null() || output.is_null() || len > 64 * 1024 * 1024 {
         return -1;
     }
     std::panic::catch_unwind(|| {
         let bytes = std::slice::from_raw_parts(record, len as usize);
-        let Some(encoded) = fc4_core::lot_records::shadow::reencode_owner(class_id, bytes) else {
+        let encoded = if snapshot && class_id == fc4_core::lot_records::CLSID_RETAINING_WALL_OCCUPANT {
+            fc4_core::lot_records::shadow::reencode_wall_snapshot(bytes)
+        } else {
+            fc4_core::lot_records::shadow::reencode_owner(class_id, bytes)
+        };
+        let Some(encoded) = encoded else {
             return -1;
         };
         if encoded.len() > capacity as usize {

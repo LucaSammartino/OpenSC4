@@ -209,8 +209,7 @@ impl PrebuiltPiece {
             };
             instance.clip(Some(b), 1).expect("network mode is specified");
         }
-        // Literal option exception: Clip still runs; the other passes skip.
-        // NO30 asks to disambiguate the clipped/option rows of §10.2.
+        // §10.2 (NO30): Clip still runs; the option suppresses all other passes.
         if !state.option_6a845768 {
             instance.bind(constants);
             if !second && !clipped {

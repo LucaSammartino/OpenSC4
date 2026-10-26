@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include "FC4PropDevEffects.h"
+#include "FC4PropDevTag.h"
 #include <windows.h>
 #include <cstdint>
 #include <map>
@@ -20,10 +22,12 @@ public:
     using Create = void* (__fastcall*)(void*,void*,void*,uint32_t,uint32_t);
     using Retain = uint64_t (*)(void*,void*);
     using NestedCount = size_t (*)();
+    using Returned = void (*)(void*, void*, uint64_t);
     ~PropCreationTrace() { Finish(); }
-    bool Begin(void* lotDeveloper, void* networkManager, Retain retain, void* user, NestedCount count) {
+    bool Begin(void* lotDeveloper, void* networkManager, Retain retain, void* user, NestedCount count,
+               Returned returned = nullptr) {
         if (active_ || !installed_.empty()) return false;
-        events_.clear(); valid_=true; retain_=retain; user_=user; count_=count;
+        events_.clear(); valid_=true; retain_=retain; user_=user; count_=count; returned_=returned;
         if (!Install(lotDeveloper,63,reinterpret_cast<void*>(&Lot)) ||
             !Install(networkManager,8,reinterpret_cast<void*>(&Network))) {
             valid_=false; Finish(); return false;
@@ -79,12 +83,23 @@ private:
         trace->events_.push_back({reinterpret_cast<uintptr_t>(lot),network,index,id,trace->depth_,
                                   trace->count_(),0,0});
         ++trace->depth_;
-        void* result=original(self,edx,lot,index,id); // native call exactly once
+        void* result=nullptr;
+        {
+            // Service internals are delegated. Its actual insertion handler
+            // resumes developer-effect capture at its own nested boundary.
+            PropEffectTrace::Recording delegated(false);
+            PropTagTrace::Recording delegatedTag(false);
+            result=original(self,edx,lot,index,id); // native call exactly once
+        }
         --trace->depth_;
         auto& event=trace->events_[slot];
         event.nestedEnd=trace->count_();
-        event.result=result?trace->retain_(trace->user_,result):0;
+        {
+            PropTagTrace::Recording observer(false);
+            event.result=result?trace->retain_(trace->user_,result):0;
+        }
         if (result && !event.result) trace->valid_=false;
+        if (result && trace->returned_) trace->returned_(trace->user_, result, event.result);
         return result;
     }
     inline static SRWLOCK lock_=SRWLOCK_INIT;
@@ -94,6 +109,7 @@ private:
     std::vector<Event> events_;
     Retain retain_=nullptr;
     NestedCount count_=nullptr;
+    Returned returned_=nullptr;
     void* user_=nullptr;
     uint32_t depth_=0;
     bool valid_=false;

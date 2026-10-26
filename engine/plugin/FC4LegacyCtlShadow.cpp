@@ -116,6 +116,7 @@ void* __fastcall ControlHook(void* self, void*) {
 template<class F> uint32_t Capture(void* owner,uint32_t op,const std::array<uint32_t,4>& args,void* props,F invoke,
     bool scalar=true,void* rectOut=nullptr) {
     using namespace legacyrecord;
+    HookScope hooks;
     const State before=Snapshot(owner);
     Input input;
     Trace trace;
@@ -133,6 +134,7 @@ template<class F> uint32_t Capture(void* owner,uint32_t op,const std::array<uint
     const State after=Snapshot(owner);
     std::memcpy(native,after.words,sizeof(after.words));
     if(rectOut) std::memcpy(native+6,rectOut,16);
+    trace.exhaustive=hooks.Finish() && trace.exhaustive;
     // Build traces do not yet compare constructor defaults/final widget trees
     // or temporary metadata lifetimes. Never award full SetParameters credit.
     Replay(trace,before.words,op,args,input,native,scalar,UINT32_MAX,op!=0);

@@ -67,9 +67,10 @@ it (the managers return the interface at `+8`):
 | `cSC4CitySituationManager` | `0x0BB14381` | `0x005148C0` | `0xB00` | city-situation.md |
 
 The vehicles and the pedestrians are allocated from their classes' pools (`0x0055B970` and
-`cSC4Pedestrian::operator new`). Four classes exist only here: the **carjacked vehicle**, the **mayor's limo**,
-the **ambulance** (an emergency vehicle) and the **mass transit train** (a train); their constructors only install
-their own tables and initial fields over the base class *[summary]*.
+`cSC4Pedestrian::operator new`). The **carjacked vehicle**, **mayor's limo**, **ambulance** (an emergency
+vehicle) and **mass transit train** (a train) have record contracts in [automata.md](automata.md)
+§§6.4.1–6.4.4. Their constructors install their own tables and initial fields over the base class
+*[summary]*; their records include distinct outer version wrappers.
 
 ## 2. The manager tables *[compat]*
 

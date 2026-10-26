@@ -258,6 +258,9 @@ def heartbeat(run, live, extra=()):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # a lane summary with an arrow must not kill the loop when output is redirected
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(errors='replace')
     ap = argparse.ArgumentParser()
     ap.add_argument('--run', default='build-runs/run7')
     ap.add_argument('--state', default='build-runs/run6-state.json')

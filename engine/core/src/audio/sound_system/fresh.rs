@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Adaptive score owners (§6). No cell-selection, tempo or fade law is invented.
+pub use super::fresh_playback::{FreshHost, FreshLifecycle, PathScoreInput, VolumeFade};
 use super::{Properties, Scheduler, SoundRef, Unsupported};
 use std::sync::{Arc, Mutex};
 
@@ -8,18 +9,42 @@ pub struct CellData {
     pub id: u64,
     pub volume_word: i32,
     pub fade_out: u32,
+    pub name: String,
+    pub group: i32,
+    pub class: i32,
+    pub links: Vec<usize>,
+    pub looping: bool,
+    pub loop_length: i32,
+    pub fade_in_selector: i32,
+    pub random_volume: bool,
+    pub pitch: [i32; 2],
+    pub pan: [i32; 2],
+    pub random_pan: bool,
 }
+#[derive(Default)]
 pub struct ScoreData {
     pub cells: Vec<CellData>,
     pub volume_word: i32,
     pub starting_coordinates: [i32; 2],
     /// Raw score configuration, without invented editor-facing names.
     pub settings: Properties,
+    pub rows: usize,
+    pub columns: usize,
+    pub half: [i32; 2],
+    pub block_mode: bool,
+    pub tempo: i32,
+    pub beats_per_bar: i32,
+    /// Maximum/minimum base, column/row gradient (§freshness 4.4).
+    pub budget_bases: [i32; 2],
+    pub gradients: [i32; 2],
 }
 pub trait ScoreInput {
     type Record;
     fn persist_record(&mut self, resource: u32) -> Option<Self::Record>;
     fn load_score_as_file(&mut self, record: Self::Record) -> Result<ScoreData, Unsupported>;
+    fn persist_record_key(&mut self, _key: super::hit::ResourceKey) -> Option<Self::Record> {
+        None
+    }
 }
 
 pub struct FreshPlayer {
@@ -33,6 +58,31 @@ pub struct FreshPlayer {
     pub settings: Properties,
     pub timer_running: bool,
     pub cells: Vec<FreshCellPlayer>,
+    pub fade: Option<VolumeFade>,
+    pub dimensions: [usize; 2],
+    pub half: [i32; 2],
+    pub block_mode: bool,
+    pub last_subtracted: Option<usize>,
+    pub remembered_coordinates: [i32; 2],
+    pub selectable_count: i32,
+    pub distinct_groups: i32,
+    pub tempo: i32,
+    pub beats_per_bar: i32,
+    pub beat_in_bar: i32,
+    pub next_beat: i32,
+    pub origin: i32,
+    pub paused: bool,
+    pub manual: bool,
+    pub start_switch: bool,
+    pub budget_bases: [i32; 2],
+    pub divisions: [bool; 9],
+    pub division_positions: [[i32; 3]; 9],
+    pub division_counts: [usize; 2],
+    pub head_relative: bool,
+    pub distances: [u32; 2],
+    pub resource_key: Option<super::hit::ResourceKey>,
+    pub data_directory: String,
+    pub controller: Option<super::directors::ForeignRef>,
     owner_identity: Arc<()>,
 }
 impl Default for FreshPlayer {
@@ -48,6 +98,31 @@ impl Default for FreshPlayer {
             settings: Properties::new(),
             timer_running: false,
             cells: Vec::new(),
+            fade: None,
+            dimensions: [0, 0],
+            half: [0, 0],
+            block_mode: false,
+            last_subtracted: None,
+            remembered_coordinates: [-1, -1],
+            selectable_count: 0,
+            distinct_groups: 0,
+            tempo: 0,
+            beats_per_bar: 0,
+            beat_in_bar: 0,
+            next_beat: 0,
+            origin: 0,
+            paused: false,
+            manual: false,
+            start_switch: true,
+            budget_bases: [0, 4],
+            divisions: [false, true, false, true, false, true, false, true, false],
+            division_positions: std::array::from_fn(|n| [(n / 3) as i32 * 100 - 100, 0, 100 - (n % 3) as i32 * 100]),
+            division_counts: [3, 3],
+            head_relative: false,
+            distances: [100, 1000],
+            resource_key: None,
+            data_directory: String::new(),
+            controller: None,
             owner_identity: Arc::new(()),
         }
     }
@@ -64,11 +139,36 @@ impl FreshPlayer {
         self.init_loaded_score(score)?;
         Ok(true)
     }
-    /// Takes decoded cells, never arbitrary 64x64 coordinates. Dimension
-    /// acceptance and overloaded argument contracts remain SS6.
+    pub fn init_resource_key(
+        &mut self,
+        key: super::hit::ResourceKey,
+        input: &mut impl ScoreInput,
+    ) -> Result<bool, Unsupported> {
+        self.resource_key = Some(key);
+        let Some(record) = input.persist_record_key(key) else {
+            return Ok(false);
+        };
+        let score = input.load_score_as_file(record)?;
+        self.init_loaded_score(score)?;
+        Ok(true)
+    }
     pub fn init_loaded_score(&mut self, score: ScoreData) -> Result<(), Unsupported> {
-        if score.cells.len() > Self::CELL_STORAGE_CAPACITY {
-            return Err(Unsupported("SS6"));
+        self.score = Some(score);
+        self.init()
+    }
+    pub fn init(&mut self) -> Result<(), Unsupported> {
+        if self.initialized {
+            return Ok(());
+        }
+        let score = self.score.as_ref().ok_or(Unsupported("missing-score"))?;
+        // SPEC-GAP: invalid dimensions/sparse grids have unsafe original behavior; reject safely.
+        if score.rows == 0
+            || score.columns == 0
+            || score.rows > 64
+            || score.columns > 64
+            || score.cells.len() != score.rows * score.columns
+        {
+            return Err(Unsupported("invalid-score-dimensions"));
         }
         self.cells = score
             .cells
@@ -80,7 +180,14 @@ impl FreshPlayer {
             })
             .collect();
         self.settings = score.settings.clone();
-        self.score = Some(score);
+        self.volume = score.volume_word;
+        self.half = score.half;
+        self.dimensions = [score.rows, score.columns];
+        self.coordinates = [1, 1];
+        self.remembered_coordinates = [-1, -1];
+        self.block_mode = score.block_mode;
+        self.budget_bases = score.budget_bases;
+        self.recount();
         self.initialized = true;
         Ok(())
     }
@@ -88,8 +195,17 @@ impl FreshPlayer {
         if self.initialized && !self.playing {
             if let Some(score) = &self.score {
                 self.settings = score.settings.clone();
-                self.coordinates = score.starting_coordinates;
+                self.tempo = score.tempo;
+                self.beats_per_bar = score.beats_per_bar;
+                self.origin = score.beats_per_bar - i32::from(score.beats_per_bar > 2);
+                self.beat_in_bar = self.origin;
+                self.next_beat = self.origin;
+                let start = score.starting_coordinates;
+                self.set_y_position(start[0]);
+                self.set_x_position(start[1]);
             }
+            self.fade = None;
+            self.manual = false;
             self.timer_running = true;
             self.playing = true;
             if let Some(scheduler) = scheduler {
@@ -118,15 +234,6 @@ impl FreshPlayer {
     pub fn prob_of_cell_starting(&self) -> usize {
         self.cells.iter().filter(|cell| cell.is_busy()).count()
     }
-    pub fn periodic_update(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported("SS6"))
-    }
-    pub fn fade_volume(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported("SS6"))
-    }
-    pub fn stop_or_shutdown(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported("SS6"))
-    }
 }
 
 /// Shared critical section for freshness state; callback callers use try_lock
@@ -146,6 +253,42 @@ pub trait CellHost {
     /// Adapter queries the optional update interface and balances that QI.
     fn unregister_source_update_if_available(&mut self, sound: &SoundRef);
     fn fade_to_zero(&mut self, sound: &SoundRef, duration: u32);
+    fn sound_system_available(&self) -> bool {
+        false
+    }
+    fn sound_by_id(&mut self, _id: u32) -> Option<SoundRef> {
+        None
+    }
+    fn sound_by_name(&mut self, _name: &str) -> Option<SoundRef> {
+        None
+    }
+    fn private_draw(&mut self) -> u32 {
+        0
+    }
+    fn crc24_filename(&mut self, _name: &str) -> u32 {
+        0
+    }
+    /// SPEC-GAP: P's literal doubles are not listed; the adapter supplies the semitone table.
+    fn pitch_ratio(&mut self, index: usize) -> Option<f64> {
+        if index == 0 {
+            Some(1.0)
+        } else {
+            None
+        }
+    }
+    fn register_source_update_if_available(&mut self, _sound: &SoundRef, _period: u32) {}
+    fn external_start(&mut self, _cell: &CellData, _id: u32, _head: bool, _looping: bool, _fade: f32) -> bool {
+        false
+    }
+    fn external_position(&mut self, _cell: &CellData, _position: [f32; 3]) {}
+    fn external_distances(&mut self, _cell: &CellData, _distances: [f32; 2]) {}
+    fn external_volume(&mut self, _cell: &CellData, _volume: f32) {}
+    fn external_pitch(&mut self, _cell: &CellData, _pitch: f32) {}
+    fn external_stop(&mut self, _cell: &CellData, _fade: f32) {}
+    fn external_playing(&mut self, _cell: &CellData) -> bool {
+        false
+    }
+    fn lifecycle(&mut self, _event: FreshLifecycle) {}
 }
 pub struct FreshCellPlayer {
     pub owner: Arc<()>,
@@ -157,6 +300,15 @@ pub struct FreshCellPlayer {
     pub intermediate_volume: i32,
     pub scaled_volume: i32,
     pub external_controller: bool,
+    pub dead: bool,
+    pub counter: i32,
+    pub random_factor: i32,
+    pub head_relative: bool,
+    pub distances: [u32; 2],
+    pub position: [i32; 3],
+    pub position_set: bool,
+    pub division: Option<usize>,
+    pub controller: Option<super::directors::ForeignRef>,
 }
 impl FreshCellPlayer {
     pub fn new(owner: Arc<()>) -> Self {
@@ -170,6 +322,15 @@ impl FreshCellPlayer {
             intermediate_volume: 0,
             scaled_volume: 0,
             external_controller: false,
+            dead: false,
+            counter: 0,
+            random_factor: 1024,
+            head_relative: false,
+            distances: [0, 0],
+            position: [0, 0, 0],
+            position_set: false,
+            division: None,
+            controller: None,
         }
     }
     pub fn set_cell(&mut self, cell: CellData) {
@@ -181,15 +342,30 @@ impl FreshCellPlayer {
     pub fn is_busy(&self) -> bool {
         self.state != 0
     }
+    pub fn is_dead(&self) -> bool {
+        self.dead
+    }
+    pub fn set_dead(&mut self, dead: bool) {
+        self.dead = dead;
+    }
     pub fn kill(&mut self) -> bool {
         self.source = None;
         self.state = 0;
         self.stop_flag = false;
         true
     }
-    pub fn stop(&mut self, host: &mut dyn CellHost) -> Result<(), Unsupported> {
-        if self.external_controller {
-            return Err(Unsupported("SS7"));
+    pub fn stop(&mut self, host: &mut (impl CellHost + ?Sized)) -> Result<(), Unsupported> {
+        if self.external_controller || self.controller.is_some() {
+            if self.state == 2 {
+                let cell = self.cell.as_ref().ok_or(Unsupported("missing-cell"))?;
+                host.external_stop(cell, cell.fade_out as i32 as f32);
+                if cell.fade_out != 0 {
+                    self.state = 3;
+                }
+            } else if self.state != 3 {
+                self.state = 0;
+            }
+            return Ok(());
         }
         if let Some(sound) = &self.source {
             host.unregister_source_update_if_available(sound);
@@ -197,7 +373,7 @@ impl FreshCellPlayer {
         match self.state {
             2 => {
                 let Some(cell) = &self.cell else {
-                    return Err(Unsupported("SS7"));
+                    return Err(Unsupported("missing-cell"));
                 };
                 if cell.fade_out == 0 {
                     self.kill();
@@ -213,13 +389,19 @@ impl FreshCellPlayer {
         }
         Ok(())
     }
-    /// Known ordinary-source poll; special loop/countdown and controllers SS7.
+    /// Ordinary callers without a controller can use this convenience entry.
     pub fn update_source(&mut self, special_countdown: bool) -> Result<(), Unsupported> {
-        if self.external_controller || special_countdown {
-            return Err(Unsupported("SS7"));
+        if self.external_controller || self.controller.is_some() {
+            return Err(Unsupported("cell-host-required"));
         }
-        if self.source.as_ref().is_some_and(|sound| !sound.is_playing()) {
-            self.state = 0;
+        if special_countdown {
+            self.update_countdown();
+            return Ok(());
+        }
+        if self.state == 3 && self.source.as_ref().is_some_and(|sound| !sound.is_fading()) {
+            self.kill();
+        } else if self.state == 2 && self.source.as_ref().is_some_and(|sound| !sound.is_playing()) {
+            return Err(Unsupported("cell-host-required"));
         }
         Ok(())
     }
@@ -232,8 +414,5 @@ impl FreshCellPlayer {
         self.local_volume = local;
         let scaled = self.update_scaled_volume(c, a, p, s);
         self.source.as_ref().map_or(true, |sound| sound.set_volume(scaled))
-    }
-    pub fn start_or_spatial_policy(&mut self) -> Result<(), Unsupported> {
-        Err(Unsupported("SS7"))
     }
 }

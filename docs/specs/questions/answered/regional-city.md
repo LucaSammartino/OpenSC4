@@ -19,3 +19,28 @@
   classified layer. The utility applies its own type gate and system-lock test, omits its occupant view filter,
   but retains the current-view effect/empty-lot gates and network view-level check. A masked west-edge request
   demonstrates player-only versus system locks and hidden flora. No placement contract is changed.
+
+<!-- from: core-regionalcity9 (2026-10-24) -->
+- ~~**RY7 - foundations §11.2 / regional-city §2, Read edge cases:** Does Read clear the constructor's
+  commodity entries 1–3 before loading a map (foundations §14.20 requests a byte-identical round trip with
+  two commodities)? What do negative signed commodity and deal counts do? Are object-level Read failures
+  atomic, and are duplicate map/POI keys last-wins? The core wire decoder replaces maps (last key wins),
+  rejects a commodity count interpreted unsigned above the specified limit, treats negative deal counts
+  as an empty signed loop, and publishes a new object only after successful decoding. These are literal
+  readings; no additional failure behavior or default entries are inferred for a decoded wire map.~~
+
+  **ANSWERED 2026-10-26 (re-rr29):** DIFFERS — [foundations.md](../../foundations.md) §11.2 and §14.20,
+  [regional-city.md](../../regional-city.md) §2: native Read retains constructor/default and other absent
+  keys, overwrites duplicate scalar-map values, concatenates duplicate POI lists and mutates before failure.
+  Commodity guards are unsigned; negative deal counts enter a nonzero decrement loop. Only the package
+  wrapper's publication of a new object is atomic. Four worked cases distinguish these behaviours.
+
+<!-- from: re-regionalcity (2026-10-20) -->
+- ~~**RY2 - §2:** what the record's three unknown strings (`+0xE4`, `+0x10C`, `+0x134`) hold; no getter reads them and
+  the samples leave them empty. [as read]~~
+
+  **ANSWERED 2026-10-26 (re-rr29):** MATCHES — [regional-city.md](../../regional-city.md) §2 specifies three
+  independent opaque strings, their wire positions, empty construction, persistence and absence of public
+  accessors/cache producers. A distinct alpha/beta/gamma preservation case prevents aliasing or dropping them.
+  Semantic names require observing an original nonempty producer with field-write stack capture during the
+  stated city/locale operations; deserialization and supplied fixture values do not establish a meaning.

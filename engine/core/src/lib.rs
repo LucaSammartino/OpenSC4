@@ -189,3 +189,6 @@ pub mod city_geometry;
 pub mod regional_city;
 pub mod region;
 pub mod pedestrians;
+pub mod render3d;
+pub mod region_view;
+pub mod region_screen;

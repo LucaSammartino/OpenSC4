@@ -93,6 +93,7 @@ pub const BRIDGE_SLOT: usize = 13;
 /// One per-switch-type record of the statistics block (save-records §7.1.1:
 /// `u16, f32, s32, s32, f32`). Not computed by the code of this spec; kept
 /// and saved unchanged.
+// SPEC-GAP: switch-stat resets and trailing statistics floats lack computation rules (TC29-STATS-1/2).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SwitchStat {
     pub a: u16,

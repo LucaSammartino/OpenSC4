@@ -129,8 +129,8 @@ pub fn assign_stages(items: &mut [GrowthItem], curves: &[ResponseCurve], size: f
     let mut i: i32 = 0;
     for item in items.iter_mut() {
         let p = r24(f64::from(i) * inv);
-        // `not (p < acc)`, true for NaN.
-        while (p.is_nan() || acc.is_nan() || p >= acc) && s > 1 {
+        // §5.5: the x87 C0 flag also stops the descent for unordered inputs.
+        while p >= acc && s > 1 {
             s -= 1;
             acc = r24(f64::from(eval(s)) + acc);
         }

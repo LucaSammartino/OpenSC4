@@ -14,6 +14,24 @@ use std::rc::Rc;
 use super::*;
 use crate::stream::{ByteReader, ByteWriter, OutStream, RefResolver, RefValue, ResKey, SaveObject};
 
+#[test]
+fn construction_setup_updates_only_flags_and_orientation() {
+    let a = automaton::Automaton::for_class(CLSID_VEHICLE).unwrap();
+    a.set_position([10.0, 20.0, 30.0]);
+    a.set_automata_flag(0x900, true);
+    a.set_automata_flag(0x100, false);
+    a.set_automata_flag(0x40, true);
+    a.set_orientation([3.0, 0.0, 4.0]);
+    let rec = a.record();
+    assert_eq!(rec.base().automata_flags, 0x840);
+    assert_eq!(rec.base().vectors[0], [10.0, 20.0, 30.0]);
+    assert_eq!(rec.base().vectors[1], [0.0; 3]);
+    assert_eq!(rec.base().vectors[2], [0.6, 0.0, 0.8]);
+    assert!(rec.base().states.is_empty());
+    a.set_orientation([0.0; 3]);
+    assert_eq!(a.record().base().vectors[2], [0.0; 3]);
+}
+
 fn hex(s: &str) -> Vec<u8> {
     let c: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
     (0..c.len())

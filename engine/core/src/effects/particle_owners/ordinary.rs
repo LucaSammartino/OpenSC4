@@ -27,6 +27,25 @@ pub struct Record {
     /// P+28,2C,30,34,38,3C,40.
     pub factors: [f32; 7],
 }
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Transform {
+    pub generation: u8,
+    pub flags: u8,
+    pub rotation: [[f32; 3]; 3],
+    pub translation: [f32; 3],
+    pub scale: f32,
+}
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            generation: 0,
+            flags: 0,
+            rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+            translation: [0.; 3],
+            scale: 1.,
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq)]
 pub struct Motion {
     pub description: ParticleDescriptionBase,
@@ -49,6 +68,13 @@ pub struct Motion {
     pub inverse_scale: f32,
     pub city_extent: Option<[f32; 2]>,
     pub collision_effects: Option<[u8; 2]>,
+    pub transforms: [Transform; 2],
+    pub working_box: [[f32; 3]; 2],
+    pub previous_center: [f32; 3],
+    pub opacity_scale: f32,
+    pub parameter_colour: [f32; 3],
+    pub point: [f32; 3],
+    pub point_scale: f32,
 }
 impl Motion {
     pub fn new(description: &ParticleDescriptionBase) -> Result<Self, Unsupported> {
@@ -76,6 +102,13 @@ impl Motion {
             inverse_scale: 1.,
             city_extent: None,
             collision_effects: None,
+            transforms: [Transform::default(); 2],
+            working_box: [[0.; 3]; 2],
+            previous_center: [0.; 3],
+            opacity_scale: 1.,
+            parameter_colour: [0.; 3],
+            point: [0.; 3],
+            point_scale: 0.,
         })
     }
     fn scalar(&self, at: u32) -> f32 {
@@ -123,7 +156,7 @@ impl Motion {
         self.emission_box[1][2] = extent[1];
         Ok(())
     }
-    /// Runtime static baseline is a supplied primitive, never guessed as zero.
+    /// The native baseline is zero (§2); explicit inputs support primitive fixtures.
     pub fn configure_preferred(&mut self, baseline: [f32; 3]) {
         let direction = [self.scalar(0x18c), self.scalar(0x190), self.scalar(0x194)];
         self.preferred = direction
@@ -348,7 +381,7 @@ impl Motion {
     }
 }
 
-/// Ordered event selection is settled even though effect-name composition is PT2.
+/// Ordered event selection from §8.3.
 pub fn birth_events(events: &[(Vec<u8>, f32)]) -> impl Iterator<Item = &[u8]> {
     events
         .iter()
@@ -363,4 +396,181 @@ pub fn crossing_events(events: &[(Vec<u8>, f32)], age: f32, dt: f32) -> impl Ite
             difference <= 0. && difference + f64::from(dt) > 0.
         })
         .map(|(name, _)| name.as_slice())
+}
+
+/// Foreign directory primitives. A successful lookup owns a temporary reference.
+pub trait EventDirectory {
+    fn lookup(&mut self, name: &[u8]) -> Option<u64>;
+    fn transform(&mut self, component: u64, transform: Transform);
+    fn start(&mut self, component: u64, mode: u32);
+    fn release_created(&mut self, component: u64);
+}
+pub fn fire_event(name: &[u8], suffix: &[u8], position: [f32; 3], directory: &mut impl EventDirectory) {
+    let mut complete = name.to_vec();
+    complete.extend(suffix.iter().copied().take_while(|&byte| byte != 0));
+    if let Some(component) = directory.lookup(&complete) {
+        directory.transform(
+            component,
+            Transform {
+                translation: position,
+                ..Transform::default()
+            },
+        );
+        directory.start(component, 0);
+        directory.release_created(component);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DrawFactors {
+    pub colour: [f32; 3],
+    pub opacity: f32,
+    pub basis_lengths: [f32; 2],
+}
+impl Motion {
+    /// §21.1, before packing, alignment, stretch, cap and world transform.
+    pub fn draw_factors(&self, record: &Record, phase: f64) -> DrawFactors {
+        use super::decal::{sample, sample_colour};
+        let d = &self.description.value;
+        let colour = sample_colour(&d.vectors[&0x94], phase);
+        let size = f64::from(sample(&d.floats[&0xac], phase)) * f64::from(record.factors[0]);
+        DrawFactors {
+            colour: std::array::from_fn(|i| (f64::from(colour[i]) * f64::from(record.factors[4 + i])) as f32),
+            opacity: (f64::from(sample(&d.floats[&0xa0], phase))
+                * f64::from(record.factors[3])
+                * f64::from(self.opacity_scale)) as f32,
+            basis_lengths: [
+                size as f32,
+                (size * f64::from(sample(&d.floats[&0xb8], phase)) * f64::from(record.factors[1])) as f32,
+            ],
+        }
+    }
+    pub fn set_transforms(&mut self, input: [Transform; 2], suppressed: bool) {
+        for (dst, src) in self.transforms.iter_mut().zip(input) {
+            let generation = dst.generation.wrapping_add(1);
+            *dst = Transform { generation, ..src };
+        }
+        if !suppressed && self.flags() & 0x1000 != 0 {
+            for dst in &mut self.transforms {
+                dst.translation = [0.; 3];
+                dst.flags |= 1;
+                dst.generation = dst.generation.wrapping_add(1);
+            }
+            self.working_box = self.emission_box;
+            self.previous_center = std::array::from_fn(|i| {
+                let sum = f64::from(self.working_box[0][i]) + f64::from(self.working_box[1][i]);
+                (if i == 0 { sum * 0.5 } else { f64::from(sum as f32) * 0.5 }) as f32
+            });
+        }
+        let [a, b] = self.transforms;
+        for i in 0..3 {
+            let row = b.rotation[i].map(f64::from);
+            let p = a.translation.map(f64::from);
+            let dot = (row[2] * p[2] + row[1] * p[1]) + row[0] * p[0];
+            let dot = if i == 2 { f64::from(dot as f32) } else { dot };
+            let scaled = dot * f64::from(b.scale);
+            let scaled = if i == 0 { f64::from(scaled as f32) } else { scaled };
+            let center = (scaled + f64::from(b.translation[i])) as f32;
+            let delta = f64::from(center) - f64::from(self.previous_center[i]);
+            let delta = if i == 0 { f64::from(delta as f32) } else { delta };
+            for bound in &mut self.working_box {
+                bound[i] = (f64::from(bound[i]) + delta) as f32;
+            }
+            self.previous_center[i] = center;
+        }
+        self.rotation = a.rotation;
+        self.translation = a.translation;
+        self.scale = a.scale;
+        self.inverse_rotation = b.rotation;
+        self.inverse_translation = b.translation;
+        self.inverse_scale = b.scale;
+    }
+    /// None delegates to the shared emitter parameters; false is an unknown ID.
+    pub fn set_float(&mut self, id: u32, v: &[f32]) -> Option<Result<bool, Unsupported>> {
+        match id {
+            0 => self.speed_scale = v[0],
+            1 => self.size_scales[0] = v[0],
+            3 => self.opacity_scale = v[0],
+            4 => self.parameter_colour.copy_from_slice(&v[..3]),
+            5 => return Some(Err(Unsupported::PT1)), // SPEC-GAP: slot 12 aim arithmetic needs the §13.2 capture.
+            9 => {
+                let sum = (f64::from(self.working_box[0][1]) + f64::from(self.working_box[1][1])) as f32;
+                let h = f64::from(sum) * 0.5 - f64::from(v[1]);
+                let q = 1. / f64::from(v[4]);
+                self.point[0] = (f64::from(v[0]) + h * f64::from(v[3]) * q) as f32;
+                for i in 1..3 {
+                    let product = (h * f64::from(v[i + 3])) as f32;
+                    let product = (f64::from(product) * f64::from(q as f32)) as f32;
+                    self.point[i] = (f64::from(product) + f64::from(v[i])) as f32;
+                }
+                self.point_scale = 1.;
+            }
+            10 => self.point.copy_from_slice(&v[..3]),
+            11 => self.point_scale = v[0],
+            15 => self.component_velocity.copy_from_slice(&v[..3]),
+            0x102 => {
+                self.size_scales[1] = v[1];
+                return None;
+            }
+            2 => return None,
+            _ => return Some(Ok(false)),
+        }
+        Some(Ok(true))
+    }
+    /// §13.3 pointer ID 7 does not acquire the supplied object.
+    pub fn set_pointer(&mut self, id: u32, mut box_query: impl FnMut() -> [[f32; 3]; 2]) -> bool {
+        if id != 7 {
+            return false;
+        }
+        if self.flags() & 0xc0 != 0 {
+            self.emission_box = box_query();
+            if self.flags() & 0x80 != 0 {
+                self.emission_box[1][1] = self.emission_box[0][1];
+            }
+        }
+        true
+    }
+}
+
+pub trait TerrainServices {
+    fn retain(&mut self, reference: u64);
+    fn release(&mut self, reference: u64);
+    fn cell_count_x(&mut self, terrain: u64) -> i32;
+    fn cell_count_z(&mut self, terrain: u64) -> i32;
+    fn cell_width(&mut self, terrain: u64) -> f64;
+}
+#[derive(Clone, Debug, Default)]
+pub struct NativeServices {
+    pub initialized: bool,
+    pub terrain: Option<u64>,
+    pub description: Option<u64>,
+    pub resource: Option<u64>,
+    pub extent: [f32; 2],
+}
+impl NativeServices {
+    pub fn init(&mut self, shared: u64, foreign: &mut impl TerrainServices) {
+        if self.initialized {
+            return;
+        }
+        if self.terrain != Some(shared) {
+            foreign.retain(shared);
+            if let Some(old) = self.terrain.replace(shared) {
+                foreign.release(old);
+            }
+        }
+        let x = foreign.cell_count_x(shared) as f32;
+        self.extent[0] = (f64::from(x) * foreign.cell_width(shared)) as f32;
+        let z = foreign.cell_count_z(shared) as f32;
+        self.extent[1] = (f64::from(z) * foreign.cell_width(shared)) as f32;
+        self.initialized = true;
+    }
+    /// Returns whether base shutdown must perform its immediate stop.
+    pub fn shutdown(&mut self, foreign: &mut impl TerrainServices) -> bool {
+        for reference in [&mut self.terrain, &mut self.description, &mut self.resource] {
+            if let Some(reference) = reference.take() {
+                foreign.release(reference);
+            }
+        }
+        std::mem::take(&mut self.initialized)
+    }
 }

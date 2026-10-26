@@ -249,6 +249,29 @@ fn run_update(d: &GrowthDeveloper) -> u32 {
     calls
 }
 
+#[test]
+fn stage_descent_stops_at_an_unordered_accumulator() {
+    use crate::curve::ResponseCurve;
+
+    // §5.5: NaN city size makes a multi-point stage curve return NaN.
+    let interpolated = ResponseCurve::from_points(&[(0.0, 10.0), (100.0, 20.0)]);
+    let mut items = vec![
+        GrowthItem {
+            x: 0,
+            z: 0,
+            max_stage: 1
+        };
+        3
+    ];
+    assign_stages(&mut items, &[interpolated.clone(), interpolated.clone()], f32::NAN);
+    assert!(items.iter().all(|it| it.max_stage == 2));
+
+    // A finite top stage can descend into NaN; it must then keep that stage.
+    let top = ResponseCurve::from_points(&[(0.0, 25.0)]);
+    assign_stages(&mut items, &[interpolated.clone(), interpolated, top], f32::NAN);
+    assert_eq!(items.iter().map(|it| it.max_stage).collect::<Vec<_>>(), [3, 2, 2]);
+}
+
 fn park(host: &Fake, values: &[(i32, i32, i16)]) {
     let g = SimGrid::<i16>::create(&host.grids.city, 0, 4);
     for &(x, z, v) in values {
