@@ -1018,7 +1018,10 @@ cFC4Observer& Observer() {
 }  // namespace
 
 void ObserverReload() { Observer().Reload(); }
-void ObserverStart() { Observer().Start(); }
+void ObserverStart() {
+    Observer().Start();
+    GDriverShadowStart();
+}
 void ObserverStop() { Observer().Stop(); }
 
 void ObserverTestSetCity(cISC4City* city) {

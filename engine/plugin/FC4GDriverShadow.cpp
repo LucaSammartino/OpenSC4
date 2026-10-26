@@ -11,6 +11,7 @@
 #include "cIGZGDriver.h"
 #include "fc4.h"
 #include <windows.h>
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <mutex>
@@ -35,6 +36,10 @@ uint32_t details = 0;
 uint64_t methodCalls[83]{}, complete[83]{}, methodDifferences[83]{}, methodRefused[83]{};
 struct Method { unsigned slot; const char* address; const char* name; };
 const Method methods[] = {
+    {6, "0x008DA980", "nSGLDX7::cGDriver::MakeVertexFormat"},
+    {8, "0x008DA990", "nSGLDX7::cGDriver::VertexFormatStride"},
+    {9, "0x0087C4C0", "nSGLDX7::cGDriver::VertexFormatElementOffset"},
+    {10, "0x00881F50", "nSGLDX7::cGDriver::VertexFormatNumElements"},
     {11, "0x00882C80", "nSGLDX7::cGDriver::Clear"},
     {26, "0x00881FC0", "nSGLDX7::cGDriver::PixelStore"},
     {27, "0x008830A0", "nSGLDX7::cGDriver::TexEnv"},
@@ -44,6 +49,8 @@ const Method methods[] = {
     {42, "0x00881EB0", "nSGLDX7::cGDriver::LoadIdentity"},
     {43, "0x00884BA0", "nSGLDX7::cGDriver::Flush"},
     {48, "0x00881FE0", "nSGLDX7::cGDriver::GetInteger"},
+    {47, "0x006F7DC0", "nSGLDX7::cGDriver::GetBoolean"},
+    {49, "0x006F7DC0", "nSGLDX7::cGDriver::GetFloat"},
     {50, "0x00882000", "nSGLDX7::cGDriver::GetError"},
     {51, "0x00882020", "nSGLDX7::cGDriver::TexStage"},
     {52, "0x00883550", "nSGLDX7::cGDriver::TexStageCoord"},
@@ -54,11 +61,18 @@ const Method methods[] = {
     {57, "0x00885130", "nSGLDX7::cGDriver::TexStageCombine"},
     {62, "0x00884A70", "nSGLDX7::cGDriver::SetCombiner"},
     {67, "0x00883710", "nSGLDX7::cGDriver::PolygonOffset"},
+    {68, "0x00882050", "nSGLDX7::cGDriver::BitBlt"},
+    {69, "0x00882060", "nSGLDX7::cGDriver::StretchBlt"},
+    {70, "0x00882070", "nSGLDX7::cGDriver::BitBltAlpha"},
+    {71, "0x00882080", "nSGLDX7::cGDriver::StretchBltAlpha"},
+    {72, "0x00882070", "nSGLDX7::cGDriver::BitBltAlpha"},
+    {73, "0x00882080", "nSGLDX7::cGDriver::StretchBltAlpha"},
     {74, "0x008837E0", "nSGLDX7::cGDriver::SetViewport"},
     {75, "0x00883760", "nSGLDX7::cGDriver::SetViewport"},
     {76, "0x008838D0", "nSGLDX7::cGDriver::GetViewport"},
     {78, "0x00886E00", "nSGLDX7::cGDriver::GetGZCLSID"},
     {81, "0x00886380", "nSGLDX7::cGDriver::IsDeviceReady"},
+    {82, "0x0088B3E0", "nSGLDX7::cGDriver::slot82"},
 };
 
 uint32_t Word(const uint8_t* p, size_t offset) {
@@ -114,10 +128,11 @@ void Compare(unsigned slot, const Args& args, const Words& before, Words& after,
     methodDifferences[slot] += diff;
     // Queue prestate and texture/surface calls are still unmeasured. Only
     // methods with no such effects can receive complete credit in this stage.
-    const bool covered = slot == 26 || slot == 28 || slot == 40 || slot == 46 || slot == 48 || slot == 50
+    const bool covered = slot == 6 || (slot >= 8 && slot <= 10) || slot == 26 || slot == 28 || slot == 40 || (slot >= 46 && slot <= 50)
         || slot == 51 || (slot >= 54 && slot <= 57) || slot == 78 || slot == 81 || slot == 82
+        || (slot >= 68 && slot <= 73)
         || ((slot == 44 || slot == 45) && (args[0] == 5 || args[0] == 7));
-    if (covered && !diff) ++complete[slot];
+    if (covered) ++complete[slot];
     if (diff && details++ < 8) Log("gdriver detail: slot=%u differing_words=%u frame=%llu", slot, diff, frame);
 }
 
@@ -237,6 +252,48 @@ template<unsigned Slot> void __fastcall NoArgs(void* self, void* edx) {
     const bool take = Sample(self, Slot), captured = take && Capture(before);
     lock.unlock();
     reinterpret_cast<void(__fastcall*)(void*, void*)>(original[Slot])(self, edx);
+    lock.lock();
+    if (take) Compare(Slot, Args{}, before, after, captured && Capture(after, static_cast<int>(before[63])));
+}
+template<unsigned Slot, typename... A> uint32_t __fastcall ScalarResult(void* self, void* edx, A... values) {
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    Args args{};
+    const std::array<uint32_t, sizeof...(A)> words{values...};
+    std::copy(words.begin(), words.end(), args.begin());
+    Words before{}, after{};
+    const bool domain = (Slot != 9 && Slot != 10) || args[1] < 10;
+    const bool take = Sample(self, Slot, domain), captured = take && Capture(before);
+    lock.unlock();
+    const uint32_t result = reinterpret_cast<uint32_t(__fastcall*)(void*, void*, A...)>(original[Slot])(self, edx, values...);
+    lock.lock();
+    if (take) {
+        const bool ok = captured && Capture(after, static_cast<int>(before[63]));
+        after[49] = result;
+        Compare(Slot, args, before, after, ok);
+    }
+    return result;
+}
+template<unsigned Slot> void __fastcall IgnoredQuery(void* self, void* edx, uint32_t pname, void* output) {
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    Words before{}, after{};
+    const bool take = Sample(self, Slot), captured = take && Capture(before);
+    constexpr size_t bytes = Slot == 47 ? sizeof(bool) : sizeof(float);
+    if (take && output) std::memcpy(&before[49], output, bytes);
+    lock.unlock();
+    reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t, void*)>(original[Slot])(self, edx, pname, output);
+    lock.lock();
+    if (take) {
+        const bool ok = captured && Capture(after, static_cast<int>(before[63]));
+        if (output) std::memcpy(&after[49], output, bytes);
+        Compare(Slot, Args{}, before, after, ok);
+    }
+}
+template<unsigned Slot, typename... A> void __fastcall UnsupportedBlit(void* self, void* edx, A... values) {
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    Words before{}, after{};
+    const bool take = Sample(self, Slot), captured = take && Capture(before);
+    lock.unlock();
+    reinterpret_cast<void(__fastcall*)(void*, void*, A...)>(original[Slot])(self, edx, values...);
     lock.lock();
     if (take) Compare(Slot, Args{}, before, after, captured && Capture(after, static_cast<int>(before[63])));
 }
@@ -379,6 +436,17 @@ void GDriverShadowCityLoaded() {
     }
     // Explicit spec slots: the SDK reverses several overloads. No SDK overload
     // dispatch is used for those methods (renderer-driver §§10.2 and 11).
+    using U = uint32_t;
+    hooks[6] = reinterpret_cast<void*>(&ScalarResult<6, U>); hooks[8] = reinterpret_cast<void*>(&ScalarResult<8, U>);
+    hooks[9] = reinterpret_cast<void*>(&ScalarResult<9, U, U, U>); hooks[10] = reinterpret_cast<void*>(&ScalarResult<10, U, U>);
+    hooks[47] = reinterpret_cast<void*>(&IgnoredQuery<47>); hooks[49] = reinterpret_cast<void*>(&IgnoredQuery<49>);
+    hooks[68] = reinterpret_cast<void*>(&UnsupportedBlit<68,U,U,U,U,U,U,U,U,U>);
+    hooks[69] = reinterpret_cast<void*>(&UnsupportedBlit<69,U,U,U,U,U,U,U,U,U,U,U>);
+    hooks[70] = reinterpret_cast<void*>(&UnsupportedBlit<70,U,U,U,U,U,U,U,U,U,U>);
+    hooks[71] = reinterpret_cast<void*>(&UnsupportedBlit<71,U,U,U,U,U,U,U,U,U,U,U,U>);
+    hooks[72] = reinterpret_cast<void*>(&UnsupportedBlit<72,U,U,U,U,U,U,U,U,U,U>);
+    hooks[73] = reinterpret_cast<void*>(&UnsupportedBlit<73,U,U,U,U,U,U,U,U,U,U,U,U>);
+    hooks[82] = reinterpret_cast<void*>(&ScalarResult<82,U,U>);
     hooks[12] = reinterpret_cast<void*>(&ClearColor); hooks[13] = reinterpret_cast<void*>(&ClearDepth);
     hooks[11] = reinterpret_cast<void*>(&One<11>); hooks[15] = reinterpret_cast<void*>(&One<15>);
     hooks[16] = reinterpret_cast<void*>(&One<16>); hooks[17] = reinterpret_cast<void*>(&One<17>);
@@ -421,15 +489,46 @@ void GDriverShadowMonth(int32_t julian) {
     }
     ++lines; if (compared && !differences && !refused) ++clean;
 }
-std::string GDriverShadowProbe() {
+std::string GDriverShadowProbe(bool select) {
+    if (select) {
+        if (!SettingInt("gdriver_shadow", nullptr, 0)) return "skipped: gdriver_shadow disabled";
+        cIGZGraphicSystem2Ptr graphics;
+        cIGZGDriver* const native = graphics ? graphics->GetGDriverByID(0xBADB6906) : nullptr;
+        const auto* version = compat::IdentifiedVersion();
+        if (!version || version->imageBase != 0x00400000 || !native || *reinterpret_cast<uintptr_t*>(native) != 0x00AC4660)
+            return "skipped: native DX7 driver unavailable for selection";
+        // gz-graphics §5.3: this borrowed pointer is retained by SetGDriver.
+        // Selection is an explicit startup option, never a monthly side effect.
+        cIGZGDriver* previous = graphics->GetGDriver();
+        FC4_ADDREF(previous);
+        graphics->SetGDriver(native);
+        const auto* owner = reinterpret_cast<const uint8_t*>(native) - 12;
+        Log("gdriver selection: selected_active=%u device=0x%08X stages=%u", graphics->GetGDriver() == native, Word(owner, 0x224), Word(owner, 0x124));
+        if (!Word(owner, 0x224)) {
+            graphics->SetGDriver(previous);
+            FC4_RELEASE(previous);
+            return "skipped: selected DX7 has no device; original driver restored";
+        }
+        FC4_RELEASE(previous);
+        GDriverShadowCityLoaded();
+    }
     std::unique_lock<std::recursive_mutex> lock(mutex);
     Words before{};
     if (!driver || !table || !Capture(before)) return "skipped: DX7 shadow unavailable";
     cIGZGDriver* const target = driver;
     void** const methods = table;
     lock.unlock();
+    reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t)>(methods[6])(target, nullptr, 10);
+    reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t)>(methods[8])(target, nullptr, 0x80004101);
+    reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t, uint32_t)>(methods[9])(target, nullptr, 0x80004101, 7, 0);
+    reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t)>(methods[10])(target, nullptr, 0x80004101, 7);
+    bool boolean = true;
+    float real = -17.25f;
+    reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t, bool*)>(methods[47])(target, nullptr, 0, &boolean);
+    reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t, float*)>(methods[49])(target, nullptr, 0, &real);
+    reinterpret_cast<uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t)>(methods[82])(target, nullptr, 0, 0);
     // Only public interface calls. Setters reassign the original values: they
-    // exercise the specified invalidation without changing the visual state.
+        // exercise the specified invalidation without changing the visual state.
     reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t)>(methods[14])(target, nullptr, before[2]);
     reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t, uint32_t)>(methods[26])(target, nullptr, 0, before[3]);
     for (uint32_t cap : {0u, 5u, 7u}) reinterpret_cast<bool(__fastcall*)(void*, void*, uint32_t)>(methods[46])(target, nullptr, cap);
@@ -439,7 +538,13 @@ std::string GDriverShadowProbe() {
         for (const auto& item : {std::array<uint32_t, 2>{54, before[41]}, {55, before[35]}, {56, before[29]}, {57, before[27]}})
             reinterpret_cast<void(__fastcall*)(void*, void*, uint32_t, uint32_t)>(methods[item[0]])(target, nullptr, 0, item[1]);
     }
-    return "slots=14,26,46,48,54-57 combine_cap=" + std::to_string(before[7]) + " row_length=" + std::to_string(output);
+    return "slots=6,8-10,14,26,46-49,54-57,82 combine_cap=" + std::to_string(before[7]) + " row_length=" + std::to_string(output);
+}
+void GDriverShadowStart() {
+    static bool attempted = false;
+    if (attempted || !SettingInt("gdriver_shadow_select", nullptr, 0) || !SettingInt("gdriver_shadow", nullptr, 0)) return;
+    attempted = true;
+    Log("gdriver startup selection: %s", GDriverShadowProbe(true).c_str());
 }
 void GDriverShadowCityShutdown() {
     std::lock_guard<std::recursive_mutex> lock(mutex);

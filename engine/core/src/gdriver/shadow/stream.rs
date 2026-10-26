@@ -224,6 +224,41 @@ mod tests {
         }
     }
     #[test]
+    fn pure_forwards_and_unsupported_blits_compare_returns_errors_and_empty_streams() {
+        let pre = pre();
+        let mut args = [0; 20];
+        for (slot, input, kind, index, output) in [
+            (6, 10, 0, 0, 0x8000_4101),
+            (8, 0x8000_4101, 0, 0, 24),
+            (9, 0x8000_4101, 7, 0, 16),
+            (10, 0x8000_4101, 7, 0, 1),
+            (82, 0, 0, 0, 0),
+        ] {
+            args[..3].copy_from_slice(&[input, kind, index]);
+            let mut post = pre;
+            post[49] = output;
+            assert_eq!(compare(slot, &args, &pre, &post, &[]), Some(0));
+            post[49] ^= 1;
+            assert!(compare(slot, &args, &pre, &post, &[]).unwrap() > 0);
+            post[49] ^= 1;
+            assert!(compare(slot, &args, &pre, &post, &[state(15, 1, 0)]).unwrap() > 0);
+        }
+        for slot in 68..=73 {
+            let mut post = pre;
+            post[43] = 3;
+            assert_eq!(compare(slot, &args, &pre, &post, &[]), Some(0));
+            assert!(compare(slot, &args, &pre, &pre, &[]).unwrap() > 0);
+        }
+        for slot in [47, 49] {
+            let mut pre = pre;
+            pre[49] = 0x7fc0_1234;
+            let mut post = pre;
+            assert_eq!(compare(slot, &args, &pre, &post, &[]), Some(0));
+            post[49] ^= 1;
+            assert!(compare(slot, &args, &pre, &post, &[]).unwrap() > 0);
+        }
+    }
+    #[test]
     fn compares_transform_bits_and_supplies_native_viewport_to_projection() {
         let mut pre = pre();
         pre[4] = 1;

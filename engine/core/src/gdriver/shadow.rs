@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Bounded, isolated native transition replay. The pre-call snapshot is an input;
 //! the strict stream backend additionally checks sampled device outputs.
-use super::{backend::*, stage::Stage, Driver};
+use super::{backend::*, stage::Stage, vertex, Driver};
 use crate::gdrivers_director::{Allocation, Host, Op};
 
 pub mod stream;
@@ -109,6 +109,15 @@ fn replay(
     }
     let mut expected = *before;
     let range = match slot {
+        6 | 8..=10 => {
+            expected[49] = match slot {
+                6 => vertex::pack(args[0]),
+                8 => vertex::stride(args[0]),
+                9 => vertex::offset(args[0], args[1] as usize, args[2]).ok()?,
+                _ => vertex::elements(args[0], args[1] as usize).ok()?,
+            };
+            49..50
+        }
         12 | 14 => {
             d.state(slot as u8, args, host).ok()?;
             expected[0] = d.clear_color;
@@ -208,6 +217,10 @@ fn replay(
             0..0
         }
         47 | 49 => 0..0,
+        68..=73 => {
+            d.blit_unsupported();
+            0..0
+        }
         50 => {
             expected[49] = d.get_error();
             0..0
