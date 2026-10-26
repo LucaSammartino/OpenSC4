@@ -14,11 +14,12 @@ compared properties agree. The same two value pairs recur in
 `build-runs/suite/maps-cities30-4/maxisland-west-weburg.log:6301`, 2197-05-05.
 
 For each of those two plants, return the same-call numeric tuple:
-`(wear_before_bits, rate_bits, capacity, efficiency_bits, used, effCap,
+`(x87_control_word_u16, wear_before_bits, rate_bits, capacity, efficiency_bits, used, effCap,
 usage_bits, usage_curve_bits, department_funding_bits, funding_curve_bits,
 curve_product_bits, age_increment_bits, wear_after_bits)`.
 Here `curve_product` is the product of the two curve results and
 `age_increment` includes the rate. Use uint32 hex for all f32 bit patterns
-and signed decimal for capacity, used and effCap; identify each tuple by
+and uint16 hex for the entry control word. Use signed decimal for capacity,
+used and effCap; identify each tuple by
 its observed wear_after value above. No addresses or implementation are
 requested. No tolerance or comparison change was made.

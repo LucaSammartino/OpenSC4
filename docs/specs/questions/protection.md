@@ -19,7 +19,8 @@ For each sample above, return a numeric tuple for its first differing cell:
 int16_after_last_UpdateUnadjusted, int16_at_sample)`.
 For the last rebuild, also return each station's input tuple in list order:
 `(tract_x, tract_z, radius_in_tracts_f32_bits, centre_f32_bits, outer_f32_bits)`
-and the cone contribution at that cell as an int16. Use uint32 hex for f32
+and the cone contribution at that cell as an int16. Return the x87 control
+word at rebuild entry as uint16 hex. Use uint32 hex for f32
 bits and decimal for integers; if no rebuild ran, return count 0 and omit
 its tuples. For Lamburg Villa use the first cell listed in the cited file.
 
