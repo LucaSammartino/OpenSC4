@@ -46,6 +46,7 @@
 #endif
 #include <windows.h>
 
+#include <cstring>
 #include <vector>
 
 namespace fc4 {
@@ -56,7 +57,9 @@ constexpr uint32_t kIID_cIGZMessageTarget2 = 0x452294AA;
 constexpr uint32_t kMsgLandValueMapChanged = 0x87CC75B3;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
-constexpr uint32_t kMessages[] = {kMsgLandValueMapChanged, kMsgSimNewDay, kMsgPostCityShutdown};
+constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
+constexpr uint32_t kMessages[] = {kMsgLandValueMapChanged, kMsgSimNewDay, kMsgPostCityShutdown,
+                                 kMsgPostCityInit};
 constexpr uint16_t kRecordVersion = 1;  // landvalue.md §10
 constexpr long kDefaultCells = 4;
 constexpr long kMaxCells = 64;
@@ -74,6 +77,9 @@ bool g_started = false;
 bool g_traceInputs = false;
 bool g_inputDay = false;
 uint32_t g_inputAltitudeReads = 0;
+std::vector<float> g_observedSlopes, g_observedAltitudes;
+bool g_observedInputChange = false;
+uint32_t g_observedChangedInputPasses = 0;
 
 bool g_loggedOurs = false;
 bool g_loggedNone = false;
@@ -270,6 +276,10 @@ void DropShadow() {
     g_shadow = nullptr;
     g_shadowCity = nullptr;
     g_shadowSim = nullptr;
+    g_observedSlopes.clear();
+    g_observedAltitudes.clear();
+    g_observedInputChange = false;
+    g_observedChangedInputPasses = 0;
 }
 
 struct CreateCtx {
@@ -374,6 +384,57 @@ void ReadOriginal(cISC4LandValueSimulator* lv, OrigRead& r) {
     r.o.types = r.types.empty() ? nullptr : r.types.data();
 }
 
+// Diagnostic samples only: neither a native Step boundary nor a replay source
+// (landvalue.md sections 6.1.5-6). Include city init so edits during pass 1 are visible.
+void TraceInputObservation(cISC4LandValueSimulator* lv, const char* event, bool passEnd) {
+    cISTETerrain* terrain = Terrain();
+    cISC4BuildingDevelopmentSimulator* bds = Bds();
+    cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr; // borrowed
+    GridF32* slope = lv->GetSlopeMap();
+    GridU8* intrinsic = lv->GetIntrinsicLandValueMap();
+    if (!terrain || !ld || !slope || !intrinsic) return;
+    std::vector<float> slopes, altitudes;
+    uint32_t slopeDiffs = 0;
+    const int32_t sx = slope->GetTractCountX(), sz = slope->GetTractCountZ();
+    const int32_t nx = intrinsic->GetTractCountX(), nz = intrinsic->GetTractCountZ();
+    if (sx <= 0 || sz <= 0 || nx <= 0 || nz <= 0 || sx > 512 || sz > 512 || nx > 4096 || nz > 4096) return;
+    for (int32_t x = 0; x < sx; ++x) {
+        for (int32_t z = 0; z < sz; ++z) {
+            const float live = ld->GetAreaSlope(SC4Rect<int32_t>(x * 8, z * 8, x * 8 + 7, z * 8 + 7), true);
+            const float published = slope->GetTractValue(x, z);
+            if (std::memcmp(&live, &published, sizeof(float)) != 0) ++slopeDiffs;
+            slopes.push_back(live);
+        }
+    }
+    for (int32_t x = 0; x < nx; ++x) {
+        for (int32_t z = 0; z < nz; ++z) {
+            altitudes.push_back(terrain->GetAltitude((x + 0.5f) * intrinsic->GetTractWidthX(),
+                                                    (z + 0.5f) * intrinsic->GetTractWidthZ()));
+        }
+    }
+    const auto changed = [](const std::vector<float>& before, const std::vector<float>& after) {
+        uint32_t n = 0;
+        if (before.size() == after.size()) {
+            for (size_t i = 0; i < after.size(); ++i) {
+                if (std::memcmp(&before[i], &after[i], sizeof(float)) != 0) ++n;
+            }
+        }
+        return n;
+    };
+    const uint32_t slopesChanged = changed(g_observedSlopes, slopes);
+    const uint32_t altitudesChanged = changed(g_observedAltitudes, altitudes);
+    g_observedInputChange = g_observedInputChange || slopesChanged != 0 || altitudesChanged != 0;
+    if (passEnd && g_observedInputChange) ++g_observedChangedInputPasses;
+    Log("landvalue input observation julian=%ld event=%s slope_changes=%u altitude_changes=%u "
+        "published_vs_live_slopes=%u slope(0,0)_published/live=%.9g/%.9g "
+        "observed_changed_input_passes=%u input_capture=pass-end-sample native_step_capture=0",
+        PublishedJulian(), event, slopesChanged, altitudesChanged, slopeDiffs,
+        slope->GetTractValue(0, 0), slopes.front(), g_observedChangedInputPasses);
+    g_observedSlopes.swap(slopes);
+    g_observedAltitudes.swap(altitudes);
+    if (passEnd) g_observedInputChange = false;
+}
+
 void Sink(void*, const uint8_t* data, size_t len) { LogShadowLine("landvalue shadow (cont.)", data, len); }
 
 // ---- one event (SehGuard's context) --------------------------------------------------------------
@@ -382,13 +443,20 @@ struct Run {
     cISC4LandValueSimulator* sim = nullptr;
     int32_t julian = 0;
     bool day = false;
+    bool observeOnly = false;
     bool done = false;
     intptr_t result = -1;
 };
 Run g_run;
 
 void Step(void*) {
-    if (g_run.day) {
+    if (g_traceInputs) {
+        TraceInputObservation(g_run.sim, g_run.observeOnly ? "city-init" : g_run.day ? "day" : "pass-end",
+                              !g_run.day && !g_run.observeOnly);
+    }
+    if (g_run.observeOnly) {
+        g_run.result = 0;
+    } else if (g_run.day) {
         g_run.result = static_cast<intptr_t>(fc4_landvalue_shadow_note_day(g_shadow));
     } else {
         OrigRead r;
@@ -398,7 +466,7 @@ void Step(void*) {
     g_run.done = true;
 }
 
-intptr_t OnEvent(cISC4City* city, int32_t julian, bool day) {
+intptr_t OnEvent(cISC4City* city, int32_t julian, bool day, bool observeOnly = false) {
     cISC4LandValueSimulator* sim = OriginalOf(city);
     if (sim == nullptr) return -1;
     g_city = city;
@@ -410,9 +478,10 @@ intptr_t OnEvent(cISC4City* city, int32_t julian, bool day) {
     g_run.sim = sim;
     g_run.julian = julian;
     g_run.day = day;
+    g_run.observeOnly = observeOnly;
     g_inputDay = day;
     g_inputAltitudeReads = 0;
-    if (g_traceInputs && day) {
+    if (g_traceInputs && day && !observeOnly) {
         cISTETerrain* terrain = Terrain();
         cISC4BuildingDevelopmentSimulator* bds = Bds();
         cISC4LotDeveloper* ld = bds ? bds->GetLotDeveloper() : nullptr;  // borrowed
@@ -456,6 +525,8 @@ intptr_t Dispatch(uint32_t type, cISC4City* city, int32_t julian) {
         case kMsgPostCityShutdown:
             DropShadow();
             return 0;
+        case kMsgPostCityInit:
+            return g_traceInputs ? OnEvent(city, julian, true, true) : 0;
         default:
             return -1;
     }
