@@ -49,6 +49,7 @@
 #include "FC4TerrainShadow.h"  // the glue16 lane
 #include "FC4CitySitShadow.h"     // the glue17 lane
 #include "FC4DemolitionShadow.h"  // the glue17 lane
+#include "FC4DemolitionHost.h"
 #include "FC4DispatchShadow.h"    // the glue17 lane
 #include "cFC4Terrain.h"        // the glue18 lane
 #include "FC4Popups.h"
@@ -309,6 +310,10 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             case 4: return FC4NetOccRemovePoleConnection(t.first, t.second, t.value != 0);
             default: return 0;
             }
+        }
+        case kFC4SeamDemolitionLotBuilding: {
+            const auto host = fc4::MakeDemolitionHost(nullptr);
+            return static_cast<intptr_t>(host.lot_building(nullptr, reinterpret_cast<uintptr_t>(a)));
         }
         default:
             return 0;

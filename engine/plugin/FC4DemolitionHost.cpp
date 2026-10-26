@@ -774,7 +774,10 @@ void LotsInCellRect(void* u, const fc4_cell_rect* r, fc4_token_callback cb, void
 
 uint64_t LotBuilding(void*, uint64_t t) {
     cISC4Lot* l = Lot(t);
-    return l != nullptr ? TokenOf(fc4::AsGame(l)->GetBuilding()) : 0;  // slot 48, borrowed
+    // Lot slot 48 returns the building interface, not its occupant subobject.
+    // Occupant tokens must use building slot 3 (SDK AsOccupant); both are borrowed.
+    cISC4BuildingOccupant* b = l != nullptr ? fc4::AsGame(l)->GetBuilding() : nullptr;
+    return b != nullptr ? TokenOf(b->AsOccupant()) : 0;
 }
 
 uint32_t LotState(void*, uint64_t t) {
