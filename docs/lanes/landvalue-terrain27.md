@@ -1,19 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| landvalue-terrain27 (engine): terrain edits | Codex / landvalue-terrain27 / reserved branch landvalue-terrain27 (detached HEAD) | blocked; commits 17fb01f02, 6fdc0541d, ea650db78; ABI/seam exports unchanged; quick cargo 648/648, build PASS; game clean/ref0 but shadow nonexact; LV10 filed | 1. Resolve LV10/LV9 host/refresh contract. 2. Complete all gate. 3. Require repro, both gen27 targets and house acceptance before ready. |
+| landvalue-terrain27 (engine): terrain edits | Codex / landvalue-terrain27 / detached HEAD | wip; all gate PASS; edited shadows nonexact | Supply eligible native capture host, reproduce house baseline, rerun acceptance. |
 
-- Minimal repro added to suite.tsv: engine/tests/scenarios/scripts/lv-terrain27.script, four first-month terrain edits and two month ends.
-- Repro exact criterion FAIL: lvterrain27-repro-base1 clean/ref0, 3/4 exact; March6 intrinsic 930/4096, total 637/4096 differ, max45; April pass exact. Evidence: MAIN/build-runs/game-results/lvterrain27-repro-base1.log:4235 and :4351; matching .verdict.
-- Input probe measured: lvterrain27-repro-inputs1 clean/ref0, 1/4 exact. January29->30 vertex(57,61) 228.07106->270, slope(7,7) 8.65548706->13.0744085. Evidence: MAIN/build-runs/game-results/lvterrain27-repro-inputs1.log:1928 and :1948; matching .verdict.
-- February6 probe mean orig/ours 270.02023/270.02063; earlier day3/10 diagnostic reproduces intrinsic/mode/mean/total exactly, without comparison credit. Evidence: same input-probe log:3725. Native capture remains 0.
-- Differing repro corner altitude(1,1) was 272.988159 before February19 and 0 after; the March6 replay reads 0 twice. Evidence: same input-probe log:3868, :3881, :4559, :4564. Samples identify our reads, not the original's native state boundaries.
-- Rust behavior fix NOT made: sections2/5/6.1 already require the implemented live per-state reads and dirty-only terrain notification. Supported native capture is still gated by section6.1.4/LV9. LV10 asks whether another refresh is required: docs/specs/questions/landvalue.md:49.
-- Unit test added with measured altitude/slope inputs: terrain_edit_between_statistics_and_intrinsic_keeps_each_states_inputs, including next-month statistics refresh; engine/capi/src/landvalue_tests.rs.
-- gen27 Konradshohe s0-default exact criterion NOT VERIFIED; s0-edge exact criterion NOT VERIFIED; no generated-scenario reruns after the spec dependency was identified.
-- House 73/73 unchanged criterion NOT VERIFIED; no house rerun or fidelity credit claimed.
-- Latest quick PASS: cargo fc4-capi 648 passed/0 failed, build 47/47 edges; build-runs/build-results/qbuild-20261025-235432-quick.verdict. Earlier quick also passed.
-- Full gate NOT GREEN: first attempt canceled before final probe correction; final-source attempt canceled while compiling Rust crates, no test verdict; clippy and CTest not reached. Evidence: build-runs/qbuild-test.log. Neither incomplete attempt is passing evidence.
-- Standalone focused cargo attempt also canceled during compilation; q.py invocation failed with Windows signal-pipe error (build-runs/q/20261025-233253-24004.log). No extra passing credit.
-- fmt check reports differences in landvalue_tests.rs (first at existing line42); no broad reformat applied.
-- MAIN = C:/Users/tlori/FreeCity4. All game requests used its shared queue; no request remains outstanding. WIP merge packet only; no ready enqueue.
-- Next: resolve LV10/LV9 before changing behavior or selecting historical inputs; complete validation and all acceptance runs after an approved implementation path exists.
+- Paths: WT is this worktree; M = C:/Users/tlori/FreeCity4; game logs below are M/build-runs/game-results; each has its matching .verdict.
+- Code e3769bece/21391f696: state 3 checks land before altitude and stores mean before fallback; progress decoder retains both scans' extrema contributions. No added terrain-change refresh (spec 6.1.6).
+- Controlled tests PASS: four terrain/edit/slice/month/fallback tests, two recorded-output tests, all 16 landvalue vectors including new lv16_35. WT/build-runs/qbuild-test.log:251, :666, :1759.
+- Repro/suite criterion implemented: lv-terrain27.script preserves all four terrain edits and two month ends; suite.tsv now registers it.
+- Repro exact FAIL: lvterrain27-r4-repro2 clean/ref0, 3/4 exact. February6 intrinsic/total each 1 cell, max2; mean/mode/slope exact. Log :3827; final sample :4329.
+- gen27 s0-default exact FAIL: lvterrain27-r4-default2 19/23 exact, corrupt/ref0; verdict foreign_exceptions=1; stopped before requested 2028-01-28. Log :1899, :10206, :17553; no clean acceptance credit.
+- gen27 s0-edge exact FAIL: lvterrain27-r4-edge1 clean/ref0, 23/27 exact. March6 intrinsic129/total101, slope1; April6 intrinsic1802/total1336, slope1. Log :4021, :4167; final sample :7314.
+- House 73/73 unchanged NOT VERIFIED: lvterrain27-r4-house1 stalled/ref0, 0/2 exact; watchdog_stalls=1 at 2026-03-01. Log :1902, :3568, :3786. This incomplete focused control does not replace the supplied baseline.
+- Final DLL SHA256 prefix 88a41abf: repro2/default2/edge1/house1 verdicts identify it. No native capture or output-exact edited scenario claimed.
+- Earlier artifact 35b1cc03: repro1 clean/ref0 2/4; default1 corrupt/ref0 16/22. Their r4 logs/verdicts are superseded for final-source acceptance; requests were submitted before the corrected all gate completed.
+- Preserved input probe: lvterrain27-repro-inputs1.log:1928/:1948 shows vertex(57,61) 228.07106->270 and slope(7,7) 8.65548706->13.0744085 across January30. Corner(1,1) 272.988159->0 after February19 (:3868/:3881); these are observer/replay reads.
+- Remaining limitation is specified by 6.1.5/6.1.6: pass-end samples cannot recover retained per-state/per-cell inputs; dirty notifications do not freeze inputs or restart work. Native host admission/exclusion is absent; input_capture=pass-end-sample/native_step_capture=0 remains explicit.
+- Diagnostic earlier-day matches in repro/default/edge logs are not passing comparisons. No cell-level native read attribution, historical-input substitution, relaxed tolerance or extra refresh was added.
+- Full gate PASS after import fix: 7856 Rust tests, clippy 0 diagnostics, native build99/99, CTest118/118. WT/build-runs/qbuild-test.log, qbuild-clippy.log, build-results/qbuild-20261026-023010-build-ctest.verdict.
+- Initial all attempt failed missing CityCells import; 21391f696 fixes it and both recording tests pass. Initial native118/118 alone was not a passing all gate; older canceled attempts remain incomplete.
+- fmt PASS for five owned Rust files; no ABI export changes. No new questions: LV9/LV10 now answered; actual host integration and LV2/LV7 runtime capture remain outstanding.
+- All requests used M's shared queue; none outstanding. WIP packet only, no ready enqueue or fidelity credit.
+- Next: provide spec 6.1.5's eligible host and actual delivery records (including both fallback scans and developer maps); recover the original house-control request/profile, then rerun repro/default/edge and verify house73/73 before enqueue.
