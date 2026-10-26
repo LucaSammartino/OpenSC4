@@ -1,6 +1,28 @@
 # Native lot configuration editor answered questions
 
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE13 — Selected-object popup remainder and add/select wrappers**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §31 completes types 3/5, one-or-no detail marker, all 20 edge keys/labels, add-mode clear/accept/cancel behavior and texture wrapper, with worked cases and named closure rows. Dialog implementation is §29, not inferred from dispatch.
+
+Resolve 0x00487B30 types 3/5, exact detail markers, edge table 0x00A8E6C8
+and add/select wrappers still marked non-C in the inventory companion.
+Separate command effects from dialog implementations. Foundation/outside
+popups are §26.2, including their differing confirmation result IDs.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4/LE7 -->
+**LE14 — Shared grid sort/search semantics and selector name fallbacks**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §32 resolves primary-grid slot targets, ascending/descending CRT collation, texture comparator, half-open search ranges/counts and exact-match flag; chooser row zero is searchable. Family/individual fallback rules, worked cases and selector/chooser closure mapping are included.
+
+Establish direction/collation for grid +0x20C and flag/range meaning for
++0x214 in selector/chooser calls. Determine whether row zero can match;
+raw start arguments are not a semantic exclusion. Resolve name-helper
+fallbacks for selectors 0x004827D0, 0x004832E0, 0x00482DC0 and 0x0047CC30.
+Callback dispatch, prop letter-search byte handling and raw arguments are
+already specified. Malformed hex parsing remains RZAtoUint32HexA.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
 **LE11 — Retaining-wall and foundation selector bodies**
 
 **ANSWERED 2026-10-26 (re-le30):** MATCHES — §29 specifies unfiltered enumeration, two-column rows, preselection, selection capacities, empty OK writes, return values and lifetime/failure order, with worked wall/foundation cases and both selector closure rows.

@@ -4,24 +4,6 @@ LE3/LE4/LE5/LE7 are archived with measured partial answers. LE9–LE18 replace
 their unresolved scope; retiring the broad entries does not close the owner.
 LE6/LE8 remain answered and are not reopened.
 
-<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
-**LE13 — Selected-object popup remainder and add/select wrappers**
-
-Resolve 0x00487B30 types 3/5, exact detail markers, edge table 0x00A8E6C8
-and add/select wrappers still marked non-C in the inventory companion.
-Separate command effects from dialog implementations. Foundation/outside
-popups are §26.2, including their differing confirmation result IDs.
-
-<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4/LE7 -->
-**LE14 — Shared grid sort/search semantics and selector name fallbacks**
-
-Establish direction/collation for grid +0x20C and flag/range meaning for
-+0x214 in selector/chooser calls. Determine whether row zero can match;
-raw start arguments are not a semantic exclusion. Resolve name-helper
-fallbacks for selectors 0x004827D0, 0x004832E0, 0x00482DC0 and 0x0047CC30.
-Callback dispatch, prop letter-search byte handling and raw arguments are
-already specified. Malformed hex parsing remains RZAtoUint32HexA.
-
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
 **LE15 — Static family resources and PostInit view/alpha setup**
 

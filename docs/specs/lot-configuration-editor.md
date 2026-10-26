@@ -1414,6 +1414,186 @@ yield zero (§28), rather than silently forcing a one-tile lot.
 Closure mapping: SetLotSize `0x00486080` and the arithmetic dependency of
 DoSetLotSizeUI `0x00486BA0` (LE4); the wrapper itself remains §16.1.
 
+## 31. Selected-object popup remainder and add wrappers (LE13) *[compat]*
+
+This completes §3's remainder, separating dispatch from §29's dialogs.
+Type 3 offers row 0 `---`, row 1 `Help... (F1)`; only row 1 invokes help with
+page 3 (`0x00488AC9..0x00488B39`). It does not invoke the foundation selector.
+Type 5 offers row 0 `---`, row 1 `Docking constraint off` if its payload vector
+is empty or word zero is zero, otherwise `Docking constraint on`. Row 1 ensures
+one zero word exists when empty, then replaces word zero by 1 when zero, 0
+otherwise. No other payload word changes. This branch has no dirty, title,
+draw, invalidate or bounds-update call. Cancel, separator and unknown choices
+do nothing. Both branches restore focus after the popup before dispatch.
+
+For props, base textures and flora, the three labels are exactly `Enable in
+Low City Detail`, `Enable in Medium City Detail`, `Enable in High City Detail`,
+with suffix ` <-- Current` on the following rows only:
+
+| Existing flag byte AND `0x30` | Current suffix |
+|---|---|
+| `0x00` | Low only |
+| `0x10` | Medium only |
+| `0x20` | High only |
+| `0x30` | None |
+
+The jumps into shared label-construction blocks do not produce two markers
+(`0x00488380..0x00488439`; corresponding flora/base-texture blocks in the same
+body). §3's write rules still apply; labels do not broaden their side effects.
+
+The network-edge table is 20 consecutive 8-byte key/name pairs beginning at
+`0x00A8E6C8`. Each submenu row is formatted `%08lx: %s`; indices outside 0–19
+do not write. The selected key replaces payload word 1 for minimal edges,
+word 2 for maximal edges. Exact native labels and keys are:
+
+| Row | Key | Label |
+|---:|---|---|
+| 0 | `00000000` | parking lot |
+| 1 | `00000200` | south |
+| 2 | `02000000` | north |
+| 3 | `00000002` | east |
+| 4 | `00020000` | west |
+| 5 | `00020200` | south-west 90 |
+| 6 | `02020000` | north-west 90 |
+| 7 | `02000002` | north-east 90 |
+| 8 | `00000202` | south-east 90 |
+| 9 | `02000200` | north-south (vertical) |
+| 10 | `00020002` | east-west (horizontal) |
+| 11 | `00020202` | SEW tee |
+| 12 | `02000202` | NSE tee |
+| 13 | `02020002` | NEW tee |
+| 14 | `02020200` | NSW tee |
+| 15 | `02020202` | 4-way intersection |
+| 16 | `02040200` | NS west side (ave/hwy) |
+| 17 | `02000204` | NS east side (ave/hwy) |
+| 18 | `04020002` | EW north side (ave/hwy) |
+| 19 | `00020402` | EW south side (ave/hwy) |
+
+### 31.1 Add-mode and texture-selection wrappers
+
+The four add wrappers do nothing when already in their requested mode.
+Otherwise they **clear** the remembered ID vector at editor `+0x1A0` by moving
+its end to its begin, then invoke their selector with that vector as output
+and a null preselection. They are not copying a saved selection from another
+field. Only accepted, nonempty output changes mode and installs the indicated
+cursor with option true (`0x00483920..0x00483B11`):
+
+| Wrapper | Selector | Mode / cursor field |
+|---|---|---|
+| DoAddNewBuilding `0x00483920` | Building families | 1 / `+0x144` |
+| DoAddNewFlora `0x004839A0` | Flora families | 2 / `+0x148` |
+| DoAddNewProp `0x00483A20` | Prop families; forwards its two inclusion arguments | 3 / `+0x14C` |
+| DoAddNewLotBaseTexture `0x00483AA0` | Lot base textures | 5 / `+0x158` |
+
+Cancellation/empty OK leaves mode/cursor unchanged, but the clear has already
+happened. No wrapper creates a lot object, dirties or redraws the lot.
+DoSelectLotBaseTexturesUI (`0x004838C0`) calls texture enumeration, invokes
+DoSelectTexturesUI with its output/preselection arguments and comparator
+`0x0047B050`, frees the local temporary vector and returns the selector's
+Boolean. Its comparator is specified in §32.
+
+Worked cases: mode 0 with remembered IDs `[0x10]`, cancelling Add Building
+leaves mode 0 and remembered IDs empty; accepting `[0x20]` enters mode 1 with
+the building cursor. Calling Add Building again in mode 1 shows no dialog and
+does not clear `[0x20]`. A type-5 empty payload, row 1, becomes `[1]` without
+changing dirty; selecting row 1 again gives `[0]`. Minimal-edge row 18 writes
+`0x04020002` to word 1, preserving words 0 and 2 and dirty.
+
+Closure mapping: remaining LE4 portion of DoLotConfigurationObjectMenu
+`0x00487B30`, DoSelectLotBaseTexturesUI `0x004838C0`, all four add wrappers
+in the table, and comparator `0x0047B050` with §32.
+
+## 32. Grid sort/search and selector names (LE14) *[compat]*
+
+Resolve slots against the **grid IID's primary interface**, not its base-window
+subobject: primary table `0x00ADD578` has `+0x20C` = SortColumn `0x009ACED6`
+and `+0x214` = text search `0x009A9892`. The exported window-subobject table
+`0x00ADD7B0` has unrelated methods at those offsets. Grid QueryInterface
+`0x009A5CB5` returns the primary pointer for IID `0xDAA6B9BE`.
+
+### 32.1 Sorting
+
+SortColumn arguments are column, direction, move-whole-rows, comparator.
+Direction zero is ascending; nonzero reverses comparator argument order for
+descending. A nonzero third argument permutes all columns together, preserving
+row association and remapping the selected cells, rather than sorting just
+the indicated column's text (`0x009ACED6..0x009AD1E7`). Thus initial selector
+`(0,0,1,0)` sorts ascending IDs as text, moving names/images with them; holding
+Control or Shift at a selector sort button requests descending order. It is
+not a repeated-click direction toggle.
+
+With comparator null, only two text cells (type 2) with non-null text storage
+are compared; the result is CRT `__stricmp` on their NUL-terminated byte
+strings. Other pairs compare equal. This is case-insensitive text collation,
+without numeric parsing/natural-number ordering (`0x009A6E59..0x009A6E8F`).
+The direction adapter tests the callback result as signed-less-than zero
+(`0x009A8888..0x009A88C3`). Equal text has no ID/row-number secondary key.
+For the ASCII ID format of §12, lexicographic and unsigned numerical order
+coincide because all IDs have the same prefix and eight-digit width.
+
+Base textures use `0x0047B050`: parse both cell texts as hex, compare
+`ID AND 0xF000` first by signed subtraction (range −61440..61440), then compare
+the full IDs unsigned. First ID less than second returns −1, greater returns
++1. **Equal IDs also return −1**, not zero (`0x0047B050..0x0047B094`). Do not
+invent stable duplicate ordering for this inconsistent equality case. Calling
+the ordinary selector sort button with a null comparator subsequently uses
+the default textual comparator instead.
+
+### 32.2 Search ranges and equality
+
+Grid `+0x214` takes text pointer, text length, first column, column count,
+first row, row count, two output-coordinate pointers, and exact-length byte.
+Zero or `0xFFFFFFFF` length means strlen. Lower bounds are inclusive; finite
+upper bounds are **exclusive** sums of first+count. Count `0x7FFFFFFF` removes
+the corresponding upper bound. The sums wrap in 32 bits, and coordinate tests
+are signed. Only populated text cells with storage are candidates. Last byte
+nonzero requires equal byte length; all searches require the given bytes to
+occur in the cell text through case-sensitive string find. Without the byte,
+a substring is sufficient; with it, equal length makes the match exact.
+On success write both coordinates and return true; on failure return false
+without writing them (`0x009A98EF..0x009A999C`).
+
+Consequently chooser arguments `(text,length,0,1,0,0x7FFFFFFF,...,1)` search
+**column zero including row zero**. The 1 is a column count, not a row-start
+exclusion. It searches all populated rows, not just after the selection. The
+prop letter-scroll helper in §12.1 is a different, case-sensitive first-byte
+scan and does not inherit sort's case folding.
+
+### 32.3 Selector-name fallbacks
+
+Family helpers first consult their static FamilyNames.ini map (§33). A hit
+supplies its stored string verbatim, including empty strings. If absent:
+
+| Helper | Fallback |
+|---|---|
+| Building family `0x0047F750` | Ask manager for family members in its returned hash-set traversal order; join at most eight GetBuildingName results with `, `; append `, ...` upon encountering a ninth. No members gives `<Family>`. |
+| Prop family `0x0047FA80` | Same eight-name limit and suffix, in manager member-vector order, using GetPropName. No members gives `<Family>`. |
+| Flora family `0x0047F950` | Literal `<Flora>`; it does not enumerate members. |
+
+GetBuildingName (`0x0047F6C0`) and GetPropName (`0x0047FA00`) use their manager's
+recognized-object/name route; an unrecognized ID gives literal `<Building>`
+or `<Prop>` respectively. No resource-name invention or hexadecimal fallback
+is inserted. Selector prefixes in §12 are added **outside** these helpers.
+Texture selectors have ID text/image cells and no missing-name substitution.
+Evidence: `0x0047F6C0..0x0047FC48`; comma and truncation strings at
+`0x00A86F20` and `0x00A8DD30`.
+
+Worked cases: default ascending names `["b","A","c"]` become `["A","b","c"]`,
+with all row columns attached; direction 1 gives `["c","b","A"]`. Texture IDs
+`0x00010000` and `0x00001000` sort in that order because masked groups 0 and
+0x1000 precede full-ID comparison. A chooser whose only row is row zero with
+`0x0000002a` finds ID 0x2A there; text `0x0000002A` does not match that cell.
+Missing family 0x20 with no members displays `Family: <Family>` in a building
+selector, ` (F)<Family>` in a prop selector, and `<Flora>` in a flora selector.
+
+Closure mapping: shared semantic dependencies of DoDialogBoxGridSort
+`0x0047ABA0`, selectors `0x004827D0/0x004832E0/0x00482DC0/0x0047CC30`, and
+chooser SelectLotConfigurationType/PopulateGrid; comparator `0x0047B050` and
+the five family/individual name-helper rows above. For non-ASCII collation,
+the contract is the linked CRT's current-locale `__stricmp`; an installation-
+specific observation would record its active LC_CTYPE and compare the desired
+byte strings. No locale-independent Unicode ordering is asserted.
+
 ## 19. Window-owner integration and slot inventory *[compat]*
 
 Added 2026-10-23, re-lotcfg-editor5. Sections 1–18 and the
