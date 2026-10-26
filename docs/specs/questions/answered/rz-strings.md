@@ -2,6 +2,10 @@
 
 Questions about [rz-strings.md](../../rz-strings.md).
 
+- **RZS1 — §7, callback reentrancy:** What is the supported result when a callback removes itself, removes another unknown callback, registers a replacement, or recursively invokes the same detokenizer? The observed service iterates its live ordered set and shares the per-token output between failed callbacks. Do not assume snapshot registration semantics. [Unknown; implement ordinary non-mutating callbacks first.]
+
+  **ANSWERED 2026-10-26 (re-rzs29):** MATCHES — §7.1 specifies live node traversal, same-pass insertion above the current function address, removal of other nodes, unique-insert context retention, and no restart of value/named lookup. Self-removal followed by true is accepted; self-removal followed by false dereferences a freed iterator and has no supported deterministic result. Recursive calls run immediately with separate parser temporaries and shared registries/HTML mode, with no cycle/depth guard. DT20–DT26 are worked cases. Static instruction deductions only; no native execution or snapshot-registration semantics are claimed.
+
 <!-- from: glue-rzstrings-shadow5 (2026-10-24); entries absent from this RE lane's starting base -->
 - **RZS8 — §§2/5, nonvirtual helper ABI for same-process shadows:** Please specify exact native prototypes and x86 calling conventions for Mid/Left/Right and MakeLower/MakeUpper, including substring return storage (hidden result pointer, ownership, construction/destruction obligations) and whether the case helpers return the receiver or no value. The spec gives behavior and entry addresses, but the SDK's cRZBaseString explicitly implements its own different class and does not establish these native signatures. [Do not guess signatures: monthly strings_shadow measures published virtual string operations and integer/string Sprintf; these nonvirtual helper paths remain excluded pending a native ABI contract.]
 

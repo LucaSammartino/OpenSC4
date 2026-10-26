@@ -637,8 +637,8 @@ its Boolean result is in AL. The same output object is passed to successive
 callbacks. A false callback is not rolled back or cleared before the next one.
 However, final unhandled fallback overwrites it with the token name. Never call
 a null function as a request to remove a named method: no null-method guard is
-present (`0x00600C8C`–`0x00600C98`). Mutation of registries from inside a callback
-has no settled reentrancy contract (RZS1).
+present (`0x00600C8C`–`0x00600C98`). Callback mutation follows the live traversal
+rules in §7.1; there is no registration snapshot.
 
 With HTML-clean mode nonzero, the selected result is cleaned after value lookup,
 accepted callback, OR unhandled fallback. Each `"` becomes `&quot;`, `&` becomes
@@ -648,6 +648,58 @@ inserted entity bytes. Existing `&lt;` therefore becomes `&amp;lt;`. The cleaner
 scans to the first NUL and overwrites the output, dropping subsequent counted
 bytes (`0x00600640`–`0x006007DB`, constants `0x00AA6DBC`–`0x00AA6DD8`). Literal
 text outside tokens is never cleaned by this mode.
+
+### 7.1 Callback mutation and recursive calls (RZS1)
+
+Slot 14 (+0x38) retains an unknown-method **node iterator**, not a copied list of
+function/context pairs. After a named callback returns false it reads the current
+unknown-set count at +0x24 and obtains its then-current first node from the header
+at +0x20 (`0x00600CB5`–`0x00600CC8`). Each unknown call loads the function at node
++0x10 and context at node +0x14. A true result leaves the traversal immediately;
+only a false result advances the iterator through the node's current tree links
+(`0x00600CD0`–`0x00600CEF`, successor helper `0x005D17C0`–`0x005D17FD`).
+
+Provided the object, token and output remain alive, mutation has these results:
+
+| Change inside the current callback | Effect on this conversion |
+|---|---|
+| Unknown callback disables itself through slot 7 (+0x1C), then returns true | Its output is accepted. The removed node is not read again by this invocation. The registration is absent on subsequent conversions. |
+| Unknown callback disables itself, then returns false | **Outside the supported domain:** erasure frees the current node before the successor helper dereferences it. There is no defined next callback, false result, exception or crash guarantee. Removing and re-enabling the same address does not repair this guarantee. |
+| Disable a different unknown function, whether earlier or later in address order | Erasure preserves the current node. A removed later function is skipped; a removed earlier function is not revisited. Disabling an absent function has no effect. The supplied removal context is ignored. |
+| Enable a previously absent unknown function while retaining the current node | If the current callback returns false, a new address greater than the current address is eligible in this same pass, in its new sorted position. An address less than the current one is not revisited. A true return ends the pass before either can run. |
+| Enable the current or another already registered unknown function with a new context | Unique insertion retains the existing context. To change it requires removal and insertion; the current-node/false-return restriction still applies. |
+| A named callback enables/disables unknown functions, then returns false | The unknown traversal starts from the updated set, including newly inserted addresses below every previous address. It has not yet acquired an unknown iterator. |
+| Set a stored value or replace a named function/context through slots 5/6 (+0x14/+0x18) | The current function/context call has already been selected. Its return still decides this attempt. Neither the value lookup nor named-method lookup is repeated; a false result proceeds to unknown callbacks. Subsequent or recursive conversions see the new registrations and the ordinary value-before-method priority. |
+
+Slot 7's disable path erases and frees synchronously, including its whole-set
+case (`0x00600441`, `0x006002C8`–`0x006002F1`, `0x00600347`–`0x00600360`,
+`0x006000C0`–`0x006000DB`). Erasure transplants tree links, rather than copying a
+successor's callback into the erased node (`0x0040DB45`–`0x0040DB9D`); this is why
+removing a different node preserves the active iterator. Insertion is the unique
+insertion in §7. Named replacement stores the new pair at
+`0x00601BDF`–`0x00601BE2`; the active call reads its pair before dispatch at
+`0x00600C8C`–`0x00600C92`.
+
+Recursive slot 9/13 or slot 14 calls on the same live detokenizer run immediately
+on the calling thread. There is no busy flag, depth counter, lock, deferred
+registration queue or cycle detection. Each parser invocation owns its input
+copy, accumulated result and per-token replacement string; the latter starts
+empty for each complete token (`0x00600810`, `0x00600A6A`–`0x00600AC5`). Registries
+and the HTML byte at +0x2C are shared. A separate inner output therefore does not
+clear the outer callback's output; explicitly passing that same output aliases
+it and permits the inner conversion to overwrite it. The outer traversal resumes
+after the recursive call, with any registry changes already applied. In
+particular, recursive removal of the outer current unknown node has the same
+false-return invalidation as direct self-removal. Unconditionally resolving the
+same token recursively has no supported finite result: recursion continues until
+the environment fails. It is not reported as an unresolved token.
+
+HTML cleaning reads the current +0x2C byte after a callback has returned, rather
+than a saved entry value (`0x00600C9C`–`0x00600CA4`). A callback or recursive call
+that changes it affects the outer result too. Cleaning an inner result and then
+accepting that text in an outer callback can consequently escape it twice. The
+same per-token output remains shared among failed callbacks as specified above;
+recursion does not introduce rollback.
 
 ## 8. Parsing, resource IO and failure results *[compat]*
 
@@ -800,10 +852,17 @@ are part of the expected result.
 | DT17 | QueryInterface unknown IID with sentinel output, either owner | false, sentinel untouched |
 | DT18 | Named callback fails for token X, value A succeeds; parse `#X# / #A#` | false, `X / value-of-A`; later token still processed |
 | DT19 | Value A=`v`; parse `##A#` | true, `v` (original first-hash position remains opening) |
+| DT20 | Unknown A disables itself, writes `a`, returns true; parse `#X# / #X#` | trace A once; false, `a / X`; self-removal is safe on the accepted path |
+| DT21 | Unknown addresses A=0x1000, B=0x2000, C=0x3000. A writes `a`, disables B and returns false; C appends `c`, returns true | trace A,C; true, `ac`; B is not called |
+| DT22 | Initially unknown A=0x1000 and C=0x3000. A writes `a`, enables new B=0x2000 and returns false; B appends `b`, returns false; C appends `c`, returns true | trace A,B,C in this same conversion; true, `abc` |
+| DT23 | Named N for X writes `n`, sets value X=`v`, enables unknown U, returns false; U appends `u`, returns true; parse `#X# / #X#` | trace N,U; true, `nu / v`; current dispatch does not restart value lookup |
+| DT24 | Named N for X replaces its binding with M, writes `n`, returns true; M writes `m`, returns true; parse `#X# / #X#` | trace N,M; true, `n / m`; replacement affects the next conversion |
+| DT25 | Named N for X uses a context depth flag. At depth zero it writes `outer:`, sets depth one, recursively parses `#X#` into a separate output, appends it and returns true; at depth one it writes `inner` and returns true | trace N at depth zero, N at depth one; inner true/`inner`, outer true/`outer:inner`; both callback outputs start empty |
+| DT26 | HTML initially off. Named X callback switches it on, recursively parses `#Y#` with value Y=`&` into separate output, copies that text to its own output, returns true | inner true/`&amp;`; outer true/`&amp;amp;`; mode is shared and read after callbacks |
 
 ## 10. Open boundaries
 
-[RZS1–RZS5](questions/rz-strings.md) track callback reentrancy, non-ASCII mapping,
+[RZS2–RZS5](questions/rz-strings.md) track non-ASCII mapping,
 allocation/overlap failures, remaining native split variants and formatter edge
 behavior. They do not weaken the settled vectors above. No in-game or executable
 replacement run was performed for this documentation lane.
