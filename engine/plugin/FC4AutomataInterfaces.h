@@ -144,22 +144,21 @@ public:
     virtual SC4List<uint32_t>& GetTrackBuildingGroups() const = 0;  // 18  GetTrackBuildingGroups
 };
 
-// cISC4Automaton (automata.md 7.2/7.4/7.5): named hook and construction
-// methods keep their native argument sizes; unused slots retain their indices.
+// cISC4Automaton (automata.md 7.4): only the slots the riot and fire hooks call are named (2 Release, 5 AsOccupant, 9 SetVisible, 51 SetState); the rest are one-pointer placeholders, so each named slot sits at its verified index.
 class cFC4ISC4Automaton : public cIGZUnknown {
 public:
     virtual void Slot03() = 0;  // 3 (not called)
     virtual void Slot04() = 0;  // 4 (not called)
     virtual cISC4Occupant* AsOccupant() = 0;  // 5  AsOccupant
     virtual void Slot06() = 0;  // 6 (not called)
-    virtual void GetPosition(cS3DVector3& position) = 0;  // 7, output vector
-    virtual void SetPosition(cS3DVector3 const& position) = 0;  // 8
+    virtual void Slot07() = 0;  // 7 (not called)
+    virtual void Slot08() = 0;  // 8 (not called)
     virtual void SetVisible(bool on) = 0;  // 9  SetVisible
     virtual void Slot10() = 0;  // 10 (not called)
     virtual void Slot11() = 0;  // 11 (not called)
     virtual void Slot12() = 0;  // 12 (not called)
     virtual void Slot13() = 0;  // 13 (not called)
-    virtual void SetOrientation(cS3DVector3 const& orientation) = 0;  // 14
+    virtual void Slot14() = 0;  // 14 (not called)
     virtual void Slot15() = 0;  // 15 (not called)
     virtual void Slot16() = 0;  // 16 (not called)
     virtual void Slot17() = 0;  // 17 (not called)
@@ -175,7 +174,7 @@ public:
     virtual void Slot27() = 0;  // 27 (not called)
     virtual void Slot28() = 0;  // 28 (not called)
     virtual void Slot29() = 0;  // 29 (not called)
-    virtual void SetAutomataFlag(uint32_t mask, bool on) = 0;  // 30
+    virtual void Slot30() = 0;  // 30 (not called)
     virtual void Slot31() = 0;  // 31 (not called)
     virtual void Slot32() = 0;  // 32 (not called)
     virtual void Slot33() = 0;  // 33 (not called)

@@ -230,7 +230,7 @@ generated index: the questions live one file per spec, so read only the file for
 |---|---:|---:|---|---|
 | advisor-window | 1 | 4 | AW6 | questions/advisor-window.md |
 | advisors | 0 | 19 | AD20 | questions/advisors.md |
-| aircraft | 7 | 4 | AF12 | questions/aircraft.md |
+| aircraft | 0 | 11 | AF12 | questions/aircraft.md |
 | animated-sprite | 5 | 6 | AS12 | questions/animated-sprite.md |
 | animation-coordinator | 7 | 0 | AC10 | questions/animation-coordinator.md |
 | animation-tick-manager | 4 | 0 | TK5 | questions/animation-tick-manager.md |
@@ -242,7 +242,7 @@ generated index: the questions live one file per spec, so read only the file for
 | audio-scape | 4 | 0 | SCP5 | questions/audio-scape.md |
 | aura | 1 | 15 | AU17 | questions/aura.md |
 | auto-game-pause | 1 | 0 | AGP2 | questions/auto-game-pause.md |
-| automata | 4 | 39 | A5, AM13, AT26 | questions/automata.md |
+| automata | 4 | 38 | A5, AM13, AT25 | questions/automata.md |
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
@@ -295,7 +295,7 @@ generated index: the questions live one file per spec, so read only the file for
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
-| gz-graphics | 5 | 2 | GZG8 | questions/gz-graphics.md |
+| gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
 | html-document | 2 | 6 | HD9 | questions/html-document.md |
@@ -344,7 +344,7 @@ generated index: the questions live one file per spec, so read only the file for
 | overlay-manager | 5 | 11 | OV17 | questions/overlay-manager.md |
 | overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
-| particles | 6 | 7 | PT14 | questions/particles.md |
+| particles | 0 | 13 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
 | pedestrians | 2 | 1 | PN4 | questions/pedestrians.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **657** | **1598** | | |
+| **total** | **639** | **1615** | | |

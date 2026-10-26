@@ -1320,31 +1320,6 @@ impl Automaton {
         self.rec.borrow_mut().base_mut().vectors[0] = p;
     }
 
-    /// Slot 14 `SetOrientation` (automata.md 7.5): store a unit vector.
-    pub fn set_orientation(&self, orientation: Vec3) {
-        let length =
-            (orientation[0] * orientation[0] + orientation[1] * orientation[1] + orientation[2] * orientation[2])
-                .sqrt();
-        let orientation = if length == 0.0 {
-            orientation
-        } else {
-            let scale = 1.0 / length;
-            orientation.map(|v| v * scale)
-        };
-        self.rec.borrow_mut().base_mut().vectors[2] = orientation;
-    }
-
-    /// Slot 30 `SetAutomataFlag` (automata.md 7.2): update the named mask.
-    pub fn set_automata_flag(&self, mask: u32, on: bool) {
-        let mut rec = self.rec.borrow_mut();
-        let flags = &mut rec.base_mut().automata_flags;
-        if on {
-            *flags |= mask;
-        } else {
-            *flags &= !mask;
-        }
-    }
-
     /// Slot 9 `SetVisible`: the occupant's visible flag (bit 2).
     pub fn set_visible(&self, visible: bool) {
         let mut r = self.rec.borrow_mut();
