@@ -5,6 +5,16 @@
 
 int main() {
     unsigned failures = 0;
+    // EX58 worked case: a nested save can return while its outer save still
+    // owns the stack. Neither that return nor a modal framework tick permits
+    // replay. Only the final continuation at the promised city/date does.
+    int city = 0, otherCity = 0;
+    if (fc4::DbpfReplayAtSameCityDate(false, 1, &city, 123, &city, 123)) ++failures;
+    if (fc4::DbpfReplayAtSameCityDate(true, 1, &city, 123, &city, 123)) ++failures;
+    if (!fc4::DbpfReplayAtSameCityDate(true, 0, &city, 123, &city, 123)) ++failures;
+    if (fc4::DbpfReplayAtSameCityDate(true, 0, &city, 123, &city, 124)) ++failures;
+    if (fc4::DbpfReplayAtSameCityDate(true, 0, &city, 123, &otherCity, 123)) ++failures;
+    if (fc4::DbpfReplayAtSameCityDate(true, 0, nullptr, 123, nullptr, 123)) ++failures;
     // A slow reader needs five ticks per sample while the native clock keeps
     // advancing. Once the target is reached, it must finish all accepted work
     // (including the target sample), rather than grow a permanent backlog.
