@@ -1,18 +1,20 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| replace-effectsres28: effects resource (engine) | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/replace-effectsres28; detached HEAD; reserved branch replace-effectsres28 | BLOCKED EF25; code a7c3c61f4; ABI exports unchanged; cargo 7879 passed/0 failed; clippy PASS; CTest 119/119; game not run; shadows unmeasured | 1. Resolve EF25. 2. Implement the resource factory/publication adapter and measure (a)-(c). |
+| replace-effectsres28: effects resource (engine) | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/replace-effectsres28; detached HEAD; reserved branch replace-effectsres28 | WIP EF26; code 18212e9df; ABI exports unchanged; focused CTest 9/9; full gate pending; game acceptance unmeasured | 1. Answer EF26. 2. Complete nonempty resource IO. 3. Measure (a)-(c). |
 
-- Fixed the specified root-version rejection (effects sections 3, 18.8.1) in both directory parsers; only versions 3 and 4 are accepted before section decoding.
-- Added two regression tests covering supported, unsupported and byte-swapped headers through core and C ABI; both pass in `build-runs/qbuild-test.log`.
-- [EF25](../specs/questions/effects.md): the resource primary vtable declarations, serialization/QI sub-object layout and lifecycle contracts needed by the original factory are missing. Native registration stopped rather than inventing ABI facts.
-- The existing directory writer explicitly emits simulation sections for fixtures; it does not establish full-resource serialization compatibility.
-- (a) House replace list plus effectsres through 2032: **unmeasured**, no run/log; no safely implemented resource class/key, ref_warnings unavailable.
-- (b) Cached-original golden comparison to 2026-04-01: **unmeasured**, no run/comparison log.
-- (b) Golden comparison with a generated gen27 action script: **unmeasured**, no run/comparison log.
-- (c) Every regress shadows-profile key with effectsres on: **unmeasured**, no run/shadow log.
-- Final `qbuild all`: **PASS**, cargo 7879 passed/0 failed/0 ignored; clippy -D warnings PASS; native build 311/311 edges; CTest 119/119.
-- Gate logs: `build-runs/qbuild-test.log`, `build-runs/qbuild-clippy.log`, `build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`.
-- Formatting PASS for the three owned Rust files. Earlier focused checks: q.py launcher error (`build-runs/q/20261026-051423-26636.log`); direct cargo compile terminated before tests, excluded from verdicts.
-- Effects-manager registration and month logging source unchanged; no C ABI exports added or removed.
-- **effectsres is not ready for the replace list.** Do not flip cSC4EffectsResource credit. Wip queue entry only; no ready enqueue.
-- Next: answer EF25, implement the resource and native collection publication, then complete (a)-(c) with parallel queue requests and the final gate.
+- Merged main first; retained a7c3c61f4's root-version rejection and its core/C ABI tests. EF25 is resolved.
+- Added the default-off `effectsres` class registration independently of `effects`; existing manager registration and month-logging source are unchanged.
+- Implemented nine primary slots, C=R+4, P=R+11C, canonical unknown=P, shared atomic count, copied name at R+134, and persistence key getters/setters.
+- Publication uses the independent native collection service; cleanup restores the constructor's base collection vtable before its destructor. No native effects-resource Read/Write is called.
+- Stream support is partial: empty root-3/root-4 directories, root-4 output, camera presence/value, typed strings, ignored primitive status, and interrupted-output prefixes.
+- Nonempty descriptions, visual/name maps, bindings and triggers remain unsupported; Read/Write refuse them and log EF26. No full-resource loading is claimed.
+- EF26 filed at the end of `docs/specs/questions/effects.md`: typed renderer codec helper parameters/ownership, or missing record framing/reconstruction contracts.
+- Focused CTest **9/9 PASS** in `build-runs/effectsres-focused.log`: resource contracts, four resource registration modes, all four existing manager registration modes.
+- Corrected-source `qbuild quick` **PASS**, no Rust crate touched; native build 151/151 edges (38.0 s).
+- Full `qbuild all`: **pending**, unified session 5037; one invocation waiting 919 s for a shared cargo slot. No current-round cargo/clippy/full-CTest result claimed yet.
+- (a) House list plus effectsres to 2032: **unmeasured**; no game label/log; ref_warnings unavailable.
+- (b) Cached-original golden to 2026-04-01 and generated gen27 script comparison: **both unmeasured**; no comparison logs.
+- (c) Every regress shadows-profile key versus regress-train267-shadows.log: **unmeasured**; no comparison log.
+- Launch failures excluded from verdicts: q.py Bash CreateFileMapping failure and ctest missing from PATH; the absolute SDK ctest then passed 9/9.
+- **effectsres is not ready for the replace list.** No ready enqueue or cSC4EffectsResource credit requested.
+- Next: collect session 5037 (do not launch a duplicate all gate), resolve EF26, finish incremental IO, then measure (a)-(c) through the shared queue (`parallel = 1`, maximum three) and enqueue kind engine.
