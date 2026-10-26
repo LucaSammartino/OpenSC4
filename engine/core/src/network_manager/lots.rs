@@ -515,7 +515,8 @@ impl NetworkLotManager {
         // An existing entry is overwritten without release.
         self.s.borrow_mut().lots.insert(lot_key(x, z), lot.clone());
         self.create_lot_objects(&lot);
-        if forced.is_some() {
+        // §8.5 NM19: object callbacks can replace or clear the forced input.
+        if self.s.borrow().forced.is_some() {
             let mut s = self.s.borrow_mut();
             if let Some(l) = s.lots.get_mut(&lot_key(x, z)) {
                 l.locked = true;

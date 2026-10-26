@@ -100,7 +100,18 @@ fn roundtrip(class: NetOccClass, input: &mut dyn InStream, out: &mut dyn OutStre
     use NetOccClass::*;
     let mut host = Host;
     Some(match class {
-        Network | PreBuilt | Bridge | Tunnel => write_network_record(&read_network_record(input)?, out),
+        Network => write_network_record(&read_network_record(input)?, out),
+        PreBuilt | Bridge => {
+            let mut r = PrebuiltRecord::default();
+            r.read_into(input) && r.write(out)
+        }
+        Tunnel => {
+            let mut r = TunnelRecord {
+                prebuilt: PrebuiltRecord::default(),
+                pair: RefValue::Null,
+            };
+            r.read_into(input) && r.write(&r.pair, out)
+        }
         Underground => write_underground_record(&read_underground_record(input)?, out),
         Pipe => {
             let (r, w) = read_pipe_record(input)?;
@@ -149,8 +160,20 @@ fn normalize(class: NetOccClass, bytes: &[u8]) -> Option<(Vec<u8>, u32)> {
     use NetOccClass::*;
     let mut numbers = Numbers;
     let mut r = ByteReader::with_resolver(bytes, &mut numbers);
-    r.get_u16()?;
+    let outer_version = r.get_u16()?;
+    let mut prebuilt_version = None;
     match class {
+        PreBuilt | Bridge => {
+            prebuilt_version = Some(outer_version);
+            r.get_u16()?;
+        }
+        Tunnel => {
+            if outer_version != 2 {
+                return None;
+            }
+            prebuilt_version = Some(r.get_u16()?);
+            r.get_u16()?;
+        }
         Pipe | Subway => {
             r.get_u16()?;
             r.get_u16()?;
@@ -163,6 +186,17 @@ fn normalize(class: NetOccClass, bytes: &[u8]) -> Option<(Vec<u8>, u32)> {
     OccupantBase::read(&mut r)?;
     let mut fixups = 0;
     let mut expected = bytes.to_vec();
+    let mut erasures = Vec::new();
+    if let Some(version) = prebuilt_version {
+        if !(3..=4).contains(&version) {
+            return None;
+        }
+        if version == 3 {
+            let at = if class == Tunnel { 2 } else { 0 };
+            expected[at..at + 2].copy_from_slice(&4u16.to_le_bytes());
+            fixups += 1;
+        }
+    }
     let transform = match class {
         c if c.is_network_piece() => Some(r.position()),
         PowerPole => Some(r.position()),
@@ -227,9 +261,45 @@ fn normalize(class: NetOccClass, bytes: &[u8]) -> Option<(Vec<u8>, u32)> {
             expected[at..at + 4].copy_from_slice(&(flags & !0xE000).to_le_bytes());
             fixups += 1;
         }
+        if prebuilt_version.is_some() {
+            // Raw suffix walk, independent of the envelope decoder.
+            if !r.skip(4 + 12 + 8 + 12) {
+                return None;
+            }
+            if prebuilt_version == Some(3) {
+                erasures.push((r.position(), 24));
+                if !r.skip(24) {
+                    return None;
+                }
+                fixups += 1;
+            }
+            if !r.skip(5) {
+                return None;
+            }
+            if r.get_u32()? != 0 && !r.skip(16) {
+                return None;
+            }
+            if prebuilt_version == Some(3) {
+                erasures.push((r.position(), 4));
+                r.get_u32()?;
+                fixups += 1;
+            }
+            if class == Tunnel {
+                let at = r.position();
+                let present = r.get_u8()?;
+                if present > 1 {
+                    expected[at] = 1;
+                    fixups += 1;
+                }
+            }
+        }
     }
     if let Some(at) = erase {
-        expected.drain(at..at + 4);
+        erasures.push((at, 4));
+    }
+    erasures.sort_unstable();
+    for (at, len) in erasures.into_iter().rev() {
+        expected.drain(at..at + len);
     }
     Some((expected, fixups))
 }
@@ -309,6 +379,55 @@ unsafe extern "C" fn fc4_netocc_shadow_compare(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no46_prebuilt_bridge_tunnel_compare_canonical_bytes_not_opaque_records() {
+        for class in [NetOccClass::PreBuilt, NetOccClass::Bridge, NetOccClass::Tunnel] {
+            for gate in [0, 0x8000_0000] {
+                let mut prebuilt = PrebuiltRecord {
+                    saved_178: [1.0, 2.0, 3.0],
+                    saved_1b0: 0x1122_3344,
+                    saved_1b4: 0xA5,
+                    gate_19c: gate,
+                    saved_1a0: [4.0, 5.0, 6.0, 7.0],
+                    ..PrebuiltRecord::default()
+                };
+                prebuilt.base.network_flags = 0xE001;
+                let mut out = Output(ByteWriter::new());
+                if class == NetOccClass::Tunnel {
+                    let pair = RefValue::Host {
+                        token: 123,
+                        class_id: 0x8A4B_D52B,
+                    };
+                    assert!(TunnelRecord {
+                        prebuilt,
+                        pair: pair.clone()
+                    }
+                    .write(&pair, &mut out));
+                } else {
+                    assert!(prebuilt.write(&mut out));
+                }
+                let mut bytes = out.0.into_bytes();
+                let row = compare(class, &bytes);
+                assert_eq!(row.status, 0);
+                assert_eq!(row.fixups, 1); // inherited flag mask, not a subclass exemption
+                let end = bytes.len() - if class == NetOccClass::Tunnel { 9 } else { 0 };
+                let suffix = end - if gate == 0 { 21 } else { 37 };
+                let version_at = if class == NetOccClass::Tunnel { 2 } else { 0 };
+                bytes[version_at..version_at + 2].copy_from_slice(&3u16.to_le_bytes());
+                bytes.splice(end..end, 0xFFFF_FFFFu32.to_le_bytes());
+                bytes.splice(suffix + 12..suffix + 12, (10u32..16).flat_map(u32::to_le_bytes));
+                if class == NetOccClass::Tunnel {
+                    let present = bytes.len() - 9;
+                    bytes[present] = 2;
+                }
+                assert_eq!(compare(class, &bytes).status, 0);
+                bytes.pop();
+                assert_ne!(compare(class, &bytes).status, 0);
+            }
+        }
+    }
+
     #[test]
     fn pole_attachment_selection_uses_exemplar_key_not_model_property() {
         use fc4_core::property::PropertyHolder;

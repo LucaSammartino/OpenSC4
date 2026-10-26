@@ -17,7 +17,7 @@
 
 use super::xform::Xform;
 use crate::automata::OccupantBase;
-use crate::stream::{InStream, OutStream, ResKey};
+use crate::stream::{InStream, OutStream, RefValue, ResKey};
 
 /// The version `Write` emits.
 pub const NETWORK_RECORD_VERSION: u16 = 8;
@@ -375,4 +375,114 @@ pub fn read_network_record(inp: &mut dyn InStream) -> Option<NetworkBaseRecord> 
         return None;
     }
     Some(rec)
+}
+
+/// §2.8.1: shared envelope of prebuilt and bridge occupants. Field names
+/// retain the primary-object offsets; their meanings are opaque (NO4).
+#[derive(Clone, Debug, Default)]
+pub struct PrebuiltRecord {
+    pub base: NetworkBaseRecord,
+    pub saved_178: [f32; 3],
+    pub saved_1b0: u32,
+    pub saved_1b4: u8,
+    pub gate_19c: u32,
+    pub saved_1a0: [f32; 4],
+}
+
+impl PrebuiltRecord {
+    pub fn write(&self, out: &mut dyn OutStream) -> bool {
+        out.put_u16(4);
+        if !write_network_record(&self.base, out) {
+            return false;
+        }
+        for f in self.saved_178 {
+            out.put_f32(f);
+        }
+        out.put_u32(self.saved_1b0);
+        out.put_u8(self.saved_1b4);
+        out.put_u32(self.gate_19c);
+        if self.gate_19c != 0 {
+            for f in self.saved_1a0 {
+                out.put_f32(f);
+            }
+        }
+        out.error() == 0
+    }
+
+    /// An omitted optional block leaves the existing live fields intact.
+    pub fn read_into(&mut self, inp: &mut dyn InStream) -> bool {
+        self.read_fields(inp).is_some() && inp.error() == 0
+    }
+
+    fn read_fields(&mut self, inp: &mut dyn InStream) -> Option<()> {
+        let version = inp.get_u16()?;
+        if !(3..=4).contains(&version) {
+            return None;
+        }
+        let Some(base) = read_network_record(inp) else {
+            // The inherited result gates the suffix; the envelope's final
+            // result still tests the stream error (§2.8.1).
+            return (inp.error() == 0).then_some(());
+        };
+        self.base = base;
+        for f in &mut self.saved_178 {
+            *f = inp.get_f32()?;
+        }
+        if version == 3 {
+            for _ in 0..6 {
+                inp.get_u32()?;
+            }
+        }
+        self.saved_1b0 = inp.get_u32()?;
+        self.saved_1b4 = inp.get_u8()?;
+        self.gate_19c = inp.get_u32()?;
+        if self.gate_19c != 0 {
+            for f in &mut self.saved_1a0 {
+                *f = inp.get_f32()?;
+            }
+        }
+        if version == 3 {
+            inp.get_u32()?;
+        }
+        Some(())
+    }
+}
+
+/// §2.8.1: tunnel v2 wraps the complete prebuilt envelope and a segment
+/// reference. RefValue owns resolved Rust references; capture IDs own none.
+#[derive(Clone, Debug)]
+pub struct TunnelRecord {
+    pub prebuilt: PrebuiltRecord,
+    pub pair: RefValue,
+}
+
+impl TunnelRecord {
+    /// `serializable_pair` is the result of the caller's serialization QI.
+    pub fn write(&self, serializable_pair: &RefValue, out: &mut dyn OutStream) -> bool {
+        out.put_u16(2);
+        if !self.prebuilt.write(out) {
+            return false;
+        }
+        out.put_u8(u8::from(!serializable_pair.is_null()));
+        if !serializable_pair.is_null() {
+            out.put_ref(serializable_pair);
+        }
+        out.error() == 0
+    }
+
+    pub fn read_into(&mut self, inp: &mut dyn InStream) -> bool {
+        self.read_fields(inp).is_some() && inp.error() == 0
+    }
+
+    fn read_fields(&mut self, inp: &mut dyn InStream) -> Option<()> {
+        if inp.get_u16()? != 2 || !self.prebuilt.read_into(inp) {
+            return None;
+        }
+        let present = inp.get_u8()? != 0;
+        self.pair = RefValue::Null;
+        if present {
+            self.pair = inp.get_ref_as(0x8A4B_D52B)?;
+        }
+        Some(())
+    }
 }

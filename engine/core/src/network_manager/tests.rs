@@ -1219,6 +1219,27 @@ fn t19_forced_configuration() {
 }
 
 #[test]
+fn nm19_forced_incompatible_lot_is_locked_until_load() {
+    let (f, m, draws) = lot_manager(vec![]);
+    f.piece(60, street(0x200, (20, 20)));
+    m.set_lot_configuration_for_next_piece(Some(Rc::new(cfg(9, 0x999, &[]))));
+    m.do_network_occupant_inserted(60, 0, 0);
+    m.update_lot(60, 20, 20, 0, 0);
+    assert!(m.get_network_lot(20, 20).unwrap().locked);
+    assert!(draws.borrow().is_empty());
+    let (bytes, entries) = save(&*m);
+    let (g, loaded, loaded_draws) = lot_manager(vec![cfg(9, 0x999, &[]), cfg(1, 0x200, &[0])]);
+    g.piece(60, street(0x200, (20, 20)));
+    let mut resolver = Resolver(entries);
+    assert!(loaded.read(&mut ByteReader::with_resolver(&bytes, &mut resolver)));
+    loaded.init();
+    assert!(!loaded.get_network_lot(20, 20).unwrap().locked);
+    loaded.update_lot(60, 20, 20, 0, 0);
+    assert_eq!(loaded.get_network_lot(20, 20).unwrap().config_id, 1);
+    assert_eq!(*loaded_draws.borrow(), vec![1]);
+}
+
+#[test]
 fn t20_road_style() {
     let (f, m, _) = lot_manager(vec![]);
     f.piece(70, street(0x300, (10, 10)));
