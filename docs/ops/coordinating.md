@@ -32,8 +32,8 @@ A fix round sets `fix` to the train's failure text. Keep the [game queue](runnin
 running. Copy required external evidence into a lane's `build-runs/` when its transport cannot read it;
 RE lanes use the main checkout's sources as their prompt directs.
 Codex lanes cannot run the native build in their sandbox (MSVC configure hangs), so the coordinator also keeps
-`tools/build_queue.py --jobs 1` running detached from the main checkout; `qbuild.py quick|verify` hands the native steps to it
-while `build-runs/build-queue-worker.alive` is fresh, and it waits while a game run is in progress (`--status` shows the queue).
+`tools/build_queue.py --jobs 3` running detached from the main checkout; `qbuild.py quick|verify` hands the native steps to it
+while `build-runs/build-queue-worker.alive` is fresh; each build gets cores/jobs compile parallelism and a worktree's waiting requests run once together (`--status` shows the queue).
 
 ## Lane context
 
