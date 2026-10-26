@@ -466,11 +466,13 @@ std::string RunFunds(const harness::ScriptAction& a, cISC4City* city) {
     auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
     if (!budget) return "ok=0 (skipped: no city budget)";
     const int64_t before = budget->GetTotalFunds();
-    const bool result = budget->SetTotalFunds(a.funds);
+    // 00690140 has no defined bool return (including the unchanged-funds
+    // path). Discard the SDK's AL declaration; qualify the write by read-back.
+    budget->SetTotalFunds(a.funds);
     const int64_t after = budget->GetTotalFunds();
     char b[192];
     std::snprintf(b, sizeof(b), "ok=%d (SetTotalFunds(%d); treasury %lld -> %lld)",
-                  result && after == a.funds ? 1 : 0, a.funds,
+                  after == a.funds ? 1 : 0, a.funds,
                   static_cast<long long>(before), static_cast<long long>(after));
     return b;
 }
