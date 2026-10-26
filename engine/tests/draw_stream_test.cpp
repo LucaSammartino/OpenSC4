@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4DrawStream.h"
+#include "FC4DrawStreamCapture.h"
 #include <cassert>
+#include <thread>
 using namespace fc4::drawstream;
 
 int main() {
@@ -46,5 +48,29 @@ int main() {
     assert(!bytes.Valid() && bytes.Events().empty());
     assert(!inputs.Read(request) && !inputs.Complete());
     assert(FloatWord(-0.0f) != FloatWord(0.0f));
+
+    Stream captured;
+    int32_t rect[] = {1, 2, 30, 40};
+    {
+        Capture scope(&context, captured, objects);
+        assert(Capture::Current(&context) == &scope && !Capture::Current(&image));
+        std::thread other([&] { assert(!Capture::Current(&context)); });
+        other.join();
+        scope.Before(35, {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rect))});
+        rect[0] = 99;
+        scope.After(13, {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rect))}, 0);
+        {
+            Capture nested(&image, captured, objects);
+            assert(Capture::Current(&image) == &nested && !Capture::Current(&context));
+        }
+        assert(Capture::Current(&context) == &scope);
+    }
+    assert(!Capture::Current(&context) && !captured.Valid()); // partial capture has no credit
+    assert(captured.Events().size() == 2 && captured.Events()[0].words.empty());
+    int32_t copied;
+    std::memcpy(&copied, captured.Events()[0].bytes.data(), sizeof(copied));
+    assert(copied == 1); // input payload owned by trace, not a borrowed rectangle
+    std::memcpy(&copied, captured.Events()[1].bytes.data(), sizeof(copied));
+    assert(copied == 99); // out-parameter observed after native execution
     return 0;
 }

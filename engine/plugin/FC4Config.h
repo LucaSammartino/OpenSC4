@@ -692,3 +692,7 @@ std::string IniPath();
 // S3 entry-hook observer, independent default-off switches (FC4Inplace.h).
 // compare selects names/class:<Class>/all (inplace alias); compare_mode overrides
 // registry compare/record/replace. Corpus, dense and value exports: docs/harness.md.
+
+// drawstream_shadow = 0 / 1 (default 0): same-call 2D context capture for
+// native TreeView/ListBox paints. Capture only; missing font/surface/owner
+// bindings explicitly withhold complete method credit (FC4DrawStreamCapture.h).
