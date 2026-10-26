@@ -156,15 +156,16 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertTrue(suite.successful({'case': result}))
         self.assertEqual(result['worst_shadow'], 'terrain:1/1')
 
-    def test_quit_crash_retains_address_and_raw_verdict_but_does_not_pass(self):
+    def test_known_original_quit_fault_retains_evidence_and_passes(self):
         text = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8')
         result = suite.parse_log(text, '2028-01-28', 'verdict: corrupt')
         self.assertEqual((result['verdict'], result['end_reached'], result['raw_verdict']),
-                         ('clean-exit-crash', '1', 'corrupt'))
+                         ('clean', '1', 'corrupt'))
+        self.assertEqual(result['known_quit_faults'], 1)
         self.assertEqual(result['exception_address'], '0x005D0F94')
         self.assertEqual(result['exceptions'][0]['location'], 'SimCity 4.exe+0x1D0F94')
         self.assertEqual(result['exceptions'][0]['line'], 3)
-        self.assertFalse(suite.successful({'quit': result}))
+        self.assertTrue(suite.successful({'quit': result}))
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             manifest = dict(requests=[dict(scenario=dict(name='quit', end='2028-01-28'))],
@@ -172,7 +173,7 @@ class SuiteParsingTests(unittest.TestCase):
             suite.write_results(directory, manifest, {'quit': result})
             summary = (directory / 'summary.tsv').read_text(encoding='utf-8')
             self.assertIn('exception_address', summary.splitlines()[0])
-            self.assertIn('clean-exit-crash', summary)
+            self.assertIn('clean', summary)
             self.assertIn('0x005D0F94', summary)
 
     def test_posted_quit_crash_requires_an_accepted_command_after_target(self):
@@ -181,13 +182,26 @@ class SuiteParsingTests(unittest.TestCase):
                                   'native quit command 0xC7AA61C6 queued')
         result = suite.parse_log(''.join(lines), '2028-01-28', 'verdict: corrupt')
         self.assertEqual((result['verdict'], result['exception_address']),
-                         ('clean-exit-crash', '0x005D0F94'))
-        self.assertFalse(suite.successful({'posted': result}))
+                         ('clean', '0x005D0F94'))
+        self.assertTrue(suite.successful({'posted': result}))
         for text in (''.join(lines).replace('queued -> 1', 'queued -> 0'),
                      lines[1] + lines[0] + ''.join(lines[2:]),
                      lines[0] + lines[2] + lines[1] + lines[3]):
             with self.subTest(text=text):
                 self.assertEqual(suite.parse_log(text, '2028-01-28')['verdict'], 'corrupt')
+
+    def test_unknown_quit_faults_and_watchdogs_remain_failures(self):
+        text = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8')
+        for changed in (
+                text.replace('SimCity 4.exe+0x1D0F94', 'SimCity 4.exe+0x123456'),
+                text.replace('SimCity 4.exe+0x1D0F94', 'FreeCity4.dll+0x1D0F94'),
+                text.replace('reading address 0x00000000', 'reading address 0x00000004'),
+                'WATCHDOG: main thread stalled - no OnTick for 10000 ms\n' + text):
+            with self.subTest(text=changed):
+                result = suite.parse_log(changed, '2028-01-28', 'verdict: corrupt')
+                self.assertEqual(result['verdict'], 'clean-exit-crash')
+                self.assertEqual(result['known_quit_faults'], 0)
+                self.assertFalse(suite.successful({'unknown': result}))
 
     def test_end_date_alone_cannot_reclassify_an_exception_as_a_quit_crash(self):
         lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)

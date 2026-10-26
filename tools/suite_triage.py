@@ -56,6 +56,8 @@ def diagnose(text, verdict_text, end, *, only_load=False):
         cause = 'unestablished-city'
     elif verdict == 'invalid' and result['invalid_reason'] == 'end date not reached':
         cause = 'window-exhausted'
+    elif result['known_quit_faults']:
+        cause = 'known-original-quit-fault'
     elif verdict == 'clean-exit-crash':
         cause = 'clean-exit-crash'
     elif exception:
@@ -79,10 +81,12 @@ def diagnose(text, verdict_text, end, *, only_load=False):
     owner = ('harness' if cause in ('launcher-lua-checkout', 'launcher-load-detection',
               'unestablished-city', 'window-exhausted', 'dialog-held', 'save-watchdog', 'rejected',
               'no-load', 'queue-timeout', 'not-submitted', 'missing') else
+             'known-original-game' if result['known_quit_faults'] else
              'none' if verdict == 'clean' else 'game-or-engine')
     return dict(verdict=verdict, cause=cause, verdict_line=raw, address=address,
                 first_exception_or_stall=point, end_reached=result['end_reached'],
                 watchdog=watchdog, watchdog_name=watchdog_name, owner=owner, location=location,
+                known_quit_faults=result['known_quit_faults'],
                 last_lines=' / '.join(lines[-5:]) or '-')
 
 
@@ -106,11 +110,11 @@ def triage(directory):
     output = directory / 'triage.tsv'
     suite.write_tsv(output, list(rows[0]), rows)
     suite.write_tsv(directory / 'causes.tsv', list(rows[0]),
-                    sorted((r for r in rows if r['verdict'] != 'clean'),
+                    sorted((r for r in rows if r['cause'] != 'clean'),
                            key=lambda r: (r['owner'], r['cause'], r['location'], r['scenario'])))
     grouped = collections.defaultdict(list)
     for row in rows:
-        if row['verdict'] != 'clean':
+        if row['cause'] != 'clean':
             grouped[(row['owner'], row['cause'], row['verdict'], row['location'], row['watchdog_name'])].append(row)
     groups = []
     for (owner, cause, verdict, location, watchdog_name), members in sorted(grouped.items()):

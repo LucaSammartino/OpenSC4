@@ -4,9 +4,9 @@ Examples: python tools/suite.py run --set smoke --profile shadows --tag smoke1
           python tools/suite.py report smoke1 [--against smoke2]
 The queue must include this checkout in its roots. Requests opt into isolated
 parallel slots. No file in Documents is written by this tool.
-An exception after the target date and an accepted quit request is reported as
-clean-exit-crash, with its address; it still does not pass successful(). Earlier
-exceptions, missing quit evidence and harness errors retain their verdicts.
+The known original-game null access at SimCity 4.exe+0x1D0F94 after the target
+and an accepted quit is clean, retaining its raw verdict and exception evidence.
+Other quit exceptions are clean-exit-crash and do not pass successful().
 """
 import argparse
 import csv
@@ -300,7 +300,7 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
                   inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
                   only_load=only_load, real_seconds=None, wall_seconds=None,
                   load_seconds=None, seconds_per_month=None, reach_windows=[],
-                  raw_verdict='missing', exception_address='-', exceptions=[])
+                  raw_verdict='missing', exception_address='-', exceptions=[], known_quit_faults=0)
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
@@ -450,6 +450,13 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
             and all(e['after_end'] and e['after_quit'] for e in result['exceptions'])):
         result['verdict'] = 'clean-exit-crash'
         result['invalid_reason'] = 'exception after end date during quit'
+        if (all(e['location'].lower() == 'simcity 4.exe+0x1d0f94'
+                and 'code 0xC0000005 ACCESS_VIOLATION (reading address 0x00000000)' in e['text']
+                for e in result['exceptions'])
+                and not re.search(r'WATCHDOG:.*(?:stalled|stuck)', text)):
+            result['verdict'] = 'clean'
+            result['known_quit_faults'] = len(result['exceptions'])
+            result['invalid_reason'] = ''
     result['action_lines'] = [a[1] for a in actions.values()]
     result['actions_ok'] = sum(a[0] for a in actions.values())
     result['actions_failed'] = len(actions) - result['actions_ok'] + parse_errors

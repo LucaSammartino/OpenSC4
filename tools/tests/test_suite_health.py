@@ -48,6 +48,21 @@ def test_clean_share_preserves_missing_and_refused_evidence(tmp_path):
     assert 'absent\tclean-end,reach,shadows,pending-actions' in gaps
 
 
+def test_known_original_quit_fault_is_complete_and_not_a_new_finding(tmp_path):
+    directory = recorded_batch(tmp_path)
+    fault = (Path(__file__).parent / 'fixtures/suite-exit-crash.log').read_text()
+    log = directory / 'complete.log'
+    log.write_text(log.read_text() + fault.replace('2028-01-28', '2000-04-01'))
+    (directory / 'complete.verdict').write_text('verdict: corrupt\n')
+    health, _ = suite_health.audit(tmp_path, 'recorded')
+    assert health['clean'] == 3
+    assert health['complete'] == 2
+    assert health['known_quit_faults'] == 1
+    assert health['causes']['known-original-quit-fault'] == 1
+    assert 'known-original-quit-fault' in (directory / 'causes.tsv').read_text()
+    assert 'known-original-quit-fault' not in (directory / 'finding_candidates.tsv').read_text()
+
+
 def test_stale_parsed_json_cannot_supply_missing_raw_evidence(tmp_path):
     directory = recorded_batch(tmp_path)
     (directory / 'complete.log').write_text('AUTOTEST VERDICT: clean (date=2000-04-01, days_per_second=2.0)\n')

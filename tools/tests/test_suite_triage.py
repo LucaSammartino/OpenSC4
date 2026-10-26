@@ -14,6 +14,20 @@ def test_no_load_after_clock_is_a_launcher_failure():
     assert row['address'] == '-'
 
 
+def test_known_original_quit_fault_stays_in_causes_without_becoming_a_finding(tmp_path):
+    text = (Path(__file__).parent / 'fixtures/suite-exit-crash.log').read_text()
+    (tmp_path / 'manifest.json').write_text(json.dumps(dict(requests=[dict(
+        scenario=dict(name='known', end='2028-01-28', script='-'))])))
+    (tmp_path / 'known.log').write_text(text)
+    (tmp_path / 'known.verdict').write_text('verdict: corrupt\n')
+    rows, _ = suite_triage.triage(tmp_path)
+    assert rows[0]['verdict'] == 'clean'
+    assert rows[0]['cause'] == 'known-original-quit-fault'
+    assert rows[0]['owner'] == 'known-original-game'
+    assert rows[0]['known_quit_faults'] == 1
+    assert 'known-original-quit-fault' in (tmp_path / 'causes.tsv').read_text()
+
+
 def test_lua_launch_rejection_is_not_a_game_failure():
     row = suite_triage.diagnose('', 'verdict: unknown\nline: no verdict line\n'
                                'lua_script must name an existing repo-relative .lua file', '2000-03-01')

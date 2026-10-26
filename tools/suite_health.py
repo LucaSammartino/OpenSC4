@@ -116,6 +116,7 @@ def audit(root, tag):
             missing.append('pending-actions')
         # Native refusals are evidence, but do not pass the strict action gate.
         counts['clean'] += clean
+        counts['known_quit_faults'] += bool(parsed['known_quit_faults'])
         counts['complete'] += not missing
         counts['strict'] += not missing and not parsed.get('actions_failed', 0)
         counts['returned'] += diagnostic['verdict'] not in ('missing', 'not-submitted', 'queue-timeout')
@@ -144,7 +145,7 @@ def audit(root, tag):
                   clean_complete_share=counts['complete'] / total,
                   strict_share=counts['strict'] / total,
                   verdicts=dict(Counter(r['verdict'] for r in triage)),
-                  causes=dict(Counter(r['cause'] for r in triage if r['verdict'] != 'clean')),
+                  causes=dict(Counter(r['cause'] for r in triage if r['cause'] != 'clean')),
                   timing=manifest.get('timing', {}),
                   census_passed=counts['complete'] >= total * .8,
                   strict_passed=counts['strict'] >= total * .8)
