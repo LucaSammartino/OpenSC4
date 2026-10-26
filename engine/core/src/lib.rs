@@ -195,3 +195,5 @@ pub mod region_screen;
 pub mod model_maker;
 pub mod model_background_loader;
 pub mod graphs_window;
+pub mod mysim_window;
+pub mod mysim_input_control;
