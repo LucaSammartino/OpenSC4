@@ -27,3 +27,6 @@ No open questions remain.
 
 <!-- re-ef29 (2026-10-26) answered EF25 from replace-effectsres28 in effects.md
      section 18.9; original question moved to answered/effects.md. -->
+
+<!-- re-ef30 (2026-10-26) answered EF26 from replace-effectsres28 in effects.md
+     section 18.10; original question moved to answered/effects.md. -->

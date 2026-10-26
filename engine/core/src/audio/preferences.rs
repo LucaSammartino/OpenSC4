@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Settled preferences IO, audio-owner-contracts §21. Full dialog/song rules: AU43.
+//! Legacy preferences fixtures; complete AU43 dialog/song rules are in `owner`.
+
+pub mod owner;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AudioPreferences {
@@ -30,7 +32,7 @@ pub trait PreferencesHost {
     fn control(&mut self, control: u32);
 }
 
-/// Retained window state supplied by the caller; constructor defaults are AU43.
+/// Legacy fixture state supplied by the caller; native callers use `owner::Owner`.
 #[derive(Debug)]
 pub struct PreferencesWinProc {
     pub primary: Option<u64>,
@@ -83,8 +85,7 @@ impl PreferencesWinProc {
         }
     }
 
-    /// Only settled notification cases are executable. Type 3's filter/action
-    /// matrix must be supplied by a future AU43 answer, not forwarded wholesale.
+    /// Historical fixture envelope. Native notification filtering uses `owner::Owner::message`.
     pub fn do_message(
         &mut self,
         window: u64,

@@ -4,10 +4,19 @@
 //! not yet implemented are not represented by foreign whole-owner callbacks.
 use super::*;
 
+mod controls;
 mod lifecycle;
 mod operations;
+mod population;
+mod properties;
+mod resources;
+mod routing;
+pub use controls::ControlOp;
 pub use lifecycle::{obtain_control, BrowserHost, BrowserOverrides, BrowserOwner, ControlIo, Unsettled};
 pub use operations::{BrowserIo, Column, Enumeration, IconIo};
+pub use population::{GridOp, PopulationIo};
+pub use properties::{DriveRecord, PropertyIo};
+pub use routing::{MessageIo, Received};
 
 pub const IID: u32 = 0x3aa5_2e64;
 pub const PRIMARY_SLOTS: usize = 107;
@@ -18,15 +27,17 @@ pub const DIRECTORY: u32 = 0xbaa8_8502;
 pub const FILE: u32 = 0xbaa8_8503;
 pub const CUSTOM_FILE: u32 = 0xbaa8_8513;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Entry {
+    pub icon: Option<Handle>,
     pub tag: u32,
     pub id: u32,
     pub name: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CustomEntry {
+    pub id: u32,
     pub interface: Option<Handle>,
     pub text: Vec<u8>,
 }
@@ -114,8 +125,7 @@ pub struct FileBrowser {
     pub filter_index: u32,
     pub filter_labels: Vec<Vec<u8>>,
     pub filter_patterns: Vec<Vec<Vec<u8>>>,
-    /// Resolved combo interface; the incomplete AddControls table does not
-    /// establish a retained-field index for this control (FBQ2).
+    /// Alias of retained child 7 for callers supplying controls directly.
     pub filter_combo: Option<Handle>,
     pub selection: Selection,
     pub selected_row: i32,
@@ -123,20 +133,20 @@ pub struct FileBrowser {
     pub initialized: bool,
     pub sort_words: [u32; 2],
     pub wildcard_option: u32,
+    // SPEC-GAP: §8.1.1 supplies directory mode separately, without a property mapping.
+    pub directory_order: u32,
     pub common_font: Option<Handle>,
     pub icons: [Option<Handle>; 7],
     pub button_buffers: [Option<Handle>; 4],
     pub name_column: Option<i32>,
-    /// Required calls are recorded in order, never silently outsourced. Bodies
-    /// of these refresh operations still need FBQ5's specified portions added.
+    /// Deferred work for state-only callers; live paths execute it synchronously.
     pub refresh_work: Vec<Refresh>,
-    pub drive_records: Vec<Vec<u8>>,
+    pub drive_records: Vec<DriveRecord>,
     pub custom_groups: Vec<Vec<CustomEntry>>,
     pub style_fonts: [Option<Handle>; 4],
     pub style_words: [[u32; 8]; 4],
     pub extra_reference: Option<Handle>,
-    /// Offset-keyed constructor facts whose public property meanings are not
-    /// proved (FBQ4). These are values, not a native struct memory layout.
+    /// Offset-keyed scalar state, not a native struct memory layout.
     pub raw_words: std::collections::BTreeMap<u32, u32>,
     pub raw_bytes: std::collections::BTreeMap<u32, u8>,
 }
@@ -167,6 +177,7 @@ impl FileBrowser {
             initialized: false,
             sort_words: [0, 2],
             wildcard_option: 0,
+            directory_order: 0,
             common_font: None,
             icons: [None; 7],
             button_buffers: [None; 4],
@@ -429,7 +440,7 @@ impl FileBrowser {
         self.mark_dirty(f);
         true
     }
-    pub fn create_new_directory(&mut self, f: &mut impl BrowserForeign) -> bool {
+    fn create_directory_candidate(&self, f: &mut impl BrowserForeign) -> Option<Vec<u8>> {
         let mut leaf = self.new_directory_label.clone();
         let mut path = [&self.current[..], &leaf[..], b"\\"].concat();
         if f.directory_exists(&path) {
@@ -443,8 +454,14 @@ impl FileBrowser {
             }
         }
         if !f.create_directory(&path) {
-            return false;
+            return None;
         }
+        Some(leaf)
+    }
+    pub fn create_new_directory(&mut self, f: &mut impl BrowserForeign) -> bool {
+        let Some(leaf) = self.create_directory_candidate(f) else {
+            return false;
+        };
         self.refresh_work.extend([Refresh::DirectoryList, Refresh::FileList]);
         // Refresh bodies must execute before the grid lookup when this partial
         // state layer is integrated; no external population callback is used.
@@ -467,6 +484,9 @@ impl FileBrowser {
             return;
         }
         if let Some(control) = self.children[index].take() {
+            if index == 7 {
+                self.filter_combo = None;
+            }
             let accessor = if matches!(index, 0 | 6) { 0x14 } else { 0x0c };
             let window = f.child_window(control, accessor);
             f.remove_child(self.window(), window);
@@ -546,6 +566,7 @@ impl FileBrowser {
         for child in &mut self.children {
             replace_ref(child, None, f);
         }
+        self.filter_combo = None;
         replace_ref(&mut self.common_font, None, f);
         for icon in &mut self.icons {
             replace_ref(icon, None, f);

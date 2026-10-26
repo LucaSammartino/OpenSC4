@@ -130,6 +130,8 @@ pub fn cost_of_solution(c: &CostInputs) -> i32 {
             s = r24(f64::from(s) + f64::from(d.abs())) as f32;
         }
     }
+    // Foundations section 18 and network-tools section 8.1.5: x87's 24-bit
+    // precision rounds the multiply even without an intermediate memory store.
     let earthwork = rhe(r24(f64::from(s) * f64::from(c.earthwork_cost)) as f32);
     let mut total = c.demolition.wrapping_add(earthwork);
     for cell in &c.cells {

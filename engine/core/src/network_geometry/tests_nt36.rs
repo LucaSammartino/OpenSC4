@@ -4,6 +4,18 @@ use super::*;
 
 const VERTICES: [i32; 4] = [473, 602, 603, 474];
 
+#[test]
+fn tempelhof_draft_builds_plane_from_live_terrain() {
+    let heights = [291.40268, 293.30893, 290.79285, 289.53262];
+    let (mut g, t) = fixture(heights, [0.0; 4]);
+    g.cells.clear();
+    g.solved.clear();
+    assert_eq!(g.place(&t, &mut NoHost), 1);
+    let ci = &g.cells[&cell_key(86, 3)];
+    assert_eq!(ci.corners, [293.30893; 4]);
+    assert_eq!(extras::cost_of_solution(&g.cost_inputs(&t, 0)), 11);
+}
+
 fn fixture(heights: [f32; 4], plane: [f32; 4]) -> (NetworkGeometry, Terrain) {
     let mut terrain = vec![300.0; 129 * 129];
     for (v, h) in VERTICES.into_iter().zip(heights) {

@@ -26,6 +26,7 @@
 #include "FC4PropDevSnapshot.h"
 #include "FC4PropDevCreation.h"
 #include "FC4PropDevNight.h"
+#include "FC4PropDevRegistration.h"
 #include "FC4Properties.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
@@ -37,6 +38,7 @@
 #include "cIGZMessageServer2.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "cIGZVariant.h"
 #include "cISC4City.h"
 #include "cISC4Lot.h"
 #include "cISC4LotManager.h"
@@ -44,12 +46,14 @@
 #include "cISC4PropDeveloper.h"
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
+#include "cISCProperty.h"
 
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -119,6 +123,8 @@ bool g_pendingUncertain = false;
 uint32_t g_messageRemovals = 0;
 PropSelectorReplay* g_selectorReplay = nullptr;
 PropCreationTrace* g_creationTrace = nullptr;
+PropEffectReplay* g_effectReplay = nullptr;
+PropTagReplay* g_tagReplay = nullptr;
 size_t g_creationCursor = 0;
 bool g_creationValid = true;
 struct CreationTagOutput {
@@ -128,13 +134,10 @@ struct CreationTagOutput {
 std::vector<CreationTagOutput> g_creationTags;
 size_t g_tagCursor = 0;
 bool g_tagValid = true;
-void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
-    if (g_tagCursor == g_creationTags.size()) { g_tagValid = false; return; }
-    const auto& tag = g_creationTags[g_tagCursor++];
-    if (tag.prop != prop || tag.native != std::vector<uint32_t>{requester}) g_tagValid = false;
-}
+void CompareRequesterTag(void*, uint64_t prop, uint32_t requester);
 bool g_nativeOperation = false;
 std::vector<fc4_prop_message> g_nested;
+std::map<size_t, std::unique_ptr<PropRegistrationInput>> g_registrationInputs;
 size_t g_nestedCursor = 0;
 fc4_prop_developer* ReplayCore();
 
@@ -142,9 +145,26 @@ bool ReplayNested(uint32_t type, uint64_t prop) {
     if (g_nestedCursor == g_nested.size()) return false;
     const auto& m = g_nested[g_nestedCursor];
     if (m.msg_type != type || m.object != prop) return false;
+    const auto input = g_registrationInputs.find(g_nestedCursor);
+    PropRegistrationInput::Scope registration(input != g_registrationInputs.end() ? input->second.get() : nullptr);
     ++g_nestedCursor;
     fc4_prop_developer_do_message(ReplayCore(), &m);
+    if (input != g_registrationInputs.end() && !input->second->valid) g_uncertain = true;
     return true;
+}
+
+void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
+    if (g_tagCursor == g_creationTags.size()) { g_tagValid = false; return; }
+    const auto& tag = g_creationTags[g_tagCursor++];
+    if (tag.prop != prop || tag.native != std::vector<uint32_t>{requester}) g_tagValid = false;
+    if (!g_tagReplay || !g_tagReplay->Call(prop, requester, g_nestedCursor, [](size_t end) {
+        if (end > g_nested.size()) return false;
+        while (g_nestedCursor < end) {
+            const auto message = g_nested[g_nestedCursor];
+            if (!ReplayNested(message.msg_type, message.object)) return false;
+        }
+        return true;
+    })) g_tagValid = false;
 }
 
 cISC4PropManager* PropManager() {
@@ -173,8 +193,8 @@ void HookRemove(void*, uint64_t prop) {
     }
 }
 
-// Replay genuine creation attempts and outcomes, including failures. All
-// remaining writes/dated effects still need independent output comparison.
+// Replay genuine creation attempts and outcomes, including failures. The
+// post-service C/holder/tag span is checked separately from registration.
 uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t id) {
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
@@ -186,7 +206,7 @@ uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t 
     }
     const auto& event = g_creationTrace->Events()[g_creationCursor++];
     // Section 4.4: a null service result has no registration/tag writes.
-    // Successful creations still delegate unobserved effects (PV18).
+    // Registration holds/model/notification effects remain incomplete (PV18).
     if (event.result) g_uncertain = true;
     if (event.result) ++g_created;
     if (event.lot != lot || event.network != network || event.index != index || event.id != id ||
@@ -286,6 +306,26 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.host = MakePropHost(b.ctx.get());
     b.host.set_prop_requester = &CompareRequesterTag;
     PropBlockSnapshot::Bind(b.host);
+    PropRegistrationInput::Bind(b.host);
+    b.host.set_prop_state = [](void*, uint64_t p, uint32_t v) {
+        if (g_effectReplay) g_effectReplay->Call(p, 11, {v,0,0,0});
+    };
+    b.host.set_random_chance = [](void*, uint64_t p, uint8_t v) {
+        if (g_effectReplay) g_effectReplay->Call(p, 17, {v,0,0,0});
+    };
+    b.host.set_time_of_day_range = [](void*, uint64_t p, float start, float end) {
+        if (g_effectReplay) g_effectReplay->Call(p, 13,
+            {PropEffectSnapshot::Word(start),PropEffectSnapshot::Word(end),0,0});
+    };
+    b.host.set_prop_timer = [](void*, uint64_t p, uint32_t mask, bool on) {
+        if (g_effectReplay) g_effectReplay->Call(p, 21, {mask,on?1u:0u,0,0});
+    };
+    b.host.set_date_calendar_range = [](void* u, uint64_t p, uint32_t i, uint32_t l, uint8_t m, uint8_t d) {
+        if (g_effectReplay) g_effectReplay->Call(p, 15, {i,l,m,d}, RunHost().sim_date(u));
+    };
+    b.host.tick_date = [](void*, uint64_t p, uint32_t date) {
+        if (g_effectReplay) g_effectReplay->Call(p, 16, {}, date);
+    };
     b.core = fc4_prop_developer_create(&b.host, kShadowSeed, TokenOf(orig));
     if (b.core == nullptr) {
         b.ctx.reset();
@@ -466,13 +506,26 @@ struct MonthStats {
     uint32_t selectorEvents = 0, selectorZero = 0;
     uint32_t selectorMatched = 0, replayComplete = 0, replayInvalid = 0;
     uint32_t operationsEligible = 0, operationsExact = 0, operationsIncomplete = 0;
+    uint32_t operationRecords = 0;
     uint32_t nights = 0, nightExact = 0, nightDraws = 0;
     uint32_t creationTags = 0, creationTagsMatched = 0;
+    uint32_t creationSpans = 0, creationSpansMatched = 0;
+    uint32_t effectCalls = 0, effectMatched = 0, effectDraws = 0, effectChanges = 0;
     Diff d;
 };
 MonthStats g_month;
 uint32_t g_months = 0, g_cleanMonths = 0;
+uint64_t g_methodCalls = 0, g_methodMismatches = 0;
 WriteCapture g_capture;
+
+void MethodLine(const char* date) {
+    g_methodMismatches += g_month.d.mismatches;
+    // DoMessage still lacks complete dated/model and creation effect traces.
+    // A saved-state match alone must not earn whole-method coverage credit.
+    Log("propdev method 0x006F4E90 cSC4PropDeveloper::DoMessage (month) %s: "
+        "calls=%llu complete=0 mismatches=%llu; resyncs=0", date,
+        static_cast<unsigned long long>(g_methodCalls), static_cast<unsigned long long>(g_methodMismatches));
+}
 
 void Follow(const char* how) {
     // "first" or "resynced" wins over "yes" for the month line.
@@ -560,6 +613,8 @@ struct Step {
     fc4_prop_message message{};
     PropBlockSnapshot inputs;
     const PropSelectorTrace* trace = nullptr;
+    const PropEffectTrace* effects = nullptr;
+    PropTagTrace* tags = nullptr;
     bool nativeFinished = false;
 };
 
@@ -599,13 +654,19 @@ void StepAfter(void* ctx) {
     if (!s.ran) return;
     const uint32_t mismatchesBefore = g_month.d.mismatches;
     PropSelectorReplay replay(s.trace->Events());
+    PropEffectReplay effects(*s.effects);
+    PropTagReplay tags(*s.tags);
     g_selectorReplay = &replay;
+    g_effectReplay = &effects;
+    g_tagReplay = &tags;
     if (s.block) PropBlockSnapshot::active = &s.inputs;
     g_inStep = true;
     const bool oursFinished = fc4_prop_developer_do_message(g_run.core, &s.message);
     g_inStep = false;
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
+    g_effectReplay = nullptr;
+    g_tagReplay = nullptr;
     const bool complete = s.trace->Valid() && replay.Complete();
     g_month.selectorMatched += U(replay.Matched());
     if (complete) ++g_month.replayComplete; else {
@@ -629,6 +690,31 @@ void StepAfter(void* ctx) {
         }
     }
     if (!s.inputs.valid) g_month.d.Add("frozen block input missing");
+    g_month.effectCalls += U(s.effects->Events().size());
+    g_month.effectMatched += U(effects.Matched());
+    g_month.effectDraws += U(effects.Draws());
+    g_month.effectChanges += U(effects.Changes());
+    if (!effects.Complete()) {
+        g_month.d.Add("prop effect transcript/semantics/RNG differ: consumed=%u matched=%u native=%u",
+            U(effects.Consumed()), U(effects.Matched()), U(s.effects->Events().size()));
+        static std::map<std::string,uint32_t> diagnosedEffects;
+        if (diagnosedEffects[effects.Failure()]++ < 8) {
+            Log("propdev effect invalid: reason=%s type=%08x consumed=%u matched=%u native=%u",
+                effects.Failure(), s.type, U(effects.Consumed()), U(effects.Matched()), U(s.effects->Events().size()));
+            if (const auto* e = effects.Expected()) {
+                fc4_prop_effect_state expected{};
+                fc4_prop_effect_result result{};
+                e->Difference(result, &expected);
+                Log("propdev effect values: prop=%p slot=%u args=%u,%u,%u,%u date=%u "
+                    "native/expected range=%u/%u I=%u/%u L=%u/%u S=%u/%u E=%u/%u timer=%u/%u chance=%u/%u state=%u/%u",
+                    FromToken(e->prop), e->slot, e->args[0], e->args[1], e->args[2], e->args[3], e->date,
+                    e->after.present, expected.present, e->after.interval, expected.interval,
+                    e->after.duration, expected.duration, e->after.start_day, expected.start_day,
+                    e->after.end_day, expected.end_day, e->after.timer, expected.timer,
+                    e->after.chance, expected.chance, e->after.state, expected.state);
+            }
+        }
+    }
     if (!g_creationTrace || !g_creationTrace->Valid() || !g_creationValid ||
         g_creationCursor != g_creationTrace->Events().size()) {
         g_uncertain = true;
@@ -640,11 +726,14 @@ void StepAfter(void* ctx) {
         g_month.d.Add("creation requester tag projection differs: consumed=%u native=%u", U(g_tagCursor),
                       U(g_creationTags.size()));
     } else g_month.creationTagsMatched += U(g_creationTags.size());
+    g_month.creationSpans += U(s.tags->Spans().size());
+    g_month.creationSpansMatched += U(tags.Matched());
+    if (!tags.Complete()) g_month.d.Add("creation hold/holder/tag/release span differs (%s)", tags.Failure());
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
     if (g_nestedCursor != g_nested.size()) g_uncertain = true;
     while (g_nestedCursor < g_nested.size()) {
-        const auto m = g_nested[g_nestedCursor++];
-        fc4_prop_developer_do_message(g_run.core, &m);
+        const auto m = g_nested[g_nestedCursor];
+        ReplayNested(m.msg_type, m.object);
     }
     struct Result {
         Step& step;
@@ -652,12 +741,16 @@ void StepAfter(void* ctx) {
         bool eligible;
         ~Result() {
             if (eligible) ++g_month.operationsEligible;
-            if (eligible && g_month.d.mismatches == before) {
-                WriteCapture cap;
-                CoreBox native;
-                if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(step.orig))) ||
-                    !ReadInto(native, cap, step.orig)) g_month.d.Add("operation record unavailable");
-                else CompareCores(g_run.core, native.core, g_month.d);
+            // Check the saved projection even when another output failed or
+            // remains incomplete. Creation/dated effects must not hide owner
+            // list/map or scanner differences until the end of the month.
+            WriteCapture cap;
+            CoreBox native;
+            if (!cap.Capture(static_cast<cIGZUnknown*>(const_cast<void*>(step.orig))) ||
+                !ReadInto(native, cap, step.orig)) g_month.d.Add("operation record unavailable");
+            else {
+                ++g_month.operationRecords;
+                CompareCores(g_run.core, native.core, g_month.d);
             }
             if (eligible && g_month.d.mismatches == before) ++g_month.operationsExact;
             else {
@@ -738,7 +831,8 @@ void CallMessage(void* ctx) {
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr || g_run.core == nullptr) return;
     // PV16-02: replay at callback return, before later broadcast recipients.
-    if (g_messageTable && (msg->GetType() == 0xC9DA96E8 || msg->GetType() == 0xC9DA96E9)) return;
+    if (g_messageTable && (msg->GetType() == 0xC9DA96E8 || msg->GetType() == 0xC9DA96E9 ||
+                          msg->GetType() == 0x99EF1142)) return;
     if (msg->GetType() == kMsgAnimationTick) {
         ++g_month.ticks;
     } else {
@@ -760,8 +854,43 @@ bool __fastcall NativeNightMessage(void* self, void* edx, cIGZMessage2* msg) {
     const auto original = g_nativeMessage;
     if (!original) return false;
     const uint32_t type = msg ? msg->GetType() : 0;
-    if (self != g_agent || !g_run.core || (type != 0xC9DA96E8 && type != 0xC9DA96E9))
+    if (self != g_agent || !g_run.core)
         return original(self, edx, msg);
+    ++g_methodCalls;
+    if (type == 0x99EF1142) {
+        PropEffectTrace::Recording registrationEffects(true);
+        // The notification observer runs after the developer, too late to
+        // sample registration state (PV18). Freeze at the genuine callback.
+        fc4_prop_message message{};
+        if (!PropMessageOf(msg, g_run.ctx->pool, &message)) {
+            g_month.d.Add("insertion input unavailable");
+            return original(self, edx, msg);
+        }
+        auto input = std::make_unique<PropRegistrationInput>();
+        if (message.data3 == 0xA823821E && message.object) {
+            auto* prop = static_cast<cISC4PropOccupant*>(FromToken(message.object));
+            std::vector<uint32_t> trigger;
+            auto* occupant = prop->AsOccupant();
+            if (occupant) {
+                props::GetU32s(occupant->AsPropertyHolder(), 0x6A3FCC37, trigger);
+                input->Capture(g_run.ctx.get(), message.object, trigger.empty() ? 0 : trigger.front());
+            } else input->valid = false;
+        }
+        ++g_month.messages;
+        if (g_nativeOperation) {
+            g_registrationInputs.emplace(g_nested.size(), std::move(input));
+            g_nested.push_back(message);
+            return original(self, edx, msg);
+        }
+        const bool result = original(self, edx, msg);
+        PropRegistrationInput::Scope registration(input.get());
+        if (fc4_prop_developer_do_message(g_run.core, &message) != result)
+            g_month.d.Add("insertion return differs");
+        if (!input->valid) g_month.d.Add("frozen insertion input missing");
+        g_run.ctx->pool.Drain();
+        return result;
+    }
+    if (type != 0xC9DA96E8 && type != 0xC9DA96E9) return original(self, edx, msg);
     ++g_month.nights;
     const uint32_t differences = g_month.d.mismatches;
     uint32_t count = StateOf(g_run.core).night_count;
@@ -1020,24 +1149,51 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     }
     PropSelectorTrace trace;
     PropCreationTrace creations;
+    PropEffectTrace effects;
+    PropTagTrace tags;
+    s.tags = &tags;
+    const auto* version = compat::IdentifiedVersion();
+    const bool tagRecording = version && tags.Begin(
+        reinterpret_cast<void**>(version->imageBase + (0x00AA4900u - 0x00400000u)),
+        reinterpret_cast<void**>(version->imageBase + (0x00AA4868u - 0x00400000u)),
+        [](const void* v, uint32_t* out) -> bool {
+            auto* value = static_cast<const cFC4IGZVariant*>(v);
+            if (value->GetType() != cIGZVariant::Uint32) return false;
+            *out = value->GetValUint32();
+            return true;
+        },
+        [](const void* p) -> uint32_t { return static_cast<const cISCProperty*>(p)->GetPropertyID(); },
+        []() -> size_t { return g_nested.size(); });
     cISC4City* city = propcity::AppCity();
     const bool creationRecording = city && creations.Begin(city->GetLotDeveloper(), city->GetNetworkLotManager(),
         [](void* context,void* result) -> uint64_t {
             return PropToken(static_cast<Step*>(context)->pool, static_cast<cISC4Occupant*>(result));
-        }, &s, []() -> size_t { return g_nested.size(); });
-    const auto* version = compat::IdentifiedVersion();
+        }, &s, []() -> size_t { return g_nested.size(); },
+        [](void* context, void* occupant, uint64_t prop) {
+            static_cast<Step*>(context)->tags->Watch(occupant, prop);
+        });
+    const bool effectRecording = version && effects.Begin(
+        reinterpret_cast<void**>(version->imageBase + (0x00AA4900u - 0x00400000u)),
+        reinterpret_cast<const void*>(version->imageBase + (0x00B231B0u - 0x00400000u)),
+        [](const void*) -> uint32_t { return RunHost().sim_date(g_run.ctx.get()); },
+        [](const void* date) -> uint32_t {
+            return date ? static_cast<cFC4IGZDate*>(const_cast<void*>(date))->DayNumber() : 0;
+        });
     const bool recording = version && trace.Begin(requesters, version->imageBase);
     g_nested.clear();
+    g_registrationInputs.clear();
     g_nestedCursor = 0;
     g_nativeOperation = true;
     *finished = target->DoMessage(msg);  // the original's step, exactly once
     g_nativeOperation = false;
     trace.Finish();
     creations.Finish();
+    effects.Finish();
+    tags.Finish();
     // PV17: service insertion precedes requester tagging. Compare the final
-    // native tag projection to the independent developer's requested writes;
-    // never supply that final tag as a replay input. This does not certify
-    // arbitrary virtual holder callbacks or the unobserved registration writes.
+    // native tag projection to the independent developer's requested writes,
+    // in addition to its intermediate post-service call/output spans. Never
+    // supply that final tag as a replay input or certify registration from it.
     g_creationTags.clear();
     g_tagCursor = 0;
     g_tagValid = true;
@@ -1052,8 +1208,11 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     g_creationCursor = 0;
     g_creationValid = creationRecording;
     s.trace = &trace;
+    s.effects = &effects;
     s.nativeFinished = *finished;
     if (!recording || !trace.Valid()) g_month.d.Add("selector transcript capture unavailable");
+    if (!effectRecording || !effects.Valid()) g_month.d.Add("prop effect capture unavailable");
+    if (!tagRecording || !tags.Valid()) g_month.d.Add("creation tag span capture unavailable");
     g_month.selectorEvents += U(trace.Events().size());
     for (const auto& event : trace.Events()) if (event.result == 0) ++g_month.selectorZero;
     if (!SehGuard("propdev shadow (after the step)", &StepAfter, &s)) {
@@ -1063,6 +1222,8 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     s.pool.Drain();
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
+    g_effectReplay = nullptr;
+    g_tagReplay = nullptr;
     g_creationTrace = nullptr;
     static bool loggedIncomplete = false;
     if (s.incomplete != nullptr && !loggedIncomplete) {
@@ -1088,6 +1249,8 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
     propcity::DateText(julian, date);
     if (!mo.compared) {
         Log("propdev shadow %s: INCOMPLETE (%s); mismatches=1", date, mo.incomplete ? mo.incomplete : "?");
+        ++g_methodMismatches;
+        MethodLine(date);
         g_month = MonthStats{};
         return;
     }
@@ -1115,13 +1278,21 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " operations-eligible=" + std::to_string(g_month.operationsEligible) +
                              " full-operations-exact=0" +
                              " operations-incomplete=" + std::to_string(g_month.operationsIncomplete) +
+                             " operation-records=" + std::to_string(g_month.operationRecords) +
                              " night-callbacks=" + std::to_string(g_month.nights) +
                              " night-exact=" + std::to_string(g_month.nightExact) +
                              " night-draws=" + std::to_string(g_month.nightDraws) +
                              " creation-tags=" + std::to_string(g_month.creationTags) +
                              " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
+                             " creation-spans=" + std::to_string(g_month.creationSpans) +
+                             " creation-spans-matched=" + std::to_string(g_month.creationSpansMatched) +
+                             " effect-calls=" + std::to_string(g_month.effectCalls) +
+                             " effect-matched=" + std::to_string(g_month.effectMatched) +
+                             " effect-draws=" + std::to_string(g_month.effectDraws) +
+                             " effect-state-changes=" + std::to_string(g_month.effectChanges) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
+    MethodLine(date);
     g_month = MonthStats{};
     g_messageRemovals = 0;
 }
@@ -1138,6 +1309,8 @@ void PropDevShadowCityShutdown() {
     g_agent = nullptr;
     g_vtable = nullptr;
     g_month = MonthStats{};
+    g_registrationInputs.clear();
+    g_methodCalls = g_methodMismatches = 0;
 }
 
 }  // namespace fc4
