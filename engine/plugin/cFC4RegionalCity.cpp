@@ -15,6 +15,7 @@
 #include "cISC4TutorialSystem.h"
 #include "cISC4Region.h"
 #include "cISC4RegionalCity.h"
+#include "cISC4NeighborConnection.h"
 #include "cISC4Lot.h"
 #include "cRZBaseString.h"
 #include "cRZAutoRefCount.h"
@@ -177,7 +178,13 @@ void cFC4RegionalCity::UpdateCityCacheFromCity(cISC4City* city) {
         SC4List<cISC4NeighborConnection*> list;
         neighbors->GetAllConnections(list);
         std::vector<void*> objects;
-        for (auto* c : list) objects.push_back(c);
+        uint32_t roads = 0;
+        for (auto* c : list) {
+            objects.push_back(c);
+            if (c && static_cast<uint32_t>(c->GetType()) == 2 && c->GetCityOnOtherSideOfConnection()) ++roads;
+        }
+        fc4::Log("regionalcity cache: connections=%u roads_to_neighbor=%u",
+            static_cast<uint32_t>(objects.size()), roads);
         const auto calls = rc::ConnectionCalls(rc::RepairLiveConnection);
         fc4_regionalcity_owner_connections(owner_, objects.data(), static_cast<uint32_t>(objects.size()), &calls);
         neighbors->UpdateCommodityStats(city);

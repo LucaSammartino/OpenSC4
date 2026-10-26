@@ -3,6 +3,7 @@
 #include "FC4RegionalCityElements.h"
 #include "FC4RegionalCityHost.h"
 #include "FC4RegionalCityBorder.h"
+#include "cFC4ZoneManager.h"
 #include "FC4Properties.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
@@ -130,16 +131,23 @@ void Cells(void* p, uint32_t action, const int32_t (*cells)[2], uint32_t n, uint
             z0 = std::min(z0, cells[i][1]); z1 = std::max(z1, cells[i][1]);
         }
     }
-    SC4CellRegion<int32_t> region(x0, z0, x1, z1, false);
-    for (uint32_t i = 0; i < n; ++i) region.cellMap.SetValue(cells[i][0] - x0, cells[i][1] - z0, true);
+    const size_t width = static_cast<size_t>(x1 - x0 + 1);
+    std::vector<uint8_t> mask(width * static_cast<size_t>(z1 - z0 + 1), 0);
+    for (uint32_t i = 0; i < n; ++i)
+        mask[static_cast<size_t>(cells[i][1] - z0) * width + static_cast<size_t>(cells[i][0] - x0)] = 1;
+    fc4_zone_region input{x0, z0, x1, z1, mask.data(), mask.size()};
+    ZoneRegionBuffer buffer;
+    if (!buffer.Build(input)) return;
+    auto& region = buffer.Game();
     if (action == 0) {
         auto* filter = new LayerFilter(layer);
-        DemolishBorder(C(p).city->GetDemolitionUtility(), region, filter);
+        DemolishBorder(C(p).city->GetDemolitionUtility(),
+            reinterpret_cast<const SC4CellRegion<int32_t>&>(region), filter);
         filter->Release();
     } else {
         auto* zones = AsGame(C(p).city->GetZoneManager());
         // SPEC-GAP: §4.6 specifies dezoning but no zone-placement policy; use the ordinary free dezone call.
-        if (zones) zones->PlaceZone(reinterpret_cast<SC4CellRegion<long>&>(region), 0,
+        if (zones) zones->PlaceZone(region, 0,
             true, true, false, true, false, nullptr, nullptr, nullptr);
     }
 }

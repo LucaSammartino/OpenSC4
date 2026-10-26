@@ -130,6 +130,7 @@
 #include "cFC4AdvisorSystem.h"
 #include "cFC4MySim.h"
 #include "cFC4MySimDispatch.h"
+#include "cFC4RegionalCity.h"
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
@@ -552,6 +553,11 @@ const ClassEntry kNetOccClasses[] = {
     {0xC9C05C5D, "cSC4PowerLineOccupant", &CreateFC4PowerLineOccupant},
 };
 
+// regional-city.md section 1: opt-in factory replacement.
+const ClassEntry kRegionalCityClasses[] = {
+    {0x6A037C24, "cSC4RegionalCity", &CreateFC4RegionalCity},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -633,6 +639,7 @@ const Subsystem kSubsystems[] = {
     // network-rules.md section 2.4.3: the rule owners have no factory/IID.
     // Select the existing manager/tool hosts below, never invent class IDs.
     {"netrules", nullptr, nullptr, 0, false},
+    {"regionalcity", nullptr, kRegionalCityClasses, sizeof(kRegionalCityClasses) / sizeof(kRegionalCityClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
