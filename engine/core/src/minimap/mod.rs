@@ -16,6 +16,7 @@ mod blit;
 mod paint;
 mod input;
 mod messages;
+mod lifecycle;
 pub use messages::{Message, Payload, SUBSCRIPTIONS};
 pub use input::Input;
 pub use paint::{dither_rgb8_to_argb4, frustum_points, marker_points, Paint, PaintGeometry, PaintPixels, Ray};

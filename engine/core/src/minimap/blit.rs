@@ -24,7 +24,7 @@ pub trait Surface {
     }
     fn surface_unlock(&mut self, surface: Handle, pixels: SurfacePixels);
     /// Slots 30 and 18, in order, during Init. Kept raw under MMW4.
-    fn surface_clear(&mut self, surface: Handle, color: [u8; 4]);
+    fn surface_clear(&mut self, surface: Handle, color: [u8; 4], lock: &mut SurfacePixels);
 }
 
 pub fn visible_recursive(windows: &Windows, window: Window) -> bool {

@@ -15,6 +15,8 @@ pub(super) struct RecordingHost {
     pub fail_lock: Option<Handle>,
     pub rotation: u32,
     pub targets: Vec<[f32; 3]>,
+    pub factory: Option<Option<Handle>>,
+    pub init_surface_ok: bool,
 }
 
 impl base::Host for RecordingHost {}
@@ -44,6 +46,16 @@ impl Network for RecordingHost {
 }
 
 impl Surface for RecordingHost {
+    fn create_surface(&mut self, service: u32, iid: u32) -> Result<Option<Handle>> {
+        assert_eq!((service, iid), (0xc416025c, 0x0073283c));
+        self.factory.ok_or(Unsupported::Open("MMW4"))
+    }
+    fn init_surface(&mut self, s: Handle, n: usize, format: [u32; 2]) -> Result<bool> {
+        assert_eq!(format, [9, 32]);
+        self.events.push(format!("init:{s}:{n}"));
+        if self.init_surface_ok { self.surfaces.insert(s, SurfacePixels { pixels: vec![0; n * n], pitch: n }); }
+        Ok(self.init_surface_ok)
+    }
     fn shutdown_surface(&mut self, s: Handle) { self.events.push(format!("shutdown:{s}")); }
     fn surface_lock(&mut self, s: Handle, code: u32) -> Result<Option<SurfacePixels>> {
         self.events.push(format!("lock:{s}:{code:04x}"));
@@ -54,7 +66,10 @@ impl Surface for RecordingHost {
         self.events.push(format!("unlock:{s}"));
         self.surfaces.insert(s, p);
     }
-    fn surface_clear(&mut self, s: Handle, color: [u8; 4]) { self.events.push(format!("clear:{s}:{color:?}")); }
+    fn surface_clear(&mut self, s: Handle, color: [u8; 4], lock: &mut SurfacePixels) {
+        self.events.push(format!("clear:{s}:{color:?}"));
+        lock.pixels.fill(0x0064647f);
+    }
 }
 
 impl Paint for RecordingHost {
