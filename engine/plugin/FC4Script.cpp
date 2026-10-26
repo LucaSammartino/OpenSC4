@@ -874,7 +874,10 @@ void ScriptOnTick() {
     NoteAllRun();
 }
 
-bool ScriptWaiting() { return !g_waiting.empty(); }
+bool ScriptWaiting() {
+    return g_inTick || !g_waiting.empty() ||
+        (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0);
+}
 
 uint32_t ScriptSaveGraceMs() { return static_cast<uint32_t>(InterlockedCompareExchange(&g_saveGraceMs, 0, 0)); }
 

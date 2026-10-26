@@ -76,8 +76,8 @@ int ScriptLoad(const char* path, const char* why);
 void ScriptOnNewDay(int32_t julian);
 // The observer's OnTick (main thread): runs the waiting actions, in order.
 void ScriptOnTick();
-// True while actions wait for the next tick (the autotest's end date waits
-// for them: FC4Autotest.cpp).
+// Main thread: true while actions are queued, active in a nested modal tick,
+// or draining their final input delay. Both end-date exit modes wait for them.
 bool ScriptWaiting();
 // Default zero. Explicit bounded watchdog allowance only while SaveCity(full)
 // is executing; does not change simulation steps, speed, seeds or save bytes.

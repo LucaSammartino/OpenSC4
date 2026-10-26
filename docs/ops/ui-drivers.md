@@ -42,8 +42,10 @@ web/HTTP and volcano paths still need qualified scenarios. The registered
 `ViewWebBrowser` command refuses an empty parameter set (status 2); no web
 coverage follows from its registration. Candidate rows remain outside `full`.
 
-The censuses pause simulation before UI actions and resume afterwards, keeping
-the saved city from advancing several years while its panels are exercised.
+The censuses pause simulation before UI actions and resume afterwards. Modal
+dialogs and the harness's initial unpause can resume the clock. Both end-date
+exit modes therefore drain queued/active UI actions and the final input delay
+before exiting; the wall deadline, watchdog and external timeout remain active.
 The house census also tries the installed data-view tab `99887755` and its
 air-pollution layer `0000500e`. A refused control remains a failed action.
 
