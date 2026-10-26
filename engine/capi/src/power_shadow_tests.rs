@@ -42,6 +42,10 @@ fn host_trace_replays_cycles_messages_and_cache_without_game() {
         w.notify(msg::OCCUPANT_REMOVED, 12);
         assert!(w.cycle().iter().all(|&n| n == 0));
         assert_eq!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}), Some(0));
+        // The live plugin keeps this shadow until process exit. Shutdown
+        // must close its trace while the shadow still exists.
+        assert_eq!(crate::trace::fc4_trace_flush(), 1);
+        assert_eq!(crate::trace::fc4_trace_flush(), 0);
     });
     let manifest = dir.join("manifest.tsv");
     assert!(crate::trace::run(&manifest, true, 2).unwrap());

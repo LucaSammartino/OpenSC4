@@ -24,6 +24,7 @@
 
 #include "FC4Autotest.h"
 #include "FC4Config.h"
+#include "fc4_trace.h"
 #include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Dialogs.h"
@@ -399,6 +400,8 @@ public:
         fc4::ExemplarFactoryRestore();  // the game's factories back (data-formats §8.1)
         fc4::Span565Restore();  // the native 565 entries back, counter lines (glue-span565-impl4)
         fc4::SCResShadowStop();
+        const uint32_t tracesClosed = fc4_trace_flush();
+        if (tracesClosed != 0) fc4::Log("trace record: flushed=%u", tracesClosed);
         return true;
     }
 

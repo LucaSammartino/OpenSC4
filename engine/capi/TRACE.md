@@ -16,6 +16,9 @@ an observation of the existing shadow, not an independently simulated result.
 Completed sessions become SHA-256-named files. Budget produces one session per
 month; power/pollution produce one per shadow lifetime. Incomplete `.partial`
 files are not put in the manifest. Identical completed files share storage.
+Application shutdown explicitly closes surviving sessions before DLL detach;
+shadow destruction is not required for this flush. An interrupted game leaves
+partial files, which are not replay evidence.
 `manifest.tsv` appends six tab-separated columns without a header:
 `scenario key sha256 compared_steps mismatches incomplete_steps`.
 Scenario names must not contain control characters. A trace directory should

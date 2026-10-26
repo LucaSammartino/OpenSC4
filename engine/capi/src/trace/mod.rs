@@ -298,6 +298,25 @@ fn compared(key: &str, r: i32) {
     });
 }
 
+/// Close recording sessions at application shutdown. The plugin's shadows
+/// can outlive city/application shutdown; do not depend on their destruction.
+/// This does not destroy a shadow or touch any host object. Idempotent.
+#[no_mangle]
+pub extern "C" fn fc4_trace_flush() -> u32 {
+    crate::guard(0, || {
+        let keys = SESSIONS.with(|s| {
+            s.borrow()
+                .iter()
+                .filter_map(|(&key, session)| matches!(session.mode, Mode::Record { .. }).then_some(key))
+                .collect::<Vec<_>>()
+        });
+        for key in &keys {
+            finish(key);
+        }
+        keys.len() as u32
+    })
+}
+
 /// Configure once before shadow creation; empty directory disables recording.
 /// The paths and scenario are UTF-8 byte slices, not nul-terminated strings.
 #[no_mangle]
