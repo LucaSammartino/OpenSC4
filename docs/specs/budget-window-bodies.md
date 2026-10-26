@@ -45,7 +45,7 @@ the already identified unlabelled owner helpers. An address is a native body, no
 | constructor; CreateSubBudgetWindow; DestroySubBudgetWindow | `007862B0`; `00779E50`; `0077A1A0` | Existing lifecycle |
 | on_init; on_shutdown; DoWinMsg; on_button_activated | `007876B0`; `0077E440`; `0078BCA0`; `0078B120` | Existing routing; delegated bodies must use rules below |
 | set/get_window_indiv_item | `007795A0`; `00779600` | Property payload and caller-side references §1.2; generic window replacement remains an external operation |
-| add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | Widget creation/options; set_comboBox is owner logic, not a row provider |
+| add_text; add_comboBox; set_comboBox | `00779660`; `007798C0`; `0077DAB0` | set_comboBox options/inputs/writes §3.4; widget factories remain BW25 |
 | add_Bitmap; add_image_button1/2 | `0077A250`; `0077B7B0`; `0077B960` | Presentation/factory helpers; failure/ref rules not yet fully specified |
 | GetBudgetSegment | `0077A390` | Resource-backed bitmap segment creation and failure/reference rules §1.3 |
 | SetupWindow; SetupWindowBig; SetupWindowIndiv; SetEmptyWindow | `0077A480`; `0077A6F0`; `0077A960`; `0077BEC0` | Bounded setup/empty-window ownership §1.3; other widget/popup failures remain BW25 |
@@ -356,9 +356,9 @@ temporary combo interface afterward. A failed QI makes no edit for that row. The
 before QI. After traversal, always call updateNeighborBudget once and return 0
 (`0x0078BD6B`–`0x0078BDFB`, `0x0078BFF2`–`0x0078C064`).
 
-Selection 0: if deal flags bit 1 is clear, do nothing. If set, call deal slot 34 (+0x88), set combo selection
-0 (slot 24/+0x60), replace its displayed item text through slot 27/+0x6C using LTEXT
-`0x6A3FF01C:0xCA5793C0`, then notify through combo slot 28/+0x70 with (0,1) and deal slot 37/+0x94
+Selection 0: if deal flags bit 1 is clear, do nothing. If set, call deal slot 34 (+0x88), remove combo item
+0 (slot 24/+0x60), insert replacement item 0 through slot 27/+0x6C using LTEXT
+`0x6A3FF01C:0xCA5793C0`, then select through combo slot 28/+0x70 with (0,1) and call deal slot 37/+0x94
 with (1,1) (`0x0078BDFD`–`0x0078BE85`).
 
 Nonzero selection S: first, if deal slot 39/+0x9C with mask 0x100 returns true, make no edit. Otherwise read
@@ -366,9 +366,9 @@ flags; when bit 1 is clear call deal slot 35/+0x8C first. Define the raw 32-bit 
 18/+0x48, I=slot 16/+0x40, A=slot 10/+0x28; avoid guessing their semantic names from folded symbols.
 Read M first. If M != 0, compare the **low 32 bits** of I*S to A, unsigned. When that product exceeds A,
 compute k = trunc_signed(A/M) - trunc_signed(A/I) + S (32-bit differences/sum), call slot 11/+0x2C with
-the low 32 bits of M*k, set combo selection 0, display LTEXT `0x6A3FF01C:0x2A5794A0`, then call
+the low 32 bits of M*k, remove combo item 0 and insert LTEXT `0x6A3FF01C:0x2A5794A0` at item 0, then call
 slot 17/+0x44 with a fresh M read. If M == 0 or the product does not exceed A, call slot 11 with low32(I*S),
-set combo selection 0 and display the same LTEXT. The special path reads A separately for each division,
+remove combo item 0 and insert the same LTEXT at item 0. The special path reads A separately for each division,
 I separately for the divisor, then M again for its product; do not collapse public calls if inputs can change.
 The ordinary path rereads I for its product; the special path also rereads M for its first divisor.
 The signed IDIV and unsigned product comparison are intentional (`0x0078BE90`–`0x0078BFDA`).
@@ -401,7 +401,103 @@ Sites: `0077FA85`, call/append `0077FB37`–`0077FB5C`; refresh call/append
 Placeholder rows likewise initialize ID and pointer without a defined +8/+12 payload
 (`0077F823`–`0077F850`). Selection handling uses only ID and +0x10 (§3.2). A conformance test should
 vary these unused words and require identical edits/reference balance, not require one native stack
-residue value. Option generation and full neighbour rendering remain BW22; this is not its closure.
+residue value. Section 3.4 settles option generation; full neighbour rendering remains BW22.
+
+### 3.4 Neighbour combo options and deal writes (BW22, static option audit)
+
+`set_comboBox` (`0x0077DAB0`) takes, in order, the parent window, combo ID, deal type, deal interface,
+format selector, row state and the unused row-record pointer (§3.3). The format selectors are 0 for
+`0x4773FFE0/E1`, 1 for E2/E3 and 2 for E4/E5, in both initial and refresh calls. These are raw scalar
+arguments; the helper derives its own option amounts and writes to the deal. It does not request a
+prebuilt list from a host. The six initial call sites are `0077FB4C`, `007800A5`, `0078060C`, `00780C9C`,
+`007811FC`, `0078175C`; the refresh calls use the same format selectors.
+
+**Inputs and preparation.** Resource-manager global `0x00B43CA8`, slot 3/+0x0C, receives a three-word
+resource key, IID `0xA52160F5`, an out-pointer and trailing `(0,0)`. First request key
+`{0x6534284A,0x7A4A8458,0x6A469021}`, then `{0x6534284A,0xE7E2C2DB,0xC911E35B}`. The second query's
+true result permits resource slot 7/+0x1C and float property `0x09135482` through helper `005FD4F0`;
+the local default is binary32 1.0. The helper finds the property with holder slot 9, takes its value through
+property slot 5, then calls value slot 37/+0x94 with the float out-pointer (`005FD4F0`–`005FD520`).
+
+Find the combo recursively through parent slot 37/+0x94 with `(ID,0x412CE496,&combo)`. Acquire the
+neighbours simulator through city global `0x00B43CEC`, slot 62. Call deal slot 7 for its city, then simulator
+slot 36/+0x90 `(type,city)` for a floating maximum. Convert toward zero through `009EEF04` and use its
+low 32 bits as signed L. If L <= 0, replace it with deal slot 10/+0x28. Define base step D as signed
+division of L by 10, truncating toward zero (`0077DB9C`–`0077DBF8`).
+
+The first resource's slot 7 supplies a property holder, temporarily AddRef'd. Read the applicable dword
+property with helper `005FD450`, local default 0: E0/E1 use `0xEA46932C`, E2/E3 `0x6A469337`, E4/E5
+`0x8A46933D`. Its provider chain is holder slot 9, property slot 5, value slot 28/+0x70. Release the
+temporary holder before configuring the combo. Let P be that property's signed dword and H the signed
+maximum of D and P. The six-entry jump table is `0077E408`–`0077E41F`; reads/clamp are
+`0077DC02`–`0077DC7F`. No department, ordinance or populated budget-row provider participates.
+
+Call combo slot 3 to get its window and set window flag 2 true (window slot 68/+0x110), remove all combo
+strings (combo slot 26/+0x68), and write deal slot 19/+0x4C with 0. LTEXT below uses group `0x6A3FF01C`.
+Insertion uses combo slot 27/+0x6C `(text,-2)`, which appends; slot 28/+0x70 `(index,notify)` sets the
+selection. Slot 24/+0x60 removes an item; it does not select one. The combo interface table is `0x00AE2BE8`;
+its folded slot-30 getter reads the same selection word as slot 29 (`009CEDE1`–`009CEDFE`).
+
+**Row-state branches**, in native order (`0077DCA8`–`0077DF9E`):
+
+| Row state / condition | Leading item and deal operations | Initial selected index S / subsequent step H |
+|---|---|---|
+| 0 | Append `0xCA5793C0`; deal slot 17/+0x44 `(H)` | S=0; keep H |
+| 2 | Append `0xCA5793C1`; select `(0,0)`; clear window flag 2; release temporaries and return without amount options | No further step or amount writes |
+| Other, deal slot 39/+0x9C `(0x300)` returns true | Append `0x2A5794A0`; read slot 10 twice: first becomes H, second L; write slot 17 `(H)`, then slot 19 `(H)` | S=1 |
+| Other, that query returns false | Append `0x2A5794A0`; read I=deal slot 16/+0x40, then A=slot 10. If `(I==A and I>P)` or I==0, replace H with **D**, writing slot 17 `(D)`; otherwise H=I | If H != 0, read slot 10 again and S=trunc_signed(A/H) |
+
+In the last branch, if the replacement D is zero, append `0xCA5793C1` as an additional item, select
+`(0,0)`, clear window flag 2 and return. Do not remove the already appended `0x2A5794A0` or clamp D back
+to P. Initial E1 rows derive state 1 when flags bit 1 is set and bit 2 clear, otherwise 0; a matching
+`{cityID,E0}` in the owner's active scalar list overrides it to 2 (`0077FA9A`–`0077FB2F`). Other row-state
+construction and full refresh rendering remain outside this bounded audit.
+
+**Amount options.** First compare L with low32(H*S) **unsigned** and replace L with that product only if
+L is smaller. Then compare L with H **signed** and raise L to H if needed (`0077DF9E`–`0077DFBD`). Read
+deal slot 10 again. If it is zero, use the single-step case below. Otherwise read slot 16 again and divide
+L by that fresh I with signed truncating division. Compare the quotient with 15 **unsigned**; a quotient
+above 15, including a negative quotient interpreted unsigned, selects the two-stage case. No zero-divisor
+check surrounds this division (`0077DFC1`–`0077DFDD`).
+
+- Single-step case: append candidates H, 2H, 3H, … while the running signed32 candidate <= L. Additions
+  wrap at 32 bits; append only nonnegative candidates. The first comparison is also signed.
+- Two-stage case: set Q=trunc_signed(L/10), write deal slot 19 `(Q)`, and save Q for the second step.
+  First traverse H, 2H, … while candidate <= a **fresh deal slot-10 read at each comparison**, appending
+  nonnegative candidates. Then traverse Q, 2Q, … while candidate <= L; for each, read slot 10 again and
+  append only if candidate is greater than that result and nonnegative. Do not deduplicate or insert L
+  separately. This uses H through the current amount and Q above it (`0077DFE3`–`0077E28A`).
+
+Each candidate is rendered independently. Format 0 uses the resource string `0xAA579B3A` as a printf
+format with that signed32 amount; format 1 uses `0x6A579C00`. Format 2 converts the signed32 candidate
+to x87 integer, multiplies by the **binary32** property `0x09135482`, converts toward zero through
+`009EEF04`, and formats the low signed32 result with `%d` at `0x00A8281C`. There is no intermediate
+binary32 store of the product and no annual multiplier (`0077E06C`–`0077E0E6`, `0077E1B4`–`0077E234`,
+`0077E2EA`–`0077E36A`). Finally select `(S,0)`, ignoring that call's success; S is not recomputed for the
+two-stage list. Valid-provider tests must distinguish this saved index from a search for the edited amount.
+
+**References and invalid providers.** The normal return releases the queried combo and first resource;
+the temporary holder has already been released. The second resource out-pointer has no explicit Release
+in this helper. The first resource query's boolean is ignored; a null result faults at its later slot-7
+call. A false combo query jumps to `0077E3CF`, which unconditionally calls selection on the output pointer
+with an uninitialized S; a null output faults, rather than safely skipping the row. The ordinary cleanup
+is not reached on those faults. Calls/state are `0077DB8E`–`0077DB96`, `0077DC02`, `0077DC5E`–`0077DC75`,
+`0077DEE4`–`0077DF19`, `0077E3C2`–`0077E403`. Zero/negative steps can also produce division faults or
+nontermination; this rule does not invent a successful empty-option fallback for malformed inputs.
+
+**Worked cases** (stable accessor values, valid resources/controls, E4/E5 format 2 with factor 1.25):
+
+| Fixture | Required options/writes |
+|---|---|
+| State 0; maximum 95.9; P=20; current A=0 | L=95, D=9, H=20; slot19(0), slot17(20); leading `CA5793C0`, then amounts 20,40,60,80 rendered `25,50,75,100`; select `(0,0)` |
+| State 1; slot39(0x300)=false; maximum 100; P=1; I=5; A=40 | H=5, S=8, L=100; slot19(0), then slot19(10); first-stage amounts 5..40 by 5, then 50..100 by 10; 15 items including the leading item; select `(8,0)` |
+| Same fixture, I=10, A=40 | Quotient L/I=10 <=15; slot19 stays 0; amounts 10..100 by 10; S=4 |
+| State 1; slot39=false; maximum 9; P=10; I=A=0 | D=0 despite the earlier H=10; slot19(0), slot17(0); items `2A5794A0`, `CA5793C1`; select `(0,0)` and clear window flag 2; no amount options |
+| State 2 with the first fixture's raw values | Only `CA5793C1`; slot19(0), no slot17 write; select `(0,0)` and clear window flag 2 |
+
+For the two-stage fixture, changing an unused row-record word must change neither the option sequence nor
+these writes. These cases settle `set_comboBox`; BW22 remains open for the surrounding neighbour refresh,
+control reuse, section/row amount formatting and cleanup. No whole-owner completion follows from them.
 
 ## 4. Panel balance-sheet computation
 
@@ -719,8 +815,8 @@ formatting and balance-sheet rendering bodies are §4.2–§4.3 and §8–§11; 
 settled in §11. All remaining body audits below concern **cSC4SubBudgetWindow**, not an omitted method of
 cSC4BudgetUIWinProc:
 
-- BW22: neighbour options/set_comboBox and row reuse; §3.3 settles unused +8/+12 stack residue and
-  the six counted-list releases.
+- BW22: neighbour refresh/control reuse, section/row amount formatting and cleanup; §§3.3–3.4 settle
+  unused +8/+12 stack residue, six counted-list releases and set_comboBox inputs/options/selection/writes.
 - BW23 is settled in §§5.3–5.4: individual service-query calls and float/amount derivation, control reuse, malformed
   initializer continuation `00786F62` and rebuild=true call `007875C5`.
 - BW24: group A item rendering, B refresh/slider rebuilding and final stale-row cleanup.
@@ -960,7 +1056,7 @@ not an assertion that an engine callback has been replaced or a native execution
 |---|---|---|
 | Full owner method/slot inventory | §1 tables, main spec §1/§1.1; all four vtables above | Unlabelled sub-budget support helpers are listed, not silently counted as specified independent methods |
 | Ordinance enumeration, counts, A/B maps and refresh | §2, including separate on-state reads, classification independent of amount sign, positional edits and 1/12 period scale | Widget failures outside §1.3 remain BW25 |
-| Six neighbour scans, proposed deals, counts and selection edits | §3: provider order, section headers, one retained edit-target reference per +0x50 row, signed division/unsigned product tests | Options/rendering/metadata/list references BW22; no host-computed neighbour refresh accepted |
+| Six neighbour scans, proposed deals, counts, selection edits and options | §3: provider order, section headers, one retained edit-target reference per +0x50 row, signed division/unsigned product tests; §§3.3–3.4 settle metadata, list releases and combo options | Surrounding neighbour rendering/reuse/cleanup BW22; no host-computed neighbour refresh accepted |
 | Occupants and +0x44 creation/ownership | §5: counted list; rebuild=true saves every current occupant, including off-screen ones; rebuild=false preserves old snapshot; service arithmetic and continuation §§5.3–5.4 | No host-produced restore records or service-computed row results accepted |
 | Four mode refreshes and row reuse | Ordinances §2 complete; neighbour edits §3, individual values/traversal/snapshot §5, group-A header/quota proof §6 | Remaining neighbour/group bodies BW22/BW24; the A proof does not specify B traversal |
 | Empty/popup/setup and failure references | Main spec §§4–6; new §1.2–§1.3 gives pointer property, segment ownership, setup tails and empty-window factory-failure sequence | Remaining widget factories, popup paths and unclassified helpers BW25 |
@@ -972,7 +1068,7 @@ in the cited sections. They are not permission to read fields of the provider's 
 | Consumer | External inputs, by interface slot/arguments | Owner work that must stay local |
 |---|---|---|
 | Ordinance population/refresh | Ordinance simulator slots 11 count, 12 `(ID buffer,&count)`, 20 `(id)`; ordinance slots 5 amount, 22 income classification; simulator slot 8 `(id)` on-state (§2) | Enumerate/classify/count/map; preserve original/edited bytes; scale and format; refresh existing controls |
-| Neighbour population/edits | The six proposed-deal/list queries and deal accessors in §3; combo selection slot 30 only after successful QI `0x412CE496` | Section counts and rows, retained deal targets, edits for every matching control ID; remaining option/render rules are BW22 |
+| Neighbour population/edits/options | ProposeDeals once and six FindDeals calls, deal accessors in §3; simulator slot 36 `(type,deal city)`, resource/property queries §3.4; combo selection slot 30 after successful QI `0x412CE496` in the edit handler | Section counts and rows, retained deal targets, edits for every matching control ID, combo amounts/options/deal writes; surrounding refresh rendering remains BW22 |
 | Individual mode | Budget acquired through city slot 52; department/service/occupant queries in §5; per-entry QI `0x26BB767E` | Traverse/count, compute per-service values and captions, build/preserve counted +0x44 records and reuse controls (§§5.3–5.4) |
 | Group refresh | Budget slot 29 `(&groupVector)`, slot 31 `(chosen groupID,&departmentVector)`; department/item accessors and amounts in main §4.1 and §6 | Group fallback selection, two passes, quotas, visibility, scaled sums, control reuse, slider ownership; remaining B/body rules BW24 |
 | Panel balance computation | Budget slots 6, 16, 11, 14, 13, 18 `(tax type)`, 29 `(&groups)`, 45; ordinance queries as above; neighbour slots 32/33 (§4.1) | Sum/order, low-dword ordinance treatment, annual products, group dispatch/overwrite/retention; format/control mapping §§4.2–4.3 |

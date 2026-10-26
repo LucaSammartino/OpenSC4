@@ -693,9 +693,10 @@ nonmodal observation boundary is §1.1.
 crosswalk, raw-provider checklist and panel worked cases. Its §§4/8–11 specify the panel's calculation,
 rendering, formatting, taxes, loan windows, labels, Init and notifications, including BW18's former summary
 gaps. The remaining **sub-budget** body questions are BW22, BW24 and BW25 (companion §7), not omitted panel methods:
-neighbour options/rendering, group B and item rendering/cleanup,
+neighbour refresh/rendering, group B and item rendering/cleanup,
 and remaining widget/popup/setup ownership. Companion §§1.2–1.3 now settle pointer-property and bounded
-empty/setup/segment ownership; §5 settles +0x44 acquisition/rebuild references, service-produced
+empty/setup/segment ownership; §§3.3–3.4 settle neighbour list releases, unused metadata and combo
+options/selection/deal writes, including exact public raw inputs and worked cases. Section 5 settles +0x44 acquisition/rebuild references, service-produced
 float values and amounts, control reuse and the initializer continuation. The generator procedure setter's reference contract remains BW25. Counts, rows, restore
 records and refresh results computed by either owner are never external raw inputs. No whole-sub-budget-owner,
 implementation or native-shadow completion is implied by the panel's specification status.

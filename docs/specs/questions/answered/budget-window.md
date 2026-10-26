@@ -27,7 +27,11 @@
   **ANSWERED 2026-10-26 (re-bw30, resumed):** DIFFERS — BW23 is now settled in companion §§5.3–5.4,
   including all five service branches, saved floats, arithmetic, reuse, cleanup and the corrected initializer
   continuation. Section 3.3 also settles BW22's unused metadata and counted enumeration-list releases.
-  BW22 options/rendering, BW24 and BW25 remain static gaps; the parent remains partial.
+  BW22 rendering, BW24 and BW25 remain static gaps; the parent remains partial. The final round adds
+  companion §3.4: set_comboBox resource/property and maximum-amount inputs, deal writes, exact option
+  loops, signed/unsigned tests, float formatting, selection and failure references, with worked cases.
+  It also corrects slot 24 from selection to removal of item 0 in §3.2. BW22 now retains only the
+  surrounding neighbour refresh/control reuse, section/row amount formatting and cleanup audit.
 
 <!-- from: re-budget-window-bw22 (2026-10-24); BW21 supplied in lane brief, absent from open file at this base. -->
 - **BW21 — constructor ABI, allocation, nonmodal population and observation:** settle the constructor arguments, matching allocation/free service, the minimum lifecycle computing group rows/totals/strings without a modal window, and the exposed state.

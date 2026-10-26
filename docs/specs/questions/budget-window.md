@@ -12,8 +12,9 @@
 
 <!-- from: re-budget-window-bw22 (2026-10-24), narrowed remainder of archived BW17 -->
 - **BW22 - budget-window-bodies.md §3 neighbour rendering/options:** specify set_comboBox (`0x0077DAB0`) option generation and selection, updateNeighborBudget (`0x00781C90`) row reuse/amount formatting, the +8/+12 words of retained row metadata, and the six temporary enumeration lists' reference balance. §3 already specifies enumeration/counts and combo arithmetic; supply remaining raw interface calls rather than a same-owner refresh callback. [open]
-  <!-- Partial re-bw30 2026-10-26: §3.3 settles counted list clearing/releases and unused stack-residue
-       words +8/+12; full options and neighbour rendering still need the static audit. -->
+  <!-- Partial re-bw30 2026-10-26: §§3.3–3.4 settle counted list clearing/releases, unused stack-residue
+       words +8/+12 and set_comboBox inputs/options/selection/deal writes/failure paths. Remaining:
+       updateNeighborBudget control reuse, section/row amount formatting and cleanup. -->
 
 - **BW24 - budget-window-bodies.md §6 group refresh remainder:** finish UpdateValues (`0x007898A0`): A item text/amount rendering, B traversal and slider rebuilding with counted department references, and final stale-row cleanup. Preserve the proven A header/item quota distinction; do not generalize it to the unproved B pass. BW20 separately covers initial temporary department-list ownership. [open]
 
