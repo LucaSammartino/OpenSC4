@@ -56,6 +56,12 @@ def diagnose(text, verdict_text, end, *, only_load=False):
         cause = 'unestablished-city'
     elif verdict == 'invalid' and result['invalid_reason'] == 'end date not reached':
         cause = 'window-exhausted'
+    elif result['calendar_stall']:
+        cause = 'emergency-calendar-stall'
+        evidence = result['calendar_stall']
+        point = (f"line {evidence['line']}: {evidence['text']} / calendar fixed for "
+                 f"{evidence['seconds']:g} s while OnTick continued; forced exit; "
+                 'watchdog and timeout did not fire')
     elif result['known_quit_faults']:
         cause = 'known-original-quit-fault'
     elif verdict == 'clean-exit-crash':
@@ -80,7 +86,7 @@ def diagnose(text, verdict_text, end, *, only_load=False):
         cause = 'save-watchdog'
     owner = ('harness' if cause in ('launcher-lua-checkout', 'launcher-load-detection',
               'unestablished-city', 'window-exhausted', 'dialog-held', 'save-watchdog', 'rejected',
-              'no-load', 'queue-timeout', 'not-submitted', 'missing') else
+              'no-load', 'queue-timeout', 'not-submitted', 'missing', 'emergency-calendar-stall') else
              'known-original-game' if result['known_quit_faults'] else
              'none' if verdict == 'clean' else 'game-or-engine')
     return dict(verdict=verdict, cause=cause, verdict_line=raw, address=address,

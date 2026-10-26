@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import suite_triage
 
@@ -52,6 +54,49 @@ def test_access_violation_without_callback_does_not_invent_an_address():
     assert row['cause'] == 'unhandled-exit-no-address'
     assert row['address'] == '-'
     assert 'terrain' in row['first_exception_or_stall']
+
+
+def emergency_status(seconds, tick, julian=2457308, pause=1, emergency=1):
+    return (f'2026-10-26 11:{seconds // 60:02}:{seconds % 60:02}.000 [pid 35824 tid 30760] '
+            f'[v] status @tick {tick}: julian={julian} speed=2 pause={pause} hidden=0 '
+            f'emergency={emergency} budget=15\n')
+
+
+def test_forced_exit_after_sustained_emergency_pause_is_stalled_without_an_address(tmp_path):
+    text = emergency_status(0, 323500) + emergency_status(120, 329500)
+    verdict = 'verdict: exited\nline: exited (code -1) without a verdict\n'
+    result = suite_triage.suite.parse_log(text, '2016-01-18', verdict)
+    assert result['verdict'] == 'stalled'
+    assert result['raw_verdict'] == 'exited'
+    assert result['calendar_stall']['seconds'] == 120
+    (tmp_path / 'manifest.json').write_text(json.dumps(dict(requests=[dict(
+        scenario=dict(name='owner27-effects', end='2016-01-18', script='-'))])))
+    (tmp_path / 'owner27-effects.log').write_text(text)
+    (tmp_path / 'owner27-effects.verdict').write_text(verdict)
+    rows, _ = suite_triage.triage(tmp_path)
+    row, = rows
+    assert row['verdict'] == 'stalled'
+    assert row['cause'] == 'emergency-calendar-stall'
+    assert row['owner'] == 'harness'
+    assert row['address'] == row['watchdog_name'] == '-'
+    assert row['verdict_line'] == 'line: exited (code -1) without a verdict'
+    assert 'watchdog and timeout did not fire' in row['first_exception_or_stall']
+    assert 'emergency-calendar-stall' in (tmp_path / 'causes.tsv').read_text()
+
+
+@pytest.mark.parametrize('last,exit_code', [
+    (emergency_status(30, 325000), -1),  # Too brief to establish a calendar stall.
+    (emergency_status(120, 329500, julian=2457309), -1),  # Calendar advanced.
+    (emergency_status(120, 329500, pause=0, emergency=0), -1),  # Recovered.
+    (emergency_status(120, 323500), -1),  # No evidence of continuing OnTick.
+    (emergency_status(120, 329500), -1073741819),  # Preserve an actual crash.
+])
+def test_brief_recovered_or_crashed_emergency_is_not_reclassified(last, exit_code):
+    text = emergency_status(0, 323500) + last
+    result = suite_triage.suite.parse_log(text, '2016-01-18',
+        f'verdict: exited\nline: exited (code {exit_code}) without a verdict\n')
+    assert result['verdict'] == result['raw_verdict'] == 'exited'
+    assert result['calendar_stall'] is None
 
 
 def test_exhausted_window_is_distinct_from_unestablished_city():

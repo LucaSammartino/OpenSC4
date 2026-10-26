@@ -300,7 +300,8 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
                   inplace_lines=[], reach_lines=[], memory_lines=[], invalid_reason='',
                   only_load=only_load, real_seconds=None, wall_seconds=None,
                   load_seconds=None, seconds_per_month=None, reach_windows=[],
-                  raw_verdict='missing', exception_address='-', exceptions=[], known_quit_faults=0)
+                  raw_verdict='missing', exception_address='-', exceptions=[], known_quit_faults=0,
+                  calendar_stall=None)
     keys, aggregate, actions = {}, {}, {}
     verdict_line = ''
     reached_date = ''
@@ -311,12 +312,24 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     end_line = None
     quit_line = None
     quit_dispatch_failed = False
+    emergency_first = emergency_last = None
+    emergency_tick = 0
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
         try:
             timestamp = datetime.fromisoformat(line[:23])
         except ValueError:
             timestamp = None
+        status = re.search(r'status @tick (\d+): julian=(\d+).*?\bpause=(\d+).*?\bemergency=(\d+)', body)
+        if status and timestamp:
+            tick = int(status[1])
+            if status[3] == status[4] == '1':
+                if not emergency_first or status[2] != emergency_first[1] or tick <= emergency_tick:
+                    emergency_first = (timestamp, status[2])
+                emergency_tick = tick
+                emergency_last = (timestamp, line_no, body)
+            else:
+                emergency_first = emergency_last = None
         if 'DLL_PROCESS_ATTACH:' in body:
             attached = timestamp
         if 'autoload: calling LoadCity(' in body:
@@ -432,6 +445,18 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         result['verdict'] = harness_verdict[1]
         result['invalid_reason'] = 'harness verdict overrides plugin verdict'
     result['raw_verdict'] = result['verdict']
+    # A forced exit can end a calendar stall while the main thread keeps ticking.
+    # Preserve the launcher verdict; require a sustained final emergency episode,
+    # never a brief/recovered disaster pause or an unexplained process crash.
+    if (result['verdict'] == 'exited' and 'exited (code -1) without a verdict' in verdict_text
+            and result['end_reached'] != '1' and not result['exceptions']
+            and not re.search(r'WATCHDOG:.*(?:stalled|stuck)', text)
+            and emergency_first and emergency_last
+            and (emergency_last[0] - emergency_first[0]).total_seconds() >= 60):
+        result['verdict'] = 'stalled'
+        result['invalid_reason'] = 'emergency pause: calendar stopped while OnTick continued; forced exit'
+        result['calendar_stall'] = dict(line=emergency_last[1], text=emergency_last[2],
+            seconds=(emergency_last[0] - emergency_first[0]).total_seconds(), julian=emergency_first[1])
     if quit_dispatch_failed and result['verdict'] == 'clean':
         result['verdict'] = 'harness-error'
         result['invalid_reason'] = 'native quit command could not be queued; shutdown untested'
