@@ -1,5 +1,14 @@
 # Answered GZ graphics questions
 
+- **GZG7 — section 3.2.2 result-1 cubic stroke quads:** exact corners,
+  degenerate intervals and intermediate rounding of the sixteen-interval route.
+
+  **ANSWERED 2026-10-26 (re-gzg29):** DIFFERS — §3.2.6 specifies binary32
+  coefficient/endpoint stores and x87 Horner evaluation; AA perpendicular
+  corners and its length threshold; non-AA axis-dependent half-pixel caps.
+  A constant AA curve submits origin-zero quads; a constant non-AA curve can
+  submit nonzero rectangles. Worked cases give exact corner order.
+
 - **GZG4 — section 7, full Windows canvas event contract:** finish the unnamed
   primary slots and subinterface thunk mappings; settle HWND ownership, window
   creation/reconfiguration failure cleanup, event pump ordering and every

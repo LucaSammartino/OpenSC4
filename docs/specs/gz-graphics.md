@@ -421,6 +421,53 @@ Evidence: subdivision `0x0082D7E4`–`0x0082D818`; scale/multiply/add widths
 calls `0x0082D9EC`–`0x0082DAB1`. The misleadingly named `0x009F0D10`
 is the CRT 64-bit multiplication helper, confirmed by its instructions.
 
+#### 3.2.6 Result-1 stroke corners and rounding (GZG7)
+
+The sixteen-interval cubic route first forms, independently for x and y,
+`a=(P3-P0)-3*(P2-P1)`, `b=3*(P0+P2)-6*P1`, and `c=3*(P1-P0)`.
+Each coefficient is stored as binary32. It evaluates `((a*t+b)*t+c)*t+P0`
+in that order, with x87 intermediates, at the exact binary64 multiples
+`t=i*0.0625`, i=1…16. Each endpoint coordinate is stored as binary32 before
+the stroke helper consumes it. Thus a literal Bernstein sum with rounding
+after every multiplication is not the specified evaluation
+(`0x0082F030`–`0x0082F146`).
+
+For an interval A→B the helper appends eight **zero-initialized** floats before
+testing length. It stores `dx=B.x-A.x` and `dy=B.y-A.y` as binary32. Corner
+arithmetic below remains in x87 registers until each final binary32 store;
+there is no integer coordinate rounding at this stage (`0x0082EE10`).
+
+With the context AA byte `+0x44` nonzero, let `L=dx*dx+dy*dy`, evaluated without
+intermediate binary32 stores. If `L <= binary32(1e-8)` (the exact threshold is
+`9.99999993922529e-9`), the helper returns with all eight appended floats zero.
+Otherwise let `s=(floatThickness*0.5)/sqrt(L)`, `u=dy*s`, `v=dx*s`.
+The four corners in submission order are `(Ax+u,Ay-v)`, `(Ax-u,Ay+v)`,
+`(Bx-u,By+v)`, `(Bx+u,By-v)`. Neither s nor u/v is rounded to binary32 before
+the corner stores (`0x0082EE66`–`0x0082EEDC`). There are no joins or extra caps
+between intervals. A zero-length interval submits an origin-zero quad, not a
+quad located at A.
+
+With AA zero, the helper instead uses half the **integer raster thickness**
+at `+0x50`. This is an axis-dependent construction, including half-pixel caps:
+
+| Test | Signed half-thickness h; cap k | Corners in order |
+|---|---|---|
+| `abs(dy) <= abs(dx)` (ties included) | h and k=0.5 are positive if dx>0, negative otherwise | `(Ax-k,Ay-h)`, `(Ax-k,Ay+h)`, `(Bx+k,By+h)`, `(Bx+k,By-h)` |
+| `abs(dy) > abs(dx)` | h and k=0.5 are positive if dy>0, negative otherwise | `(Ax+h,Ay-k)`, `(Ax-h,Ay-k)`, `(Bx-h,By+k)`, `(Bx+h,By+k)` |
+
+The zero-length non-AA interval follows the first row with negative h/k and
+can therefore make a nonzero rectangle. This differs from the AA length gate
+(`0x0082EEE6`–`0x0082EFCC`). Kind 2 emits all accumulated corners as one kind-7
+DrawNoTransform call; a single cubic supplies 64 points, including zero quads.
+
+Worked cases: for A=(1,2), B=(2,2), thickness 2, the AA corners are
+`(1,1),(1,3),(2,3),(2,1)`; the non-AA corners are
+`(0.5,1),(0.5,3),(2.5,3),(2.5,1)`. A constant cubic with all controls (3,4)
+and AA enabled submits 64 copies of (0,0). With AA disabled and raster thickness
+2, each of its sixteen quads is `(3.5,5),(3.5,3),(2.5,3),(2.5,5)`.
+These cases settle the previously assumed perpendicular/degenerate behavior;
+they do not require a device rasterizer to inspect the submitted corners.
+
 ### 3.3 Blit binding and suspension
 
 SetBlt supplies a source plus placement and x/y scaling to engine slot 13. The

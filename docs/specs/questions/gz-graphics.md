@@ -59,10 +59,3 @@ Scope: [gz-graphics.md](../gz-graphics.md), Windows 1.1.641.
   repair, with V87–V90. Remaining: standalone pixel kernels/formats/lock
   contracts. This question is not yet fully answered.
 
-<!-- from: core-gzgraphics-close12 (2026-10-24) -->
-- **GZG7 - section 3.2.2 result-1 cubic stroke quads:** specify the exact
-  perpendicular corner construction, degenerate segments and intermediate
-  rounding of the sixteen-interval route. [Literal cubic evaluation at i/16,
-  one perpendicular half-thickness quad per interval, no joins; zero-length
-  intervals submit a degenerate quad. The grouping/count contract is tested,
-  but these corner details are not claimed native-exact.]
