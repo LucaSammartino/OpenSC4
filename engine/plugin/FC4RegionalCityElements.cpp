@@ -51,7 +51,7 @@ int32_t Write(void* raw, uint32_t kind, void* object, const fc4_ostream*) {
         : static_cast<cIGZUnknown*>(static_cast<cISC4NeighborDeal*>(object));
     cIGZSerializable* serial = nullptr;
     if (!primary->QueryInterface(0xE4FDA3D4, reinterpret_cast<void**>(&serial)) || !serial) return -1;
-    FC4_ACQUIRED(serial);
+    FC4_ACQUIRED(serial, "regionalcity element serializable");
     const bool ok = serial->Write(*context->output);
     FC4_RELEASE(serial);
     return ok ? 1 : 0;
