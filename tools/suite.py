@@ -493,7 +493,7 @@ def write_results(directory, manifest, results):
         name = request['scenario']['name']
         row = dict(results.get(name, parse_log('', request['scenario']['end'])),
                    scenario=name, profile=manifest['profile'],
-                   dll_sha256=manifest['dll_sha256'])
+                   dll_sha256=request.get('dll_sha256', manifest['dll_sha256']))
         row.setdefault('log', '-')
         rows.append(row)
         for key, value in row['per_key'].items():

@@ -8,10 +8,75 @@ import argparse
 from collections import Counter
 import json
 from pathlib import Path
+import shutil
 
 import suite
 import suite_coverage
 import suite_triage
+
+
+def reconcile(root, tag, tags):
+    """Explicitly supersede rows in source order, retaining every raw attempt.
+
+    A failed or absent later result supersedes an earlier success too. This is
+    not best-result selection. Sources must have drained before snapshotting;
+    the reconciled timing is deliberately not a measured parallel run.
+    """
+    if not tags or len(set(tags)) != len(tags) or tag in tags:
+        raise ValueError('reconcile needs distinct sources different from destination')
+    directory = suite_coverage.folder(root, tag)
+    if directory.exists():
+        raise ValueError('destination tag already exists')
+    sources, selected, keys, attempts = [], {}, set(), []
+    for source in tags:
+        folder = suite_coverage.folder(root, source)
+        manifest = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
+        if sources and manifest['profile'] != sources[0][1]['profile']:
+            raise ValueError('reconcile requires one profile')
+        for request in manifest['requests']:
+            name = request['scenario']['name']
+            if sources and name not in selected:
+                raise ValueError(f'correction scenario absent from baseline: {name}')
+            label = request.get('label', '')
+            if label and not (root / 'build-runs/game-results' / (label + '.verdict')).exists():
+                if any((root / rel / (label + suffix)).exists() for rel, suffix in (
+                        ('build-runs/game-queue', '.req'), ('build-runs/game-results', '.running'))):
+                    raise ValueError(f'source still queued/running: {source}/{name}')
+            selected[name] = (folder, dict(request, evidence_source=source,
+                                         dll_sha256=manifest['dll_sha256']))
+            attempts.append(dict(source=source, scenario=name,
+                                 verdict_file=str(folder / (name + '.verdict'))))
+        keys.update(manifest.get('shadow_keys', []))
+        sources.append((folder, manifest))
+    directory.mkdir(parents=True)
+    for source, _ in sources:
+        shutil.copytree(source, directory / source.name)
+    manifest = dict(tag=tag, profile=sources[0][1]['profile'], dll_sha256='mixed',
+                    shadow_keys=sorted(keys), requests=[r for _, r in selected.values()],
+                    reconciliation=dict(sources=tags, policy='last-listed-attempt'), timing={})
+    results = {}
+    for name, (source, request) in selected.items():
+        for suffix in ('.log', '.verdict', '.reach.tsv', '.lua.log', '.req', '.json', '.shadows.txt'):
+            path = source / (name + suffix)
+            if path.is_file():
+                shutil.copy2(path, directory / path.name)
+        scenario = request['scenario']
+        log, verdict = directory / (name + '.log'), directory / (name + '.verdict')
+        parsed = suite.parse_log(log.read_text(encoding='utf-8-sig', errors='replace') if log.exists() else '',
+                                 scenario['end'], verdict.read_text(encoding='utf-8-sig') if verdict.exists() else '',
+                                 only_load=suite.load_only(scenario))
+        if Path(scenario['script']).suffix.lower() == '.lua':
+            lua = directory / (name + '.lua.log')
+            suite.add_lua_evidence(parsed, lua.read_text(encoding='utf-8-sig', errors='replace') if lua.exists() else '')
+        elif scenario['script'] != '-' and not parsed['actions_expected'] and not parsed['action_lines']:
+            parsed['actions_pending'] = 1
+        parsed['log'] = str(log) if log.exists() else '-'
+        results[name] = parsed
+    (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+    (directory / 'sources.json').write_text(json.dumps(tags, indent=2) + '\n', encoding='utf-8')
+    suite.write_results(directory, manifest, results)
+    suite.write_tsv(directory / 'attempts.tsv', ['source', 'scenario', 'verdict_file'], attempts)
+    return directory
 
 
 def audit(root, tag):
@@ -65,6 +130,12 @@ def audit(root, tag):
                 candidates.append(dict(scenario=name, cause=signature[0], address=diagnostic['address'],
                                        location=diagnostic['location'],
                                        evidence=diagnostic['first_exception_or_stall'], log=diagnostic['log']))
+    # Earlier failed attempts remain in the reach denominator after a repair.
+    for source in manifest.get('reconciliation', {}).get('sources', []):
+        source_manifest = json.loads((directory / source / 'manifest.json').read_text(encoding='utf-8'))
+        for request in source_manifest['requests']:
+            addresses, _ = suite_coverage.reached(directory / source / (request['scenario']['name'] + '.reach.tsv'))
+            union.update(addresses)
     total = len(manifest['requests'])
     health = dict(tag=tag, requested=total, **counts, **shadows,
                   clean_complete_share=counts['complete'] / total,
@@ -102,8 +173,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('tag')
     parser.add_argument('--census', help='compare a real six-slot tier run with this census union')
+    parser.add_argument('--reconcile', nargs='+', metavar='TAG', help='baseline then explicit correction batches; retain all attempts')
     args = parser.parse_args(argv)
     try:
+        if args.reconcile:
+            reconcile(suite.ROOT, args.tag, args.reconcile)
         health, addresses = audit(suite.ROOT, args.tag)
         if args.census:
             compare_tier(suite.ROOT, health, addresses, args.census)

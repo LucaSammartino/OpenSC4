@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 from unittest.mock import patch
 
+import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import suite_health
 
@@ -11,8 +12,9 @@ def recorded_batch(root):
     directory = root / 'build-runs/suite/recorded'
     directory.mkdir(parents=True)
     names = ('complete', 'refused', 'no-reach', 'absent')
-    requests = [dict(scenario=dict(name=n, script='-', notes='', end='2000-04-01')) for n in names]
-    (directory / 'manifest.json').write_text(json.dumps(dict(requests=requests)))
+    requests = [dict(scenario=dict(name=n, region='Test', city=n, script='-', notes='', end='2000-04-01')) for n in names]
+    (directory / 'manifest.json').write_text(json.dumps(dict(requests=requests, profile='shadows',
+                                                            dll_sha256='original', shadow_keys=[])))
     for name in names[:-1]:
         (directory / (name + '.verdict')).write_text('verdict: clean\n')
         (directory / (name + '.log')).write_text(
@@ -52,6 +54,60 @@ def test_stale_parsed_json_cannot_supply_missing_raw_evidence(tmp_path):
     health, _ = suite_health.audit(tmp_path, 'recorded')
     assert health['complete'] == 1
     assert health['strict'] == 0
+
+
+def correction_batch(root, baseline, name='repair'):
+    directory = root / 'build-runs/suite' / name
+    directory.mkdir()
+    manifest = json.loads((baseline / 'manifest.json').read_text())
+    manifest['requests'] = manifest['requests'][:1]
+    manifest['dll_sha256'] = 'corrected'
+    (directory / 'manifest.json').write_text(json.dumps(manifest))
+    return directory
+
+
+def test_reconcile_keeps_latest_failure_and_original_reach(tmp_path):
+    baseline = recorded_batch(tmp_path)
+    repair = correction_batch(tmp_path, baseline)
+    (repair / 'complete.log').write_text('AUTOTEST VERDICT: corrupt (date=2000-04-01)\n')
+    (repair / 'complete.verdict').write_text('verdict: corrupt\n')
+    output = suite_health.reconcile(tmp_path, 'current', ['recorded', 'repair'])
+    health, addresses = suite_health.audit(tmp_path, 'current')
+    assert health['requested'] == 4
+    assert health['complete'] == 1
+    assert addresses == {0x401000}  # Includes the failed row's earlier trace.
+    assert (output / 'recorded/complete.reach.tsv').is_file()
+    assert 'complete\tshadows\tcorrupt' in (output / 'summary.tsv').read_text()
+    assert '\tcorrected\t' in (output / 'summary.tsv').read_text()
+    assert json.loads((output / 'manifest.json').read_text())['timing'] == {}
+    assert len((output / 'attempts.tsv').read_text().splitlines()) == 6
+
+
+def test_absent_correction_cannot_silently_reuse_earlier_success(tmp_path):
+    baseline = recorded_batch(tmp_path)
+    correction_batch(tmp_path, baseline)
+    suite_health.reconcile(tmp_path, 'current', ['recorded', 'repair'])
+    health, _ = suite_health.audit(tmp_path, 'current')
+    assert health['returned'] == 2
+    assert health['complete'] == 1
+
+
+def test_reconcile_rejects_active_source_and_unknown_correction(tmp_path):
+    baseline = recorded_batch(tmp_path)
+    repair = correction_batch(tmp_path, baseline)
+    manifest = json.loads((repair / 'manifest.json').read_text())
+    manifest['requests'][0]['label'] = 'still-running'
+    (repair / 'manifest.json').write_text(json.dumps(manifest))
+    queue = tmp_path / 'build-runs/game-queue'
+    queue.mkdir()
+    (queue / 'still-running.req').write_text('request')
+    with pytest.raises(ValueError, match='still queued/running'):
+        suite_health.reconcile(tmp_path, 'current', ['recorded', 'repair'])
+    assert not (tmp_path / 'build-runs/suite/current').exists()
+    manifest['requests'][0]['scenario']['name'] = 'unknown'
+    (repair / 'manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match='absent from baseline'):
+        suite_health.reconcile(tmp_path, 'current', ['recorded', 'repair'])
 
 
 def test_estimated_or_wrong_slot_wall_never_passes_tier(tmp_path):

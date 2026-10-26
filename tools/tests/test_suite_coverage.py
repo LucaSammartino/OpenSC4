@@ -171,6 +171,17 @@ def item(name, addresses, wall=100, verdict='clean'):
 
 
 class WeightedTierTests(unittest.TestCase):
+    def test_census_allows_twenty_percent_incomplete_but_requires_every_row(self):
+        items = [dict(item(str(i), [i]), row=dict(profile='shadows'), selection_ready=i < 8)
+                 for i in range(10)]
+        expected = {str(i) for i in range(10)}
+        readiness = metric.selection_readiness(items, expected)
+        self.assertTrue(readiness['census_passed'])
+        self.assertEqual(readiness['clean_complete_share'], .8)
+        self.assertFalse(metric.selection_readiness(items[:-1], expected)['census_passed'])
+        items.append(dict(items[0], selection_ready=False))
+        self.assertFalse(metric.selection_readiness(items, expected)['census_passed'])
+
     def test_clean_verdict_without_complete_evidence_is_not_a_tier_candidate(self):
         rows = [dict(item('incomplete', [1]), selection_ready=False), item('complete', [2])]
         plan = metric.greedy(rows, {1: 1000, 2: 10}, fraction=.95)

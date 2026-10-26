@@ -163,6 +163,15 @@ def load(root, tag, default_enabled=()):
             batch, inputs = read_batch(directory / source, default_enabled)
             scenarios.extend(batch)
             files.update(inputs)
+        manifest_path = directory / 'manifest.json'
+        if manifest_path.is_file():
+            manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            if 'reconciliation' in manifest:
+                files.add(manifest_path)
+                selected = {r['scenario']['name']: r['evidence_source'] for r in manifest['requests']}
+                for item in scenarios:
+                    if item['source'] != selected.get(item['name']):
+                        item['selection_ready'] = False
     else:
         scenarios, files = read_batch(directory, default_enabled)
     if not scenarios:
@@ -234,6 +243,16 @@ def greedy(items, weights, fraction=0.98, slots=6, budget=900):
     return dict(selected=[r['name'] for r in chosen], full_bytes=total, reached_bytes=reached_bytes,
                 fraction=reached_bytes / total, target=fraction, achieved=reached_bytes >= threshold,
                 slots=slots, wall_seconds=select.wall_time(chosen, slots), budget_seconds=budget)
+
+
+def selection_readiness(items, expected):
+    """The census permits 20% incomplete rows; their observed reach still counts."""
+    latest = {r['name']: r for r in items if r['row']['profile'] == 'shadows'}
+    complete = sum(bool(latest.get(name, {}).get('selection_ready')) for name in expected)
+    missing = sorted(expected - latest.keys())
+    return dict(missing_scenarios=missing, complete_scenarios=complete,
+                clean_complete_share=complete / len(expected) if expected else 0,
+                census_passed=bool(expected) and not missing and complete >= len(expected) * .8)
 
 
 def combine(root, tag, tags):
@@ -329,10 +348,9 @@ def main():
         if args.select:
             plan = greedy(evidence['scenarios'], weights, args.fraction, args.slots, args.budget_seconds)
             expected = {r['name'] for r in parser.read_scenarios(root, 'all')}
-            observed = {r['name'] for r in evidence['scenarios']}
-            plan['missing_scenarios'] = sorted(expected - observed)
+            plan.update(selection_readiness(evidence['scenarios'], expected))
             plan['missing_traces'] = sorted({r['name'] for r in evidence['scenarios'] if not r['trace_present']})
-            plan['eligible_for_tier1'] = plan['achieved'] and not plan['missing_scenarios'] and not plan['missing_traces']
+            plan['eligible_for_tier1'] = plan['achieved'] and plan['census_passed']
             (directory / 'tier1-selection.json').write_text(json.dumps(plan, indent=2) + '\n', encoding='utf-8')
             print(json.dumps(plan, sort_keys=True))
             return 0 if plan['eligible_for_tier1'] else 1
