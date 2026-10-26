@@ -9,12 +9,12 @@ The denominator is the game's own code: **5,584,344 bytes in 29,535 functions** 
 | Step | What it means | % of game code | Bytes | Functions | Out of order |
 |---|---|---:|---:|---:|---|
 | **Specified** | a clean-room spec in docs/specs describes the owning class | **91.9%** | 5,132,879 | 25,599 | - |
-| **Implemented** | our clean-room code in engine/ implements the owning class | **62.3%** | 3,479,671 | 15,553 | 0.0% implemented without a spec |
-| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train284.out`) | **30.9%** | 1,728,127 | 7,408 | 0.8% verified while its owner is not marked implemented |
+| **Implemented** | our clean-room code in engine/ implements the owning class | **63.0%** | 3,520,534 | 15,906 | 0.0% implemented without a spec |
+| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train284.out`) | **30.9%** | 1,728,127 | 7,408 | 0.0% verified while its owner is not marked implemented |
 | ↳ strict | ... and exact in every scenario of the test suite that reached it (`sh28-census3`, 179 runs) | **5.9%** | 329,798 | 1,407 | - |
 | **Replaced** | our code runs in the game instead of the original (house replace run) | **29.4%** | 1,639,183 | 6,468 | 2.9% running in the game before it was verified |
 
-Reach, not a step: the suite entered 27.9% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
+Reach, not a step: the suite entered 28.5% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
 
 Verified includes 3,023 bytes of single-method evidence (see Method verification).
 
@@ -36,7 +36,7 @@ Share of each area's bytes at each step. Shared helpers and unattributed code ha
 
 | Area | Bytes | % of game | Specified | Implemented | Verified | ↳ strict | Replaced | Suite reach |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 1,978,253 | 35.4% | 100.0% | 82.3% | 69.5% | 13.0% | 67.7% | 50.6% |
+| simulation | 1,978,253 | 35.4% | 100.0% | 84.3% | 69.5% | 13.0% | 67.7% | 52.1% |
 | framework | 637,923 | 11.4% | 96.6% | 78.7% | 13.7% | 4.8% | 0.7% | 21.9% |
 | renderer | 1,222,529 | 21.9% | 99.2% | 70.7% | 19.7% | 1.8% | 22.2% | 23.8% |
 | ui | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.1% | 0.0% | 0.0% | 8.6% |
@@ -45,7 +45,7 @@ Share of each area's bytes at each step. Shared helpers and unattributed code ha
 | other | 17,873 | 0.3% | 68.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | shared | 189,808 | 3.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | unattributed | 85,977 | 1.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
-| **all game code** | **5,584,344** | 100.0% | **91.9%** | **62.3%** | **30.9%** | **5.9%** | **29.4%** | **27.9%** |
+| **all game code** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **30.9%** | **5.9%** | **29.4%** | **28.5%** |
 
 ## By subsystem
 
@@ -56,7 +56,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | simulation | automata (vehicles, animation) | 33 | 231,259 | 100.0% | 26.1% | 2.3% | 0.0% | 2.3% | 18.3% | 72/72 |
 | simulation | traffic | 9 | 162,482 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 72.2% | 72/72 |
 | simulation | network tools | 12 | 150,282 | 100.0% | 94.3% | 80.3% | 0.0% | 70.5% | 82.8% | 73/73 |
-| simulation | network occupants | 28 | 123,459 | 100.0% | 15.2% | 33.1% | 0.0% | 0.0% | 8.3% | 72/72 |
+| simulation | network occupants | 28 | 123,459 | 100.0% | 48.3% | 33.1% | 0.0% | 0.0% | 33.7% | 72/72 |
 | simulation | automata (managers, records) | 13 | 121,603 | 100.0% | 99.5% | 99.5% | 22.9% | 99.5% | 47.4% | 72/72 |
 | simulation | terrain | 5 | 84,631 | 100.0% | 99.6% | 87.3% | 0.0% | 87.3% | 30.2% | 617/617 |
 | simulation | mysims | 8 | 80,498 | 100.0% | 100.0% | 53.4% | 0.0% | 80.8% | 47.9% | 73/73 |
@@ -330,7 +330,7 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-libs.tsv | 35ff9f528cde8b90 | |
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
-| tools/coverage-map.tsv | 9d4267901e29f5a7 | |
+| tools/coverage-map.tsv | b25f1b300aff97c7 | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | fe38461524a619f8 | |
 | engine/plugin/FC4Subsystems.cpp | 64c4f29d042ffe43 | |
