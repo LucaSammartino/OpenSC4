@@ -1,5 +1,6 @@
 # Candidate census; qualify delivery with a clean reach run before full-suite use.
 2197-03-22 mark ui29-weburg begin
+2197-03-22 pause
 2197-03-22 uicommand 0x6a935cf3
 2197-03-22 uimouse 600 350 move
 2197-03-22 uimouse 600 350 click
@@ -19,3 +20,4 @@
 2197-03-22 uitext ui29 census
 2197-03-22 uikey 27
 2197-03-22 mark ui29-weburg complete
+2197-03-22 resume

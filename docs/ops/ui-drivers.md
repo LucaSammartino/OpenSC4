@@ -42,6 +42,24 @@ web/HTTP and volcano paths still need qualified scenarios. The registered
 `ViewWebBrowser` command refuses an empty parameter set (status 2); no web
 coverage follows from its registration. Candidate rows remain outside `full`.
 
+The censuses pause simulation before UI actions and resume afterwards, keeping
+the saved city from advancing several years while its panels are exercised.
+The house census also tries the installed data-view tab `99887755` and its
+air-pollution layer `0000500e`. A refused control remains a failed action.
+
+`disaster volcano x z` extends the existing disaster verb with explicit cells.
+It asks disaster manager `C4C90997` to start at world metres `(16*x+8,16*z+8)`
+(disasters.md section 10). It neither selects an interactive tool nor owns the
+returned instance. Unlike fire/riot, volcano does not accept `auto`.
+The volcano candidate waits 55 seconds of wall time because lava lasts 50
+animation seconds; turbo game dates cannot substitute for that interval.
+
+The attempted import-template driver was removed after corrupt run
+`reach-ui29-p7`; it supplies no qualified tree coverage. Questions UI29-TREE
+and UI29-HTTP in the corresponding spec question files block tree-template
+and public WWW LoadDocument drivers. No browser-launch command is qualified
+as web/HTTP coverage.
+
 The installed accelerator resource `{A2E3D533,6A231EAA,6A9362EF}` supplies query
 `6a935cf3`, road `6a935dc0`, MySim `6a935ca8`, mayor `6a935ca4`, play/graphics/audio
 options `6a935e2a/6a935e2d/6a935e34`, and close `6a935cf1`.

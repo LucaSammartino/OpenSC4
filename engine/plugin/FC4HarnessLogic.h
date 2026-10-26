@@ -253,6 +253,7 @@ constexpr int32_t kScriptMaxTutorialArg = 999999;
 constexpr int32_t kDisasterFire = 0;
 constexpr int32_t kDisasterRiot = 1;
 constexpr int32_t kDisasterSurvey = 2;
+constexpr int32_t kDisasterVolcano = 3;
 
 inline const char* ScriptOpName(ScriptOp op) {
     switch (op) {
@@ -612,15 +613,15 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
         if (kind == "survey") {
             a.disaster = kDisasterSurvey;
             if (!wantArgs(1, "survey")) return false;
-        } else if (kind == "fire" || kind == "riot") {
-            a.disaster = kind == "fire" ? kDisasterFire : kDisasterRiot;
-            if (nargs == 2 && detail::Lower(tok[3]) == "auto") {
+        } else if (kind == "fire" || kind == "riot" || kind == "volcano") {
+            a.disaster = kind == "fire" ? kDisasterFire : kind == "riot" ? kDisasterRiot : kDisasterVolcano;
+            if (kind != "volcano" && nargs == 2 && detail::Lower(tok[3]) == "auto") {
                 a.x0 = a.z0 = a.x1 = a.z1 = -1;  // the survey's first candidate
                 *out = a;
                 *has = true;
                 return true;
             }
-            if (!wantArgs(3, "fire|riot x z, or fire|riot auto")) return false;
+            if (!wantArgs(3, "fire|riot|volcano x z, or fire|riot auto")) return false;
             static const char* const kNames[2] = {"x", "z"};
             int32_t* const dst[2] = {&a.x0, &a.z0};
             for (int i = 0; i < 2; ++i) {
@@ -635,7 +636,7 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             a.x1 = a.x0;
             a.z1 = a.z0;
         } else {
-            *error = "disaster '" + (nargs > 0 ? tok[2] : std::string()) + "' is not fire, riot or survey";
+            *error = "disaster '" + (nargs > 0 ? tok[2] : std::string()) + "' is not fire, riot, volcano or survey";
             return false;
         }
     } else if (name == "portprops") {

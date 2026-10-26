@@ -321,12 +321,12 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01 mark # only a comment", "mark takes a text"));
     CHECK(ErrorIs("2000-01-01 save slow", "save 'slow' is not fast (save, or save fast)"));
     CHECK(ErrorIs("2000-01-01 save fast now", "save takes 0 or 1 argument(s) (fast), not 2"));
-    CHECK(ErrorIs("2000-01-01 disaster", "disaster '' is not fire, riot or survey"));
-    CHECK(ErrorIs("2000-01-01 disaster flood 1 2", "disaster 'flood' is not fire, riot or survey"));
+    CHECK(ErrorIs("2000-01-01 disaster", "disaster '' is not fire, riot, volcano or survey"));
+    CHECK(ErrorIs("2000-01-01 disaster flood 1 2", "disaster 'flood' is not fire, riot, volcano or survey"));
     CHECK(ErrorIs("2000-01-01 disaster fire 1",
-                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 2"));
+                  "disaster takes 3 argument(s) (fire|riot|volcano x z, or fire|riot auto), not 2"));
     CHECK(ErrorIs("2000-01-01 disaster riot 1 2 3",
-                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 4"));
+                  "disaster takes 3 argument(s) (fire|riot|volcano x z, or fire|riot auto), not 4"));
     CHECK(ErrorIs("2000-01-01 disaster riot x 2", "x 'x' is not a cell coordinate 0..4095"));
     CHECK(ErrorIs("2000-01-01 disaster fire 1 4096", "z '4096' is not a cell coordinate 0..4095"));
     CHECK(ErrorIs("2000-01-01 disaster survey now", "disaster takes 1 argument(s) (survey), not 2"));
@@ -444,6 +444,13 @@ void UiScriptTests() {
     }
     const auto control = ParseScript("2026-01-28 uicontrol 0x00000041\n");
     CHECK(control.errors.empty() && control.actions.size() == 1 && control.actions[0].command == 0x41);
+    const auto volcano = ParseScript("2026-01-28 disaster volcano 63 64\n");
+    CHECK(volcano.errors.empty() && volcano.actions.size() == 1);
+    if (volcano.actions.size() == 1) {
+        CHECK(volcano.actions[0].disaster == kDisasterVolcano && volcano.actions[0].x0 == 63 && volcano.actions[0].z0 == 64);
+    }
+    for (const auto* bad : {"disaster volcano auto", "disaster volcano 1", "disaster volcano -1 1"})
+        CHECK(!ParseScript(std::string("2026-01-28 ") + bad + "\n").errors.empty());
 }
 
 }  // namespace

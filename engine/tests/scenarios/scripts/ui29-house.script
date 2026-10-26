@@ -1,6 +1,7 @@
 # IDs: installed 3D-view accelerator resource A2E3D533/6A231EAA/6A9362EF.
 # UI input is posted only to this process's game window.
 2026-01-28 mark ui29-house begin
+2026-01-28 pause
 2026-01-28 uicommand 0x6a935cf3
 2026-01-28 uiwait 500
 2026-01-28 uimouse 600 350 move
@@ -39,9 +40,14 @@
 2026-01-28 uicontrol 0xaa3ac501
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
-2026-01-28 uicontrol 0x6a5bb0fb
 2026-01-28 uikey 27
 2026-01-28 uicontrol 0xca2aedcc
 2026-01-28 uiwait 500
 2026-01-28 uikey 27
 2026-01-28 mark ui29-house finished
+2026-01-28 uicontrol 0x99887755
+2026-01-28 uiwait 500
+2026-01-28 uicontrol 0x0000500e
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 resume
