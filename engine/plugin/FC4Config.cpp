@@ -426,6 +426,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "modelinst_shadow",
                                   // Specified live lot getter comparison, independently default off.
                                   "lotrecview_shadow",
+                                  // Scoped watercraft records/getters and inherited stack probes.
+                                  "watercraft_shadow",
                                   // Private native draft planning vs read-only Rust replay.
                                   "nettool_plan_shadow", "powerline_plan_shadow",
                                   // Isolated GZ buffers and read-only command parsing, default off.
