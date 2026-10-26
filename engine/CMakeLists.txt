@@ -1473,3 +1473,19 @@ if(TARGET FreeCity4)
     add_test(NAME automata_construction_test COMMAND fc4_automata_construction_test "$<TARGET_FILE:FreeCity4>")
     set_tests_properties(automata_construction_test PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+# Effects resource: separate opt-in class, fixed persistence identity and stream ABI.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4EffectsResource.cpp plugin/FC4EffectsResource.h)
+    add_executable(fc4_effects_resource_test tests/effects_resource_test.cpp
+        plugin/FC4EffectsResource.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_effects_resource_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_options(fc4_effects_resource_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME effects_resource_test COMMAND fc4_effects_resource_test)
+    foreach(mode default enabled disabled mixed)
+        add_test(NAME plugin_effects_resource_registration_${mode}_test
+            COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --effectsres-${mode})
+        set_tests_properties(plugin_effects_resource_registration_${mode}_test
+            PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
+    endforeach()
+endif()

@@ -90,6 +90,9 @@ enum class Direct : unsigned {
     TextureBindingRelease,  // thiscall (), pop 0, EAX = reference count
     // network-occupants.md §4.6.3: concrete *native* primary pole only.
     PoleAttachmentPoints,  // thiscall (orientation low byte, xyz[4]), pop 8, AL
+    // effects.md 18.7.3, 18.9: collection services, never resource Read/Write.
+    EffectsCollectionConstruct, // thiscall C, no args; EAX=this
+    EffectsCollectionPublish,   // thiscall source C, destination C; void
     Count
 };
 
