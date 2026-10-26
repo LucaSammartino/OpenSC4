@@ -1,19 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| propmgr-query27: prop query diagnostics (engine) | Codex; .claude/worktrees/propmgr-query27; reserved branch propmgr-query27, detached HEAD | BLOCKED PL24; diagnostics c599ed479, test 1ea62a4ad; ABI/seam unchanged; Rust 7849 passed, clippy 0 diagnostics, CTest 118/118; propmgr-query27-r2-diag-b1 through b4 clean, each 220/220/ref0/resync0, each watchdog_stalls=1 | 1. Resolve PL24. 2. Obtain three differing samples and implement the specified fix. 3. Repeat four full exact runs and enqueue. |
+| propmgr-query27: closed lot query bounds (engine) | Codex; .claude/worktrees/propmgr-query27; reserved branch propmgr-query27, detached HEAD | ready; code 23e3dbdc4/e00309bec; ABI/seam unchanged; cargo 7860/0, clippy 0 diagnostics, CTest 118/118; four full house shadows propmgr 220/220, zero resyncs; questions none | - |
 
-- Change: added `pl24_untyped_lot_props_at_observed_upper_bounds`, kind 0/flags 7, both upper axes, adjacent floats and release checks; query semantics remain A7.2 strict bounds.
-- Unit test passed in `build-runs/fc4verify-quick-test.log` and `build-runs/qbuild-test.log`; owned-file fmt passed.
-- Full gate ran once: Rust 7849/0 (`build-runs/qbuild-test.log`), clippy 0 diagnostics (`build-runs/qbuild-clippy.log`), CMake PASS and CTest 118/118 (`build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`).
-- Game log root: `C:/Users/tlori/FreeCity4/build-runs/game-results/`; immutable DLL SHA256 prefix 64c299c4; house profile from regress-train253-shadows.ini, four shared-queue slots 7/8/13/14 concurrently, turbo to 2032.
-- `propmgr-query27-r2-diag-b1`: clean, propmgr 220/220; totals at `.log:40921`, verdict in `.verdict`.
-- `propmgr-query27-r2-diag-b2`: clean, propmgr 220/220; totals at `.log:41138`, verdict in `.verdict`.
-- `propmgr-query27-r2-diag-b3`: clean, propmgr 220/220; totals at `.log:41023`, verdict in `.verdict`.
-- `propmgr-query27-r2-diag-b4`: clean, propmgr 220/220; totals at `.log:41057`, verdict in `.verdict`.
-- Four consecutive full exact runs: observed; resyncs=0, incomplete=0, ref_warnings=0 in all four logs/verdicts. Each verdict also reports watchdog_stalls=1; no cause inferred.
-- Other-key criterion: all 61 other parsed shadow keys retain train253's mismatch counts in all four runs; lotcfg remains 293/293. Comparison: `build-runs/analyze-propmgr.py` against main `build-runs/regress-train253-shadows.log`.
-- Three differing diagnostic samples: NOT MET. New batch has zero; one verified prior sample remains in `propmgr-query27-diag-a2.log:40212` (native-only kind 0, flags 7, untimed, Z=768 at observed upper bound, no observed same-tick single insert/remove).
-- Corrected the unsupported prior a3 citation in `docs/specs/questions/prop-lotconfig.md`; current a3 archive is 220/220 and contributes no sample.
-- Fix criterion: NOT MET. No semantic/timing change was guessed; four exact runs do not establish a fix for the earlier intermittent failure. Existing PL24 asks for both axes/NaN behavior and any kind-0 exception.
-- Landing: held as wip, not enqueued for verified credit. No coverage files, replace lists, game files or ABI exports changed.
-- Next: spec writer resolves PL24, then resume the missing diagnostics and spec-backed fix before claiming deterministic agreement.
+- Contract/fix: A7.2 / PL24 requires closed upper X and Z bounds; four ordered binary32 comparisons reject NaN X/Z or bounds, ignore Y, preserve list order and release rejected references.
+- Code milestones: 23e3dbdc4 fixes the position pass and Rust fixtures; e00309bec aligns C ABI assertions and the PLT-04 conformance vector. No ABI export or seam change.
+- Regression fixtures: observed kind-0/flags-7 props on each upper bound, adjacent floats, all ten T.4 rows, caller entries, NaN bounds/Y, signed zeros, infinities and references; all three PL24 tests pass (`build-runs/qbuild-test.log`, core 5192/0).
+- Full gate, run once this round: cargo 7860 passed/0 failed/0 ignored (`build-runs/qbuild-test.log`); clippy exit 0, diagnostics 0 (`build-runs/qbuild-clippy.log`).
+- Native gate: build PASS 52/52 edges (`build-runs/fc4verify-build.log`); CTest PASS 118/118, 0 failed (`build-runs/fc4verify-ctest.log`); qbuild all PASS.
+- Owned-file fmt: manager.rs, core tests.rs and capi prop_manager_tests.rs checked; 3 files, 0 diff lines.
+- House profiles train253 and train260 compare identical; all four completed runs use the shared queue, Konradshohe, turbo=1, end_date=2032-01-01.
+- Game evidence directory below: `C:/Users/tlori/FreeCity4/build-runs/game-results/`; each label has its `.log` and `.verdict`.
+- `propmgr-query27-r3-closed-a1`: clean, date 2032-01-10, ref_warnings=0; propmgr 220/220, lotcfg 293/293. One recovered watchdog pause, outstanding problems 0.
+- `propmgr-query27-r3-closed-a2b`: clean, date 2032-01-07, ref_warnings=0; propmgr 220/220, lotcfg 293/293.
+- `propmgr-query27-r3-closed-a3`: clean, date 2032-01-11, ref_warnings=0; propmgr 220/220, lotcfg 293/293.
+- `propmgr-query27-r3-closed-a4`: clean, date 2032-01-07, ref_warnings=0; propmgr 220/220, lotcfg 293/293.
+- Each of these four full runs has 73 query samples, every sample pairs=160/exact=160/different=0/fallback=0/resync=0; May 2029 listsDiffering=0; no differing-entry diagnostics.
+- Other keys: all 69 other harness shadow summaries exact, resynced lines=0 in every verdict. Versus train260, the sole mismatch-count change is landvalue 1 to 0; variable simulation sample counts differ (lessons 5.3), with no new mismatch.
+- Game DLL SHA256: ae5daf0ec21400d621ad73d7bb3d9a11037fce032e8051e91ece20946f562533. The full gate relinked it to 1350e97130f74585d8a798b394ac90ed0603c95d9878b4d9878e83f315e1e9fe; production source is unchanged since the four runs.
+- Excluded failed load: `propmgr-query27-r3-closed-a2` stalled before a city date; a2b is its fresh-label successful retry, not a corrected verdict for a2.
+- Causal diagnostic: `propmgr-query27-diag-a2.log` at 2031-12-01 records native-only kind=0, flags=7, exact upper Z=768, added_same_tick=0/removed_same_tick=0; PL24 specifies retention.
+- Questions: none new; PL24 specifies the changed behavior. Ready queue entry pins the actual final detached HEAD; no coverage or replace-list edit.
