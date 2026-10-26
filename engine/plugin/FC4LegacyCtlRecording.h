@@ -238,7 +238,7 @@ inline void* __fastcall MainWindow(void* self,void*) {
 inline bool Setup() {
     Quiet q;
     auto* director=RZGetCOMDllDirector(); auto* com=director?director->GZCOM():nullptr;
-    bool ok=com && Patch(com,0xc,reinterpret_cast<void*>(&Create));
+    bool ok=com && Patch(com,0xc,reinterpret_cast<void*>(&Create),true);
     auto* fw=RZGetFrameWork(); cIGZUnknown* mgr=nullptr;
     if(fw && fw->GetSystemService(2752988254ul,1444ul,reinterpret_cast<void**>(&mgr)) && mgr) {
         FC4_ACQUIRED(mgr,"legacy WinMgr service");
@@ -296,7 +296,6 @@ inline Interpreter interpreters[]={
 template<unsigned Index> void __cdecl Interpret(void* win,void* props,uint32_t first) {
     HookScope hooks;
     Input input; Trace trace;
-    trace.exhaustive=Setup();
     {Quiet q;input.Capture(props);ObserveWindow(win);}
     // These foreign resource services are not captured yet; never treat absent
     // recording support as a native mismatch or a completed interpreter call.
