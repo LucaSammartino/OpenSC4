@@ -154,10 +154,18 @@ class SuiteCreditTests(unittest.TestCase):
 
 def item(name, addresses, wall=100, verdict='clean'):
     return dict(name=name, reached=set(addresses), wall_seconds=wall,
+                selection_ready=True,
                 row=dict(verdict=verdict, end_reached='1'))
 
 
 class WeightedTierTests(unittest.TestCase):
+    def test_clean_verdict_without_complete_evidence_is_not_a_tier_candidate(self):
+        rows = [dict(item('incomplete', [1]), selection_ready=False), item('complete', [2])]
+        plan = metric.greedy(rows, {1: 1000, 2: 10}, fraction=.95)
+        self.assertEqual(plan['selected'], ['complete'])
+        self.assertFalse(plan['achieved'])
+        self.assertEqual(plan['full_bytes'], 1010)
+
     def test_missing_trace_is_unknown_but_an_observed_empty_trace_is_zero(self):
         evidence = dict(item('missing', []), first={}, windows=[], trace_present=False)
         evidence['row']['profile'] = 'shadows'

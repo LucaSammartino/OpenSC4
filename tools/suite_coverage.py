@@ -119,9 +119,14 @@ def read_batch(directory, default_enabled=()):
             enabled -= {k.strip() for k in settings.get('disable', '').split(',')}
         parsed_path = directory / (name + '.json')
         parsed_metrics = json.loads(parsed_path.read_text(encoding='utf-8')) if parsed_path.is_file() else {}
+        selection_ready = (actual_clean and clean(row) and bool(addresses) and bool(ran)
+                           and bool(parsed_metrics.get('reach_lines'))
+                           and not parsed_metrics.get('actions_failed', 0)
+                           and not parsed_metrics.get('actions_pending', 1))
         scenarios.append(dict(name=name, row=row, scenario=request['scenario'], reached=addresses,
                               first=first, ran=ran, exact=exact, enabled=enabled,
                               replace_clean=clean(row) and actual_clean,
+                              selection_ready=selection_ready,
                               wall_seconds=parsed_metrics.get('wall_seconds'),
                               windows=parsed_metrics.get('reach_windows', []),
                               trace_present=trace.is_file(),
@@ -199,7 +204,8 @@ def greedy(items, weights, fraction=0.98, slots=6, budget=900):
     if not total:
         raise ValueError('no implemented reach evidence')
     threshold = total * fraction
-    candidates = [r for r in items if clean(r['row']) and r['wall_seconds'] and r['wall_seconds'] > 0]
+    candidates = [r for r in items if clean(r['row']) and r.get('selection_ready', False)
+                  and r['wall_seconds'] and r['wall_seconds'] > 0]
     chosen, covered = [], set()
     while sum(weights[a] for a in covered) < threshold:
         options = []
