@@ -387,10 +387,27 @@ it resets only imported and exported of the three commodities and leaves produce
 
 ### 5.4 `GetWorkforcePercentage` *[compat]*
 
-Slot 13 returns, in the integer result register, the **address** of the stored float (object offset `+0x30`); it does
-not return a float value. The residential simulator's counterpart, which `UpdateCityCache` reads, does the same. A
-caller of the original must dereference the result. An implementation that replaces this class must keep the address
-convention for plug-ins compiled against the original (the SDK header declares a plain float return: RR6).
+Slot 13 returns, in EAX, the **address** of the stored float (object offset `+0x30`); it does not produce an x87
+result or consume a stack argument (`0x00800640`–`0x00800643`). The public gzcom-dll SDK header does declare
+`GetWorkforcePercentage` as a plain `float` return. That declaration disagrees with this Windows binary: a caller
+compiled to read ST(0) has no valid result supplied by this method. Replacements using the native slot must
+preserve the address convention; this is not permission to reinterpret the address bits as an IEEE float.
+
+The residential counterpart is **different**: slot 31 (`+0x7C`, `0x006FC860`) takes a caller-provided pointer
+to four bytes of result storage, writes the fraction there, returns that pointer in EAX and removes the
+four-byte argument. It does not return a pointer to a persistent member. `UpdateCityCache(city)` explicitly
+passes temporary storage, then copies the four bytes at the returned address into this record's `+0x30`
+(`0x004AD397`–`0x004AD3A8`; both residential return paths at `0x006FC98D`–`0x006FC9D5`). Its SDK declaration
+also says plain `float`; it does not describe this calling sequence.
+
+Worked ABI case (RR6): with workforce bits `0x3F000000` at record address `R + 0x30`, slot 13 returns
+`R + 0x30`, leaves those bytes intact and supplies no new x87 value. For the residential method a caller
+must provide a separate four-byte destination and read the destination through the returned pointer.
+The cache call above is a verified dereferencing caller. The export has no direct calls to the shared
+four-byte slot-13 body (also used for unrelated address getters); unresolved virtual calls do not establish
+that **every** executable caller dereferences it. To settle that exhaustive claim, trace calls through the
+regional-city vtable slot 13 and record each return consumer while exercising the region statistics UI and
+city load/save. No scalar-return contract may be inferred from the header meanwhile.
 
 ## 6. City thumbnails
 

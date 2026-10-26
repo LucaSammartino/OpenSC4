@@ -32,15 +32,6 @@
   regional-city read succeeded, whereas it returns true even when that read fails (regional-city-records.md §2.4).
   [verified; the application.md line is another spec's, filed here for the maintainer]
 
-<!-- from: core-regionalcity9 (2026-10-24) -->
-- **RY7 - foundations §11.2 / regional-city §2, Read edge cases:** Does Read clear the constructor's
-  commodity entries 1–3 before loading a map (foundations §14.20 requests a byte-identical round trip with
-  two commodities)? What do negative signed commodity and deal counts do? Are object-level Read failures
-  atomic, and are duplicate map/POI keys last-wins? The core wire decoder replaces maps (last key wins),
-  rejects a commodity count interpreted unsigned above the specified limit, treats negative deal counts
-  as an empty signed loop, and publishes a new object only after successful decoding. These are literal
-  readings; no additional failure behavior or default entries are inferred for a decoded wire map.
-
 <!-- from: glue-regionalcity-shadow13 (2026-10-24) -->
 - **RY8 - §5 commodity balance / foundations §18.2–18.3:** Does "computed in double precision"
   override the simulation-wide 24-bit x87 arithmetic contract? Live native records through 2032 differ

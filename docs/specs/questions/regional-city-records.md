@@ -37,11 +37,6 @@
   second half of a pair demolish and lay a piece, and does the strip of three cells starting at the inner cell (§4.6)
   cover both lanes of a wide road? [as read]
 <!-- from: re-regional-city-records (2026-10-21) -->
-- **RR6 - §5.4:** slot 13 of `cISC4RegionalCity` (`GetWorkforcePercentage`, `0x00800640`) and the residential
-  simulator's counterpart return the address of the float in the integer result register. Does the SDK header declare
-  the method as returning `float` (a plug-in caller would then read the x87 stack and get garbage), and do all
-  callers in the executable dereference the address? [as read: the interface returns an address]
-<!-- from: re-regional-city-records (2026-10-21) -->
 - **RR7 - §5.3:** the original and last language and country, the birth date and the world longitude, latitude and base
   elevation have setters but no function that fills them: neither the cache update nor the constructor does, and they
   are 0 in all 417 shipped records. Does any other code (the new-city dialog, the region import, a plug-in

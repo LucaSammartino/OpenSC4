@@ -74,6 +74,11 @@ PostCityInit and PreSave; the others come from their city files.
 
 The record (foundations.md §11.2) stores these fields; its "moved" byte is `+0xA0`.
 
+**Read edge cases (RY7):** these are constructor defaults, not replacement-map rules. The native object's
+in-place `Read` retains absent commodity keys (including 1–3), overwrites duplicate scalar-map entries and
+appends duplicate POI lists. Failure can leave a partly modified receiver. See foundations.md §11.2 for the
+unsigned count guards, nonzero deal loops, wrapper publication rule and worked cases.
+
 ## 3. Slots *[compat]*
 
 The compiled order is the SDK's, except where neighbors.md's slot notes say otherwise (overloads grouped).
