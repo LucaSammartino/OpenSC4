@@ -103,6 +103,30 @@ enum class Direct : unsigned {
     OverlayWaterRectDynamic,         // rectangle value, context; pop 20, AL (ignored)
     OverlayShadowRect,               // rectangle pointer, context; pop 8, void
     OverlayShadowRectDynamic,        // rectangle pointer, context; pop 8, void
+    // effects.md 18.7.3, 18.9: collection services, never resource Read/Write.
+    EffectsCollectionConstruct, // thiscall C, no args; EAX=this
+    EffectsCollectionPublish,   // thiscall source C, destination C; void
+    EffectsParticleConstruct,
+    EffectsDecalConstruct,
+    EffectsDynamicConstruct,
+    EffectsBrushConstruct,
+    EffectsAttractorConstruct,
+    EffectsScrubberConstruct,
+    EffectsSequenceConstruct,
+    EffectsSoundConstruct,
+    EffectsCameraConstruct,
+    EffectsParticleReadOld,
+    EffectsParticleRead,
+    EffectsParticleWrite,
+    EffectsDecalRead,
+    EffectsDecalWrite,
+    EffectsDynamicRead,
+    EffectsDynamicWrite,
+    EffectsVisualReadOld,
+    EffectsVisualRead,
+    EffectsVisualWrite,
+    EffectsParticleDrop,
+    EffectsDynamicDestroy,
     // terrain.md section 15.5.12.2: populates the native view's texture inputs.
     TerrainStaticInit,               // cdecl (), no receiver or arguments, AL
     Count
