@@ -20,9 +20,7 @@ impl MySimWindow {
     }
     /// §1.5, raw operations only. No inferred filtering by either flag.
     pub fn get_message_list(&mut self, host: &mut impl Host) -> Result<()> {
-        let sim = self
-            .selected_sim()
-            .ok_or(Unsupported::Precondition("selected Sim"))?;
+        let sim = self.selected_sim().ok_or(Unsupported::Precondition("selected Sim"))?;
         for item in &self.set_aside {
             let flags = host.advice_flags(*item);
             if flags & 2 == 0 {

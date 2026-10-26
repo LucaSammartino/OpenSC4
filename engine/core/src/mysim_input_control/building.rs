@@ -28,7 +28,8 @@ pub trait BuildingServices: InputServices {
     fn agent(&mut self) -> Option<Handle>;
     /// Created foreign reference. Register the corresponding portable windows
     /// in `windows`, including its parent and the not-allowed sibling.
-    fn create_badge(&mut self, windows: &mut Windows, parent: Window, key: Key, child: u32, iid: u32) -> Option<Window>;
+    fn create_badge(&mut self, windows: &mut Windows, parent: Window, key: Key, child: u32, iid: u32)
+        -> Option<Window>;
     fn bitmap_id(&mut self, sim: SimView) -> u32;
     fn bitmap_file(&mut self, sim: SimView, index: i32) -> String;
     fn application_directory(&mut self) -> String;
@@ -79,7 +80,12 @@ impl BuildingTool {
     pub fn badges(&self) -> (Option<Window>, Option<Window>) {
         (self.allowed, self.denied)
     }
-    pub fn init(&mut self, sim: Option<Handle>, windows: &mut Windows, host: &mut impl BuildingServices) -> Result<bool> {
+    pub fn init(
+        &mut self,
+        sim: Option<Handle>,
+        windows: &mut Windows,
+        host: &mut impl BuildingServices,
+    ) -> Result<bool> {
         if self.initialized {
             // SPEC-GAP: repeated initialization is outside the published lifecycle.
             return Err(Unsupported::Precondition("new building-tool lifetime"));
@@ -104,7 +110,8 @@ impl BuildingTool {
         host.focus_view();
         if self.allowed.is_none() {
             if let Some(parent) = host.view_window() {
-                self.allowed = host.create_badge(windows, parent, [0, 0x96a0_06b0, 0x6a94_55c9], 0x27df_05be, 0x5386_d516);
+                self.allowed =
+                    host.create_badge(windows, parent, [0, 0x96a0_06b0, 0x6a94_55c9], 0x27df_05be, 0x5386_d516);
             }
             if let Some(allowed) = self.allowed {
                 let rect = windows.get(allowed).area;

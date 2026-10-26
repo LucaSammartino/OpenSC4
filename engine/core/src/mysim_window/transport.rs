@@ -67,15 +67,11 @@ impl MySimWindow {
         Err(Unsupported::TransportChoice)
     }
     pub fn create_change_house_tool(&self, host: &mut impl TransportHost) -> Result<Option<Handle>> {
-        let sim = self
-            .selected_sim()
-            .ok_or(Unsupported::Precondition("selected Sim"))?;
+        let sim = self.selected_sim().ok_or(Unsupported::Precondition("selected Sim"))?;
         Ok(host.create_change_house_tool(sim))
     }
     pub fn create_change_job_tool(&self, host: &mut impl TransportHost) -> Result<Option<Handle>> {
-        let sim = self
-            .selected_sim()
-            .ok_or(Unsupported::Precondition("selected Sim"))?;
+        let sim = self.selected_sim().ok_or(Unsupported::Precondition("selected Sim"))?;
         Ok(host.create_change_job_tool(sim))
     }
 }

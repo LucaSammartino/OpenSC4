@@ -203,13 +203,8 @@ impl MySimWindow {
         self.panels(windows, host, Some(0xea1f_1e5e));
     }
     pub fn set_mode_window(&mut self, windows: &mut Windows, host: &mut impl Host) -> Result<()> {
-        let sim = self
-            .selected_sim()
-            .ok_or(Unsupported::Precondition("selected Sim"))?;
-        let bindings = self
-            .bindings
-            .as_ref()
-            .ok_or(Unsupported::Precondition("Init"))?;
+        let sim = self.selected_sim().ok_or(Unsupported::Precondition("selected Sim"))?;
+        let bindings = self.bindings.as_ref().ok_or(Unsupported::Precondition("Init"))?;
         let name = host.name(sim);
         let portrait = host.portrait(sim);
         host.caption(bindings.mode_name, &name);
@@ -222,10 +217,7 @@ impl MySimWindow {
         Err(Unsupported::StatisticsLayout)
     }
     pub fn get_current_sims(&mut self, host: &mut impl Host) -> Result<()> {
-        let bindings = self
-            .bindings
-            .as_ref()
-            .ok_or(Unsupported::Precondition("Init"))?;
+        let bindings = self.bindings.as_ref().ok_or(Unsupported::Precondition("Init"))?;
         let mut next = [None; 5];
         for sim in host.current_sims() {
             let slot = host.sim_slot(sim);
@@ -252,12 +244,7 @@ impl MySimWindow {
         }
         Ok(())
     }
-    pub fn set_current_sim(
-        &mut self,
-        slot: usize,
-        windows: &mut Windows,
-        host: &mut impl Host,
-    ) -> Result<()> {
+    pub fn set_current_sim(&mut self, slot: usize, windows: &mut Windows, host: &mut impl Host) -> Result<()> {
         if slot >= 5 || self.bindings.is_none() {
             return Err(Unsupported::Precondition("initialized slot 0..5"));
         }

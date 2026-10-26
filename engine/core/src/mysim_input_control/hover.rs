@@ -83,10 +83,23 @@ pub fn job_skin(groups: Option<&[u32]>) -> u32 {
         return 0x1441_6200;
     };
     for (group, icon) in [
-        (0x1000, 0x08), (0x1001, 0x02), (0x1002, 0x06), (0x1003, 0x09),
-        (0x1004, 0x0a), (0x1004, 0x0a), (0x1501, 0x07), (0x1500, 0x07),
-        (0x1502, 0x03), (0x1503, 0x01), (0x1504, 0x01), (0x1505, 0x01),
-        (0x1506, 0x01), (0x1507, 0x01), (0x150a, 0x0c), (0x150b, 0x0c), (0x1006, 0x04),
+        (0x1000, 0x08),
+        (0x1001, 0x02),
+        (0x1002, 0x06),
+        (0x1003, 0x09),
+        (0x1004, 0x0a),
+        (0x1004, 0x0a),
+        (0x1501, 0x07),
+        (0x1500, 0x07),
+        (0x1502, 0x03),
+        (0x1503, 0x01),
+        (0x1504, 0x01),
+        (0x1505, 0x01),
+        (0x1506, 0x01),
+        (0x1507, 0x01),
+        (0x150a, 0x0c),
+        (0x150b, 0x0c),
+        (0x1006, 0x04),
     ] {
         if groups.contains(&group) {
             return 0x1441_6200 + icon;
@@ -117,7 +130,12 @@ impl BuildingTool {
             if host.my_sim_lives_here(agent, building).is_some() {
                 return Ok(None);
             }
-            if !(host.building_slot9(building)? >= 1.0) || host.building_slot11(building)? != 1 {
+            if host
+                .building_slot9(building)?
+                .partial_cmp(&1.0)
+                .is_none_or(|order| order.is_lt())
+                || host.building_slot11(building)? != 1
+            {
                 return Ok(None);
             }
             if !host.test_residence(sim, building, true, self.kind == BuildingKind::ChangeHouse) {
@@ -129,10 +147,19 @@ impl BuildingTool {
             if host.lot_slot33(lot)? != 3 {
                 return Ok(None);
             }
-            Ok(Some(Candidate { building, name, wealth: Some(wealth) }))
+            Ok(Some(Candidate {
+                building,
+                name,
+                wealth: Some(wealth),
+            }))
         } else {
             let name = host.building_name(building);
-            if !(host.building_slot9(building)? >= 1.0) || host.building_slot11(building)? == 1 {
+            if host
+                .building_slot9(building)?
+                .partial_cmp(&1.0)
+                .is_none_or(|order| order.is_lt())
+                || host.building_slot11(building)? == 1
+            {
                 return Ok(None);
             }
             let position = host.building_position(building);
@@ -141,16 +168,29 @@ impl BuildingTool {
             if host.lot_slot63(lot, wealth)? <= 0 || host.lot_slot35(lot)? >= 4 || host.lot_slot33(lot)? != 3 {
                 return Ok(None);
             }
-            Ok(Some(Candidate { building, name, wealth: None }))
+            Ok(Some(Candidate {
+                building,
+                name,
+                wealth: None,
+            }))
         }
     }
     fn badge(&self, allowed: bool, x: i32, z: i32, windows: &mut Windows, host: &mut impl HoverServices) {
-        let (show, hide) = if allowed { (self.allowed, self.denied) } else { (self.denied, self.allowed) };
+        let (show, hide) = if allowed {
+            (self.allowed, self.denied)
+        } else {
+            (self.denied, self.allowed)
+        };
         if let Some(hide) = hide {
             windows.hide(host, hide);
         }
         if let Some(show) = show {
-            windows.move_to(host, show, x.wrapping_sub(self.badge_half_width), z.wrapping_sub(self.badge_height));
+            windows.move_to(
+                host,
+                show,
+                x.wrapping_sub(self.badge_half_width),
+                z.wrapping_sub(self.badge_height),
+            );
             windows.show(host, show);
         }
     }
@@ -158,7 +198,9 @@ impl BuildingTool {
         if let Some(callout) = self.callout {
             return Ok(callout);
         }
-        let callout = host.create_callout(windows).ok_or(Unsupported::Precondition("callout factory"))?;
+        let callout = host
+            .create_callout(windows)
+            .ok_or(Unsupported::Precondition("callout factory"))?;
         self.callout = Some(callout);
         host.callout_font(callout, 11, 0xa85f_1a83);
         host.callout_font(callout, 10, 0x0a52_f5c6);
@@ -172,7 +214,13 @@ impl BuildingTool {
         host.callout_offset(callout, Rect(-self.badge_half_width, -1000, self.badge_half_width, 28));
         Ok(callout)
     }
-    pub fn on_mouse_move(&mut self, x: i32, z: i32, windows: &mut Windows, host: &mut impl HoverServices) -> Result<bool> {
+    pub fn on_mouse_move(
+        &mut self,
+        x: i32,
+        z: i32,
+        windows: &mut Windows,
+        host: &mut impl HoverServices,
+    ) -> Result<bool> {
         let Some(candidate) = self.candidate(x, z, host)? else {
             self.badge(false, x, z, windows, host);
             if let Some(callout) = self.callout {
@@ -217,9 +265,17 @@ impl BuildingTool {
         if let Some((building, _)) = self.highlighted {
             let sim = self.sim.ok_or(Unsupported::Precondition("initialized Sim"))?;
             let end = match self.kind {
-                BuildingKind::ChangeHouse => host.test_residence(sim, building, true, false) && host.change_residence(sim, building),
-                BuildingKind::ChangeJob => { host.change_job(sim, building); true }
-                BuildingKind::MoveIn => { host.set_residence(sim, building); true }
+                BuildingKind::ChangeHouse => {
+                    host.test_residence(sim, building, true, false) && host.change_residence(sim, building)
+                }
+                BuildingKind::ChangeJob => {
+                    host.change_job(sim, building);
+                    true
+                }
+                BuildingKind::MoveIn => {
+                    host.set_residence(sim, building);
+                    true
+                }
             };
             if end {
                 host.end_input();

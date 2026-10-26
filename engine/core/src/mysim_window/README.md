@@ -15,7 +15,7 @@ Closure table:
 | 1.3 Sims | `get_current_sims`, `set_current_sim`, `add_sim`, `boot_sim` | three-Sim case; `empty_slot_dialog_disables_panels_and_releases_created_reference`; open MW3: `Unsupported::TransportButtonImage` |
 | 1.4 Messages | `do_message` | `changed_sims_retains_occupied_selection_or_returns_main_only_while_shown`, `text_redraw_keeps_list_and_raw_set_aside_flags_follow_spec`; open MW1/MW2/MW3 as below |
 | 1.5 Message text | `get_message_list`, `update_body_text_ctrl`, `visible_advice` | `text_redraw_keeps_list_and_raw_set_aside_flags_follow_spec`; open MW1: visibility interpretation Unsupported; open MW3: HTML construction Unsupported |
-| 1.6 Transport | `transport::{vehicle_icons,select_car,select_pedestrian}`, modal and tool factories | open MW2: choice effects Unsupported; open MW3: icon-property/widget layout Unsupported; resource enumeration and pause lifecycle supported |
+| 1.6 Transport | `transport::{vehicle_icons,select_car,select_pedestrian}`, modal and tool factories | `transport_resource_enumeration_posts_pause_and_created_dialog_cleanup`; open MW2: choice effects Unsupported; open MW3: icon-property/widget layout Unsupported |
 | 2 Pick-sim dialog | `Host::{create_pick_dialog,run_pick_dialog}` | `empty_slot_dialog_disables_panels_and_releases_created_reference`; separate cSC4PickSimWinProc owner outside this task |
 | 3 Quirks | pick-sim service boundary | 21-portrait paging belongs to the separate pick-sim owner |
 | 4 Open questions | `Unsupported` | open MW1, MW2 and MW3; never inferred U-Drive-It or statistics layout |

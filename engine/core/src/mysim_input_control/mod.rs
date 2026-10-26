@@ -4,16 +4,17 @@
 //! widgets perform drawing. All interface lookups return borrowed identities;
 //! adapters balance temporary QI references. Stored handles are explicitly held.
 
+mod building;
 pub mod change_house;
 pub mod change_job;
-pub mod move_in;
-mod building;
+pub mod dispatch;
 mod hover;
+pub mod move_in;
 
-pub use building::{BuildingKind, BuildingServices, BuildingTool, SimView};
-pub use hover::{eq_text, hq_text, job_skin, wealth_fill, HoverServices};
 pub use crate::ui_windows::base::{Host as WindowHost, Rect, Window, Windows};
 pub use crate::widget_controls::Handle;
+pub use building::{BuildingKind, BuildingServices, BuildingTool, SimView};
+pub use hover::{eq_text, hq_text, job_skin, wealth_fill, HoverServices};
 
 #[cfg(test)]
 mod tests;
@@ -28,6 +29,7 @@ pub enum Unsupported {
     PylonSlotsMst3,
     MissingLot,
     StaleMeterFill,
+    ScreenCoordinate,
     Precondition(&'static str),
 }
 pub type Result<T> = std::result::Result<T, Unsupported>;
