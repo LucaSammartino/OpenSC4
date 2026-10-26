@@ -130,6 +130,8 @@ pub struct BoxId(u64);
 pub enum Unsupported {
     /// RM16: the original indexes arbitrary memory for a type outside the two-entry table.
     BaseTerrainType(i32),
+    /// RM18: insertion at the missing last-dot position would throw in the original.
+    FilenamePosition,
 }
 
 #[derive(Debug, Default)]
@@ -221,7 +223,7 @@ impl Region {
         self.config.terrain_type = value;
     }
     pub fn base_terrain_height(&self, globals: &RegionGlobals) -> Result<u32, Unsupported> {
-        // Literal unchecked lookup would read arbitrary process memory. RM16 leaves that open.
+        // RM16 defines a safe adapter failure instead of reading arbitrary process memory.
         match self.config.terrain_type {
             0 => Ok(globals.base_heights[0]),
             1 => Ok(globals.base_heights[1]),
@@ -373,7 +375,10 @@ impl Region {
             host.shutdown_city(&city);
             let state = city.read().expect("regional-city lock poisoned").clone();
             let downloads = host.download_directory();
-            let target = save_path_for_city(host, &downloads, &state.name, state.serial);
+            let Ok(target) = save_path_for_city(host, &downloads, &state.name, state.serial) else {
+                // SPEC-GAP: on filename-position failure leave the source file in place.
+                continue;
+            };
             if host.copy_file_overwriting(&state.path, &target) {
                 host.delete_file(&state.path);
             }
@@ -480,14 +485,18 @@ impl Region {
             source.shutdown(host);
         }
         self.shutdown(host);
-        let target = active_save_path_for_city(host, &state.name, serial);
+        let Ok(target) = active_save_path_for_city(host, &state.name, serial) else {
+            // SPEC-GAP: surface a naming failure as a failed move, then restore initialization.
+            self.init(host, globals);
+            return false;
+        };
         let mut ok = host.rename_file(&state.path, &target);
         if ok {
             host.make_writable(&target);
             if let Some(reloaded) = read_regional_city(host, &target) {
                 reloaded.write().expect("regional-city lock poisoned").serial = serial;
                 host.set_city_position(&reloaded, position.0, position.1, true);
-                // §7.3 ignores the write helper's result; RQ3 records older/newer spec conflicts.
+                // RQ3: §7.3 ignores the write helper's result.
                 write_regional_city(host, &target, &reloaded);
                 host.shutdown_city(&reloaded);
             } else {
@@ -568,7 +577,7 @@ pub fn load_cities_from_directory(host: &mut dyn RegionHost, folder: &str) -> Ve
 }
 
 pub fn sanitize_file_name(name: &str) -> String {
-    // RM5: literal UTF-8 choice pending the platform code-page conversion contract.
+    // RM5: retain UTF-8 and truncate only at a complete character.
     let mut result: String = name.chars().filter(|c| !"<>:\\/\"|*?".contains(*c)).collect();
     let mut end = result.len().min(256);
     while !result.is_char_boundary(end) {
@@ -578,9 +587,15 @@ pub fn sanitize_file_name(name: &str) -> String {
     result
 }
 
-pub fn save_path_for_city(host: &mut dyn RegionHost, directory: &str, name: &str, serial: u32) -> String {
-    let base = sanitize_file_name(&format!("City - {name}.sc4"));
-    let mut candidate = directory.to_owned() + &base;
+pub fn save_path_for_city(
+    host: &mut dyn RegionHost,
+    directory: &str,
+    name: &str,
+    serial: u32,
+) -> Result<String, Unsupported> {
+    let base = directory.to_owned() + &sanitize_file_name(&format!("City - {name}.sc4"));
+    let dot = base.rfind('.');
+    let mut candidate = base.clone();
     let mut n = 1u64;
     while host.file_exists(&candidate) {
         if serial != 0 {
@@ -592,14 +607,18 @@ pub fn save_path_for_city(host: &mut dyn RegionHost, directory: &str, name: &str
             }
         }
         n += 1;
-        // RM18: truncation may have removed the extension; append the suffix in that case.
-        let dot = base.rfind('.').unwrap_or(base.len());
-        candidate = format!("{directory}{} ({n}){}", &base[..dot], &base[dot..]);
+        // RM18: the insertion point belongs to the whole unsuffixed path.
+        let dot = dot.ok_or(Unsupported::FilenamePosition)?;
+        candidate = format!("{} ({n}){}", &base[..dot], &base[dot..]);
     }
-    candidate
+    Ok(candidate)
 }
 
-pub fn active_save_path_for_city(host: &mut dyn RegionHost, name: &str, serial: u32) -> String {
+pub fn active_save_path_for_city(
+    host: &mut dyn RegionHost,
+    name: &str,
+    serial: u32,
+) -> Result<String, Unsupported> {
     let directory = format!("{}{}\\", host.region_directory(), host.active_directory_name());
     save_path_for_city(host, &directory, name, serial)
 }

@@ -177,10 +177,13 @@ impl RegionHost for Host {
     }
     fn localized_name(&mut self, group: u32, instance: u32) -> String {
         assert_eq!(group, 0x6A23_1EAA);
-        if instance == 0xCAB6_D26E {
-            "Berlin".into()
-        } else {
-            String::new()
+        match instance {
+            0xCAB6_D26E => "Berlin".into(),
+            1 => "One".into(),
+            0x12 => "Twelve".into(),
+            0x1234_5678 => "Eight".into(),
+            0xFFFF_FFFF => "Max".into(),
+            _ => String::new(),
         }
     }
     fn read_city_package(&mut self, path: &str) -> Option<CityPackage> {
@@ -382,7 +385,7 @@ fn config_conformance_localization_and_range_patch() {
         ("#0", "#0"),
         ("#zz", "#zz"),
         ("#0xcab6d26e", "Berlin"),
-        ("#1", ""),
+        ("#2", ""),
         ("# 0Xcab6d26e", "Berlin"),
     ] {
         h.files.insert(
@@ -435,6 +438,31 @@ fn config_write_codec_preserves_tail_and_replaces_first_keys() {
         config.write_ini_entry(Some(b"[Regional Settings]\n;last"), "x", 0),
         b"[Regional Settings]\n;lastName = x\r\n"
     );
+}
+
+#[test]
+fn rm15_name_token_worked_cases() {
+    let mut h = Host::default();
+    let mut r = region();
+    for (token, expected) in [
+        ("# 0X1tail", "One"),
+        ("#12g34", "Twelve"),
+        ("#123456789", "Eight"),
+        ("#FFFFFFFF0", "Max"),
+        ("#000000001", "#000000001"),
+        ("#0x", "#0x"),
+        ("#zz", "#zz"),
+        ("#-1", "#-1"),
+        ("#+1", "#+1"),
+        ("#2junk", ""),
+    ] {
+        h.files.insert(
+            "R\\A\\region.ini".into(),
+            format!("[Regional Settings]\nName = {token}\n").into_bytes(),
+        );
+        r.load_config(&mut h);
+        assert_eq!(r.name(), expected, "{token}");
+    }
 }
 
 #[test]
@@ -667,6 +695,9 @@ fn create_sanitization_templates_starter_and_failure_paths() {
     assert_eq!(h.files["R\\Berlin (2)\\config.bmp"], bitmap);
     assert!(h.events.contains(&"random:2".into()));
     assert!(!h.files.contains_key("R\\Berlin (2)\\region.ini"));
+    // RQ3: skip (1); every candidate is rebuilt from the original stem.
+    let next = Region::create(&mut h, "Berlin");
+    assert_eq!(next.directory_name(), "Berlin (3)");
     let r = Region::create(&mut h, "a:b?");
     assert_eq!((r.name(), r.directory_name()), ("a:b?", "ab"));
     let starter = Region::create_starter(&mut h);
@@ -698,7 +729,7 @@ fn filename_conformance_and_serial_generation() {
         let mut h = Host::default();
         h.add("R\\A\\City - New City.sc4", city(0, 0, 1, 1, "New City", existing));
         assert_eq!(
-            active_save_path_for_city(&mut h, "New City", incoming),
+            active_save_path_for_city(&mut h, "New City", incoming).unwrap(),
             format!("R\\A\\{expected}")
         );
     }
@@ -706,7 +737,7 @@ fn filename_conformance_and_serial_generation() {
     h.files.insert("D\\City - New City.sc4".into(), vec![]);
     h.files.insert("D\\City - New City (2).sc4".into(), vec![]);
     assert_eq!(
-        save_path_for_city(&mut h, "D\\", "New City", 1),
+        save_path_for_city(&mut h, "D\\", "New City", 1).unwrap(),
         "D\\City - New City (3).sc4"
     );
     h.seconds = 1;
@@ -724,6 +755,7 @@ fn reload_success_failure_and_delete_city() {
     let c = city(0, 0, 2, 2, "a", 1);
     h.add(&c.path.clone(), c.clone());
     let original = r.insert_city(c.counted());
+    let kept = r.boxed_city(original).unwrap();
     let mut id = Some(original);
     h.packages
         .get_mut("R\\A\\City - a.sc4")
@@ -734,6 +766,8 @@ fn reload_success_failure_and_delete_city() {
         .position = (4, 5);
     r.reload_city(&mut id, &mut h);
     assert_ne!(id, Some(original));
+    assert!(r.boxed_city(original).is_none());
+    assert_eq!(Arc::strong_count(&kept), 1);
     assert_eq!(id, r.get_city(4, 5));
     assert!(r.get_city(0, 0).is_none());
     let stale = id;
@@ -742,6 +776,7 @@ fn reload_success_failure_and_delete_city() {
     assert_eq!(id, stale);
     assert_eq!(r.cell_count(), 0);
     assert!(r.boxed_city(id.unwrap()).is_none());
+    assert!(h.files.contains_key("R\\A\\City - a.sc4"));
     h.fail.remove("package");
     let id = r.insert_city(city(0, 0, 1, 1, "a", 1).counted());
     h.fail.insert("delete".into());
@@ -827,7 +862,7 @@ fn tutorial_reset_polarity_reload_failure_and_reactivation() {
         let mut c = city(0, 0, 1, 1, "tutorial", 0);
         c.tutorial_id = 42;
         h.add(&c.path.clone(), c.clone());
-        r.insert_city(c.counted());
+        let original = r.insert_city(c.counted());
         h.resources.insert((TUTORIAL_TYPE, TUTORIAL_GROUP, 42), vec![1, 2, 3]);
         if failure != "none" {
             h.fail.insert(failure.into());
@@ -848,6 +883,12 @@ fn tutorial_reset_polarity_reload_failure_and_reactivation() {
         }
         if failure == "package" {
             assert_eq!(r.cell_count(), 0);
+            assert!(r.boxed_city(original).is_none());
+            assert!(h.files.contains_key("R\\A\\City - tutorial.sc4"));
+        }
+        if failure == "export" {
+            assert_eq!(r.get_city(0, 0), Some(original));
+            assert!(r.boxed_city(original).is_some());
         }
     }
 }
@@ -857,6 +898,21 @@ fn terrain_height_table_low_water_bytes_and_thread_safe_getters() {
     let mut r = region();
     let mut g = RegionGlobals::default();
     assert_eq!(r.base_terrain_height(&g), Ok(0));
+    r.set_base_terrain_type(1);
+    assert_eq!(r.base_terrain_height(&g), Ok(0));
+    g.set_height_tuning(60, 100);
+    for (t, height) in [(0, 60), (1, 100)] {
+        r.set_base_terrain_type(t);
+        assert_eq!(r.base_terrain_height(&g), Ok(height));
+    }
+    for t in [2, -1, i32::MIN, i32::MAX, 0x4000_0000] {
+        r.set_base_terrain_type(t);
+        assert_eq!(r.base_terrain_type(), t);
+        assert_eq!(r.base_terrain_height(&g), Err(Unsupported::BaseTerrainType(t)));
+        assert_eq!(r.base_terrain_type(), t);
+        assert_eq!(g.base_heights, [60, 100]);
+    }
+    r.set_base_terrain_type(0);
     g.set_height_tuning(17, 255);
     assert_eq!(r.base_terrain_height(&g), Ok(17));
     r.set_base_terrain_type(1);
@@ -871,6 +927,41 @@ fn terrain_height_table_low_water_bytes_and_thread_safe_getters() {
     fn send_sync<T: Send + Sync>() {}
     send_sync::<Region>();
     send_sync::<CityRef>();
+}
+
+#[test]
+fn rm18_truncated_filename_worked_cases() {
+    let mut h = Host::default();
+    let directory = "C:\\Regions\\R\\";
+    let name = "A".repeat(249);
+    let base = format!("{directory}City - {name}");
+    assert_eq!(save_path_for_city(&mut h, directory, &name, 0), Ok(base.clone()));
+    h.files.insert(base.clone(), vec![]);
+    assert_eq!(
+        save_path_for_city(&mut h, directory, &name, 0),
+        Err(Unsupported::FilenamePosition)
+    );
+    for serial in [0, 7] {
+        h.add(&base, city(0, 0, 1, 1, &name, serial));
+        assert_eq!(save_path_for_city(&mut h, directory, &name, 7), Ok(base.clone()));
+    }
+    for (name, suffix_name) in [
+        ("A".repeat(248), format!("City - {} (2).", "A".repeat(248))),
+        (
+            format!("{}.{}", "A".repeat(100), "A".repeat(148)),
+            format!("City - {} (2).{}", "A".repeat(100), "A".repeat(148)),
+        ),
+    ] {
+        let base = format!("{directory}{}", sanitize_file_name(&format!("City - {name}.sc4")));
+        h.files.insert(base.clone(), vec![]);
+        assert_eq!(save_path_for_city(&mut h, directory, &name, 0), Ok(format!("{directory}{suffix_name}")));
+    }
+    let directory = "C:\\Regions\\R.v1\\";
+    h.files.insert(format!("{directory}City - {}", "A".repeat(249)), vec![]);
+    assert_eq!(
+        save_path_for_city(&mut h, directory, &"A".repeat(249), 0),
+        Ok(format!("C:\\Regions\\R (2).v1\\City - {}", "A".repeat(249)))
+    );
 }
 
 #[test]
