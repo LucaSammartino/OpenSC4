@@ -64,7 +64,7 @@ endif()
 # Compiler cache. Lanes build in fresh git worktrees, so every lane used to compile everything from scratch.
 # With sccache installed (`cargo install sccache --version 0.18.0 --locked`; docs/ops/coordinating.md "Build
 # cache") the C/C++ compiler and rustc go through it. .claude/lane-bin/fc4verify.py runs one sccache server per
-# worktree with SCCACHE_BASEDIRS set to the worktree, so C++ objects hit across worktrees. The cargo env below is
+# worktree, without SCCACHE_BASEDIRS, so objects hit only within their worktree. The cargo env below is
 # the one fc4verify uses: sccache hashes every CARGO_* variable, and incremental builds are not cacheable.
 option(FC4_COMPILER_CACHE "Compile C/C++ and Rust through sccache when it is installed" ON)
 set(FC4_CARGO_ENV "")
@@ -1112,7 +1112,7 @@ endif()
 # PV14 genuine selector capture preserves the original ABI and return value.
 if(TARGET FreeCity4)
     add_executable(fc4_propdev_transcript_test tests/propdev_transcript_test.cpp)
-    target_include_directories(fc4_propdev_transcript_test PRIVATE plugin)
+    target_include_directories(fc4_propdev_transcript_test PRIVATE plugin capi/include)
     target_compile_definitions(fc4_propdev_transcript_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_options(fc4_propdev_transcript_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME propdev_transcript_test COMMAND fc4_propdev_transcript_test)
@@ -1440,3 +1440,50 @@ if(TARGET FreeCity4)
     target_compile_options(fc4_draw_stream_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
     add_test(NAME draw_stream_oracle COMMAND fc4_draw_stream_test)
 endif()
+# Public DX7 slot/arity checks and bounded native transcript forwarding.
+if(TARGET FreeCity4)
+    add_executable(fc4_gdriver_trace_test tests/gdriver_trace_test.cpp)
+    target_include_directories(fc4_gdriver_trace_test PRIVATE plugin)
+    target_compile_options(fc4_gdriver_trace_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME gdriver_trace_contract COMMAND fc4_gdriver_trace_test)
+endif()
+# PV18 ordinary prop effects: semantic snapshots and genuine-call transcripts.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_effects_test tests/propdev_effects_test.cpp)
+    target_include_directories(fc4_propdev_effects_test PRIVATE plugin)
+    target_compile_definitions(fc4_propdev_effects_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(fc4_propdev_effects_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_propdev_effects_test PRIVATE fc4_capi)
+    add_test(NAME propdev_effects_test COMMAND fc4_propdev_effects_test)
+endif()
+
+# PV18 post-service creation output: genuine C/holder/tag/reference spans.
+if(TARGET FreeCity4)
+    add_executable(fc4_propdev_tag_test tests/propdev_tag_test.cpp)
+    target_include_directories(fc4_propdev_tag_test PRIVATE plugin)
+    target_compile_definitions(fc4_propdev_tag_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(fc4_propdev_tag_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    target_link_libraries(fc4_propdev_tag_test PRIVATE fc4_capi)
+    add_test(NAME propdev_tag_test COMMAND fc4_propdev_tag_test)
+endif()
+
+# Legacy-control recording must preserve native interface validation between builds.
+if(TARGET FreeCity4)
+    add_executable(fc4_legacyctl_hooks_test tests/legacyctl_hooks_test.cpp)
+    target_include_directories(fc4_legacyctl_hooks_test PRIVATE plugin)
+    target_compile_options(fc4_legacyctl_hooks_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME legacyctl_hooks_contract COMMAND fc4_legacyctl_hooks_test)
+endif()
+# Native construction crew continuation and output-buffer ABI (NM17, AT25).
+if(TARGET FreeCity4)
+    add_executable(fc4_automata_construction_test tests/automata_construction_test.cpp)
+    target_include_directories(fc4_automata_construction_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
+    target_compile_definitions(fc4_automata_construction_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_automata_construction_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME automata_construction_test COMMAND fc4_automata_construction_test "$<TARGET_FILE:FreeCity4>")
+    set_tests_properties(automata_construction_test PROPERTIES RUN_SERIAL TRUE)
+endif()
+# City-situation persistence compares unordered map entries (section 7).
+add_executable(fc4_citysit_record_test tests/citysit_record_test.cpp)
+target_include_directories(fc4_citysit_record_test PRIVATE plugin)
+add_test(NAME citysit_record_comparison COMMAND fc4_citysit_record_test)

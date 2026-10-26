@@ -78,7 +78,9 @@ param(
     [int]$HeldReportSeconds = 30,
     # A calendar that stays on one date this long while the simulator ticks (an emergency pause that never ends, a stuck
     # clock) ends the run as stalled; 0 turns it off. The plugin's watchdog only sees a stalled main thread.
-    [int]$FrozenCalendarSeconds = 600
+    [int]$FrozenCalendarSeconds = 600,
+    # Windows priority class for the game process (the queue passes AboveNormal for priority = high requests).
+    [ValidateSet("", "Idle", "BelowNormal", "Normal", "AboveNormal", "High")][string]$GamePriority = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -525,6 +527,7 @@ try {
 } finally { $launch.ReleaseMutex(); $launch.Dispose() }
 
 $env:FC4_GAME_PID = if ($p) { "$($p.Id)" } else { "" }
+if ($GamePriority -and $p) { try { $p.PriorityClass = [Diagnostics.ProcessPriorityClass]$GamePriority } catch { Write-Output "game priority $GamePriority not set: $($_.Exception.Message)" } }
 $env:FC4_GAME_LOG = $Log
 if ($Slot -gt 0) { $env:FC4_NO_REAL_INPUT = "1" }
 $start = Get-Date
