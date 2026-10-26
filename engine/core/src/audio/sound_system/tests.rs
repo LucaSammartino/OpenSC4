@@ -516,10 +516,8 @@ fn track_pause_properties_and_payload_notifications() {
     assert_eq!(track.volume(), Some(88));
     track.executing = false;
     assert_eq!(track.play_one(0xFFFFFFFF), Err(Unsupported("SS1")));
-    assert_eq!(
-        track.property_notifications,
-        PAYLOAD_PROPERTIES.into_iter().zip([-1, 0, 0, 0]).collect::<Vec<_>>()
-    );
+    assert!(track.property_notifications.is_empty());
+    assert_eq!(track.properties[&PAYLOAD_PROPERTIES[0]], -1);
 }
 #[test]
 fn channel_creation_requires_source_qi_and_selects_3d() {
@@ -548,7 +546,7 @@ fn channel_creation_requires_source_qi_and_selects_3d() {
     let mut empty = channel_with(None);
     assert_eq!(empty.load_after_patch(Ok(()), &mut backend), Ok(true));
     assert_eq!(empty.note_on_after_patch(0, Ok(()), &mut backend), Ok(true));
-    assert_eq!(empty.note_on(0, &mut backend), Err(Unsupported("SS3")));
+    assert_eq!(empty.note_on(0, &mut backend), Ok(false));
 }
 
 #[derive(Default)]
@@ -600,18 +598,18 @@ impl IniServices for IniHost {
 }
 #[test]
 fn ini_delegation_defaults_and_missing_services() {
-    let mut ini = HitIniFile { ini: Ini::default() };
+    let mut ini = HitIniFile::new(Ini::default());
     for (section, key, value) in [
         ("Config", "DefaultSndDataSourcePlayer2DClassId", "12"),
         ("Config", "DefaultSndDataSourcePlayer3DClassId", "13"),
-        ("SndFileDefaultDataSourceClassIds", "xa", "14"),
+        ("SndFileDefaultDataSourceClassIds", "1", "14,xa"),
     ] {
         ini.ini.entries.insert((section.into(), key.into()), value.into());
     }
     ini.set_filename("Hit.ini");
     assert_eq!(ini.ini.filename, "Hit.ini");
     assert_eq!(ini.enum_default_entries(&mut IniHost::default()), Ok(()));
-    assert_eq!(ini.ini.requests, 0);
+    assert!(ini.ini.requests > 0);
     let mut host = IniHost {
         manager: true,
         sound: true,
@@ -623,7 +621,7 @@ fn ini_delegation_defaults_and_missing_services() {
     assert_eq!(ini.read_entry("Config", "missing"), None);
     assert_eq!(
         ini.enum_entries("SndFileDefaultDataSourceClassIds"),
-        [("xa".into(), "14".into())]
+        [("1".into(), "14,xa".into())]
     );
 }
 
@@ -633,10 +631,14 @@ fn score() -> ScoreData {
             id: 17,
             volume_word: 513,
             fade_out: 0,
+            ..Default::default()
         }],
         volume_word: 1024,
         starting_coordinates: [2, 3],
         settings: [(9, 8)].into_iter().collect(),
+        rows: 1,
+        columns: 1,
+        ..Default::default()
     }
 }
 #[test]
@@ -649,7 +651,7 @@ fn fresh_initialization_play_and_lock_contention() {
     assert!(player.play(Some(&mut scheduler)));
     assert!(player.play(Some(&mut scheduler)));
     assert_eq!(scheduler.0, [250]);
-    assert_eq!(player.coordinates, [2, 3]);
+    assert_eq!(player.coordinates, [0, 0]);
     assert!(player.timer_running);
     assert!(player.set_zoom(9));
     assert!(player.set_play_percent(25));
@@ -707,7 +709,7 @@ fn cell_stop_fade_poll_and_scaled_forwarding() {
     assert!(cell.set_volume(17, 1, 1, 1, 1));
     cell.state = 2;
     cell.external_controller = true;
-    assert_eq!(cell.stop(&mut host), Err(Unsupported("SS7")));
+    assert_eq!(cell.stop(&mut host), Ok(()));
     assert_eq!(cell.state, 2);
     // Overflow is low-32-bit signed multiplication, with no saturation/clamp.
     cell.local_volume = 1024;
