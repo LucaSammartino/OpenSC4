@@ -439,6 +439,7 @@ std::string MySimScriptAction(bool moveIn) {
             return "FAILED: missing cISC4MySim";
         }
         auto* sim = static_cast<MySimPublic*>(iface);
+        // [abi-ret] mysims.md §7.2 slot 20: AL bool (state != 0).
         if (moveIn && !moved && !sim->IsActive()) {
             fc4_mysim_host host{};
             FillMySimGameServices(&host);
@@ -451,17 +452,20 @@ std::string MySimScriptAction(bool moveIn) {
                 auto* acquired = static_cast<cIGZUnknown*>(typed);
                 FC4_ACQUIRED(acquired, "QueryInterface");
                 auto* b = static_cast<cISC4BuildingOccupant*>(typed);
+                // [abi-ret] mysims.md §7.2 slot 7: AL bool residence test.
                 if (!sim->TestForResidence(b, true, false)) {
                     FC4_RELEASE(acquired);
                     continue;
                 }
                 SC4String name("FC4 Persist"), bio("replace-mysims27"), path("");
                 sim->MoveIn(3, name, true, 4, bio, 0, path);
+                // [abi-ret] mysims.md §4.1 / §7.2 slot 13: AL true.
                 moved = sim->SetResidence(b);
                 FC4_RELEASE(acquired);
                 break;
             }
         }
+        // [abi-ret] mysims.md §7.2 slot 20: AL bool (state != 0).
         if (sim->IsActive()) {
             ++active;
             char name[256]{};

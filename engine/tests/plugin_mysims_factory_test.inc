@@ -4,6 +4,7 @@
 #include "FC4MySimDispatchContract.h"
 #include "FC4MySimInterface.h"
 #include "SC4String.h"
+#include "plugin_mysims_host.h"
 
 enum class MySimsIni { Default, Alone, Mixed, Replace };
 
@@ -24,8 +25,14 @@ int MySimsFactoryBoundaryTest(const std::string& dll, const std::string& ini, co
     if (!hd) return 1;
     auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
     auto* director = getDirector ? getDirector() : nullptr;
+    MySimTestCOM host;
     CHECK(director != nullptr);
     if (director) {
+        if (replaced) {
+            host.director = director;
+            cRZBaseString path("mysims-test");
+            CHECK(director->InitializeCOM(&host, path));
+        }
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         // An unavailable group must not prevent another requested factory from

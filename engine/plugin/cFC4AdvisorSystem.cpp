@@ -749,9 +749,11 @@ void fc4::FillMySimLuaHost(fc4_mysim_host* h) {
         const int32_t top = L->GetTop();
         L->GetGlobal("tuning_constants");
         bool ok = false;
+        // [abi-ret] advisors.md §12.5: SDK Lua type predicates return bool.
         if (L->IsTable(-1)) {
             L->PushString(key);
             L->GetTable(-2);
+            // [abi-ret] advisors.md §12.5: SDK IsNumber returns bool.
             ok = L->IsNumber(-1);
             if (ok) *out = L->ToNumber(-1);
         }
