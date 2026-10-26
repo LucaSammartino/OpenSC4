@@ -111,7 +111,7 @@ inline bool CellPixel(const harness::ScriptAction& a, int& x, int& y) {
                 x = static_cast<int>(point[0]); y = static_cast<int>(point[1]);
                 auto* win = reinterpret_cast<cFC4IGZWin*>(view->AsIGZWin());
                 if (win) {
-                    // widget-toolkit.md section 3.2: in/out coordinates, no return needed.
+                    // widget-toolkit.md section 5.1: in/out coordinates, no return needed.
                     win->WindowToScreenCoordinates(x, y);
                     ok = true;
                 }
