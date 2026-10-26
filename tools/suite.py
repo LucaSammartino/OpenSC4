@@ -779,8 +779,9 @@ def main(argv=None, root=ROOT):
             import suite_states
             rows = suite_states.reuse(root, rows, args.states, resolve_dll(root, args.dll))
         if args.reach:
-            extra += ['reach = 1', 'reach_window = month',
-                      'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()]
+            # These are defaults: a reduced explicit roster must survive --reach.
+            extra = ['reach = 1', 'reach_window = month',
+                     'reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix()] + extra
         directory, results = run_scenarios(root, rows,
             profile=args.profile, dll=args.dll, tag=args.tag or new_tag(), extra=extra,
             wait_seconds=args.wait_seconds, dry_run=args.dry_run, slots=args.slots)
