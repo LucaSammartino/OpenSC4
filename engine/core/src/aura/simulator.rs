@@ -439,16 +439,25 @@ impl AuraSim {
     /// `OccupantChanged(occupant, add)` (§7).
     pub fn occupant_changed(&self, occ: u64, add: bool) {
         let sign: i64 = if add { 1 } else { -1 };
-        let pos = self.host.occupant_position(occ);
-        if add && self.host.occupant_type(occ) == ids::OCCUPANT_TYPE_NETWORK {
-            self.add_transient_effect_type(pos[0], pos[2], 3);
-        }
-        let (cx, cz) = self.centre_cell(pos[0], pos[2]);
         // [choice] AU4: fewer than two values is absent (no cone).
         let values = |prop: u32| match self.host.occupant_sint32s(occ, prop) {
             Some(v) if v.len() >= 2 => Some((v[0], v[1])),
             _ => None,
         };
+        let park = values(ids::PROP_PARK_EFFECT);
+        let landmark = values(ids::PROP_LANDMARK_EFFECT);
+        let building = values(ids::PROP_MAYOR_RATING_EFFECT);
+        let network = add && self.host.occupant_type(occ) == ids::OCCUPANT_TYPE_NETWORK;
+        // §14.3.1's native helper capture has no position read for a no-op
+        // occupant. Do not request an input that no cone consumes.
+        if !network && park.is_none() && landmark.is_none() && building.is_none() {
+            return;
+        }
+        let pos = self.host.occupant_position(occ);
+        if network {
+            self.add_transient_effect_type(pos[0], pos[2], 3);
+        }
+        let (cx, cz) = self.centre_cell(pos[0], pos[2]);
         let cone16 = |grid: &G16, mag: i32, radius: i32| {
             let geo = grid.geometry();
             let (tx, tz) = geo.cell_to_tract(cx, cz);
@@ -456,12 +465,12 @@ impl AuraSim {
             let c = (sign * i64::from(mag)) as f32;
             add_radius_effect(&**grid, geo.count_x, geo.count_z, tx, tz, r, c, 0.0);
         };
-        if let Some((mag, radius)) = values(ids::PROP_PARK_EFFECT) {
+        if let Some((mag, radius)) = park {
             if let Some(g) = self.raw_park_grid() {
                 cone16(&g, mag, radius);
             }
         }
-        if let Some((mag, radius)) = values(ids::PROP_LANDMARK_EFFECT) {
+        if let Some((mag, radius)) = landmark {
             let dept = self
                 .host
                 .budget_item_department(occ, ids::PURPOSE_LANDMARK)
@@ -482,7 +491,7 @@ impl AuraSim {
                 cone16(&g, mag, radius);
             }
         }
-        if let Some((mag, radius)) = values(ids::PROP_MAYOR_RATING_EFFECT) {
+        if let Some((mag, radius)) = building {
             if let Some(g) = self.building_effect_grid() {
                 let geo = g.geometry();
                 let (tx, tz) = geo.position_to_tract(pos[0], pos[2]);

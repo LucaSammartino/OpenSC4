@@ -288,12 +288,9 @@ cFC4ISC4Simulator* CitySim(cISC4City* city) {
     return AsGame(city ? city->GetSimulator() : nullptr);
 }
 
-// The city's +0x58 established byte (raw read with the vtable guard, as the
-// other shadows).
+// advisors.md §5.1: +0x58 is the city's interface slot, not object storage.
 bool CityEstablished(cISC4City* city) {
-    if (city == nullptr) return false;
-    const unsigned char* base = static_cast<const unsigned char*>(static_cast<const void*>(city));
-    return base[0x58] != 0;
+    return city != nullptr && city->GetEstablished();
 }
 
 void DateText(int32_t julian, char* out, size_t n) {

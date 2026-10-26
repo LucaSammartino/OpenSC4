@@ -17,7 +17,8 @@ struct ConeCapture {
     size_t position = 0;
     fc4_aura_lot lot{};
     ConeProperty properties[3]{{0x27812850}, {0x2781284F}, {0xCA5B9305}};
-} g_cone;
+};
+thread_local ConeCapture g_cone;
 NativeBoundary g_coneBoundary;
 BoundarySlot g_coneType, g_conePosition, g_coneProperty, g_coneLot, g_coneDepartment;
 fc4_aura_host g_coneLiveHost{};
@@ -45,7 +46,8 @@ cISCProperty* __fastcall ConePropertyRead(const cISCPropertyHolder* self, void*,
             property.values.clear();
             if (result) {
                 const auto* value = AsGame(result->GetPropertyValue());
-                if (value && value->GetType() == (cIGZVariant::TypeArray | cIGZVariant::Sint32)) {
+                if (value && (value->GetType() == (cIGZVariant::TypeArray | cIGZVariant::Sint32) ||
+                              value->GetType() == (cIGZVariant::TypeArray | cIGZVariant::Uint32))) {
                     const auto count = value->GetCount();
                     const auto* data = value->RefSint32();
                     if (data && count) property.values.assign(data, data + count);

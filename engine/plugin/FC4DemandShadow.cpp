@@ -172,11 +172,14 @@ struct HistoryOutput {
 };
 BoundarySlot g_historySlot;
 std::vector<HistoryOutput> g_historyOutputs;
+thread_local bool g_recordHistory = false;
 bool __fastcall HistoryQuery(cISC4HistoryWarehouse* self, void*, uint32_t key,
                             const cIGZDate& from, const cIGZDate& to,
                             float& minimum, float& maximum, float& average) {
     using Fn = bool(__thiscall*)(cISC4HistoryWarehouse*, uint32_t, const cIGZDate&, const cIGZDate&,
                                 float&, float&, float&);
+    if (!g_recordHistory)
+        return reinterpret_cast<Fn>(g_historySlot.original)(self, key, from, to, minimum, maximum, average);
     HistoryOutput output{};
     output.key = key;
     output.from = const_cast<cIGZDate&>(from).DayNumber();
@@ -811,7 +814,9 @@ bool DemandShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZ
                                                    reinterpret_cast<void*>(&HistoryQuery));
         if (!hooked) Log("demand boundary: WARNING history output capture unavailable");
     }
+    g_recordHistory = true;
     *finished = target->DoMessage(msg);  // the original demand simulator, unchanged
+    g_recordHistory = false;
     g_historySlot.Remove();
     for (const auto& output : g_historyOutputs) {
         if (!output.ok) Log("demand boundary: key=%08X window=%u..%u history=false max bits=%08X -> %08X",
