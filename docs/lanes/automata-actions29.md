@@ -1,8 +1,8 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| automata-actions29: native construction worker slots (engine) | Codex / automata-actions29 / detached HEAD, reserved branch automata-actions29; commits d9aaac58a, 6bd7ce714, 8bce367da, ecf5be204, 83b011895; C ABI +2 exports, no seam reservation | wip; cargo 7883/7883, clippy 0 diagnostics, CTest 125/125; shadow 73/73 exact; s0 216/216, s1/s2 incomplete; AT25 open | 1. Answer AT25. 2. Finish worker continuation and rerun s1/s2 grow. 3. Enqueue kind engine after acceptance passes. |
+| automata-actions29: AT25 construction continuation (engine, r2) | Codex / automata-actions29 / detached HEAD, reserved branch automata-actions29; main merge 6d932fcdc; ABI true, no version bump | wip; AT25 answered; implementing output-buffer EAX and crew continuation regression; r2 gate/game pending | 1. Test AT25. 2. Measure s0/s1/s2 full house, shadow and unchanged house. 3. Gate and enqueue kind engine if acceptance passes. |
 
-Game logs below are in `C:/Users/tlori/FreeCity4/build-runs/game-results/`; build logs are this worktree's `build-runs/`.
+Previous round evidence below (r1, not r2 acceptance): game logs in `C:/Users/tlori/FreeCity4/build-runs/game-results/`; build logs in this worktree's `build-runs/`.
 Fix: native worker slots 30/14 had zero-argument placeholders leaving 8/4 stack bytes; now typed, with Rust flag/orientation stores. Scaffold slots 7/8 now copy positions; getter uses a locked C++ snapshot.
 NM17: merged re-nm29 (handoff 0a9991f61) via 8bce367da; no concrete automaton factory registered and no native internal creation/removal body reused.
 Reproduction: `aa29-base-auto-a` and `aa29-base-netmgr-a` corrupt 5/216 at 2026-01-28; `aa29-base-house-s1-a` corrupt 26/216 at 2026-01-30, heap target 0x29A5D1EC; logs with those labels.
@@ -18,4 +18,6 @@ Unchanged house PASS: `aa29-house-a.log`, clean, target 2032-01-01 reached, ref0
 All listed game runs used the shared main queue, parallel=1, at most three outstanding. Post-fix DLL sha256 prefix 451d3caf; later commits change tests/questions/handoff only.
 AT25 filed in `docs/specs/questions/automata.md`: remaining worker continuation, return-register and concrete-view contract is unresolved. Renamed from the accidentally reused AT24 (already assigned to airport ownership); no new construction answer found on resume. No guessed layout/return fix; this item is stopped as instructed.
 Queue: wip only; not submitted for landing because required s1/s2 acceptance fails despite a passing gate.
-Next: spec writers answer AT25; implement that boundary, rerun s1/s2 and required gate after any fix, then enqueue kind engine with the actual detached HEAD tip.
+R2: AT25 (automata.md 7.6.4-7.6.5) specifies caller-buffer EAX, same primary A across ticks and existing owned lifetime; no new concrete view.
+R2: the docs-only answer merge removed earlier engine fixes through shared ancestry; restore those slots/stores, add guarded buffers, stable vtable and both drain-order tests.
+Next: finish focused tests; submit at most three parallel=1 requests to shared queue; measure 216/216/end/ref0 for s0/s1/s2 and shadow 73/73, then qbuild all and enqueue.
