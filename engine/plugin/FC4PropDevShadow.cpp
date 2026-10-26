@@ -26,6 +26,7 @@
 #include "FC4PropDevSnapshot.h"
 #include "FC4PropDevCreation.h"
 #include "FC4PropDevNight.h"
+#include "FC4PropDevRegistration.h"
 #include "FC4Properties.h"
 #include "cFC4PropDeveloper.h"
 #include "compat/FC4Compat.h"
@@ -50,6 +51,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -135,6 +137,7 @@ void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
 }
 bool g_nativeOperation = false;
 std::vector<fc4_prop_message> g_nested;
+std::map<size_t, std::unique_ptr<PropRegistrationInput>> g_registrationInputs;
 size_t g_nestedCursor = 0;
 fc4_prop_developer* ReplayCore();
 
@@ -142,8 +145,11 @@ bool ReplayNested(uint32_t type, uint64_t prop) {
     if (g_nestedCursor == g_nested.size()) return false;
     const auto& m = g_nested[g_nestedCursor];
     if (m.msg_type != type || m.object != prop) return false;
+    const auto input = g_registrationInputs.find(g_nestedCursor);
+    PropRegistrationInput::Scope registration(input != g_registrationInputs.end() ? input->second.get() : nullptr);
     ++g_nestedCursor;
     fc4_prop_developer_do_message(ReplayCore(), &m);
+    if (input != g_registrationInputs.end() && !input->second->valid) g_uncertain = true;
     return true;
 }
 
@@ -286,6 +292,7 @@ bool ReadInto(CoreBox& b, const WriteCapture& cap, const void* orig) {
     b.host = MakePropHost(b.ctx.get());
     b.host.set_prop_requester = &CompareRequesterTag;
     PropBlockSnapshot::Bind(b.host);
+    PropRegistrationInput::Bind(b.host);
     b.core = fc4_prop_developer_create(&b.host, kShadowSeed, TokenOf(orig));
     if (b.core == nullptr) {
         b.ctx.reset();
@@ -472,6 +479,7 @@ struct MonthStats {
 };
 MonthStats g_month;
 uint32_t g_months = 0, g_cleanMonths = 0;
+uint64_t g_methodCalls = 0, g_methodMismatches = 0;
 WriteCapture g_capture;
 
 void Follow(const char* how) {
@@ -643,8 +651,8 @@ void StepAfter(void* ctx) {
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
     if (g_nestedCursor != g_nested.size()) g_uncertain = true;
     while (g_nestedCursor < g_nested.size()) {
-        const auto m = g_nested[g_nestedCursor++];
-        fc4_prop_developer_do_message(g_run.core, &m);
+        const auto m = g_nested[g_nestedCursor];
+        ReplayNested(m.msg_type, m.object);
     }
     struct Result {
         Step& step;
@@ -738,7 +746,8 @@ void CallMessage(void* ctx) {
 void OnMessage(cIGZMessage2* msg) {
     if (msg == nullptr || g_run.core == nullptr) return;
     // PV16-02: replay at callback return, before later broadcast recipients.
-    if (g_messageTable && (msg->GetType() == 0xC9DA96E8 || msg->GetType() == 0xC9DA96E9)) return;
+    if (g_messageTable && (msg->GetType() == 0xC9DA96E8 || msg->GetType() == 0xC9DA96E9 ||
+                          msg->GetType() == 0x99EF1142)) return;
     if (msg->GetType() == kMsgAnimationTick) {
         ++g_month.ticks;
     } else {
@@ -760,8 +769,39 @@ bool __fastcall NativeNightMessage(void* self, void* edx, cIGZMessage2* msg) {
     const auto original = g_nativeMessage;
     if (!original) return false;
     const uint32_t type = msg ? msg->GetType() : 0;
-    if (self != g_agent || !g_run.core || (type != 0xC9DA96E8 && type != 0xC9DA96E9))
+    if (self != g_agent || !g_run.core)
         return original(self, edx, msg);
+    ++g_methodCalls;
+    if (type == 0x99EF1142) {
+        // The notification observer runs after the developer, too late to
+        // sample registration state (PV18). Freeze at the genuine callback.
+        fc4_prop_message message{};
+        if (!PropMessageOf(msg, g_run.ctx->pool, &message)) {
+            g_month.d.Add("insertion input unavailable");
+            return original(self, edx, msg);
+        }
+        auto input = std::make_unique<PropRegistrationInput>();
+        if (message.data3 == 0xA823821E && message.object) {
+            auto* prop = static_cast<cISC4PropOccupant*>(FromToken(message.object));
+            std::vector<uint32_t> trigger;
+            props::GetU32s(prop->AsOccupant()->AsPropertyHolder(), 0x6A3FCC37, trigger);
+            input->Capture(g_run.ctx.get(), message.object, trigger.empty() ? 0 : trigger.front());
+        }
+        ++g_month.messages;
+        if (g_nativeOperation) {
+            g_registrationInputs.emplace(g_nested.size(), std::move(input));
+            g_nested.push_back(message);
+            return original(self, edx, msg);
+        }
+        const bool result = original(self, edx, msg);
+        PropRegistrationInput::Scope registration(input.get());
+        if (fc4_prop_developer_do_message(g_run.core, &message) != result)
+            g_month.d.Add("insertion return differs");
+        if (!input->valid) g_month.d.Add("frozen insertion input missing");
+        g_run.ctx->pool.Drain();
+        return result;
+    }
+    if (type != 0xC9DA96E8 && type != 0xC9DA96E9) return original(self, edx, msg);
     ++g_month.nights;
     const uint32_t differences = g_month.d.mismatches;
     uint32_t count = StateOf(g_run.core).night_count;
@@ -1028,6 +1068,7 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     const auto* version = compat::IdentifiedVersion();
     const bool recording = version && trace.Begin(requesters, version->imageBase);
     g_nested.clear();
+    g_registrationInputs.clear();
     g_nestedCursor = 0;
     g_nativeOperation = true;
     *finished = target->DoMessage(msg);  // the original's step, exactly once
@@ -1122,6 +1163,12 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
                              (g_month.d.listed.empty() ? std::string() : "; differences: " + g_month.d.listed);
     LogShadowLine("propdev shadow (cont.)", reinterpret_cast<const uint8_t*>(line.data()), line.size());
+    g_methodMismatches += g_month.d.mismatches;
+    // DoMessage still lacks complete dated/model and creation effect traces.
+    // A saved-state match alone must not earn whole-method coverage credit.
+    Log("propdev method 0x006F4E90 cSC4PropDeveloper::DoMessage (month) %s: "
+        "calls=%llu complete=0 mismatches=%llu; resyncs=0", date,
+        static_cast<unsigned long long>(g_methodCalls), static_cast<unsigned long long>(g_methodMismatches));
     g_month = MonthStats{};
     g_messageRemovals = 0;
 }
@@ -1138,6 +1185,8 @@ void PropDevShadowCityShutdown() {
     g_agent = nullptr;
     g_vtable = nullptr;
     g_month = MonthStats{};
+    g_registrationInputs.clear();
+    g_methodCalls = g_methodMismatches = 0;
 }
 
 }  // namespace fc4
