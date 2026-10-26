@@ -2,7 +2,7 @@
   "format": 1,
   "name": "prop_get_lot_props_boundary",
   "spec": ["prop-lotconfig A7.2", "prop-lotconfig Q7", "prop-lotconfig T4"],
-  "description": "A lot on cells (10, 20)-(11, 21) of 16 m cells covers x in [160, 192), z in [320, 352). Of four inserted lot-usage props, (160, 320) and (191.9, 351.9) stay; (192, 330) and (175, 319.9) are removed from the list and released. The prop the caller put in the list beforehand (a city prop at (0, 0)) is filtered too (quirk 7) and released. Result true. Each prop starts with the occupant manager's reference (and the caller's for the city prop).",
+  "description": "PL24: a lot on cells (10, 20)-(11, 21) of 16 m cells has closed world bounds x in [160, 192], z in [320, 352]. Of four inserted lot-usage props, (160, 320), (191.9, 351.9) and the exact upper-X entry (192, 330) stay; (175, 319.9) is removed from the list and released. The prop the caller put in the list beforehand (a city prop at (0, 0)) is filtered too (quirk 7) and released. Result true. Each prop starts with the occupant manager's reference (and the caller's for the city prop).",
   "steps": [
     {"op": "pm_create"},
     {"op": "pm_init", "expect": true},
@@ -12,9 +12,9 @@
     {"op": "pm_occupant", "occupant": "0x303", "pos": [192, 0, 330], "usage": 2, "inserted": true, "refs": 1},
     {"op": "pm_occupant", "occupant": "0x304", "pos": [175, 0, 319.9], "usage": 2, "inserted": true, "refs": 1},
     {"op": "pm_occupant", "occupant": "0x305", "pos": [0, 0, 0], "usage": 1, "inserted": true, "refs": 1},
-    {"op": "pm_call", "method": "get_lot_props", "list": ["0x305"], "args": ["0x900"], "expect": {"result": true, "list": ["0x301", "0x302"]}},
-    {"op": "pm_expect_refs", "refs": {"0x301": 2, "0x302": 2, "0x303": 1, "0x304": 1, "0x305": 0}},
-    {"op": "pm_call", "method": "get_lot_props_at", "args": [11, 21], "expect": {"result": true, "list": ["0x301", "0x302"]}},
+    {"op": "pm_call", "method": "get_lot_props", "list": ["0x305"], "args": ["0x900"], "expect": {"result": true, "list": ["0x301", "0x302", "0x303"]}},
+    {"op": "pm_expect_refs", "refs": {"0x301": 2, "0x302": 2, "0x303": 2, "0x304": 1, "0x305": 0}},
+    {"op": "pm_call", "method": "get_lot_props_at", "args": [11, 21], "expect": {"result": true, "list": ["0x301", "0x302", "0x303"]}},
     {"op": "pm_call", "method": "get_lot_props_at", "args": [50, 50], "expect": {"result": false, "list": []}},
     {"op": "pm_call", "method": "get_lot_props", "args": [null], "expect": {"result": false, "list": []}}
   ]

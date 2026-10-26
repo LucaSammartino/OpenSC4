@@ -117,3 +117,6 @@ private:
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4NetworkManager();
+
+// DLL-only probe of the specified crew shutdown slot and reentrant ownership.
+intptr_t NetworkCrewOwnershipTest();

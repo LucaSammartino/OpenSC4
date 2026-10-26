@@ -57,6 +57,7 @@ pub struct PoleHostVt {
     effect_stop: Option<unsafe extern "C" fn(*mut c_void, u64, bool)>,
     terrain_width: Option<unsafe extern "C" fn(*mut c_void) -> f32>,
     terrain_corners: Option<unsafe extern "C" fn(*mut c_void, i32, i32, *mut f32) -> bool>,
+    cell_size: Option<unsafe extern "C" fn(*mut c_void, *mut [f32; 2])>,
 }
 
 /// The control exemplar's values (§4.3), read once by the plugin. `present`
@@ -131,7 +132,12 @@ impl References for Host<'_> {
 }
 impl PoleHost for Host<'_> {
     fn cell_size(&mut self) -> [f32; 2] {
-        with_shared(|s| s.statics.cell_size)
+        // SPEC-GAP: an isolated pole host without a city uses 16 m cells.
+        let mut size = [16.0; 2];
+        if let Some(f) = self.vt.cell_size {
+            unsafe { f(self.vt.user, &mut size) }
+        }
+        size
     }
     fn insert_line(&mut self, line: &RefValue, _: u32) {
         if let (Some(f), t) = (self.vt.insert_line, token(line)) {
@@ -157,7 +163,7 @@ impl PoleHost for Host<'_> {
             unsafe { f(self.vt.user, message, data) }
         }
     }
-    // SPEC-GAP: cross-pole cell output requires the native vector ABI (NO44).
+    // Native slot-16 delegation happens in the plugin, before this local walk.
     fn lines_to(&mut self, _: &RefValue, _: &RefValue, _: &mut Vec<(i32, i32)>) -> bool {
         false
     }
@@ -365,6 +371,54 @@ pub unsafe extern "C" fn fc4_netpole_connected_pole(p: *const PowerPole, i: u32)
         p.as_ref()
             .and_then(|p| p.connected_pole(i as usize))
             .map_or(0, |r| token(&r))
+    })
+}
+
+/// Slot 5 boundary: -1 = invalid (leave caller output untouched), 0 = delegate
+/// to `other`'s slot 16 with the SAME native header, 1 = local cell walk.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_cell_source(p: *const PowerPole, i: u32, other: *mut u64) -> i32 {
+    guard(-1, || {
+        let (Some(p), Some(other)) = (p.as_ref(), other.as_mut()) else {
+            return -1;
+        };
+        let Some(record) = p.connection(i as usize) else {
+            return -1;
+        };
+        *other = token(&record.pole);
+        i32::from(record.flags[1] != 0 || *other == 0)
+    })
+}
+
+/// Emits one local cell list in a single borrowed call. Native allocation and
+/// delegation belong to the plugin, so no foreign container enters Rust.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_netpole_local_cells(
+    p: *const PowerPole,
+    i: u32,
+    emit: Option<unsafe extern "C" fn(*mut c_void, *const [i32; 2], u32) -> bool>,
+    user: *mut c_void,
+    vt: *const PoleHostVt,
+) -> bool {
+    guard(false, || {
+        let (Some(p), Some(emit), Some(mut h)) = (p.as_ref(), emit, host(vt)) else {
+            return false;
+        };
+        let Some(record) = p.connection(i as usize) else {
+            return false;
+        };
+        if record.flags[1] == 0 && token(&record.pole) != 0 {
+            return false;
+        }
+        let mut cells = Vec::new();
+        if !p
+            .line_cells(i as usize, &RefValue::Null, &mut cells, &mut h)
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        let cells: Vec<[i32; 2]> = cells.into_iter().map(|(x, z)| [x, z]).collect();
+        emit(user, cells.as_ptr(), cells.len() as u32)
     })
 }
 
@@ -713,6 +767,50 @@ mod tests {
             effect_stop: None,
             terrain_width: None,
             terrain_corners: None,
+            cell_size: None,
+        }
+    }
+
+    unsafe extern "C" fn collect_cells(user: *mut c_void, cells: *const [i32; 2], count: u32) -> bool {
+        let out = &mut *user.cast::<Vec<[i32; 2]>>();
+        *out = std::slice::from_raw_parts(cells, count as usize).to_vec();
+        true
+    }
+
+    #[test]
+    fn cell_output_preserves_failures_and_selects_reverse_lookup() {
+        let log = RefCell::new(Log::default());
+        let v = vt(&log);
+        unsafe {
+            let p = fc4_netpole_create();
+            (*p).fields.position = [8.0, 0.0, 8.0];
+            (*p).fields
+                .connections
+                .push(fc4_core::network_occupants::power_pole::PoleConnection {
+                    pole: host_ref(0x50, 0x09C0_5C6A),
+                    words: [3, 1],
+                    flags: [0, 1],
+                    ..Default::default()
+                });
+            let mut other = 0xdead;
+            let mut out = vec![[99, 98]];
+            let user = (&mut out as *mut Vec<[i32; 2]>).cast();
+            assert_eq!(fc4_netpole_cell_source(p, u32::MAX, &mut other), -1);
+            assert_eq!(other, 0xdead);
+            assert!(!fc4_netpole_local_cells(p, 1, Some(collect_cells), user, &v));
+            assert_eq!(out, [[99, 98]]);
+            assert_eq!(fc4_netpole_cell_source(p, 0, &mut other), 1);
+            assert_eq!(other, 0x50);
+            assert!(fc4_netpole_local_cells(p, 0, Some(collect_cells), user, &v));
+            assert_eq!(out, [[0, 0], [1, 0], [2, 0]]);
+            (&mut (*p).fields.connections)[0].flags[1] = 0;
+            assert_eq!(fc4_netpole_cell_source(p, 0, &mut other), 0);
+            assert!(!fc4_netpole_local_cells(p, 0, Some(collect_cells), user, &v));
+            assert_eq!(out, [[0, 0], [1, 0], [2, 0]]);
+            (&mut (*p).fields.connections)[0].pole = RefValue::Null;
+            assert_eq!(fc4_netpole_cell_source(p, 0, &mut other), 1);
+            assert_eq!(other, 0);
+            fc4_netpole_destroy(p, &v);
         }
     }
 

@@ -276,6 +276,26 @@ fn directory_counts_find_and_round_trip() {
 }
 
 #[test]
+fn effects_resource_root_version_failure_returns_no_directory() {
+    let mut bytes = fc4_core::effects::shipped::volcano_directory().to_bytes();
+    unsafe {
+        for version in [3u16, 4, 0, 2, 5, 0x0300, u16::MAX] {
+            bytes[..2].copy_from_slice(&version.to_le_bytes());
+            let directory = fc4_effects_directory_parse(bytes.as_ptr(), bytes.len());
+            if matches!(version, 3 | 4) {
+                assert!(!directory.is_null());
+                let mut counts = fc4_effects_directory_counts::default();
+                assert!(fc4_effects_directory_get_counts(directory, &mut counts));
+                assert_eq!(counts.root_version, version);
+                fc4_effects_directory_destroy(directory);
+            } else {
+                assert!(directory.is_null(), "unsupported root version {version}");
+            }
+        }
+    }
+}
+
+#[test]
 fn one_shot_crater_through_the_host() {
     let game = Game::default();
     let fx = setup(&game);

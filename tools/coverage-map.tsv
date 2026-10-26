@@ -185,7 +185,7 @@ cSC4Watercraft	automata (vehicles, animation)	simulation	watercraft.md, automata
 cSC4Vehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4TrainCar	automata (vehicles, animation)	simulation	vehicles.md, automata.md, automata-managers.md	-	-	-
 cSC4Train	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
-cSC4PedestrianOneShot	automata (vehicles, animation)	simulation	pedestrians.md, automata-managers.md	-	-	-
+cSC4PedestrianOneShot	automata (vehicles, animation)	simulation	pedestrians.md, automata-managers.md	core/src/pedestrians	-	-
 cSC4Pedestrian	automata (vehicles, animation)	simulation	pedestrians.md, automata.md	core/src/pedestrians	-	-
 cSC4TrafficAutomaton	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
 cSC4EmergencyVehicle	automata (vehicles, animation)	simulation	vehicles.md, automata.md, dispatch.md, automata-managers.md	-	-	-
@@ -264,7 +264,7 @@ cSC4TutorialTask	tutorial	simulation	tutorial-task.md	core/src/tutorial	-	-
 cSC4AnimationTickManager	other simulation	simulation	animation-tick.md	-	-	-
 # ---- region
 cSC4Nation	region	region	nation.md	core/src/nation	-	-
-cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	-
+cSC4RegionalCity	region	region	regional-city.md, foundations.md	core/src/regional_city	regionalcity_shadow	regionalcity
 fn:GZCOM_CreatecSC4RegionalCity	region	region	regional-city.md	-	-	-
 fn:SC4WriteCityRegionViewThumbnail	region	region	regional-city-records.md	-	-	-
 fn:SC4ReadCityRegionViewThumbnails	region	region	regional-city-records.md	-	-	-
@@ -339,7 +339,7 @@ fn:lua_extension_*	Lua host	framework	lua-host.md	-	-	-
 fn:LUAExtension_*	Lua host	framework	-	-	-	-
 # ---- audio
 cSC4AudioAmbienceManager	audio	audio	audio-ambience.md	core/src/audio_ambience	-	-
-cSC4AudioEventHandler	audio	audio	audio.md	-	-	-
+cSC4AudioEventHandler	audio	audio	audio.md	core/src/audio	-	-
 cSC4AudioSoundManager	audio	audio	audio.md	-	-	-
 cGZSndEventStd	audio	audio	audio.md	-	-	-
 cSC4AudioScapeManager	audio	audio	audio-scape.md	-	-	-
@@ -460,16 +460,16 @@ fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
 cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	effects
 cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
 cSC4EffectsParser	effects	renderer	effects.md	-	-	-
-cSC4EffectsCollection	effects	renderer	effects.md	-	-	-
+cSC4EffectsCollection	effects	renderer	effects.md	core/src/effects	-	-
 cSC4BrushDescription	effects	renderer	effects.md	core/src/effects	-	-
 cSC4ScrubberDescription	effects	renderer	effects.md	core/src/effects	-	-
-EffectsParser	effects	renderer	effects.md	-	-	-
-EffectsBootstrap	effects	renderer	effects.md	-	-	-
+EffectsParser	effects	renderer	effects.md	core/src/effects_parser	-	-
+EffectsBootstrap	effects	renderer	effects.md	core/src/effects_parser	-	-
 (anonymous_namespace)::c*Command	effects	renderer	effects.md	core/src/effects_parser	-	-
 cSC4EffectsParticle	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4ParticlesDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
-cSC4BrushEffect	effects	renderer	effects.md	-	-	-
-cSC4GameEffect	effects	renderer	effects.md	-	-	-
+cSC4BrushEffect	effects	renderer	effects.md	core/src/effects	-	-
+cSC4GameEffect	effects	renderer	effects.md	core/src/effects	-	-
 cSC4ParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4GeometrySourcedParticlesEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4DecalEffect	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
@@ -479,7 +479,7 @@ cSC4ParticlesDescriptionBase	effects (particles, decals, visuals)	renderer	parti
 cSC4*Particle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSCParticle*	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4RigidBodySimulator2D	effects (particles, decals, visuals)	renderer	rigid-body-2d.md	-	-	-
-cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
+cSC4SequenceDescription	effects (particles, decals, visuals)	renderer	particles.md	core/src/effects/particle_owners	-	-
 cSC4*Description	effects (particles, decals, visuals)	renderer	-	-	-	-
 cSC4EffectMaps	effects (particles, decals, visuals)	renderer	particles.md	-	-	-
 cSC4CoverageRadiusEffectHelper	effects (particles, decals, visuals)	renderer	coverage-radius-effect-helper.md	-	-	-
@@ -523,7 +523,7 @@ fn:Resample	2D drawing and fonts	renderer	picture-view.md	-	-	-
 fn:GenerateKernelArray	2D drawing and fonts	renderer	picture-view.md	-	-	-
 fn:ConvertKernelToInteger	2D drawing and fonts	renderer	picture-view.md	-	-	-
 SC4DrawContext	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-
-cSC4PackedRenderState	3D draw context	renderer	draw-context.md	-	-	-
+cSC4PackedRenderState	3D draw context	renderer	draw-context.md	core/src/draw_context	-	-
 fn:RZDrawBlt*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
 fn:*Blt*	2D drawing and fonts	renderer	-	-	-	-
 fn:RZDraw*	2D drawing and fonts	renderer	rz-draw.md	-	-	-
@@ -619,7 +619,7 @@ nSC4UI*	windows and panels	ui	-	-	-	-
 fn:SC4DoPopupStringListMenu	windows and panels	ui	widget-misc2.md	-	-	-
 fn:SC4DoPopup*	windows and panels	ui	-	-	-	-
 cGZWinGrid	widget toolkit	ui	widget-controls.md	-	-	-
-cGZWinTextEdit	widget toolkit	ui	widget-controls.md	-	-	-
+cGZWinTextEdit	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinListBox	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinTreeView	widget toolkit	ui	widget-controls.md	core/src/widget_controls	-	-
 cGZWinFileBrowser	widget toolkit	ui	widget-controls.md	-	-	-
@@ -744,7 +744,7 @@ cSLTokenRecord	persistence and resources	framework	sc-resources.md	core/src/sc_r
 cSLTokenSerialRecordIO_Text	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 cSL*	persistence and resources	framework	sl-library.md	-	-	-
 SL	persistence and resources	framework	sl-library.md	-	-	-
-nSCRes	persistence and resources	framework	sc-resources.md	-	-	-
+nSCRes	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cCommandParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes::cFileParser	persistence and resources	framework	sc-resources.md	core/src/sc_resources	-	-
 nSCRes*	persistence and resources	framework	-	-	-	-

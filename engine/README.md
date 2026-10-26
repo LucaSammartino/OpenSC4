@@ -2613,3 +2613,34 @@ is off without that selection. Per-row compare/record/replace modes, bounded
 value-only corpus/case exports and nearby-input replay are documented as a
 stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
 Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).
+
+### Construction quit experiments
+
+`autotest_quit_post = 1` (env `FC4_AUTOTEST_QUIT_POST`, default off) makes
+`autotest_end = quit` post the application's native `0xC7AA61C6` command to
+its legacy message target. The main loop delivers it to the game's quit
+handler after the observer's tick. The verdict still requires
+`PostSystemServiceShutdown`; a missing service/target is a failed run, never
+a clean termination. Native target-post has no Boolean result (00930273).
+
+`script_port_probe = 1` logs the building pointer/type after the port action.
+`script_port_instant = 1` disables its construction animation. Both default
+off and affect only scripted port actions; they are diagnostic controls.
+
+The `findings` scenario `quit-construction28` preserves a native construction
+shutdown fault at `0x005D0F94`: both direct and posted quit fault after its
+one animated airport action, including after a pause or full save. Disabling
+the animation avoids that incomplete object and exits cleanly; it is a
+separate control, not a correction to the finding. The suite retains
+`clean-exit-crash`; it does not enable either diagnostic switch by default.
+
+### Formats replacement
+
+`enable = formats` is off by default. It selects the existing FC4 exemplar and
+cohort resource factories (data-formats section 8.1), including their FC4
+property holders and property values backed by `fc4-formats`. The `exemplars`
+key keeps its existing behavior; selecting both installs the factories once.
+Packed-file segments remain original and are the next replacement step.
+`formats_shadow = 1` checks the replacement against the formats crate and labels
+the comparison as a replacement consistency check. The install-time exemplar
+contract fixture also compares the retained original factories with ours.
