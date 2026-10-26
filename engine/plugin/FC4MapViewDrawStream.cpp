@@ -17,6 +17,7 @@ extern "C" bool fc4_drawstream_raster(const uint8_t*, uint32_t, uint32_t, uint32
     const uint32_t*, uint32_t, bool, uint32_t*);
 extern "C" bool fc4_drawstream_notification(bool, bool, uint32_t, const uint32_t*, uint32_t,
     const uint32_t*, uint32_t*);
+extern "C" bool fc4_drawstream_clear_update(const uint32_t*, void*, bool(__cdecl*)(void*, uint32_t, uint32_t*), uint32_t*);
 
 namespace fc4 {
 namespace {
@@ -111,6 +112,12 @@ struct Frame {
     Objects objects;
     Stream native, core;
     std::map<void*, Surface> surfaces;
+    Inputs inputs;
+    void* parent = nullptr;
+    void* child = nullptr;
+    void* childWindow = nullptr;
+    unsigned boundaryDepth = 0;
+    bool clearProfile = false;
 };
 struct Raster {
     void* buffer = nullptr;
@@ -129,6 +136,7 @@ template<class T> struct Scope {
     ~Scope() { location = previous; }
 };
 std::mutex tableMutex;
+#include "FC4MapViewDrawBoundary.h"
 void** bufferTable = nullptr;
 bool bufferHookOK = false;
 uintptr_t bufferOriginal[36]{};
@@ -254,7 +262,8 @@ void __fastcall SetOverlay(void* self, void*, void* buffer) {
         const auto receiver = frame->objects.Borrow(self);
         if (!buffer) {
             frame->native.Call(Domain::Surface, 4, receiver, {0});
-            frame->core.Call(Domain::Surface, 4, receiver, {Load<uint32_t>(frame->owner, 0x144) == 0 ? 0u : 1u});
+            if (!frame->clearProfile)
+                frame->core.Call(Domain::Surface, 4, receiver, {Load<uint32_t>(frame->owner, 0x144) == 0 ? 0u : 1u});
         } else {
             const auto found = frame->surfaces.find(buffer);
             if (found == frame->surfaces.end()) {
@@ -270,7 +279,9 @@ void __fastcall SetOverlay(void* self, void*, void* buffer) {
         }
     } catch (...) { frame->core.Refuse("presentation capture allocation"); }
     // The one real presentation; replay never calls the borrowed child.
+    if (frame && frame->clearProfile) ++frame->boundaryDepth;
     overlayOriginal(self, nullptr, buffer);
+    if (frame && frame->clearProfile) --frame->boundaryDepth;
 }
 using UpdateFn = void(__fastcall*)(void*, void*);
 UpdateFn updateOriginal = nullptr;
@@ -278,17 +289,32 @@ void __fastcall Update(void* self, void*) {
     Frame capture; capture.owner = self;
     OwnerBytes before; std::memcpy(before.data(), self, before.size());
     Stream dynamicBefore;
-    if (before[0x142] == 0) try { DynamicState(self, dynamicBefore); }
+    const bool inactive = before[0x142] == 0;
+    capture.clearProfile = !inactive && Load<uint32_t>(before.data(), 0x144) == 0 &&
+        (before[0x140] == 0 || before[0x141] != 0) && Load<uint32_t>(before.data(), 0x9d0) == 0;
+    if (inactive || capture.clearProfile) try { DynamicState(self, dynamicBefore); }
     catch (...) { dynamicBefore.Refuse("entry snapshot allocation"); }
+    if (capture.clearProfile && (!clockOriginal ||
+        !BoundaryHook(static_cast<uint8_t*>(self) + 8, 11, reinterpret_cast<void*>(&BoundaryTap<11>))))
+        capture.native.Refuse("clear update boundary unavailable");
     {
         Scope<Frame> scope(frame, &capture);
         updateOriginal(self, nullptr);
     }
     try {
-        // Active Update currently compares its raster/presentation substream.
-        // Registration, source queries, clock and reference events are not credited.
-        const bool inactive = before[0x142] == 0;
-        if (inactive) {
+        // Other active profiles compare only the raster/presentation substream.
+        // Registration, nonzero sources and custom views remain uncredited.
+        if (capture.clearProfile) {
+            const uint32_t state[] = {1, before[0x9d9], Load<uint32_t>(before.data(), 0x9dc), before[0x140]};
+            uint32_t output[2]{};
+            if (!fc4_drawstream_clear_update(state, &capture, &ReplayClear, output))
+                capture.core.Refuse("clear update core replay");
+            if (capture.child) capture.core.Call(Domain::Surface, 2, capture.objects.Borrow(capture.child));
+            if (!capture.inputs.Complete()) capture.core.Refuse("unconsumed update queries");
+            before[0x9d9] = static_cast<uint8_t>(output[0]);
+            std::memcpy(before.data() + 0x9dc, output + 1, 4);
+        }
+        if (inactive || capture.clearProfile) {
             capture.native.Data(Domain::State, 0, 0, self, before.size());
             capture.core.Data(Domain::State, 0, 0, before.data(), before.size());
             DynamicState(self, capture.native);
@@ -299,8 +325,9 @@ void __fastcall Update(void* self, void*) {
             Log("drawstream pilot cSC4WinMapView::Update source=%u layer=%u operations=%u exact=%u first=%u field=%s[%u] native=0x%llX core=0x%llX complete=%u",
                 Load<uint32_t>(before.data(), 0x144), Load<uint32_t>(before.data(), 0x148),
                 static_cast<unsigned>(capture.native.Events().size()), static_cast<unsigned>(detail.exactOperations),
-                static_cast<unsigned>(detail.operation), detail.field, static_cast<unsigned>(detail.element), detail.native, detail.core, inactive);
-        updateCount.Add(capture.native, capture.core, inactive);
+                static_cast<unsigned>(detail.operation), detail.field, static_cast<unsigned>(detail.element), detail.native, detail.core,
+                (inactive || capture.clearProfile) && capture.native.Valid() && capture.core.Valid());
+        updateCount.Add(capture.native, capture.core, inactive || capture.clearProfile);
     } catch (...) { ++updateCount.calls; }
 }
 
@@ -407,19 +434,20 @@ void MapViewDrawStreamStartup() {
     overlayOriginal = reinterpret_cast<OverlayFn>(child[4]);
     notificationOriginal = reinterpret_cast<MessageFn>(target[3]);
     uiOriginal = reinterpret_cast<MessageFn>(window[3]);
+    clockOriginal = reinterpret_cast<ClockFn>(Detour(compat::MapViewDrawStreamEntry(3), reinterpret_cast<void*>(&Clock)));
     fillOriginal[0] = reinterpret_cast<FillFn>(Detour(compat::MapViewDrawStreamEntry(1), reinterpret_cast<void*>(&Fill<0>)));
     fillOriginal[1] = reinterpret_cast<FillFn>(Detour(compat::MapViewDrawStreamEntry(2), reinterpret_cast<void*>(&Fill<1>)));
     updateOriginal = reinterpret_cast<UpdateFn>(Detour(compat::MapViewDrawStreamEntry(0), reinterpret_cast<void*>(&Update)));
     const bool overlay = Patch(child, 4, reinterpret_cast<void*>(&SetOverlay));
     const bool notify = Patch(target, 3, reinterpret_cast<void*>(&Notify));
     const bool ui = Patch(window, 3, reinterpret_cast<void*>(&UIMessage));
-    Log("drawstream MapView installed Update=%u u8=%u i8=%u overlay=%u notify=%u ui=%u; active Update credit=0 (raster boundary only)",
-        updateOriginal != nullptr, fillOriginal[0] != nullptr, fillOriginal[1] != nullptr, overlay, notify, ui);
+    Log("drawstream MapView installed Update=%u u8=%u i8=%u overlay=%u notify=%u ui=%u clock=%u; complete profile=source-zero/no-custom/registered-overlay",
+        updateOriginal != nullptr, fillOriginal[0] != nullptr, fillOriginal[1] != nullptr, overlay, notify, ui, clockOriginal != nullptr);
 }
 void MapViewDrawStreamMonth(int32_t julian) {
     const auto date = harness::CivilFromJulian(julian);
-    Log("drawstream pilot cSC4WinMapView (month) %04d-%02d-%02d: draws=%llu operations=%llu exact=%llu; active owner complete=0",
-        date.year, date.month, date.day, updateCount.calls.load(), updateCount.operations.load(), updateCount.exact.load());
+    Log("drawstream pilot cSC4WinMapView (month) %04d-%02d-%02d: draws=%llu operations=%llu exact=%llu; complete=%llu",
+        date.year, date.month, date.day, updateCount.calls.load(), updateCount.operations.load(), updateCount.exact.load(), updateCount.complete.load());
     LogMethod(updateCount, "0x007A2F60", "cSC4WinMapView::Update", julian);
     LogMethod(notificationCount, "0x007A54D0", "cSC4WinMapView::DoMessage", julian);
     LogMethod(uiCount, "0x007A56E0", "cSC4WinMapView::DoMessage", julian);

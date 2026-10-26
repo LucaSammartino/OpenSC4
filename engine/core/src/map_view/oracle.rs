@@ -99,9 +99,89 @@ pub fn replay_notification(
     Ok([u32::from(owner.active), u32::from(owner.dirty), effects.len() as u32])
 }
 
+/// Bounded source-zero Update profile. Foreign queries are replayed once from
+/// the invocation's tape; commands go to its recorder, never to the game.
+pub fn replay_clear_update(
+    state: [u32; 4],
+    mut boundary: impl FnMut(u32) -> Result<u32, OwnerError>,
+) -> Result<[u32; 2], OwnerError> {
+    struct Host<F>(F);
+    impl<F: FnMut(u32) -> Result<u32, OwnerError>> Renderer for Host<F> {
+        fn default_zone_alpha(&mut self) -> Result<u8, OwnerError> {
+            Err(OwnerError::Foreign(0))
+        }
+        fn child_bitmap_present(&mut self) -> Result<bool, OwnerError> {
+            (self.0)(0).map(|v| v != 0)
+        }
+        fn render(&mut self, command: RenderCommand<'_>) -> Result<(), OwnerError> {
+            if !matches!(command, RenderCommand::ClearMap) {
+                return Err(OwnerError::Foreign(1));
+            }
+            (self.0)(1).map(|_| ())
+        }
+        fn clock_ms(&mut self) -> u32 {
+            // The tape's validity is also checked by the caller: failure cannot
+            // turn an absent native clock query into complete method credit.
+            (self.0)(2).unwrap_or(0)
+        }
+    }
+    struct NoSimulators;
+    impl Simulators for NoSimulators {
+        fn grid(&mut self, _: SourceSelection) -> Result<RawMapGrid, OwnerError> {
+            Err(OwnerError::Foreign(2))
+        }
+        fn city_cells(&mut self) -> Result<[usize; 2], OwnerError> {
+            Err(OwnerError::Foreign(3))
+        }
+        fn buildings(&mut self, _: HighlightRequest) -> Result<Vec<RawBuilding>, OwnerError> {
+            Err(OwnerError::Foreign(4))
+        }
+    }
+    let [active, dirty, last_clock, overlay_enabled] = state;
+    let mut owner = MapView::new(u64::from(last_clock), 0);
+    owner.active = active != 0;
+    owner.dirty = dirty != 0;
+    owner.overlay_enabled = overlay_enabled != 0;
+    // The adapter admits only disabled or already-registered overlays.
+    owner.overlay.plan(true, &[])?;
+    owner.draw_with(&mut Host(&mut boundary), &mut NoSimulators)?;
+    Ok([u32::from(owner.dirty), owner.last_redraw_ms as u32])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn clear_update_replays_queries_and_clock_in_order() {
+        let mut calls = Vec::new();
+        let state = replay_clear_update([1, 1, 5000, 1], |operation| {
+            calls.push(operation);
+            Ok(if operation == 2 { 6007 } else { 1 })
+        })
+        .unwrap();
+        assert_eq!(calls, [0, 1, 2]);
+        assert_eq!(state, [0, 6007]);
+        calls.clear();
+        assert_eq!(
+            replay_clear_update([0, 1, 5000, 1], |operation| {
+                calls.push(operation);
+                Ok(0)
+            })
+            .unwrap(),
+            [1, 5000]
+        );
+        assert!(calls.is_empty());
+        let mut missing = Vec::new();
+        assert_eq!(
+            replay_clear_update([1, 1, 5000, 0], |operation| {
+                missing.push(operation);
+                Ok(if operation == 2 { 7000 } else { 0 })
+            })
+            .unwrap(),
+            [0, 7000]
+        );
+        assert_eq!(missing, [0, 2]);
+    }
     #[test]
     fn ds29_developer_layer_two_surface() {
         let factors = ScaleFactors::from_scale(Some(256));

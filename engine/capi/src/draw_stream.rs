@@ -2,6 +2,34 @@
 use crate::{catch_unwind, AssertUnwindSafe};
 
 #[no_mangle]
+pub unsafe extern "C" fn fc4_drawstream_clear_update(
+    state: *const u32,
+    context: *mut std::ffi::c_void,
+    boundary: Option<unsafe extern "C" fn(*mut std::ffi::c_void, u32, *mut u32) -> bool>,
+    output: *mut u32,
+) -> bool {
+    catch_unwind(AssertUnwindSafe(|| {
+        let Some(boundary) = boundary else { return false };
+        if state.is_null() || output.is_null() {
+            return false;
+        }
+        let state = [*state, *state.add(1), *state.add(2), *state.add(3)];
+        let result = fc4_core::map_view::replay_clear_update(state, |operation| {
+            let mut result = 0;
+            if boundary(context, operation, &mut result) {
+                Ok(result)
+            } else {
+                Err(fc4_core::map_view::OwnerError::Foreign(operation))
+            }
+        });
+        let Ok(result) = result else { return false };
+        std::ptr::copy_nonoverlapping(result.as_ptr(), output, 2);
+        true
+    }))
+    .unwrap_or(false)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn fc4_drawstream_raster(
     cells: *const u8,
     outer: u32,
