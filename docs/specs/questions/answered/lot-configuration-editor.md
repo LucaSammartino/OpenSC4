@@ -1,5 +1,41 @@
 # Native lot configuration editor answered questions
 
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE15 — Static family resources and PostInit view/alpha setup**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §33 specifies Sys/FamilyNames.ini path construction, entry radix/overwrite behavior, view/buffer/alpha/model call order and failure/retry behavior. Worked cases and exact callback/PostInit/Init closure mapping are included.
+
+Resolve static family path/name-resource parsing and PostInit view, alpha
+and model setup, using the inventory companion's exact non-C methods.
+Init once timing/section names and LE8 Shutdown field mapping are closed.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE16 — Edit input, capture and cycling remainder**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §34 specifies input/capture/drag pipelines and live building/flora cycling, with no lot-ID-vector edit. Absent current ID reads list-end: LE16-R specifies the exact guarded-memory observation; no heap-independent result is promised. Worked cases and row mapping distinguish valid cycling from that malformed state.
+
+Resolve keyboard/mouse/capture and cycling interiors beyond §11, §17 and
+§21 wrapper dispatch. Hit numeric/fallback geometry is LE9; water/terrain
+mode commands and both movement overloads are closed in §25.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE17 — Rasterization, name/help and 3D preparation**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §35 resolves type names, shared help, redraw/message wrappers and drawing order; LE17-R1–R4 narrowly specify remaining raster/3D/texture observations with fixtures, call arguments and buffer/terrain evidence. Worked cases and row mapping explicitly retain partial drawing/3D/resource rows; no complete-owner or measured runtime claim.
+
+Resolve ordinary drawing interiors, remaining object-name/help helpers,
+3D preparation and refresh. Preserve acquisition/lock/release, reverse
+draw order, marker and height-label contracts. SetTitle is closed in §25.3.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE5 -->
+**LE18 — Shared constructor/decoder attribution**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §36 retains five shared dependencies/427 current bytes, separates actual entries from historical interiors and prevents exclusive editor credit. LE18-R records concrete shared-path reachability; exclusive original source provenance cannot be proved by runtime absence and would need an unavailable original symbol/link map. Worked accounting case and R-row mapping included.
+
+Resolve source ownership separately from reachability for the five shared
+bodies/427 bytes listed in §18. Editor dependency is established; exclusive
+ownership is not. Historical interior fragments are not additional bodies.
+
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
 **LE13 — Selected-object popup remainder and add/select wrappers**
 

@@ -1594,6 +1594,293 @@ the contract is the linked CRT's current-locale `__stricmp`; an installation-
 specific observation would record its active LC_CTYPE and compare the desired
 byte strings. No locale-independent Unicode ordering is asserted.
 
+## 33. Family resources and PostInit (LE15) *[compat]*
+
+StaticInit `0x00486F20` sets the process-once byte **before** doing any file
+work. It asks application service `0x00B43C94`, slot `+0xD4`, for its path with
+argument `0xFFFFFFFF`, appends literal `Sys`, a backslash, and `FamilyNames.ini`.
+It passes this path to cRZIniFile, then enumerates `PropFamilies`,
+`BuildingFamilies`, `FloraFamilies` in that order. It does not retry on a later
+editor Init if the file or a section was absent (`0x00486F20..0x004870F9`;
+literal `Sys` at `0x00A8718C`). Path/file/section lexing belongs to cRZIniFile;
+the callbacks receive the entry key and value, not a second ad-hoc INI grammar.
+
+Each callback converts the key using RZConvertToUint32A and assigns the value
+string to that ID in its process-static map. Prop/building/flora callbacks are
+`0x00486440/0x00486490/0x004864E0`, targeting maps
+`0x00B2167C/0x00B21690/0x00B216A4`. There is no rejection of zero IDs or empty
+values, no family-membership validation, and a later assignment to the same
+ID replaces the previous string. These are names, not IDs to append to a
+lot object (`0x00486440..0x0048652C`).
+
+RZConvertToUint32A (`0x0090FE93..0x0090FEF3`) selects radix 16 for an initial
+`0x`/`0X`; otherwise it scans from the first byte, selecting radix 16 on the
+first A–F/a–f encountered, continuing over digits, stopping at NUL or another
+character. If no such hex letter was encountered it selects radix 10. It then
+delegates conversion of the original string to the linked unsigned conversion
+routine with null end-pointer. It is not unconditionally hexadecimal: keys
+`10`, `0x10`, `FF`, `0010` select IDs 10, 16, 255, 10 respectively. Leading
+non-digit text can stop radix detection; no trimming pass is added here.
+
+PostInit `0x0047B890` performs the following in order:
+
+1. Only while editor view field `+0x138` is null, request child `0x692352B5`,
+   IID `0xC12CEA13`. The result is subsequently dereferenced without a success
+   guard. On its underlying window enable flag `0x200000`; on the view set
+   property `(2,true)`.
+2. Still inside that first-view block, ask buffer service `0x00B43C9C`, slot
+   `+0x0C`, for a buffer. If successful, initialize it to the edit window's
+   current width/height with format pair `(3,16)`, install it on view `+0x10`,
+   pass buffer `+0x3C`'s result to InitAlphaSystem, then release the buffer.
+   Failure skips this buffer/alpha setup and does not undo the acquired view
+   (`0x0047B8D6..0x0047B989`).
+3. Request containing child `0x6946DA25`, IID `0xC2AFA76F`; on success enable
+   the same underlying-window flag and release it. Failure skips this step.
+4. If status field `+0x13C` is null, request child `0x29235446`,
+   IID `0x212CDC1F`. If model fields `+0x194/+0x198` are null, obtain them
+   through NetworkManager `+0x14` with `(3,1)` and `(0,1)` respectively;
+   store each result, AddRef it, and call its Init slot `+0x0C`. Those results
+   have no null guard (`0x0047B98C..0x0047BA77`).
+
+Repeated PostInit retains existing fields; it does not rebuild the alpha
+buffer merely because the view size changed. A failed first buffer acquisition
+also does not retry through that guarded block while the view remains non-null.
+Shutdown ownership/field mapping remains §23, not inferred from these AddRefs.
+
+Worked case: a missing FamilyNames.ini on the first editor leaves all three
+maps without entries. Installing the file before a second Init does not load
+it in that process. In a fresh process, prop entries `10=Decimal` then
+`0x0A=Replacement` leave ID 10 named `Replacement`; `0x10=Hex` names ID 16.
+A successful first PostInit with buffer allocation failure still stores its
+view; the next PostInit skips that buffer acquisition rather than repairing it.
+
+Closure mapping: StaticInit, PostInit and the three callback rows above;
+the remaining resource/view dependency of Init `0x004892B0`. This does not
+assign editor ownership to the shared image decoder (§36).
+
+## 34. Input, capture and cycling (LE16) *[compat]*
+
+§11/§17/§21 establish the wrapper boundaries; §27–§28 complete hit geometry.
+The remaining edit-body behavior is as follows (`0x00486770..0x004869D1`):
+
+| Left-down hit / mode | Effect, before returning handled |
+|---|---|
+| 0 / any | If selected, clear selection then draw/invalidate; otherwise no action. |
+| 1 / mode 0 | Same deselection behavior. |
+| 1 / nonzero mode | AddNewLotConfigurationObject with original coordinates/modifiers. |
+| 2 / mode 0 | Invoke foundation selector with first-foundation ID and null record, then clear selection even if cancelled. |
+| 2 / other mode | No action. |
+| 3 / mode 8 | Pixel ToggleFence; other nonzero modes do nothing. |
+| 3 / mode 0 | Clear any selection and trigger redraw; no fence edit. |
+| Object / mode 0 | Select hit record; eligible drag setup below, then trigger redraw. |
+| Object / nonzero mode | AddNewLotConfigurationObject. |
+
+For an object in mode zero, drag setup requires modifier bit `0x02` clear and
+type in `{0,1,2,4,7}`. Set dragging `+0x1B8` to 1; request capture only if not
+already capturing; call PixelUnitsToObjectUnits to store offsets at
+`+0x1BC/+0x1C0`. Other types are selected but not made draggable. Edit left-up
+clears dragging and releases capture when held (§11). The outer up/down/move
+wrappers convert coordinates and use strict edit-client upper bounds; outside
+events go to the base window after converting back. Right-down outside the
+client opens the outside menu. Every ordinary routed branch returns handled.
+The `+0xE0` host-move state takes precedence in the move wrapper and delegates
+directly to the base (`0x0047AD40`, `0x00486690`, `0x00487100`, `0x004895A0`).
+
+Edit right-down acts only in mode zero: hits 0/1 open the edit-area menu, 2 the
+foundation popup, 3 the fence popup, and ≥100 the object popup. Other hits or
+modes do nothing, still returning handled (`0x004893E0..0x00489485`).
+
+### 34.1 Drag arithmetic and status
+
+DoEditMouseMove translates only while dragging and actually capturing. Read
+signed pixel x/y, scale s, selected x/z and the saved offsets. The x pipeline
+first stores binary32 of `(pixel-x*s − old-x)`, then subtracts saved x offset,
+adds old x, and stores a binary32 target. The z pipeline performs
+`pixel-y*s − old-z − saved-z-offset + old-z` in x87 before its binary32 target
+store. Pass both to the position MoveObject overload (§25.2). The unequal
+intermediate spill must not be replaced by a single algebraic simplification
+(`0x004859FC..0x00485A47`).
+
+It then updates status even when no translation happened, using selected
+creation word `+0x24` or zero and format
+`%08x: Pixel: (%d,%d) World: (%.1f,%.1f)`; world values are pixel coordinates
+times s. This is pointer position, not the selected centre.
+
+Keyboard handling is capture-gated: while capturing it performs none of its
+commands and returns handled. Otherwise it clears dragging before dispatch.
+The already specified Escape/C/B/T/P/F/S/G/R/F1 paths and selected-object
+arrow/PageUp/PageDown/M/Control-D/Delete/Backspace/Home/N paths all return
+handled, including unsupported keys. No generic key forwarding is inserted.
+Home's zero test, including unordered behavior, must retain the native x87
+comparison rather than a finite-only assumption (GZOnKeyDown `0x00485710`).
+
+### 34.2 Cycling is a live occupant operation
+
+CycleSelectedObject `0x0047C660` returns for null selection, null active city,
+or an empty ID vector returned by editor manager `+0x160`, slot `+0x6C` for
+the selected record. Only selected **building type 0 and flora type 4** have
+cycling branches; props and textures do not cycle. The ID vector is not
+advanced or rewritten in the record.
+
+For a building, get the live city's current building, obtain its current type
+ID, find it in the returned ID list, choose the following ID or wrap from the
+last to the first, and call the building service's replacement operation with
+the city and that ID; store the chosen ID in editor `+0x1E4`.
+For flora, locate the selected record's index in the lot vector; return if
+absent. Resolve its live occupant through building service `+0x100` and query
+IID `0xC83DD057`. Obtain current flora ID, choose next/wrap in the same list,
+save occupant placement, remove the old occupant, request the replacement
+through flora service `+0x44`, and if non-null apply the saved placement through
+its `+0x70`. Release the acquired interfaces. These operations do not call
+dirty/title/draw/invalidate (`0x0047C772..0x0047C8C3`).
+
+For both branches an unsuccessful list scan is followed by **one more read
+at list-end** before the first-ID fallback. Flora proof:
+`0x0047C7CD..0x0047C7ED`. Empty list was rejected earlier, but a live current
+ID absent from a nonempty list can reach this read. If the out-of-range word
+equals the current ID, the following-ID read can go farther. No deterministic
+heap value, safe wrap or crash outcome is promised for that malformed state.
+
+Worked cases: left-down on a type-1 object, mode zero, flags zero, starts
+capture and preserves its pointer-to-centre offsets; with flag 2 the same
+record is selected without starting a drag. A foundation-strip click followed
+by Cancel still clears selection. With returned IDs `[10,20]`, a live building
+of type 10 requests replacement 20, then one of type 20 requests 10; neither
+operation dirties the lot. A selected prop makes no replacement request.
+
+Closure mapping: DoEditMouseDownL/R, DoEditMouseMove, GZOnMouseDownL/R,
+GZOnMouseUpL, GZOnMouseMove and GZOnKeyDown control flow; CycleSelectedObject
+for valid live occupants. **Narrow runtime observation LE16-R:** for the absent
+current-ID case, break before the list-end read and record begin/end/capacity,
+current ID and the two words at/after end, then single-step to the chosen ID
+or fault. Repeat with a guarded end page. This settles a particular native
+failure outcome; it cannot create a heap-independent portable rule.
+
+## 35. Drawing, help and 3D: contracts and runtime boundary (LE17) *[compat]*
+
+Object-name helper `0x0047F480` assigns by type, not by family/instance name:
+0 `building`, 1 `prop`, 2 `lot texture`, 3 `foundation`, 4 `flora`, 7 `network`;
+all other values, including 5/6, give `unknown`. Its capitalization option
+changes only the first byte to upper case. Family/instance and foundation/wall
+name routes are separate (§32 and below).
+
+DoShowHelpUI `0x0047CB70` ignores the requested help page: modal title is
+`Help System`, message is `The answer to all your questions is:` followed by
+a newline and `Ask Paul Pedriana`; host options are `(0,1,0)` and it returns
+handled. It neither opens a page-specific document nor changes editor data.
+MessageBoxA `0x0047D610` gets the current configuration name as its caption
+when a configuration exists (otherwise empty), forwards caller message and
+options to host `+0xB0` with trailing `(1,0)`, and returns the host result.
+TriggerLotConfigurationRedraw `0x0047E870` draws first, then invalidates;
+it does not set dirty or title.
+
+GetRetainingWallName `0x00480080` starts with literal `unknown`, resolves the
+wall key via manager `+0x70`, opens its exemplar and reads property `0x20` on
+successful acquisition; failure retains the fallback. Foundation name helper
+`0x0047FF30` resolves the key via manager `+0x58`, opens/queries the exemplar,
+reads name property `0x20`, and appends implementation description. Type 1 is
+`Custom`, 2 `Generic`, 3 `Algorithmic`, otherwise `Unknown implementation type`.
+A nonempty name is separated from the description by ` (` and closed by `)`;
+with no name it is just the description. The implementation classification
+uses the exemplar's property-presence test; it is not inferred from a row's ID.
+No selector rejects an ID based on this output (§29).
+
+### 35.1 Rasterization ordering
+
+Preserve §13's buffer acquisition/release, reverse object order, marker locks,
+alpha style and signed height-label behavior. DrawCurrent `0x0047E060` starts
+by requesting buffer IID `0x20732180` from the edit view. A failed request
+does not execute the draw body. Successful drawing proceeds through background,
+grid, resize decoration, objects in reverse vector order, then fences in
+their stored order, followed by view submission/invalidation and release
+(`0x0047E060..0x0047E508`). It does not sort objects by type or elevation.
+
+Background uses RGB `(192,192,192)`, grid `(128,128,128)`, fences `(220,0,0)`;
+the grid includes both zero and the last width/depth boundary. Drawing uses
+integer rectangle conversions (§28), not hit-test's mixed reciprocal path.
+Object drawing first alpha-fills with its style, then draws its outline,
+foundation indicator, centre marker, orientation marker and height label in
+that order, under the separate buffer-operation locks already recorded in
+§13 (`0x0047CF90..0x0047D603`). A failed lock skips its protected operation;
+it does not authorize drawing on unlocked storage.
+
+Worked name/help case: type 5 with capitalization true gives `Unknown`;
+help requests for pages 1 and 7 produce the same Paul Pedriana dialog.
+Worked draw-order case: vector `[A,B]` with overlapping equal-size bounds
+submits B's object operations then A's; fences follow both. Rejecting an
+outline lock does not suppress an independently successful centre-marker lock.
+
+### 35.2 Exactly what still requires an observation
+
+The following are **bounded observation requests, not complete rasterizer/3D
+closure claims**. The host buffer/renderer and live-city services are acquired
+interfaces. Their concrete execution and resulting pixels/terrain have not
+been measured in this lane. An observation must include its input fixture and
+the call arguments/return values, not a screenshot alone.
+
+| ID / remaining row | Required original-program observation |
+|---|---|
+| LE17-R1: DrawLotConfigurationObject, DrawCurrentLotConfiguration | At s=0.5, lot 2×2, buffer 96×96, place overlapping records A/B with bounds `(4,4,12,12)` and `(8,8,16,16)`, select A, then repeat with foundation ID nonzero, orientation 0–3, heights −1/0/+1, and representative style/type flags. Record each buffer lock result, each fill/line/outline/text call and rectangle, packed color/alpha, and the final buffer bytes. Force one lock failure per operation. This discriminates exact marker endpoints, clipping, outline inclusivity, blend rounding and failure pairing; §13's reverse order and height-label quirks remain mandatory. |
+| LE17-R2: Prepare3DView `0x0047BBA0` | On a disposable flat city, record service identities, occupant-filter enumeration/removals, initial water level, every terrain read/write/update rectangle, first with slope 0 then 1 and 45. Break around `0x0047BC48..0x0047BE1D`; capture the x87 control word and intermediate stored float bits. The body scans a 28×28 area and writes a 26×26 area, but exact unsigned-slope conversion, tangent precision, store ordering and host effects must be obtained together; no numeric terrain golden value is asserted here. |
+| LE17-R3: GoTo3DView `0x0047B700` | Record the view-service `+0x40` call, terrain `+0x38` result and final view transition for lot sizes 1×1, 2×3, 255×255 and null configuration. The centre arguments are byte `(dimension >> 1)+2`, or `(3,3)` without a configuration; record the resulting world/view target rather than assuming these bytes are pixel coordinates. |
+| LE17-R4: GetAllLotBaseTextureTypes `0x0047FC50` | Open the texture selector with a controlled set of texture resources: two accepted IDs with images, a missing image, an unsupported source format and a duplicate ID. At `0x0047FDCD` record resource key, decoder Boolean/output pointer, and the final parallel ID/image arrays `+0x1C4/+0x1D0` before grid population. This settles resource-instance eligibility, duplicate handling and failed-image alignment for that fixture without inventing a row/image correspondence on failure. |
+
+Closure mapping: GetLotConfigurationObjectName, DoShowHelpUI, MessageBoxA and
+TriggerLotConfigurationRedraw bodies close; retaining-wall/foundation name
+helpers close their fallback/formatting portions. DrawLotConfigurationObject,
+DrawCurrentLotConfiguration, Prepare3DView, GoTo3DView and
+GetAllLotBaseTextureTypes remain **partial** with the exact observations above.
+The LE5 README group must not be marked fully closed from this section.
+
+## 36. Shared constructor/decoder attribution (LE18) *[compat]*
+
+Keep three distinct facts: an editor call reaches a body; the body's behavior
+is a dependency; the original source file/class exclusively owned that body.
+The first two do not establish the third. The five shared bodies/427 current
+export bytes in §18 remain the same five units:
+
+| Entry | Current bytes | Attribution that the available evidence supports |
+|---|---:|---|
+| `0x00478360` | 64 | Generic 0x34-byte lot-object record initialization (§9.4); six exported direct calls from AddNewLotConfigurationObject, no editor-this/state access proving exclusive ownership. |
+| `0x00604920` | 169 | Resource-to-buffer conversion entry, invoked by texture enumeration; opens resource IID `0x1AB50C3F`, obtains source data, dispatches on its format and obtains buffer IID `0x20732180`. Resource/buffer services are general dependencies. |
+| `0x006049BF` | 7 | Decoder format dispatch fragment. |
+| `0x006049C6` | 7 | Decoder format dispatch fragment. |
+| `0x006049CD` | 180 | Exported shared switch case, including its discontiguous ranges from §18; not an editor member established by a source symbol. |
+
+The decoder nulls the caller's output pointer before resource acquisition;
+failed acquisition returns false (`0x00604938..0x00604951`, `0x00604B6B`).
+Its buffer factory and resource format dispatch are independent of editor
+selection/mode. Count neither the two historical interior addresses
+`0x006049D4/0x00604A67` nor decoder reachability as additional editor bodies.
+No bytes are restored to the editor's exclusive-ownership total by this rule.
+
+Worked attribution case: opening the texture selector and reaching
+`0x00604920` once adds one observed dependency call, **zero new function
+entries and zero exclusively attributed editor bytes**. The inventory still
+has five shared entries totalling 427, not seven entries after adding the
+historical fragments. Constructing a new type-1 record exercises the record
+initializer without making the generic initializer an editor method.
+
+Closure mapping: the five R/shared-helper ownership rows are classified as
+shared dependencies; they are not C editor-body credit. **LE18-R observation:**
+break at all five actual entries while opening a texture selector and while
+opening another image-resource consumer, recording call stacks, resource keys,
+buffer interface targets and returns. This can demonstrate additional sharing
+and selects the concrete decoder path for LE17-R4. It cannot prove exclusive
+source ownership by the absence of other hits. Exclusive source provenance
+would require an original link/debug/source map, not a finite runtime trace;
+that evidence is unavailable here. Keep that attribution boundary explicit
+rather than reopening broad LE5 or claiming a runtime trace proves a source file.
+
+### 36.1 LE9–LE18 disposition
+
+§27–§36 supersede the earlier broad LE3/LE4/LE5/LE7 stopping labels only for
+the rows explicitly mapped in each section. LE9–LE15 have static contracts;
+LE16 has an explicit malformed-state observation; LE17 is narrowed to four
+specified observations; LE18 resolves shared-versus-exclusive accounting and
+states the provenance limit. No game observation or complete-owner closure
+was performed or inferred. All ten entries are archived with these limits.
+
 ## 19. Window-owner integration and slot inventory *[compat]*
 
 Added 2026-10-23, re-lotcfg-editor5. Sections 1–18 and the
