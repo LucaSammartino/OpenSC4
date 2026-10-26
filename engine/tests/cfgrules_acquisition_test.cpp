@@ -11,7 +11,7 @@ struct Fake {
     unsigned lit = 2;
     std::vector<unsigned> disabled;
     std::string order;
-    bool Begin() { ++begins; order += 'B'; return available; }
+    bool Begin() { ++begins; pixels = 0; order += 'B'; return available; }
     void ClearColor() { order += 'Z'; }
     void Clear() { ++clears; order += 'C'; }
     void Disable(unsigned c) { disabled.push_back(c); }
@@ -26,12 +26,12 @@ struct Fake {
         order += 'A';
     }
     void Draw() { ++draws; order += 'D'; }
-    bool Copy() { ++copies; assert(draws == 20 && flushes == 19); order += 'R'; return copyAvailable; }
+    bool Copy() { ++copies; assert(draws == 20 * begins && flushes == 21 * begins - 2); order += 'R'; return copyAvailable; }
     void Flush() { ++flushes; order += 'F'; }
     void End() { ++ends; order += 'E'; }
     bool HasBuffer() { return buffer; }
     uint32_t Pixel(int x, int y) {
-        assert(ends == 1 && clears == 21 && flushes == 21);
+        assert(ends == begins && clears == 21 * begins && flushes == 21 * begins);
         assert(x == 4 + static_cast<int>(pixels % 8) * 8 && y == 4 + static_cast<int>(pixels / 8) * 8);
         return pixels++ < lit ? 0x00010000 : 0xff000000;
     }
@@ -42,6 +42,13 @@ struct Store {
     std::vector<bool> sets;
     bool Get() { ++gets; return enabled; }
     void Set(bool b) { sets.push_back(b); enabled = present && b; }
+};
+struct RendererSource {
+    bool view, qi;
+    unsigned queries = 0, facades = 0;
+    bool FindView() { return view; }
+    bool QueryRenderer() { ++queries; return qi; }
+    bool CreateFacade() { ++facades; return true; }
 };
 int main() {
     bool result = true;
@@ -60,6 +67,15 @@ int main() {
     assert(!Probe(noInterface, true, result) && noInterface.ends == 1 && noInterface.clears == 21);
     Fake noService; noService.available = false;
     assert(!Probe(noService, true, result) && noService.draws == 0);
+    // GR11: a live view uses its renderer; a failed QI is unavailable, not a
+    // reason to construct another object. Before any view, use an inert facade.
+    RendererSource live{true, true}, failed{true, false}, beforeView{false, false};
+    assert(AcquireRenderer(live) && live.queries == 1 && live.facades == 0);
+    assert(!AcquireRenderer(failed) && failed.queries == 1 && failed.facades == 0);
+    assert(AcquireRenderer(beforeView) && beforeView.queries == 0 && beforeView.facades == 1);
+    Fake twice;
+    assert(Probe(twice, true, result) && Probe(twice, true, result));
+    assert(twice.draws == 40 && twice.clears == 42 && twice.flushes == 42 && twice.ends == 2);
     for (bool present : {false, true}) for (bool enabled : {false, true}) {
         if (!present && enabled) continue;
         Store s{present, enabled};
