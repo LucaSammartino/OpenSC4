@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Real DLL boundary oracle for automata.md 7.6.1/7.6.4/7.6.5 (NM17, AT25).
 #include "FC4AutomataInterfaces.h"
+#include "FC4TestSeam.h"
+#include "cIGZMessage2Standard.h"
 #include "game_abi.h"
 #include "cIGZCOMDirector.h"
 #include "cGZPersistResourceKey.h"
@@ -45,6 +47,50 @@ uint32_t Address(const void* p) { return static_cast<uint32_t>(reinterpret_cast<
 uint32_t Word(float f) { uint32_t u; std::memcpy(&u, &f, sizeof(u)); return u; }
 float Float(uint32_t u) { float f; std::memcpy(&f, &u, sizeof(f)); return f; }
 bool Balanced(const fc4test::SlotCall& call) { return call.espDelta == 0 && call.x87Pushed == 0; }
+
+// Real host callbacks must use the occupant sub-interface, including the
+// pointer passed to synchronous demolition listeners and the shutdown call.
+struct NetworkFixture {
+    void** network;
+    void** occupant;
+    uint32_t refs = 1, conversions = 0, shutdowns = 0, messages = 0, errors = 0;
+};
+struct MessageServerFixture { void** vtable; NetworkFixture* network; };
+NetworkFixture* NetworkOwner(void* occupant) {
+    return reinterpret_cast<NetworkFixture*>(static_cast<char*>(occupant) - sizeof(void*));
+}
+void* __fastcall AsOccupant(NetworkFixture* n, void*) { ++n->conversions; return &n->occupant; }
+uint32_t __fastcall OccupantAddRef(void* o, void*) { return ++NetworkOwner(o)->refs; }
+uint32_t __fastcall OccupantRelease(void* o, void*) { return --NetworkOwner(o)->refs; }
+bool __fastcall OccupantShutdown(void* o, void*) { ++NetworkOwner(o)->shutdowns; return true; }
+bool __fastcall DemolitionMessage(MessageServerFixture* server, void*, cIGZMessage2* message) {
+    auto* n = server->network;
+    auto* m = static_cast<cIGZMessage2Standard*>(message);
+    const auto occupant = reinterpret_cast<cIGZUnknown*>(&n->occupant);
+    ++n->messages;
+    if (m->GetType() != 0xAA7A014D || m->GetVoid1() != occupant || m->GetIGZUnknown() != occupant ||
+        n->refs != 2) ++n->errors;
+    return true;
+}
+bool NetworkToolViews(HMODULE dll) {
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(dll, "FC4TestSeam"));
+    if (!seam) return false;
+    void* networkTable[49]{};
+    void* occupantTable[5]{};
+    void* messageTable[4]{};
+    networkTable[48] = reinterpret_cast<void*>(&AsOccupant);
+    occupantTable[1] = reinterpret_cast<void*>(&OccupantAddRef);
+    occupantTable[2] = reinterpret_cast<void*>(&OccupantRelease);
+    occupantTable[4] = reinterpret_cast<void*>(&OccupantShutdown);
+    messageTable[3] = reinterpret_cast<void*>(&DemolitionMessage);
+    NetworkFixture network{networkTable, occupantTable};
+    MessageServerFixture server{messageTable, &network};
+    if (seam(kFC4SeamNetworkToolOccupantViews, &network, &server) != 1 || network.refs != 1 ||
+        network.conversions != 2 || network.shutdowns != 1 || network.messages != 1 || network.errors != 0)
+        return false;
+    std::puts("network demolition: distinct occupant receiver, synchronous payload and lifetime PASS");
+    return true;
+}
 
 struct GuardedPosition {
     uint32_t before = 0xDEAD1234;
@@ -134,6 +180,7 @@ int main(int argc, char** argv) {
     auto* director = getDirector ? getDirector() : nullptr;
     if (!director) return 3;
     director->EnumClassObjects(&EnumClass, nullptr);
+    if (!NetworkToolViews(dll)) return 6;
     for (const uint32_t managerClass : {0xC98F9D17u, 0xA98F9D3Bu})
         for (bool drainFirst : {false, true})
             if (!Crew(director, managerClass, drainFirst)) return 4;

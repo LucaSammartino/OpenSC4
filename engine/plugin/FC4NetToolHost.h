@@ -207,4 +207,6 @@ public:
     virtual void SetTerrainHeights(const float heights[4]) = 0;  // 95
 };
 
+intptr_t NetToolOccupantViewsTest(cIGZUnknown* network, cIGZMessageServer2* server);
+
 }  // namespace fc4
