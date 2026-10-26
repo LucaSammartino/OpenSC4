@@ -397,6 +397,34 @@ fn rejected_network_pick_falls_back_to_automaton_only_when_not_driving() {
 }
 
 #[test]
+fn choosing_empty_click_preserves_pause_and_does_not_start_driving() {
+    for network in [None, Some(NetworkOccupant(55))] {
+        let mut owner = PlayerDrive::new(99);
+        let mut f = Foreign {
+            paused: true,
+            network,
+            ..Foreign::default()
+        };
+        assert_eq!(
+            owner.on_mouse_down_l(&mut f, P, CameraFields::default()),
+            Ok(Progress::Ignored)
+        );
+        assert_eq!(owner.mode(), Mode::Choosing);
+        assert_eq!(owner.current(), None);
+        assert!(f.paused);
+        assert!(f.operations.is_empty());
+        assert_eq!(
+            f.queries,
+            if network.is_some() {
+                vec!["pick_network", "accept42", "pick_auto"]
+            } else {
+                vec!["pick_network", "pick_auto"]
+            }
+        );
+    }
+}
+
+#[test]
 fn flags_gate_independently_for_commands_and_mouse_drive_fields() {
     for (flags, valid) in [
         (0, true),

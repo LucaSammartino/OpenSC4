@@ -536,6 +536,7 @@ impl PlayerDrive {
             if self.hover.is_none() {
                 host.emit(Operation::ClearCursorText(CURSOR_TEXT));
             }
+            // SPEC-GAP: DR3/DR6 leave non-null hover text and reference effects open.
             Ok(Progress::Partial(vec![Unsupported::HoverOwnershipAndText]))
         }
     }
