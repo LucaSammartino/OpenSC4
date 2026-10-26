@@ -155,12 +155,7 @@ impl Decal {
         }
         true
     }
-    pub fn set_pointer(
-        &mut self,
-        id: u32,
-        texture: Option<u64>,
-        renderer: &mut impl Renderer,
-    ) -> bool {
+    pub fn set_pointer(&mut self, id: u32, texture: Option<u64>, renderer: &mut impl Renderer) -> bool {
         if id != 6 {
             return false;
         }
@@ -220,8 +215,7 @@ impl Decal {
         self.handle = renderer.create(Creation {
             binding,
             center: self.center,
-            size: (f64::from(self.size_scale) * f64::from(sample(&self.description.size, phase)))
-                as f32,
+            size: (f64::from(self.size_scale) * f64::from(sample(&self.description.size, phase))) as f32,
             angle: (f64::from(self.angle)
                 + f64::from(factors[2]) * f64::from(sample(&self.description.rotation, phase)))
                 as f32,
@@ -270,8 +264,7 @@ impl Decal {
         }
         self.center = [t.translation[0], t.translation[2]];
         self.size_scale = (f64::from(t.scale) * f64::from(factors[1])) as f32;
-        self.angle = ((-f64::from(t.rotation[2][0])).atan2(r00)
-            * f64::from(f32::from_bits(0x3e22f983))) as f32;
+        self.angle = ((-f64::from(t.rotation[2][0])).atan2(r00) * f64::from(f32::from_bits(0x3e22f983))) as f32;
         if self.handle != INVALID_HANDLE && self.description.flags & 0x40 != 0 {
             let projection = renderer.get_projection(self.handle);
             renderer.place(self.handle, self.placement(projection, 0.)?);
@@ -279,8 +272,7 @@ impl Decal {
         Ok(())
     }
     fn projection(&self, mut record: [u32; 7], phase: f64) -> [u32; 7] {
-        let aspect = (f64::from(sample(&self.description.aspect, phase))
-            * f64::from(self.mapping[1])) as f32;
+        let aspect = (f64::from(sample(&self.description.aspect, phase)) * f64::from(self.mapping[1])) as f32;
         record[2] = aspect.to_bits();
         let mapping = f64::from(self.mapping[0]) * f64::from(self.description.mapping_scale);
         record[3] = if self.description.flags & 8 == 0 {
@@ -396,8 +388,7 @@ pub fn sample_colour(values: &[[f32; 3]], phase: f64) -> [f32; 3] {
         values[i]
     } else {
         std::array::from_fn(|j| {
-            ((1. - fraction) * f64::from(values[i][j]) + fraction * f64::from(values[i + 1][j]))
-                as f32
+            ((1. - fraction) * f64::from(values[i][j]) + fraction * f64::from(values[i + 1][j])) as f32
         })
     }
 }

@@ -103,16 +103,10 @@ pub fn primary_sector(current: u32, a: u32, b: u32) -> bool {
 pub fn support_point(reference: Pair, direction: Pair, body: &Body) -> Result<Pair> {
     body.validate()?;
     let direction = wide(direction);
-    let d = f64::from(store(dot(
-        difference(body.position, reference)?,
-        direction,
-    )?)?);
+    let d = f64::from(store(dot(difference(body.position, reference)?, direction)?)?);
     let [c, s] = wide(body.axis);
     let [ex, ey] = wide(body.extents);
-    let mut u = [
-        f64::from(store(mul(ex, c)?)?),
-        f64::from(store(mul(ex, s)?)?),
-    ];
+    let mut u = [f64::from(store(mul(ex, c)?)?), f64::from(store(mul(ex, s)?)?)];
     let mut v = [mul(ey, -s)?, f64::from(store(mul(ey, c)?)?)];
     if mul(dot(u, direction)?, d)? > 0.0 {
         u = u.map(|x| -x);
@@ -188,18 +182,10 @@ pub fn test_for_collision_observed(
     let [ax, ay] = wide(a.extents);
     let [bx, by] = wide(b.extents);
     // Evaluate in CFG order: do not eagerly evaluate later separations.
-    if sub(
-        u.abs(),
-        add(add(mul(c, bx)?.abs(), mul(-s, by)?.abs())?, ax)?,
-    )? > 0.0
-    {
+    if sub(u.abs(), add(add(mul(c, bx)?.abs(), mul(-s, by)?.abs())?, ax)?)? > 0.0 {
         return Ok(false);
     }
-    if sub(
-        v.abs(),
-        add(add(mul(c, by)?.abs(), mul(s, bx)?.abs())?, ay)?,
-    )? > 0.0
-    {
+    if sub(v.abs(), add(add(mul(c, by)?.abs(), mul(s, bx)?.abs())?, ay)?)? > 0.0 {
         return Ok(false);
     }
     if sub(
@@ -310,10 +296,7 @@ pub fn advance_phases(dt_bits: u32) -> [AdvancePhase; 3] {
 pub fn advance_time(dt_bits: u32) -> Result<()> {
     for phase in advance_phases(dt_bits) {
         match phase {
-            AdvancePhase::Inner {
-                root_offset,
-                dt_bits,
-            } => advance_inner(root_offset, dt_bits)?,
+            AdvancePhase::Inner { root_offset, dt_bits } => advance_inner(root_offset, dt_bits)?,
             AdvancePhase::Collisions => do_collisions()?,
         }
     }

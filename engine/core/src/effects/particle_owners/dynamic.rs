@@ -107,11 +107,7 @@ impl DynamicParticles {
         Ok(true)
     }
     /// §21.3 first acquisition and refcount transitions on explicit keys.
-    pub fn activate_sector(
-        &mut self,
-        key: SectorKey,
-        foreign: &mut impl Foreign,
-    ) -> Result<(), Unsupported> {
+    pub fn activate_sector(&mut self, key: SectorKey, foreign: &mut impl Foreign) -> Result<(), Unsupported> {
         if let Some(sector) = self.sectors.get_mut(&key) {
             sector.references += 1;
             return Ok(());
@@ -134,12 +130,7 @@ impl DynamicParticles {
         };
         sector.references -= 1;
         if sector.references == 0 {
-            for body in self
-                .sectors
-                .remove(&key)
-                .expect("active sector")
-                .static_bodies
-            {
+            for body in self.sectors.remove(&key).expect("active sector").static_bodies {
                 self.bodies.remove_object(body);
             }
         }
@@ -160,11 +151,7 @@ impl DynamicParticles {
         }
         Ok(())
     }
-    pub fn delete_particle(
-        &mut self,
-        id: EntryId,
-        foreign: &mut impl Foreign,
-    ) -> Result<(), Unsupported> {
+    pub fn delete_particle(&mut self, id: EntryId, foreign: &mut impl Foreign) -> Result<(), Unsupported> {
         let Some(entry) = self.entries.get(&id) else {
             return Ok(());
         };
@@ -235,10 +222,7 @@ impl DynamicParticles {
         Ok(())
     }
     pub fn draw(&self, foreign: &mut impl Foreign) -> Result<bool, Unsupported> {
-        let needs_shading = self
-            .entries
-            .values()
-            .any(|e| e.body.is_some() && e.drawable.is_some());
+        let needs_shading = self.entries.values().any(|e| e.body.is_some() && e.drawable.is_some());
         foreign.reset_shading();
         if needs_shading {
             Err(Unsupported::PT10)
@@ -280,15 +264,9 @@ pub fn static_candidate(occupant: u64, foreign: &mut impl StaticCandidate) -> Op
     if foreign.category(object, 0x0292_44db) {
         return None;
     }
-    if ![
-        0x2781_2821,
-        0x2781_2820,
-        0x2781_2822,
-        0x2781_2823,
-        0x2781_2824,
-    ]
-    .into_iter()
-    .any(|id| foreign.category(object, id))
+    if ![0x2781_2821, 0x2781_2820, 0x2781_2822, 0x2781_2823, 0x2781_2824]
+        .into_iter()
+        .any(|id| foreign.category(object, id))
     {
         return None;
     }
@@ -300,6 +278,6 @@ pub fn terrain_prefix(body: &mut PhysicalDescription, height: f32, dt: f32) {
     if body.height < floor {
         body.height = floor;
     }
-    body.height_velocity = (f64::from(body.height_velocity)
-        - f64::from(dt) * f64::from(f32::from_bits(0x411c_cccd))) as f32;
+    body.height_velocity =
+        (f64::from(body.height_velocity) - f64::from(dt) * f64::from(f32::from_bits(0x411c_cccd))) as f32;
 }

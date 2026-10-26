@@ -130,14 +130,7 @@ impl Motion {
         if self.description.value.words[&4] & 1 != 0 {
             return Err(Unsupported::PT1);
         }
-        if !self
-            .description
-            .value
-            .floats
-            .get(&0x1a4)
-            .map_or(true, Vec::is_empty)
-            && self.scalar(0x1b0) > 0.
-        {
+        if !self.description.value.floats.get(&0x1a4).map_or(true, Vec::is_empty) && self.scalar(0x1b0) > 0. {
             return Err(Unsupported::PT1);
         }
         Ok(())
@@ -176,24 +169,14 @@ impl Motion {
         if self.flags() & 0x100 == 0 {
             return;
         }
-        let name = self
-            .description
-            .value
-            .strings
-            .get(&0x160)
-            .cloned()
-            .unwrap_or_default();
+        let name = self.description.value.strings.get(&0x160).cloned().unwrap_or_default();
         let mut terrain = name.clone();
         terrain.extend_from_slice(b"_terrain");
         let mut water = name;
         water.extend_from_slice(b"_water");
         self.collision_effects = Some([lookup(&terrain), lookup(&water)]);
     }
-    pub fn prepare_start(
-        &mut self,
-        rng: &mut RzRandom,
-        sea_access: Option<u32>,
-    ) -> Result<(), Unsupported> {
+    pub fn prepare_start(&mut self, rng: &mut RzRandom, sea_access: Option<u32>) -> Result<(), Unsupported> {
         self.reset_force();
         if self.flags() & 0x800000 != 0 {
             for i in 0..3 {
@@ -208,8 +191,7 @@ impl Motion {
                 // The immediately called random-walk helper is not specified.
                 return Err(Unsupported::PT1);
             }
-            let strength =
-                rng.range_f64(f64::from(self.scalar(0x17c)), f64::from(self.scalar(0x180)));
+            let strength = rng.range_f64(f64::from(self.scalar(0x17c)), f64::from(self.scalar(0x180)));
             let length = self
                 .walk
                 .iter()
@@ -221,8 +203,7 @@ impl Motion {
                     *v = (f64::from(*v) * strength / length) as f32;
                 }
             }
-            self.walk_delay =
-                rng.range_f64(f64::from(self.scalar(0x174)), f64::from(self.scalar(0x178))) as f32;
+            self.walk_delay = rng.range_f64(f64::from(self.scalar(0x174)), f64::from(self.scalar(0x178))) as f32;
         }
         if self.flags() & 0x2000000 != 0 {
             let access = sea_access.ok_or(Unsupported::PT1)?;
@@ -238,9 +219,7 @@ impl Motion {
             self.preferred = direction.map(|v| {
                 std::array::from_fn(|i| {
                     let row = self.inverse_rotation[i];
-                    ((f64::from(row[0]) * v[0]
-                        + f64::from(row[1]) * v[1]
-                        + f64::from(row[2]) * v[2])
+                    ((f64::from(row[0]) * v[0] + f64::from(row[1]) * v[1] + f64::from(row[2]) * v[2])
                         / f64::from(self.inverse_scale)) as f32
                 })
             });
@@ -251,56 +230,41 @@ impl Motion {
         for i in 0..3 {
             self.force[i] = (f64::from(self.scalar(0xe0 + i as u32 * 4))
                 + f64::from(self.walk[i])
-                + f64::from(self.scalar(0xec)) * f64::from(self.wind[i]))
-                as f32;
+                + f64::from(self.scalar(0xec)) * f64::from(self.wind[i])) as f32;
         }
     }
     /// Life was drawn first by ParticleSimulator::create. Remaining draws are
     /// x,y,z position, x,y,z direction, speed, six variances, optional rotation.
     pub fn init(&self, rng: &mut RzRandom) -> Result<Record, Unsupported> {
-        let draw =
-            |rng: &mut RzRandom, a: f32, b: f32| rng.range_f64(f64::from(a), f64::from(b)) as f32;
+        let draw = |rng: &mut RzRandom, a: f32, b: f32| rng.range_f64(f64::from(a), f64::from(b)) as f32;
         let mut p = [0.; 3];
         let mut v = [0.; 3];
         for (i, value) in p.iter_mut().enumerate() {
             *value = draw(rng, self.emission_box[0][i], self.emission_box[1][i]);
         }
         for (i, value) in v.iter_mut().enumerate() {
-            *value = draw(
-                rng,
-                self.scalar(0x30 + i as u32 * 4),
-                self.scalar(0x3c + i as u32 * 4),
-            );
+            *value = draw(rng, self.scalar(0x30 + i as u32 * 4), self.scalar(0x3c + i as u32 * 4));
         }
-        let speed = f64::from(draw(rng, self.scalar(0x48), self.scalar(0x4c)))
-            * f64::from(self.speed_scale);
-        let length = v
-            .iter()
-            .fold(0., |sum, &x| sum + f64::from(x) * f64::from(x))
-            .sqrt();
+        let speed = f64::from(draw(rng, self.scalar(0x48), self.scalar(0x4c))) * f64::from(self.speed_scale);
+        let length = v.iter().fold(0., |sum, &x| sum + f64::from(x) * f64::from(x)).sqrt();
         if length > 0. {
             for x in &mut v {
                 *x = (f64::from(*x) * speed / length) as f32;
             }
         }
         if self.scalar(0xf0) > 0. {
-            let d: [f64; 3] = std::array::from_fn(|i| {
-                f64::from(p[i]) - f64::from(self.scalar(0xf4 + i as u32 * 4))
-            });
+            let d: [f64; 3] = std::array::from_fn(|i| f64::from(p[i]) - f64::from(self.scalar(0xf4 + i as u32 * 4)));
             let q = (d[0] * d[0] + d[2] * d[2] + d[1] * d[1]) as f32;
             if q >= 0. && q.abs() >= 1e-4 {
                 for i in 0..3 {
-                    v[i] = (f64::from(v[i])
-                        + d[i] * f64::from(self.scalar(0xf0)) / f64::from(q).sqrt())
-                        as f32;
+                    v[i] = (f64::from(v[i]) + d[i] * f64::from(self.scalar(0xf0)) / f64::from(q).sqrt()) as f32;
                 }
             }
         }
         let transform = |value: [f32; 3], scale: f32, offset: [f32; 3]| {
             std::array::from_fn(|i| {
                 let row = self.rotation[i].map(f64::from);
-                ((((row[2] * f64::from(value[2]) + row[1] * f64::from(value[1]))
-                    + row[0] * f64::from(value[0]))
+                ((((row[2] * f64::from(value[2]) + row[1] * f64::from(value[1])) + row[0] * f64::from(value[0]))
                     * f64::from(scale))
                     + f64::from(offset[i])) as f32
             })
@@ -313,38 +277,22 @@ impl Motion {
         if self.flags() & 0x20 != 0 {
             let mut factor = 1.;
             if self.scalar(0xdc) != 0. {
-                let dot = |a: [f32; 3]| {
-                    (0..3)
-                        .map(|i| f64::from(v[i]) * f64::from(a[i]))
-                        .sum::<f64>()
-                };
+                let dot = |a: [f32; 3]| (0..3).map(|i| f64::from(v[i]) * f64::from(a[i])).sum::<f64>();
                 let a = dot(self.lead_axes[1]);
                 let b = dot(self.lead_axes[0]);
                 factor = (b * b + a * a).sqrt() / f64::from(self.scalar(0xdc));
             }
             let c = self.description.value.floats[&0xac][0];
             for i in 0..3 {
-                p[i] = (f64::from(p[i])
-                    + (((f64::from(v[i]) * 0.5) * factor) * f64::from(c)) * (1. / speed))
-                    as f32;
+                p[i] = (f64::from(p[i]) + (((f64::from(v[i]) * 0.5) * factor) * f64::from(c)) * (1. / speed)) as f32;
             }
         }
         let mut factors = [0.; 7];
-        for (index, at) in [
-            (0, 0x68),
-            (1, 0x6c),
-            (3, 0x78),
-            (4, 0x7c),
-            (5, 0x80),
-            (6, 0x84),
-        ] {
+        for (index, at) in [(0, 0x68), (1, 0x6c), (3, 0x78), (4, 0x7c), (5, 0x80), (6, 0x84)] {
             let variance = self.scalar(at);
-            factors[index] =
-                rng.range_f64(1. - f64::from(variance), 1. + f64::from(variance)) as f32;
+            factors[index] = rng.range_f64(1. - f64::from(variance), 1. + f64::from(variance)) as f32;
         }
-        factors[0] = (f64::from(factors[0])
-            * f64::from(self.size_scales[0])
-            * f64::from(self.size_scales[1])) as f32;
+        factors[0] = (f64::from(factors[0]) * f64::from(self.size_scales[0]) * f64::from(self.size_scales[1])) as f32;
         let rotation = self.scalar(0x70);
         factors[2] = if rotation <= 0. {
             1.
@@ -378,8 +326,7 @@ impl Motion {
             let accelerated = (f64::from(old) + f64::from(dt) * f64::from(self.force[i])) as f32;
             record.velocity[i] = (f64::from(accelerated) * drag) as f32;
             let sum = record.velocity[i] + old;
-            record.position[i] =
-                (f64::from(record.position[i]) + f64::from(sum) * (f64::from(dt) * 0.5)) as f32;
+            record.position[i] = (f64::from(record.position[i]) + f64::from(sum) * (f64::from(dt) * 0.5)) as f32;
         }
         Ok(())
     }
@@ -391,12 +338,10 @@ impl Motion {
                 return Err(Unsupported::PT1);
             }
             for i in 0..3 {
-                record.position[i] = (f64::from(record.position[i])
-                    + f64::from(step) * f64::from(record.velocity[i]))
-                    as f32;
-                record.velocity[i] = (f64::from(record.velocity[i])
-                    + f64::from(step) * f64::from(self.force[i]))
-                    as f32;
+                record.position[i] =
+                    (f64::from(record.position[i]) + f64::from(step) * f64::from(record.velocity[i])) as f32;
+                record.velocity[i] =
+                    (f64::from(record.velocity[i]) + f64::from(step) * f64::from(self.force[i])) as f32;
             }
             if self.flags() & 0x8000000 != 0 {
                 return Err(Unsupported::PT1);
@@ -443,11 +388,7 @@ pub fn birth_events(events: &[(Vec<u8>, f32)]) -> impl Iterator<Item = &[u8]> {
         .take_while(|(_, age)| *age == 0.)
         .map(|(name, _)| name.as_slice())
 }
-pub fn crossing_events(
-    events: &[(Vec<u8>, f32)],
-    age: f32,
-    dt: f32,
-) -> impl Iterator<Item = &[u8]> {
+pub fn crossing_events(events: &[(Vec<u8>, f32)], age: f32, dt: f32) -> impl Iterator<Item = &[u8]> {
     events
         .iter()
         .filter(move |(_, time)| {
@@ -464,12 +405,7 @@ pub trait EventDirectory {
     fn start(&mut self, component: u64, mode: u32);
     fn release_created(&mut self, component: u64);
 }
-pub fn fire_event(
-    name: &[u8],
-    suffix: &[u8],
-    position: [f32; 3],
-    directory: &mut impl EventDirectory,
-) {
+pub fn fire_event(name: &[u8], suffix: &[u8], position: [f32; 3], directory: &mut impl EventDirectory) {
     let mut complete = name.to_vec();
     complete.extend(suffix.iter().copied().take_while(|&byte| byte != 0));
     if let Some(component) = directory.lookup(&complete) {
@@ -499,16 +435,13 @@ impl Motion {
         let colour = sample_colour(&d.vectors[&0x94], phase);
         let size = f64::from(sample(&d.floats[&0xac], phase)) * f64::from(record.factors[0]);
         DrawFactors {
-            colour: std::array::from_fn(|i| {
-                (f64::from(colour[i]) * f64::from(record.factors[4 + i])) as f32
-            }),
+            colour: std::array::from_fn(|i| (f64::from(colour[i]) * f64::from(record.factors[4 + i])) as f32),
             opacity: (f64::from(sample(&d.floats[&0xa0], phase))
                 * f64::from(record.factors[3])
                 * f64::from(self.opacity_scale)) as f32,
             basis_lengths: [
                 size as f32,
-                (size * f64::from(sample(&d.floats[&0xb8], phase)) * f64::from(record.factors[1]))
-                    as f32,
+                (size * f64::from(sample(&d.floats[&0xb8], phase)) * f64::from(record.factors[1])) as f32,
             ],
         }
     }
@@ -526,11 +459,7 @@ impl Motion {
             self.working_box = self.emission_box;
             self.previous_center = std::array::from_fn(|i| {
                 let sum = f64::from(self.working_box[0][i]) + f64::from(self.working_box[1][i]);
-                (if i == 0 {
-                    sum * 0.5
-                } else {
-                    f64::from(sum as f32) * 0.5
-                }) as f32
+                (if i == 0 { sum * 0.5 } else { f64::from(sum as f32) * 0.5 }) as f32
             });
         }
         let [a, b] = self.transforms;
@@ -540,18 +469,10 @@ impl Motion {
             let dot = (row[2] * p[2] + row[1] * p[1]) + row[0] * p[0];
             let dot = if i == 2 { f64::from(dot as f32) } else { dot };
             let scaled = dot * f64::from(b.scale);
-            let scaled = if i == 0 {
-                f64::from(scaled as f32)
-            } else {
-                scaled
-            };
+            let scaled = if i == 0 { f64::from(scaled as f32) } else { scaled };
             let center = (scaled + f64::from(b.translation[i])) as f32;
             let delta = f64::from(center) - f64::from(self.previous_center[i]);
-            let delta = if i == 0 {
-                f64::from(delta as f32)
-            } else {
-                delta
-            };
+            let delta = if i == 0 { f64::from(delta as f32) } else { delta };
             for bound in &mut self.working_box {
                 bound[i] = (f64::from(bound[i]) + delta) as f32;
             }
@@ -573,8 +494,7 @@ impl Motion {
             4 => self.parameter_colour.copy_from_slice(&v[..3]),
             5 => return Some(Err(Unsupported::PT1)), // SPEC-GAP: slot 12 aim arithmetic needs the §13.2 capture.
             9 => {
-                let sum =
-                    (f64::from(self.working_box[0][1]) + f64::from(self.working_box[1][1])) as f32;
+                let sum = (f64::from(self.working_box[0][1]) + f64::from(self.working_box[1][1])) as f32;
                 let h = f64::from(sum) * 0.5 - f64::from(v[1]);
                 let q = 1. / f64::from(v[4]);
                 self.point[0] = (f64::from(v[0]) + h * f64::from(v[3]) * q) as f32;

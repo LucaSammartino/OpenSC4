@@ -173,10 +173,7 @@ fn po01_through_po06_geometry_channels_and_reference_order() {
     assert!(f.calls.is_empty());
     assert_eq!(g.source, Some(1));
     g.set_source(Some(2), &mut f);
-    assert_eq!(
-        f.calls,
-        ["retain:2", "release:1", "release:101", "retain:102"]
-    );
+    assert_eq!(f.calls, ["retain:2", "release:1", "release:101", "retain:102"]);
     assert_eq!(g.textures, [102]);
     f.calls.clear();
     g.set_resource(9, &mut f);
@@ -289,10 +286,7 @@ fn decal_copy_preserves_handle_and_pointer_replacement_is_balanced() {
             process_clock: 2,
         },
     );
-    assert_eq!(
-        d.set_description(&d.description.clone(), &mut f, &mut rng),
-        Ok(())
-    );
+    assert_eq!(d.set_description(&d.description.clone(), &mut f, &mut rng), Ok(()));
     assert!(d.started);
     assert_eq!(d.handle, 42);
     assert_eq!(f.calls, ["release:2"]);
@@ -307,10 +301,7 @@ fn po19_through_po27_dynamic_messages_sectors_and_lifetimes() {
         d.do_message(7, || panic!("must not read payload"), [100.; 2]),
         Ok(false)
     );
-    assert_eq!(
-        d.do_message(dynamic::MESSAGE, || 10000, [100.; 2]),
-        Ok(true)
-    );
+    assert_eq!(d.do_message(dynamic::MESSAGE, || 10000, [100.; 2]), Ok(true));
     assert_eq!(d.seconds, 0.01);
     assert!(d.steps.iter().all(|&s| s > 0. && s <= dynamic::MAX_STEP));
     d.tick(100000, [100.; 2]).unwrap();
@@ -327,8 +318,7 @@ fn po19_through_po27_dynamic_messages_sectors_and_lifetimes() {
     d.activate_sector(a, &mut f).unwrap();
     d.activate_sector(shared, &mut f).unwrap();
     f.calls.clear();
-    d.move_neighborhood(&[a, shared], &[shared, b], &mut f)
-        .unwrap();
+    d.move_neighborhood(&[a, shared], &[shared, b], &mut f).unwrap();
     assert_eq!(d.sectors[&shared].references, 1);
     assert!(!d.sectors.contains_key(&a));
     assert_eq!(f.calls, ["collect:(1, 1)"]);
@@ -371,9 +361,7 @@ fn po22_dynamic_live_zero_time_reaches_unsettled_transform_without_integrating()
 #[test]
 fn po28_through_po31_noncontact_body_stores_dead_sweep_and_list_order() {
     assert!(primary_collision_sector(0x00040005, 0x00020005, 0x00040003));
-    assert!(!primary_collision_sector(
-        0x00020005, 0x00020005, 0x00040003
-    ));
+    assert!(!primary_collision_sector(0x00020005, 0x00020005, 0x00040003));
     let mut s = Simulator::default();
     let a = s.add_object(&body(), false);
     s.advance_time(0.5).unwrap();
@@ -587,10 +575,7 @@ fn inactive_attractor_curve_does_not_require_unsettled_helper() {
     }
     let mut d = particle_description();
     d.value.floats.insert(0x1a4, vec![1., 2.]);
-    assert_eq!(
-        ordinary::Motion::new(&d).unwrap().validate(),
-        Err(Unsupported::PT1)
-    );
+    assert_eq!(ordinary::Motion::new(&d).unwrap().validate(), Err(Unsupported::PT1));
 }
 
 fn particle_description() -> descriptions::ParticleDescriptionBase {
@@ -610,12 +595,8 @@ fn po36_particle_value_copy_is_deep_and_pt3_scalar_defaults_are_zero() {
     let mut a = particle_description();
     a.value.floats.insert(0x88, vec![2., 4.]);
     a.value.strings.insert(0x160, b"before".to_vec());
-    a.value
-        .vectors
-        .insert(0x108, vec![[1., 2., 3.], [4., 5., 6.]]);
-    a.value
-        .vectors
-        .insert(0x1b8, vec![[7., 8., 9.], [10., 11., 12.]]);
+    a.value.vectors.insert(0x108, vec![[1., 2., 3.], [4., 5., 6.]]);
+    a.value.vectors.insert(0x1b8, vec![[7., 8., 9.], [10., 11., 12.]]);
     a.value.timed_effects.push((b"event".to_vec(), 0.5));
     a.value.words.insert(0x204, 19);
     let mut b = particle_description();
@@ -681,11 +662,7 @@ fn ordinary_identity_event_boundaries_and_open_physics() {
     assert_eq!(ordinary::component_kind(0, f32::NAN), Ordinary);
     assert_eq!(ordinary::component_kind(1, -0.), ModelBased);
     assert_eq!(ordinary::component_kind(1, f32::NAN), GeometrySourced);
-    let events = vec![
-        (b"birth".to_vec(), 0.),
-        (b"later".to_vec(), 1.),
-        (b"last".to_vec(), 0.),
-    ];
+    let events = vec![(b"birth".to_vec(), 0.), (b"later".to_vec(), 1.), (b"last".to_vec(), 0.)];
     assert_eq!(
         ordinary::birth_events(&events).collect::<Vec<_>>(),
         vec![b"birth".as_slice()]
@@ -770,10 +747,7 @@ fn particle_binary_readers_preserve_field_widths_and_consume_both_layouts() {
         assert_eq!(d.value.vectors[&0x1b8], [[14.; 3]; 2]);
         assert_eq!(d.value.get_scalar(0x200), Some(20.));
         assert_eq!(d.value.lists[&0x1e0], [0xdeadbeef, 0xfedcba98]);
-        assert_eq!(
-            d.value.timed_effects.len(),
-            if version == 1 { 0 } else { 1 }
-        );
+        assert_eq!(d.value.timed_effects.len(), if version == 1 { 0 } else { 1 });
     }
 }
 #[test]
@@ -861,10 +835,8 @@ fn drawing_dispatch_self_lit_and_empty_no_draw_are_before_finish() {
     let mut r = RzRandom::new(9, &seeds);
     let mut commands = Vec::new();
     p.start(0, &mut r);
-    p.update_with_draw(0.1, &mut r, true, true, &mut |command| {
-        commands.push(command)
-    })
-    .unwrap();
+    p.update_with_draw(0.1, &mut r, true, true, &mut |command| commands.push(command))
+        .unwrap();
     assert_eq!(
         commands,
         [
@@ -878,10 +850,8 @@ fn drawing_dispatch_self_lit_and_empty_no_draw_are_before_finish() {
     );
     p.stop(0);
     commands.clear();
-    p.update_with_draw(3., &mut r, true, true, &mut |command| {
-        commands.push(command)
-    })
-    .unwrap();
+    p.update_with_draw(3., &mut r, true, true, &mut |command| commands.push(command))
+        .unwrap();
     assert_eq!(commands, [Slot(19)]);
     assert!(!p.is_active());
 }
@@ -997,16 +967,8 @@ fn pt2_literal_suffix_and_directory_call_order() {
         found: true,
         ..Directory::default()
     };
-    ordinary::fire_event(
-        b"smoke",
-        b"_water\0ignored",
-        [10., 20., 30.],
-        &mut directory,
-    );
-    assert_eq!(
-        directory.calls,
-        ["smoke_water", "transform", "start", "release"]
-    );
+    ordinary::fire_event(b"smoke", b"_water\0ignored", [10., 20., 30.], &mut directory);
+    assert_eq!(directory.calls, ["smoke_water", "transform", "start", "release"]);
     directory.calls.clear();
     directory.found = false;
     ordinary::fire_event(b"smoke", b"water", [10., 20., 30.], &mut directory);
@@ -1089,10 +1051,7 @@ fn pt13_services_are_idempotent_and_use_two_width_queries() {
     };
     state.init(2, &mut foreign);
     assert_eq!(state.extent, [48., -16.]);
-    assert_eq!(
-        foreign.calls,
-        ["retain:2", "release:1", "x", "width", "z", "width"]
-    );
+    assert_eq!(foreign.calls, ["retain:2", "release:1", "x", "width", "z", "width"]);
     foreign.calls.clear();
     state.init(99, &mut foreign);
     assert!(foreign.calls.is_empty());
@@ -1133,10 +1092,7 @@ fn pt13_transform_generations_source_box_ray_and_pointer_channels() {
     assert_eq!(motion.transforms[0].flags & 1, 1);
     assert_eq!(motion.previous_center, [0.; 3]);
     assert_eq!(motion.working_box, motion.emission_box);
-    assert_eq!(
-        motion.set_float(9, &[1., -2., 3., 2., 1., 4.]),
-        Some(Ok(true))
-    );
+    assert_eq!(motion.set_float(9, &[1., -2., 3., 2., 1., 4.]), Some(Ok(true)));
     assert_eq!(motion.point, [5., 0., 11.]);
     assert_eq!(motion.point_scale, 1.);
     for (id, v) in [
@@ -1151,11 +1107,7 @@ fn pt13_transform_generations_source_box_ray_and_pointer_channels() {
         assert_eq!(motion.set_float(id, &v), Some(Ok(true)));
     }
     assert_eq!(
-        (
-            motion.speed_scale,
-            motion.size_scales[0],
-            motion.opacity_scale
-        ),
+        (motion.speed_scale, motion.size_scales[0], motion.opacity_scale),
         (2., 3., 4.)
     );
     assert_eq!(motion.parameter_colour, [5., 6., 7.]);
@@ -1224,13 +1176,7 @@ fn pt9_worked_creation_trace_and_independent_flags() {
             0.25_f32.to_bits(),
         ];
         assert_eq!(f.projections, [expected]);
-        let mut calls = vec![
-            "terrain",
-            "service",
-            "create",
-            "get-projection",
-            "projection",
-        ];
+        let mut calls = vec!["terrain", "service", "create", "get-projection", "projection"];
         if flags & 2 != 0 {
             calls.push("enable");
         }
@@ -1252,10 +1198,7 @@ fn pt9_worked_creation_trace_and_independent_flags() {
             assert_eq!(f.placements[0].angle, 0.25);
         }
         d.stop(0, &mut f);
-        assert_eq!(
-            &f.calls[f.calls.len() - 2..],
-            ["remove:7", "release-service"]
-        );
+        assert_eq!(&f.calls[f.calls.len() - 2..], ["remove:7", "release-service"]);
     }
     let mut d = decal();
     d.description.flags = 0;
@@ -1345,8 +1288,7 @@ fn pt9_variance_draw_order_and_whole_city_service_case() {
         expected.range_f64(-0.75, 0.75) as f32,
     ];
     let mut f = Foreign::default();
-    d.set_description(&d.description.clone(), &mut f, &mut rng)
-        .unwrap();
+    d.set_description(&d.description.clone(), &mut f, &mut rng).unwrap();
     assert_eq!(d.variance, Some(factors));
     assert_eq!(rng.mul_state(), expected.mul_state());
     assert_eq!(f.calls, ["city-z", "city-x", "city-x"]);
@@ -1355,8 +1297,7 @@ fn pt9_variance_draw_order_and_whole_city_service_case() {
     d.description.variances = [0.; 3];
     expected.range_f64(1., 1.);
     expected.range_f64(1., 1.);
-    d.set_description(&d.description.clone(), &mut f, &mut rng)
-        .unwrap();
+    d.set_description(&d.description.clone(), &mut f, &mut rng).unwrap();
     assert_eq!(d.variance, Some([1.; 3]));
     assert_eq!(rng.mul_state(), expected.mul_state());
 }
@@ -1402,10 +1343,7 @@ fn pt8_null_empty_mesh_and_wave_worked_prefix() {
     assert_eq!(g.project_source(vectors, &mut f), Ok(true));
     assert_eq!(f.queries, 1);
     let mut cache = [2., 2.];
-    assert_eq!(
-        geometry::wave_prefix(&mut cache, 0.25, 4., &[400.], 0.5),
-        Some(400.)
-    );
+    assert_eq!(geometry::wave_prefix(&mut cache, 0.25, 4., &[400.], 0.5), Some(400.));
     assert_eq!(cache, [3., 2.]);
     assert_eq!(geometry::wave_prefix(&mut cache, 0.25, 0., &[], 0.5), None);
     assert_eq!(cache, [3., 2.]);
@@ -1422,10 +1360,7 @@ fn pt10_radius_key_order_reference_counts_and_terrain_prefix() {
     assert_eq!(d.entries[&id].sector, None);
     let keys = dynamic::neighborhood((0, 1), 1);
     assert_eq!(
-        keys.iter()
-            .copied()
-            .map(dynamic::packed_sector)
-            .collect::<Vec<_>>(),
+        keys.iter().copied().map(dynamic::packed_sector).collect::<Vec<_>>(),
         [0, 1, 0x10000, 0x10001, 0x20000, 0x20001]
     );
     for &key in &keys {
@@ -1460,10 +1395,7 @@ fn pt10_radius_key_order_reference_counts_and_terrain_prefix() {
     assert_eq!(d.link_particles(7, 8, [[0.; 2]; 2], 3., 1.), Ok(true));
     assert_eq!(
         d.bodies.joints[0].bodies,
-        [
-            d.entries[&id].body.unwrap(),
-            d.entries[&second].body.unwrap()
-        ]
+        [d.entries[&id].body.unwrap(), d.entries[&second].body.unwrap()]
     );
 }
 
@@ -1574,10 +1506,7 @@ fn pt11_rb_admission_and_integration_worked_cases() {
     d.friction_rates = [0.; 3];
     let id = s.add_object(&d, false);
     s.integrate_list(false, 0.).unwrap();
-    assert_eq!(
-        s.objects[&id].description.velocity.map(f32::to_bits),
-        [0; 2]
-    );
+    assert_eq!(s.objects[&id].description.velocity.map(f32::to_bits), [0; 2]);
     assert_eq!(s.objects[&id].description.angular_velocity.to_bits(), 0);
     for sign in [1., -1.] {
         d.angle = 3. * sign;
@@ -1657,4 +1586,16 @@ fn pt11_coincident_rb_c0_sector_order_and_joint_equalities() {
     s.map_object(a, false);
     assert_eq!(s.sectors[&key].ordinary, [b, c]);
     assert_eq!(s.sectors[&key].total, 2);
+}
+
+#[test]
+fn pt11_friction_clamps_strict_negatives_and_preserves_negative_zero() {
+    let mut description = body();
+    description.friction = true;
+    description.velocity = [-0.; 2];
+    description.acceleration = [-0.; 2];
+    let mut simulator = Simulator::default();
+    let id = simulator.add_object(&description, false);
+    simulator.integrate_list(false, 0.).unwrap();
+    assert_eq!(simulator.objects[&id].description.velocity.map(f32::to_bits), [0x8000_0000, 0]);
 }

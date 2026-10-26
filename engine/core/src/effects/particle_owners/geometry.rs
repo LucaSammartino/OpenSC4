@@ -94,11 +94,7 @@ impl GeometryParticles {
             resources.release(source);
         }
     }
-    pub fn set_model(
-        &mut self,
-        model: Reference,
-        resources: &mut impl Resources,
-    ) -> Result<(), Unsupported> {
+    pub fn set_model(&mut self, model: Reference, resources: &mut impl Resources) -> Result<(), Unsupported> {
         let source = resources.model_interface(model, 0x26a6_8448);
         self.set_source(source, resources);
         if let Some(source) = source {
@@ -212,13 +208,7 @@ impl GeometryParticles {
 }
 
 /// Only the qualified wave prefix; displacement/damping remain PT8.
-pub fn wave_prefix(
-    cache: &mut [f32; 2],
-    dt: f32,
-    field: f32,
-    curve: &[f32],
-    clock: f64,
-) -> Option<f32> {
+pub fn wave_prefix(cache: &mut [f32; 2], dt: f32, field: f32, curve: &[f32], clock: f64) -> Option<f32> {
     if field == 0. {
         return None;
     }

@@ -37,22 +37,10 @@ fn rb_p1_p2_unsigned_mixed_halves() {
 #[test]
 fn rb_s1_s2_direction_zero_and_negative_zero_tie() {
     let b = body([10.0, 20.0], [2.0, 3.0]);
-    assert_pair(
-        support_point([0.0, 0.0], [1.0, 0.0], &b).unwrap(),
-        [8.0, 23.0],
-    );
-    assert_pair(
-        support_point([0.0, 0.0], [0.0, 0.0], &b).unwrap(),
-        [12.0, 23.0],
-    );
-    assert_pair(
-        support_point([0.0, 0.0], [-0.0, -0.0], &b).unwrap(),
-        [12.0, 23.0],
-    );
-    assert_pair(
-        support_point(b.position, [1.0, 0.0], &b).unwrap(),
-        [12.0, 23.0],
-    );
+    assert_pair(support_point([0.0, 0.0], [1.0, 0.0], &b).unwrap(), [8.0, 23.0]);
+    assert_pair(support_point([0.0, 0.0], [0.0, 0.0], &b).unwrap(), [12.0, 23.0]);
+    assert_pair(support_point([0.0, 0.0], [-0.0, -0.0], &b).unwrap(), [12.0, 23.0]);
+    assert_pair(support_point(b.position, [1.0, 0.0], &b).unwrap(), [12.0, 23.0]);
 }
 
 #[test]
@@ -60,16 +48,12 @@ fn support_y_store_is_not_regrouped() {
     let mut b = body([0.0, 16_777_216.0], [1.0, 2.0]);
     b.axis = [0.0, 1.0];
     // Y first sum 2^24+1 rounds to 2^24. The perpendicular adds zero.
-    assert_pair(
-        support_point(b.position, [0.0, 0.0], &b).unwrap(),
-        [-2.0, 16_777_216.0],
-    );
+    assert_pair(support_point(b.position, [0.0, 0.0], &b).unwrap(), [-2.0, 16_777_216.0]);
     // X does not store its first addition: (2^24 + 1) - 2 survives as 2^24-1.
     // This uses a raw nonorthonormal record, so only the numeric helper is
     // tested directly; it grants no geometric admission to that record.
     assert_eq!(
-        numeric::store(numeric::add(numeric::add(16_777_216.0, 1.0).unwrap(), -2.0).unwrap())
-            .unwrap(),
+        numeric::store(numeric::add(numeric::add(16_777_216.0, 1.0).unwrap(), -2.0).unwrap()).unwrap(),
         16_777_215.0
     );
 }
@@ -138,10 +122,7 @@ fn rb_c1_through_c5_independent_contacts_and_sentinels() {
                 OutputField::NormalY,
             ]
         };
-        assert_eq!(
-            writes.0.iter().map(|&(f, _)| f).collect::<Vec<_>>(),
-            expected_order
-        );
+        assert_eq!(writes.0.iter().map(|&(f, _)| f).collect::<Vec<_>>(), expected_order);
     }
 }
 
@@ -258,10 +239,7 @@ fn unresolved_candidate_stage_is_unsupported_after_prior_writes() {
 struct Calls(Vec<Event>);
 impl Foreign for Calls {
     fn free_allocation(&mut self, allocation: u32, allocator: Allocator) {
-        self.0.push(Event::FreeAllocation {
-            allocation,
-            allocator,
-        });
+        self.0.push(Event::FreeAllocation { allocation, allocator });
     }
     fn free_pair_node(&mut self, node: u32) {
         self.0.push(Event::FreePair(node));
@@ -271,9 +249,7 @@ impl Foreign for Calls {
     }
 }
 fn list(storage: &mut Storage, root: u32, addresses: &[(u32, u8, u8, [u32; 2])]) {
-    let ids: Vec<_> = std::iter::once(root)
-        .chain(addresses.iter().map(|v| v.0))
-        .collect();
+    let ids: Vec<_> = std::iter::once(root).chain(addresses.iter().map(|v| v.0)).collect();
     for (i, &id) in ids.iter().enumerate() {
         let (live, class, pair) = if i == 0 {
             (1, 0, [0, 0])
@@ -303,19 +279,12 @@ fn rb_l1_empty_sweep_order_and_l2_stable_adjacent_dead_nodes() {
     let mut events = vec![];
     s.remove_dead_objects([100, 200, 300], &mut foreign, &mut events)
         .unwrap();
-    assert_eq!(
-        events,
-        vec![Event::Sweep(300), Event::Sweep(200), Event::Sweep(100)]
-    );
+    assert_eq!(events, vec![Event::Sweep(300), Event::Sweep(200), Event::Sweep(100)]);
     assert!(foreign.0.is_empty());
     list(
         &mut s,
         300,
-        &[
-            (320, 7, 0, [0, 0]),
-            (340, 0, 8, [0, 0]),
-            (360, 0, 0, [0, 0]),
-        ],
+        &[(320, 7, 0, [0, 0]), (340, 0, 8, [0, 0]), (360, 0, 0, [0, 0])],
     );
     events.clear();
     s.remove_dead_objects([100, 200, 300], &mut foreign, &mut events)
@@ -324,10 +293,7 @@ fn rb_l1_empty_sweep_order_and_l2_stable_adjacent_dead_nodes() {
         events,
         vec![
             Event::Sweep(300),
-            Event::SetNext {
-                node: 320,
-                next: 360
-            },
+            Event::SetNext { node: 320, next: 360 },
             Event::SetPrevious {
                 node: 360,
                 previous: 320
@@ -336,10 +302,7 @@ fn rb_l1_empty_sweep_order_and_l2_stable_adjacent_dead_nodes() {
                 allocation: 336,
                 allocator: Allocator::Class(8)
             },
-            Event::SetNext {
-                node: 320,
-                next: 300
-            },
+            Event::SetNext { node: 320, next: 300 },
             Event::SetPrevious {
                 node: 300,
                 previous: 320
@@ -418,8 +381,7 @@ fn rb_l3_remove_all_raw_matches_then_sector_then_defer_object_free() {
     }
     let mut calls = Calls::default();
     let mut events = vec![];
-    s.remove_object(100, 208, 7, &mut calls, &mut events)
-        .unwrap();
+    s.remove_object(100, 208, 7, &mut calls, &mut events).unwrap();
     assert_eq!(
         calls.0,
         vec![
@@ -431,13 +393,7 @@ fn rb_l3_remove_all_raw_matches_then_sector_then_defer_object_free() {
     );
     assert_eq!(
         events[events.len() - 2..],
-        [
-            Event::RemoveSector(208),
-            Event::SetLive {
-                body: 208,
-                value: 0
-            }
-        ]
+        [Event::RemoveSector(208), Event::SetLive { body: 208, value: 0 }]
     );
     assert_eq!(s.nodes[&100].next, 160);
     assert_eq!(s.nodes[&160].next, 100);
@@ -445,16 +401,9 @@ fn rb_l3_remove_all_raw_matches_then_sector_then_defer_object_free() {
     assert!(s.nodes.contains_key(&200));
     calls.0.clear();
     events.clear();
-    s.remove_object(100, 208, 0, &mut calls, &mut events)
-        .unwrap();
+    s.remove_object(100, 208, 0, &mut calls, &mut events).unwrap();
     assert!(calls.0.is_empty());
-    assert_eq!(
-        events,
-        vec![Event::SetLive {
-            body: 208,
-            value: 0
-        }]
-    );
+    assert_eq!(events, vec![Event::SetLive { body: 208, value: 0 }]);
     s.sweep_object_list(400, &mut calls, &mut events).unwrap();
     assert_eq!(
         calls.0,
