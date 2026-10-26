@@ -78,6 +78,7 @@ private:
 // Off unless reach=on. Snapshot before Subsystems(), arm after city-load
 // shadow/replace/compare installation, stop before those hooks are restored.
 void ReachPrepare();
+void ReachStartupStart();
 void ReachStart(int32_t julian);
 // Opt-in natural application/city lifecycle. Window 1 has no city date yet.
 void ReachLifecycleStart();

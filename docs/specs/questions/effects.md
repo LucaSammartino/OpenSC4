@@ -30,3 +30,7 @@ No open questions remain.
 
 <!-- re-ef30 (2026-10-26) answered EF26 from replace-effectsres28 in effects.md
      section 18.10; original question moved to answered/effects.md. -->
+
+<!-- re-ef31 (2026-10-26) imported EF27 from replace-effectsres30 (already
+     identical to main) and answered it in effects.md section 18.9.7;
+     original question moved to answered/effects.md. No open questions remain. -->

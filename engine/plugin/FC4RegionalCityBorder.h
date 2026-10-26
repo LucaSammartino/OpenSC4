@@ -3,6 +3,17 @@
 #include <cstdint>
 
 namespace fc4::regionalcity {
+// regional-city-records §4.6 RR3: these calls use distinct compiled slots.
+template<class Map> bool TrafficPresent(Map* map, int32_t x, int32_t z) {
+    return map && map->AnyNetworkAt(x, z) != 0;
+}
+template<class Tool> void PlaceBorderSegment(Tool* tool, int32_t x, int32_t z, int32_t ex, int32_t ez) {
+    tool->ToolSlot07(x, z, ex, ez, 0, 0, 1, UINT32_MAX);
+}
+template<class Manager, class List, class Point>
+void QueryBorderOccupants(Manager* manager, List& list, const Point& cell, uint32_t type) {
+    if (manager) manager->GetOccupantsByStandardCityCellsTyped(list, &cell, &cell, type, UINT32_MAX);
+}
 // occupant-manager §13.2.4. The adapter supplies interface/property queries;
 // the ordering here is also exercised independently of the game.
 template<class Occupant> uint32_t ViewLevel(Occupant& o) {

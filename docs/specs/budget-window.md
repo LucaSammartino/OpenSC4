@@ -14,7 +14,7 @@ of `on_init` and `DoSubBudgetWindow` is stack-mangled and was checked against th
 
 BW17's native method/slot inventory and population/computation bodies are in
 [budget-window-bodies.md](budget-window-bodies.md). These are owner algorithms, not external callbacks that
-may supply populated rows or refreshed totals. Its bounded remainder is tracked by BW22–BW25 (split from BW17).
+may supply populated rows or refreshed totals. Its bounded remainder is tracked by BW22, BW24 and BW25 (split from BW17; BW23 is settled).
 
 | Item | Value |
 |---|---|
@@ -191,11 +191,45 @@ with data words {virtual-key code (`wParam`), modifier mask, repeat count (`lPar
 | `0x40000000` | key was already down (auto-repeat) | `lParam` bit 30 |
 
 The mouse-message helper `FUN_0098B750` uses the same layout (`MK_SHIFT`→1, `MK_CONTROL`→2, Alt via
-`GetKeyState(VK_MENU)`→4, buttons→`0x10`/`0x20`/`0x40`). So the dialog closes on **Alt+Enter** and **Alt+F4**
-(any other modifier bits may also be set) and ignores plain Enter and plain F4. Not proven statically: whether a
-filter earlier in the translator (the hook loop at `0x0098D2B6`–`0x0098D2F9`), a keyboard accelerator, or the
-system's own Alt+F4 handling consumes these keystrokes before the dialog sees them; that is a runtime question
-(questions/budget-window.md BW11).
+`GetKeyState(VK_MENU)`→4, buttons→`0x10`/`0x20`/`0x40`). A **delivered type-5 message** therefore closes the
+dialog for Alt+Enter and Alt+F4 (other modifier bits may also be set), and plain Enter/F4 do nothing.
+
+**BW11: delivery, default processing and the runtime boundary (2026-10-26).** Before dispatching the Win32
+message, the translator traverses its hook list in list order. Each hook's slot 3/+0x0C receives
+`(HWND, message, wParam, lParam, &consumed)`, with `consumed` reset to false before each call. A true output
+immediately returns that hook's result: later hooks and the translator's own switch do not run. A false
+output advances to the next hook even when the hook's return value is nonzero. This is the actual gate at
+`0x0098D29D`–`0x0098D302`, not a test of the dialog's handled result.
+
+If no hook consumes `WM_SYSKEYDOWN`, its key-down path calls the builder and **returns Win32 result 0**
+(`0x0098D537`–`0x0098D554`), regardless of whether a dialog later handles the generated message. There is
+no fall-through to `DefWindowProcA` on that path, even when the builder suppresses input because +0x60 is
+nonzero. Thus default system processing of this particular delivered key-down is not an additional action
+performed by this translator. The dialog's close body (`0x0078BCFE`–`0x0078BD40`) removes/releases its popup,
+calls `end_dialog` with `0x42B7C353`, and returns 1; it contains neither a display-mode change nor an application
+quit request. These local rules do not exclude effects of an earlier hook, accelerator, or a separate queued
+message. In particular, a separately delivered `WM_CLOSE` (`0x10`) takes `0x0098D46E`–`0x0098D482`, which
+calls `0x0098C590` to submit a **type-10** message (`0x0098C5B7`–`0x0098C5C9`); it is not the type-5 close.
+
+Worked delivery cases for an engine test:
+
+| Input / hook result | Required local result |
+|---|---|
+| `WM_SYSKEYDOWN`, F4, Alt sampled down; all hooks leave consumed=false; builder enabled; type 5 delivered to dialog | Popup removed once if present, dialog ends with `0x42B7C353`, dialog result 1, translator result 0; no default-window-procedure call from this path |
+| Same input, first hook returns 7 with consumed=false, second returns 9 with consumed=true | Translator returns 9; no builder or dialog dispatch by the translator; the first return value does not stop traversal |
+| Same unconsumed input, builder +0x60 nonzero | No type-5 submission, translator still returns 0 |
+| Delivered type 5, Enter, mask `0x5` / mask `0x1` | First closes (Alt+Shift); second returns 0 with no close |
+
+**Runtime observation still required:** use the unmodified Windows 1.1.641 game, record its windowed/fullscreen
+state, open a sub-budget with no popup, and press/release Alt+Enter once. Reopen it before pressing/releasing
+Alt+F4 once; do not reuse the already closed dialog. For each trial record whether the sub-budget disappears,
+whether display mode changes, and whether a quit/save prompt or application termination follows. To attribute
+an otherwise invisible quit attempt, trace entry to `cSC4App::RequestQuit` (`0x004546B0`) and the ordered
+`WM_SYSKEYDOWN`/`WM_SYSCOMMAND` (`0x112`, `SC_CLOSE=0xF060`)/`WM_CLOSE` messages, hook consumption,
+type-5 delivery and `end_dialog`. Record any action on key release as well. A UI-only observation establishes
+visible behavior but cannot exclude a rejected quit request. Repeat with popup +0x14 present to distinguish its
+removal from closing only the popup. The unresolved result is precisely which of these paths the live input
+route takes and whether another action accompanies the close; no game run or "dialog only" verdict is claimed.
 
 `on_init(win)` (`0x007876B0`): `win` null → return 0 and do nothing. If the initialised byte `+0x08` is already set →
 return 1 and do **nothing** (no second pause). Otherwise take the hidden pause, build the mode, set `+0x08 := 1` (at
@@ -649,18 +683,23 @@ many money messages arrive. `ShowWindow` (`0x00768670`) refreshes immediately an
 ## 8. Open work (docs/specs/questions/budget-window.md)
 
 BW1–BW10 are answered (re-budgetwindow4 and re-budgetwindow-answers4, 2026-10-21; archive
-`questions/answered/budget-window.md`). Still open: **BW11**, whether Alt+Enter / Alt+F4 actually reach the dialog
-at runtime (§4.0). **BW16** (row-visibility ID test, §4.1) is answered from bytes: ID ≤ 100 is always shown, ID > 100
-only with a non-zero amount, the reverse of the earlier text. `+0x2C` ownership (BW15) is settled from bytes. BW17 is archived as a partial closure, with its remaining paths split into **BW22–BW25** (companion §7); BW21's constructor and nonmodal observation boundary is §1.1. BW17's panel part is narrowed (re-budgetwin, 2026-10-22):
-the balance-sheet drawing, the formatting helpers and the taxes and loan windows are budget-window-bodies.md
-§4.2–§4.3 and §8–§10. The panel's construction labels, `Init`, the loan limits and the loan rows are §11 there (BW18
-answered, re-budgetui7 2026-10-23). Not covered: pixel layout of the four populate routines, the fill point of
-the individual restore records in `initIndividualBudget` (`0x00786690`), and whether the generator's window
-procedure setter (generator `+0x1C`) takes a reference on the sub-budget object.
-§4.2–§4.3 and §8–§10; the panel's construction labels, `Init` and the loan limits stay at summary level (BW18).
-Companion §5 specifies the individual restore records' fill/rebuild and ownership; their service-specific
-float values remain BW23. Setup/widget ownership, including the generator's procedure reference contract,
-remains BW25. No whole-owner completion or native shadow verdict is implied.
+`questions/answered/budget-window.md`). **BW11** is narrowed to the explicit live-input observation in §4.0;
+the hook consumed-byte and no-default-processing rules are settled statically, with no game verdict.
+**BW16** (row visibility, §4.1) and **BW15** (+0x2C ownership) are byte-settled. **BW21**'s constructor and
+nonmodal observation boundary is §1.1.
+
+**BW17** is archived as a partial parent closure; its duplicate open entry was stale. The companion
+[budget-window-bodies.md](budget-window-bodies.md) §1 gives the method/slot inventory, §12 the requested-part
+crosswalk, raw-provider checklist and panel worked cases. Its §§4/8–11 specify the panel's calculation,
+rendering, formatting, taxes, loan windows, labels, Init and notifications, including BW18's former summary
+gaps. The remaining **sub-budget** body questions are BW22, BW24 and BW25 (companion §7), not omitted panel methods:
+neighbour refresh/rendering, group B and item rendering/cleanup,
+and remaining widget/popup/setup ownership. Companion §§1.2–1.3 now settle pointer-property and bounded
+empty/setup/segment ownership; §§3.3–3.4 settle neighbour list releases, unused metadata and combo
+options/selection/deal writes, including exact public raw inputs and worked cases. Section 5 settles +0x44 acquisition/rebuild references, service-produced
+float values and amounts, control reuse and the initializer continuation. The generator procedure setter's reference contract remains BW25. Counts, rows, restore
+records and refresh results computed by either owner are never external raw inputs. No whole-sub-budget-owner,
+implementation or native-shadow completion is implied by the panel's specification status.
 
 ## 9. Conformance tests
 

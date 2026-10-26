@@ -351,6 +351,11 @@ void EndDateReason(char* out, size_t size) {
 
 int AutotestOnTick() {
     if (!AutotestEnabled() || !g_cityLoaded) return 0;
+    // UI commands can pump nested ticks and span many framework ticks. Drain
+    // dated actions before either end-date exit path, including graceful quit.
+    // Keep the wall deadline effective if an action never finishes.
+    if ((g_quitDue || g_endAfterScript) && g_endDateHit && ScriptWaiting() &&
+        (g_seconds <= 0 || ElapsedMs(GetTickCount(), g_startMs) < static_cast<DWORD>(g_seconds) * 1000u)) return 0;
     if (g_quitDue && !g_quitRequested && g_verdict == 0) {
         // The opt-in DBPF shadow yields between records. Finish the last dated
         // sample on framework ticks before requesting quit; the wall deadline,

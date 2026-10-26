@@ -79,7 +79,7 @@ pub unsafe extern "C" fn fc4_regionalcity_owner_get(owner: *const Owner, field: 
         52 => c.get_exported(arg as i32),
         53 => c.get_imported(arg as i32),
         54 => c.get_cost_per_unit(arg as i32),
-        55 => c.get_commodity_balance(arg as i32),
+        55 => c.get_commodity_balance_with_precision(arg as i32, crate::invocation::precision()),
         _ => return false,
     };
     true

@@ -2,6 +2,10 @@
 
 # Conformance vectors
 
+`vc29_precision.json` uses residential environment `precision_bits` (24 or 53)
+and `get_global_eq_register` / `get_global_hq_register` to check foundations
+§18.4's register results separately from the existing float query stores.
+
 The eight MS17 dispatch specification vectors in mysims.md §12 are executable
 integration tests in `tests/mysim_dispatch.rs`, named `ms17_01` through `ms17_08`.
 They use the public dispatch API with foreign scripted services and real record

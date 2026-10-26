@@ -101,3 +101,22 @@
   per load/month (budget round-2 errata item 6: floor, 16 m origin) and CellWidthX/Z (terrain section 2.1).
   All other cISC4City methods, serialized fields, 53 component references and auxiliary records remain
   uncompared. No native output is used to populate independent expected values; no Write or mutators called.]
+
+<!-- from: views-cities29 (2026-10-26) -->
+- **VC29-PC — §18.2–18.3 / lua-host §4.5, simulation re-entry:** Is the 24-bit simulation
+  contract still normative when a framework/simulation callback is entered while Lua's wrapper has
+  temporarily selected 53-bit precision? Should the scheduler establish 24-bit for that callback and
+  restore the caller's word, or should these cores accept the live precision as an input? Please specify
+  that boundary before either changing native simulation arithmetic or adding higher-precision modes.
+  Blocks the numeric items of reach29-views: regional-city §5's balance sums/subtraction (core correctly
+  applies §18.3, per RY8); lot-developer §11.4's distance, cascade scaling and rise/division (`r24`);
+  residential-education-health §4.7's newcomer EQ/HQ blend and the resulting global quotient.
+  `build-runs/run7/reach29/reach29-views.log` in main logs CW=0x027F at ticks 108 and 180 (lines 3560,
+  4181), then native/core balance 35560.166666666664/35560.16796875 (3596), slope
+  4.3152113/4.31521177 (3792), EQ 191.47592163085938/191.47593688964844 (4218).
+  The current cores already implement the specified 24-bit operations; widening storage or tolerances
+  would not resolve this boundary. A run with only the four requested shadows, `views-cities29-5`, is
+  clean/ref0 and exact (residential 25/25, zonedev 15/15, lotdev 3/3, regionalcity 3/3), with all view
+  actions completed, but changes execution timing and does not establish the broad-run numeric fix.
+  Evidence: main `build-runs/game-results/views-cities29-5.{log,lua.log,verdict}`. No precision policy
+  or tolerance has been changed pending clarification.

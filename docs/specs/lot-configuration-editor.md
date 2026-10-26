@@ -14,8 +14,10 @@ current exported entries gives **109 entries / 52,646 body bytes**, matching
 the brief. These are inventory counts, not a claim of complete contracts;
 see §6 and the inventory companion for the exact difference.
 Sections below distinguish established dispatch/state rules from unresolved
-dialog and numeric details. An address citation identifies native evidence,
-not an executable conformance fixture.
+dialog and numeric details. The LE9–LE18 answers in §27–§36 supersede earlier
+stopping statements for the rows they explicitly map; §36.1 gives the current
+disposition. An address citation identifies native evidence, not an executable
+conformance fixture.
 
 ## 1. State and selection *[compat]*
 
@@ -81,8 +83,9 @@ which modifiers the keyboard handler accepts.
 
 `DoLotConfigurationObjectMenu` (`0x00487B30`, 5,971 bytes) chooses a menu by the
 record's first byte. It restores editor focus after each popup. This section
-establishes command dispatch and direct flag effects; bounding-box arithmetic,
-network edge labels and two constraint branches remain to be reconciled.
+establishes command dispatch and direct flag effects. Bounding-box arithmetic
+is extended in §9; §31 completes the network edge labels, detail markers and
+type-3/type-5 branches.
 
 | Object type | Row-to-action mapping (zero based, separators included) |
 |---|---|
@@ -236,7 +239,8 @@ These expected outcomes come from native control flow, not an implementation.
 
 The [inventory companion](lot-configuration-editor-inventory.md) records every
 entry in the measured owner set, its attributed byte count and contract status.
-LE1 and LE3–LE5 track the unresolved behavior; LE2 is answered in §8.
+LE1 and LE3–LE5 are historical stopping inventories; LE2 is answered in §8.
+The current LE9–LE18 disposition and remaining observations are in §36.1.
 No ABI changes or game-run evidence.
 
 ## 7. Interfaces, creation and lifetime *[compat]*
@@ -264,8 +268,8 @@ sets window/interface flags, invokes base Init, obtains an Arial size-12 font
 if missing, replaces the manager reference with the global configuration
 manager using AddRef-before-Release, posts message `0x0920B687`, loads cursors
 and installs the normal cursor. Repeated Init returns true without repeating
-that block. Exact flag meanings/static resources are LE5, not inferred from
-their numeric masks.
+that block. Static resource loading is specified in §33; additional flag
+semantics are not inferred from their numeric masks.
 
 The main `DoMessage` (`0x0047BA80`, 73 bytes) consumes all category-3 messages.
 Within that category, command `0x287259F6` and control `0x42B7C353` call editor
@@ -276,7 +280,7 @@ and returns true. Other categories delegate to the base procedure.
 obtains network-manager objects for type selectors 3 and 0 with the second
 option true; for each missing stored object it AddRefs and invokes `+0x0C`.
 Repeated calls leave already-stored references alone. The central view/alpha
-setup has broken stack recovery and remains LE5.
+setup and acquisition-failure behavior are specified in §33.
 
 `Shutdown` (`0x0047C510`, 322 bytes), when initialised, first notifies a stored
 chooser that this editor closed, then releases and clears the font, view/service
@@ -285,7 +289,8 @@ stored network object it invokes `+0x10`, then Release, then clears the pointer.
 It Releases each non-null object in the owned reference array
 `+0x1D0..+0x1D4`. Base Shutdown runs even if the initialised flag was false.
 This body does not release the current configuration directly; destruction and
-container cleanup must not be invented from this Shutdown list (LE5).
+container cleanup is documented separately in §21.1 and must not be invented
+from this Shutdown list.
 
 ### 7.1 Shutdown ownership and observable order (LE8)
 
@@ -715,8 +720,7 @@ It calls the record overload, then sets dirty and updates title; no match
 does none of these operations. Thus its draw/invalidation precedes dirty/title
 (`0x00484718..0x00484839`). Constants are binary32 1 at `0x00A81228` and
 1/16 at `0x00A8E174`. Conversion is helper `0x009EEF04`, with signed 64-bit
-intermediate and low-byte use here. Invalid/overflow conversion is not assigned
-a portable fence coordinate; ordinary finite in-range truncation is established.
+intermediate and low-byte use here. §28 completes invalid/overflow conversion.
 
 LotFoundationIsPresent (`0x0047B420`) returns the `+0x20` ID of the **first**
 type-3 object, or zero if none; it is not a Boolean test and a zero-ID first
@@ -806,8 +810,8 @@ Recognised global keys precede selected-object keys. For example Escape cancels
 placement mode even if an object is selected. Condition cycling assumes normal
 state 0..6: it is an equality reset at 7, not a general modulo-7 normalisation.
 Save argument pushes are at `0x00485846..0x00485881`; rotation keys share the
-one incrementing method specified in §9.1. Selection cycling and selector/
-refresh internals remain LE4/LE5.
+one incrementing method specified in §9.1. Selection cycling is §34.2;
+selector internals are §29/§31–§32 and 3D refresh is §35.
 
 `DoEditMouseUpL` (`0x0047A890`, 42 bytes) returns true. If the drag byte is set,
 it clears it and releases capture only if currently capturing. If drag was
@@ -818,7 +822,7 @@ drag and capture are active. It then updates status text for every move:
 `%08x: Pixel: (%d,%d) World: (%.1f,%.1f)`, using zero for the timestamp word
 when no object is selected and selected record `+0x24` otherwise. World values
 are pixel coordinates scaled by `+0x1AC`. The precise drag delta/pixel
-conversion and status-interface argument recovery remain LE3/LE5.
+conversion and status behavior are completed in §34.1.
 
 `DoEditMouseDownL` (`0x00486770`, 434 bytes) starts by hit-testing. A no-hit
 clears an existing selection and redraws/invalidates. Hit code 1 with placement
@@ -828,7 +832,7 @@ with nonzero mode it does nothing. Hit code 3 in mode 8 toggles a fence; other
 nonzero modes do nothing for this hit. In mode zero, hit code 3 clears any
 selection and requests a redraw. Object codes ≥100 in mode zero select the
 returned object and proceed into drag setup. Hit-code assignment, placement
-clicks and the remaining drag/capture details remain LE5, not inferred here.
+clicks and the remaining drag/capture details are completed in §27/§34.
 
 | Initial state / input | Action | Expected result |
 |---|---|---|
@@ -889,8 +893,8 @@ down and Released. The selectors themselves do not mark editor data dirty.
 
 Evidence: building `0x0048281C..0x00482DBD`, prop
 `0x0048332E..0x004838BC`, flora `0x00482E0F..0x004832D5`, texture
-`0x0047CC7B..0x0047CF86`. Name-helper fallbacks and remaining sort-option
-semantics remain open; this is not completion of LE4's other dialogs/popups.
+`0x0047CC7B..0x0047CF86`. Name-helper fallbacks and remaining sort/search
+semantics are completed in §32; other dialogs/popups are §29/§31.
 
 ### 12.1 Dialog callback and keyboard search
 
@@ -1017,7 +1021,7 @@ no local range validation. It invokes SetLotSize (`0x00486080`) with these
 width/depth values and final argument true. Accepted result returns true even
 when either/both controls are missing; cancellation/creation failure returns
 false (`0x00486BFD..0x00486D2D`). SetLotSize's remaining scale/rectangle
-arithmetic is still LE4 and is not inferred from these UI selections.
+arithmetic is specified separately in §30, not inferred from these UI selections.
 
 DoSetNetworkNodePathUI (`0x0047E650`) takes an object record and titles its
 dialog `Set path ID for connection`. Initial text comes from payload dword 3
@@ -1133,9 +1137,9 @@ null output, without continuing to grid/lot fallback tests
 
 Object pixel bounds are obtained through `_ftol2` integer conversions, **not**
 direct floating-point comparisons (`0x00483E60..0x00483EC3`). Consequently the
-unordered-skip rules of §9.6 cannot be copied into this hit test. Exact
-reciprocal precision differences, invalid/overflow conversions, remaining
-grid/resize/inside fallback rectangles and helper `0x0047B310` are LE3/LE5.
+unordered-skip rules of §9.6 cannot be copied into this hit test. §27–§28 complete
+reciprocal precision differences, invalid/overflow conversions, grid/resize/inside
+fallback rectangles and helper `0x0047B310`.
 
 Discriminators: with overlapping records `[A,B]`, selected B and flag zero,
 B wins; with no selection and flag zero, A wins. With flag `0x02`, the selected
@@ -1165,11 +1169,12 @@ substantial proved behavior. Conversely C is a focused-body label, not a claim
 that its open dependencies are complete. Fifteen entries/4,652 bytes moved
 to C this round; `0x00483DC0` and `0x00484700` moved O to P.
 
-The following table records the round-3 stopping boundary. The later §25–§26
-addendum resolves further subsets; the current residual questions are LE9–LE18
-in [the question file](questions/lot-configuration-editor.md). The historical
-body counts below have not been reclassified by that addendum, and no
-complete-owner claim follows from retiring the broad LE3/LE4/LE5/LE7 entries.
+The following table records the historical round-3 stopping boundary. Later
+§25–§36 resolve further subsets. LE9–LE18 are now
+[archived](questions/answered/lot-configuration-editor.md); §36.1 identifies
+their closed contracts and precise remaining observations. The historical
+body counts have not been reclassified by those addenda, and no complete-owner
+claim follows from retiring the broad LE3/LE4/LE5/LE7 entries.
 
 | Question | Exact unresolved work; use companion rows for the complete method list |
 |---|---|
@@ -1186,6 +1191,780 @@ bodies are exactly `0x00478360` (64 bytes), `0x00604920` (169),
 `0x006049D4`/`0x00604A67` are interior fragments, not two extra bodies.
 No ownership reassignment or byte restoration follows from the callers alone.
 No fourth lane round is requested by this stopping inventory.
+
+## 27. Hit-test conversion and fallback geometry (LE9) *[compat]*
+
+This section completes §17.1; its selected/forward/popup priority remains in
+force. All pixel coordinates and rectangle members below are signed 32-bit
+integers. Let `s` be binary32 editor field `+0x1AC`, and let T denote the
+low-32-bit integer conversion in §28. Do not replace these integer containment
+tests with floating-point comparisons or reject NaNs before conversion.
+
+The selected-object shortcut obtains its rectangle from `0x0047B310` (§28).
+The forward object scan has a different arithmetic path: left is T of min-x
+times the x87 reciprocal of s; top is T of min-z times that reciprocal **after
+a binary32 store**; right and bottom use a newly computed x87 reciprocal
+without that store. The four object fields are binary32 at `+0x18`, `+0x1C`,
+`+0x10`, `+0x14` respectively. The products are not stored as binary32 before
+T (`0x00483E60..0x00483EC3`). Every comparison is signed and inclusive. There
+is no sorting of reversed bounds and no type/height/visibility filter.
+
+When there are no object candidates, obtain lot rectangle `(L,Tp,R,B)` from
+`0x0047B390`. The following order applies; every fallback leaves the output
+record pointer null (`0x00484181..0x004842A9`):
+
+1. For i from zero through unsigned lot-width byte inclusive, convert
+   `(16*i) * binary32(1/s)` with T. Return **3** if x is inclusively within
+   converted-coordinate minus 3 through plus 3 and y is at most B.
+2. Otherwise scan j from zero through unsigned depth byte inclusive in the
+   same manner. Return **3** if y is within inclusive ±3 and x is at most R.
+   Neither scan checks the other coordinate's lower bound.
+3. Recompute the lot rectangle. Return **2** in either inclusive rectangle
+   `(R,Tp,R+6,B+6)` or `(L,B,R+6,B+6)`: right and bottom resize strips,
+   extending outwards rather than centred on the edge.
+4. Return **1** for inclusive containment in `(L,Tp,R,B)`; otherwise **0**.
+
+The ±3 and +6 operations wrap in 32 bits before signed comparisons. They do
+not saturate. Object hits take precedence over all these strips; grid hits
+take precedence over resize hits, including on the right/bottom boundary.
+Popup cancellation still returns zero immediately, as in §17.1.
+
+Worked cases (no objects, width=2, depth=1, s=0.5, hence rectangle
+`(0,0,64,32)`): `(16,16)` returns 1; `(3,-100)` returns 3; `(4,-100)` returns
+0; `(-100,3)` returns 3. `(65,20)` returns 3 because it is within three pixels
+of the last vertical line; `(68,20)` and `(70,38)` return 2; `(71,38)` returns
+0. `(64,32)` returns 3. With zero dimensions and s=0.5, the line at zero
+still exists; `(0,-1)` returns 3 and `(4,4)` returns 2.
+
+With masked x87 invalid and all four object bounds NaN, each converted member
+is zero (§28): that object can hit `(0,0)`. It does not disappear under the
+unordered rules of the bounds mover. With s=NaN and no objects, the converted
+lot/grid coordinates are zero; `(0,-100)` returns 3. These conditional cases
+require masked exceptions, not an assumption about finite inputs.
+
+Closure mapping: DoHitTest `0x00483DC0` (the LE3/LE5 hit geometry row), together
+with the rectangle-helper dependencies in §28. No engine source was consulted.
+
+## 28. Rectangle widths and integer conversion (LE10) *[compat]*
+
+`0x0047B310` writes exactly four signed 32-bit members, in left/top/right/bottom
+order, to its caller's 16-byte rectangle. It divides each binary32 object bound
+at offsets `+0x18`, `+0x1C`, `+0x10`, `+0x14` by binary32 s separately in x87,
+then immediately applies T. No float-result spill, reciprocal substitution,
+origin addition, min/max repair or clipping occurs (`0x0047B317..0x0047B377`).
+
+`0x0047B390` also writes 16 bytes. It zero-extends the two lot-dimension bytes
+at `+0x20/+0x21`, shifts each left four bits, and converts those integers to
+x87. Depth is stored as binary32 (exact for all byte dimensions), while width
+stays in x87. It converts, in order, `0/s`, `0/s`, `(16*width)/s`,
+`(16*depth)/s`, with no result spills before T. Thus a normal positive scale
+gives origin zero; it is not a client-window rectangle and adds no border.
+Zero/negative/NaN scales have no validation (`0x0047B396..0x0047B407`).
+
+### 28.1 Shared conversion T and exceptional inputs
+
+The actual helper `_ftol2` at `0x009EEF04` uses an x87 **signed 64-bit** integer
+conversion and returns its result in two 32-bit words; these geometry callers
+use only the low word, interpreted as signed when compared. For ordinary
+in-range inputs it truncates towards zero, including negative fractions.
+A result outside signed 32-bit range therefore wraps rather than saturates:
+`2147483648` becomes `-2147483648`; `4294967296` becomes zero.
+
+For reproducing the extreme boundary, the helper first rounds a duplicate
+of its input to signed 64 bits under the current x87 rounding control. It
+then corrects a rounded result by one towards zero if required. There is a
+special path when the low word is zero and the high word has no bits except
+possibly its sign bit: it returns those words without correction. This
+includes zero and the signed-64 indefinite value. It does not load a new
+control word (`0x009EEF0D..0x009EEF78`).
+
+With x87 invalid masked, NaN, either infinity, or a conversion outside signed
+64-bit range produces indefinite `0x8000000000000000`; this special path
+leaves the **low word zero**, not `0x80000000`. Invalid status is not cleared.
+Consequently both rectangle helpers write zero for each such result. With
+invalid unmasked there is no promised normal return; observing the application's
+exception handler/control word is only needed to select between this masked
+case and a trap, not to determine either helper's instruction-level behavior.
+Divide-by-zero and invalid in the preceding floating operations are likewise
+subject to the caller's x87 masks.
+
+Pixel ToggleFence uses the same T for grid lines, then uses its low byte for
+the other endpoint (§9.5). Under masked invalid, a NaN scale converts every
+grid line to zero; a click at x=0 chooses vertical line i=0, its segment index
+also converts to zero, and the toggled bytes are `(0,0,0,1)`. There is no
+implicit invalid-input no-op. Endpoint increments still wrap within a byte.
+
+Worked rectangle cases: s=0.5 and bounds `(-0.75,-0.25,1.25,2.75)` yield
+`(-1,0,2,5)`. With s=1 and all four bounds equal to `2147483648`, the rectangle
+has four `-2147483648` members; with all four infinite and exceptions masked,
+it has four zero members. Width=2, depth=3 and s=0.5 yield `(0,0,64,96)`;
+negative s gives negative right/bottom without normalization. Zero dimensions
+and nonzero finite s give `(0,0,0,0)`.
+
+Closure mapping: `0x0047B310`, `0x0047B390`, and the invalid-conversion
+dependency of pixel ToggleFence `0x00484700` (LE3/LE5 geometry rows).
+
+## 29. Retaining-wall and foundation selectors (LE11) *[compat]*
+
+Both bodies create script resource `(0,0x96A006B0,0xE9263D4E)` with creation
+argument `0xA9264C0E`, then request child `0xE9264E71`, IID `0xDAA6B9BE`.
+A missing window returns false. A failed child-interface request shuts down
+and releases the window and returns false, without showing a modal dialog or
+changing the lot. The successful path clears/configures the grid, registers
+the window with the modal service, runs it, unregisters it and restores editor
+focus **before** interpreting the result. Only result `0x42B7C356` accepts.
+Cancel/other results return false without lot writes. The acquired grid is
+released, enumeration storage freed, and the window shut down/released on
+completion (`0x00480916..0x004809B9`, `0x00480B41..0x00480D0C`,
+`0x00485D63..0x00485E01`, `0x00485F5D..0x0048607E`).
+
+| Contract | Retaining wall `0x00480910` | Foundation `0x00485D60` |
+|---|---|---|
+| Grid configuration | 2 columns, selection capacity 32, final option 0 | 2 columns, selection capacity 1, final option 0 |
+| Enumeration source | Global foundation/wall manager `+0x6C` into an ID vector | Same manager `+0x54` into an ID vector |
+| Row order/filter | Every enumerated ID, in returned order; no local filter, deduplication, synthetic None row, or sort | Same; implementation-type output from the name helper is not a filter |
+| Column 0 | ID formatted `0x%08x`, eight lower-case hex digits | Same |
+| Column 1 | Retaining-wall name helper output | Foundation name helper output |
+| Preselection | Select every row whose ID occurs in configuration ID vector `+0x9C` | Select the row matching the supplied current ID (first argument); no auto-selection when absent |
+| OK result | True, even with no rows selected or no effective change | Same |
+
+Wall OK constructs a fresh ID vector. When the grid reports selections, it
+requests at most 32 selected-cell pairs and reads column zero at each returned
+row, in the grid's returned order. Parse each as `RZAtoUint32HexA`; append only
+nonzero values. There is no second deduplication/sort. Assign this vector to
+configuration `+0x9C` even if it is empty, then dirty=1, SetTitle, DrawCurrent,
+invalidate, in order (`0x00480B81..0x00480CBD`). It is a replacement, not an
+incremental toggle of the preselection.
+
+Foundation OK begins with result ID zero. If a cell is selected, obtain the
+selected cell coordinates and parse column zero of that row. Unlike walls,
+zero is retained. With a non-null second argument, write the result directly
+to that record's `+0x20` (no type check, bounds update, removal, or selection
+repair). With a null second argument, call AddLotFoundation(result ID, true).
+Then dirty=1, SetTitle, DrawCurrent, invalidate, even if the ID did not change
+or the helper's same-ID path was a no-op (`0x00485F9D..0x00486043`).
+
+Worked cases: enumerated wall IDs `[0x10,0x20,0x30]` and stored IDs
+`[0x30,0x10]` preselect rows 0 and 2. OK with returned selected rows `[2,0]`
+stores `[0x30,0x10]`; OK with no selection stores `[]` and still dirties and
+refreshes. Cancel preserves the original list. For a building record with
+foundation ID `0x20`, empty-selection foundation OK writes zero and refreshes;
+the same operation with null record asks the first-foundation helper to
+install ID zero rather than invoking its disable/remove operation.
+
+Closure mapping: DoSetRetainingWallUI `0x00480910` and DoSetFoundationUI
+`0x00485D60`, the two LE4 selector-body rows. Name resolution is §35; the
+foundation popup's dispatch/result-ID distinction remains §26.2.
+
+## 30. SetLotSize arithmetic and refresh (LE12) *[compat]*
+
+SetLotSize `0x00486080` accepts two **unsigned 32-bit** dimensions and a byte
+option. With option nonzero, return immediately if both full arguments equal
+the current zero-extended dimension bytes. Otherwise remember whether either
+full argument is unsigned-less than its old byte and whether either differs.
+Store the **low byte** of each argument in the lot. If the less-than condition
+was true, invoke RemoveOutOfBoundsLotConfigurationObjects **after** those
+stores. No range validation or minimum dimension is imposed
+(`0x00486080..0x00486101`). A wrapped byte becoming smaller does not itself
+cause cleanup if the full argument was larger.
+
+Obtain the edit control's underlying window width and height, subtract 7 from
+each using 32-bit integer arithmetic, convert each signed result to binary32:
+call these W and H. Separately shift each full unsigned dimension left four
+bits, with 32-bit wrap, convert the resulting unsigned integer to binary32:
+call these X and Y. The unsigned conversion is signed conversion plus binary32
+`4294967296` when the shifted sign bit is set (`0x0048611C..0x00486183`).
+It uses the full arguments, not the newly truncated lot bytes.
+
+Compute viewport aspect A=W/H and lot aspect B=X/Y in x87, without a binary32
+store of either ratio. Choose the new scale as follows, then store the chosen
+quotient to binary32 editor `+0x1AC` (`0x00486187..0x004861CC`):
+
+| First comparison | Choose X/W only when | Otherwise |
+|---|---|---|
+| A is ordered and greater than 1 | B is ordered and greater than A | Y/H |
+| A is at most 1, or unordered | B is ordered and less than A | Y/H |
+
+This is the native aspect-dependent branch, including equality; it is not
+a universal maximum or minimum of the two scales. Zero/negative viewport
+space, zero dimensions, infinities and unordered ratios are not rejected.
+An unordered B-versus-A comparison always chooses Y/H. Floating exceptions
+follow the current masks as in §28.
+
+Next request the containing window by ID `0x6946DA25`, IID `0xC2AFA76F`.
+If acquired, read the edit and containing-window integer rectangles. Preserve
+the containing rectangle's left/top; let D be twice (edit-left minus
+containing-left), with 32-bit wrap. Set its right to containing-left + D + 7
++ T(X/s), and bottom to containing-top + D + 7 + T(Y/s). T is §28, and the
+reciprocal stays in x87 across these two products. **The horizontal margin
+is reused for height**; the edit-top offset is not used. Apply the rectangle
+and release the acquired window. A failed request skips only this resizing
+(`0x004861D2..0x004862AA`).
+
+Finally, if the option is nonzero and the full dimensions differed, dirty=1
+then SetTitle. Always DrawCurrent then invalidate on the non-early-return
+path. Option zero therefore forces recalculation/redraw even with equal
+dimensions, but suppresses this final dirty/title pair (cleanup's own effects
+still apply). No selection reset is added (`0x004862AE..0x004862E5`).
+
+Worked cases: edit window 135×71 gives W=128,H=64. Request 2×1: X=32,Y=16,
+A=B=2, so s=0.25. With edit-left=4 and containing rectangle initially at
+`(0,0,...)`, D=8 and the resulting rectangle is `(0,0,143,79)`.
+A 71×135 edit window instead gives A=0.5; the same request chooses s=0.125
+and a **256×128** lot pixel extent, despite the 64-pixel available width.
+Changing old 4×1 to full arguments 258×1 stores 2×1 but does not run shrink
+cleanup; X is 4128. With positive H and a 0×0 request, B is unordered,
+the selected scale is zero, and later masked-invalid extent conversions
+yield zero (§28), rather than silently forcing a one-tile lot.
+
+Closure mapping: SetLotSize `0x00486080` and the arithmetic dependency of
+DoSetLotSizeUI `0x00486BA0` (LE4); the wrapper itself remains §16.1.
+
+## 31. Selected-object popup remainder and add wrappers (LE13) *[compat]*
+
+This completes §3's remainder, separating dispatch from §29's dialogs.
+Type 3 offers row 0 `---`, row 1 `Help... (F1)`; only row 1 invokes help with
+page 3 (`0x00488AC9..0x00488B39`). It does not invoke the foundation selector.
+Type 5 offers row 0 `---`, row 1 `Docking constraint off` if its payload vector
+is empty or word zero is zero, otherwise `Docking constraint on`. Row 1 ensures
+one zero word exists when empty, then replaces word zero by 1 when zero, 0
+otherwise. No other payload word changes. This branch has no dirty, title,
+draw, invalidate or bounds-update call. Cancel, separator and unknown choices
+do nothing. Both branches restore focus after the popup before dispatch.
+
+For props, base textures and flora, the three labels are exactly `Enable in
+Low City Detail`, `Enable in Medium City Detail`, `Enable in High City Detail`,
+with suffix ` <-- Current` on the following rows only:
+
+| Existing flag byte AND `0x30` | Current suffix |
+|---|---|
+| `0x00` | Low only |
+| `0x10` | Medium only |
+| `0x20` | High only |
+| `0x30` | None |
+
+The jumps into shared label-construction blocks do not produce two markers
+(`0x00488380..0x00488439`; corresponding flora/base-texture blocks in the same
+body). §3's write rules still apply; labels do not broaden their side effects.
+
+The network-edge table is 20 consecutive 8-byte key/name pairs beginning at
+`0x00A8E6C8`. Each submenu row is formatted `%08lx: %s`; indices outside 0–19
+do not write. The selected key replaces payload word 1 for minimal edges,
+word 2 for maximal edges. Exact native labels and keys are:
+
+| Row | Key | Label |
+|---:|---|---|
+| 0 | `00000000` | parking lot |
+| 1 | `00000200` | south |
+| 2 | `02000000` | north |
+| 3 | `00000002` | east |
+| 4 | `00020000` | west |
+| 5 | `00020200` | south-west 90 |
+| 6 | `02020000` | north-west 90 |
+| 7 | `02000002` | north-east 90 |
+| 8 | `00000202` | south-east 90 |
+| 9 | `02000200` | north-south (vertical) |
+| 10 | `00020002` | east-west (horizontal) |
+| 11 | `00020202` | SEW tee |
+| 12 | `02000202` | NSE tee |
+| 13 | `02020002` | NEW tee |
+| 14 | `02020200` | NSW tee |
+| 15 | `02020202` | 4-way intersection |
+| 16 | `02040200` | NS west side (ave/hwy) |
+| 17 | `02000204` | NS east side (ave/hwy) |
+| 18 | `04020002` | EW north side (ave/hwy) |
+| 19 | `00020402` | EW south side (ave/hwy) |
+
+### 31.1 Add-mode and texture-selection wrappers
+
+The four add wrappers do nothing when already in their requested mode.
+Otherwise they **clear** the remembered ID vector at editor `+0x1A0` by moving
+its end to its begin, then invoke their selector with that vector as output
+and a null preselection. They are not copying a saved selection from another
+field. Only accepted, nonempty output changes mode and installs the indicated
+cursor with option true (`0x00483920..0x00483B11`):
+
+| Wrapper | Selector | Mode / cursor field |
+|---|---|---|
+| DoAddNewBuilding `0x00483920` | Building families | 1 / `+0x144` |
+| DoAddNewFlora `0x004839A0` | Flora families | 2 / `+0x148` |
+| DoAddNewProp `0x00483A20` | Prop families; forwards its two inclusion arguments | 3 / `+0x14C` |
+| DoAddNewLotBaseTexture `0x00483AA0` | Lot base textures | 5 / `+0x154` |
+
+Cancellation/empty OK leaves mode/cursor unchanged, but the clear has already
+happened. No wrapper creates a lot object, dirties or redraws the lot.
+DoSelectLotBaseTexturesUI (`0x004838C0`) calls texture enumeration, invokes
+DoSelectTexturesUI with its output/preselection arguments and comparator
+`0x0047B050`, frees the local temporary vector and returns the selector's
+Boolean. Its comparator is specified in §32.
+
+Worked cases: mode 0 with remembered IDs `[0x10]`, cancelling Add Building
+leaves mode 0 and remembered IDs empty; accepting `[0x20]` enters mode 1 with
+the building cursor. Calling Add Building again in mode 1 shows no dialog and
+does not clear `[0x20]`. A type-5 empty payload, row 1, becomes `[1]` without
+changing dirty; selecting row 1 again gives `[0]`. Minimal-edge row 18 writes
+`0x04020002` to word 1, preserving words 0 and 2 and dirty.
+
+Closure mapping: remaining LE4 portion of DoLotConfigurationObjectMenu
+`0x00487B30`, DoSelectLotBaseTexturesUI `0x004838C0`, all four add wrappers
+in the table, and comparator `0x0047B050` with §32.
+
+## 32. Grid sort/search and selector names (LE14) *[compat]*
+
+Resolve slots against the **grid IID's primary interface**, not its base-window
+subobject: primary table `0x00ADD578` has `+0x20C` = SortColumn `0x009ACED6`
+and `+0x214` = text search `0x009A9892`. The exported window-subobject table
+`0x00ADD7B0` has unrelated methods at those offsets. Grid QueryInterface
+`0x009A5CB5` returns the primary pointer for IID `0xDAA6B9BE`.
+
+### 32.1 Sorting
+
+SortColumn arguments are column, direction, move-whole-rows, comparator.
+Direction zero is ascending; nonzero reverses comparator argument order for
+descending. A nonzero third argument permutes all columns together, preserving
+row association and remapping the selected cells, rather than sorting just
+the indicated column's text (`0x009ACED6..0x009AD1E7`). Thus initial selector
+`(0,0,1,0)` sorts ascending IDs as text, moving names/images with them; holding
+Control or Shift at a selector sort button requests descending order. It is
+not a repeated-click direction toggle.
+
+With comparator null, only two text cells (type 2) with non-null text storage
+are compared; the result is CRT `__stricmp` on their NUL-terminated byte
+strings. Other pairs compare equal. This is case-insensitive text collation,
+without numeric parsing/natural-number ordering (`0x009A6E59..0x009A6E8F`).
+The direction adapter tests the callback result as signed-less-than zero
+(`0x009A8888..0x009A88C3`). Equal text has no ID/row-number secondary key.
+For the ASCII ID format of §12, lexicographic and unsigned numerical order
+coincide because all IDs have the same prefix and eight-digit width.
+
+Base textures use `0x0047B050`: parse both cell texts as hex, compare
+`ID AND 0xF000` first by signed subtraction (range −61440..61440), then compare
+the full IDs unsigned. First ID less than second returns −1, greater returns
++1. **Equal IDs also return −1**, not zero (`0x0047B050..0x0047B094`). Do not
+invent stable duplicate ordering for this inconsistent equality case. Calling
+the ordinary selector sort button with a null comparator subsequently uses
+the default textual comparator instead.
+
+### 32.2 Search ranges and equality
+
+Grid `+0x214` takes text pointer, text length, first column, column count,
+first row, row count, two output-coordinate pointers, and exact-length byte.
+Zero or `0xFFFFFFFF` length means strlen. Lower bounds are inclusive; finite
+upper bounds are **exclusive** sums of first+count. Count `0x7FFFFFFF` removes
+the corresponding upper bound. The sums wrap in 32 bits, and coordinate tests
+are signed. Only populated text cells with storage are candidates. Last byte
+nonzero requires equal byte length; all searches require the given bytes to
+occur in the cell text through case-sensitive string find. Without the byte,
+a substring is sufficient; with it, equal length makes the match exact.
+On success write both coordinates and return true; on failure return false
+without writing them (`0x009A98EF..0x009A999C`).
+
+Consequently chooser arguments `(text,length,0,1,0,0x7FFFFFFF,...,1)` search
+**column zero including row zero**. The 1 is a column count, not a row-start
+exclusion. It searches all populated rows, not just after the selection. The
+prop letter-scroll helper in §12.1 is a different, case-sensitive first-byte
+scan and does not inherit sort's case folding.
+
+### 32.3 Selector-name fallbacks
+
+Family helpers first consult their static FamilyNames.ini map (§33). A hit
+supplies its stored string verbatim, including empty strings. If absent:
+
+| Helper | Fallback |
+|---|---|
+| Building family `0x0047F750` | Ask manager for family members in its returned hash-set traversal order; join at most eight GetBuildingName results with `, `; append `, ...` upon encountering a ninth. No members gives `<Family>`. |
+| Prop family `0x0047FA80` | Same eight-name limit and suffix, in manager member-vector order, using GetPropName. No members gives `<Family>`. |
+| Flora family `0x0047F950` | Literal `<Flora>`; it does not enumerate members. |
+
+GetBuildingName (`0x0047F6C0`) and GetPropName (`0x0047FA00`) use their manager's
+recognized-object/name route; an unrecognized ID gives literal `<Building>`
+or `<Prop>` respectively. No resource-name invention or hexadecimal fallback
+is inserted. Selector prefixes in §12 are added **outside** these helpers.
+Texture selectors have ID text/image cells and no missing-name substitution.
+Evidence: `0x0047F6C0..0x0047FC48`; comma and truncation strings at
+`0x00A86F20` and `0x00A8DD30`.
+
+Worked cases: default ascending names `["b","A","c"]` become `["A","b","c"]`,
+with all row columns attached; direction 1 gives `["c","b","A"]`. Texture IDs
+`0x00010000` and `0x00001000` sort in that order because masked groups 0 and
+0x1000 precede full-ID comparison. A chooser whose only row is row zero with
+`0x0000002a` finds ID 0x2A there; text `0x0000002A` does not match that cell.
+Missing family 0x20 with no members displays `Family: <Family>` in a building
+selector, ` (F)<Family>` in a prop selector, and `<Flora>` in a flora selector.
+
+Closure mapping: shared semantic dependencies of DoDialogBoxGridSort
+`0x0047ABA0`, selectors `0x004827D0/0x004832E0/0x00482DC0/0x0047CC30`, and
+chooser SelectLotConfigurationType/PopulateGrid; comparator `0x0047B050` and
+the five family/individual name-helper rows above. For non-ASCII collation,
+the contract is the linked CRT's current-locale `__stricmp`; an installation-
+specific observation would record its active LC_CTYPE and compare the desired
+byte strings. No locale-independent Unicode ordering is asserted.
+
+## 33. Family resources and PostInit (LE15) *[compat]*
+
+StaticInit `0x00486F20` sets the process-once byte **before** doing any file
+work. It asks application service `0x00B43C94`, slot `+0xD4`, for its path with
+argument `0xFFFFFFFF`, appends literal `Sys`, a backslash, and `FamilyNames.ini`.
+It passes this path to cRZIniFile, then enumerates `PropFamilies`,
+`BuildingFamilies`, `FloraFamilies` in that order. It does not retry on a later
+editor Init if the file or a section was absent (`0x00486F20..0x004870F9`;
+literal `Sys` at `0x00A8718C`). Path/file/section lexing belongs to cRZIniFile;
+the callbacks receive the entry key and value, not a second ad-hoc INI grammar.
+
+Each callback converts the key using RZConvertToUint32A and assigns the value
+string to that ID in its process-static map. Prop/building/flora callbacks are
+`0x00486440/0x00486490/0x004864E0`, targeting maps
+`0x00B2167C/0x00B21690/0x00B216A4`. There is no rejection of zero IDs or empty
+values, no family-membership validation, and a later assignment to the same
+ID replaces the previous string. These are names, not IDs to append to a
+lot object (`0x00486440..0x0048652C`).
+
+RZConvertToUint32A (`0x0090FE93..0x0090FEF3`) selects radix 16 for an initial
+`0x`/`0X`; otherwise it scans from the first byte, selecting radix 16 on the
+first A–F/a–f encountered, continuing over digits, stopping at NUL or another
+character. If no such hex letter was encountered it selects radix 10. It then
+delegates conversion of the original string to the linked unsigned conversion
+routine with null end-pointer. It is not unconditionally hexadecimal: keys
+`10`, `0x10`, `FF`, `0010` select IDs 10, 16, 255, 10 respectively. Leading
+non-digit text can stop radix detection; no trimming pass is added here.
+
+PostInit `0x0047B890` performs the following in order:
+
+1. Only while editor view field `+0x138` is null, request child `0x692352B5`,
+   IID `0xC12CEA13`. The result is subsequently dereferenced without a success
+   guard. On its underlying window enable flag `0x200000`; on the view set
+   property `(2,true)`.
+2. Still inside that first-view block, ask buffer service `0x00B43C9C`, slot
+   `+0x0C`, for a buffer. If successful, initialize it to the edit window's
+   current width/height with format pair `(3,16)`, install it on view `+0x10`,
+   pass buffer `+0x3C`'s result to InitAlphaSystem, then release the buffer.
+   Failure skips this buffer/alpha setup and does not undo the acquired view
+   (`0x0047B8D6..0x0047B989`).
+3. Request containing child `0x6946DA25`, IID `0xC2AFA76F`; on success enable
+   the same underlying-window flag and release it. Failure skips this step.
+4. If status field `+0x13C` is null, request child `0x29235446`,
+   IID `0x212CDC1F`. If model fields `+0x194/+0x198` are null, obtain them
+   through NetworkManager `+0x14` with `(3,1)` and `(0,1)` respectively;
+   store each result, AddRef it, and call its Init slot `+0x0C`. Those results
+   have no null guard (`0x0047B98C..0x0047BA77`).
+
+Repeated PostInit retains existing fields; it does not rebuild the alpha
+buffer merely because the view size changed. A failed first buffer acquisition
+also does not retry through that guarded block while the view remains non-null.
+Shutdown ownership/field mapping remains §23, not inferred from these AddRefs.
+
+Worked case: a missing FamilyNames.ini on the first editor leaves all three
+maps without entries. Installing the file before a second Init does not load
+it in that process. In a fresh process, prop entries `10=Decimal` then
+`0x0A=Replacement` leave ID 10 named `Replacement`; `0x10=Hex` names ID 16.
+A successful first PostInit with buffer allocation failure still stores its
+view; the next PostInit skips that buffer acquisition rather than repairing it.
+
+Closure mapping: StaticInit, PostInit and the three callback rows above;
+the remaining resource/view dependency of Init `0x004892B0`. This does not
+assign editor ownership to the shared image decoder (§36).
+
+## 34. Input, capture and cycling (LE16) *[compat]*
+
+§11/§17/§21 establish the wrapper boundaries; §27–§28 complete hit geometry.
+The remaining edit-body behavior is as follows (`0x00486770..0x004869D1`):
+
+| Left-down hit / mode | Effect, before returning handled |
+|---|---|
+| 0 / any | If selected, clear selection then draw/invalidate; otherwise no action. |
+| 1 / mode 0 | Same deselection behavior. |
+| 1 / nonzero mode | AddNewLotConfigurationObject with original coordinates/modifiers. |
+| 2 / mode 0 | Invoke foundation selector with first-foundation ID and null record, then clear selection even if cancelled. |
+| 2 / other mode | No action. |
+| 3 / mode 8 | Pixel ToggleFence; other nonzero modes do nothing. |
+| 3 / mode 0 | Clear any selection and trigger redraw; no fence edit. |
+| Object / mode 0 | Select hit record; eligible drag setup below, then trigger redraw. |
+| Object / nonzero mode | AddNewLotConfigurationObject. |
+
+For an object in mode zero, drag setup requires modifier bit `0x02` clear and
+type in `{0,1,2,4,7}`. Set dragging `+0x1B8` to 1; request capture only if not
+already capturing; call PixelUnitsToObjectUnits to store offsets at
+`+0x1BC/+0x1C0`. Other types are selected but not made draggable. Edit left-up
+clears dragging and releases capture when held (§11). The outer up/down/move
+wrappers convert coordinates and use strict edit-client upper bounds; outside
+events go to the base window after converting back. Right-down outside the
+client opens the outside menu. Every ordinary routed branch returns handled.
+The `+0xE0` host-move state takes precedence in the move wrapper and delegates
+directly to the base (`0x0047AD40`, `0x00486690`, `0x00487100`, `0x004895A0`).
+
+Edit right-down acts only in mode zero: hits 0/1 open the edit-area menu, 2 the
+foundation popup, 3 the fence popup, and ≥100 the object popup. Other hits or
+modes do nothing, still returning handled (`0x004893E0..0x00489485`).
+
+### 34.1 Drag arithmetic and status
+
+DoEditMouseMove translates only while dragging and actually capturing. Read
+signed pixel x/y, scale s, selected x/z and the saved offsets. The x pipeline
+first stores binary32 of `(pixel-x*s − old-x)`, then subtracts saved x offset,
+adds old x, and stores a binary32 target. The z pipeline performs
+`pixel-y*s − old-z − saved-z-offset + old-z` in x87 before its binary32 target
+store. Pass both to the position MoveObject overload (§25.2). The unequal
+intermediate spill must not be replaced by a single algebraic simplification
+(`0x004859FC..0x00485A47`).
+
+It then updates status even when no translation happened, using selected
+creation word `+0x24` or zero and format
+`%08x: Pixel: (%d,%d) World: (%.1f,%.1f)`; world values are pixel coordinates
+times s. This is pointer position, not the selected centre.
+
+Keyboard handling is capture-gated: while capturing it performs none of its
+commands and returns handled. Otherwise it clears dragging before dispatch.
+The already specified Escape/C/B/T/P/F/S/G/R/F1 paths and selected-object
+arrow/PageUp/PageDown/M/Control-D/Delete/Backspace/Home/N paths all return
+handled, including unsupported keys. No generic key forwarding is inserted.
+Home leaves both +0 and −0 heights untouched. For every ordered nonzero
+height, including infinities, it stores +0, sets dirty, updates title and
+triggers redraw. With invalid exceptions masked it takes that same reset
+path for NaN, rather than rejecting the height as non-finite
+(`0x00485973..0x0048599C`). For example Home on a selected prop with quiet-NaN
+height writes +0 and dirties; Home on a selected building with −0 height
+preserves the sign bit and performs none of those refresh effects.
+
+### 34.2 Cycling is a live occupant operation
+
+CycleSelectedObject `0x0047C660` returns for null selection, null active city,
+or an empty ID vector returned by editor manager `+0x160`, slot `+0x6C` for
+the selected record. Only selected **building type 0 and flora type 4** have
+cycling branches; props and textures do not cycle. The ID vector is not
+advanced or rewritten in the record.
+
+For a building, get the live city's current building, obtain its current type
+ID, find it in the returned ID list, choose the following ID or wrap from the
+last to the first, and call the building service's replacement operation with
+the city and that ID; store the chosen ID in editor `+0x1E4`.
+For flora, locate the selected record's index in the lot vector; return if
+absent. Resolve its live occupant through building service `+0x100` and query
+IID `0xC83DD057`. Obtain current flora ID, choose next/wrap in the same list,
+save occupant placement, remove the old occupant, request the replacement
+through flora service `+0x44`, and if non-null apply the saved placement through
+its `+0x70`. Release the acquired interfaces. These operations do not call
+dirty/title/draw/invalidate (`0x0047C772..0x0047C8C3`).
+
+For both branches an unsuccessful list scan is followed by **one more read
+at list-end** before the first-ID fallback. Flora proof:
+`0x0047C7CD..0x0047C7ED`. Empty list was rejected earlier, but a live current
+ID absent from a nonempty list can reach this read. If the out-of-range word
+equals the current ID, the following-ID read can go farther. No deterministic
+heap value, safe wrap or crash outcome is promised for that malformed state.
+
+Worked cases: left-down on a type-1 object, mode zero, flags zero, starts
+capture and preserves its pointer-to-centre offsets; with flag 2 the same
+record is selected without starting a drag. A foundation-strip click followed
+by Cancel still clears selection. With returned IDs `[10,20]`, a live building
+of type 10 requests replacement 20, then one of type 20 requests 10; neither
+operation dirties the lot. A selected prop makes no replacement request.
+
+Closure mapping: DoEditMouseDownL/R, DoEditMouseMove, GZOnMouseDownL/R,
+GZOnMouseUpL, GZOnMouseMove and GZOnKeyDown control flow; CycleSelectedObject
+for valid live occupants. **Narrow runtime observation LE16-R:** for the absent
+current-ID case, break before the list-end read and record begin/end/capacity,
+current ID and the two words at/after end, then single-step to the chosen ID
+or fault. Repeat with a guarded end page. This settles a particular native
+failure outcome; it cannot create a heap-independent portable rule.
+
+## 35. Drawing, help and 3D: contracts and runtime boundary (LE17) *[compat]*
+
+Object-name helper `0x0047F480` assigns by type, not by family/instance name:
+0 `building`, 1 `prop`, 2 `lot texture`, 3 `foundation`, 4 `flora`, 7 `network`;
+all other values, including 5/6, give `unknown`. Its capitalization option
+changes only the first byte to upper case. Family/instance and foundation/wall
+name routes are separate (§32 and below).
+
+DoShowHelpUI `0x0047CB70` ignores the requested help page: modal title is
+`Help System`, message is `The answer to all your questions is:` followed by
+a newline and `Ask Paul Pedriana`; host options are `(0,1,0)` and it returns
+handled. It neither opens a page-specific document nor changes editor data.
+MessageBoxA `0x0047D610` gets the current configuration name as its caption
+when a configuration exists (otherwise empty), forwards caller message and
+options to host `+0xB0` with trailing `(1,0)`, and returns the host result.
+TriggerLotConfigurationRedraw `0x0047E870` draws first, then invalidates;
+it does not set dirty or title.
+
+The 3D-refresh body at `0x0047BE20` (editor slot 159 / `+0x27C`) is distinct
+from that 2D redraw. It initializes temporary 27×27 storage and a cleanup
+region `(0,0,26,26)`. It calls the occupant-region service at global
+`0x00B43D00`, slot `+0x18`, with first option 1, that region, mask `0x2000`,
+and otherwise zero options. With a configuration it constructs and AddRefs a
+generic occupant-filter object before this call and Releases it immediately
+afterwards; the call's stack arguments do not include that pointer. Without
+a configuration no filter is constructed. Filter allocation failure is
+unchecked. It then calls the lot-placement service at
+global `0x00B43D08`, slot `+0x64`, with `(0,0,26,26)`
+(`0x0047BE20..0x0047BEF7`, null-config branch `0x0047C029..0x0047C083`).
+
+Without a configuration, refresh ends after that cleanup. With one, obtain
+its `+0x38` byte. When editor `+0x1E0` is zero, first issue four network-model
+`+0x198`, slot `+0x1C`, requests for the boundary endpoints below, in order;
+each has trailing arguments `(9, model, 1, 0xFFFFFFFF)`:
+
+| Order | Start | End |
+|---:|---|---|
+| 1 | `(0,0)` | `(width+1,0)` |
+| 2 | `(0,0)` | `(0,depth+1)` |
+| 3 | `(0,depth+1)` | `(width+1,depth+1)` |
+| 4 | `(width+1,0)` | `(width+1,depth+1)` |
+
+Dimensions are zero-extended bytes before adding one; 255 becomes 256, not
+zero. Nonzero `+0x1E0` skips all four requests. Next call the lot-placement
+service's `+0x58` with arguments `(1,1,width,depth,2,occupant-output,1,
+configuration-byte,configuration)`, output initially null. A false result
+skips the remaining work. A true result is not followed by a null-output
+guard: obtain global `0x00B43D68`'s `+0x90` interface and call its `+0x1C`
+with `(occupant,configuration,editor +0x1E4,0)`; then pass condition byte
+`+0x1DC` to occupant `+0x90` and Release the occupant. Temporary region storage
+is freed on normal completion. Refresh makes no dirty/title/2D-redraw call
+(`0x0047BEFB..0x0047C028`). Concrete service effects remain LE17-R5.
+
+Worked refresh case: a 2×3 lot and `+0x1E0=0` produce boundary endpoints
+`(0,0)–(3,0)`, `(0,0)–(0,4)`, `(0,4)–(3,4)`, `(3,0)–(3,4)` in that order,
+then a placement request whose first five arguments are `(1,1,2,3,2)`.
+Returning false from placement suppresses both post-placement calls. With
+no configuration there is still region cleanup, but no boundary or placement
+request; neither case dirties the lot.
+
+GetRetainingWallName `0x00480080` starts with literal `unknown`, resolves the
+wall key via manager `+0x70`, opens its exemplar and reads property `0x20` on
+successful acquisition; failure retains the fallback. Foundation name helper
+`0x0047FF30` resolves the key via manager `+0x58`, opens/queries the exemplar
+and reads name property `0x20` into the caller's output string. It does not
+clear that output on entry. With a successfully queried exemplar, presence
+of property `0x68FCFF37` gives implementation type 3 (`Algorithmic`); absence
+gives type 1 (`Custom`) (`0x0047FFA3..0x0047FFC1`). Type 2's `Generic` label
+exists in the formatting branch, but this acquisition path never produces 2.
+Acquisition/query failure leaves type 0 and appends `Unknown implementation
+type` to the existing output without a delimiter. After invoking the name
+read, a nonempty output gets ` (` before the description and `)` after it;
+an empty output gets only the description (`0x0047FFC3..0x00480068`). The
+helper returns the type. No selector rejects an ID based on this output (§29).
+
+Worked foundation-name cases: an exemplar named `Stone` with property
+`0x68FCFF37` yields `Stone (Algorithmic)` and type 3; without that property
+it yields `Stone (Custom)` and type 1. A successful empty name without the
+property yields `Custom`. Failed acquisition with output initially `old`
+yields `oldUnknown implementation type` and type 0.
+
+### 35.1 Rasterization ordering
+
+Preserve §13/§21's buffer acquisition/release, reverse object order, marker locks,
+alpha style and signed height-label behavior. DrawCurrent `0x0047E060` starts
+by requesting buffer IID `0x20732180` from the edit view. A failed request
+does not execute the draw body, but still reaches the unconditional final
+Release described in §21; a null output can fault. Successful drawing proceeds
+through background,
+grid, resize decoration, objects in reverse vector order, then fences in
+their stored order, followed by view submission/invalidation and release
+(`0x0047E060..0x0047E508`). It does not sort objects by type or elevation.
+
+Background uses RGB `(192,192,192)`, grid `(128,128,128)`, fences `(220,0,0)`;
+the grid includes both zero and the last width/depth boundary. Drawing uses
+integer rectangle conversions (§28), not hit-test's mixed reciprocal path.
+Object drawing first alpha-fills with its style, then draws its outline,
+foundation indicator, centre marker, orientation marker and height label in
+that order, under the separate buffer-operation locks already recorded in
+§13 (`0x0047CF90..0x0047D603`). A failed lock skips its protected operation;
+it does not authorize drawing on unlocked storage.
+
+Worked name/help case: type 5 with capitalization true gives `Unknown`;
+help requests for pages 1 and 7 produce the same Paul Pedriana dialog.
+Worked draw-order case: vector `[A,B]` with overlapping equal-size bounds
+submits B's object operations then A's; fences follow both. Rejecting an
+outline lock does not suppress an independently successful centre-marker lock.
+
+### 35.2 Exactly what still requires an observation
+
+The following are **bounded observation requests, not complete rasterizer/3D
+closure claims**. The host buffer/renderer and live-city services are acquired
+interfaces. Their concrete execution and resulting pixels/terrain have not
+been measured in this lane. An observation must include its input fixture and
+the call arguments/return values, not a screenshot alone.
+
+| ID / remaining row | Required original-program observation |
+|---|---|
+| LE17-R1: DrawLotConfigurationObject, DrawCurrentLotConfiguration | At s=0.5, lot 2×2, buffer 96×96, place overlapping records A/B with bounds `(4,4,12,12)` and `(8,8,16,16)`, select A. Run A as each type 0–7 with flags zero; separately vary detail bits through `0x00/0x10/0x20/0x30`, foundation ID 0/1, orientation 0–3, heights −1/0/+1 and selected/unselected. For clipping, repeat with A bounds `(-4,-4,4,4)` and `(44,44,52,52)`. Record each buffer lock result, each fill/line/outline/text call and rectangle, packed color/alpha, and the final buffer bytes. Force one lock failure per operation. This discriminates exact marker endpoints, clipping, outline inclusivity, blend rounding and failure pairing; §13/§21's acquisition, reverse order, fence unlock and height-label quirks remain mandatory. |
+| LE17-R2: Prepare3DView `0x0047BBA0` | On a disposable flat city, record service identities, occupant-filter enumeration/removals, initial water level, every terrain read/write/update rectangle, first with slope 0 then 1 and 45. Break around `0x0047BC48..0x0047BE1D`; capture the x87 control word and intermediate stored float bits. The body scans a 28×28 area and writes a 26×26 area, but exact unsigned-slope conversion, tangent precision, store ordering and host effects must be obtained together; no numeric terrain golden value is asserted here. |
+| LE17-R3: GoTo3DView `0x0047B700` | Record the view-service `+0x40` call, terrain `+0x38` result and final view transition for lot sizes 1×1, 2×3, 255×255 and null configuration. The centre arguments are byte `(dimension >> 1)+2`, or `(3,3)` without a configuration; record the resulting world/view target rather than assuming these bytes are pixel coordinates. |
+| LE17-R4: GetAllLotBaseTextureTypes `0x0047FC50` | Open the texture selector with a controlled set of texture resources: two accepted IDs with images, a missing image, an unsupported source format and a duplicate ID. At `0x0047FDCD` record resource key, decoder Boolean/output pointer, and the final parallel ID/image arrays `+0x1C4/+0x1D0` before grid population. This settles resource-instance eligibility, duplicate handling and failed-image alignment for that fixture without inventing a row/image correspondence on failure. |
+| LE17-R5: 3D refresh `0x0047BE20` | In the same disposable city as LE17-R2, run a null configuration and a 2×3 configuration, with editor `+0x1E0` zero then nonzero. Record concrete targets/arguments/results for region cleanup `+0x18`, placement-service `+0x64/+0x58`, the four boundary calls, post-placement `+0x1C` and occupant `+0x90`; record removed/created occupants and final terrain/network state. Exercise placement false, true with valid output, and true with null output under a debugger. This settles concrete preview effects and the unchecked success-output failure; the caller protocol above is already static. |
+
+Closure mapping: GetLotConfigurationObjectName, DoShowHelpUI, MessageBoxA and
+TriggerLotConfigurationRedraw bodies close; retaining-wall/foundation name
+helpers close their fallback/formatting portions. DrawLotConfigurationObject,
+DrawCurrentLotConfiguration, Prepare3DView, GoTo3DView, 3D refresh and
+GetAllLotBaseTextureTypes remain **partial** with the exact observations above;
+the 3D-refresh caller protocol is established separately from host effects.
+The LE5 README group must not be marked fully closed from this section.
+
+## 36. Shared constructor/decoder attribution (LE18) *[compat]*
+
+Keep three distinct facts: an editor call reaches a body; the body's behavior
+is a dependency; the original source file/class exclusively owned that body.
+The first two do not establish the third. The five shared bodies/427 current
+export bytes in §18 remain the same five units:
+
+| Entry | Current bytes | Attribution that the available evidence supports |
+|---|---:|---|
+| `0x00478360` | 64 | Generic 0x34-byte lot-object record initialization (§9.4); six exported direct calls from AddNewLotConfigurationObject, no editor-this/state access proving exclusive ownership. |
+| `0x00604920` | 169 | Resource-to-buffer conversion entry, invoked by texture enumeration; opens resource IID `0x1AB50C3F`, obtains source data, dispatches on its format and obtains buffer IID `0x20732180`. Resource/buffer services are general dependencies. |
+| `0x006049BF` | 7 | Decoder format dispatch fragment. |
+| `0x006049C6` | 7 | Decoder format dispatch fragment. |
+| `0x006049CD` | 180 | Exported shared switch case, including its discontiguous ranges from §18; not an editor member established by a source symbol. |
+
+The decoder nulls the caller's output pointer before resource acquisition;
+failed acquisition returns false (`0x00604938..0x00604951`, `0x00604B6B`).
+Its buffer factory and resource format dispatch are independent of editor
+selection/mode. Count neither the two historical interior addresses
+`0x006049D4/0x00604A67` nor decoder reachability as additional editor bodies.
+No bytes are restored to the editor's exclusive-ownership total by this rule.
+
+Worked attribution case: opening the texture selector and reaching
+`0x00604920` once adds one observed dependency call, **zero new function
+entries and zero exclusively attributed editor bytes**. The inventory still
+has five shared entries totalling 427, not seven entries after adding the
+historical fragments. Constructing a new type-1 record exercises the record
+initializer without making the generic initializer an editor method.
+
+Closure mapping: the five R/shared-helper ownership rows are classified as
+shared dependencies; they are not C editor-body credit. **LE18-R observation:**
+break at all five actual entries while creating a type-1 record, opening a
+texture selector and opening another image-resource consumer, recording call
+stacks, resource keys,
+buffer interface targets and returns. This can demonstrate additional sharing
+and selects the concrete decoder path for LE17-R4. It cannot prove exclusive
+source ownership by the absence of other hits. Exclusive source provenance
+would require an original link/debug/source map, not a finite runtime trace;
+that evidence is unavailable here. Keep that attribution boundary explicit
+rather than reopening broad LE5 or claiming a runtime trace proves a source file.
+
+### 36.1 LE9–LE18 disposition
+
+§27–§36 supersede the earlier broad LE3/LE4/LE5/LE7 stopping labels only for
+the rows explicitly mapped in each section. LE9–LE15 have static contracts;
+LE16 has an explicit malformed-state observation; LE17 is narrowed to five
+specified observations; LE18 resolves shared-versus-exclusive accounting and
+states the provenance limit. No game observation or complete-owner closure
+was performed or inferred. All ten entries are archived with these limits.
+
+The following maps questions to the inventory/README rows by method and entry
+address, without changing that inventory's historical counts. A dependency
+closure is not a claim that every other dependency of the named row is closed.
+
+| Question | Rows closed or narrowed by this answer |
+|---|---|
+| LE9 | Close DoHitTest `0x00483DC0` hit geometry, with §28 conversions. |
+| LE10 | Close rectangle helpers `0x0047B310/0x0047B390` and pixel ToggleFence `0x00484700` invalid-conversion dependency. |
+| LE11 | Close DoSetRetainingWallUI `0x00480910` and DoSetFoundationUI `0x00485D60`. |
+| LE12 | Close SetLotSize `0x00486080` and DoSetLotSizeUI `0x00486BA0` arithmetic dependency. |
+| LE13 | Close remaining DoLotConfigurationObjectMenu `0x00487B30`, DoSelectLotBaseTexturesUI `0x004838C0`, and add wrappers `0x00483920/0x004839A0/0x00483A20/0x00483AA0`; texture comparator semantics are §32. |
+| LE14 | Close sort/search/name dependencies for DoDialogBoxGridSort `0x0047ABA0`, selectors `0x004827D0/0x004832E0/0x00482DC0/0x0047CC30`, chooser SelectLotConfigurationType/PopulateGrid, five name helpers and comparator `0x0047B050`. |
+| LE15 | Close StaticInit `0x00486F20`, PostInit `0x0047B890`, callbacks `0x00486440/0x00486490/0x004864E0`, and Init `0x004892B0` resource/view dependency. |
+| LE16 | Close input/capture/drag rows named in §34 and CycleSelectedObject `0x0047C660` valid-occupant behavior; retain LE16-R for absent-ID memory access. |
+| LE17 | Close object-name/help/message/redraw helpers named in §35 and wall/foundation name fallback formatting. Drawing, Prepare3DView, GoTo3DView, texture enumeration and 3D refresh retain LE17-R1–R5; do not close their full rows. |
+| LE18 | Classify `0x00478360/0x00604920/0x006049BF/0x006049C6/0x006049CD` as shared dependencies; retain the exclusive-source-provenance limit and no exclusive editor-byte credit. |
 
 ## 19. Window-owner integration and slot inventory *[compat]*
 
@@ -1445,7 +2224,8 @@ of the draw routine. The output begins null and the final Release is
 (`0x0047E514..0x0047E51A`). Failure leaving a null output therefore has an
 unchecked null dereference; it is not a safe no-op result. An adapter must
 honor the service's output/reference preconditions. Remaining raster geometry
-is LE5. The fence phase calls unlock even after its access request fails
+is bounded by LE17-R1 in §35. The fence phase calls unlock even after its
+access request fails
 (`0x0047E3A6..0x0047E3A8`, `0x0047E4B0..0x0047E4BB`).
 Evidence: `0x0047E060..0x0047E0E5`, object pass
 `0x0047E33D..0x0047E36D`, fence access `0x0047E39A..0x0047E3A8`.
@@ -1455,7 +2235,7 @@ window virtual `+0x170` after the draw routine returns
 (`0x0047E870..0x0047E882`). Raster generation and presentation invalidation
 are separate host effects. Do not replace the trigger with only a dirty
 flag. If drawing faults on invalid host output, no subsequent invalidation
-is guaranteed. Full 3D preparation/refresh and name fallbacks remain LE5/LE4.
+is guaranteed. Name fallbacks are §32/§35; the remaining 3D observations are §35.2.
 
 ### 21.1 Editor lifetime and static resources: further facts
 
@@ -1463,8 +2243,8 @@ StaticInit sets its once flag **before** reading `FamilyNames.ini`. It
 enumerates `PropFamilies`, `BuildingFamilies` and `FloraFamilies` through
 three callbacks (`0x00486F20`), so a missing/unreadable file is not retried
 by the next Init merely because the resources are empty. Exact path
-composition, callback name collision/fallback rules and error reporting
-remain LE5; absence of a returned error here is not a promise of loaded names.
+composition and callback assignment rules are §33, and name fallbacks are §32;
+absence of a returned error here is not a promise of loaded names.
 
 The editor body destructor is `0x0047DC20`, called by deleting wrapper
 `0x0047E5D0`. It frees the storage blocks based at `+0x1D0`, `+0x1C4` and
@@ -1865,9 +2645,8 @@ own method contracts apply. Evidence: `0x00486AC4..0x00486B57`,
 
 LE3/LE4/LE5/LE7 were broad stopping inventories, not four independently
 complete algorithms. Their answered entries record the resolved contracts;
-LE9–LE18 replace the remaining scope with numbered, narrower questions.
-In particular this addendum does not establish the retaining-wall or
-foundation selector bodies, SetLotSize arithmetic, selected-object popup
-remainder, ordinary rasterization, PostInit view setup, remaining input/hit
-conversion or exclusive ownership of shared helpers. §18's historical
-attribution numbers remain unchanged.
+LE9–LE18 replaced the remaining scope with numbered, narrower questions;
+their current answers and observations are §27–§36. This §26 addendum alone
+does not close those later contracts. §18's historical attribution numbers
+remain unchanged; §36.1 does not claim complete rasterization, measured 3D
+effects or exclusive ownership of shared helpers.

@@ -24,6 +24,7 @@
 
 #include "FC4Autotest.h"
 #include "FC4Config.h"
+#include "FC4AppShadow.h"
 #include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Dialogs.h"
@@ -41,9 +42,11 @@
 #include "FC4LandValueShadow.h"
 #include "FC4Log.h"
 #include "FC4Reach.h"
+#include "FC4DrawStreamCapture.h"
 #include "FC4Observer.h"
 #include "FC4Popups.h"
 #include "FC4Subsystems.h"
+#include "FC4GZFramework.h"
 #include "FC4TractShadow.h"
 #include "FC4DisasterShadow.h"
 #include "FC4PropLotShadow.h"  // the glue15 lane
@@ -150,6 +153,8 @@ public:
         fc4::Log("cFC4Director constructed (FreeCity4 %s, dll %s, log level %d)", FC4_VERSION_STRING,
                  fc4::ModulePath(), fc4::LogLevel());
         fc4::ReachPrepare();  // snapshot entries before subsystem hooks
+        fc4::ReachStartupStart(); // opt-in; observe framework/application startup
+        fc4::DrawStreamStartup();
         // Register the classes of every enabled subsystem (FC4Subsystems.cpp).
         size_t n = 0;
         const fc4::Subsystem* subsystems = fc4::Subsystems(&n);
@@ -297,11 +302,14 @@ public:
     bool PreFrameWorkInit() override {
         FC4_LOGV("hook PreFrameWorkInit");
         fc4::FpuLog("hook PreFrameWorkInit", true);
+        fc4::GZFrameworkStart(FrameWork());
         return true;
     }
 
     bool PreAppInit() override {
         FC4_LOGV("hook PreAppInit");
+        fc4::GZFrameworkStart(FrameWork());
+        fc4::AppShadowStart(); // AP19: before any region/city mode transition
         fc4::SCResShadowStart(); // default-off capture before application resource loading
         // The first hook after the game's PreFrameWorkInit has run.
         fc4::FpuSetReference("hook PreAppInit");
@@ -371,6 +379,7 @@ public:
     }
 
     bool PreAppShutdown() override {
+        fc4::GZFrameworkStop();
         fc4::ReachStop();  // restore tracing before any entry hook is restored
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");

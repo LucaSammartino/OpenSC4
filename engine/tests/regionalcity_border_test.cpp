@@ -27,6 +27,25 @@ struct Utility {
         return false; // a false demolition result is deliberately ignored
     }
 };
+struct Map {
+    uint32_t AnyNetworkAt(int32_t x, int32_t z) { return x == 1 && z == 5 ? 0x80000000u : 0; }
+};
+struct Tool {
+    bool exact = false;
+    void ToolSlot07(int32_t x, int32_t z, int32_t ex, int32_t ez,
+        uint32_t mask, uintptr_t callback, uint32_t commit, uint32_t network) {
+        exact = x == 0 && z == 5 && ex == 2 && ez == 5 && !mask && !callback
+            && commit == 1 && network == UINT32_MAX;
+    }
+};
+struct Manager {
+    bool exact = false;
+    void GetOccupantsByStandardCityCellsTyped(int&, const std::array<int, 2>* a,
+        const std::array<int, 2>* b, uint32_t type, uint32_t flags) {
+        exact = a == b && (*a)[0] == 0 && (*a)[1] == 5
+            && type == 0xC772BF98 && flags == UINT32_MAX;
+    }
+};
 struct Run {
     FC4RegionalCityOwner* owner;
     unsigned create = 0, remove = 0, segment = 0, posts = 0;
@@ -91,6 +110,16 @@ int main() {
     Utility utility{false, &region};
     fc4::regionalcity::DemolishBorder(&utility, region, &q);
     CHECK(utility.exact);
+    Map map;
+    CHECK(fc4::regionalcity::TrafficPresent(&map, 1, 5));
+    CHECK(!fc4::regionalcity::TrafficPresent(&map, 0, 5));
+    Tool tool;
+    fc4::regionalcity::PlaceBorderSegment(&tool, 0, 5, 2, 5);
+    CHECK(tool.exact);
+    Manager manager;
+    const std::array<int, 2> cell{0, 5};
+    fc4::regionalcity::QueryBorderOccupants(&manager, region, cell, 0xC772BF98);
+    CHECK(manager.exact);
     auto* owner = fc4_regionalcity_owner_create(2);
     CHECK(owner);
     Run run{owner};

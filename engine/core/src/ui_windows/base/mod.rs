@@ -11,8 +11,12 @@ mod dispatch;
 mod geometry;
 mod paint;
 #[cfg(test)]
+mod resolved_tests;
+#[cfg(test)]
 mod tests;
 mod tree;
+#[cfg(test)]
+mod wt14_tests;
 pub use tree::ChildRead;
 
 pub type Window = u64;
@@ -22,6 +26,47 @@ pub const FADE_ALPHA: u32 = 0xe6e9_98fb;
 pub const FADE_TIME: u32 = 0xe6e9_98fc;
 pub const FADE_PERIOD: u32 = 0xe6e9_98fd;
 pub const FADE_TEMP: u32 = 0xe6e9_98fe;
+
+/// Portable inventory of the 151 callable base/fade slots (§1.1, WT1).
+/// The padding word and cGZWinGen's slot 151 are not base methods.
+pub const BASE_SLOT_COUNT: u32 = 151;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BaseSlot {
+    Method,
+    Constant { byte: u8, argument_bytes: u8 },
+    DeletingDestructor,
+    PointTransparent,
+    CreatePrivateBuffer,
+}
+pub const fn base_slot(slot: u32) -> Option<BaseSlot> {
+    Some(match slot {
+        88 => BaseSlot::Constant {
+            byte: 1,
+            argument_bytes: 0,
+        },
+        129 | 133 | 141 | 142 => BaseSlot::Constant {
+            byte: 0,
+            argument_bytes: 4,
+        },
+        130 | 131 | 140 | 143 => BaseSlot::Constant {
+            byte: 0,
+            argument_bytes: 8,
+        },
+        134..=138 => BaseSlot::Constant {
+            byte: 0,
+            argument_bytes: 12,
+        },
+        139 => BaseSlot::Constant {
+            byte: 0,
+            argument_bytes: 16,
+        },
+        148 => BaseSlot::DeletingDestructor,
+        149 => BaseSlot::PointTransparent,
+        150 => BaseSlot::CreatePrivateBuffer,
+        0..=147 => BaseSlot::Method,
+        _ => return None,
+    })
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Rect(pub i32, pub i32, pub i32, pub i32);
@@ -67,15 +112,15 @@ pub enum Param {
     Integer(i32),
 }
 
-/// State of the published +00..+D4 fields. Unknown WT2 bytes are retained as zero.
-#[derive(Clone, Debug)]
+/// State of the published +00..+D4 fields. None marks constructor-untouched fields (WT2).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BaseWindow {
     pub manager: Object,
     pub keyboard: Option<Object>,
     pub id: u32,
     pub absolute: Rect,
     pub draw_area: Rect,
-    pub draw_origin: Rect,
+    pub draw_origin: Option<Rect>,
     pub parent: Option<Window>,
     pub notification: Option<Window>,
     pub caption: String,
@@ -88,7 +133,7 @@ pub struct BaseWindow {
     pub accelerator: Option<Object>,
     pub fade_periods: (i32, i32),
     pub key_equivalent: u32,
-    pub unknown_a0_a4: [u32; 2],
+    pub mouse_down_offset: Option<(i32, i32)>,
     pub area: Rect,
     pub blit: Rect,
     pub flags: u32,
@@ -113,7 +158,7 @@ impl BaseWindow {
             id: 0,
             absolute: Rect::default(),
             draw_area: Rect::default(),
-            draw_origin: Rect::default(),
+            draw_origin: None,
             parent: None,
             notification: None,
             caption: String::new(),
@@ -126,7 +171,7 @@ impl BaseWindow {
             accelerator: None,
             fade_periods: (500, 500),
             key_equivalent: 0,
-            unknown_a0_a4: [0; 2],
+            mouse_down_offset: None,
             area: Rect::default(),
             blit: Rect::default(),
             flags: 0x8903,
@@ -145,6 +190,9 @@ impl BaseWindow {
     }
     pub fn flag(&self, mask: u32) -> bool {
         self.flags & mask != 0
+    }
+    pub fn set_mouse_down_offset(&mut self, x: i32, y: i32) {
+        self.mouse_down_offset = Some((x, y));
     }
     pub fn children(&self) -> &[Window] {
         &self.children
@@ -204,7 +252,8 @@ pub enum NativeOp {
 pub struct BufferInfo {
     pub area: Rect,
     pub usable: bool,
-    pub content: bool,
+    /// Buffer slot 39: surface initialized/readiness, not image content (WT14).
+    pub initialized: bool,
     pub context: Option<Object>,
     /// Interface 0xAB300B2B slot 5 for presentation; slot 4 above is drawing.
     pub present_context: Option<Object>,
@@ -213,7 +262,7 @@ pub struct BufferInfo {
 }
 
 /// Host supplies services or subclass overrides, never native memory to core.
-/// Buffer creation internals and native slot meanings stay at this boundary (§12).
+/// Graphics implementation stays at this boundary; the window owns WT14 call ordering.
 pub trait Host {
     fn event(&mut self, _event: NativeOp) {}
     /// Explicit AL left by a slot-16 override (the native declaration is void).
@@ -244,6 +293,17 @@ pub trait Host {
     fn clock(&mut self) -> u32 {
         0
     }
+    /// Borrowed RZ::GS() used by slot 150's fallback.
+    fn graphics_system(&mut self) -> Option<Object> {
+        None
+    }
+    /// Owning service handles; the window Releases each returned reference.
+    fn acquire_graphics_system(&mut self) -> Option<Object> {
+        None
+    }
+    fn acquire_draw_system(&mut self) -> Option<Object> {
+        None
+    }
     fn screen_buffer(&mut self) -> Option<Object> {
         None
     }
@@ -253,7 +313,30 @@ pub trait Host {
     fn buffer_info(&mut self, _buffer: Object) -> BufferInfo {
         BufferInfo::default()
     }
-    fn create_private_buffer(&mut self, _w: Window, _width: i32, _height: i32) -> Option<Object> {
+    /// Service slot 5 writes an owned output independently of its result byte.
+    fn draw_system_create_buffer(
+        &mut self,
+        _service: Object,
+        _out: &mut Option<Object>,
+        _width: i32,
+        _height: i32,
+        _mode: u32,
+    ) -> bool {
+        false
+    }
+    /// Graphics slot 3: the window ignores the result and examines the owned output.
+    fn graphics_system_create_buffer(&mut self, _graphics: Object, _out: &mut Option<Object>) -> bool {
+        false
+    }
+    fn init_buffer(&mut self, _buffer: Object, _width: i32, _height: i32, _color_type: u32, _bpp: u32) -> bool {
+        false
+    }
+    /// QI 0xAB300B2B. Any non-null output is owned, even on a false result.
+    fn query_draw_interface(&mut self, _buffer: Object, _out: &mut Option<Object>) -> bool {
+        false
+    }
+    /// Interface slot 4 returns a borrowed context, distinct from presentation slot 5.
+    fn drawing_context(&mut self, _interface: Object) -> Option<Object> {
         None
     }
     fn lock_buffer(&mut self, _buffer: Object, _flags: u32) -> bool {
@@ -283,8 +366,8 @@ pub trait Host {
     fn filter(&mut self, _wins: &mut Windows, _filter: Object, _w: Window, _msg: Message) -> bool {
         false
     }
-    fn handler(&mut self, _wins: &mut Windows, _w: Window, _slot: u32, _args: &[u32]) -> bool {
-        false
+    fn handler(&mut self, _wins: &mut Windows, _w: Window, slot: u32, _args: &[u32]) -> bool {
+        matches!(base_slot(slot), Some(BaseSlot::Constant { byte: 1, .. }))
     }
     fn accelerate(&mut self, _accelerator: Object, _msg: Message) -> bool {
         false
@@ -336,6 +419,12 @@ pub struct Windows {
     retired_children: BTreeMap<(Window, u64), Vec<Window>>,
 }
 
+impl Default for Windows {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 impl Windows {
     /// No-argument constructor: RZ::WM(), then that manager's keyboard (slot 38).
     pub fn create_default(&mut self, host: &mut impl Host) -> Window {
@@ -343,7 +432,7 @@ impl Windows {
         let keyboard = host.manager_keyboard(manager);
         self.create(host, manager, keyboard)
     }
-    /// WT6: caller supplies the initial serial rather than guessing 0 or 1.
+    /// Explicit serial for restoring/seeding a manager; a fresh manager starts at 1 (WT6).
     pub fn new(first_instance: u32) -> Self {
         Self {
             windows: BTreeMap::new(),
@@ -370,6 +459,11 @@ impl Windows {
             .insert(w, BaseWindow::new(manager, keyboard, self.next_instance));
         self.next_instance = self.next_instance.wrapping_add(1);
         host.event(NativeOp::Register(w));
+        w
+    }
+    pub fn create_fade(&mut self, host: &mut impl Host, manager: Object, keyboard: Option<Object>) -> Window {
+        let w = self.create(host, manager, keyboard);
+        self.set_param(host, w, FADE_TEMP, Some(Param::Integer(1)));
         w
     }
     pub fn get(&self, w: Window) -> &BaseWindow {

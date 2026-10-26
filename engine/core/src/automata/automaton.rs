@@ -1006,19 +1006,40 @@ impl EmergencyRecord {
         out.put_u8(self.b);
         out.put_u16(self.w);
         out.put_u32(self.u);
-        out.error() == 0
+        true
     }
 
     pub fn read(inp: &mut dyn InStream) -> Option<EmergencyRecord> {
-        Some(EmergencyRecord {
-            version: inp.get_u16()?,
-            vehicle: VehicleRecord::read(inp)?,
-            v: get_vec3(inp)?,
-            occupant: get_ref_checked(inp, IID_OCCUPANT)?,
-            b: inp.get_u8()?,
-            w: inp.get_u16()?,
-            u: inp.get_u32()?,
-        })
+        let mut record = Self::default();
+        record.read_into(inp).then_some(record)
+    }
+
+    /// §6.4.2: tail helper failures do not replace the inherited Vehicle result.
+    pub fn read_into(&mut self, inp: &mut dyn InStream) -> bool {
+        if inp.get_u16() != Some(EMERGENCY_VERSION) {
+            return false;
+        }
+        let Some(vehicle) = VehicleRecord::read(inp) else {
+            return false;
+        };
+        self.version = EMERGENCY_VERSION;
+        self.vehicle = vehicle;
+        if let Some(v) = get_vec3(inp) {
+            self.v = v;
+        }
+        if let Some(occupant) = get_ref_checked(inp, IID_OCCUPANT) {
+            self.occupant = occupant;
+        }
+        if let Some(b) = inp.get_u8() {
+            self.b = b;
+        }
+        if let Some(w) = inp.get_u16() {
+            self.w = w;
+        }
+        if let Some(u) = inp.get_u32() {
+            self.u = u;
+        }
+        true
     }
 }
 

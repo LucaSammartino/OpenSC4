@@ -130,6 +130,14 @@ bool ErrorIs(const std::string& line, const std::string& message) {
 void ScriptParseTests() {
     using namespace fc4::harness;
     {
+        const auto p = One("2000-01-01 budgetwindow # explicit opt-in");
+        CHECK(p.errors.empty() && p.actions.size() == 1);
+        CHECK(p.actions[0].op == ScriptOp::BudgetWindow);
+        CHECK(ScriptOpName(p.actions[0].op) == std::string("budgetwindow"));
+        CHECK(One("2000-01-01 budgetwindow open").errors.size() == 1);
+        CHECK(One("2000-01-01 budgetwindow 1").errors.size() == 1);
+    }
+    {
         const auto p = One("2000-01-01 funds 999999999\n2000-01-01 establish FC4 small tile # comment");
         CHECK(p.errors.empty() && p.actions.size() == 2);
         CHECK(p.actions[0].op == ScriptOp::Funds && p.actions[0].funds == 999999999);
@@ -196,6 +204,8 @@ void ScriptParseTests() {
     CHECK(One("2000-01-07 pause").actions.at(0).op == ScriptOp::Pause);
     CHECK(One("2000-01-07 resume").actions.at(0).op == ScriptOp::Resume);
     CHECK(One("2000-01-07 digest # now").actions.at(0).op == ScriptOp::Digest);
+    CHECK(One("2026-02-01 gzfwprobe").actions.at(0).op == ScriptOp::GZFrameworkProbe);
+    CHECK(ErrorIs("2026-02-01 gzfwprobe extra", "gzfwprobe takes 0 argument(s) (none), not 1"));
     CHECK(One("2026-02-01 dispatch 1").actions.at(0).op == ScriptOp::Dispatch);
     CHECK(One("2026-02-01 dispatch 1").actions.at(0).type == 1);
     CHECK(ErrorIs("2026-02-01 dispatch 9", "dispatch type must be 0..8"));
@@ -293,7 +303,7 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01   # just a date", "a date with no action"));
     CHECK(ErrorIs("2000-01-01 plop 1 2",
                   "unknown action 'plop' (zone, pricezone, dezone, network, speed, pause, resume, turbo, digest, mark, "
-                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish)"));
+                  "save, terrain, disaster, port, tutorial, dispatch, clockmode, lightinghour, funds, establish, budgetwindow)"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 4"));
     CHECK(ErrorIs("2000-01-01 zone 1 2 3 4 1 9", "zone takes 5 argument(s) (x0 z0 x1 z1 type), not 6"));
     CHECK(ErrorIs("2000-01-01 pricezone 1 2 3", "pricezone takes 5 argument(s) (x0 z0 x1 z1 type), not 3"));
@@ -321,12 +331,12 @@ void ScriptParseTests() {
     CHECK(ErrorIs("2000-01-01 mark # only a comment", "mark takes a text"));
     CHECK(ErrorIs("2000-01-01 save slow", "save 'slow' is not fast (save, or save fast)"));
     CHECK(ErrorIs("2000-01-01 save fast now", "save takes 0 or 1 argument(s) (fast), not 2"));
-    CHECK(ErrorIs("2000-01-01 disaster", "disaster '' is not fire, riot or survey"));
-    CHECK(ErrorIs("2000-01-01 disaster flood 1 2", "disaster 'flood' is not fire, riot or survey"));
+    CHECK(ErrorIs("2000-01-01 disaster", "disaster '' is not fire, riot, volcano or survey"));
+    CHECK(ErrorIs("2000-01-01 disaster flood 1 2", "disaster 'flood' is not fire, riot, volcano or survey"));
     CHECK(ErrorIs("2000-01-01 disaster fire 1",
-                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 2"));
+                  "disaster takes 3 argument(s) (fire|riot|volcano x z, or fire|riot auto), not 2"));
     CHECK(ErrorIs("2000-01-01 disaster riot 1 2 3",
-                  "disaster takes 3 argument(s) (fire|riot x z, or fire|riot auto), not 4"));
+                  "disaster takes 3 argument(s) (fire|riot|volcano x z, or fire|riot auto), not 4"));
     CHECK(ErrorIs("2000-01-01 disaster riot x 2", "x 'x' is not a cell coordinate 0..4095"));
     CHECK(ErrorIs("2000-01-01 disaster fire 1 4096", "z '4096' is not a cell coordinate 0..4095"));
     CHECK(ErrorIs("2000-01-01 disaster survey now", "disaster takes 1 argument(s) (survey), not 2"));
@@ -419,6 +429,40 @@ void CellRectArgsTests() {
     CHECK(CellRectArgs(5, 5, 5, 4).empty && CellRectArgs(5, 5, 5, 4).h == 0);
 }
 
+void UiScriptTests() {
+    using namespace fc4::harness;
+    const auto p = ParseScript(
+        "2026-01-28 uicommand 0xFA935cf3\n"
+        "2026-01-28 uiwait 60000\n"
+        "2026-01-28 uicell 63 64 250.5 down\n"
+        "2026-01-28 uimouse 320 240 up\n"
+        "2026-01-28 uikey 27\n"
+        "2026-01-28 uitext test city name\n");
+    CHECK(p.errors.empty() && p.actions.size() == 6);
+    if (p.actions.size() == 6) {
+        CHECK(p.actions[0].command == 0xFA935CF3u);
+        CHECK(p.actions[1].type == 60000);
+        CHECK(p.actions[2].height == 250.5f && p.actions[2].kind == 1);
+        CHECK(p.actions[3].kind == 2 && p.actions[4].type == 27);
+        CHECK(p.actions[5].text == "test city name");
+        CHECK(std::string(ScriptOpName(p.actions[0].op)) == "uicommand");
+    }
+    for (const auto* bad : {"uicommand 0x00000000", "uicommand 0x100000000", "uicommand -1",
+            "uicommand 0x6a935cf3 extra", "uiwait 60001", "uiwait -1", "uikey 0", "uikey 256",
+            "uicell 4096 1 250 click", "uicell 1 1 nan click", "uimouse 1 2 drag", "uitext"}) {
+        CHECK(!ParseScript(std::string("2026-01-28 ") + bad + "\n").errors.empty());
+    }
+    const auto control = ParseScript("2026-01-28 uicontrol 0x00000041\n");
+    CHECK(control.errors.empty() && control.actions.size() == 1 && control.actions[0].command == 0x41);
+    const auto volcano = ParseScript("2026-01-28 disaster volcano 63 64\n");
+    CHECK(volcano.errors.empty() && volcano.actions.size() == 1);
+    if (volcano.actions.size() == 1) {
+        CHECK(volcano.actions[0].disaster == kDisasterVolcano && volcano.actions[0].x0 == 63 && volcano.actions[0].z0 == 64);
+    }
+    for (const auto* bad : {"disaster volcano auto", "disaster volcano 1", "disaster volcano -1 1"})
+        CHECK(!ParseScript(std::string("2026-01-28 ") + bad + "\n").errors.empty());
+}
+
 }  // namespace
 
 int main() {
@@ -429,6 +473,7 @@ int main() {
     ScriptParseTests();
     ScriptScheduleTests();
     CellRectArgsTests();
+    UiScriptTests();
     if (g_failures == 0) std::printf("harness logic test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }

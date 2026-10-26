@@ -2,6 +2,7 @@
 #include "FC4RegionalCityShadow.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -288,9 +289,9 @@ void Observe(void* raw) {
     CompareMutations(fields, mismatches, differences);
     fc4_date date{};
     fc4_date_from_julian(obs.julian, &date);
-    fc4::Log("regionalcity shadow %04d-%02d-%02d: phase=%s records=%u decoded=%u fields=%u mismatches=%u%s",
+    fc4::Log("regionalcity shadow %04d-%02d-%02d: phase=%s records=%u decoded=%u fields=%u mismatches=%u cw=0x%04X%s",
         date.year, date.month, date.day_of_month, obs.load ? "load" : "month",
-        static_cast<uint32_t>(records.size()), decoded, fields, mismatches, differences.c_str());
+        static_cast<uint32_t>(records.size()), decoded, fields, mismatches, fc4::X87ControlWord(), differences.c_str());
     FC4_RELEASE(sc4);
 }
 }

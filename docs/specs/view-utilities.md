@@ -92,7 +92,8 @@ camera it stops there. Otherwise:
   step 4, and groundPitch = atan(tan(pitch) ÷ cos(yawOffset[zoom])), the pitch seen along a city edge (32.0°,
   37.2°, 42.2°, 47.3°, 47.3° for zooms 0–4).
 - `GetObjectYRotationAngle(rotation)` (`0x007F6CB0`): −rotation × π/2.
-- `GetCityWidthFromOrthoView(width, zoom)` (`0x007F8300`): width × (cos a + sin a), a = |yawOffset[zoom]|; the
+- `GetCityWidthFromOrthoView(width, zoom)` (`0x007F8300`): sin(a)×width + cos(a)×width, a = |yawOffset[zoom]|;
+  evaluate the separate products before the sum (§2.3); the
   screen width of a square of that side (× 1.3066 at every zoom).
 - `GetZoomAndRotation` (`0x007F66A0`) returns `+0x0C` and `+0x10`; `ViewportUnitsToWorldUnits(v)` (`0x007F6690`)
   returns v × `+0x150`.
@@ -110,12 +111,13 @@ memory read, potentially a fault or unrelated float data; returning false/None i
 `UpdateCameraPosition` returns void and marks valid at the successful end even for numerically invalid
 camera data; its only early exits are the missing renderer/camera paths (§2 entry).
 
-The instructions use x87 extended intermediates and explicit float32 memory stores, not an all-float32
-expression graph and not fused multiply-add. Native trig uses FSIN/FCOS, and angle helpers use
+The instructions use x87 registers with the caller's precision control and explicit float32 memory
+stores, not fused multiply-add. Register width alone does not establish arithmetic precision (§2.3).
+Native trig uses FSIN/FCOS, and angle helpers use
 FPTAN/FPATAN (`0x007F85F0`–`0x007F863A`, `0x007F8370`–`0x007F8380`). No portable libm bit identity
 is implied. sx and sy are computed with extent subtraction still on the x87 stack and each quotient stored
 to float32. Their inverses divide one by those **stored** scales. sz is stored by a non-popping float32
-store, and its inverse uses the still-retained extended quotient (`0x007F8533`–`0x007F85A1`), rather
+store, and its inverse uses the still-retained register quotient (`0x007F8533`–`0x007F85A1`), rather
 than reloading rounded sz or simply copying far−near. No method here changes the x87 control word:
 rounding/exception mode is inherited from the caller. Numeric bit conformance must name that mode.
 
@@ -128,6 +130,66 @@ likewise take the ordinary division path: zero scales/infinite inverse scales or
 inverses, and NaNs where both numerator and denominator vanish. No finite-value repair occurs.
 The later length-to-extent steps used for corners do test squared length >0 before rescaling; this does
 not turn the earlier unguarded basis normalization into a checked operation.
+
+### 2.3 Native numeric profile and scalar worked cases (VU12)
+
+The supported **ordinary game numeric profile** is x87 PC=00 (24-bit significand), RC=00
+(nearest/even), with all six floating exceptions masked; its conventional control word is
+**0x007F**. This is the profile established by application startup, not a control-word write in
+any utilities entry. The startup wrapper selects mode 0 (`0x005F85E0`–`0x005F85E8`); the setter
+changes only the precision bits (`0x008929E8`–`0x00892A05`). See foundations §18 for startup,
+thread and plugin-induced precision changes. A utilities call inherits another profile if its
+caller/thread has changed it. Static bytes alone cannot certify the control word of a particular
+live renderer call, especially in a process with plugins.
+
+For **native exact** observations, record the raw control word immediately before the original
+entry on that calling thread, with the input bits and the float32/double/retained-register return
+boundary. This is the runtime observation still required to attribute a live discrepancy to the
+ordinary profile. Do not change the control word before measuring it. PC=53/64 or another RC
+requires a separately labelled comparison using the same operation/store graph; a matching
+geometric result under portable nearest/even float64/libm does not establish native numeric identity.
+
+In §§3.5, 4 and 7.3 each arithmetic operator denotes **one** native add/subtract/multiply/divide
+or square root, rounded to the selected PC/RC, with no reassociation or fusion. Under the ordinary
+profile the significand rounding is like float32 for ordinary finite, normal-range values, but
+register exponents retain x87 range. Exact float32 loads and signed-int32-to-register loads are
+not pre-rounded to PC. A **store/reload** means an additional float32 range/rounding boundary;
+a **store/retain** writes float32 but continues using the pre-store register value. Negation
+changes the sign bit without an arithmetic rounding. Trig is the x87 hardware operation, not
+a prescribed portable libm; its result is not automatically rounded to PC=24. Subsequent basic
+arithmetic and explicit stores supply the rounding boundaries stated here. No CPU-independent
+bit identity for transcendental instructions or NaN payloads is claimed.
+If a trig-sensitive comparison still differs with matching CW and stores, the settling runtime
+observation is the CPU family/model plus raw 80-bit trig results at the scalar helper's sine/cosine
+boundaries (`0x007F8323`, `0x007F832B`) and the corresponding rounded products and final capture.
+For camera update, also record the four stored float32 trig words at `+0x448`–`+0x454`.
+
+**City width (`0x007F8300`):** read the float32 yaw offset for zoom, compare it with zero, and
+negate only if it is negative. From this absolute angle a, form **sin(a)×width and cos(a)×width
+separately**, then add the two products. Both products round at the selected precision. There
+are **no internal float32 stores**, either of the trig values or the products; the sum returns
+in the floating register (`0x007F8321`–`0x007F8337`). Replacing this with
+width×(sin(a)+cos(a)) moves the two rounding boundaries and is observably different. Rounding
+both trig results to float32 first is also not the native graph, even where it agrees by accident.
+Width is a float32 argument, not an int32. This corrects the operation order implicit in §2.1's
+mathematical formula and resolves the close-viewutil29 FSIN/FCOS/add/multiply probe discrepancy.
+
+**Worked scalar cases (ordinary profile, stored-float32 observation):** a has bits 0x3EC90FDB
+for zoom 1 or 2 after absolute value. Width=64 produces sine-product 0x41C3EF16,
+cosine-product 0x426C835E and sum **0x42A73D74**; width=128 produces products 0x4243EF16,
+0x42EC835E and sum **0x43273D74**. The add-then-multiply graph gives the reported one-ULP
+higher words. These normal-range cases also permit software evaluation of the published rounding
+graph; a live run must still log CW to certify its profile.
+
+For `GetCameraViewAnglesForRotation`, the exact signed rotation enters the multiply by float32
+quarter-turn, that product rounds, and only then is the float32 yaw offset added; the yaw output
+is stored float32 (`0x007F7793`–`0x007F779B`). Rotation=3, zoom=3 gives product
+**0x4096CBE4**, then yaw **0x408A3AE6**, rather than 0x408A3AE7. Pitch is the exact table word.
+The derived angle evaluates hardware tan(pitch), hardware cos(offset), divides tan by cos, then
+hardware atan of that quotient using 1 as the other atan operand; only its final output is stored
+(`0x007F77AE`–`0x007F77C2`). Camera update likewise stores its yaw before reloading it for
+sin/cos of its negation, stores pitch before its trig, and stores all four trig outputs float32
+(`0x007F85D6`–`0x007F863A`). Do not feed an unrounded yaw expression to these trig calls.
 
 ## 3. The view frustum *[compat]*
 
@@ -159,7 +221,7 @@ original camera volume. No universal claim that every possible camera provider i
 Six planes, each a normal and an offset so that a point p is inside when normal · p + offset > 0: right (`+0x160`,
 normal = right vector, through corner 3), left (`+0x170`, −right, through corner 0), bottom (`+0x180`, up, through
 corner 2), top (`+0x190`, −up, through corner 3), near (`+0x1A0`, forward, through corner 3), far (`+0x1B0`,
-−forward, through corner 7).
+−forward, with the offset quirk in §3.5).
 
 Because the right vector is horizontal, the left and right planes are vertical and are also kept as **ground
 lines** in (x, z): line A from corner 3 along (corner 7 − corner 3) (`+0x208`), line B from corner 0 along
@@ -176,11 +238,114 @@ result's x and z are the clipped polygon's extent (0 when nothing is left); min 
 
 - `IsBoundingBoxInViewFrustum(min, max)` (`0x007F6770`): a box is in when, for each of four tests, its corner
   furthest towards the inside passes: line A with (x − ax) dz − (z − az) dx < 0, line B with the same expression
-  > 0, then the bottom and top planes. **There is no near or far test** *[quirk]*: a box behind the camera or past
+  > 0, then the top and bottom planes. **There is no near or far test** *[quirk]*: a box behind the camera or past
   the far plane passes when it lies between the four sides.
 - `IsBoundingBoxInDrawFrustum(min, max)` (`0x007F6910`): the same with the draw frustum's lines and planes (§5).
 - `IsPointInViewFrustum(p)` (`0x007F7E50`): p in view coordinates (§4) must satisfy left ≤ x ≤ right,
   bottom ≤ y ≤ top and near < −z < far.
+
+### 3.5 Corner, plane and predicate evaluation graph (VU12)
+
+The following fills in the numeric boundaries of §§2–5; arithmetic follows §2.3. All vectors
+mentioned as owner fields are float32. Temporary extents are **not** computed by multiplying
+an assumed unit basis by the requested length: each basis length is measured again.
+
+**Basis normalization in camera update:** first store each look-at minus position component.
+For forward, then right, then up, form squared length in **x²+y², then +z²** order, take its
+square root, divide the float32 constant 1 by that root, retain the quotient, and multiply each
+component by it, storing x,y,z float32. There is no intermediate squared-length, root or quotient
+memory rounding. Right and up are formed by the sequential-store cross helper before right is
+normalized, as §2.2 says. Each cross component evaluates its two products and subtraction, then
+stores float32 before the next component's input loads (`0x005D6F18`–`0x005D6F47`). Basis
+normalization evidence: `0x007F8640`–`0x007F8701`.
+
+**Length-to-extent:** use copies of the stored basis, not values retained from its normalization.
+Measure each requested vector independently in near, far, horizontal, vertical order:
+
+| Builder | Squared-length addition order | Requested length | Rescaled-component boundaries |
+|---|---|---|---|
+| Camera update | x²+z², then +y² | near; far; (right−left)×0.5f; (top−bottom)×0.5f | near x/y retained, near z stored/reloaded; far/horizontal/vertical x/y/z stored/reloaded |
+| Narrowed draw | z²+y², then +x² | draw near; draw far; (draw right−left)×0.5f; (draw top−bottom)×0.5f | every x/y/z stored/reloaded |
+
+In each row, each squared component rounds separately and the additions follow the stated order. If
+squared length is **ordered >0**, take its square root, divide the requested length by that root,
+retain the factor and multiply the original components by it. There is no factor store. Otherwise
+keep the original components unchanged, including for unordered squared length. For horizontal
+and vertical lengths, subtract the extents, multiply by float32 0.5, and only then divide by the
+root. Do not round the root or factor to float32 merely because the result vector is stored there.
+Evidence: `0x007F8704`–`0x007F88A2`, `0x007FA529`–`0x007FA693`.
+
+Call those four resulting vectors N,F,H,V. For camera corners, first add the relevant N or F
+component to the position component, then apply the H sign, then the V sign in §3.1's corner
+table; each operation is separate. The memory boundaries before the final corner stores are:
+
+| Camera corners | x | y | z |
+|---|---|---|---|
+| near 0,1,2 | store/reload after H | store/reload after H | store/reload after position addition |
+| near 3 | store/reload after position addition **and** after −H | store/reload after −H | none after position addition; N.z was already stored |
+| orthographic far 4…7 | store/reload after H | store/reload after H | store/reload after position addition |
+
+All final corner components are stored float32, z then x then y. Repeating a mathematically
+equivalent common centre expression must preserve these differing boundaries. Evidence:
+near `0x007F88A4`–`0x007F8A1C`, orthographic far `0x007F8A30`–`0x007F8BB0`.
+The perspective branch retains far/near as its factor. For each old far corner, subtract position;
+store/reload its z difference, multiply each difference by the factor, store/reload the x/y
+products, then add position and store the result z,x,y (`0x007F8BB5`–`0x007F8D43`).
+
+For a narrowed draw, midpoint coordinates are signed-int32 sums divided by 2 toward zero,
+then stored float32 before unprojection. Each shortened-volume extent uses an exact signed-int32
+difference multiplied by metres-per-pixel, then a float32 store. After unprojecting the midpoint
+at depth zero, negate each N component and add it to that world point, storing the three results:
+this is the draw base B, not an algebraically cancelled midpoint. Add N back to B to obtain the
+near centre; for an orthographic far centre add F to B. The x centre is stored/reloaded before
+corners 0 and 3 of each face, the y centre remains retained, and z is retained for the first
+corner but stored/reloaded for the other three. At every corner, x/y are stored/reloaded after
+the signed H addition, z stays retained after H, and all three final components are stored after
+the signed V addition. The draw perspective branch follows the old-corner procedure above with
+B in place of position. Evidence: `0x007FA4F8`–`0x007FA525`, `0x007FA6A1`–`0x007FAB5D`.
+
+**Planes and lines:** normal components are copied or sign-negated from the stored basis, without
+normalizing them again. Form each offset by summing the component products in the order below,
+then negate and store float32; there is no intermediate sum/product store. Letter sequences mean
+the order of the coordinate products, not a change of matrix orientation:
+
+| Plane | View: point, product-add order | Narrowed draw: point, product-add order |
+|---|---|---|
+| right | view corner3; x,z,y | draw corner3; y,z,x |
+| left | view corner0; y,x,z | draw corner0; x,z,y |
+| bottom | view corner2; y,z,x | draw corner2; y,z,x |
+| top | view corner3; z,x,y | draw corner3; z,x,y |
+| near | view corner3; z,x,y | **view** corner3; y,z,x |
+| far | view corner7; y,z,x, using **positive forward** | **view** corner7; y,z,x, using negative forward |
+
+Thus the cached view far normal is negative forward but its offset is also the negative dot of
+**positive** forward with corner7; it is not a geometrically consistent plane through corner7.
+Narrowed draw near/far offsets use the view corners, not the new draw corners. Neither near nor
+far plane is read by the box predicates. These quirks must not be repaired by rebuilding a
+mathematically uniform six-plane set. The line origins copy their corner x/z bits; each direction
+component is one far-minus-near subtraction followed by a float32 store. Evidence:
+`0x007F8DA5`–`0x007F9060`, `0x007FABC4`–`0x007FAD9B`.
+
+**Predicates:** point-in-frustum first stores/reloads all three position differences. It compares
+the yaw-rotated x without storing it; stores/reloads the yaw-rotated z before the pitch stage;
+compares the pitch-rotated y without storing it; then compares the negated pitch-rotated z without
+storing it (`0x007F7E65`–`0x007F7F32`). Thus it is not numerically identical to projecting a
+float32 vector first. Box predicates evaluate each line expression as two separately rounded
+differences, two products, then subtraction, with **no computed float32 temporary stores**.
+They select opposite support coordinates from the bottom normal's signs, evaluate the top plane
+first and bottom second, each as **y×ny + z×nz, then +x×nx, then +d**, comparing the retained
+result with zero. Their scratch stores copy coordinate/normal bits only. View and draw share
+this graph with their distinct field bases (`0x007F6770`–`0x007F690C`,
+`0x007F6910`–`0x007F6AAC`). Inclusion/equality and unordered branches remain §§3.4,7.2's rules.
+
+**Worked extent/corner case:** a stored vector (3,4,0), requested length 10, has squared length
+25, root 5, factor 2 and stored result (6,8,0) in either builder. For position (0,0,0), stored
+forward=(0,0,−1), right=(1,0,0), up=(0,1,0), volume left/right=−2/2, bottom/top=−1/1,
+near/far=2/4, the orthographic near corners are (2,1,−2), (2,−1,−2), (−2,−1,−2),
+(−2,1,−2); far corners have z=−4. All values are exact under the ordinary profile. The cached
+view far plane is (0,0,1,−4) by the native quirk, rather than the geometric (0,0,1,4).
+The independent draw-state fixture in §5.1 exercises the predicates and corner selector without
+depending on a camera provider.
 
 ## 4. Coordinates *[compat]*
 
@@ -200,6 +365,34 @@ vx = (x − left) sx, vy = (top − y) sy, vz = (z + near) sz, so vz is 0 at the
 | `UnProjectPointFromViewCoordinatesToWorldCoordinates` | `0x007F7920` | the inverse rotation, then + camera position |
 | `UnProjectPointFromViewportCoordinatesToWorldCoordinates` | `0x007F79B0` | viewport to view (with the inverse scales) to world |
 | `ProjectPointFromViewportCoordinatesToFixedViewCoordinates` | `0x007F8390` | viewport to world, then the fixed-view rotation |
+
+**Numeric evaluation and stores (VU12):** the equations above are ordered operations under §2.3,
+with the following additional boundaries. Write cy/sy for stored cos/sin of −yaw, cp/sp for
+stored cos/sin of pitch, and distinguish sy from the viewport scale of the same conventional name.
+
+| Path | Evaluation order and memory boundaries |
+|---|---|
+| Fixed-view rotation, `0x007F6710` | x₁=(x×cy)−(z×sy), store x; z₁=(z×cy)+(x×sy), store/retain z₁; y=(y×cp)−(z₁×sp), store y; z=(z₁×cp)+(original y×sp), store z. Original x/z and original y remain available in registers; do not read overwritten components. |
+| World-to-view, `0x007F77D0` | Subtract position in x,y,z order. x/y differences store/reload; z difference store/retain. Then the fixed-view graph, using that retained z difference; z₁ is again store/retain. |
+| View-to-viewport, `0x007F66C0` | For x, subtract left, store/retain, multiply sx, store final x. For y, form top−y, store/retain, multiply viewport sy, store final y. For z, form near+z, store/retain, multiply sz, store final z. |
+| World-to-viewport, `0x007F7850`; 2D, `0x007F78E0` | Call world-to-view, so its three final stores are reloaded. Apply the viewport graph in x,y,z order; the 2D entry stops after y and leaves the stored view z. |
+| Scalar viewport Z, `0x007F78A0` | Form (z−position.z)×cy and (x−position.x)×sy, add them, multiply cp; form (y−position.y)×sp and add; add near, multiply sz. No internal float32 store; return the register result. This is not the stored-vector projection graph. |
+| View-to-world, `0x007F7920` | Form y′=(y×cp)−(z×(−sp)), store y′; z′=(y×(−sp))+(z×cp), store/retain z′. Form x′=(x×cy)−(z′×(−sy)), store x′; z″=(x×(−sy))+(z′×cy), store z″. Then reload x′,y′,z″ and add the corresponding position component, storing x,y,z. |
+| Viewport-to-world, `0x007F79B0` | In z,y,x order, multiply by the corresponding inverse scale and store/retain the product; subtract near for z, form top−product for y, add left for x, storing each final component. Then call view-to-world. |
+| Viewport-to-fixed, `0x007F8390` | The preceding viewport-to-world graph including its stores, then fixed-view rotation on the resulting world vector. |
+
+Evidence: the complete small bodies `0x007F66C4`–`0x007F676A`,
+`0x007F77D4`–`0x007F79F8`, `0x007F8394`–`0x007F83DE`. None has an intermediate double
+memory store. A store/retain is observable through aliasing or overflow/underflow, but is **not**
+permission to round the register operand again before its next operation. Point-in-frustum uses
+the different stores described in §3.5.
+
+**Worked projection case:** position=(10,20,30), cy=cp=1, sy=sp=0, volume left=−2, top=4,
+near=2 and scales sx=2, viewport sy=3, sz=0.25. World point (11,22,26) projects to view
+(1,2,−4), then viewport **(6,6,−0.5)**; the 2D entry instead leaves z=−4, and scalar
+viewport-Z returns −0.5. Inverse scales (0.5,1/3,4) return the viewport triple to world
+(11,22,26) under the ordinary profile (the stored float32 inverse 1/3 rounds the product 6×1/3
+to 2). This case checks graph wiring without relying on trig accuracy.
 
 `ProjectBoundingBoxToViewportRectangle(min, max, &topLeft, &bottomRight)` (`0x007F7A40`) projects four chosen box
 corners (2D projection) and rounds: left and top to nearest of (v − 0.5), right and bottom to nearest of v. The
@@ -329,6 +522,49 @@ points (`+0x120`) are computed if not cached. Otherwise (flag := 1), with c the 
 
 `IsBoundingBoxInDrawFrustum` then tests against this frustum.
 
+### 5.1 Cached draw-state layout and isolated fixtures (VU18)
+
+Offsets below are relative to the **0x470-byte utilities owner**, not to a separately allocated
+frustum. All geometry scalars are float32; vectors are packed x,y,z triples. A box is min followed
+by max, each a triple. A plane is nx,ny,nz,d. These are the fields actually copied or built by §5:
+
+| Owner offset | Bytes | Meaning | Whole-viewport source |
+|---|---:|---|---|
+| `+0x228` | 1 | narrowed flag | byte zero |
+| `+0x229`–`+0x22B` | 3 | alignment padding; no §5 geometry field | not copied |
+| `+0x22C/+0x230/+0x234/+0x238` | 16 | signed int32 left, top, right, bottom viewport rectangle | supplied arguments |
+| `+0x23C/+0x248` | 24 | frustum AABB min/max | `+0x78/+0x84` |
+| `+0x254/+0x260` | 24 | city-clipped AABB min/max | `+0x90/+0x9C` |
+| `+0x26C + 12i`, i=0…7 | 96 | corners in §3.1 order | `+0xA8 + 12i` |
+| `+0x2CC/+0x2D0/+0x2D4/+0x2D8/+0x2DC/+0x2E0` | 24 | volume left, right, bottom, top, near, far | `+0x108` through `+0x11C` |
+| `+0x2E4 + 12i`, i=0…3 | 48 | ground points TL, TR, BL, BR | `+0x120 + 12i` (freshly cached) |
+| `+0x314 + 16i`, i=0…5 | 96 | right, left, bottom, top, near, far planes | `+0x160 + 16i` |
+| `+0x374 + 12i`, i=0…5 | 72 | ground-reduced plane triples (nx,nz,d) | `+0x1C0 + 12i` |
+| `+0x3BC/+0x3C0/+0x3C4/+0x3C8` | 16 | line A: origin x,z; direction x,z | `+0x208/+0x20C/+0x210/+0x214` |
+| `+0x3CC/+0x3D0/+0x3D4/+0x3D8` | 16 | line B: origin x,z; direction x,z | `+0x218/+0x21C/+0x220/+0x224` |
+
+There are no other holes between `+0x22C` and the end at `+0x3DC` (exclusive). In particular,
+`+0x374`–`+0x3BB` is **not padding**: the narrowed builder writes the first two reduced-plane
+triples from its right/left planes and zeros the other four; the whole-viewport branch copies all
+six from the view state. The source view reduced-plane array was omitted from §1's summary table.
+The first box, second box, corners and volume have displacement `+0x1C4` from their view counterparts;
+planes, reduced planes and lines instead have displacement `+0x1B4`. A universal displacement is wrong.
+Evidence: whole-copy stores `0x007F9FCA`–`0x007FA1A5`, array copies
+`0x007FA217`–`0x007FA2AE`, line stores `0x007FA2B0`–`0x007FA30B`.
+
+The draw box predicate consumes lines A/B and bottom/top planes at `+0x334/+0x344`, without
+consulting the narrowed flag or either AABB (`0x007F6913`–`0x007F6A9E`). The false branch of
+`GetFrustumAABBCityClipped` selects corner base `+0x26C` directly (`0x007F7F89`–`0x007F7F97`);
+it does not use the cached city-clipped box as input.
+
+**Worked fixture:** in a private owner set line A to (10,0,0,1), line B to (0,0,0,1), bottom plane
+to (0,1,0,0), and top plane to (0,−1,0,10). The box min=(2,2,2), max=(3,3,3) passes the draw
+predicate. The box min=(10,2,2), max=(11,3,3) fails on line A; changing `+0x228` alone cannot
+change either result. For the city-clipped-box call, use city W=D=20 and draw corners
+0=(2,4,3), 3=(8,4,3), 4=(2,−4,11), 7=(8,−4,11). The false selector returns
+min=(2,0,3), max=(8,4,7), regardless of the view corners and cached draw-box canaries. Other
+corners are unconsumed by that call. These read-only fixtures need no renderer/camera provider.
+
 **Failure state:** no valid-flag check precedes this operation. The whole-viewport branch copies the
 cached view state and runs its ground wrappers even with an absent renderer/camera; failed wrappers
 have the indeterminate coordinates described in §4.1. The narrowed branch directly dereferences the
@@ -386,7 +622,8 @@ and a uniform scale s (`+0x34`). Kind 0: none; 1: v + t; 2: s v; 3: s v + t; 4: 
 
 ### 7.1 Triangle walk (`0x0080AE60`–`0x0080B3B0`)
 
-A mesh has vertices (position in the first 12 bytes; 16-bit stride at `+0x04`, data at `+0x08`, count at `+0x06`),
+A mesh refers to a **separate vertex-buffer record** (position in the first 12 bytes of each vertex;
+16-bit stride at buffer `+0x04`, data pointer at buffer `+0x08`, count at buffer `+0x06`),
 optional 16-bit indices, and groups of 12 bytes (type, first, count). Without indices the group's vertices start at
 `first`; with them its indices do. Triangle i of a group of count n, by type (`0x0080AE80` the count,
 `0x0080AEF0` the indices):
@@ -411,6 +648,60 @@ floored), but the walk only uses unsigned 16 bits.
 The native count helper uses signed subtraction without saturation for n−1/n−2 (`0x0080AEA8`, `0x0080AEB8`);
 the iterator's signed comparison makes nonpositive counts stop immediately (`0x0080B3B6`). Invalid vertex
 or index references are unchecked memory accesses, not native skip rules (model-instances §9.1, MI9).
+
+#### 7.1.1 Private mesh resource graph (VU17)
+
+The mesh argument is a **12-byte, three-pointer record**, without a vtable. All pointers here are
+32-bit process addresses. They must point to separately accessible records/arrays for the entire
+synchronous call; MeshPick and iterator select-group neither acquire references nor destroy them.
+
+| Record | Offset/type | Consumed meaning |
+|---|---|---|
+| Mesh (0x0C bytes) | `+0x00` pointer V | vertex-buffer record; null makes MeshPick return false |
+| Mesh | `+0x04` pointer I | optional index descriptor; null means nonindexed |
+| Mesh | `+0x08` pointer G | group descriptor; required once V has a nonzero vertex count |
+| Vertex buffer V (native allocation 0x30 bytes) | `+0x00` uint32 | vertex-format word, copied to iterator `+0x0C` |
+| V | `+0x04` uint16 | byte stride, zero-extended to iterator `+0x10` |
+| V | `+0x06` uint16 | vertex count; MeshPick's early nonzero check |
+| V | `+0x08` pointer | first vertex byte, copied to iterator `+0x14` |
+| V | `+0x0C`–`+0x2F` | unconsumed by these two calls; no bounds/refcount initialization needed for this fixture |
+| Index descriptor I | `+0x00` pointer | first uint16 index; **another indirection**, not inline indices |
+| Group descriptor G (0x10 bytes) | `+0x00` uint16, `+0x02` two bytes | ownership word and padding, unconsumed here |
+| G | `+0x04` pointer | first 12-byte group record |
+| G | `+0x08` pointer | one-past-last group record |
+| G | `+0x0C` pointer | allocation end; unconsumed here |
+| Group (0x0C bytes) | `+0x00/+0x04/+0x08` int32 | primitive type, first element, element count |
+
+MeshPick derives the group count as signed byte difference (G.end−G.begin) divided by 12,
+truncated toward zero; it does not read a scalar count field. Use well-formed begin/end pointers
+and nonnegative counts in fixtures. Select-group indexes G.begin directly, without checking G.end.
+It copies type/count and V's format/stride/data, sets iterator index-format to **3 (uint16)**,
+computes the triangle count, and resets current triangle `+0x28` to zero. With I present it sets
+the iterator index pointer to I.data + 2×first and leaves the vertex base unchanged. Without I it
+sets the index pointer to null and advances the vertex base by stride×first. The vertex-format
+word does not change the 12-byte position copy: the direct copy helper always copies x,y,z bits.
+Only I's first pointer is read: a private four-byte descriptor is sufficient; no index count,
+format, vtable, capacity or other tail field is required by this observer contract. This is a
+consumed-record layout, not a promise about a resource owner's larger allocation/lifetime ABI.
+
+Evidence: V dereference/count `0x007F91CE`–`0x007F91E0`; G count
+`0x007F9218`–`0x007F9238`; complete select-group `0x0080B320`–`0x0080B3A5`;
+12-byte mesh-array stride `0x00806AF4`–`0x00806AF8`; V allocation/initialization
+`0x00801214`–`0x00801226`, `0x006156B7`–`0x00615721`; G allocation/initialization
+`0x0080124D`–`0x00801264`. Do not pass these borrowed fixture records to native resource
+destructors, builders, mutation or ownership routines.
+
+**Worked fixture:** V.format=1, V.stride=12, V.count=4, V.data points to
+v0=(99,99,99), v1=(0,0,0), v2=(2,0,0), v3=(0,2,0). G.begin points to one group
+(type=0, first=1, count=3); G.end=G.begin+12 and G.allocationEnd=G.end. With mesh.I=null,
+select-group produces vertex base V.data+12, index pointer null, triangle count 1 and current 0;
+next-triangle returns v1,v2,v3. With a separate uint16 array (99,1,2,3), I.data pointing to it,
+and mesh.I=&I, the same group produces vertex base V.data, index pointer I.data+2 and the
+same triangle. For either variant, kind-0 transform, pick O=(0.5,0.5,2), D=(0,0,−1) and
+nearest=100, MeshPick returns true and stores nearest=2. Repeating with nearest=2 returns
+false and preserves it. Setting V.count=0 returns false even if G is null; count>0 requires
+the full graph. ModelPick can reuse this graph behind its documented model slot5 provider.
+
 ### 7.2 Geometry predicates, ordering and unsafe resources (VU6/VU10)
 
 `RayIntersectsTriangle` (`0x005D6FF0`) is two-sided Möller–Trumbore with **absolute determinant
@@ -466,11 +757,62 @@ The matrix wording in §7 is literal **row dot products**: output x uses +04/+08
 +10/+14/+18, z uses +1C/+20/+24 (`0x007F943C`–`0x007F949A`). Kind5 adds translation to the row results.
 The default kind applies uniform scale after each row dot and
 then translation. Its row sums evaluate z×row[2], then add y×row[1], then x×row[0]. In the first
-vertex's default arm, x/y row sums stay extended until multiplying scale and storing float32, then
+vertex's default arm, x/y row sums stay in registers until multiplying scale and storing float32, then
 translation is added; the z row sum is first stored float32, reloaded for scale, and translation is
 added before its final float32 store (`0x007F977B`–`0x007F9820`). This store asymmetry matters to
 bit-level reproductions. Do not transpose M or rotate its translation. A kind byte above 5 always takes the
 default, including 255; there is no malformed-kind rejection.
+
+### 7.3 Complete three-vertex transform stores and pick distance (VU12)
+
+For each vertex, the matrix row dot evaluates **z×row[2], then +y×row[1], then +x×row[0]**,
+with each multiply and add rounded independently under §2.3. There is no store inside the row
+reduction. Vertices are processed first, second, third; each vertex's x/y/z rows are evaluated
+in that order. The table lists the additional float32 **store/reload** boundaries before the
+final output stores; an absent boundary means the value remains in a register. It applies to
+**all three vertices**, including the previously unspecified second and third default arms.
+
+| Transform kind | x path | y path | z path |
+|---|---|---|---|
+| 0 | bit copy | bit copy | bit copy |
+| 1 | add tx, final store | add ty, final store | add tz, final store |
+| 2 | multiply s, final store | multiply s, final store | multiply s, final store |
+| 3 | multiply s, store/reload, add tx | multiply s, store/reload, add ty | multiply s, retain product, add tz |
+| 4 | row dot, final store | row dot, final store | row dot, final store |
+| 5 | row dot, retain sum, add tx | row dot, store/reload, add ty | row dot, store/reload, add tz |
+| any other byte | row dot, multiply s, store/reload, add tx | row dot, multiply s, store/reload, add ty | row dot, store/reload, multiply s, retain product, add tz |
+
+Every arithmetic output is finally stored float32 before triangle intersection. Kind0 copies
+bits without executing floating arithmetic. For arithmetic arms the final component store order
+is z,x,y (temporary z stores followed by an integer bit copy do not introduce another rounding).
+In particular, the default arm does **not** store all row sums before scale, or all scaled
+products before translation. Second-vertex evidence is `0x007F9824`–`0x007F98C2`, third-vertex
+evidence `0x007F98C6`–`0x007F995A`; first vertex `0x007F977B`–`0x007F9820`.
+Other kind arms: `0x007F92D0`–`0x007F9776`.
+
+**Worked order case:** put (16777216,1,−16777216) in any of the three vertex positions and
+use each matrix row (1,1,1), scale=2, translation=(3,4,5), kind=6. In the ordinary profile the
+row reduction is (−16777216+1)+16777216 = **1**; the transformed point is **(5,6,7)**.
+An x,y,z left-to-right reduction gives zero and therefore (3,4,5). Moving this vertex among
+the three slots must preserve (5,6,7); the stored/reloaded z row also equals 1 in this exact
+case. This is a transform-unit vector; the three identical-row matrix collapses a triangle
+and is not itself a successful ray-picking fixture. Use §7.1.1 for a complete nondegenerate pick.
+
+For pick distance, `LengthOfLine` subtracts intersection minus origin in x,y,z order without
+storing the differences; forms **z²+y², then +x²**; takes the square root and returns that
+register value, with no internal float32 store (`0x005D7668`–`0x005D768E`). TrianglePick and
+MeshPick compare this retained length with the saved float32 nearest first; only a strict
+ordered improvement stores the length to nearest (`0x007F6B23`–`0x007F6B35`,
+`0x007F9993`–`0x007F9A00`). Do not round a distance capture to float32 **before** doing the
+native comparison when modelling another precision profile.
+
+The arithmetic ground helper similarly retains its factor: divide origin.y by direction.y,
+negate that quotient, then for x,y,z multiply by that direction component, add the origin
+component, and store the final component float32. There is no quotient/product memory store
+(`0x007F6AB8`–`0x007F6ADD`). This describes the unguarded helper, not the tolerance-based
+external ray/plane or ray/triangle predicates in §7.2. Their geometric accept/reject rules,
+rounded intersection outputs and unchecked-resource limits remain in that section; this
+answer does not claim a universal bit model for external camera/model providers or hardware trig.
 
 ## 8. Users
 
@@ -610,7 +952,7 @@ P2 are pairs; mutable arguments are outputs/in-place; required pointers are not 
 | `007F7A40` | 1018 | ProjectBoundingBoxToViewportRectangle(min,max,&TL,&BR) → void | §§4,4.4. |
 | `007F7E50` | 270 | IsPointInViewFrustum(p) → bool | §3.4. |
 | `007F7F60` | 527 | GetFrustumAABBCityClipped(useView,&min,&max) → void | §§3.3,7.2. |
-| `007F8300` | 56 | GetCityWidthFromOrthoView(width,zoom) → x87 scalar | §§2.1–2.2. |
+| `007F8300` | 56 | GetCityWidthFromOrthoView(width,zoom) → x87 scalar | §§2.1–2.3. |
 | `007F8390` | 83 | ProjectPointFromViewportCoordinatesToFixedViewCoordinates(&p) → void | §4. |
 | `007F83F0` | 3204 | UpdateCameraPosition(cameraControl) → void | §2; no valid-input bool result. |
 | `007F9080` | 216 | ViewportPositionToRay(x,y,&origin,&direction) → bool | §4.1. |

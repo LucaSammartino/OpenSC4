@@ -92,9 +92,11 @@ impl MarkedCellView {
     pub fn set_outline_colour(&mut self, rgba: [f32; 4]) {
         self.outline = Some(pack_cell_colour(rgba));
     }
-    pub fn copy_colours(&mut self, colours: &[u32]) {
+    /// Deep assignment returns the destination vector; source storage stays owned by its caller.
+    pub fn copy_colours(&mut self, colours: &[u32]) -> &mut Vec<u32> {
         self.colours.clear();
         self.colours.extend_from_slice(colours);
+        &mut self.colours
     }
     pub fn append_cell(&mut self, cell: Cell) {
         self.cells.push(cell);

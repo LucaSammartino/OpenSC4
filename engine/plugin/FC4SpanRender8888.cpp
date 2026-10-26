@@ -57,6 +57,7 @@ using BltFn = void(__fastcall*)(void* self, void* edx, const uint32_t* spans, ui
 enum Slot : unsigned { kSolid = 0, kGradient, kAlpha, kAlphaGradient, kBlt, kSlots };  // vtable slots 1-5
 const char* const kSlotName[kSlots] = {"RenderSolid", "RenderGradient", "RenderAlpha", "RenderAlphaGradient",
                                        "RenderBlt"};
+const char* const kSlotAddress[kSlots] = {"0x00854E10", "0x00854E60", "0x00854F70", "0x00855040", "0x008551D0"};
 
 struct State {
     bool installed = false;
@@ -70,6 +71,7 @@ struct State {
     std::atomic<uint64_t> differing[kSlots];  // shadow: calls with a differing byte
     std::atomic<uint64_t> diffPixels[kSlots];
     std::atomic<uint64_t> fixtureCalls[kSlots], fixtureOurs[kSlots], fixtureFallback[kSlots];
+    std::atomic<uint64_t> directCalls[kSlots], directCompared[kSlots], directDiffering[kSlots];
     std::atomic<uint64_t> legacyShort{0}, legacyOverlap{0};
 };
 State g;
@@ -178,7 +180,7 @@ bool CaptureSource(const uint32_t* spans, uint32_t count, const Region& dst, int
             out->refusal = "unreadable-source-data";
             return false;
         }
-        // SR8888-1 is open: do not invent a load/store order for true alias.
+        // SPEC-GAP: SR8888-1 leaves true alias load/store order unspecified; retain native rendering.
         // Check actual writes, not the old oversized stride*height envelope.
         for (uint32_t i = 0; i < count; ++i) {
             const uint32_t s = spans[2 * i], w = spans[2 * i + 1] - s;
@@ -330,15 +332,19 @@ void Bridge(Slot s, uintptr_t ret, void* self, const uint32_t* spans, uint32_t c
         SpanNoteRefused(kSpanR8888);
         return;
     }
-    g.compared[s].fetch_add(1, std::memory_order_relaxed);
     uint64_t px = 0;
-    for (size_t i = 0; i + 3 < r.len; i += 4) px += std::memcmp(&copy[i], r.lo + i, 4) != 0;
+    // Compare every byte, including a trailing partial group for odd strides.
+    for (size_t i = 0; i < r.len; i += 4) {
+        const size_t n = r.len - i < 4 ? r.len - i : 4;
+        px += std::memcmp(&copy[i], r.lo + i, n) != 0;
+    }
     if (px != 0) {
         g.diffPixels[s].fetch_add(px, std::memory_order_relaxed);
         if (g.differing[s].fetch_add(1, std::memory_order_relaxed) < 8)
             Log("span8888: DIFF %s count=%u: %llu pixels differ (original vs ours)", kSlotName[s], count,
                 (unsigned long long)px);
     }
+    g.compared[s].fetch_add(1, std::memory_order_relaxed);
 }
 
 void __fastcall FwdSolid(void* self, void*, const uint32_t* spans, uint32_t count, const uint32_t* buffer,
@@ -440,6 +446,7 @@ void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, 
     uint32_t desc[6] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(native + guard)), uint32_t(kStride), kW, kH, 0, 0};
     ++f.cases;
     ++f.slotCases[s];
+    g.directCalls[s].fetch_add(1, std::memory_order_relaxed);
     Region r;
     r.lo = ours;
     r.len = sizeof(ours);
@@ -475,6 +482,7 @@ void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, 
     if (px != 0) {
         ++f.diffs;
         ++f.slotDiffs[s];
+        g.directDiffering[s].fetch_add(1, std::memory_order_relaxed);
         if (f.diffs <= 12) {
             uint32_t n = 0, o = 0;
             std::memcpy(&n, native + first, 4);
@@ -484,6 +492,7 @@ void RunCase(Fixture& f, Slot s, uint32_t a, uint32_t b, const uint32_t* rectB, 
                 kSlotName[s], a, b, mode, (unsigned long long)px, first, (first % kStride) / 4, first / kStride, n, o);
         }
     }
+    g.directCompared[s].fetch_add(1, std::memory_order_relaxed);
 }
 
 void RunFixture() {
@@ -621,6 +630,28 @@ bool SpanRender8888UseOriginal(bool original) {
     void* v[kSlots];
     for (unsigned i = 0; i < kSlots; ++i) v[i] = original ? reinterpret_cast<void*>(g.original[i]) : Forwarder(i);
     return WriteEntries(g.vtable + 1, v);
+}
+
+void SpanRender8888Month(int32_t julian) {
+    if (!g.installed || !g.shadow) return;
+    fc4_date date{};
+    fc4_date_from_julian(julian, &date);
+    // Sections 1.1 and 7: void methods, stateless owner, read-only arguments;
+    // all observable outputs are destination bytes, including alpha. No calls
+    // on other objects. Native-context forwards render only ours here, so their
+    // outer fixture comparisons are reported separately by FC4SpanContext.
+    for (unsigned s = 0; s < kSlots; ++s) {
+        Log("span8888 method %s nGZDrawSoftRender::cSpanRender8888::%s (month) %04d-%02d-%02d: "
+            "calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+            kSlotAddress[s], kSlotName[s], date.year, date.month, date.day_of_month,
+            (unsigned long long)(g.calls[s].load() - g.fixtureCalls[s].load()),
+            (unsigned long long)g.compared[s].load(), (unsigned long long)g.differing[s].load());
+        Log("span8888_direct method %s nGZDrawSoftRender::cSpanRender8888::%s (month) %04d-%02d-%02d: "
+            "calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+            kSlotAddress[s], kSlotName[s], date.year, date.month, date.day_of_month,
+            (unsigned long long)g.directCalls[s].load(), (unsigned long long)g.directCompared[s].load(),
+            (unsigned long long)g.directDiffering[s].load());
+    }
 }
 
 void SpanRender8888Stop() {

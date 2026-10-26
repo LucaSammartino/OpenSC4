@@ -70,7 +70,12 @@ NetToolContext* Ctx(void* u) { return static_cast<NetToolContext*>(u); }
 cISC4City* City(void* u) { return Ctx(u)->city; }
 
 cISC4NetworkOccupant* NetOf(uint64_t t) { return reinterpret_cast<cISC4NetworkOccupant*>(FromToken(t)); }
-cISC4Occupant* OccOf(uint64_t t) { return reinterpret_cast<cISC4Occupant*>(FromToken(t)); }
+cISC4Occupant* OccOf(uint64_t t) {
+    // network-occupants.md section 1: the occupant interface is distinct from
+    // the network interface. Slot 48 returns its borrowed occupant view.
+    cISC4NetworkOccupant* n = NetOf(t);
+    return n != nullptr ? n->AsOccupant() : nullptr;
+}
 
 cISC4OccupantManager* OMgr(void* u) {
     cISC4City* c = City(u);
@@ -730,6 +735,7 @@ void SendPreDemolishSync(void* u, uint64_t occ) {
     if (msg == nullptr) return;
     msg->SetData1(reinterpret_cast<intptr_t>(o));
     msg->SetVoid1(o);
+    msg->SetIGZUnknown(o);  // network-tools.md section 10: retain the occupant during delivery
     ms->MessageSend(msg);
     FC4_X87_CHECK("nettool SendPreDemolishSync");
     msg->Release();
@@ -990,7 +996,8 @@ void DestroyNetworkOccupants(void* u, const uint64_t* occ, uint32_t count) {
     if (nm == nullptr) return;
     SC4List<cISC4Occupant*> list;
     for (uint32_t i = 0; i < count; ++i) {
-        cISC4Occupant* o = OccOf(occ[i]);
+        // Section 11.1's refit destroy list already contains AsOccupant views.
+        cISC4Occupant* o = reinterpret_cast<cISC4Occupant*>(FromToken(occ[i]));
         if (o != nullptr) {
             o->AddRef();
             list.push_back(o);
@@ -1045,6 +1052,16 @@ void UndergroundRebuild(void* u, uint64_t occ, uint32_t outcome, const float* ve
 }
 
 }  // namespace
+
+intptr_t NetToolOccupantViewsTest(cIGZUnknown* network, cIGZMessageServer2* server) {
+    if (network == nullptr || server == nullptr) return -1;
+    NetToolContext ctx{};
+    ctx.msgServer = server;
+    SendPreDemolishSync(&ctx, TokenOf(network));
+    OccupantShutdown(&ctx, TokenOf(network));
+    OccupantShutdown(&ctx, 0);
+    return 1;
+}
 
 }  // namespace fc4
 
