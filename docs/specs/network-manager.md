@@ -1036,8 +1036,10 @@ no extra edge-cell random rule established by this evidence.
 To settle this case, begin at the last exact sample in a run that reaches the affected month, and
 retain inputs **before** every native lot-manager handler and direct setter/redevelopment entry:
 message ID/data1–4 or direct slot/arguments, nesting, ordered pending keys and bucket state, all live
-lots' occupant/configuration identities and lock bytes, forced configuration (or null), generator
-state, and the terrain/traffic/zone/wealth inputs actually queried. For each affected cell retain
+lots' occupant/configuration identities and lock bytes, forced configuration (or null), and the
+terrain/traffic/zone/wealth inputs actually queried. Capture the complete generator at the quiescent
+boundary prescribed in §17.3; trace nested entries and draw positions separately, without copying
+an in-flight generator into the replay. For each affected cell retain
 piece ID, position-to-cell result, rotation/flip, usability/flags, configuration-group order,
 compatibility inputs and object candidate lists. Avenue traversal must retain neighbour queries
 when they happen, rather than reconstructing them from the post-handler city. Hold references or
@@ -1767,6 +1769,13 @@ set's iteration order (§8.5 *[compat]* note, NM13), which FreeCity4 currently r
 *[choice]*. The two orders agree whenever at most one cell of the pass draws. For exact replay when several draw,
 the capture also takes `pending`'s bucket count `B` (§8.5) and the step processes keys in the original's order;
 the §8.5 replay contract (rules 1-6) gives what to capture, when, and the typed replay.
+
+**NM19 supplement.** Those rules supply random/hash state, not all live city inputs. Retain the
+pre-handler forced reference, lot lock bytes and queried inputs described under §8.5 NM19. Observe
+the direct setter and redevelopment entries as well as messages; a monthly component-11 equality
+check cannot recover transient state that a native handler has consumed. NM19-A gives the exact
+first-event trace needed for the Port of Shiganshina case. Nothing in this supplement permits
+absorbing a generator disagreement or copying a native chosen configuration into the replay.
 
 ### 17.4 Worked vectors (from foundations §6.1; implementers compare their generator against these)
 
