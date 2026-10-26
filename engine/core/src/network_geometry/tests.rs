@@ -337,7 +337,7 @@ fn nt31_retained_powerline_price_precision() {
 }
 
 #[test]
-fn earthwork_product_is_not_rounded_before_the_magic_addition() {
+fn earthwork_product_obeys_the_game_precision_control() {
     let price = extras::CostInputs {
         cells: vec![extras::CostCell {
             in_run: false,
@@ -349,9 +349,9 @@ fn earthwork_product_is_not_rounded_before_the_magic_addition() {
         earthwork_cost: 0.1,
         ..extras::CostInputs::default()
     };
-    // float32(0.1) * 45 is just above 4.5. Rounding the product to
-    // float32 first would create an exact tie and incorrectly charge 4.
-    assert_eq!(extras::cost_of_solution(&price), 5);
+    // The extended product is just above 4.5, but the game's 24-bit x87
+    // multiply rounds it to 4.5 before the final nearest-even operation.
+    assert_eq!(extras::cost_of_solution(&price), 4);
 }
 
 #[test]
@@ -757,8 +757,7 @@ fn t17_cell_cost() {
     });
     assert_eq!(extras::cost_of_solution(&c), 1);
     c.cells[0].corners = [325.0, 300.0, 300.0, 300.0];
-    // Stored float32(0.1) makes the unrounded product slightly above 2.5.
-    assert_eq!(extras::cost_of_solution(&c), 3);
+    assert_eq!(extras::cost_of_solution(&c), 2); // 24-bit product 2.5 rounds to even.
 }
 
 #[test]

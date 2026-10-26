@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use super::params::TYPE_COUNT;
-use crate::x87::r24;
+use crate::x87::{r24, rhe};
 
 /// Network flag: a draft (preview) occupant (§10.3).
 pub const FLAG_DRAFT: u32 = 0x8000_0000;
@@ -130,10 +130,9 @@ pub fn cost_of_solution(c: &CostInputs) -> i32 {
             s = r24(f64::from(s) + f64::from(d.abs())) as f32;
         }
     }
-    // Section 8.1: the product is not stored to float32 before adding the
-    // rounding constant. A store there can turn a value near a half into a tie.
-    let rounded = r24(f64::from(s) * f64::from(c.earthwork_cost) + 12_582_912.0) as f32;
-    let earthwork = rounded.to_bits().wrapping_sub(0x4B40_0000) as i32;
+    // Foundations section 18 and network-tools section 8.1.5: x87's 24-bit
+    // precision rounds the multiply even without an intermediate memory store.
+    let earthwork = rhe(r24(f64::from(s) * f64::from(c.earthwork_cost)) as f32);
     let mut total = c.demolition.wrapping_add(earthwork);
     for cell in &c.cells {
         if !cell.in_run || cell.prebuilt {
