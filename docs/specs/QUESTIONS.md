@@ -302,7 +302,7 @@ generated index: the questions live one file per spec, so read only the file for
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | intro-video | 2 | 0 | IV3 | questions/intro-video.md |
 | landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
-| landvalue | 3 | 8 | LV10 | questions/landvalue.md |
+| landvalue | 3 | 9 | LV11 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
 | legacy-control | 1 | 13 | LC16 | questions/legacy-control.md |
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
@@ -430,4 +430,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **669** | **1575** | | |
+| **total** | **669** | **1576** | | |

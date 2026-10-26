@@ -585,6 +585,37 @@ actual before/forward/after capture exist, retain
 `input_capture=pass-end-sample; native_step_capture=0`. Closing LV8 does not close LV2 or
 LV7, certify an installed adapter, or upgrade exact sampled output to input provenance.
 
+### 6.1.5 LV9: usable observation boundary and host eligibility *[compat]*
+
+**Answer: native capture remains ineligible until an independently supplied host meets
+§6.1.4.** The examined native lifecycle and dispatch paths supply no admission/exclusion
+service that a plugin can acquire. A deterministic reference-host fixture demonstrates
+the obligations, not an installed game host. This closes LV9's native question with a
+negative eligibility decision; providing and validating the host remains integration
+work. It does not require another inference of fields, signatures or lifecycle order.
+
+There are two different boundaries:
+
+| Purpose | Observable boundary and required behavior |
+|---|---|
+| Attribute inputs to actual work | Bracket **each actual delivery** of SimNewDay `0x66956814` or SimIdle `0x6695681A` to native land-value M, before its `DoMessage` and immediately after it returns (§6.1.1). Save pre-state/progress and owned inputs, forward once with unchanged message/budget, then save post-state/progress. State 0 alone is not a pass-wide input boundary. |
+| Safely publish or retire the route | The host must close admission **before callers can fetch the affected destination**, drain earlier admissions, then mutate/retire under that exclusion. Calendar dispatch fetches M's table at `0x007039C6` and calls slot 3 at `0x007039CB`; idle's SendAgentMessage fetches it at `0x0070251B` and calls at `0x00702520`. These are concrete fetch/call boundaries to cover, not native barrier APIs. Exclusion must also cover notifications, nested entry and every affected thread; gating only these two simulator call sites does not establish route-wide exclusion. |
+| Preserve inputs during capture | From the before-copy through native reads and the after-copy, admit no conflicting terrain/zoning/developer mutation or owner destruction. If that interval cannot be established, the record is not faithful. Ordinary pause, an observer's entry counter or the simulator's current state does not establish it. |
+| Cover startup and shutdown | Establish the route before the first initialized delivery on **both** new- and loaded-city paths; do not read incomplete Init state. Close owner-read admission and drain accepted intervals before native Shutdown destroys inputs. Apply the separate route-retirement proof even if an L/M reference keeps the allocation alive (§6.1.4). |
+
+TerrainHeightsChanged `0x278E6003` is a dirty notification, not an exclusion point or a
+terrain snapshot. SimNewMonth can restart a completed pass, but does not freeze its
+subsequent inputs. LandValueMapChanged is queued after the work, too late to capture its
+reads. Message-server dispatch retains a target list, releases its collection lock,
+then fetches/calls each target (`0x0092EAF1–0x0092EB15`); unsubscribing cannot drain that
+already retained list. None supplies the missing host provision.
+
+Until an actual host is identified and demonstrates all these guarantees, leave capture
+disabled and report `input_capture=pass-end-sample; native_step_capture=0`, including on
+output-exact passes. Do not require input-faithful replay from edited pass-end samples,
+select a historical sample by matching output, or count the reference-host vectors as
+game installation evidence. LV2/LV7 still require their actual runtime captures.
+
 ## 7. Formulas *[compat]*
 
 ### 7.1 Water bonus (state 2)
@@ -976,6 +1007,11 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
    pre-shutdown provide ordering only. The host must supply route admission, draining,
    safe publication and retirement; vectors 26–31 distinguish these from notifications.
    This static answer grants no native capture or LV2/LV7 runtime verification credit.
+
+7. *(resolved)* LV9, host provision: §6.1.5. The observation boundary is each actual
+   land-value SimIdle/SimNewDay delivery; installation requires independent pre-fetch
+   admission/exclusion across all affected routes and threads. No supported native host
+   provision is identified; native capture remains ineligible until one is demonstrated.
 
 ## 16. Conformance tests (must exist in `engine/conformance`)
 

@@ -1,6 +1,17 @@
 # landvalue: answered questions (archive)
 <!-- Archive for [landvalue.md](../../landvalue.md). Lanes do not read this file. Open questions are in ../landvalue.md. -->
 
+<!-- from: glue-landvalue-capture7 (2026-10-24) -->
+- ~~**LV9 - host provision needed after LV8 native closure:** Section 6.1.4 explicitly requires an identified host admission/exclusion mechanism and supplies no existing game installation API. The plugin currently has lifecycle notifications, QI and post-pass observers, which LV8 rules out as exclusion proof. Please identify or coordinate a host-side provision that covers pre-fetch admission on every affected thread, both city startup paths and input lifetime through Shutdown, or confirm that native capture remains ineligible until such a host exists. This is an integration dependency, not a request to re-infer native fields/signatures or reinterpret lifecycle ordering. Vectors 26-31 now have a deterministic reference-host fixture, but it does not install that host in the game. Native capture remains disabled; LV2/LV7 remain open and sampled output is measured separately. [No supported host mechanism identified; input_capture=pass-end-sample; native_step_capture=0.]~~
+  **ANSWERED 2026-10-26 (re-lv28):** MATCHES — §6.1.5 confirms native capture
+  remains ineligible without an independently supplied host satisfying §6.1.4. Actual
+  SimIdle/SimNewDay deliveries are the observation boundary; safe route publication and
+  retirement additionally require pre-fetch admission/exclusion on every affected route
+  and thread, both startup paths, and owner-input validity through the drained Shutdown
+  boundary. Calendar/idle destination fetches and message-server retained dispatch are
+  identified; they expose no native exclusion service. Reference-host fixtures do not
+  install one. Keep pass-end-sample/native_step_capture=0; LV2/LV7 remain open.
+
 <!-- from: glue-landvalue-step6 (2026-10-24); copied from that lane before train178 -->
 - ~~**LV8 - adapter installation/exclusion contract after LV6 layout closure:** Sections 6.1.2 and 6.1.3 explicitly retain unproved observer-registration, executable-mutation and callback-exclusion obligations. Which supported host lifecycle boundary guarantees no OnTick/notification/in-flight entry while a global native M slot or entry interceptor is installed/restored, covers both loaded and newly constructed owners before the first initialized delivery, and retires the forwarder safely? The published field/forwarding ABI does not establish that boundary, and a QI proxy/re-registration is explicitly rejected. Please reconcile the host acceptance checklist or publish the missing dispatch contract; no detour bytes, native signatures, mutation barrier or installation API are inferred. This lane implements/tests owned progress interval decoding and retains `input_capture=pass-end-sample; native_step_capture=0` until installation can satisfy that checklist. LV2/LV7 remain open; exact sampled comparisons will not be credited as per-Step provenance.~~
   **ANSWERED 2026-10-24 (re-landvalue-lv8):** DIFFERS — no native city lifecycle
