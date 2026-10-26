@@ -116,7 +116,7 @@ std::atomic<TerrainDrawVertex*> g_drawVertices{nullptr};
 // touched under the object's critical section.
 struct HostContext {
     cISC4City* city = nullptr;  // borrowed for one call
-    cIGZUnknown* self = nullptr;  // the terrain, for the messages' void1/IGZUnknown
+    cIGZUnknown* self = nullptr;  // the terrain, for the messages' IGZUnknown
     void (*syncDraw)(void*) = nullptr;
     void* drawOwner = nullptr;
     int inside = 0;
@@ -237,6 +237,18 @@ bool HostNextBurnCell(void* u, int32_t* x, int32_t* z) {
     return HostMayAct(c, "next_burn_cell") ? false : false;  // exhausted
 }
 
+cFC4Message2Standard* MakeTerrainPost(const fc4_terrain_post& p, cIGZUnknown* sender) {
+    auto* m = FC4MakeMessage(p.msg_type, static_cast<intptr_t>(p.data1), static_cast<intptr_t>(p.data2),
+                           static_cast<intptr_t>(p.data3));
+    if (m == nullptr) return nullptr;
+    m->SetData4(static_cast<intptr_t>(p.data4));
+    // terrain.md section 8.1 / 15.5.12.1: data1 is the packed X rectangle.
+    // foundations.md section 5.1: SetVoid1 aliases data1; the retained sender
+    // belongs in the separate IGZUnknown field, leaving all four words intact.
+    if (sender != nullptr) m->SetIGZUnknown(sender);
+    return m;
+}
+
 // §8.1: MessagePost(msg, false) with four data words. The core hands these
 // over after each entry point released the handle, so this is never re-entrant
 // and never runs under the terrain's lock.
@@ -250,19 +262,8 @@ void HostPost(void* u, const fc4_terrain_post* p) {
     if (c->testMode) return;
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
-    cFC4Message2Standard* m =
-        FC4MakeMessage(p->msg_type, static_cast<intptr_t>(p->data1), static_cast<intptr_t>(p->data2),
-                       static_cast<intptr_t>(p->data3));
+    cFC4Message2Standard* m = MakeTerrainPost(*p, c->self);
     if (m == nullptr) return;
-    m->SetData4(static_cast<intptr_t>(p->data4));
-    // foundations §5: a message carries void1 = IGZUnknown = the sender. The
-    // four data words are the payload of §8.1; the sender is what a consumer
-    // reads back through GetVoid1()/GetIGZUnknown(), and a null one is what a
-    // consumer dereferences when it does not check.
-    if (c->self != nullptr) {
-        m->SetVoid1(c->self);
-        m->SetIGZUnknown(c->self);
-    }
     ms->MessagePost(m, false);
     m->Release();
 }
@@ -1771,6 +1772,29 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
         check(t->LocationIsInBounds(0.0f, 0.0f));
         check(!t->LocationIsInBounds(-1.0f, 0.0f));
         check(t->CellCountX() == t->CellCountX());
+
+        // The queued native heights/water readers unpack data1/data2, not
+        // the sender pointer. Inspect an older post after making another one.
+        fc4_terrain_post post{};
+        post.msg_type = 0x278E6003u;
+        post.data1 = (3u << 16) | 44u;
+        post.data2 = (2u << 16) | 30u;
+        post.data3 = 0x00140020u;
+        post.data4 = 7;
+        auto* first = MakeTerrainPost(post, t->Primary());
+        post.msg_type = 0x678E6E3Au;
+        post.data1 = (1u << 16) | 33u;
+        auto* second = MakeTerrainPost(post, t->Primary());
+        check(first != nullptr && second != nullptr && first != second);
+        if (first != nullptr && second != nullptr) {
+            check(first->GetType() == 0x278E6003u && first->GetData1() == ((3u << 16) | 44u));
+            check(first->GetData2() == post.data2 && first->GetData3() == post.data3 &&
+                  first->GetData4() == post.data4);
+            check(first->GetIGZUnknown() == t->Primary() && second->GetIGZUnknown() == t->Primary());
+            check(second->GetType() == post.msg_type && second->GetData1() == post.data1);
+        }
+        if (first != nullptr) first->Release();
+        if (second != nullptr) second->Release();
 
         // Slot 66 must preserve null and select the view sub-interface,
         // rather than handing consumers the five-slot object-base vtable.
