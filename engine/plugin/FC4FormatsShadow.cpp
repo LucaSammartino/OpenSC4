@@ -456,7 +456,7 @@ void FormatsShadowCityLoaded() {
     // replacement's objects, so this run compares the Rust core with OUR
     // factory (a consistency check of the replacement), not with the original.
     const bool replaced = ExemplarFactoryActive();
-    Log("formats shadow: game side = %s", replaced ? "REPLACEMENT (enable = exemplars; ours vs core, not a native "
+    Log("formats shadow: game side = %s", replaced ? "REPLACEMENT (enable = exemplars/formats; ours vs core, not a native "
                                                     "verification)"
                                                   : "ORIGINAL factories (native verification)");
     const std::wstring dir = InstallDir();

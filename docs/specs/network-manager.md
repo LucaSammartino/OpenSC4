@@ -128,6 +128,25 @@ Slots: 3 `GetNetworkOccupant` (borrowed), 4 `GetLotConfigurationObjectCount`, 5 
 
 ### 2.4 Network lot configuration (cSC4NetworkLotConfiguration, vtable `0x00AA7998`)
 
+**Interface identity (NM15).** There is no separate configuration IID accepted by this implementation.
+Its slot 0 is the folded function `0x0048C940`: only IID **`0x00000001` (IUnknown)** succeeds, writes the
+unchanged object pointer and calls slot 1 once. Every other IID returns false without writing the output
+(`0x0048C940`–`0x0048C959`). The descriptive name `cISC4NetworkLotConfiguration` does not identify an
+additional QueryInterface route. A caller already holding the typed pointer uses its slots directly.
+
+The object is 108 bytes; its unsigned 32-bit reference count at `+0x68` starts at zero. Slot 1
+(`0x0060C830`) increments it; slot 2 (`0x0060C840`) decrements when greater than one, otherwise invokes
+the deleting destructor, slot 7 (`0x00610070`), and returns zero. Slot 3 (`0x0060FB50`) returns the
+object-vector reference: the three-word begin/end/capacity descriptor, not its first object.
+
+**Creation is direct allocation, not a GZCOM request.** The manager's `AddLotConfigurationStatic`
+(`0x0060FB90`, constructor call `0x0060FBF1`) and the network-lot editor (`0x00499E85`) allocate and construct
+configurations directly. The lot manager also allocates network lots directly in its creation/read paths.
+These paths supply no native lot/configuration factory CLSID: do not use the lot IID `0x89A5BA66` as a
+CLSID or invent a configuration IID. FreeCity4-only registration IDs describe replacement-owned views;
+they do not change the native creation paths. The native lot accepts both IUnknown and `0x89A5BA66`,
+returning the same pointer with one AddRef (`0x0060C800`–`0x0060C822`). See §8.6 for the set boundary.
+
 Read from exemplars of exemplar type `0x21` (property `0x10`) by `ReadLotConfiguration` (`0x0060F5F0`). Defaults are
 those of the constructor (`0x0060FA90`).
 
@@ -194,6 +213,73 @@ same order. Return true. `pending`, `crews` and `dirty` are left as they are.
 six messages in the Init order; release every network lot; release every configuration; clear `configs`; for every
 pothole prop call its slot 8 with 1 (stop) and release it. Return true. `lots` and `potholes` are not cleared
 *[inferred: the destructor clears them]*.
+
+**City teardown and action-created occupants (NM16).** Distinguish the early PreCityShutdown message from
+the later city Shutdown method. Crews must finish slot 5 and unregister while `city.GetNetworkManager()`
+(city slot 38, `+0x98`) still returns the live manager. Their shutdown also needs the message server and,
+when animation was subscribed, the animation-tick service. Keep the occupant/automata services usable until
+the crews have stopped their vehicles and released their occupant references. Dropping the replacement
+manager identity or its opaque-crew bridge before these callbacks violates the native ordering (§7.12).
+
+The relevant **native city Shutdown order** is different from normal in-city removal:
+
+1. `cSC4City::Shutdown` (`0x0045B1D0`) first calls `SL::OnCityShutdown` (`0x00601FF0`). This clears cached
+   city-service pointers, including occupant manager `0x00B43D0C`, prop manager `0x00B43D10`, network-lot
+   manager `0x00B43D58` and the automata-manager caches. It does **not** clear the current-city pointer
+   `0x00B43CEC` or application message server `0x00B43CCC`, and does not itself Release the city-owned
+   services. A null cache here is intentional, not proof that its owner object has already been destroyed.
+2. Among the services relevant here, shut down/release the network lot manager (city field `+0x160`),
+   then the network manager (`+0x15C`). Network-lot destruction releases its configuration first and its
+   network occupant second (`0x0060D139`–`0x0060D14E`); it does not remove lot props/flora from the city.
+   Network-manager shutdown releases its globally-managed occupant references. These releases precede
+   the occupant-manager drain; that manager still owns the occupants inserted in its spatial lists.
+3. Shut down the occupant manager (city field `+0x12C`), then release it. Its Shutdown (`0x0049E000`)
+   calls slot 22 (`+0x58`) with `(null filter, true, 0)`. RemoveOccupants (`0x0049FCD0`) detaches the
+   selected occupants and clears their in-city flag under the lock, then for each detached occupant
+   sends its removed notification (`0x99EF1143`), calls occupant slot 4 Shutdown, and finally Releases it.
+   The detached work list retains the ownership needed through each Shutdown callback.
+4. The city shuts down/releases the prop manager (city field `+0x130`) after the occupant manager.
+   Keep framework message delivery, animation unsubscription and the owned child objects valid until
+   all native occupant Shutdown callbacks and their final Releases have returned. Complete the later
+   service/facade disposal only after that drain. This is a dependency order, not a requirement to keep
+   the cleared SL caches artificially non-null.
+
+For **ordinary removal while the city is live**, a construction occupant uses the cached prop manager
+(`0x00B43D10`) to RemoveProp, slot 29 (`+0x74`), for its construction props and dust effect before releasing
+its own references. During bulk city teardown that cache is already null, so those RemoveProp calls are
+skipped and the occupant-manager drain handles the children. The message server and animation-tick
+service are still used for unsubscription in either path. Automata removal similarly uses the live city's
+pedestrian-manager getter (`+0xB0`) when present. Do not dispose a returned manager while a native callback
+is still using it (`0x005D0CE0`–`0x005D1088`).
+
+**What `0x005D0F94` actually requires.** This instruction reads the vtable of the dust-effect pointer at
+construction-occupant interface `+0x134` (complete object `+0x13C`), before Release at `0x005D0F96`.
+It is an **unconditional object dereference**, not a network-manager lookup. CreateDustClouds allocates
+and AddRefs a visual-effect prop, registers/starts it and stores that pointer at `0x005CBD05`.
+SetLot (`0x005D0890`) invokes CreateDustClouds only after resolving a non-null building from its lot;
+its early-return path leaves the constructor's null dust pointer intact. Init alone does not construct
+the dust effect. A valid newly created construction occupant must complete that SetLot setup before
+the initialized object can reach native Shutdown. Service lifetime changes alone cannot make a null
+dust pointer valid. Preserve its owned reference until Shutdown's single Release; do not replace it with
+a borrowed facade, or treat a partial Init as a fully configured construction occupant.
+
+**Worked lifetime case (NM16).** Let a native base network occupant N have one occupant-manager ownership
+reference and one network-lot ownership reference; let configuration C have one catalogue reference and
+one lot reference. Drop any caller's lot view, then shut down the lot manager: destruction of the last
+lot reference releases C and N once each. N still has its occupant-manager reference; releasing the
+catalogue's C reference can now destroy C. The later occupant-manager drain calls N.Shutdown and then
+releases N's remaining reference. A view which acquired another reference must release exactly that
+reference; there is no additional permanent pin to add in response to a last-reference warning.
+
+In the same teardown test include an initialized native construction occupant with a valid lot/building
+and a retained dust effect D. Complete SetLot, deliver PreCityShutdown, perform the cache-clear and manager
+order above, and drain the occupant manager. Expect message/tick unsubscriptions to succeed, optional
+RemoveProp calls to be skipped after cache clear, and one Release of the still-valid D. A separately
+tested Init-only/failed-SetLot occupant has no D and does **not** meet native Shutdown's precondition;
+the address in the reported crash identifies that missing object but does not establish how it became
+missing. The twelve lot-destructor warnings and the separate no-module action crash do not establish
+a cause or authorize changes to unrelated services. Action acceptance still needs an engine run of
+the corrected lifetime/setup contract; the earlier 73/73 shadow result is not that test.
 
 ---
 
@@ -566,9 +652,84 @@ traffic), but the traffic graph itself is traffic-network.md's.
 
 ### 7.12 Construction crews
 
-Construction-crew automata register themselves (slot 16) and unregister themselves (slot 17). At PreCityShutdown the
-manager calls slot 5 of the first crew until `crews` is empty. A crew that did not unregister itself in its slot 5
-would loop forever *[quirk]*. FreeCity4 bounds the loop by the starting size *[choice]*.
+**Creation and interfaces (NM14).** A crew is a directly allocated, 84-byte helper, not an automaton or a
+GZCOM-created class. `cSC4NetworkTool::PlaceAllSegments` (`0x0063BDC0`) creates one when its construction
+argument is true and the network type is 0–3, 6 or 8–12. Types 4, 5 and 7 do not take this branch. It allocates
+84 bytes through the game heap (`0x0063BE07`–`0x0063BE17`), invokes the constructor `0x006070C0`, AddRefs
+the result and calls slot 4. No factory/CLSID request occurs. Allocation failure is not handled safely: the
+following virtual call still uses the result. Creation failure is therefore not a supported false Init result.
+
+The constructor sets vtable `0x00AA74AC`, reference count zero, initialized and animation-subscribed flags
+false, scalar state zero and empty working containers. There is one interface pointer, at object offset zero:
+
+| Slot | Byte offset | Contract |
+|---|---|---|
+| 0 | `+0x00` | QueryInterface, `0x005C3E30`: only message-target IID `0x452294AA` succeeds; returns this and AddRefs once. Other IIDs, **including IUnknown 1**, return false and leave the output unchanged. |
+| 1 | `+0x04` | AddRef, folded `0x004F7BA0`, count at object `+0x10`. |
+| 2 | `+0x08` | Release, `0x00608C20`: decrement above one; otherwise Shutdown, FinalRelease, game-heap free, return zero. |
+| 3 | `+0x0C` | DoMessage, `0x00607ED0`. |
+| 4 | `+0x10` | Init, `0x00607190`, six 32-bit stack arguments, callee pops 24 bytes; bool result in AL. |
+| 5 | `+0x14` | Shutdown, `0x00607920`, no stack arguments, true in AL. |
+| 6 | `+0x18` | StaticInit, `0x00605620`, sets the process-wide crew-initialized flag; true. |
+| 7 | `+0x1C` | StaticShutdown, `0x00605640`, clears that flag; true. |
+
+There is no QueryInterface route to a separate construction-crew IID. Manager slots 16/17 receive this
+opaque pointer directly. Keep the native creation/Init path when only bridging registration and shutdown.
+
+**Init arguments, in call order.** The caller copies them from the selected network-type record
+(`0x0063BE29`–`0x0063BE56`); the record stride is `0x114`.
+
+| Argument | Type / source in network-type record | Meaning and retained state |
+|---|---|---|
+| 1 | 32-bit integer, `+0x1C` | Network width in cells, copied to crew `+0x0C`; width 1 uses the single-width branch in BeginConstruction. |
+| 2 | binary32, `+0xC8`; placement property `0x4A270DB0`, default 1.5 | Seconds per occupant. Multiply by binary32 1000.0, truncate toward zero through `_ftol2`, and retain its low 32-bit result at `+0x04` as the per-cell countdown in milliseconds. |
+| 3 | binary32, `+0xCC`; `0x4A270E94`, default 32.0 | Construction-vehicle speed. Multiply by binary32 `0x358637BD` (approximately 0.000001), store binary32 at `+0x08`; the animation path uses elapsed microseconds. |
+| 4 | 32-bit integer, `+0xD0`; `0x4A271248`, default 0 | Vehicle model instance ID, copied to `+0x20`, then to the first vehicle record's model field (crew-data `+0x40`, vehicle record starts at `+0x3C`). |
+| 5 | 32-bit integer, `+0xD4`; `0x4A27124F`, default 0 | Second/lead vehicle model instance ID, copied to `+0x24`, then crew-data `+0x60` (vehicle record starts at `+0x5C`). |
+| 6 | 32-bit integer, `+0xD8`; `0x4A275748`, default 1 | Path-type selector, copied to `+0x28` and used in the edge/path queries. It is not an object pointer or a network-type index. |
+
+The numeric contract comes from `0x006071B9`–`0x006071F1`, constants `0x00A8FAF0`/`0x00A86510`,
+and `_ftol2` (`0x009EEF04`–`0x009EEF78`), not the recovered pseudocode signature. Vehicle-model copies
+are at `0x00605A88`–`0x00605AA6`; CreateConstructionVehicle consumes the vehicle record's ID at `+4`
+(`0x00605740`). Property types/defaults are checked at `0x0063CF43`–`0x0063CFC9`. No argument is AddRef'd.
+
+**Init effects, in order.** Ensure StaticInit has run, then return true immediately if this crew is already
+initialized. Otherwise register this pointer with the live network manager, slot 16 (`+0x40`); store the six
+scalar settings above; if application service `0x00B43CB8` is non-null, retain it at crew `+0x18` with one
+AddRef. This retained reference is used as the availability test for construction notifications. Empty the
+occupant work list, solved-segment vector, coordinate vector and per-crew-data vector (destroying old
+crew-data elements). If the message server exists, subscribe this same message-target pointer to
+`0x99EF1143` (occupant removed), then `0x26D31EC2` (PreCityShutdown), using server slot 5 (`+0x14`).
+Finally set initialized true and return true. Init does not subscribe to animation ticks, create vehicles,
+or begin construction. See `0x00607190`–`0x006072D3`.
+
+**Ownership and transitions.** RegisterConstructionCrew (`0x006122B0`) appends and AddRefs once, without
+deduplication. UnregisterConstructionCrew (`0x006112A0`) finds the first matching pointer, erases it preserving
+the later entries' order, then Releases once; an absent pointer does nothing. The tool adds network segments,
+calls BeginConstruction (`0x00608770`), and drops its own crew reference. BeginConstruction either starts
+construction and subscribes to animation mask `0xC0`, or, for at most four solved-segment entries, marks the
+occupants usable without animation and calls Shutdown. Init alone leaves animation-subscribed false.
+
+Shutdown is idempotent: when initialized, clear that flag first; unsubscribe occupant-removed and
+PreCityShutdown; if subscribed and the tick manager exists, clear the animation flag and unsubscribe mask
+`0xC0`; stop every per-crew construction operation, mark outstanding occupants usable, empty their work list,
+Release/null the retained application service, and **last** call network-manager slot 17 (`+0x44`). This can
+release the manager's last reference to the crew. Release's finalization path also calls Shutdown, so the
+cleared flag must prevent a second unregistration. DoMessage dispatches occupant removal, PreCityShutdown
+and animation messages to their corresponding handlers (`0x00607ED0`).
+
+At PreCityShutdown the manager calls slot 5 of the first crew until `crews` is empty (`0x00610B80`). A crew
+that did not unregister itself in slot 5 would loop forever *[quirk]*. FreeCity4 bounds the loop by the
+starting size *[choice]*. The manager identity must remain live during these callbacks (§3.2).
+
+**Worked Init/Shutdown case (NM14).** Start with one tool-owned reference and an empty manager vector.
+Init `(1, 1.5, 32.0, 0, 0, 1)` returns true, retains countdown 1500 and speed bits `0x380637BD`, appends
+one manager reference, subscribes the two messages and leaves animation unsubscribed. A second Init with
+different arguments returns true with no scalar changes, registration, AddRef or subscription. Shutdown
+removes those subscriptions, releases the optional service and unregisters once; the tool reference remains.
+A second Shutdown changes nothing. Releasing the tool reference then frees the crew. For a running crew
+whose tool reference has already gone, PreCityShutdown instead releases the manager's final reference
+through the reentrant Shutdown/Release path and must make progress to an empty vector.
 
 ---
 
@@ -654,6 +815,13 @@ argument comes from §8.2, so only a corrupt zone grid reaches this. *[choice]* 
 and any wealth outside 0..3, which is what the original gives when the leftover bits happen to be 0.
 
 ### 8.5 Choosing, keeping and removing network lots
+
+**Teardown ownership (NM16).** A network lot owns its occupant and configuration references (§2.3).
+GetNetworkOccupant returns a borrowed pointer; keeping that pointer beyond the owning lot's lifetime
+requires a separate AddRef. Releasing the last lot reference releases the configuration, then the occupant,
+without calling either occupant Shutdown or RemoveOccupant (`0x0060D130`). Thus a lot view must balance
+its acquisitions, while the live occupant manager or another real owner supplies the references needed
+by subsequent callbacks. See §3.2 for the native teardown order and worked reference-count case.
 
 **UpdateRoadsInCell(x, z)** (`0x0060F980`):
 
@@ -844,7 +1012,52 @@ altitude at the point before the mirror.
 **IterateAllNetworkLots(cb, ctx)** (slot 11, `0x0060D820`): for each entry in `lots` order, `cb(key >> 8,
 key & 0xFF, lot, ctx)`. Stop and return false at the first false; return true otherwise.
 
-**GetNetworkLotConfigurationSet(out)** (slot 6) clears the output set and inserts every configuration (AddRef'd).
+**GetNetworkLotConfigurationSet(out)** (slot 6, `0x0060DBF0`; NM15) returns void, pops one 4-byte argument,
+and replaces a caller-constructed **set of configuration pointer values**. It neither constructs a set in
+uninitialized memory nor accepts a vector, hash set or array of configuration IDs. Its native 32-bit layout is:
+
+| Location | Contents |
+|---|---|
+| set `+0` | Pointer H to a separately allocated tree header. |
+| set `+4` | Unsigned 32-bit element count. The set object is 8 bytes. |
+| H/node `+0` | 32-bit red/black colour, red 0 and black 1; header red. |
+| H `+4`, `+8`, `+0xC` | Root, leftmost and rightmost pointers. Empty: root null, leftmost/rightmost H. |
+| ordinary node `+4`, `+8`, `+0xC` | Parent, left and right pointers; missing children are null, root's parent is H. |
+| ordinary node `+0x10` | Configuration pointer value. Each allocation is 20 bytes including the 16-byte tree base. |
+
+The header also has a 20-byte allocation; its value word is not a configuration entry. The comparer is
+**unsigned 32-bit pointer less-than**, not configuration-ID, piece-ID, name or object-content order
+(`0x0049A070`–`0x0049A084`, `0x0049A0C8`–`0x0049A0CD`). In-order iteration yields increasing pointer
+values; two different objects with the same configuration ID remain separate entries. An equal pointer
+is not inserted twice. This is the native SGI red-black-tree set representation, with its normal insertion
+rebalancing; retaining only its header/count while substituting another node layout is not compatible.
+
+**Allocator.** Header and entry nodes use the game's 20-byte small-allocation path: allocation wrapper
+`0x0090CF54` and deallocation wrapper `0x0090CF63`, backed by the allocator at `0x00B62698`.
+Insertion allocates 20 bytes at `0x0047C0B8`/`0x0047C0DE`; clearing entries calls `0x00499F50`, which
+frees nodes through `0x0090CF63`. The native allocator uses metadata before the returned pointer
+(`0x005051C8`–`0x005051F1`); a foreign CRT allocation with the same visible size is not interchangeable.
+This is distinct from the GZ allocator-service lists used elsewhere in this spec. The caller constructs
+and eventually frees H with the matching allocator. The getter leaves H in place and never frees it.
+
+**Values and ownership, in exact order.** If the old count is nonzero, free all old entry nodes, reset
+H to its empty links and set count zero. **No Release of an old configuration occurs.** Walk every
+configuration group in manager hash-map order, and every group's vector in load order; for each pointer,
+attempt unique insertion, then call its AddRef unconditionally, even if insertion found an equal pointer.
+See `0x0060DC0A`–`0x0060DC26`, `0x0060DC57`–`0x0060DC78`. Normal manager loading places each object
+in one vector once, so there is one owned returned reference per entry. There is no extra AddRef for
+the manager, header or tree node. Native set destruction, like clearing, frees nodes without releasing
+their pointed-to configurations: the caller must Release the returned references before clearing,
+refilling or destroying the set. The manager catalogue keeps its separate ownership references.
+
+**Worked set case (NM15).** With distinct configuration pointers A=`0x10002000`, B=`0x10001000` and
+C=`0x10003000`, suppose catalogue order is A, C, B. A correctly constructed empty set is filled with
+count 3 and in-order values B, A, C; each receives one AddRef. Equal configuration IDs do not alter this
+result. Release B, A and C once each before the next fill. The next call frees the three old nodes and
+adds three new owned values; it does not release the old values on the caller's behalf. With no loaded
+configurations the result is count zero with root null and both extrema H. Separately, QI of A for IID 1
+succeeds with one AddRef; QI for an invented configuration IID fails without touching its output (§2.4).
+
 **GetNetworkLotConfigurationById(id, out)** (slot 7) returns true if some configuration has that `id`. It never
 writes `out` *[quirk]*.
 

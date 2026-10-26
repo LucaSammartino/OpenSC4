@@ -32,6 +32,7 @@
 #include "FC4LotDevInterfaces.h"  // cFC4ISC4NetworkLotManager
 #include "FC4NetMgrHost.h"        // fc4::NetMgrContext
 #include "cISC4NetworkLot.h"
+#include "cISC4NetworkLotConfiguration.h"
 #include "cSC4LotConfigurationObject.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
@@ -51,6 +52,9 @@ class cSC4LotConfigurationObject;
 static const uint32_t kFC4_CLSID_cSC4NetworkLotManager = 0xE9A6CD3B;
 static const uint32_t kFC4_IID_cISC4NetworkLotManager = 0x89A5BA3F;
 static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
+// SPEC-GAP: native lot/configuration CLSIDs are unspecified; these FreeCity4 IDs register manager-created views.
+static const uint32_t kFC4_CLSID_cFC4NetworkLot = 0x4E4C3030;  // "NL00"
+static const uint32_t kFC4_CLSID_cFC4NetworkLotConfiguration = 0x4E4C4330;  // "NLC0"
 
 // One network lot configuration of ours (§2.4): the core's copy (fc4_netlot)
 // plus the game's view the callers reach: the configuration's objects as
@@ -65,12 +69,27 @@ static const uint32_t kFC4_IID_cISC4NetworkLot = 0x89A5BA66;
 // glue24-rep-6 - two storages that both hold the records by value double-
 // freed each record's SC4Vector data at Shutdown, the run's heap-corruption
 // crash; one owner only).
-class cFC4NetworkLotConfiguration {
+class cFC4NetworkLotConfiguration final : public cISC4NetworkLotConfiguration {
 public:
-    explicit cFC4NetworkLotConfiguration(uint64_t token) : token_(token) {}
+    static std::shared_ptr<cFC4NetworkLotConfiguration> Create(uint64_t token) {
+        return {new cFC4NetworkLotConfiguration(token), [](cFC4NetworkLotConfiguration* p) { p->Release(); }};
+    }
+    static cIGZUnknown* CreateEntry() {
+        auto* config = new cFC4NetworkLotConfiguration(0);
+        config->refs_ = 0;  // The director's QueryInterface takes the first reference.
+        return config;
+    }
+    bool QueryInterface(uint32_t riid, void** out) override;
+    uint32_t AddRef() override;
+    uint32_t Release() override;
+    SC4Vector<cSC4LotConfigurationObject>* GetObjectArray() const override { return &records_; }
+    uint32_t GetID() const override { return configId_; }
+    void GetName(cIGZString& name) const override;
+    uint32_t GetNetworkPieceId() const override { return pieceId_; }
 
     void SetToken(uint64_t token) { token_ = token; }
     void SetConfigId(uint32_t id) { configId_ = id; }
+    void SetMetadata(uint32_t pieceId, std::string name) { pieceId_ = pieceId; name_ = std::move(name); }
     void AddIds(std::vector<uint32_t> ids) { ids_.push_back(std::move(ids)); }
     // Builds one record in place: SC4Vector's push_back memmoves the element
     // bytes, so an AddObject(const T&) would share the source's `data` buffer
@@ -117,12 +136,17 @@ public:
     SC4Vector<cSC4LotConfigurationObject>* Objects() { return &records_; }
 
 private:
+    explicit cFC4NetworkLotConfiguration(uint64_t token) : token_(token) {}
+    ~cFC4NetworkLotConfiguration() = default;
+    std::atomic<uint32_t> refs_{1};
     uint64_t token_ = 0;
     uint32_t configId_ = 0;  // the exemplar's property 0x21 (§2.4)
+    uint32_t pieceId_ = 0;
+    std::string name_;
     // The kept records, in property order: the ONLY storage (SC4Vector's
     // push_back memmoves the element bytes, and its destructor runs each
     // element's destructor, so a second copy would free the same data).
-    SC4Vector<cSC4LotConfigurationObject> records_;
+    mutable SC4Vector<cSC4LotConfigurationObject> records_;
     // Per kept-object index: the raw ID list of the object (object_ids).
     std::vector<std::vector<uint32_t>> ids_;
 };
@@ -132,8 +156,12 @@ private:
 // the game's view of one, owned by the manager that hands it out.
 class cFC4NetworkLot final : public cISC4NetworkLot {
 public:
-    cFC4NetworkLot(cISC4NetworkOccupant* occ, cFC4NetworkLotConfiguration* config)
-        : occ_(occ), config_(config) {}
+    cFC4NetworkLot(cISC4NetworkOccupant* occ, std::shared_ptr<cFC4NetworkLotConfiguration> config);
+    static cIGZUnknown* CreateEntry() {
+        auto* lot = new cFC4NetworkLot(nullptr, {});
+        lot->refs_ = 0;  // Live manager-owned views instead start with their owner's reference.
+        return lot;
+    }
 
     bool QueryInterface(uint32_t riid, void** ppvObj) override;
     uint32_t AddRef() override;
@@ -143,13 +171,13 @@ public:
     uint32_t GetLotConfigurationObjectCount() override;
     SC4Vector<cSC4LotConfigurationObject>* GetLotConfigurationObjectArray() override;
 
-    cFC4NetworkLotConfiguration* Config() const { return config_; }
+    cFC4NetworkLotConfiguration* Config() const { return config_.get(); }
 
 private:
-    ~cFC4NetworkLot() = default;
-    uint32_t refs_ = 1;
-    cISC4NetworkOccupant* occ_ = nullptr;  // borrowed: the core holds the reference
-    cFC4NetworkLotConfiguration* config_ = nullptr;
+    ~cFC4NetworkLot();
+    std::atomic<uint32_t> refs_{1};
+    cISC4NetworkOccupant* occ_ = nullptr;  // owned, independently of the core's cell entry
+    std::shared_ptr<cFC4NetworkLotConfiguration> config_;
 };
 
 class cFC4NetworkLotManager final : public cFC4ISC4NetworkLotManager,
@@ -196,11 +224,12 @@ public:
     bool Writable() const { return writable_; }
 
     // The lot objects this class handed out, kept alive while the manager is.
-    cISC4NetworkLot* KeepLot(int32_t x, int32_t z, cISC4NetworkOccupant* occ, uint32_t configId);
+    cISC4NetworkLot* KeepLot(int32_t x, int32_t z, cISC4NetworkOccupant* occ, uint64_t configToken);
     // The configuration with the core's token (host identity), or null.
     cFC4NetworkLotConfiguration* ConfigByToken(uint64_t token) const;
 
 private:
+    friend intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second);
     // §3.2 step 4: every exemplar of exemplar type 0x21 (read once per
     // process), each as a core property holder plus the game's object records.
     void ReadConfigurations();
@@ -217,10 +246,15 @@ private:
     cISC4City* city_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
     std::map<uint64_t, cFC4NetworkLot*> lots_;
-    std::map<uint64_t, std::unique_ptr<cFC4NetworkLotConfiguration>> configs_;
+    std::map<uint64_t, std::shared_ptr<cFC4NetworkLotConfiguration>> configs_;
     std::vector<fc4_props*> configProps_;  // alive until the adds are done
     std::atomic<uint32_t> posts_{0};
 };
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4NetworkLotManager();
+cIGZUnknown* CreateFC4NetworkLot();
+cIGZUnknown* CreateFC4NetworkLotConfiguration();
+
+// Test seam: exercise retained lot dependencies and the manager's borrowed cache.
+intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second);

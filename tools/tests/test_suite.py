@@ -128,6 +128,20 @@ class SuiteParsingTests(unittest.TestCase):
             self.assertIn('clean-exit-crash', summary)
             self.assertIn('0x005D0F94', summary)
 
+    def test_posted_quit_crash_requires_an_accepted_command_after_target(self):
+        lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
+        lines[1] = lines[1].replace('cISC4App::RequestQuit(false, false)',
+                                  'native quit command 0xC7AA61C6 queued')
+        result = suite.parse_log(''.join(lines), '2028-01-28', 'verdict: corrupt')
+        self.assertEqual((result['verdict'], result['exception_address']),
+                         ('clean-exit-crash', '0x005D0F94'))
+        self.assertFalse(suite.successful({'posted': result}))
+        for text in (''.join(lines).replace('queued -> 1', 'queued -> 0'),
+                     lines[1] + lines[0] + ''.join(lines[2:]),
+                     lines[0] + lines[2] + lines[1] + lines[3]):
+            with self.subTest(text=text):
+                self.assertEqual(suite.parse_log(text, '2028-01-28')['verdict'], 'corrupt')
+
     def test_end_date_alone_cannot_reclassify_an_exception_as_a_quit_crash(self):
         lines = (FIXTURES / 'suite-exit-crash.log').read_text(encoding='utf-8').splitlines(True)
         cases = [
@@ -148,6 +162,15 @@ class SuiteParsingTests(unittest.TestCase):
                 self.assertEqual(result['verdict'], verdict)
         loaded = suite.parse_log(''.join(lines), '2028-01-28', only_load=True)
         self.assertEqual((loaded['verdict'], loaded['end_reached']), ('corrupt', '0'))
+
+    def test_failed_native_quit_cannot_pass_by_terminating_before_shutdown(self):
+        text = ('autotest: end date 2028-01-28 reached\n'
+                'autotest: native quit command 0xC7AA61C6 queued -> 0 (autotest_quit_post)\n'
+                'AUTOTEST VERDICT: clean (date=2028-01-28, days_per_second=3.2)\n')
+        result = suite.parse_log(text, '2028-01-28')
+        self.assertEqual((result['verdict'], result['raw_verdict']), ('harness-error', 'clean'))
+        self.assertIn('shutdown untested', result['invalid_reason'])
+        self.assertFalse(suite.successful({'failed-dispatch': result}))
 
     def test_frozen_clock_and_short_windows_fail_but_explicit_load_only_passes(self):
         text = ('memory: address space 968/2047 MiB; largest free 624 MiB\n'
@@ -172,7 +195,8 @@ class SuiteParsingTests(unittest.TestCase):
         self.assertIn('terrain', replace)
         self.assertIn('netrules', replace)
         self.assertNotIn('enable', shadows)
-        self.assertEqual(suite.profile_ini(ROOT, 'plain'), {})
+        self.assertEqual(suite.profile_ini(ROOT, 'plain'),
+                         {'disable': 'simulator,budget', 'enable': 'none'})
         for value in ('x = 1\ncity = Other', 'region = Other', 'dll = evil.dll', '[ini]', 'script = other'):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 suite.extras([value])
@@ -235,18 +259,38 @@ class SuiteParsingTests(unittest.TestCase):
 
 
 class SuiteQueueTests(unittest.TestCase):
+    def test_dated_saves_opt_into_bounded_grace_with_explicit_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            script = root / row['script']
+            for tag, action, expected in (
+                    ('full', '2000-01-01 save # full save', True),
+                    ('fast', '2000-01-01 save fast', True),
+                    ('none', '# 2000-01-01 save\n2000-01-01 mark save', False)):
+                script.write_text(action + '\n', encoding='utf-8')
+                _, manifest = suite.make_batch(root, [row], 'plain', str(root), tag)
+                body = manifest['requests'][0]['request']
+                self.assertEqual('\nscript_save_grace_ms = 60000\n' in body, expected)
+                self.assertIn('[ini]\n', body.split('script_save_grace_ms')[0])
+            script.write_text('2000-01-01 save\n', encoding='utf-8')
+            _, manifest = suite.make_batch(root, [row], 'plain', str(root), 'override',
+                                           ['script_save_grace_ms=0'])
+            self.assertIn('\nscript_save_grace_ms = 0\n', manifest['requests'][0]['request'])
+
     def test_lua_can_stage_a_dated_terrain_companion_without_replacing_lua_entry(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             row = checkout(root)
             row['script'] = 'probe.lua'
             (root / 'probe.lua').write_text('-- Lua fixture\n')
-            setup = '2000-01-01 terrain 0 0 256 256 280 1\n'
+            setup = '2000-01-01 terrain 0 0 256 256 280 1\n2000-01-01 save\n'
             (root / 'probe.script').write_text(setup)
             directory, manifest = suite.make_batch(root, [row], 'plain', str(root), 'companion')
             body = manifest['requests'][0]['request']
             self.assertIn('lua_script = build-runs/suite/companion/scripts/case.one.lua', body)
             self.assertIn('\nscript = build-runs/suite/companion/scripts/case.one.script', body)
+            self.assertIn('\nscript_save_grace_ms = 60000\n', body)
             self.assertEqual((directory / 'scripts/case.one.script').read_text(), setup)
 
     def test_lua_request_and_harvested_command_evidence_round_trip(self):

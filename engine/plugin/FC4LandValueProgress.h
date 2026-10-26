@@ -23,7 +23,8 @@ struct LandValueStepProgress {
 
 struct LandValueTractInterval {
     bool valid = false;
-    bool discardedStatistics = false;
+    // Counting restarts, but first-scan extrema survive: keep both intervals.
+    bool zoningFallback = false;
     // Half-open ordinal interval in z-outer/x-inner order, relative to the
     // BEFORE iterator's bounds. Never use an exhausted/reset after coordinate.
     uint64_t first = 0, end = 0;
@@ -74,12 +75,12 @@ inline LandValueTractInterval LandValueDecodeTractInterval(const LandValueStepPr
         r.valid = after.state == 6;
         return r;
     }
-    r.discardedStatistics = before.state == 3 && !before.ignoreZoning && after.ignoreZoning;
+    r.zoningFallback = before.state == 3 && !before.ignoreZoning && after.ignoreZoning;
     const int32_t next = before.state == 1 ? 2 : before.state == 3 ? 5 :
                          before.state == 5 ? 4 : before.state == 4 ? 6 : 9;
-    if (r.discardedStatistics) {
-        // Reset belongs to the second scan. The completed first scan's
-        // statistics are discarded, never merged into the ignore-zoning scan.
+    if (r.zoningFallback) {
+        // Reset belongs to the second scan. Keep the first scan's inputs:
+        // min/max survive even though sum/count/histogram restart (§6.1.6).
         if (after.state != 3 || q.state != 0) return r;
         r.end = count;
     } else if (after.state == next) {

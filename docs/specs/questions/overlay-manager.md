@@ -46,6 +46,3 @@
 
 <!-- from: core-overlay-manager-close5 (2026-10-23) -->
 - **OV11 - §4.2 simultaneous wrap flags:** when both repeat bit1 and replacement-matrix bit5 are set, does repeat/repeat or repeat/clamp take precedence? Slot21 sets bit5 without clearing bit1. [literal first matching rule: bit1 selects repeat/repeat, otherwise bit5 selects repeat/clamp; no native precedence claim]
-
-<!-- from: replace-overlays28 (2026-10-26) -->
-- **OV16 - §2.7 native texture-source adapter ABI:** specify the exact thiscall prototypes, stack-byte counts and return channels for source slots 3 (dimensions/info) and 4 (driver texture handle). Does slot3 return an info pointer or write caller-owned storage? If it writes storage, specify its complete writable size/alignment, not only the width/height prefix. §2.7 explicitly says the stage-zero push does not establish slot4's arguments, and neither the SDK nor current ABI tables declare these source methods. The implementer has stopped native source calls rather than guessing a signature or writable buffer size; binding-backed adapters continue through the documented factory slots5/6/8/11 and counted-binding calls.

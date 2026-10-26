@@ -69,6 +69,10 @@ struct Data {
     grids: HashMap<u64, FakeGrid>,
     next_token: u64,
     events: Vec<String>,
+    #[cfg(test)]
+    reads: Vec<&'static str>,
+    #[cfg(test)]
+    slope_input: Option<f32>,
 }
 
 impl Data {
@@ -87,6 +91,10 @@ impl Data {
             grids: HashMap::new(),
             next_token: 0x100,
             events: Vec::new(),
+            #[cfg(test)]
+            reads: Vec::new(),
+            #[cfg(test)]
+            slope_input: None,
         }
     }
 
@@ -129,6 +137,8 @@ impl LandValueHost for FakeHost {
     }
 
     fn is_land_vertex(&self, vx: u32, vz: u32) -> bool {
+        #[cfg(test)]
+        self.0.borrow_mut().reads.push("land");
         let d = self.0.borrow();
         let (x, z) = (vx as i32, vz as i32);
         let mut land = d.land_default;
@@ -141,6 +151,8 @@ impl LandValueHost for FakeHost {
     }
 
     fn altitude(&self, px: f32, pz: f32) -> f32 {
+        #[cfg(test)]
+        self.0.borrow_mut().reads.push("altitude");
         let d = self.0.borrow();
         let vx = (px / d.city.cell_width_x).round() as i32;
         let vz = (pz / d.city.cell_width_z).round() as i32;
@@ -156,6 +168,8 @@ impl LandValueHost for FakeHost {
     }
 
     fn zone_type(&self, x: i32, z: i32) -> u32 {
+        #[cfg(test)]
+        self.0.borrow_mut().reads.push("zone");
         let d = self.0.borrow();
         let mut zone = 0;
         for (r, t) in &d.zones {
@@ -169,6 +183,14 @@ impl LandValueHost for FakeHost {
     /// `x1 + 1000·z1 + (x2 − x1 + 1)/16 + (z2 − z1 + 1)/64`: exact in f32 and
     /// encodes the whole rectangle (an 8 × 8 rectangle adds 0.625).
     fn area_slope(&self, x1: i32, z1: i32, x2: i32, z2: i32) -> f32 {
+        #[cfg(test)]
+        {
+            let mut d = self.0.borrow_mut();
+            d.reads.push("slope");
+            if let Some(v) = d.slope_input {
+                return v;
+            }
+        }
         x1 as f32 + 1000.0 * z1 as f32 + (x2 - x1 + 1) as f32 / 16.0 + (z2 - z1 + 1) as f32 / 64.0
     }
 
@@ -900,6 +922,10 @@ fn save(s: &LandValueSim, op: &Json) -> R<()> {
 /// saves them (uint8 grids S = 2, float grids S = 8), standing in for the
 /// grid's own class record; its label is the object ID.
 struct Resolver(Rc<RefCell<Data>>);
+
+#[cfg(test)]
+#[path = "landvalue_terrain_tests.rs"]
+mod terrain_tests;
 
 impl RefResolver for Resolver {
     fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {

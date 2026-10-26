@@ -4,7 +4,7 @@ Examples: python tools/suite.py run --set smoke --profile shadows --tag smoke1
           python tools/suite.py report smoke1 [--against smoke2]
 The queue must include this checkout in its roots. Requests opt into isolated
 parallel slots. No file in Documents is written by this tool.
-An exception after the target date and an accepted RequestQuit is reported as
+An exception after the target date and an accepted quit request is reported as
 clean-exit-crash, with its address; it still does not pass successful(). Earlier
 exceptions, missing quit evidence and harness errors retain their verdicts.
 """
@@ -88,7 +88,9 @@ def script_file(root, value):
 def profile_ini(root, profile):
     """Read the house profiles rather than maintaining another replacement list."""
     if profile == 'plain':
-        return {}
+        # Simulator and budget are on by default in the plugin. Also override
+        # FC4_ENABLE so a native control cannot inherit opt-in replacements.
+        return {'disable': 'simulator,budget', 'enable': 'none'}
     source = (root / 'tools/regress.ps1').read_text(encoding='utf-8-sig')
     if profile == 'replace':
         match = re.search(r'\[string\]\$Replace\s*=\s*"([^"]+)"', source)
@@ -190,6 +192,13 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
                     ini['script'] = setup_copy.relative_to(root).as_posix()
             else:
                 ini['script'] = script.relative_to(root).as_posix()
+        if ini.get('script'):
+            # Inspect the staged dated script (also a Lua setup companion).
+            # Native full SaveCity can exceed the ordinary ten-second watchdog;
+            # the plugin applies this bounded opt-in only inside full saves.
+            dated = (root / ini['script']).read_text(encoding='utf-8-sig')
+            if re.search(r'(?m)^\s*\d{4}-\d\d-\d\d\s+save(?:\s|$)', dated):
+                ini['script_save_grace_ms'] = '60000'
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
@@ -262,6 +271,7 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
     verdict_at = None
     end_line = None
     quit_line = None
+    quit_dispatch_failed = False
     for line_no, line in enumerate(io.StringIO(text), 1):
         body = ENVELOPE.sub('', line.rstrip('\r\n'))
         try:
@@ -286,8 +296,12 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         if reached and reached[1] == end:
             result['end_reached'] = '1'
             end_line = line_no
-        if end_line and re.match(r'autotest: cISC4App::RequestQuit\([^)]*\) -> 1\b', body):
+        if end_line and re.match(
+                r'autotest: (?:cISC4App::RequestQuit\([^)]*\)|'
+                r'native quit command 0xC7AA61C6 queued) -> 1\b', body):
             quit_line = line_no
+        if re.match(r'autotest: native quit command 0xC7AA61C6 queued -> 0\b', body):
+            quit_dispatch_failed = True
         if body.startswith('first-chance exception '):
             address = re.search(r'\bat (0x[0-9a-fA-F]+)\b', body)
             if address:
@@ -379,6 +393,9 @@ def parse_log(text, end, verdict_text='', *, only_load=False):
         result['verdict'] = harness_verdict[1]
         result['invalid_reason'] = 'harness verdict overrides plugin verdict'
     result['raw_verdict'] = result['verdict']
+    if quit_dispatch_failed and result['verdict'] == 'clean':
+        result['verdict'] = 'harness-error'
+        result['invalid_reason'] = 'native quit command could not be queued; shutdown untested'
     if only_load:
         result['end_reached'] = '1' if result['verdict'] == 'clean' else '0'
     elif speed and float(speed[1]) == 0:
@@ -651,7 +668,7 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'all'], default='tier1')
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)

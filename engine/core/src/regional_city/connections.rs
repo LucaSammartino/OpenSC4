@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use super::{RegionalCity, CONNECTIONS_READY};
+use super::{ConnectionHandle, DealHandle, RegionalCity, CONNECTIONS_READY};
 use crate::neighbors::{neighbouring_region_cell, side_of, NeighborConnection};
 use crate::stream::{InStream, OutStream};
 use std::collections::BTreeSet;
@@ -46,12 +46,12 @@ pub struct PreparedChange {
 /// owns the algorithm and byte updates, while the host supplies interface calls.
 /// RR3: the semantic demolition/segment calls follow the literal inferred spec;
 /// undecoded native argument meanings are deliberately not invented here.
-pub trait ConnectionHost {
+pub trait ConnectionHost<C = std::rc::Rc<NeighborConnection>> {
     fn drive_side(&self) -> bool;
-    fn other_city_established(&mut self, connection: &NeighborConnection) -> bool;
+    fn other_city_established(&mut self, connection: &C) -> bool;
     /// Adjacent cities including unestablished ones, in the service's order.
-    fn adjacent_connections(&mut self) -> Vec<IncomingCity>;
-    fn points_to_this_city(&mut self, connection: &NeighborConnection) -> bool;
+    fn adjacent_connections(&mut self) -> Vec<IncomingCity<C>>;
+    fn points_to_this_city(&mut self, connection: &C) -> bool;
     fn network_exists(&mut self, network: u32) -> bool;
     fn find_connection(&mut self, change: PendingChange) -> bool;
     fn create_connection(&mut self, change: PendingChange, direction: bool);
@@ -70,17 +70,17 @@ pub trait ConnectionHost {
     fn post(&mut self, message: u32);
 }
 
-pub struct IncomingCity {
+pub struct IncomingCity<C = std::rc::Rc<NeighborConnection>> {
     pub position: (i32, i32),
     pub size: (i32, i32),
-    pub connections: Vec<std::rc::Rc<NeighborConnection>>,
+    pub connections: Vec<C>,
 }
 
-impl RegionalCity {
+impl<C: ConnectionHandle, D: DealHandle> RegionalCity<C, D> {
     /// Converts via world connection cells; edge ring coordinates are retained.
     pub fn change_symmetric_connection(
         &mut self,
-        c: &NeighborConnection,
+        c: &C,
         source_position: (i32, i32),
         source_size: (i32, i32),
         add: u8,
@@ -106,7 +106,7 @@ impl RegionalCity {
         });
     }
 
-    pub fn mark_connections_for_removal(&mut self, host: &mut impl ConnectionHost) {
+    pub fn mark_connections_for_removal(&mut self, host: &mut impl ConnectionHost<C>) {
         for c in &self.connections {
             if host.other_city_established(c) {
                 let (x, z) = c.cell();
@@ -119,7 +119,7 @@ impl RegionalCity {
             }
         }
     }
-    pub fn treat_incoming_as_new(&mut self, host: &mut impl ConnectionHost) {
+    pub fn treat_incoming_as_new(&mut self, host: &mut impl ConnectionHost<C>) {
         for city in host.adjacent_connections() {
             for c in city.connections {
                 if host.points_to_this_city(&c) {
@@ -160,7 +160,7 @@ impl RegionalCity {
             .collect()
     }
 
-    pub fn reconcile_connections(&mut self, established: bool, forced: bool, host: &mut impl ConnectionHost) {
+    pub fn reconcile_connections(&mut self, established: bool, forced: bool, host: &mut impl ConnectionHost<C>) {
         if !established || forced || self.moved {
             self.pending.clear();
             if self.moved {
@@ -172,7 +172,7 @@ impl RegionalCity {
         self.moved = false;
     }
 
-    pub fn create_symmetric_connections(&mut self, host: &mut impl ConnectionHost) {
+    pub fn create_symmetric_connections(&mut self, host: &mut impl ConnectionHost<C>) {
         for p in self.prepare_changes(host.drive_side()) {
             let c = p.change;
             let Some(network) = network_type(c.conn_type) else {
@@ -238,7 +238,7 @@ impl RegionalCity {
     }
 }
 const INWARD: [(i32, i32); 4] = [(1, 0), (0, 1), (-1, 0), (0, -1)];
-fn update_edges(host: &mut impl ConnectionHost, network: u32, inner: (i32, i32), side: usize, value: u32) {
+fn update_edges<C>(host: &mut impl ConnectionHost<C>, network: u32, inner: (i32, i32), side: usize, value: u32) {
     for o in host.occupants(network, inner) {
         let word = host.connection_word(o);
         host.set_connection_word(o, byte(word, side, value));

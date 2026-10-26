@@ -1,6 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Observing records must not take over any occupant class factory.
 #include "cISC4Occupant.h"
+#include "../plugin/FC4PoleCellVector.h"
+
+void NetOccCellVectorTest() {
+    using namespace fc4::netpole;
+    CellVector output;
+    std::vector<uint32_t> sizes;
+    unsigned frees = 0;
+    auto allocate = [&](uint32_t bytes) -> void* { sizes.push_back(bytes); return std::malloc(bytes); };
+    auto release = [&](void* p) { ++frees; std::free(p); };
+    const Cell cells[] = {{1,2}, {3,4}, {5,6}, {7,8}, {9,10}};
+    CHECK(output.Assign(cells, 5, allocate, release));
+    CHECK(sizes == std::vector<uint32_t>({8, 16, 32, 64}));
+    CHECK(frees == 3 && output.end - output.begin == 5 && output.capacity - output.begin == 8);
+    CHECK(output.begin[4].x == 9 && output.begin[4].z == 10);
+    auto* saved = output.begin;
+    CHECK(output.Assign(cells, 2, allocate, release));
+    CHECK(output.begin == saved && output.end == saved + 2 && output.capacity == saved + 8);
+    CHECK(output.Assign(nullptr, 0, allocate, release));
+    CHECK(output.begin == saved && output.end == saved && sizes.size() == 4 && frees == 3);
+    release(output.begin);
+}
 
 class NetOccLineTestInterface : public cIGZUnknown {
 public:
@@ -219,6 +240,7 @@ public:
 };
 
 int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
+    NetOccCellVectorTest();
     SetEnvironmentVariableA("FC4_DISABLE", nullptr);
     SetEnvironmentVariableA("FC4_ENABLE", nullptr);
     WriteTextFile(ini, "[subsystems]\nenable = netocc\n");
@@ -285,6 +307,14 @@ int NetOccPoleRegistrationTest(const std::string& dll, const std::string& ini) {
                 occ->GetBoundingBox(&mn, &mx);
                 CHECK(mn.fX == 32.0f && mn.fZ == 64.0f && mx.fX == 48.0f && mx.fZ == 80.0f);
                 CHECK(mx.fY == 72.0f);
+                CHECK(mn.fY == p.fY); // Off-map/no-city floor-height choice (4.7).
+                // A zoom context rebuilds faces without changing the position.
+                uint32_t context[7]{};
+                context[5] = 2; context[6] = 3; // +14 zoom, +18 rotation.
+                CHECK(pole->ChangeZoomLevel(context));
+                cS3DVector3 after;
+                CHECK(occ->GetPosition(&after));
+                CHECK(after.fX == p.fX && after.fY == p.fY && after.fZ == p.fZ);
                 occ->SetRemovalFlags(2); CHECK(!occ->CanRemove(2) && occ->CanRemove(1));
                 occ->UnsetRemovalFlags(2); CHECK(occ->CanRemove(2));
                 CHECK(!occ->IsInitialized());

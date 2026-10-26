@@ -642,8 +642,9 @@ fn pl_p1_u1_u2_preview_ownership_and_manager_null_asymmetry() {
         .enumerate()
         .filter_map(|(i, e)| matches!(e, Event::Create(_)).then_some(i))
         .collect();
-    let first_notify = w.events.iter().position(|e| matches!(e, Event::Notify(_))).unwrap();
-    assert!(create_positions.into_iter().all(|i| i < first_notify));
+    assert_eq!(create_positions.len(), 2);
+    assert!(!w.events.iter().any(|e| matches!(e, Event::Notify(_))));
+    assert!(w.poles.values().all(|p| p.connections.is_empty()));
     assert!(!w.events.iter().any(|e| matches!(e, Event::Wire(_))));
     let created = tool.newly_created.clone();
     w.events.clear();
@@ -964,7 +965,7 @@ fn invalid_sample_count_is_reported_without_clamping_or_synthesizing_geometry() 
 }
 
 #[test]
-fn pl_ep1_u1_draft_transfers_descriptor_and_restores_both_directions() {
+fn pl_ep1_u1_draft_transfers_descriptor_and_undo_uses_b_b() {
     let (mut run, mut tool) = drag(3, 20);
     let mut w = TestWorld::default();
     let a = w.pole(1, (0, 0));
@@ -990,6 +991,34 @@ fn pl_ep1_u1_draft_transfers_descriptor_and_restores_both_directions() {
     w.events.clear();
     undo_preview(&mut tool, &mut w);
     assert_eq!(w.poles[&a].connections[0].enabled, 1);
+    assert_eq!(w.poles[&b].connections[0].enabled, 0);
+    assert!(w.events.ends_with(&[Event::Release(a), Event::Release(b), Event::Base]));
+}
+
+#[test]
+fn no44_reversed_draft_descriptor_does_not_restore_earlier_b_owner() {
+    let (mut run, mut tool) = drag(3, 20);
+    let mut w = TestWorld::default();
+    let a = w.pole(1, (4, 0));
+    let b = w.pole(2, (0, 0));
+    for (source, other, enabled) in [(a, b, 0), (b, a, 1)] {
+        let cell = w.poles[&other].cell;
+        w.poles.get_mut(&source).unwrap().connections.push(Connection {
+            other: Some(other),
+            enabled,
+            cell,
+            ..Connection::default()
+        });
+    }
+    let saved = SavedConnection {
+        endpoints: [Some(a), Some(b)],
+        enabled: [1, 1],
+    };
+    tool.append_pole((2, 0), 2, false, -1, saved);
+    place_poles(&mut run, &mut tool, &mut w, &mut 0, false).unwrap();
+    assert_eq!(w.poles[&b].connections[0].enabled, 0);
+    undo_preview(&mut tool, &mut w);
+    assert_eq!(w.poles[&a].connections[0].enabled, 0);
     assert_eq!(w.poles[&b].connections[0].enabled, 0);
     assert!(w.events.ends_with(&[Event::Release(a), Event::Release(b), Event::Base]));
 }
