@@ -267,7 +267,7 @@ generated index: the questions live one file per spec, so read only the file for
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 3 | 60 | EX58 | questions/data-formats.md |
 | dates | 3 | 2 | DT6 | questions/dates.md |
-| demand | 0 | 13 | DQ14 | - |
+| demand | 0 | 13 | DQ14 | questions/demand.md |
 | demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 3 | 44 | DS48 | questions/disasters.md |
@@ -275,7 +275,7 @@ generated index: the questions live one file per spec, so read only the file for
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
-| effects | 0 | 29 | EF26, EFP7 | questions/effects.md |
+| effects | 0 | 30 | EF27, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 2 | 3 | FM6 | questions/feature-manager.md |
 | fire-flames | 2 | 0 | FF3 | questions/fire-flames.md |
@@ -291,9 +291,10 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
-| graphics-rules | 4 | 5 | GR10 | questions/graphics-rules.md |
+| graphics-rules | 4 | 6 | GR11 | questions/graphics-rules.md |
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
+| growth-developer | 0 | 0 | - | questions/growth-developer.md |
 | gz-framework-core | 9 | 2 | GZF12 | questions/gz-framework-core.md |
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
@@ -325,10 +326,10 @@ generated index: the questions live one file per spec, so read only the file for
 | nation | 0 | 4 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
 | network-bridges | 1 | 2 | NB4 | questions/network-bridges.md |
-| network-geometry | 0 | 8 | NG9 | questions/network-geometry.md |
-| network-manager | 0 | 20 | NM21 | questions/network-manager.md |
-| network-occupants | 14 | 35 | NO48 | questions/network-occupants.md |
-| network-overlay-views | 3 | 0 | NOV4 | questions/network-overlay-views.md |
+| network-geometry | 1 | 8 | NG16 | questions/network-geometry.md |
+| network-manager | 3 | 20 | NM21 | questions/network-manager.md |
+| network-occupants | 16 | 35 | NO48 | questions/network-occupants.md |
+| network-overlay-views | 1 | 2 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
@@ -341,8 +342,8 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 6 | 11 | OV18 | questions/overlay-manager.md |
-| overlay-views | 3 | 4 | OVV8 | questions/overlay-views.md |
+| overlay-manager | 5 | 12 | OV18 | questions/overlay-manager.md |
+| overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 0 | 13 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
@@ -424,10 +425,10 @@ generated index: the questions live one file per spec, so read only the file for
 | widget-lineinput | 2 | 0 | WLI3 | questions/widget-lineinput.md |
 | widget-slider | 2 | 0 | WSL3 | questions/widget-slider.md |
 | widget-spinner | 2 | 0 | WSP3 | questions/widget-spinner.md |
-| widget-toolkit | 11 | 9 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
+| widget-toolkit | 5 | 12 | WT15, WTC2, WTG2, WTH2 | questions/widget-toolkit.md |
 | widget-wingen | 2 | 1 | WGN4 | questions/widget-wingen.md |
 | win-filebrowser | 0 | 6 | FBQ7 | questions/win-filebrowser.md |
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **632** | **1644** | | |
+| **total** | **627** | **1659** | | |
