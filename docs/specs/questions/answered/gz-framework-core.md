@@ -1,5 +1,22 @@
 # Answered questions — GZ framework core
 
+## GZF6 — Remaining buffer interface
+
+<!-- from: re-gzservices5 (2026-10-23), replacement follow-up replace-gzfw29 -->
+- **GZF6 — Remaining buffer interface (§6):** Reconcile every remaining
+  `0x00AC1400` slot beyond the span-render-8 bridge with semantic names/signatures;
+  specify resize, attached storage, palette, copy/conversion and allocation failure.
+
+**ANSWERED 2026-10-26 (re-gzf29):** DIFFERS —
+[§§6.1–6.4](../../gz-framework-core.md#61-complete-primary-table-inventory-gzf6)
+reconcile all 47 entries and their return channels. There is no preserving resize,
+foreign-storage attachment or palette operation: disposal/reinitialization owns
+replacement heap pixels and types 1/3 resolve from the display format. Null pixel
+allocation still returns successful Init. Packed pixel access, color/key rules,
+clipped fill, line quirks and all type-4–9 copy conversions are specified, including
+no-write successes and overlap. §§6.5–6.6 give creation/fill/cache/release and
+failure/conversion vectors. The previous type-3 palette interpretation is corrected.
+
 ## GZF12 — Buffer hardware-cache contract blocks replacement
 
 <!-- from: replace-gzfw29 (2026-10-26) -->

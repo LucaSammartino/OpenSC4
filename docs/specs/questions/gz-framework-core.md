@@ -21,9 +21,6 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
 - **GZF5 — Tool command adapters (§5.3):** Recover the seven parameter schemas,
   coordinate conversion widths/order, drag helper sequencing and failure behavior
   when no view/tool is available. Link tool semantics already specified elsewhere.
-- **GZF6 — Remaining buffer interface (§6):** Reconcile every remaining
-  `0x00AC1400` slot beyond the span-render-8 bridge with semantic names/signatures;
-  specify resize, attached storage, palette, copy/conversion and allocation failure.
 - **GZF7 — Logging configuration (§7):** Recover the named level table, numeric
   parsing instructions, Init configuration, duplicate backend-name policy and
   backend ownership. Settle recursive drain behavior, formatting
@@ -35,4 +32,3 @@ These questions belong to [gz-framework-core](../gz-framework-core.md). Filed
   vocabulary and AddToken overload semantics; numeric textual syntax/overflow,
   unassigned-parameter default variant, final/error callbacks, short reads and
   embedded NUL behavior. Confirm malformed quoted/tagged EOF cases with vectors.
-

@@ -455,9 +455,8 @@ framework service classes.
 Interface inventory required by that bridge: slots 0–3 QI/AddRef/Release/Init;
 6–7 Lock/Unlock; 9–11 GetWidth/GetHeight/GetRect; 15 GetColorType;
 17 GetBytesPerPixel; 26 GetColorKey; 30 RGB mapping. Exact native signatures
-and return channels are tabulated in span-render-8 §10.7. The remaining table
-targets, including storage and conversion helpers, need semantic reconciliation
-before exposing them (GZF6). There are no ordinary message subscriptions here.
+and return channels are tabulated in span-render-8 §10.7. Sections 6.1–6.6
+complete that inventory (GZF6/GZF12). There are no ordinary message subscriptions here.
 
 *[compat]* Init rejects a second initialization and either zero dimension.
 Storage is row-major, each row padded to a four-byte boundary, and allocated
@@ -495,8 +494,305 @@ counter are 32-bit, while its nesting count is 16-bit (`0x00826AAF`–`0x00826AB
 
 *[choice]* Core memory need not expose the original object offsets. A native
 adapter must still obey the documented lock, stride, ownership and pointer
-lifetime contracts. Allocation failure, resize and foreign-storage attachment
-outside the covered bridge are GZF6, not implied successful operations.
+lifetime contracts below.
+
+### 6.1 Complete primary-table inventory (GZF6)
+
+*[compat]* The executable words at `0x00AC1400`–`0x00AC14B8` establish **47**
+entries, numbered 0–46. These semantic names describe the actual operations;
+duplicate targets are intentional. All arguments occupy four-byte stack slots,
+including byte colors. Calls use the primary buffer pointer in ECX except the
+explicit-argument clipping helper in slot 41. `bool` means AL only, not a
+normalized full EAX. Rectangles are four signed 32-bit edges, half-open unless
+the line rule says otherwise. ColorType is two 32-bit words, type then bpp.
+
+| Slot | Target | Semantic signature after this | Stack bytes popped; result |
+|---|---|---|---|
+| 0–3 | As span-render-8 §10.7 | QI, AddRef, Release, Init(w,h,type,bpp) | 8/0/0/16; AL/EAX/EAX/AL |
+| 4, 5 | `0x00825CE0` | Shutdown()/DisposeStorage() | 0; bool, always true |
+| 6, 7 | `0x00826AA0`, `0x00826490` | Lock(flags), Unlock(flags) | 4; bool |
+| 8 | `0x008268B0` | IsLocked() | 0; bool, nesting != 0 |
+| 9, 10 | `0x00808620`, `0x004ED900` | GetWidth(), GetHeight() | 0; EAX |
+| 11 | `0x008268D0` | GetRect(outRect*) | 4; EAX = outRect |
+| 12 | `0x008268C0` | GetRect() | 0; EAX = borrowed internal rectangle pointer |
+| 13 | `0x00826330` | GetSize() | 0; EAX byte-size estimate, §6.2 |
+| 14, 15 | `0x008268F0` | GetColorType(outPair*) | 4; EAX = outPair, both entries write both words |
+| 16 | `0x0040CE60` | GetBitsPerPixel() | 0; EAX |
+| 17 | `0x00826910` | GetBytesPerPixel() | 0; EAX = logical bpp >> 3 |
+| 18 | `0x00991950` | Fill(pixel, clipRect* or null) | 8; bool |
+| 19 | `0x0082B2F0` | FillRect(pixel, left, top, right, bottom, clipRect* or null) | 24; bool |
+| 20 | `0x00826EC0` | FillRect(pixel, rect*, clipRect* or null) | 12; bool |
+| 21 | `0x00826510` | GetPixel(x,y) | 8; EAX packed pixel |
+| 22 | `0x00826560` | SetPixel(x,y,pixel) | 12; void |
+| 23 | `0x00826A10` | SetColorKey(pixel) | 4; void |
+| 24 | `0x00826920` | IsColorKeyEnabled() | 0; EAX = 0 or 1 |
+| 25 | `0x008265D0` | IsColorKeyPixel(x,y) | 8; bool |
+| 26 | `0x00826620` | GetColorKey(outPixel*) | 4; bool |
+| 27 | `0x00826A30` | ClearColorKey() | 0; void |
+| 28 | `0x00827380` | DrawLine(x1,y1,x2,y2,pixel,thickness) | 24; bool, always true on normal return |
+| 29 | `0x00826AD0` | Blit(source*, sourceRect*, destinationRect*, clipRect* or null) | 16; bool |
+| 30 | `0x00825DA0` | MapRGB(r,g,b) | 12; EAX packed pixel |
+| 31 | `0x00825F80` | UnmapRGB(pixel,outR*,outG*,outB*) | 16; bool |
+| 32 | `0x00825E80` | MapRGBA(r,g,b,a) | 16; EAX packed pixel |
+| 33 | `0x008260A0` | UnmapRGBA(pixel,outR*,outG*,outB*,outA*) | 20; bool |
+| 34, 35 | `0x008265C0`, `0x0068D1B0` | GetPixels(), GetStride() | 0; EAX pointer/byte stride |
+| 36 | `0x006AAC50` | GetModificationCount() | 0; EAX unsigned 32-bit count |
+| 37, 38 | `0x00698CF0`, `0x00826950` | GetHardwareCache(), SetHardwareCache(cache*) | 0/4; EAX pointer/bool; §6.5 |
+| 39 | `0x008264B0` | IsInitialized() | 0; AL initialized byte |
+| 40 | `0x00827340` | DeletingDestructor(flags) | 4; EAX = this |
+| 41 | `0x00826210` | ClipRects(boundsBuffer*, sourceRect*, destinationRect*, clipRect* or null) | 16; bool; modifies both rectangles |
+| 42 | `0x00826350` | AllocateStorage() | 0; bool from slot 43 |
+| 43 | `0x00826A50` | AllocatePixels() | 0; bool, always true on normal return |
+| 44 | `0x00826370` | FreePixels() | 0; bool, always true |
+| 45 | `0x00826390` | ResolveColorType() | 0; void |
+| 46 | `0x00826B80` | BlitClipped(source*, sourceRect*, destinationRect*) | 12; bool, always true on normal return |
+
+Slots 40–46 are implementation hooks, not additional public resize/attachment
+operations. Slot 41 uses its **first stack argument** as the bounds buffer; ECX
+is not substituted for it. Output pointers in descriptor/color operations must
+be writable; no null validation is added. The slot-12 rectangle and slot-34
+pixel pointers are borrowed and gain no reference or lock. GetRect(out) copies
+the four stored edges; the initial origin and every Init origin are (0,0).
+
+### 6.2 Storage, reinitialization, format resolution and failure (GZF6)
+
+*[compat]* Construction initializes type/bpp to (3,16), rectangle to zero,
+modification count to zero, lock nesting/flags to zero, pixels/stride/cache to
+null/zero/null (`0x008272E0`–`0x0082733B`). Init rejects an already initialized
+buffer or either dimension equal to zero before writing metadata. It does not
+reject negative 32-bit dimension bit patterns, unsupported type/bpp pairs or
+overflow. For an accepted call it stores rectangle (0,0,w,h), type and bpp, calls
+slot 42, and sets initialized only if that returns true (`0x008269B0`).
+
+AllocateStorage invokes slot 43 and, if it returns false, clears the pixel
+pointer and returns false. The concrete slot 43 first resolves the color type,
+then computes bytes-per-pixel by **unsigned** bpp >> 3, byte stride by rounding
+w × bytes-per-pixel up to a multiple of four, and allocation size by stride × h.
+Products/addition use their low 32 bits. It requests that many uninitialized
+bytes from GlobalHeapAlloc (`0x005E55E0`), stores the returned pointer, stride
+and the low byte of bytes-per-pixel for GetPixel/SetPixel, increments the
+modification counter and returns true (`0x00826A50`–`0x00826A95`).
+
+**A null allocation result is not tested.** Init consequently returns true and
+IsInitialized is true even with null pixels; the stride and metadata remain set
+and the counter has incremented. Lock then returns false and GetSize returns
+zero. There is no buffer-level retry, clearing, rollback or exception translation.
+This rule is conditional on the allocator returning null: a failure that does
+not return normally is not converted to true by the buffer.
+
+*[compat]* Slots 4/5 call FreePixels and clear only initialized, returning true.
+FreePixels calls GlobalHeapFree on the stored pixel pointer and clears that
+pointer, leaving dimensions, type/bpp, stride, cached bytes-per-pixel, key,
+modification count, lock state and cache attachment intact (`0x00825CE0`,
+`0x00826370`). Neither disposal nor Init requires zero lock nesting. A second
+Init with different dimensions is therefore possible **after** disposal, and
+allocates uninitialized replacement pixels with one further count increment.
+There is no preserving resize operation, attached-storage flag, external-pixel
+setter or non-owning storage mode in this table. Init has exactly four arguments,
+all dimensions/format, not a fifth storage argument. Supplying foreign memory
+through undocumented field mutation would still expose it to GlobalHeapFree;
+it is not an attachment contract. Borrowed pixel pointers cease to be valid on
+disposal/destruction; a new allocation need not have a different numeric address.
+
+GetSize is deliberately **not** stride × height: if pixels are nonnull, it
+rounds the **pixel width** up to four, then multiplies by (bpp >> 3) and height
+(`0x00826330`–`0x0082634F`). Thus width 3, height 2, bpp 16 allocates 16 bytes
+(stride 8), but GetSize reports 16; width 5, height 2 allocates 24 bytes (stride
+12), while GetSize reports **32**. All arithmetic is modulo 2^32.
+
+*[compat]* There is **no palette member or palette interface operation** here.
+Types 1 and 3 are automatic-format requests resolved by slot 45, not retained
+indexed palettes (`0x00826390`–`0x00826485`):
+
+| Graphics-service outcome | Resolved type/bpp |
+|---|---|
+| RZ::GS() null | (5,16) |
+| GS exists, QI(`0xC47B747C`) fails | Pair written by graphics slot 9 (`+0x24`) |
+| That QI succeeds | Query its driver settings at slot 15 (`+0x3C`); low six bits of the first settings word > 16 gives (9,32), otherwise (7,16); release the queried interface |
+| Input type other than 1 or 3 | Leave type and bpp exactly as supplied |
+
+The driver-settings request sets flag `0x40` and zeroes the following four words
+before the query; the six-bit comparison is unsigned (`0x00826401`–`0x00826412`).
+This corrects span-render-8 §10.4's older description of type 3 as a fixed
+paletted format: resolution consults the graphics driver, not a palette service.
+Type 2 remains the stable raw 8-bit case; MapRGB/MapRGBA on it return zero, and
+UnmapRGB/UnmapRGBA return false without output writes.
+
+### 6.3 Pixel access, color packing and key comparisons (GZF6)
+
+*[compat]* GetPixel and SetPixel calculate byte address pixels + y × stride +
+x × cached-byte-count, without bounds, lock, initialization or null checks
+(`0x00826510`–`0x008265B1`). Cached counts 2/3/4 select little-endian 16/24/32-bit
+access; every other count selects one byte. GetPixel zero-extends; SetPixel
+stores only the selected low bytes and does not increment the modification
+count. The 24-bit getter reads three bytes individually, not four.
+
+The color operations use the following layouts irrespective of the supplied
+bpp; r/g/b/a inputs are the low bytes of their dword arguments. Dropping bits
+always means taking the high bits, without rounding. MapRGB uses opaque alpha.
+
+| Type | Layout of packed result | MapRGBA alpha |
+|---|---|---|
+| 4 or 6 | A1:R5:G5:B5, bits 15:10:5:0 | High bit of input alpha |
+| 5 | R5:G6:B5 | Ignored |
+| 7 | A4:R4:G4:B4 | High nibble of input alpha |
+| 8 or 9 | A8:R8:G8:B8 | Full input alpha |
+| Any other | Zero | Zero |
+
+UnmapRGB writes one byte per output: expand a 5-bit component v to 8v + floor(v/4),
+a 6-bit component to 4v + floor(v/16), and a nibble to 17v. Types 8/9 use the
+corresponding bytes. UnmapRGBA uses those same RGB results, with these **native
+alpha quirks**, which do not describe the separate Blit conversion path:
+
+| Type | Alpha output byte |
+|---|---|
+| 4 or 6 | 0 if bit 15 is clear; **132 (`0x84`)** if set |
+| 5 | 255 |
+| 7 | 16 × stored alpha nibble, except nibble 15 gives 255 |
+| 8 or 9 | Bits 24–31 |
+
+Both unmap operations return true for types 4–9, false with all outputs
+unchanged otherwise. Numeric evidence: packing `0x00825DA0`–`0x00825F59`, RGB
+expansion `0x00825F80`–`0x00826097`; the 1555 alpha multiply by 33 and shift by
+13 at `0x008260C0`–`0x008260D1` produces 132, and the 4444 byte shift/clamp is
+`0x00826155`–`0x00826179`. Do not replace these with rounded normalized colors.
+
+SetColorKey stores all 32 bits and enables flag bit 1; ClearColorKey removes
+only that bit, preserving the stored value. IsColorKeyEnabled returns that bit
+as 0/1. GetColorKey writes the full stored value only while enabled. Both key
+setters invalidate an attached cache even if the effective state did not change.
+IsColorKeyPixel first tests enabled and **unsigned** x < width and y < height;
+otherwise it returns false without reading pixels. For an in-range point it
+compares GetPixel and stored key after applying the same mask to each:
+
+| Type | Comparison mask |
+|---|---|
+| 4, 6 | `0x00007FFF` |
+| 5 | `0x0000FFFF` |
+| 7 | `0x00000FFF` |
+| 8, 9 | `0x00FFFFFF` |
+| Other | `0xFFFFFFFF` |
+
+Alpha therefore does not affect key equality (`0x00825C90`–`0x00825CBA`,
+`0x008265D0`–`0x00826617`). A type-2 GetPixel value of `0x34` does not match a
+stored key `0x1234`, despite sharing a low byte. Valid coordinates with null
+pixels are still a fault, not a false result.
+
+### 6.4 Fill, line and copy/conversion operations (GZF6)
+
+*[compat]* Fill (slot 18) supplies the stored whole-buffer rectangle to slot
+20; slot 19 forms a rectangle from its four edge arguments and delegates to
+slot 20 (`0x00991950`, `0x0082B2F0`). Slot 20 copies the requested rectangle,
+constructs a corresponding source rectangle (0,0,width,height), then calls
+slot 41 with this buffer as boundsBuffer. Caller rectangles are not modified.
+
+The shared clipping operation clips destination edges in this order: right to
+buffer width, left to zero, bottom to buffer height, top to zero; then, when
+nonnull, right/left/bottom/top to clipRect. Each destination-edge correction
+changes the corresponding source edge by the same signed amount. It rejects an
+empty destination immediately after each buffer-bound correction and once after
+the optional clip; there is no source-bounds clipping or pointer validation
+(`0x00826210`–`0x00826321`). This is signed 32-bit edge arithmetic. Failure
+returns false without drawing or advancing the modification count.
+
+A surviving FillRect uses the already **packed** pixel, not MapRGB: bpp 8
+repeats its low byte, bpp 16 its low word, bpp 32 the full dword, row by row at
+the actual byte stride, leaving row padding alone. Bpp 24 and other bpp values
+write nothing but still return true and increment the counter once, as do the
+other surviving fills (`0x00826F27`–`0x008270B9`). There is no lock or nonnull
+pixel check on the 8/16/32-bit writing paths. No key skipping or alpha blending
+is performed by Fill.
+
+*[compat]* Blit (slot 29) takes sourceRect's four edges and **only** destinationRect's
+left/top: it constructs destination right/bottom from the source width/height.
+It calls slot 41 with **this destination buffer** as boundsBuffer; sourceRect
+is not clamped against the source buffer's dimensions. If clipping fails it
+returns false without modifying the count. Otherwise it calls slot 46 with
+the source and the two clipped rectangle copies (`0x00826AD0`–`0x00826B73`).
+No scaling is performed and the caller's rectangle records remain unchanged.
+
+Slot 46 increments the destination modification count **at entry**, before
+reading source metadata or checking pixels (`0x00826B8C`). It reads both actual
+strides and computes origins from each rectangle and a type-derived byte count:
+types 4–7 use two bytes, 8/9 four, every other type zero. If either pixel pointer
+is null, it returns true without copying; the count increment remains. Nonnull
+buffers use a fixed 6×6 pair-of-converters table at `0x00B105A0`: destination
+type chooses the row, source type the column, each ordered 4,5,6,7,8,9. Other
+types alias category 4 **but retain the zero origin byte count**. This is an
+unchecked 16-bit-converter fallback, not a palette or supported raw 8-bit copy.
+Do not invent palette lookup or a false return for that case.
+
+For properly sized type-4–9 storage the conversion rules are:
+
+- Copy RGB channels independently, discarding low bits when reducing precision
+  and repeating the high bits when expanding: 4→5 is 2v + floor(v/8), 4→6 is
+  4v + floor(v/4), 4→8 is 17v, 5→6 is 2v + floor(v/16), 5→8 is
+  8v + floor(v/4), 6→8 is 4v + floor(v/16). Equal-width channels are unchanged.
+- Source types 4, 5 and 8 are treated as opaque, regardless of spare/alpha bits.
+  Source 6 uses bit 15 as alpha 0/1; source 7 its high nibble; source 9 its high
+  byte. Destination 4 forces bit 15 to one; destination 8 forces its high byte
+  to `0xFF`; destination 5 discards alpha. Destinations 6/7/9 convert the source
+  alpha by high-bit truncation or full-range bit repetition (1→4/8 gives 0 or
+  15/255, 4→8 multiplies by 17). Thus 6→6, 7→7 and 9→9 preserve the full pixel,
+  whereas 4→4 and 8→8 force their spare bits opaque.
+- If the source GetColorKey succeeds, compare source RGB against that key using
+  §6.3's source-type mask and leave a matching destination pixel unchanged.
+  Otherwise copy every pixel. This is key skipping, not alpha compositing;
+  transparent source alpha still copies its RGB and converted alpha.
+
+Instruction-checked conversion evidence includes `0x00827980`–`0x00827989`
+(opaque 1555), `0x00827B46`–`0x00827B6D` (4→5-bit expansion),
+`0x00827DC6`–`0x00827DEC` (5→6-bit green), `0x008283E0`–`0x00828416`
+(4444→1555), `0x00828A48`–`0x00828A7B` (1555 alpha to 4444),
+`0x00828EFE`–`0x00828F31` (565→8888), `0x00829547`–`0x00829584`
+(1555→8888), and `0x00829680`–`0x008296BC` (4444→8888).
+The key-enabled converters occupy the second word of each dispatch pair;
+e.g. `0x00827AC0` and `0x00828360` compare after mask `0x7FFF`.
+
+Rows normally run top to bottom and each row left to right. For identical
+source/destination **interface pointers**, overlapping vertical intervals
+(sourceTop < destinationBottom and sourceBottom > destinationTop) instead
+start at both bottom rows and negate both strides (`0x00826CEC`–`0x00826D4D`).
+This test does not require destinationTop > sourceTop. Horizontal iteration
+still goes forward, so same-row rightward overlap can overwrite later source
+pixels; this is not a general memmove guarantee. Distinct buffers aliasing the
+same memory receive no overlap treatment. No Lock/Unlock, cache callback or
+source reference retention occurs in these synchronous operations.
+
+*[compat]* DrawLine uses packed pixel and signed integer endpoints. Thickness
+is a 32-bit count; no positive/range validation is added. It first clips the
+center path to the **inclusive** bounds (0,0,width−thickness,height−thickness)
+using integer Cohen–Sutherland clipping: choose the first outside endpoint,
+edge priority top, bottom, right, left; compute each intersection from the
+current first endpoint with low-32-bit multiplication followed by signed
+division truncating toward zero (`0x00930F70`, in particular `0x0093102C`–
+`0x00931042`). A rejected line still returns true without drawing.
+
+Horizontal/vertical lines call slot 19 for a rectangle including both endpoint
+pixels and thickness in the perpendicular direction; they inherit FillRect's
+counter increment/no-write behavior. For other lines with nonnull pixels and
+thickness 1, use inclusive integer Bresenham: let major = max(|dx|,|dy|), minor =
+min(|dx|,|dy|), with x the major axis on equality. Initial error is 2×minor−major.
+Write major+1 pixels starting at the clipped first endpoint. If the pre-step
+error is negative, advance only the major axis and add 2×minor; otherwise advance
+both axes and add 2×(minor−major). Signs follow the endpoint direction. Bpp
+8/16/24/32 selects low 1/2/3/4-byte stores; other bpp writes nothing. These
+diagonal paths do **not** increment the modification count (`0x0082749A`–
+`0x00827556`, `0x008270C0`–`0x008272DC`).
+
+For non-axis lines of thickness other than 1, the native path instead stamps
+16-bit squares using the low word of pixel, irrespective of bpp. Its row pitch
+is twice the low 16 bits of (stride >> 1); each stamp has thickness low-16-bit
+rows, with thickness words per row. It extends from each path point toward the
+x/y travel directions (negative directions anchor at point−thickness+1).
+The interior path covers points satisfying thickness−1 ≤ x ≤ width−thickness
+and the analogous y interval. On first leaving that region it switches to the
+boundary path for all remaining points: clamp the left anchor to zero for
+negative x travel or width−1 for positive travel, shorten the word count at
+the x edge, and skip any stamp row whose start is outside the allocation's
+16-bit row range. It still uses the same Bresenham stepping and does not mark
+the buffer modified (`0x00827674`–`0x00827923`). This is a legacy word-store
+quirk, not a format-general thick-line renderer.
 
 ### 6.5 Hardware-cache attachment and lifetime (GZF12)
 
@@ -518,8 +814,8 @@ The setter's observable order is fixed (`0x00826954`–`0x008269A2`):
 1. If an old cache exists, clear the buffer's cache pointer **before** releasing
    that old reference. There is no explicit Shutdown or Invalidate call here.
 2. Invoke the incoming cache's Init with this buffer's primary face. This happens
-   even if the incoming address equals the old address. During this callback an
-   ordinary GetHardwareCache sees null.
+   even if the incoming address equals the old address. Without reentrant
+   changes made by Release/Init callbacks, GetHardwareCache now sees null.
 3. On false Init, return false. The old cache is already detached; the incoming
    cache is not retained and no rollback or Shutdown of it occurs.
 4. On true Init, reread the cache pointer, allowing for changes made by callbacks.
@@ -576,7 +872,7 @@ with a cache H held by one caller reference, whose Init returns true and stores
 the buffer pointer without retaining B. SetHardwareCache(H) calls Init(B), then
 AddRef(H): H has two references and B still has its one caller reference.
 GetHardwareCache returns H with those counts unchanged. On the real SimGL path,
-InitCache/Refresh with the graphics service available establish a clean cache
+InitCache/Refresh with the draw and graphics services available establish a clean cache
 whose saved counter is 2. Lock(`0x8000`), a direct pixel change, then
 Unlock(`0x8000`) produce counter 3: no Invalidate callback is made, but the next
 IsDirty returns true. Refresh saves 3 and clears dirty. SetColorKey(`0x1234`)
@@ -594,6 +890,89 @@ If J.Init returns true instead, J gains one buffer-held reference. Reattaching
 caller-held J releases that reference, calls Init again and retains it again on
 success. Treat a null setter and same-pointer reattachment without a caller
 reference as fault cases, not as false-return tests in the normal process.
+
+### 6.6 Additional buffer worked cases (GZF6/GZF12)
+
+*[test]* These are implementation-facing static vectors, not reported native
+executions. Each fresh buffer starts with count zero and must be AddRef'd for
+its caller. Where H is used, it is the caller-held successful cache fixture of
+§6.5; an actual SimGL refresh additionally requires the draw/graphics services
+and available hardware allocation. The lifecycle vector includes that path.
+
+**GZB1 — Create, fill, cache, resize through disposal, release.** AddRef B;
+Init(3,2,5,16) returns true: stride 8, 16 allocated bytes, GetSize 16, change
+count 1. Fill(`0x1234`, null) returns true, writes three words `0x1234` in each
+row, leaves both padding bytes per row untouched, and advances count to 2.
+Attach H and refresh as in §6.5: the getter borrows H and the cache saves 2.
+Shutdown returns true, IsInitialized is false and GetPixels is null; stride
+8, dimensions 3×2, modification count 2 and H remain. GetSize is now zero.
+Do not Refresh while pixels are disposed. Init(5,2,5,16) returns true: stride
+12, 24 allocated bytes, GetSize **32**, change count 3 and the same H. H notices
+the changed counter; the buffer itself makes no Invalidate or InitCache call.
+Fill new storage before using it. Release the caller's H reference and release
+B: replacement pixels are freed before B releases its retained H, as in §6.5.
+Neither H's Init nor the getter changes B's caller reference count.
+
+**GZB2 — Allocation failure is a successful Init with unusable storage.** Force
+the pixel allocator to return null for Init(5,2,5,16). Expected: true,
+IsInitialized true, dimensions 5×2, stride 12, change count 1, GetPixels null,
+GetSize 0, Lock(`0x8000`) false with no further count change. A second Init
+returns false and leaves that state alone. Shutdown then permits a new Init.
+Exercise null-pixel Fill as a separate fault test, not as a false-return case.
+Destroy the referenced buffer normally; there is no live pixel allocation to free.
+
+**GZB3 — Automatic format, no palette.** With RZ::GS absent, Init(2,1,3,8)
+resolves to (5,16), stride 4, count 1. GetColorType writes both words (5,16)
+through either slot 14 or 15. With successful driver QI and first settings word
+low six bits 16, the same request resolves to (7,16); low six bits 32 resolves
+to (9,32), stride 8. By contrast Init(2,1,2,8) retains (2,8), stride 4:
+MapRGB(255,64,32) = 0, but Fill(`0x7B`, null) directly writes two bytes `7B`.
+No fixture supplies palette entries, and none are requested.
+
+**GZB4 — Packed color, alpha quirks and key output.** On a type-6 buffer,
+MapRGBA(18,52,86,128) = `0x88CA`. UnmapRGBA gives byte outputs (16,49,82,132),
+not an alpha of 255. On type 7 the same map gives `0x8135`, whose unmap is
+(17,51,85,128); an alpha nibble 15 instead unmaps to 255. SetColorKey(`0xF00088CA`)
+on the type-6 buffer retains that entire key: GetColorKey writes `0xF00088CA`.
+A stored pixel `0x08CA` at an in-range point still matches the key (alpha/high
+word ignored). ClearColorKey followed by GetColorKey with sentinel `0xDEADBEEF`
+returns false and preserves the sentinel. Attached H records one Invalidate
+for each setter; neither setter changes slot 36.
+
+**GZB5 — Clipped fill, no-write success.** For a 5×3 type-5/16 buffer initially
+filled with zero, FillRect(`0xABCD`, rect −1,−1,4,3, clip 1,1,3,2) changes only
+pixels (1,1) and (2,1), returns true and increments once. A wholly disjoint
+rectangle returns false without increment. A valid rectangle on an explicitly
+24-bpp buffer returns true, increments once and changes no bytes. The same
+24-bpp buffer's SetPixel still writes its three low bytes and does not increment.
+
+**GZB6 — Keyed conversion, destination size ignored.** Source S is 2×1 type 9
+with pixels `0x00112233`, `0xFF445566`; its enabled key is `0x66112233`.
+Destination D is 3×1 type 6, Init count 1 then Fill(`0xFFFF`, null) count 2.
+Attach/refresh H with saved count 2. Blit(S, rect 0,0,2,1, destination rect
+1,0,99,99, null) returns true and produces D pixels
+`0xFFFF, 0xFFFF, 0xA14C`. The source key skips the first source pixel regardless
+of alpha; the second converts directly. Only destination left/top matter;
+there is no stretch to 98×99. D's count is 3 and H detects dirty without an
+Invalidate call. Release S and D's caller references and H's caller reference
+with §6.5's ordering; neither Blit nor the cache owns S. As separate conversion
+checks, type-6 `0x7FFF` → type 9 gives `0x00FFFFFF`, whereas type-4 zero → type 9
+gives `0xFF000000`. A copy that survives clipping but finds a null pixel pointer
+returns true and increments D once without accessing pixel data.
+
+**GZB7 — Horizontal overlap is not memmove.** A 4×1 type-6 buffer starts with
+words `0x8001,0x8002,0x8003,0x8004`, key disabled. Blit itself with source
+rect 0,0,3,1 and destination left/top (1,0) returns true, increments once and
+leaves `0x8001,0x8001,0x8001,0x8001` because each later read observes the preceding
+forward store. A general temporary-copy implementation would differ.
+
+**GZB8 — Diagonal line dirtiness differs from fill.** On a zero-filled 5×4
+type-6 buffer, DrawLine(0,0,4,2,`0x1234`,1) returns true and writes exactly
+(0,0), (1,1), (2,1), (3,2), (4,2). Slot 36 is unchanged. A caller needing H to
+notice must surround this operation with a modifying Lock/Unlock; that Lock
+adds exactly one counter increment. A horizontal DrawLine delegates to fill
+and advances the counter through that fill. A wholly clipped line returns
+true, with no stores and no count change.
 
 ## 7. Logging (`nGZLog::cService`)
 
@@ -933,7 +1312,7 @@ on failure. Rows involving existing buffer/command specs inherit their fixtures.
 
 ## 11. Remaining work
 
-GZF1–GZF9 in the [question file](questions/gz-framework-core.md) bound the
+GZF1–GZF5 and GZF7–GZF9 in the [question file](questions/gz-framework-core.md) bound the
 unrecovered interfaces and failure paths. Static evidence does not establish a
 game verdict, replacement safety, or binary equivalence. No engine conformance
-files were written by this RE lane; §10 is the implementation-facing vector set.
+files were written by this RE lane; §§6.5–6.6 and §10 contain implementation-facing vectors.
