@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| close-hit29 sound owner closure (engine) | Codex / close-hit29 worktree / detached HEAD, reserved branch close-hit29; df3c32a17..HEAD | ready for review; cargo 7908/7908, clippy 0 diagnostics, CTest 124/124; game close-hit29-r2-smoke-20261026b clean; ABI unchanged, shadow n/a, questions none | 1. Supervisor publish HEAD and coordinator enqueue kind engine. 2. Credit SS3/SS6/SS7 owners; obtain residual SS1/SS2/SS4/SS5 observations. |
+| close-hit29 sound owner closure (engine) | Codex / close-hit29 worktree / detached HEAD, reserved branch close-hit29; df3c32a17..HEAD | blocked by coordinator STOP; prior gate cargo 7908/7908, clippy 0 diagnostics, CTest 124/124; game close-hit29-r2-smoke-20261026b clean; ABI unchanged, shadow n/a, questions none | 1. Resume after STOP clears; coordinator refresh queue tip and publish/enqueue kind engine. 2. Credit SS3/SS6/SS7 owners; obtain residual SS1/SS2/SS4/SS5 observations. |
 
 - Closure evidence: `engine/core/src/audio/sound_system/README.md`; all named tests passed in `build-runs/qbuild-test.log` (56 sound-system tests, including 15 closure tests).
 - cHitTrackPlayer §3.1: SS1 remains open for folded-entry/interface and PC observations in spec §3.3; construction/QI tests pass.
@@ -18,4 +18,8 @@
 - Advancing smoke reached 2026-02-13 at 28.08 days/s (requested end 2026-02-03); no lower-owner live shadow adapter/key exists, so this is load/advance/shutdown evidence only.
 - Earlier label `close-hit29-r2-smoke-20261026a` was rejected before launch for top-level close_dialogs; corrected under [ini] in label b. Its verdict is retained separately in the shared results.
 - No plugin or C ABI edits, no ABI version bump, no spec edits and no new questions. Existing SPEC-GAP safe rejection/foreign inputs remain explicit.
-- Merge request: local `build-runs/merge-queue/close-hit29.json`, kind engine, actual detached HEAD tip. Direct tools/merge-train.py execution is prohibited by the lane's clean-room rule; coordinator must publish/enqueue.
+- Merge request: local `build-runs/merge-queue/close-hit29.json`, kind engine, implementation tip 6ade667c5 (refresh after STOP). Direct tools/merge-train.py execution is prohibited by the lane's clean-room rule; coordinator must publish/enqueue.
+
+## Handoff
+STOP: Coordinator stopped all lanes for the 16:00 reboot. Git status was clean at 6ade667c5; implementation, prior passing gate and clean game evidence above are preserved.
+Next: Resume only after STOP clears; re-check status and refresh the existing queue tip (6ade667c5) to include this handoff commit before enqueueing. No merge-queue file was written during STOP.
