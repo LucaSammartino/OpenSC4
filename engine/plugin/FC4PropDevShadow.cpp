@@ -38,6 +38,7 @@
 #include "cIGZMessageServer2.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "cIGZVariant.h"
 #include "cISC4City.h"
 #include "cISC4Lot.h"
 #include "cISC4LotManager.h"
@@ -45,6 +46,7 @@
 #include "cISC4PropDeveloper.h"
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
+#include "cISCProperty.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -122,6 +124,7 @@ uint32_t g_messageRemovals = 0;
 PropSelectorReplay* g_selectorReplay = nullptr;
 PropCreationTrace* g_creationTrace = nullptr;
 PropEffectReplay* g_effectReplay = nullptr;
+PropTagReplay* g_tagReplay = nullptr;
 size_t g_creationCursor = 0;
 bool g_creationValid = true;
 struct CreationTagOutput {
@@ -131,11 +134,7 @@ struct CreationTagOutput {
 std::vector<CreationTagOutput> g_creationTags;
 size_t g_tagCursor = 0;
 bool g_tagValid = true;
-void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
-    if (g_tagCursor == g_creationTags.size()) { g_tagValid = false; return; }
-    const auto& tag = g_creationTags[g_tagCursor++];
-    if (tag.prop != prop || tag.native != std::vector<uint32_t>{requester}) g_tagValid = false;
-}
+void CompareRequesterTag(void*, uint64_t prop, uint32_t requester);
 bool g_nativeOperation = false;
 std::vector<fc4_prop_message> g_nested;
 std::map<size_t, std::unique_ptr<PropRegistrationInput>> g_registrationInputs;
@@ -152,6 +151,20 @@ bool ReplayNested(uint32_t type, uint64_t prop) {
     fc4_prop_developer_do_message(ReplayCore(), &m);
     if (input != g_registrationInputs.end() && !input->second->valid) g_uncertain = true;
     return true;
+}
+
+void CompareRequesterTag(void*, uint64_t prop, uint32_t requester) {
+    if (g_tagCursor == g_creationTags.size()) { g_tagValid = false; return; }
+    const auto& tag = g_creationTags[g_tagCursor++];
+    if (tag.prop != prop || tag.native != std::vector<uint32_t>{requester}) g_tagValid = false;
+    if (!g_tagReplay || !g_tagReplay->Call(prop, requester, g_nestedCursor, [](size_t end) {
+        if (end > g_nested.size()) return false;
+        while (g_nestedCursor < end) {
+            const auto message = g_nested[g_nestedCursor];
+            if (!ReplayNested(message.msg_type, message.object)) return false;
+        }
+        return true;
+    })) g_tagValid = false;
 }
 
 cISC4PropManager* PropManager() {
@@ -180,8 +193,8 @@ void HookRemove(void*, uint64_t prop) {
     }
 }
 
-// Replay genuine creation attempts and outcomes, including failures. All
-// remaining writes/dated effects still need independent output comparison.
+// Replay genuine creation attempts and outcomes, including failures. The
+// post-service C/holder/tag span is checked separately from registration.
 uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t id) {
     if (g_pendingUncertain) g_uncertain = true;
     g_pendingUncertain = false;  // that select was a creation's (§4.4), not a keep check
@@ -193,7 +206,7 @@ uint64_t HookCreate(void*, uint64_t lot, bool network, uint32_t index, uint32_t 
     }
     const auto& event = g_creationTrace->Events()[g_creationCursor++];
     // Section 4.4: a null service result has no registration/tag writes.
-    // Successful creations still delegate unobserved effects (PV18).
+    // Registration holds/model/notification effects remain incomplete (PV18).
     if (event.result) g_uncertain = true;
     if (event.result) ++g_created;
     if (event.lot != lot || event.network != network || event.index != index || event.id != id ||
@@ -491,6 +504,7 @@ struct MonthStats {
     uint32_t operationsEligible = 0, operationsExact = 0, operationsIncomplete = 0;
     uint32_t nights = 0, nightExact = 0, nightDraws = 0;
     uint32_t creationTags = 0, creationTagsMatched = 0;
+    uint32_t creationSpans = 0, creationSpansMatched = 0;
     uint32_t effectCalls = 0, effectMatched = 0, effectDraws = 0, effectChanges = 0;
     Diff d;
 };
@@ -595,6 +609,7 @@ struct Step {
     PropBlockSnapshot inputs;
     const PropSelectorTrace* trace = nullptr;
     const PropEffectTrace* effects = nullptr;
+    PropTagTrace* tags = nullptr;
     bool nativeFinished = false;
 };
 
@@ -635,8 +650,10 @@ void StepAfter(void* ctx) {
     const uint32_t mismatchesBefore = g_month.d.mismatches;
     PropSelectorReplay replay(s.trace->Events());
     PropEffectReplay effects(*s.effects);
+    PropTagReplay tags(*s.tags);
     g_selectorReplay = &replay;
     g_effectReplay = &effects;
+    g_tagReplay = &tags;
     if (s.block) PropBlockSnapshot::active = &s.inputs;
     g_inStep = true;
     const bool oursFinished = fc4_prop_developer_do_message(g_run.core, &s.message);
@@ -644,6 +661,7 @@ void StepAfter(void* ctx) {
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
     g_effectReplay = nullptr;
+    g_tagReplay = nullptr;
     const bool complete = s.trace->Valid() && replay.Complete();
     g_month.selectorMatched += U(replay.Matched());
     if (complete) ++g_month.replayComplete; else {
@@ -703,6 +721,9 @@ void StepAfter(void* ctx) {
         g_month.d.Add("creation requester tag projection differs: consumed=%u native=%u", U(g_tagCursor),
                       U(g_creationTags.size()));
     } else g_month.creationTagsMatched += U(g_creationTags.size());
+    g_month.creationSpans += U(s.tags->Spans().size());
+    g_month.creationSpansMatched += U(tags.Matched());
+    if (!tags.Complete()) g_month.d.Add("creation hold/holder/tag/release span differs (%s)", tags.Failure());
     if (oursFinished != s.nativeFinished) g_month.d.Add("delivery return differs");
     if (g_nestedCursor != g_nested.size()) g_uncertain = true;
     while (g_nestedCursor < g_nested.size()) {
@@ -1120,12 +1141,28 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     PropSelectorTrace trace;
     PropCreationTrace creations;
     PropEffectTrace effects;
+    PropTagTrace tags;
+    s.tags = &tags;
+    const auto* version = compat::IdentifiedVersion();
+    const bool tagRecording = version && tags.Begin(
+        reinterpret_cast<void**>(version->imageBase + (0x00AA4900u - 0x00400000u)),
+        reinterpret_cast<void**>(version->imageBase + (0x00AA4868u - 0x00400000u)),
+        [](const void* v, uint32_t* out) -> bool {
+            auto* value = static_cast<const cFC4IGZVariant*>(v);
+            if (value->GetType() != cIGZVariant::Uint32) return false;
+            *out = value->GetValUint32();
+            return true;
+        },
+        [](const void* p) -> uint32_t { return static_cast<const cISCProperty*>(p)->GetPropertyID(); },
+        []() -> size_t { return g_nested.size(); });
     cISC4City* city = propcity::AppCity();
     const bool creationRecording = city && creations.Begin(city->GetLotDeveloper(), city->GetNetworkLotManager(),
         [](void* context,void* result) -> uint64_t {
             return PropToken(static_cast<Step*>(context)->pool, static_cast<cISC4Occupant*>(result));
-        }, &s, []() -> size_t { return g_nested.size(); });
-    const auto* version = compat::IdentifiedVersion();
+        }, &s, []() -> size_t { return g_nested.size(); },
+        [](void* context, void* occupant, uint64_t prop) {
+            static_cast<Step*>(context)->tags->Watch(occupant, prop);
+        });
     const bool effectRecording = version && effects.Begin(
         reinterpret_cast<void**>(version->imageBase + (0x00AA4900u - 0x00400000u)),
         reinterpret_cast<const void*>(version->imageBase + (0x00B231B0u - 0x00400000u)),
@@ -1143,10 +1180,11 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     trace.Finish();
     creations.Finish();
     effects.Finish();
+    tags.Finish();
     // PV17: service insertion precedes requester tagging. Compare the final
-    // native tag projection to the independent developer's requested writes;
-    // never supply that final tag as a replay input. This does not certify
-    // arbitrary virtual holder callbacks or the unobserved registration writes.
+    // native tag projection to the independent developer's requested writes,
+    // in addition to its intermediate post-service call/output spans. Never
+    // supply that final tag as a replay input or certify registration from it.
     g_creationTags.clear();
     g_tagCursor = 0;
     g_tagValid = true;
@@ -1165,6 +1203,7 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     s.nativeFinished = *finished;
     if (!recording || !trace.Valid()) g_month.d.Add("selector transcript capture unavailable");
     if (!effectRecording || !effects.Valid()) g_month.d.Add("prop effect capture unavailable");
+    if (!tagRecording || !tags.Valid()) g_month.d.Add("creation tag span capture unavailable");
     g_month.selectorEvents += U(trace.Events().size());
     for (const auto& event : trace.Events()) if (event.result == 0) ++g_month.selectorZero;
     if (!SehGuard("propdev shadow (after the step)", &StepAfter, &s)) {
@@ -1175,6 +1214,7 @@ bool PropDevShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIG
     PropBlockSnapshot::active = nullptr;
     g_selectorReplay = nullptr;
     g_effectReplay = nullptr;
+    g_tagReplay = nullptr;
     g_creationTrace = nullptr;
     static bool loggedIncomplete = false;
     if (s.incomplete != nullptr && !loggedIncomplete) {
@@ -1234,6 +1274,8 @@ void PropDevShadowMonth(cISC4City* city, int32_t julian) {
                              " night-draws=" + std::to_string(g_month.nightDraws) +
                              " creation-tags=" + std::to_string(g_month.creationTags) +
                              " creation-tags-matched=" + std::to_string(g_month.creationTagsMatched) +
+                             " creation-spans=" + std::to_string(g_month.creationSpans) +
+                             " creation-spans-matched=" + std::to_string(g_month.creationSpansMatched) +
                              " effect-calls=" + std::to_string(g_month.effectCalls) +
                              " effect-matched=" + std::to_string(g_month.effectMatched) +
                              " effect-draws=" + std::to_string(g_month.effectDraws) +
