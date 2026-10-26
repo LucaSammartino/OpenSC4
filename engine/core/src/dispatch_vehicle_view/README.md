@@ -31,11 +31,11 @@ to the explicit Unsupported boundaries and numeric qualifications below.
 | §5.2 | `update` ordered walk, ring, terrain, clamp, visibility | `worked_building_ring_and_clamp` (§8 cases 4–5), `identity_draw_order_null_number_texture_visibility_limits_and_simulator` |
 | §5.3 | `relocate`, `screen_quads`, `draw_2d` | `closed_conflicts_probe_order_and_blocked_fallback`, `flash_strict_period_lock_and_nan_angle`, draw-order test |
 | §5.4 | `draw_world`, rectangle/anchor stores | `world_two_passes_do_not_become_placement_obstacles` (§8 case 5) |
-| §5.5 | `update` timer restart and local-frame storage drop | gate/removal test |
-| §5.6 | `draw_world`, `draw_2d` state selection | world-pass and draw-order tests; open DVV30-1 for packing only |
+| §5.5 | `update` timer restart and local-frame storage drop | `gates_delay_removal_and_hidden_fade_finishes_strictly_below_threshold` |
+| §5.6 | `draw_world`, `draw_2d` state selection | `world_two_passes_do_not_become_placement_obstacles`, `identity_draw_order_null_number_texture_visibility_limits_and_simulator`; open DVV30-1 for packing only |
 | §5.7 | `update_model`, parent progress, tint, translation, spin, draw | `model_progress_parent_walk_material_spin_and_call_order`; open DVV30-2 for ambiguous row-2 sum, explicit Unsupported when the alternatives differ |
 | §6 | `cSC4ViewInputControlDispatch` | Separate owner outside this task; no input-tool implementation claimed |
-| §7 | limit 0, strict flash reset, NaN angle, 7° spin, processor-null boundary | limit, flash, model tests; native null-this is `Unsupported::NativeProcessorAllocation` |
+| §7 | limit 0, strict flash reset, NaN angle, 7° spin, processor-null boundary | `track_limits_global_handles_model_lifecycle_and_removal`, `flash_strict_period_lock_and_nan_angle`, `model_progress_parent_walk_material_spin_and_call_order`; native null-this is `Unsupported::NativeProcessorAllocation` |
 | §8 | worked cases 1–7 | TrackInfo kind test plus view tests above; case 8 is the separate tool |
 | §9 | owner inventory | Rust ownership replaces STL/destructor bodies; native pointer adjustors remain adapter work |
 | dispatch §4.1.3 number display / lifetime / messages / live texture | `build_display`, `track`, `untrack`, `do_message`, `FrameServices::icon_texture` | `number_surface_sizing_failure_and_worked_geometry`, lifecycle test, `texture_resolution_follows_the_live_handle_on_each_world_pass` |
