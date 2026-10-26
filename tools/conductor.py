@@ -17,6 +17,7 @@ exit, so a pid alone misses rounds (run 5).
 """
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -91,7 +92,7 @@ class Run:
 
     def target(self):
         t = self.dir / 'target.txt'
-        return int(t.read_text().strip()) if t.exists() else 13
+        return int(t.read_text(encoding='utf-8-sig').strip()) if t.exists() else 13
 
     def lanes(self):
         """Lanes of the state file with a result path, minus those in <run>/ignore.txt (finished or abandoned)."""
@@ -165,6 +166,9 @@ class Run:
         if p.exists():
             p.replace(p.with_name(f'{lane}-next.used.txt'))
 
+    GLOBAL_REFUSAL = re.compile(r'live lane cap|lane cap reached|exceeds ?85|run total round cap|provider paused|'
+                                r'spawn cap|too many|glue lane|active \d+ */ *cap', re.I)
+
     def fill_from_pending(self):
         p = self.dir / 'pending.txt'
         specs = [l.strip() for l in p.read_text(encoding='utf-8').splitlines() if l.strip()] if p.exists() else []
@@ -177,7 +181,10 @@ class Run:
                 if last.startswith('LAUNCHED'):
                     return True
                 continue
-            return False  # blocked (slots, touches, deps): keep the order, try again later
+            if self.GLOBAL_REFUSAL.search(last):
+                return False  # blocked for everyone (lane cap, disk, round cap): try again later
+            # refused for this spec only (touches overlap, unmet dependency, parked lane): it stays in pending.txt
+            # and the pass goes on, so one blocked spec cannot hold the free slots empty behind it
         return False
 
     def log(self, line):
@@ -251,6 +258,9 @@ def heartbeat(run, live, extra=()):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):  # a lane summary with an arrow must not kill the loop when output is redirected
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(errors='replace')
     ap = argparse.ArgumentParser()
     ap.add_argument('--run', default='build-runs/run7')
     ap.add_argument('--state', default='build-runs/run6-state.json')
@@ -284,7 +294,7 @@ def main():
             lanes, pids = run.lanes(), alive_pids()
             live = {n: e for n, e in lanes.items() if e.get('pid') and str(e['pid']) in pids}
         stalled = [n for n, e in live.items() if idle_minutes(e) > STALL_MINUTES]
-        under = len(live) < run.target() and time.time() - start > 60
+        under = len(live) < run.target() and time.time() - start > 10
         if under and not review and not stalled and run.fill_from_pending():
             continue
         beat_due = time.time() - last_beat > a.beat * 60

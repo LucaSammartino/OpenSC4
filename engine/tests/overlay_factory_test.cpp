@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The real DLL's default-off factory and portable owner lifecycle. This test
-// deliberately rejects native IID 0x895D6544; it cannot prove native interception.
+// checks the corrected native IID too; it cannot prove terrain-view interception.
 #include "FC4OverlayOwner.h"
+#include "FC4OverlayBindings.h"
+#include "cIGZMessage2.h"
+#include "cIGZMessageTarget2.h"
 #include "cIGZCOMDirector.h"
 #include <windows.h>
 #include <algorithm>
@@ -15,6 +18,452 @@ namespace {
 void Collect(uint32_t id, uint32_t, void* out) { static_cast<std::vector<uint32_t>*>(out)->push_back(id); }
 int failures = 0;
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "line %d: %s\n", __LINE__, #expr); ++failures; } } while (0)
+
+struct Resources {
+    int refs = 0, bindings = 0, sources = 0, marks = 0, subscriptions = 0;
+    int quality = 2, debug = 0, selection = 1, settingsRead = 0, projectionCalls = 0, imports = 0;
+    std::vector<uint32_t> slots;
+    uint32_t lastKey[3] = {};
+    static Resources& Of(uintptr_t p) { return *reinterpret_cast<Resources*>(p); }
+    static void Retain(uintptr_t p) { ++Of(p).refs; }
+    static void Release(uintptr_t p) { --Of(p).refs; }
+    static int32_t Setting(uintptr_t p, uint32_t n) {
+        auto& r = Of(p);
+        ++r.settingsRead;
+        return n == 0 ? r.quality : n == 1 ? r.debug : r.selection;
+    }
+    static uint32_t Resource(uintptr_t p, uintptr_t object, uint32_t kind, FC4OverlayResource* out) {
+        auto& r = Of(p);
+        ++r.imports;
+        if (!object) return 0;
+        if (kind) ++r.sources; else ++r.bindings;
+        *out = {object, p, 64, 32};
+        return 1;
+    }
+    static void Free(uintptr_t p, uintptr_t, uint32_t kind) {
+        if (kind) --Of(p).sources; else --Of(p).bindings;
+    }
+    static uint32_t Lookup(uintptr_t p, uint32_t slot, uintptr_t key, FC4OverlayResource* out) {
+        auto& r = Of(p);
+        r.slots.push_back(slot);
+        if (slot == 6) std::copy_n(reinterpret_cast<const uint32_t*>(key), 3, r.lastKey);
+        ++r.bindings;
+        *out = {123, p, 64, 32};
+        return 1;
+    }
+    static uint32_t KeyWord(uintptr_t) { return 0x11223344; }
+    static void Redisplay(uintptr_t p, int32_t, uint32_t, const int32_t*, int32_t) { ++Of(p).marks; }
+    static void Subscribe(uintptr_t p, uint32_t type, uint32_t on) {
+        CHECK(type == 0xC9F775BB);
+        Of(p).subscriptions += on ? 1 : -1;
+    }
+    static uint32_t Projection(uintptr_t p, int32_t, const void*, float*, const void*, float*) {
+        ++Of(p).projectionCalls;
+        return 0;
+    }
+    FC4OverlayHost Host() {
+        return {reinterpret_cast<uintptr_t>(this), Retain, Release, 64, 64, 16, Setting,
+            Lookup, Resource, Free, KeyWord, Redisplay, Subscribe, Projection, nullptr, nullptr};
+    }
+};
+
+class Message final : public cIGZMessage2 {
+public:
+    uint32_t type = 0, reads = 0, references = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++references; }
+    uint32_t Release() override { return --references; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { ++const_cast<Message*>(this)->reads; return type; }
+    void SetType(uint32_t value) override { type = value; }
+    bool operator==(const cIGZMessage2& other) const override { return type == other.GetType(); }
+    bool operator<(const cIGZMessage2& other) const override { return type < other.GetType(); }
+};
+
+struct Drawing {
+    uint32_t resets = 0, acquires = 0, releases = 0, rowReads = 0, parameterReads = 0;
+    bool extension = true, nativeTextures = false;
+    std::vector<FC4OverlayCommand> commands;
+    struct Texture { uint32_t stage; uintptr_t binding, source; };
+    struct Rectangle { uint32_t route; int32_t vertices[4]; };
+    std::vector<Texture> textures;
+    std::vector<uint32_t> driverTextures, driverStages;
+    std::vector<Rectangle> rectangles;
+    std::vector<int32_t> starts = std::vector<int32_t>(64, 0);
+    std::vector<int32_t> ends = std::vector<int32_t>(64, 64);
+    static Drawing& Of(uintptr_t p) { return *reinterpret_cast<Drawing*>(p); }
+    static void Reset(uintptr_t p) { ++Of(p).resets; }
+    static void Matrix(uintptr_t, float* out) {
+        std::fill_n(out, 16, 0.0f);
+        out[0] = out[5] = out[10] = out[15] = 1;
+        out[12] = -16; // owner must invert and compose this raw model matrix
+    }
+    static uint32_t Value(uintptr_t, uint32_t index) { return index == 0 ? 17 : 0; }
+    static uint32_t Extension(uintptr_t p, uint32_t acquire) {
+        auto& d = Of(p);
+        if (acquire) { ++d.acquires; return d.extension; }
+        ++d.releases;
+        return 0;
+    }
+    static void Rows(uintptr_t p, FC4OverlayRows* out) {
+        auto& d = Of(p);
+        ++d.rowReads;
+        *out = {0, 64, 64, d.starts.data(), d.ends.data()};
+    }
+    static void Command(uintptr_t p, const FC4OverlayCommand* command) { Of(p).commands.push_back(*command); }
+    static void Bind(uintptr_t p, uint32_t stage, uintptr_t binding, uintptr_t source) {
+        auto& d = Of(p);
+        d.textures.push_back({stage, binding, source});
+        if (d.nativeTextures) {
+            fc4::overlay_bindings::SubmitTexture(&d,
+                reinterpret_cast<fc4::overlay_bindings::SetTexture>(SetNativeTexture), stage, binding, source);
+        }
+    }
+    static void __fastcall SetNativeTexture(void* p, void*, uint32_t handle, uint32_t stage) {
+        auto& d = *static_cast<Drawing*>(p);
+        d.driverTextures.push_back(handle);
+        d.driverStages.push_back(stage);
+    }
+    static void Rect(uintptr_t p, uint32_t route, const int32_t* vertices) {
+        Rectangle r{route, {}};
+        std::copy_n(vertices, 4, r.vertices);
+        Of(p).rectangles.push_back(r);
+    }
+    static int32_t Water(uintptr_t, int32_t*) { return 0; }
+    static void Parameters(uintptr_t p, float* values) {
+        ++Of(p).parameterReads;
+        const float raw[5] = {0.5f, 0.25f, 1, 0.75f, 0.5f};
+        std::copy_n(raw, 5, values);
+    }
+    static float Strength(uintptr_t, const float*) { return 1; }
+    FC4OverlayFrame Frame(uint32_t flags = 2) {
+        return {reinterpret_cast<uintptr_t>(this), flags, Reset, Matrix, Value, Extension,
+            Rows, Command, Bind, Rect, Water, Parameters, Strength};
+    }
+};
+
+void CheckDrawing(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
+    Resources resources;
+    auto host = resources.Host();
+    CHECK(owner->InitServices(&host, true, false));
+    const float xz[2] = {128, 128};
+    const auto source = native->AddSource(reinterpret_cast<void*>(1), xz, 32, 0);
+    const auto binding = native->AddBinding(reinterpret_cast<void*>(2), xz, 32, 0);
+    CHECK(source != UINT32_MAX && binding != UINT32_MAX);
+    Drawing drawing;
+    auto frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.resets == 1 && drawing.acquires == 1 && drawing.releases == 1 && drawing.rowReads == 0);
+    CHECK(drawing.parameterReads == 0 && drawing.textures.size() == 2 && drawing.rectangles.size() == 2);
+    CHECK(drawing.textures[0].source == 1 && drawing.textures[0].binding == 0);
+    CHECK(drawing.textures[1].source == 0 && drawing.textures[1].binding == 2);
+    const int32_t expected[4] = {7, 7, 10, 10};
+    for (const auto& rect : drawing.rectangles) {
+        CHECK(rect.route == 3 && std::equal(expected, expected + 4, rect.vertices));
+    }
+    const auto transform = std::find_if(drawing.commands.begin(), drawing.commands.end(), [](const auto& c) {
+        return c.kind == FC4OverlayCommandKind::Transform;
+    });
+    CHECK(transform != drawing.commands.end());
+    if (transform != drawing.commands.end()) CHECK(transform->a == 0 && transform->data[12] == -3.0f);
+    CHECK(drawing.commands.back().kind == FC4OverlayCommandKind::DepthOffset && drawing.commands.back().a == 17);
+    CHECK(drawing.commands[drawing.commands.size() - 2].kind == FC4OverlayCommandKind::ClearTransform);
+    // Dynamic snapshot must return before even checking the producer callbacks.
+    FC4OverlayFrame snapshot{};
+    snapshot.flags = 1;
+    CHECK(owner->DrawFrame(&snapshot) && drawing.resets == 1);
+    FC4OverlayFrame incomplete{};
+    CHECK(!owner->DrawFrame(&incomplete));
+    owner->Shutdown();
+    CHECK(resources.sources == 0 && resources.bindings == 1 && resources.refs == 0);
+    CHECK(!owner->DrawFrame(&frame) && drawing.resets == 1);
+    // Static water takes rows from the producer; the owner still chooses IDs
+    // and expands cell maxima to vertex maxima before issuing rectangles.
+    CHECK(owner->InitServices(&host, false, true));
+    CHECK(native->AddBinding(reinterpret_cast<void*>(3), xz, 32, 0) != UINT32_MAX);
+    drawing = Drawing{};
+    frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.rowReads == 1 && drawing.rectangles.size() == 1 && drawing.rectangles[0].route == 4);
+    CHECK(drawing.acquires == 1 && drawing.releases == 1);
+    // The rough shadow pass consumes lighting inputs and reports the exact
+    // alpha-test reference, without pretending to supply terrain geometry.
+    CHECK(native->AddGroupShadow(123, xz, 32, 0, 0) != UINT32_MAX);
+    drawing = Drawing{};
+    drawing.extension = false;
+    frame = drawing.Frame(4);
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.parameterReads == 1 && drawing.acquires == 1 && drawing.releases == 0);
+    const auto alpha = std::find_if(drawing.commands.begin(), drawing.commands.end(), [](const auto& c) {
+        return c.kind == FC4OverlayCommandKind::AlphaTest && c.a == 1;
+    });
+    CHECK(alpha != drawing.commands.end());
+    if (alpha != drawing.commands.end()) CHECK(alpha->data[0] == 0.125f);
+    // Repeat Init replaces services but retains records and their independent
+    // resources. The draw transport must still resolve those original objects.
+    Resources replacement;
+    auto nextHost = replacement.Host();
+    CHECK(owner->InitServices(&nextHost, true, false));
+    CHECK(resources.refs == 0 && resources.bindings == 2 && replacement.refs == 1);
+    drawing = Drawing{};
+    frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(drawing.textures.size() == 1 && drawing.textures[0].binding == 3);
+    owner->Shutdown();
+    CHECK(owner->Init(64, 64, 16, true, false)); // release retained Init binding
+    owner->Shutdown();
+    CHECK(resources.refs == 0 && resources.bindings == 0 && resources.sources == 0);
+    CHECK(replacement.refs == 0 && replacement.bindings == 0);
+}
+
+class BindingFactory;
+class TextureSource final : public FC4IOverlaySource {
+public:
+    uint32_t refs = 1, dimensions = 0, textures = 0, handle = 0xF1234567;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    void Dimensions(uint32_t* size) override {
+        ++dimensions;
+        size[0] = 512;
+        size[1] = 128;
+    }
+    uint32_t Texture() override { ++textures; return handle; }
+};
+
+struct CountedBinding {
+    void* handles = nullptr;
+    uint32_t frames = 1;
+    BindingFactory* factory = nullptr;
+    uint32_t refs = 1;
+};
+class BindingFactory : public cIGZUnknown {
+public:
+    uint32_t refs = 1, lastID = 0, lastKey[3] = {}, acquisitions = 0, releases = 0;
+    uint32_t handles[2] = {0x13572468, 0x87654321};
+    CountedBinding binding{handles, 2, this, 1};
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }
+    virtual void SetDriver(void*) {} // slot3
+    virtual bool GetInfoBinding(void*, void**) { return false; } // slot4
+    virtual bool GetID(uint32_t id, void** out) {
+        lastID = id; Acquire(&binding); *out = &binding; return true;
+    }
+    virtual bool GetKey(const uint32_t* key, void** out) {
+        std::copy_n(key, 3, lastKey); Acquire(&binding); *out = &binding; return true;
+    }
+    virtual void SetData(void*, void*) {} // slot7
+    virtual void GetInfo(void* b, uint32_t* info) { // slot8, void result
+        CHECK(b == &binding);
+        info[0] = 123; info[1] = 456; info[2] = 1; info[3] = 64; info[4] = 32;
+    }
+    virtual void SetLOD(uint32_t) {} // slot9
+    virtual void SetBits(uint32_t) {} // slot10
+    virtual uint32_t Group() { return 0xAB123456; } // slot11
+    static uint32_t Acquire(void* p) {
+        auto& b = *static_cast<CountedBinding*>(p);
+        ++b.factory->acquisitions;
+        return ++b.refs;
+    }
+    static uint32_t Drop(void* p) {
+        auto& b = *static_cast<CountedBinding*>(p);
+        ++b.factory->releases;
+        return --b.refs;
+    }
+};
+
+void CheckBindingAdapter(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
+    BindingFactory factory;
+    FC4OverlayBindingCalls calls{BindingFactory::Acquire, BindingFactory::Drop};
+    CHECK(owner->InitBindingFactory(&factory, 64, 64, 16, true, false, 2, 0, &calls));
+    CHECK(factory.refs == 2 && factory.binding.refs == 2 && factory.acquisitions == 1);
+    CHECK(factory.lastID == 0xAA592B77);
+    const float xz[2] = {128, 128};
+    const uint32_t key[3] = {0x7AB50E44, 123, 456};
+    const auto id = native->AddInstance(13, xz, 32, 0);
+    CHECK(id != UINT32_MAX && factory.lastID == 13);
+    CHECK(native->AddKey(key, xz, 32, 0) != UINT32_MAX);
+    CHECK(std::equal(key, key + 3, factory.lastKey));
+    CHECK(native->AddBinding(&factory.binding, xz, 32, 0) != UINT32_MAX);
+    CHECK(native->AddGroupShadow(789, xz, 16, 0, 0) != UINT32_MAX);
+    CHECK(factory.lastKey[0] == 0x7AB50E44 && factory.lastKey[1] == 789 && factory.lastKey[2] == 0xAB123456);
+    CHECK(factory.binding.refs == 6 && factory.acquisitions == 5); // no double AddRef on lookup
+    native->Erase(id);
+    CHECK(factory.binding.refs == 6);
+    TextureSource source;
+    const auto sourceID = native->AddSource(&source, xz, 64, 0);
+    CHECK(sourceID != UINT32_MAX);
+    CHECK(source.dimensions == 1 && source.refs == 2 && source.textures == 0);
+    float placement[9] = {};
+    native->ReadPlacement(sourceID, placement);
+    CHECK(placement[0] == 128 && placement[1] == 128 && placement[2] == 64);
+    CHECK(placement[4] == 1); // public stretch is distinct from retained height/width
+    Drawing drawing;
+    drawing.nativeTextures = true;
+    auto frame = drawing.Frame();
+    CHECK(owner->DrawFrame(&frame));
+    const auto sourceTexture = std::find_if(drawing.textures.begin(), drawing.textures.end(), [&](const auto& t) {
+        return t.source == reinterpret_cast<uintptr_t>(&source);
+    });
+    CHECK(sourceTexture != drawing.textures.end());
+    const auto sourceIndex = size_t(std::distance(drawing.textures.begin(), sourceTexture));
+    const auto texturesPerFrame = drawing.textures.size();
+    CHECK(drawing.driverTextures.size() == drawing.textures.size());
+    CHECK(source.textures == 1 && source.refs == 2);
+    if (sourceIndex < drawing.driverTextures.size()) CHECK(drawing.driverTextures[sourceIndex] == 0xF1234567);
+    CHECK(std::find(drawing.driverTextures.begin(), drawing.driverTextures.end(), factory.handles[0]) != drawing.driverTextures.end());
+    // A source handle can change or become zero; resolve it anew without
+    // rejecting zero, changing reference counts or consuming a stage argument.
+    source.handle = 0;
+    CHECK(owner->DrawFrame(&frame));
+    CHECK(source.textures == 2 && source.refs == 2);
+    if (sourceIndex < texturesPerFrame) CHECK(drawing.driverTextures[texturesPerFrame + sourceIndex] == 0);
+    CHECK(std::all_of(drawing.driverStages.begin(), drawing.driverStages.end(), [](uint32_t s) { return s == 0; }));
+    Drawing::Bind(reinterpret_cast<uintptr_t>(&drawing), 1,
+        reinterpret_cast<uintptr_t>(&factory.binding), reinterpret_cast<uintptr_t>(&source));
+    CHECK(drawing.driverTextures.back() == factory.handles[0] && drawing.driverStages.back() == 1);
+    CHECK(source.textures == 2); // a present binding bypasses the source
+    // Width 64, retained aspect 128/512: cells (6,7)..(10,9), then vertex maxima +1.
+    const int32_t vertices[4] = {6, 7, 11, 10};
+    // A freed overlay ID may be reused ahead of the remaining bindings. Match
+    // the rectangle to the source submission rather than assuming it is last.
+    CHECK(sourceIndex < drawing.rectangles.size());
+    if (sourceIndex < drawing.rectangles.size())
+        CHECK(std::equal(vertices, vertices + 4, drawing.rectangles[sourceIndex].vertices));
+    native->Erase(sourceID);
+    CHECK(source.refs == 2); // queued indirect handle retains its overlay
+    CHECK(factory.acquisitions == 5);
+    owner->Shutdown();
+    CHECK(source.refs == 1 && source.dimensions == 1 && source.textures == 2);
+    CHECK(factory.refs == 1 && factory.binding.refs == 2 && factory.releases == 4);
+    CHECK(owner->Init(64, 64, 16, true, false));
+    CHECK(factory.binding.refs == 1 && factory.releases == 5);
+    owner->Shutdown();
+}
+
+void CheckNative(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
+    auto* bytes = reinterpret_cast<uint8_t*>(native);
+    auto* draw = reinterpret_cast<FC4IOverlayDraw*>(bytes + 4);
+    auto* target = reinterpret_cast<cIGZMessageTarget2*>(bytes + 0x10);
+    for (cIGZUnknown* subobject : {static_cast<cIGZUnknown*>(native),
+                                  static_cast<cIGZUnknown*>(draw),
+                                  static_cast<cIGZUnknown*>(target),
+                                  static_cast<cIGZUnknown*>(owner)}) {
+        cIGZUnknown* identity = nullptr;
+        CHECK(subobject->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&identity)));
+        CHECK(reinterpret_cast<uint8_t*>(identity) == bytes + 8);
+        if (identity) identity->Release();
+        FC4INativeOverlay* primary = nullptr;
+        CHECK(subobject->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&primary)));
+        CHECK(primary == native);
+        if (primary) primary->Release();
+    }
+    // No native drawing adapter is installed: an unsupported context must not
+    // be touched or reported as a completed draw.
+    auto** drawTable = *reinterpret_cast<void***>(draw);
+    using Draw = bool (__thiscall*)(void*, void*);
+    CHECK(!reinterpret_cast<Draw>(drawTable[3])(draw, reinterpret_cast<void*>(1)));
+    CHECK(!target->DoMessage(nullptr));
+    Resources resources;
+    auto host = resources.Host();
+    CHECK(owner->InitServices(&host, false, false));
+    CHECK(resources.refs == 1 && resources.bindings == 1 && resources.subscriptions == 1);
+    CHECK(resources.slots == std::vector<uint32_t>{5}); // Init's shadow texture
+    const float xz[2] = {128, 128};
+    const uint32_t key[3] = {0x7AB50E44, 123, 456};
+    const auto source = native->AddSource(reinterpret_cast<void*>(1), xz, 32, 0);
+    CHECK(source == 0x80000000 && resources.sources == 1);
+    const auto binding = native->AddBinding(reinterpret_cast<void*>(2), xz, 32, 0);
+    CHECK(binding == 0x80000001 && resources.bindings == 2);
+    const auto keyed = native->AddKey(key, xz, 32, 0);
+    CHECK(keyed == 0x80000002 && resources.slots.back() == 6);
+    CHECK(std::equal(key, key + 3, resources.lastKey));
+    CHECK(native->AddInstance(456, xz, 32, 0) == 0x80000003 && resources.slots.back() == 5);
+    const auto round = native->AddRound(456, xz, 32, 0);
+    CHECK(round == 0x80000004);
+    const auto city = native->AddCity(456);
+    CHECK(city < 0x80000000);
+    float placement[9] = {};
+    native->ReadPlacement(binding, placement);
+    CHECK(placement[0] == 128 && placement[4] == 1 && placement[6] == 1);
+    placement[0] = 160; placement[8] = 9;
+    native->Update(binding, placement);
+    native->Move(binding, xz);
+    native->ReadPlacement(binding, placement);
+    CHECK(placement[0] == 128 && placement[8] == 9);
+    native->Show(round, false);
+    CHECK(!native->Shown(round));
+    native->Alpha(binding, 0.5f);
+    CHECK(native->GetAlpha(binding) == 0.5f);
+    const float rgb[3] = {2, 3, 4};
+    native->Color(binding, rgb);
+    float output[3] = {};
+    CHECK(native->GetColor(output, binding) == output && std::equal(rgb, rgb + 3, output));
+    // Verify output-first slot24, AL slot26, and byte-return slot25 by their
+    // actual x86 function types rather than the SDK's incompatible signatures.
+    auto** table = *reinterpret_cast<void***>(native);
+    using Color = float* (__thiscall*)(void*, float*, uint32_t);
+    using SelfLit = bool (__thiscall*)(void*, uint32_t);
+    using Mode = uint8_t (__thiscall*)(void*, uint32_t);
+    CHECK(reinterpret_cast<Color>(table[24])(native, output, UINT32_MAX) == output);
+    CHECK(output[0] == 0 && output[1] == 0 && output[2] == 0);
+    native->SelfLighting(binding, 3);
+    native->SelfLighting(binding, 0);
+    CHECK(reinterpret_cast<SelfLit>(table[26])(native, binding));
+    native->DrawMode(binding, 0x123403);
+    CHECK(reinterpret_cast<Mode>(table[25])(native, binding) == 3);
+    native->TextureScale(binding, 16, 0);
+    CHECK(resources.marks > 0);
+    const auto shadow = native->AddKeyShadow(key, xz, 16, 0, 0x100);
+    CHECK(shadow != UINT32_MAX);
+    CHECK(native->AddGroupShadow(0x12345678, xz, 16, 0, 0x101) != UINT32_MAX);
+    CHECK(resources.lastKey[0] == 0x7AB50E44 && resources.lastKey[1] == 0x12345678 &&
+          resources.lastKey[2] == 0x11223344);
+    const int imports = resources.imports;
+    float pairs[2] = {};
+    const float box[6] = {0, 0, 0, 16, 0, 16};
+    CHECK(native->AddModel(reinterpret_cast<void*>(2), 1, xz, pairs, box, xz) == UINT32_MAX);
+    CHECK(resources.projectionCalls == 1 && resources.imports == imports);
+    Message message;
+    resources.quality = 0;
+    const auto reads = resources.settingsRead;
+    CHECK(target->DoMessage(&message));
+    CHECK(resources.settingsRead == reads && message.reads == 1 && message.references == 0);
+    CHECK(native->AddGroupShadow(123, xz, 32, 0, 0) != UINT32_MAX); // unrelated message preserves quality 2
+    const auto slots = resources.slots;
+    const auto marks = resources.marks, bindings = resources.bindings;
+    float before[9] = {}, after[9] = {};
+    native->ReadPlacement(binding, before);
+    message.SetType(0xC9F775BB);
+    CHECK(target->DoMessage(&message));
+    CHECK(resources.settingsRead == reads + 3 && message.reads == 2 && message.references == 0);
+    CHECK(resources.slots == slots && resources.marks == marks && resources.bindings == bindings);
+    CHECK(resources.refs == 1 && resources.subscriptions == 1);
+    native->ReadPlacement(binding, after);
+    CHECK(std::equal(before, before + 9, after));
+    const auto* invalid = reinterpret_cast<const float*>(1);
+    CHECK(native->AddKeyShadow(invalid, invalid, 1, 0, 0) == UINT32_MAX);
+    CHECK(native->AddModel(invalid, 1, invalid, const_cast<float*>(invalid), invalid, invalid) == UINT32_MAX);
+    CHECK(resources.projectionCalls == 1); // settings refresh neither projects nor dereferences disabled inputs
+    native->Erase(source);
+    CHECK(resources.sources == 1); // Remove retains payload until Shutdown/reuse.
+    owner->Shutdown();
+    CHECK(resources.sources == 0 && resources.bindings == 1 && resources.subscriptions == 0 && resources.refs == 0);
+    // Quality zero must not dereference ANY add-shadow/model input pointer.
+    resources.quality = 0;
+    CHECK(owner->InitServices(&host, true, false));
+    const auto* bad = reinterpret_cast<const float*>(1);
+    CHECK(native->AddKeyShadow(bad, bad, 1, 0, 0) == UINT32_MAX);
+    CHECK(native->AddGroupShadow(1, bad, 1, 0, 0) == UINT32_MAX);
+    CHECK(native->AddModel(bad, 1, bad, const_cast<float*>(bad), bad, bad) == UINT32_MAX);
+    CHECK(resources.projectionCalls == 1);
+    owner->Shutdown();
+    // Replacing the retained Init shadow binding releases the service context.
+    CHECK(owner->Init(64, 64, 16, true, false));
+    CHECK(resources.refs == 0 && resources.bindings == 0);
+    owner->Shutdown();
+}
 }
 int main(int argc, char** argv) {
     if (argc != 3) return 2;
@@ -47,13 +496,20 @@ int main(int argc, char** argv) {
     CHECK(director->GetClassObject(kFC4_CLSID_OverlayOwner, kFC4_IID_OverlayOwner,
                                   reinterpret_cast<void**>(&owner)) == enabled);
     if (owner) {
-        void* native = reinterpret_cast<void*>(1);
-        CHECK(!owner->QueryInterface(0x895D6544, &native) && native == nullptr);
-        native = reinterpret_cast<void*>(1);
-        CHECK(!director->GetClassObject(kFC4_CLSID_OverlayOwner, 0x895D6544, &native) && native == nullptr);
+        FC4INativeOverlay* native = nullptr;
+        CHECK(owner->QueryInterface(kFC4_IID_NativeOverlay, reinterpret_cast<void**>(&native)) && native);
+        cIGZUnknown* identity = nullptr;
+        CHECK(native->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&identity)));
+        CHECK(reinterpret_cast<uint8_t*>(identity) == reinterpret_cast<uint8_t*>(native) + 8);
+        if (identity) identity->Release();
+        if (native) native->Release();
+        FC4INativeOverlay* separate = nullptr;
+        CHECK(director->GetClassObject(kFC4_CLSID_OverlayOwner, kFC4_IID_NativeOverlay,
+                                      reinterpret_cast<void**>(&separate)) && separate);
+        if (separate) CHECK(separate->Release() == 0);
         cIGZUnknown* unknown = nullptr;
         CHECK(owner->QueryInterface(GZIID_cIGZUnknown, reinterpret_cast<void**>(&unknown)));
-        CHECK(unknown == static_cast<cIGZUnknown*>(owner));
+        CHECK(unknown == identity);
         if (unknown) CHECK(unknown->Release() == 1);
         CHECK(!owner->QueryInterface(kFC4_IID_OverlayOwner, nullptr));
         CHECK(!owner->IsInitialized());
@@ -67,40 +523,101 @@ int main(int argc, char** argv) {
         CHECK(owner->EnableSelfLighting(id, 3) && owner->IsSelfLit(id));
         CHECK(owner->EnableSelfLighting(id, 0) && owner->IsSelfLit(id));
         CHECK(owner->SetAlpha(id, 0.5f));
+        float rgb[3] = {};
+        CHECK(owner->Color(id, rgb) && rgb[0] == 1 && rgb[1] == 1 && rgb[2] == 1);
+        CHECK(owner->DrawStateIndex(id) == 0);
+        CHECK(owner->SetColor(id, -0.25f, 0.5f, 1.75f));
+        CHECK(owner->SetDrawState(id, 0x123403));
+        CHECK(owner->Color(id, rgb) && rgb[0] == -0.25f && rgb[1] == 0.5f && rgb[2] == 1.75f);
+        CHECK(owner->DrawStateIndex(id) == 3);
+        CHECK(!owner->Color(id, nullptr));
+        float placement[9] = {};
+        CHECK(owner->Placement(id, placement) && placement[0] == 128 && placement[1] == 128 &&
+              placement[2] == 32 && placement[3] == 0 && placement[4] == 1 &&
+              placement[5] == 1 && placement[6] == 1 && placement[7] == 0 && placement[8] == 0);
+        CHECK(owner->SetPosition(id, 128.00005f, 128));
+        CHECK(owner->Placement(id, placement) && placement[0] == 128);
+        placement[0] = 160; placement[4] = 2; placement[5] = 3; placement[8] = 7;
+        CHECK(owner->SetPlacement(id, placement));
+        CHECK(owner->SetPosition(id, 192, 224));
+        CHECK(owner->Placement(id, placement) && placement[0] == 192 && placement[1] == 224 &&
+              placement[4] == 2 && placement[5] == 3 && placement[8] == 7);
+        CHECK(!owner->SetPlacement(id, nullptr));
+        CHECK(!owner->Placement(id, nullptr));
+        for (const uint32_t ignored : {0u, 0x7FFFFFFFu, UINT32_MAX}) {
+            CHECK(owner->SetPosition(ignored, 1, 2));
+            CHECK(owner->SetPlacement(ignored, placement));
+            CHECK(owner->Placement(ignored, placement) && placement[0] == 192 && placement[8] == 7);
+        }
         CHECK(owner->Init(64, 64, 16, true, true));
         CHECK(owner->Alpha(id) == 0.5f); // repeated Init retains records (§1.1)
         CHECK(!owner->IsShown(id) && owner->IsSelfLit(id));
+        CHECK(owner->Color(id, rgb) && rgb[0] == -0.25f && rgb[2] == 1.75f);
+        CHECK(owner->DrawStateIndex(id) == 3);
+        CHECK(owner->Placement(id, placement) && placement[0] == 192 && placement[8] == 7);
         std::thread reader([&] {
             for (int i = 0; i < 2000; ++i) {
                 const float alpha = owner->Alpha(id);
                 CHECK(alpha == 0.5f || alpha == 1);
                 CHECK(owner->IsSelfLit(id));
                 owner->IsShown(id);
+                float color[3] = {};
+                CHECK(owner->Color(id, color));
+                CHECK((color[0] == -0.25f && color[1] == 0.5f && color[2] == 1.75f)
+                      || (color[0] == 2 && color[1] == 3 && color[2] == 4));
+                const auto state = owner->DrawStateIndex(id);
+                CHECK(state == 3 || state == 255);
+                float snapshot[9] = {};
+                CHECK(owner->Placement(id, snapshot) && snapshot[0] == 192 &&
+                      snapshot[1] == 224 && snapshot[8] == 7);
             }
         });
         for (int i = 0; i < 2000; ++i) {
             owner->SetAlpha(id, i % 2 ? 0.5f : 1);
             owner->SetShown(id, i % 2 != 0);
+            owner->SetColor(id, 2, 3, 4);
+            owner->SetDrawState(id, 0xFFFFFFFF);
+            owner->SetPlacement(id, placement);
         }
         reader.join();
         CHECK(owner->Remove(id));
         CHECK(!owner->IsShown(id) && !owner->IsSelfLit(id));
         CHECK(!owner->SetShown(id, true));
         CHECK(!owner->EnableSelfLighting(id, 1));
+        CHECK(!owner->SetColor(id, 1, 2, 3));
+        CHECK(!owner->SetDrawState(id, 1));
+        CHECK(!owner->SetPosition(id, 1, 2));
+        CHECK(!owner->SetPlacement(id, placement));
+        CHECK(!owner->Placement(id, placement) && placement[0] == 192 && placement[8] == 7);
+        const float retained = rgb[0];
+        CHECK(!owner->Color(id, rgb) && rgb[0] == retained);
         owner->Shutdown();
         CHECK(!owner->IsInitialized());
         CHECK(owner->Init(64, 64, 16, false, false));
         CHECK(owner->AddDecal(64, 32, 128, 128, 32, 0) == 0x80000000);
         CHECK(owner->Alpha(UINT32_MAX) == 0);
         CHECK(owner->IsShown(id) && !owner->IsSelfLit(id));
+        CHECK(owner->Color(id, rgb) && rgb[0] == 1 && rgb[1] == 1 && rgb[2] == 1);
+        CHECK(owner->DrawStateIndex(id) == 0);
         CHECK(!owner->IsShown(UINT32_MAX) && !owner->IsSelfLit(UINT32_MAX));
         // The no-handle sentinel succeeds without modifying the live record.
         CHECK(owner->SetShown(UINT32_MAX, false));
         CHECK(owner->EnableSelfLighting(UINT32_MAX, 1));
+        CHECK(owner->SetColor(UINT32_MAX, 2, 3, 4));
+        CHECK(owner->SetDrawState(UINT32_MAX, 255));
+        CHECK(owner->Color(UINT32_MAX, rgb) && rgb[0] == 0 && rgb[1] == 0 && rgb[2] == 0);
+        CHECK(owner->DrawStateIndex(UINT32_MAX) == 0);
+        CHECK(owner->Color(id, rgb) && rgb[0] == 1 && rgb[1] == 1 && rgb[2] == 1);
+        CHECK(owner->DrawStateIndex(id) == 0);
         CHECK(owner->IsShown(id) && !owner->IsSelfLit(id));
         CHECK(!owner->SetShown(UINT32_MAX - 1, true));
         CHECK(!owner->EnableSelfLighting(UINT32_MAX - 1, 1));
         owner->Shutdown();
+        if (native) {
+            CheckNative(owner, native); // owner still holds the object.
+            CheckBindingAdapter(owner, native);
+            CheckDrawing(owner, native);
+        }
         CHECK(owner->Release() == 0);
     }
     FreeLibrary(module);

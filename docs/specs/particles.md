@@ -95,7 +95,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 | `+0x7C` | `vec3` | (0,0,0), PT3 below | colour; at particle creation each component is read as a variance amount for the particle's `+0x38..+0x40` factors (§5.1) |
 | `+0x88` | `f32[]` | `[30.0]` | the emission rate curve (`rate`, `inject`, `maintain`) |
 | `+0x94` | `vec3[]` | one entry (the vector at `0x00B0A5D4`) | the colour curve |
-| `+0xA0`, `+0xAC`, `+0xB8` | `f32[]` each | `[1.0]` each | three further curves (size/alpha family, PT1) |
+| `+0xA0`, `+0xAC`, `+0xB8` | `f32[]` each | `[1.0]` each | opacity, size, aspect curves respectively (§21.1) |
 | `+0xC4` | `f32[]` | `[0.0]` | the rotation curve |
 | `+0xD0` | `u32` | 0 | texture id (`texture`) |
 | `+0xD4`, `+0xD5` | `u8`, `u8` | 0, 0 | `+0xD5` the alignment mode |
@@ -139,7 +139,7 @@ Value encodings: `u8`, `u16`, `u32` little-endian; `f32` IEEE single; `vec2`/`ve
 
 The names in the last column are the keywords of the effect-script compiler that write each field (the parser
 writes the description at its block's `+0xF0`, `cParticleEffectCommand::EndBlock` `0x005A1A50`). A blank meaning
-is a field the runtime reads but this lane did not trace (PT1). An implementation must still read and keep every
+is a field whose full meaning is not qualified; §21.1 records PT1's narrower observation requirements. An implementation must still read and keep every
 field, in this order, to stay aligned.
 
 **Zero defaults (PT3, corrected 2026-10-23).** The three scalar seeds at `00B22D54`,
@@ -506,10 +506,29 @@ pre-aged by 0.1 s, carry 0.
 - **Each frame** (the pre-pass `0x005B8410`, §7 step 4, before the sweep): for every live particle that is alive
   and every element: the element fires when `P.age` − `T` ≤ 0 and `P.age` − `T` + `dt` > 0 (this frame's `dt`,
   `+0x108`), i.e. when the particle's age is about to cross `T` in this frame's update.
-- **Firing** (`0x005B8290`, given the element's name and the particle position `P+0x0C`): the name is combined with
-  the description's own name `D+0x160`, an effect is looked up by it and, when found, started at the particle's
-  position with an identity orientation. *[inferred from damaged pseudocode; the composition of the name is not
-  byte-verified]*
+- **Firing** (`005B8290`): copy the description's own name `D+160`, then append the supplied
+  NUL-terminated suffix verbatim. No underscore, separator, case conversion or numeric age is
+  inserted (`005B82EC–005B8337`). The scratch string at `00B22D5C` is reused. Ask the effect
+  directory at `00B43D1C`, slot +1C, for this complete name. On success, call the returned
+  component's +20 with identity orientation, unit scale and the supplied particle XYZ translation,
+  then +0C with Start argument 0; release the temporary reference through +08. A failed lookup
+  makes neither transform nor Start call (`005B8355–005B8406`).
+
+**PT2 worked case (static, unexecuted).** Block name `smoke`, suffix `_water`, position
+`(10,20,30)` gives lookup `smoke_water`, translation `(10,20,30)`, Start(0), Release.
+Suffix `water` gives `smokewater`. An age-event suffix follows exactly the same composition
+as the collision suffixes `_terrain` and `_water`; a directory miss is a silent missed event.
+
+**PT2 remaining observations.** The runtime list and its name composition are settled; an
+effect-script spelling for populating it has not been identified in the inspected emit/life/block
+parsers. Do not invent an `event` keyword. To settle the compiler channel, compile a known shipped
+particle script containing an age event and record the command-token dispatch and the write of
+the 16-byte element into `D+1CC`; retain its literal suffix and age bytes. The shipped
+`SimCity_1.dat` was not available in the inspected checkout. Record the TGI of its effects-directory
+resource, decoded resource bytes, root version and the **particle section's u16 version** at
+`005A5225–005A52F4`: value 1 selects reader A; every other value selects reader B (§2).
+The root version or a version of another section cannot settle this. These are outstanding
+source-data/compiler observations, not a reason to withhold the runtime event contract.
 
 ## 9. Slot tables *[compat]*
 
@@ -559,10 +578,13 @@ no simulation state depends on them except through the finish test, which depend
 
 ## 12. Open questions
 
-See [questions/particles.md](questions/particles.md): PT1, PT2 (narrowed), PT8–PT11 remain open.
+PT1, PT2 and PT8–PT11 have dispositions in [questions/answered/particles.md](questions/answered/particles.md).
+Their remaining observation requirements are in §8.3, §15.4, §21 and rigid-body-2d.md §7.5;
+an archived question is not evidence that these unmeasured domains have passed conformance.
 PT4–PT7 were answered 2026-10-21; PT3, PT12 and PT13 are answered by §2, §17.3 and
 §13.3 respectively (2026-10-23). Proposed vectors remain unexecuted.
-PT8–PT11 record the limits of the following supplement. Its vectors are proposed, unexecuted fixtures.
+The supplement's vectors are proposed, unexecuted fixtures. §21 distinguishes finite static
+rules from the additional captures needed to qualify the remaining domains.
 
 ## 13. Owner boundaries and component contracts *[compat]*
 
@@ -885,8 +907,8 @@ with a minimum denominator of binary32 `0.0001`, releases a previous texture ove
 external opacity and size to 1, and samples its per-instance variance factors. It resets placement
 to implicit. A whole-city flag can instead establish explicit placement using city dimensions.
 It does not first Stop an already-created handle. Do not treat description assignment as a
-transaction that destroys and recreates the renderer object. Runtime RNG output and variance
-sampling precision are not measured here (PT9).
+transaction that destroys and recreates the renderer object. Sampling precision and the
+whole-city service-call sequence are specified in §15.4; runtime RNG outputs remain unmeasured.
 
 Float and pointer setters return a boolean; unknown IDs return false without the handled stores.
 Neither checks the advertised count before these reads (`00582F00–00582FD4`, `00582040`).
@@ -909,12 +931,13 @@ SetTransforms derives implicit X/Z placement, size and angle from the supplied t
 while explicit-placement is false. When flag bit 6 is set and a handle exists, it can immediately
 send updated placement to the renderer. Thus setting an explicit rectangle freezes this implicit
 transform-driven placement until another operation resets the explicit-placement byte.
-Exact composition, angle units and projection record remain PT9.
+The finite composition, angle units and projection record are specified in §15.4.
 
 ### 15.3 Time and renderer boundary
 
-Update ignores an invalid handle. Otherwise it adds dt to elapsed, stores the binary32 result,
-then multiplies by inverse lifetime to obtain normalized phase (`00582933–0058294F`). Mode 1
+Update ignores an invalid handle. Otherwise it adds dt to elapsed and stores the binary32 result.
+The x87 sum remains in the register (FST, without reload); it is that sum which is multiplied by
+inverse lifetime and stored binary32 as normalized phase (`00582933–0058294F`). Mode 1
 wraps phase by subtracting its integer floor. For the other modes, phase **strictly greater than**
 1 causes mode 2 to call Stop(0); other modes clamp to 1. Equality to 1 does not stop mode 2.
 This is distinct from the particle age test. The floor shortcut's domain assumes ordinary finite
@@ -926,13 +949,118 @@ interpolate as `a + fraction*(b-a)`; RGB uses weighted adjacent vectors. Opacity
 Update takes an opacity-only path; otherwise it also updates placement/shape and, for an animated
 colour curve, colour. Curve arrays must be nonempty; there is no checked empty-curve fallback.
 Instruction evidence for scalar interpolation is `00582410–0058247C`, RGB `00582548–005825C4`.
-Exact curve-index rounding outside the ordinary phase domain remains PT9.
+The ordinary finite curve-index domain and outstanding observations are delimited in §15.4.
 
 The renderer service owns drawing: this component submits handles and parameter records rather
 than writing pixels. Its observed foreign calls include creation alternatives +10/+18/+1C,
 get/set projection +38/+34, remove +3C, opacity +44, RGB +48, layer +4C and flag +50.
 Do not assign public interface names or enum meanings to those slots from their numbers alone.
 No local message switch, live-object disk writer, or renderer-failure rollback is established.
+
+### 15.4 PT9: finite decal records and call traces *[compat]*
+
+This section qualifies the component's calls, not the renderer's rasterization. All stored
+scalars and renderer scalar arguments below are binary32. Arithmetic uses x87 intermediates;
+there is no local RGB-to-byte conversion, saturation, or integer colour packing. RGB +48
+receives three consecutive binary32 components. Its renderer may impose a further contract.
+
+**Start's two modes are independent.** The caller's Start argument is tested only for zero
+versus nonzero. The lifetime mode is the byte at effect +15. For an unstarted component:
+
+| Lifetime byte | Start(0) initial phase q | Start(1), Start(2), Start(3) initial phase q |
+|---:|---:|---:|
+| 0 or 1 | 0 | 0 |
+| 2 | 0 | return before acquiring services or creating a handle |
+| 3 | 0 | 1 |
+
+Other lifetime byte values take the 0 row. After successful creation the component stores
+**q itself** to elapsed +114, in seconds, not q times lifetime (`005825E3–005825ED`).
+For lifetime 4 and lifetime byte 3, Start(1) samples the last curve values, but a following
+Update(0) samples phase 1/4. Start(2) and Start(3) give the identical trace. Already started
+objects make no calls for any Start argument. The sentinel remains integer `FFFFFFFF`.
+
+**Variance.** SetDescription samples opacity then size using the separate random state
+**`00B22C10`**, with double endpoints `1−variance,1+variance` and
+`RandomDoubleRangeUniform` (`005834DC–0058353F`). Endpoints are formed by loading the
+binary32 variance into x87 and adding/subtracting double 1; each endpoint is stored double
+before the call, and each result is stored binary32 at +F4/+F8. If rotation variance +60
+is strictly positive, make a third draw with double endpoints `−variance,+variance`, store
+binary32 at +FC; otherwise +FC is exactly 1, with no third draw (`00583545–0058357F`).
+This is a multiplier of the rotation curve, not an additive random angle. Whole-city bit
+`10` sets explicit placement, calls city +168 once, +164 twice, and stores respectively
+Z centre = first result × double 0.5, X centre = second result × double 0.5, size = third
+result (all binary32 stores, `005835B8–00583605`). It does not multiply that size by +F8.
+For supplied service returns `(1024,512,512)`, placement is `(X=256,Z=512,size=512)`.
+
+**Implicit transforms.** Let A be the first transform argument and B the second. Matrix
+rows occupy +04/+08/+0C, +10/+14/+18, +1C/+20/+24; translation is +28/+2C/+30,
+scale +34 and the active-transform byte +01. Initially use B. If A is active and B is
+inactive, use A. If both are active, the X/Z translation is `B.t + B.scale*B.R*A.t`,
+scale is `B.scale*A.scale`, and the two rotation entries needed below are
+`R00=B00*A00+B02*A20+B01*A10` and
+`R20=B20*A00+B22*A20+B21*A10`, with those addition orders
+(`00582614–00582723`). For each translated component, the scaled dot product is
+stored binary32 before adding B's translation. R20 and combined scale are stored
+binary32; R00 remains in x87 until angle extraction. Store X/Z centre, size scale
+`scale*randomSize`, and angle `atan2(−R20,R00)*0.15915493667125702` to binary32
+(`00582723–0058275C`; multiplier bits `3E22F983` at `00B0A210`). Thus angle is in
+**turns**. Identity orientation gives zero; R00=0,R20=−1 gives approximately +0.25.
+Explicit placement bypasses this entire method, including its immediate renderer update.
+
+**Creation and projection.** At initial phase q, creation size is `sizeScale*sizeCurve(q)`
+(external size +10C is used by subsequent placement updates); creation angle is
+`baseAngle+randomRotation*rotationCurve(q)`. The creation argument order is resource or
+texture, pointer to X/Z centre, size, angle. The call selection is:
+
+| Condition, in priority order | Renderer vtable byte offset |
+|---|---:|
+| flags `20` set, regardless of texture override | +1C (resource ID) |
+| flags `20` clear, texture override nonnull | +10 (texture binding) |
+| flags `20` clear, no override | +18 (resource ID) |
+
+Evidence: `0058224B–005822C4`. An integer `FFFFFFFF` result leaves started false and
+skips every remaining configuration call. Missing TerrainView or decal service likewise
+prevents creation; retaining an acquired service is not rolled back on creation failure.
+
+On success the trace is **+38 get projection, +34 set projection, optional +50(handle,1),
++44 opacity, +48 RGB, +4C layer**, then elapsed/started stores. The +38/+34 record is
+seven 32-bit words: +00/+04 preserve the renderer's returned values (initialized zero before
+the get); +08 = `aspectCurve(q)*aspectScale`; +0C/+10 = 1/1 when flags `08` clear,
+otherwise +0C = `mappingScale*description(+64)`, +10 = that unrounded product times
+the stored aspect; +14/+18 copy effect +68/+6C. Each computed record word is stored
+binary32 (`005822CA–005823CF`). The optional +50 call is controlled by flags `02`.
+Calling it an enable request describes the observable boolean; a raster meaning is unmeasured.
+
+**All flag combinations.** The independent decisions above compose: `10` changes placement
+at description assignment, `20` selects creation, `08` changes the two mapping words, `02`
+adds +50, and `40` changes subsequent updates. Bits `01` and `04` have no tested branch in
+these component Start/Update/SetTransforms paths. With `40`, Update sends **only +44** after
+time processing, even for an animated RGB curve; SetTransforms instead performs +38/+34 with
+the size/rotation curves at phase zero when a valid handle exists (`00582762–0058290D`).
+Without `40`, Update sends +34, +44, and +48 only if RGB has more than one element.
+Start always sends RGB, even for a singleton. Projection and opacity setters' results are
+ignored; no retry or rollback is present. Stop's +3C precedes clearing/releasing the service.
+
+**Worked trace (proposed, unexecuted).** Supply successful services, handle 7, X/Z `(10,20)`,
+sizeScale 2, rotation multiplier 1, base angle 0, singleton curves size `[3]`, rotation `[0.25]`,
+aspect `[0.5]`, opacity `[0.75]`, RGB `[(0.25,0.5,1)]`, external factors 1, mappingScale 2,
+description +64=4, +68=0.125,+6C=0.25. For flags 0, Start(0) creates via +18 with
+`(ID,(10,20),6,0.25)`, then +38, +34 record `(returned0,returned1,0.5,1,1,0.125,0.25)`,
++44 `(7,0.75)`, +48 `(7,(0.25,0.5,1))`, +4C `(7,layer)`. Set flags `08` and the
+record's +0C/+10 become 8/4. Add `02` and insert +50 `(7,1)` after +34. Add `20` and
+replace the creation with +1C; supply a texture with `20` clear and use +10 instead.
+Add `40` and Update(0) has only +44; clear it and Update(0) has +34 then +44, with no
++48 for this singleton. The lifetime table supplies the complete Start(0/1/2/3) variations.
+
+**Remaining PT9 observations.** Finite nonempty curves, ordinary normalized phase and successful
+foreign records are the admitted domain. Capture the x87 control word and scalar/RGB argument
+bits at +34/+44/+48 for a two-key halfway sample and just below/at/above each key; also repeat
+with phase below zero, phase beyond the float-index shortcut's range, empty arrays, NaNs and
+infinities to settle exceptional rounding/failure behavior. Record the actual +38 output and
+renderer results under each flag bit, including create failure, to identify raster meanings and
+resource/texture rejection. Record RNG state +00/+04/+08 at `00B22C10` and returned draw doubles
+to establish an executed variance fixture. None of these captures is claimed here; the call
+vectors above are independent test proposals, not game measurements.
 
 ## 16. Dynamic particle system *[compat]*
 
@@ -1391,3 +1519,181 @@ instruction-derived fixtures, not measured game/pixel outputs.
 | PM06 | PM05 but owner V=10 | yellow first box with both heights 10, still submitted; blue box heights 10 and 20 |
 | PM07 | nonempty map, dirty 0 | no rebuild; pack listed state, SetRenderState, Mesh, RenderMesh; no state restore |
 | PM08 | nonempty map, dirty 2, rebuild returns normally | rebuild once, dirty becomes 0 before state packing/submission; next draw skips rebuild |
+
+## 21. PT1/PT8/PT10 qualification and observation contracts (2026-10-26) *[compat]*
+
+These dispositions narrow the questions; they do not grant whole-owner implementation or
+shadow credit. No game, renderer, mesh or random capture was executed for this supplement.
+The observations below specify both inputs and the bytes/calls that must be retained, so an
+implementer can distinguish foreign primitive results from this component's computation.
+
+### 21.1 PT1: draw factors, parser meanings and remaining fields
+
+For the ordinary vertex-buffer path, sample description curves at particle age/lifetime.
+`D+A0` is opacity, `D+AC` size and `D+B8` aspect. Multiply the colour-curve components by
+`P+38/+3C/+40` respectively. Multiply opacity by `P+34` and component +1D0. Multiply size
+by `P+28`. One billboard basis is scaled by size; the other by
+`size*aspectCurve*P(+2C)`. Thus **P+2C is an aspect factor**, not an opacity factor.
+Evidence: curve selection and f32 stores at `005B3FBA–005B4078`, `005B4081–005B412E`,
+and the remaining size/basis use in `005B3DA0`. This assigns the multipliers; it does not
+qualify the final packed-colour rounding or every alignment branch of the alternate draw.
+The size curve is sampled over its whole lifetime here; the first-element use during
+creation does not make later `D+AC` elements inert.
+
+**Worked factor case (proposed).** With singleton RGB `(0.25,0.5,1)`, opacity `[0.5]`,
+size `[2]`, aspect `[3]`, particle factors +28=1,+2C=2,+34=0.5,+38=2,+3C=0.5,+40=1,
+and component +1D0=1: the pre-pack RGB is `(0.5,0.25,1)`, opacity 0.25, and the two
+unrotated basis lengths are 2 and 12 before optional velocity stretch, size cap and world
+transform. This case tests field identity without presuming byte-colour saturation.
+
+Additional parser-level identities (description offsets, not compiler-block offsets):
+
+| Field | Established use | Evidence / limit |
+|---|---|---|
+| +D4 byte | draw mode; the model parser writes mode 3 | `cParticleModelCommand::Parse`; dispatch is `005B2260`, see §21.2 |
+| +118 vec2 | UV-warp vector associated with `warp -uv`; +114 is its scalar | `cParticleWarpCommand::Parse`, block +204/+208/+20C; full draw arithmetic still needs the capture below |
+| +120 vec3 | normalized direction parsed by `warp -alpha`, followed by the alpha curve +12C | same parser, block +210/+214/+218; zero input is not specified as repaired |
+| +184/+188 f32 | the first and optional second `randomWalk -turn` arguments, each parsed in [0,1] | `cParticleRandomWalkCommand::Parse`, block +274/+278; the absent second argument becomes zero |
+| +1B4 u32 | `force -automata` identifier, paired with a strength in the attractor curve and range 1 | `0059A820`; block +2A4/+294/+2A0; identifier semantics belong to the foreign automata service |
+| +1C4 f32 | `force -tractorResetSpeed` | `0059A820`, block +2B4; exact reset timing remains in the tractor observation |
+| +1DC f32 | `model -modelSpeed` / `-modelSpeedStatic` | model parser block +2CC; only the former also sets flags B `40` |
+| +1E0 u32[] | model-resource selection list used by the model parser | block +2D0/+2D4; list-selection timing is unqualified |
+| +1EC f32, +1F4 f32[] | `force -explosion` first argument and following curve arguments | force parser block +2DC/+2E4; nonzero physics entry `005A6520` |
+| +200 f32, +1F0 f32 | `force -explosionFront` first and second arguments, in that order | force parser block +2F0/+2E0; do not reverse the two fields |
+
+The parser identities above do not imply a complete numeric oracle for their consumers.
+The remaining PT1 domains are explicitly narrowed to these observations:
+
+| Unqualified domain | Observation that settles it |
+|---|---|
+| +D8/+DC, +16C/+16E/+170 | At `005B3DA0` and `005B4B90`, use one particle with velocity (3,0,4), fixed life/age and a tagged 2×2 texture. Vary +D8 and +DC independently through 0,1,2; vary the u16 fields through 0,1,2,65535 and +170 through 0,0.5,1. Record emitted vertex/index words, UVs and all resource calls, including a missing texture. The existing creation divisor at +DC remains a literal divisor; no zero repair is promised. |
+| +118/+120/+184/+188 consumer arithmetic | For a fixed RNG state, compare one-hot directions and a two-key warp curve, with both turn arguments separately 0 and 1. Record `005B6600`/`005B6C40` input/output particle words and draw UV/alpha words; retain x87 control word and double emission clock +120. |
+| +1B4 foreign target / +1C4 reset / +1DC..+200 consumers | Record foreign automata replies, tractor point selection and reset stores, selected model IDs, and the wave state/particle words under §21.2's literal wave probe. Use empty and singleton model lists as separate cases. |
+| flags A 10 and reader/effect of 04000000 | Compare otherwise identical records with flags A 0,10,04000000,04000010, first with flags B 10 clear then set. Trace reads/branches in `005B6600`, `005B6C40`, `005B8DC0` and both draws, and writes to particle +2C/+34..+40. Record a no-op as such if there is no reader on the exercised path; do not assign these bits an invented force. |
+
+This is the disposition of every still-blank PT1 group, including +D4 and all +1DC..+200
+fields. Until those captures exist, preserve the fields/flags and keep the affected path
+explicitly unqualified; applying a guessed conventional meaning is not conformance.
+
+### 21.2 PT8: geometry source versus triangle operands
+
+`005AA700` takes **two vec3 arguments plus the retained geometry source**, not three
+triangle vertices. Its first action loads main +254. A null source returns before any
+source enumeration (`005AA706–005AA715`); source group count zero also bypasses the
+group loop (`005AA72C–005AA739`). It obtains each group's geometry through source +10,
+extracts position channel 0 into a contiguous vec3 collection, and uses the second supplied
+vector as projection coefficients on source positions relative to the transformed emitter
+position. Its triangle-shaped export name does not define a public triangle-input contract.
+The exact projection normalization/dicing/output rule remains unqualified, as specified below.
+
+The two initial builders `005A9E10` and `005AA3A0` enumerate source groups in increasing
+index order, check material/group enabled byte +0B, and skip disabled groups. Their source
+channel requests distinguish positions (channel 0) and UVs (channel 7). The first path's
+primitive-count test and the second path's triangle iterator are different; treating both
+as the same triangle list would discard observable source-format behavior. Resource acquisition
+failure and a lock failure are distinct from a successful source yielding zero vertices.
+The current source readers contain damaged temporary/iterator pseudocode, so an apparent
+helper name or integer cast is not a numeric dicing oracle.
+
+`005A6520` compares the binary32 description +1EC with zero. Exactly zero delegates to
+ordinary physics `005B9BA0`. In the nonzero path, compare binary32 main +26C and +270;
+when equal, store `+26C := +26C + dt*D(+1EC)` as binary32 and sample the +1F4 curve
+using the fractional part of the **double** component clock at +120
+(`005A6550–005A663F`). Do not downcast that clock to float before extracting phase.
+This establishes the wave-front cache prefix, not the subsequent displacement response.
+
+**Literal observation vectors (unexecuted).** Use an identity component transform, center
+`(0,0,0)`, source scale 1, material ID 17, enabled byte 1, positions
+`[(0,0,0),(2,0,0),(0,0,2)]`, indices `[0,1,2]`, UVs `[(0,0),(1,0),(0,1)]`.
+Call parameter 9 with vectors `(0,0,0)` and `(0,1,0)`. The control case with source null
+must make no source/renderer calls and create no particles. A source with zero groups must
+make only the group-count query. For the nonempty case retain the resulting particles and
+ordered vertex/index/UV/material words; **no unmeasured nonempty mesh result is asserted**.
+Repeat with indices `[0,0,0]`, three coincident positions, enabled byte 0, channel/lock
+failure and a resource miss, keeping each result separate.
+
+Wave prefix vector: +26C=+270=2, dt=0.25, +1EC=4, +1F4=`[400]`, double clock=0.5
+must store +26C=3 and select curve scalar 400. Use one particle initially at `(1,0,0)`
+with zero velocity, then repeat at center `(0,0,0)`, with +1F0=4 and +200=4.
+Capture particle +00..end before/after `005A6520`, both cache words and all service calls
+to settle displacement, centre degeneracy and damping. Do not supply a generic shock wave.
+
+**Remaining draw observation.** At `005B2260`, record the complete PackRenderState argument
+tuple for each mode 0..7 and an out-of-range mode (8 and FFFFFFFF). At ordinary
+`005B3DA0`/`005B4B90` and geometry `005A77F0`, record state changes, vertex/index stream
+locks, strides, first/last written words, UV corner order, material/texture calls and unlock/
+submission/release order for the literal mesh above and for the factor case in §21.1.
+Repeat with each failed resource/lock return and an empty/degenerate source. Include values
+one float ULP around a colour-byte or dicing threshold and the x87 control word. These
+captures settle the outstanding numeric widths, packing/rounding, alignment, cap, UV/material
+ordering and failure domains. This section deliberately does not promote them to passed fixtures.
+
+### 21.3 PT10: sector admission, static filters and terrain observations
+
+The host-sector radius uses body-description f32 half-extents at +20/+24:
+`r = sqrt(hx*hx+hz*hz)*host(+28)` in x87, followed by the native upward-integer shortcut
+at `005842BF–00584310`. For finite nonnegative r well within the shortcut range, with
+round-to-nearest control word, this is **ceil(r)**, not nearest or floor. The radius is
+stored as u32 in the entry; the initial X/Z sector words remain sentinel `FF800001`.
+With half-extents (3,4) and host reciprocal 0.25, r=1.25, stored radius=2. With reciprocal
+0.2 and exactly integral r, retain the integral value rather than adding another sector.
+The precise last-bit product depends on the supplied binary32 reciprocal; the first case
+uses exact 0.25 to avoid that ambiguity.
+
+Activate/deactivate use the inclusive rectangle `max(0,x−r)..x+r` by
+`max(0,z−r)..z+r` and visit Z rows outside, increasing X inside. Lower-edge selection is
+by the sign of the 32-bit subtraction; do not reinterpret an overflowing subtraction as
+arbitrary-precision clamping. Key is `(z<<16)+x`, modulo 2^32. There is no upper-city clamp
+in these loops (`00584743–005847C7`, `00584BB0`). For `(x,z,r)=(0,1,1)`, the six
+keys are `00000000,00000001,00010000,00010001,00020000,00020001`, in that order.
+An existing host sector increments its count without reacquiring buildings. Deactivation
+of an absent key does nothing; decrement to zero calls RemoveObject on the sector's body
+handles in stored order and erases the sector (`005847D0–00584872`). Two activations and
+two deactivations therefore acquire once and remove only on the second deactivation.
+
+The static-building predicate is a separate helper `00583B10`. Necessary preliminary
+conditions are: occupant +18 returns nonnull; that returned object's +0C test for
+`029244DB` is false; at least one +0C test for `27812821,27812820,27812822,27812823,27812824`
+is true, tested in that order and short-circuited. Only then request interface `87DDA3A9`
+(`00583B17–00583BA4`). These are raw interface/category identifiers, not guessed names.
+Further interface state can still reject a candidate; passing this prefix alone does not
+establish an admitted body. Static-sector occupants are obtained through the city query,
+not synthesized from every object whose bounding box overlaps the sector.
+
+The terrain tick calls terrain +6C for a normal and +34 for height. Add body +28 (vertical
+half-extent) to the returned height and raise body +10 to it when below that value. Apply
+gravity to +14 as `vy−dt*9.800000190734863`, using binary32 constant bits `411CCCCD`
+at `00A9EFA8` and an f32 body store (`005856B1–005856E3`). The collision path tests
+distance from the floor against binary32 0.1 and only acts for inward normal velocity.
+The exact normal-response stores, boundary correction and cached basis are not fully
+instruction-qualified here; the existing §16 ordering remains applicable.
+
+**PT10 remaining observations, including a worked service case.** Supply terrain height 10,
+normal (0,1,0), body half-height 2, height 11, vertical speed −1 and dt=0.005. The floor
+candidate is 12 and height is raised to 12 before the normal-response stage. Record body
++00..+83 after each stage and the host cached transform after the final substep; repeat with
+normal (0.6,0.8,0), parallel/zero normals, height just inside/outside the 0.1 tolerance and
+all four city edges. This distinguishes vertical clamping, projection, friction and any
+normalization failure. Record control word and native float argument/results, not screen pixels.
+
+For static geometry, feed occupants which each fail exactly one predicate above, one with
+missing `87DDA3A9`, and one fully admitted rotated box with min `(1,2,3)`, max `(5,8,9)`.
+Trace `00584BB0`'s city/occupant calls, retained interfaces and every source-description word
+passed to `005BBC10`, including the static boolean. Record the final predicate-interface
+state, transformed extents, orientation, response and list insertion; these values are still
+unmeasured. For drawing, record terrain +6C's actual reply and the complete drawable
++3C/+28/+40/+30 call records at `00583C10`, including shade flags, RGB/alpha and ResetShade.
+For lifecycle, record main/unknown/message table calls with receiver adjustments +0/+4/+0C,
+QueryInterface IDs/results, AddRef/Release returns, and subscribe/unsubscribe service calls
+during first/repeated Init and Shutdown. The tables in §16.1 identify entry points; they do
+not by themselves establish the unknown slots' signatures or successful subscription.
+These captures are the remaining PT10 qualification requirements, not claimed run results.
+
+### 21.4 PT11 disposition
+
+The finite SAT equality and first-wins tie contract remains
+[rigid-body-2d.md §6.1](rigid-body-2d.md).
+Additional coincident response, sector and joint rules, conditional numeric vectors and the
+remaining exceptional-input observations are in that spec's §7.5. Those rules supersede
+the broad statement in §17.3 that all separation RNG and joint thresholds are unspecified;
+they do not establish deterministic clock-seeded randomness or allocation-failure recovery.

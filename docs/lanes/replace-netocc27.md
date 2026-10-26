@@ -1,22 +1,22 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| replace-netocc27: pole terrain/geometry and effects groundwork (engine) | Codex / `replace-netocc27`, detached HEAD; code through `64cbc4cba`; 2 private C transport entries added, public header/version unchanged | blocked: NO44; cargo 7856/7856, clippy 0, CTest 118/118; native poles retained; netocc NOT ready for replace list | 1. Resolve NO44. 2. Finish tool bridge/model/render glue. 3. Measure (a)-(c), then enqueue. |
+| replace-netocc27: pole cell-vector and preview boundaries (engine) | Codex / replace-netocc27 / detached HEAD; final round; code 73c61480c, 25e056895; private C ABI additions | ready to merge partial work: final gate cargo 7879/7879, clippy 0, CTest 119/119; house-0614 clean to 2032, ref_warnings=0, shadow 72/72 months; native poles retained | 1. Concrete tool/mixed-endpoint bridge. 2. Model/render host. 3. Replacement tool script and power-month comparison before replace-list credit. |
 
-- Resumed gate from round 1: old session unavailable; saved CTest log showed 118/118 passed; superseded by the completed gate below.
-- Round 2 commits: `c5bd7c1a7`, `accd8291d`, `cc7a6df83`, `64cbc4cba` (code/tests).
-- Movement now uses terrain width/corner altitudes, rebuilds floor/walls and moves the zap effect; preserves transform, wires and bounds-cache quirks (spec 4.7).
-- View rotation rebuilds the geometry; drawing submissions and delegate model movement/loading remain unwired, with SPEC-GAP comments.
-- Terrain slot 6 uses a verified float/x87 interface prefix, covered by required generated ABI conformance; SDK declaration remains untouched.
-- Private C additions: `fc4_netpole_set_position`, `fc4_netpole_rebuild_geometry`; no `fc4.h` or ABI-version edit.
-- Focused core: 14/14 passed, including two new position tests. Initial CAPI compile failed the raw-pointer borrow lint; corrected and passed in the full gate.
-- Corrected full gate (`64cbc4cba`): cargo 7856/7856, clippy 0 diagnostics, native build 47/47 edges, CTest 118/118; qbuild PASS.
-- Gate logs: `build-runs/qbuild-test.log`, `build-runs/qbuild-clippy.log`, `build-runs/fc4verify-build.log`, `build-runs/fc4verify-ctest.log`.
-- First round-2 gate: cargo/clippy/build passed; CTest 117/118 (new SDK CellWidth call voided its ABI waiver); fixed by the typed prefix.
-- Distinct earlier results: `build-runs/position-focused-first-result.txt`, `build-runs/position-gate-first-result.txt`; round-1 failure: `build-runs/qbuild-first-failure.txt`.
-- (a) House list + netocc to 2032: NOT RUN; live pole factory remains native (guard in `engine/plugin/FC4Subsystems.cpp`).
-- (b) Placement/extension/demolition/fire and equal power month lines: NOT RUN; native tool boundary unresolved.
-- (c) Netocc shadow 72/72: NOT RUN in this lane; no new exactness or ref_warnings measurement claimed.
-- Existing NO44: `docs/specs/questions/network-occupants.md`; exact helper views/container ownership and concrete-access audit remain unpublished. Generic ABI rows alone do not resolve it.
-- Missing: native-tool bridge, cell-vector output, model-instance QI/model host and rendering submissions. Pipe classes not attempted.
-- Netocc is NOT ready for the replace list. No game request or ready enqueue submitted; local merge-queue entry is wip.
-- Next: resolve NO44, finish tool/model/render glue, measure all three acceptance criteria, then enqueue the completed lane.
+- Main merged first without conflicts; NO44 is answered in §4.6.3/cases 75–80. No branch/ref maintenance or readiness credit change.
+- Cell slots 5/16 now use allocator B, 12-byte headers/8-byte cells, native growth/capacity reuse, unchanged output on failure and the same header on reverse delegation.
+- Host city dimensions replace zero shared cell dimensions; draft generated links skip construction; undo literally calls enable(B,B,true), covered with reversed endpoints.
+- Focused CAPI 7/7, core power-line tool 36/36; formatting 3 owned Rust files, zero diffs.
+- Preliminary failures remain distinct in build-runs/netocc-r3-first-results.txt: CAPI 6/7 before cell-size fix; quick native C2594 before explicit primary-view cast.
+- Final-round qbuild all on HEAD d1970eab7 (code 25e056895), 2026-10-26: PASS; cargo 7879/7879, clippy zero diagnostics, native 49/49 edges, CTest 119/119.
+- Gate logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
+- Game log G: C:/Users/tlori/FreeCity4/build-runs/game-results/netocc27-r3-house-0614.log.
+- (a) Requested house list + mysims + netocc: clean to 2032-01-01, ref_warnings=0 (G:65259); poles retained native (G:20), so replacement-pole acceptance remains unmet.
+- (b) Placement/extension/demolition/fire script and matching power month lines: NOT RUN; concrete tool bridge remains unimplemented.
+- (c) Netocc monthly samples 72/72 with mismatches=0; overall 73/73 includes load (G:16066). Pole 73/73, records=219; line 73/73, records=1314 (G:16077–16078).
+- NO45 explains normalization: load fixups=0; final month fixups=857, mismatches=0 (G:7260,16051); only documented Read fixups are normalized, not unexplained differences.
+- Earlier request netocc27-r3-house-0613 was rejected before start for top-level close_dialogs; corrected request 0614 put it under [ini]. Both used parallel=1.
+- ABI rows needed: architect-reviewed NO44 corrections for 00649910,0064E3E0,0064BE50,00649DD0,00649BA0,0064D510,00650140; legacy cell returns unresolved and attachment row says AL. No rows invented.
+- ABI: two private static-link C transport entries added; internal host callback extended; fc4.h/version unchanged. No new questions filed.
+- Still missing: native CreatePowerPole bridge, enable/Add/Remove/attachment/rebuild crossings (including native neighbours), own model-instance QI/host and delegate/floor/wall/wire submissions; zap callbacks exist but fire is unmeasured.
+- Final-round limit respected: no new implementation started. Enqueue only the validated partial work, kind engine; ready means mergeable code, not completed pole replacement.
+- Next: bridge the concrete native tool calls and rendering, then prove (a)–(c) with FC4 poles. Pipe classes not attempted; netocc is NOT ready for the replace list and neither pole replacement nor scripted power equality is claimed.

@@ -504,9 +504,10 @@ events may perform §6 actions while the foreign modal operation runs.
 | Entry | Status | Qualified scope |
 |---|---|---|
 | `SetPreferenceOptions 0078f550`, 2,544 bytes | Supported | Complete normal body, §3; valid foreign outputs required |
-| `SetButtonsBasedOnPreferences 0078ffc0`, 5,009 bytes | Partial | First enum group, null-P path, final depth group and cleanup only (§6.1) |
-| `HandleControlMessage 00791d70`, 4,440 bytes | Partial | Four action IDs and one three-ID selection group (§6); remaining groups unqualified |
-| `ShowDialog 00791490`, 2,272 bytes | Partial | Prefix, first three bindings and tail; middle binding sequence unqualified (§7.1) |
+| `SetButtonsBasedOnPreferences 0078ffc0`, 5,009 bytes | Supported | §6.1 plus the intervening groups, §9.2 |
+| `HandleControlMessage 00791d70`, 4,440 bytes | Supported | §6 plus every other admitted ID, §9.3 |
+| `ShowDialog 00791490`, 2,272 bytes | Supported | §7.1 plus the middle bindings, §9.4 |
+| constructor `00791360`, 51 bytes | Supported | §9.1 |
 | `DoModalWin 007913a0`, 237 bytes | Supported | Full normal caller-owned sequence; foreign services must succeed (§7.2) |
 | `EndDialog 0078ff40`, 125 bytes | Supported | §5.2; nonreentrant valid objects |
 | message `00792f50`, 283 bytes; `Release 00792f10`, 55 bytes | Supported | §5; raw AL versus EAX distinguished |
@@ -521,3 +522,159 @@ allocation caller and AddRef semantics remain Unknown. This publication is
 usable for the supported readback/action boundaries and literal vectors, not
 a complete portable replacement panel. Open gaps are tracked in
 [video preference questions](questions/video-preferences.md).
+
+**Update 2026-10-25 (re-videoprefs8):** §9 completes the three Partial methods and
+the constructor, and answers VP1–VP5; with it every owner body is specified.
+
+## 9. Completion (re-videoprefs8, 2026-10-25)
+
+Static RE only, on the same exe; every instruction of the ranges below was read in
+the disassembly. Request names: `+18` select, `+1c` clear (§6.1); "lookup" is the
+§2 root/`+94(ID,8810,&out)` pattern with its fresh-root-before-release order.
+
+### 9.1 Construction, callers and baselines (VP3)
+
+The constructor `00791360` (no arguments) sets the vptr `00ab55f8`, H, P and the count
+to 0, the words `W+10`, `+12`, `+14`, `+16`, `+18` and `+1c` to 0, C (`W+1a`) to 0, and
+the first-redraw byte `W+1e` to **1**. Its two callers, the region screen
+(`007afbd5`) and the 3D view window (`007f2c7a`), are identical: allocate `0x20`
+bytes (`GlobalHeapAlloc`; failure passes null on and is dereferenced), construct,
+hold it in a local reference (AddRef, count 1), call ShowDialog(0) through slot 5,
+**ignore its AL** (it is false even on success, §7.1), call DoModalWin, then
+Release. The panel therefore lives only for one modal run; the Release after the
+run frees it (§5.3).
+
+`W+1e` is cleared at the end of every SetButtonsBasedOnPreferences (§6.1), so the
+baseline words are captured once, by ShowDialog's redraw, from the preferences as
+they were when the panel opened. The Auto button's redraw (`ea5e99d9`, §6.3) runs
+with `W+1e = 0` and leaves them as those original snapshots.
+
+### 9.2 SetButtonsBasedOnPreferences, the whole body (VP1)
+
+After §6.1's first group, the groups run in this order. "Radio v → IDs" means:
+when the byte is one of the listed values, look up each ID in order and request
+`+18` on the one matching the value and `+1c` on the others (a failed lookup skips
+that request); any other value makes no lookup. "Capture" happens only while
+`W+1e != 0`.
+
+| Order | Source | Controls and requests | Capture |
+|---|---|---|---|
+| 1 | `u8(P+f0d)` | radio 1/2/3 → `6a57da49`, `4a`, `4b` (§6.1) | none |
+| 2 | `u8(P+f0e)` | radio 1/2/3 → `6a57da4c`, `4d`, `4e` | none |
+| 3 | `u8(P+f16)` | radio 1/2/3 → `2ab6c373`, `74`, `75` | `W+16 := value − 1` (after the three lookups, whatever their result) |
+| 4 | `u8(P+f0f)` | radio 1/2/3 → `6a57da4f`, `50`, `51` | none |
+| 5 | `u8(P+f11)` | `SetButtonToggleState(root, 6a57da54, f11 == 1)` (`009afe69`, cdecl) | none |
+| 6 | `u8(P+f12)` | `SetButtonToggleState(root, 6a57da55, f12 == 1)` | none |
+| 7 | `u8(P+f15)` | lookup `6a57da56`: `+18` when f15 == 1, else `+1c` | on a successful lookup only: `W+1c := 0` when f15 == 1, else 1 (inverted) |
+| 8 | `u8(P+f14)` | lookup `6a57da60`: `+18` when f14 == 1, else `+1c` | on a successful lookup only: `W+10 := 1` when f14 == 1, else 0 |
+| 9 | `u8(P+f18)` | `SetButtonToggleState(root, 0a8b7e00, f18 == 1)` | none |
+| 10 | `u8(P+f13)` | 1 → `+18` on `6a57da57`, `+1c` on `58`; 0 → `+1c` on `57`, `+18` on `58`; other values nothing | `W+12 := f13` (values 0 and 1 only) |
+| 11 | `u8(P+f28)` | for i = 0, 1, 2: lookup `ab81ded5 + i`; `+18` when `f28 − 1 == i`, else `+1c` | none |
+| 12 | `u8(P+f10)` | each of `0b85cf92`, `2b85cf9f`, `2b85cfaa`: `+18` when f10 is 1, 2, 3 respectively, else `+1c` (read again per control) | none |
+| 13 | `u32(P+f1c)`, `u32(P+f20)` | (800, 600), (1024, 768), (1280, 1024), (1600, 1200) select `6a57da5a`, `5b`, `5c`, `5d` respectively and clear the other three, in ID order; **any other pair clears all four** | `W+18 :=` 0, 1, 2, 3; an unlisted pair also captures 0 |
+| 14 | `u32(P+f24)` | §6.1's depth slice (16 / 32) | `W+14 :=` low word of f24, for any value |
+
+Then the final release and `W+1e := 0` (§6.1). The body reads no mode list, driver
+or device identity: the choices are the fixed control IDs above. The utility rows
+5, 6 and 9 pass the host root fetched for that call; the helper's result is ignored.
+Row 12 accepts values outside 1–3 and then clears all three. The dimension test in row
+13 compares both words exactly; a pair such as (1024, 600) is "unlisted".
+
+### 9.3 HandleControlMessage, every admitted ID (VP2)
+
+Besides §6.3's actions and §6.4's group, the IDs dispatch through two jump tables
+(`00792ec8` for `6a57da48`–`4d`, `00792ee0` for `6a57da4f`–`58`) and compare chains.
+Every remaining branch is one of these two shapes, returning true AL:
+
+- **Radio click**: look up each ID of the clicked control's group in ID order and
+  request `+18` on the clicked ID, `+1c` on the others; a failed lookup skips its
+  request. Groups: `6a57da49–4b`; `6a57da4c–4e`; `6a57da4f–51`; `2ab6c373–75`;
+  `2ab6c376–77`; `6a57da57–58`; `6a57da5a–5d`; `0b85cf92`/`2b85cf9f`/`2b85cfaa`
+  (one shared body comparing each ID with the event, like §6.4). Shared tails at
+  `00792330`, `00792089`, `00791f95`, `00792af3` and `00792a9c` finish the last
+  lookups and release the final interface (`00792b0e`, `0079209e`).
+- **No owner action**: `6a57da54`, `6a57da55`, `6a57da56`, `6a57da60`,
+  `0a8b7e00` (the toggles change their own state; the readback reads it, §3),
+  and the unadmitted table entries `6a57da52`, `6a57da53`.
+
+No branch writes P, a baseline word or C; no branch tests a control's enabled
+state, and none consults the second argument. The preferences change only through
+§3's readback (run by the save actions) and the Auto action.
+
+### 9.4 ShowDialog's middle bindings
+
+Between the three bindings of §7.1 and the tail, the same binding is made for
+every other admitted control, in this order: `6a57da49`–`51`, `2ab6c373`–`77`,
+`6a57da54`–`58`, `6a57da5a`–`5d`, `ea5e99d9`, `6a57da60`, `0a8b7e00`,
+`ab81ded5`–`d7`, `0b85cf92`, `2b85cf9f`, `2b85cfaa` (`00791677`–`00791d17`). For
+each: root `+8c(ID)` (slot 35, the recursive child lookup; no reference is taken
+and the result is not null-tested), then the control's slot 86 `+158(root)` with a
+freshly fetched root: `SetNotificationTarget` (widget-toolkit.md `+0x4C`;
+widget-wingen.md §13.2 uses the same slot), so every control reports to the dialog
+root and reaches §5.1. With §7.1 that
+is 35 bindings, exactly the IDs §5.1 admits.
+
+The tail's `+110` is the window's slot 68 `SetFlag(mask, on)` with mask 1
+(visible, widget-toolkit.md §3.1): ShowDialog hides `2a57cb83` and shows
+`2a57cb84`; the `ea57da59` branch with C set shows `2a57cb83` and hides `2a57cb84`,
+switching the panel to its second state instead of closing.
+
+### 9.5 Foreign boundaries (VP4, VP5)
+
+- A is the application (`cSC4App`): `+44` is slot 17 SavePreferences, `+4c` slot
+  19 `ApplyVideoPreferences` (`0044a1c0`) and `+50` slot 20
+  `GetAutoVideoPreferences` (`0044a330`), both thiscall with one pointer argument
+  (the block at `P+f0c`), callee pops 4 (application.md §2, §13.3). The panel
+  ignores their results; it always saves before applying.
+- S is the window manager (framework service `a417445e`, IID `5a4`): `+90` slot 36
+  `GZGetFocus`, `+94` slot 37 `SetFocus`, `+60` slot 24 `IsWindowValid`; RZ::WM
+  `+a4` is slot 41 `DoModalWin` (modal-dialogs.md §2.2). `00b43ce0` `+28`
+  `(window, 1)` restores the window's saved location and `+18` saves it, as in the
+  budget and audio panels (budget-window-bodies.md, audio-preferences.md §6.4,
+  where the same sequence appears). The panel tests none of them; a missing
+  service is dereferenced.
+
+### 9.6 Labels (VP2)
+
+From the shipped UI script (`SimCity_1.dat`, type 0, group `96a006b0`, instance
+`8a7e052f`, 3,175 bytes, read with tools/dbpf.py); captions are paired with the
+controls by their order in the script *[inferred: the caption text precedes its
+buttons]*:
+
+| Controls | Caption | Preference |
+|---|---|---|
+| `2a57cb84` | the main panel: `ea5e99d9` "Default Settings", `6a57da48` "Cancel", `ea57da59` "Accept" | – |
+| `2a57cb83` | a panel hidden in the script, text "Resolution, UI translucency, color quality and rendering mod…", button `ea57da6f` "Accept" | – |
+| `6a57da49`–`4b` | Visual Effects: Low / Medium / High | f0d |
+| `6a57da4c`–`4e` | # of Cars/Sims: Low / Medium / High | f0e |
+| `6a57da4f`–`51` | Shadows: Low / Medium / High | f0f |
+| `2ab6c373`–`75` | City Detail: Low / Medium / High | f16 |
+| `6a57da54` | Clouds/Fog | f11 |
+| `6a57da57`, `58` | Renderer: Hardware / Software | f13 (1 = hardware) |
+| `6a57da55` | Waves | f12 |
+| `6a57da56` | UI Translucency | f15 |
+| `6a57da60` | Color Cursor | f14 |
+| `2ab6c376`, `77` | Color Quality: 16-bit / 32-bit | f24 |
+| `6a57da5a`–`5d` | Resolution: 800x600 / 1024x768 / 1280x1024 / 1600x1200 | f1c, f20 |
+| `ab81ded5`–`d7` | Building Draw Speed | f28 |
+| `0b85cf92`, `2b85cf9f`, `2b85cfaa` | Texture Quality | f10 |
+| `0a8b7e00` | Variable Speed Automata | f18 |
+
+So the main Accept with C set (§3.2 sets it when city detail, the renderer, UI
+translucency, the color cursor, the resolution or the color quality differs from the
+opening values) swaps to the hidden panel, a notice about those settings, instead of
+closing; the notice's Accept saves and applies (§6.3).
+
+### 9.7 Conformance tests
+
+1. Redraw with `W+1e = 1`, f16 = 2, f15 = 1, f14 = 0, f13 = 1, (f1c, f20) =
+   (1024, 768), f24 = 32 and every lookup succeeding captures `W+16 = 1`,
+   `W+1c = 0`, `W+10 = 0`, `W+12 = 1`, `W+18 = 1`, `W+14 = 32`; a second redraw
+   with other values captures nothing.
+2. (f1c, f20) = (1024, 600) clears `6a57da5a`–`5d` and, on the first redraw,
+   captures `W+18 = 0`.
+3. Clicking `6a57da5c` requests `+1c, +1c, +18, +1c` on `5a, 5b, 5c, 5d`; clicking
+   `6a57da55` makes no request and returns true.
+4. A panel created by the region screen with every service present runs ShowDialog
+   (false AL), DoModalWin, then is released and freed.
+

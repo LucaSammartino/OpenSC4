@@ -399,6 +399,7 @@ function StartJob([string]$root, [IO.FileInfo]$req, [int]$slot, [int]$prio) {
     }
     $argv = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Run, "-Slot", "$slot", "-Dll", $q.dllFull, "-Region", $q.region, "-City", $q.city,
               "-IniFile", $iniFile, "-AfterLoadSeconds", "$($q.seconds)", "-Seconds", "$($q.timeout)", "-Label", $runLabel)
+    if ($prio -eq 0) { $argv += @("-GamePriority", "AboveNormal") }   # a priority = high request (the train's regress) must not starve behind 20 lane games
     if ($q.end_date) { $argv += @("-EndDate", $q.end_date) }
     if ($q.turbo -eq "1") { $argv += "-Turbo" }
     if ($q.turbo_from) { $argv += @("-TurboFrom", $q.turbo_from) }

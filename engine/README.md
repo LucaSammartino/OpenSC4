@@ -2614,6 +2614,26 @@ value-only corpus/case exports and nearby-input replay are documented as a
 stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
 Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).
 
+### Construction quit experiments
+
+`autotest_quit_post = 1` (env `FC4_AUTOTEST_QUIT_POST`, default off) makes
+`autotest_end = quit` post the application's native `0xC7AA61C6` command to
+its legacy message target. The main loop delivers it to the game's quit
+handler after the observer's tick. The verdict still requires
+`PostSystemServiceShutdown`; a missing service/target is a failed run, never
+a clean termination. Native target-post has no Boolean result (00930273).
+
+`script_port_probe = 1` logs the building pointer/type after the port action.
+`script_port_instant = 1` disables its construction animation. Both default
+off and affect only scripted port actions; they are diagnostic controls.
+
+The `findings` scenario `quit-construction28` preserves a native construction
+shutdown fault at `0x005D0F94`: both direct and posted quit fault after its
+one animated airport action, including after a pause or full save. Disabling
+the animation avoids that incomplete object and exits cleanly; it is a
+separate control, not a correction to the finding. The suite retains
+`clean-exit-crash`; it does not enable either diagnostic switch by default.
+
 ### Formats replacement
 
 `enable = formats` is off by default. It selects the existing FC4 exemplar and

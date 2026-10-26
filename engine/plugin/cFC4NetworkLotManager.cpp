@@ -18,6 +18,8 @@
 #include "FC4Log.h"
 #include "FC4HistClock.h"
 #include "FC4NetMgrHost.h"
+#include "FC4NetworkConfigurationSet.h"
+#include "FC4GameList.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
 #include "FC4Seed.h"
@@ -51,6 +53,7 @@
 #include "SC4Rect.h"
 #include "cRZCOMDllDirector.h"
 
+#include <algorithm>
 #include <vector>
 
 namespace {
@@ -382,8 +385,7 @@ fc4_netlot_host MakeHost(cFC4NetworkLotManager* self, fc4::NetMgrOwner* owner) {
 
 bool cFC4NetworkLotConfiguration::QueryInterface(uint32_t riid, void** out) {
     if (out == nullptr) return false;
-    *out = nullptr;
-    // SPEC-GAP: the configuration IID is unspecified; expose only the known unknown identity.
+    // NM15: only IUnknown succeeds; failure leaves the caller's output alone.
     if (riid != GZIID_cIGZUnknown) return false;
     *out = static_cast<cISC4NetworkLotConfiguration*>(this);
     AddRef();
@@ -412,12 +414,17 @@ const std::vector<uint32_t>& cFC4NetworkLotConfiguration::ObjectIds(size_t index
 
 cFC4NetworkLot::cFC4NetworkLot(cISC4NetworkOccupant* occ,
                              std::shared_ptr<cFC4NetworkLotConfiguration> config)
-    : occ_(occ), config_(std::move(config)) {
+    : occ_(occ), config_(config.get()) {
     if (occ_ != nullptr) FC4_ADDREF(occ_);
+    if (config_ != nullptr) config_->AddRef();
 }
 
 cFC4NetworkLot::~cFC4NetworkLot() {
-    if (occ_ != nullptr) FC4_RELEASE(occ_);
+    // NM16: destruction drops the configuration before the held occupant.
+    // An occupant already removed from the city can have only this reference.
+    if (config_ != nullptr) config_->Release();
+    config_ = nullptr;
+    if (occ_ != nullptr) FC4_RELEASE_AT_DESTRUCTION(occ_);
 }
 
 bool cFC4NetworkLot::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -676,6 +683,13 @@ void cFC4NetworkLotManager::ReadConfigurations() {
                 configProps_.push_back(p);
                 if (fc4_netlot_add_configuration_props(core_, record->Token(), p, objects.data(),
                                                        static_cast<uint32_t>(objects.size()))) {
+                    auto group = std::find_if(configurationGroups_.begin(), configurationGroups_.end(),
+                        [&](const auto& g) { return g.first == record->GetNetworkPieceId(); });
+                    if (group == configurationGroups_.end()) {
+                        configurationGroups_.push_back({record->GetNetworkPieceId(), {record->Token()}});
+                    } else {
+                        group->second.push_back(record->Token());
+                    }
                     configs_.emplace(record->Token(), std::move(record));
                     ++added;
                 } else {
@@ -715,6 +729,8 @@ bool cFC4NetworkLotManager::Shutdown() {
     writable_ = false;
     for (auto& kv : lots_) kv.second->Release();
     lots_.clear();
+    configurationGroups_.clear();
+    configs_.clear();
     fc4::NetMgrReleaseHeld(&owner_.ctx);
     if (!destroying_) Release();
     return true;
@@ -733,9 +749,18 @@ cISC4NetworkLot* cFC4NetworkLotManager::GetNetworkLot(int32_t x, int32_t z) {
 
 // Slot 6 (§11.2 / §8.6): the configuration set. `set` is the caller's set of
 // cISC4NetworkLotConfiguration objects.
-// SPEC-GAP: the output container layout/allocator is unspecified; do not write an assumed set ABI.
-void cFC4NetworkLotManager::GetNetworkLotConfigurationSet(intptr_t) {
-    fc4::Log("netlot GetNetworkLotConfigurationSet: the output container contract is not specified");
+void cFC4NetworkLotManager::GetNetworkLotConfigurationSet(intptr_t set) {
+    if (!fc4::StlNodeAllocator::Available()) return;
+    std::vector<uint32_t> values;
+    // SPEC-GAP: native catalogue hash bucket order is unspecified; use the core's first-load group order.
+    for (const auto& group : configurationGroups_) {
+        for (uint64_t token : group.second)
+            values.push_back(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ConfigByToken(token))));
+    }
+    if (!fc4::ReplaceNetworkConfigurationSet<fc4::StlNodeAllocator>(
+            reinterpret_cast<fc4::NetworkConfigurationSet*>(set), values, [](uint32_t value) {
+                reinterpret_cast<cISC4NetworkLotConfiguration*>(static_cast<uintptr_t>(value))->AddRef();
+            })) fc4::Log("netlot GetNetworkLotConfigurationSet: invalid set or allocation failure");
 }
 
 // Slot 7 (§8.6): true when a loaded configuration has `id`. The original never
@@ -894,6 +919,37 @@ cIGZUnknown* CreateFC4NetworkLotConfiguration() { return cFC4NetworkLotConfigura
 
 intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
     if (first == nullptr || second == nullptr) return -1;
+    // NM16 worked case: the city drops its ownership before a retained lot
+    // view. The last view must release exactly once, config before occupant,
+    // without Shutdown, RemoveOccupant, or a compensating permanent pin.
+    {
+        class RemovedOccupant final : public cIGZUnknown {
+        public:
+            bool QueryInterface(uint32_t, void**) override { return false; }
+            uint32_t AddRef() override { ++adds; return ++refs; }
+            uint32_t Release() override {
+                ++drops;
+                if (--refs == 0) {
+                    ++finals;
+                    configFirst = config->AddRef() == 2;
+                    config->Release();
+                }
+                return refs;
+            }
+            cFC4NetworkLotConfiguration* config = nullptr;
+            uint32_t refs = 1, adds = 0, drops = 0, finals = 0;
+            bool configFirst = false;
+        } removed;
+        auto config = cFC4NetworkLotConfiguration::Create(0);
+        removed.config = config.get();
+        auto* view = new cFC4NetworkLot(reinterpret_cast<cISC4NetworkOccupant*>(&removed), config);
+        if (removed.refs != 2 || config->AddRef() != 3 || config->Release() != 2) return 0;
+        removed.Release();  // occupant-manager detach/drain reference is gone
+        if (view->GetNetworkOccupant() != reinterpret_cast<cISC4NetworkOccupant*>(&removed)) return 0;
+        view->Release();
+        if (removed.refs != 0 || removed.adds != 1 || removed.drops != 2 || removed.finals != 1 ||
+            !removed.configFirst || config->AddRef() != 2 || config->Release() != 1) return 0;
+    }
     // Only the unknown prefix of these fake occupants is used (AddRef/Release).
     auto* a = reinterpret_cast<cISC4NetworkOccupant*>(first);
     auto* b = reinterpret_cast<cISC4NetworkOccupant*>(second);
@@ -972,12 +1028,13 @@ intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
     if (!iface->QueryInterface(GZIID_cIGZUnknown, &unknown) || unknown != iface ||
         iface->QueryInterface(GZIID_cIGZUnknown, nullptr)) return 0;
     void* unsupported = iface;
-    if (iface->QueryInterface(0xFFFFFFFF, &unsupported) || unsupported != nullptr) return 0;
+    if (iface->QueryInterface(0xFFFFFFFF, &unsupported) || unsupported != iface) return 0;
     std::weak_ptr<cFC4NetworkLotConfiguration> weak = config;
     auto* lot = new cFC4NetworkLot(a, config);
     config.reset();
-    const bool kept = !weak.expired() && lot->Config()->ConfigId() == 42 &&
+    const bool kept = weak.expired() && lot->Config()->ConfigId() == 42 &&
         lot->GetLotConfigurationObjectArray() != nullptr;
+    if (iface->AddRef() != 3 || iface->Release() != 2) return 0;  // caller + lot
     lot->Release();
     // The shared owner is gone, but the caller's QI reference keeps the COM object alive.
     const auto* objects = iface->GetObjectArray();
@@ -1011,7 +1068,8 @@ intptr_t NetworkLotOwnershipTest(cIGZUnknown* first, cIGZUnknown* second) {
     std::weak_ptr<cFC4NetworkLotConfiguration> duplicateLife = duplicate;
     manager.configs_.erase(8);
     duplicate.reset();
-    if (duplicateLife.expired() || oldView->Config()->Token() != 8) return 0;
+    if (!duplicateLife.expired() || oldView->Config()->Token() != 8 ||
+        oldView->Config()->AddRef() != 2 || oldView->Config()->Release() != 1) return 0;
     oldView->Release();
     if (!duplicateLife.expired()) return 0;
     fc4_netlot_config c{};

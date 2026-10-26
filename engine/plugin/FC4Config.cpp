@@ -288,6 +288,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_turbo_wait_days", "close_dialogs",
                                   "sim_fixed_step",  // golden harness; default off
                                   "script_save_grace_ms",  // golden full-save allowance; default off
+                                  "autotest_quit_post", "script_port_instant", "script_port_probe",  // off
                                   "tract_shadow", "tract_seed", "tract_grow_log",
                                   // the cmglue lane (FC4CommercialShadow.h, cFC4Civic.cpp, cFC4Parks.cpp)
                                   "commercial_shadow", "commercial_shadow_cells", "civic_shadow", "civic_seed",
@@ -425,6 +426,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "modelinst_shadow",
                                   // Specified live lot getter comparison, independently default off.
                                   "lotrecview_shadow",
+                                  // Scoped watercraft records/getters and inherited stack probes.
+                                  "watercraft_shadow",
                                   // Private native draft planning vs read-only Rust replay.
                                   "nettool_plan_shadow", "powerline_plan_shadow",
                                   // Isolated GZ buffers and read-only command parsing, default off.
@@ -438,7 +441,10 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "compare_record_limit", "compare_case_limit",
                                   // Native entry census; opt-in only.
                                   "reach", "reach_cap", "reach_window", "reach_include_probes",
+                                  "reach_contracts", "reach_output", "reach_diagnostics", "reach_lifecycle",
                                   "reach_contracts", "reach_output", "reach_diagnostics",
+                                  // Explicit DX7 shadow selection before city resources, default off.
+                                  "gdriver_shadow_select",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

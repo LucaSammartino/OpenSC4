@@ -1429,3 +1429,11 @@ if(TARGET fc4_plugin_load_test)
     set_tests_properties(plugin_netlot_default_factories plugin_netlot_disabled_factories plugin_netlot_object_factories
         PROPERTIES RUN_SERIAL TRUE)
 endif()
+
+# Public DX7 slot/arity checks and bounded native transcript forwarding.
+if(TARGET FreeCity4)
+    add_executable(fc4_gdriver_trace_test tests/gdriver_trace_test.cpp)
+    target_include_directories(fc4_gdriver_trace_test PRIVATE plugin)
+    target_compile_options(fc4_gdriver_trace_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME gdriver_trace_contract COMMAND fc4_gdriver_trace_test)
+endif()

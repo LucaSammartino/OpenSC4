@@ -1,5 +1,56 @@
 # audio: answered questions
 
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU43 — preferences construction and song/control rules:** supplement §21 settles the sound IO,
+  slider arithmetic and some source/notification filtering. Recover construction/defaults, complete
+  OK/cancel/revert ordering, dialog control actions/filter matrix, song discovery and exclusion-list
+  persistence (`0x004F2A70`–`0x004F5120`). Existing ui-windows coverage is framework inventory only.
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio-preferences.md §§1–7 supplies
+  construction/defaults, discovery/table format, complete control/filter matrix and close
+  rules; §§3.9, 6.6 and 9.1 make persistence, transaction order and worked cases explicit.
+  OK saves flags/mode before rebuilding the process-static radio lists; Cancel restores
+  the snapshot and updates audio but neither saves nor rebuilds lists. Directory scans
+  enable custom tunes without adding grid rows. Source filtering uses IsVisible, not
+  IsEnabled; accepted type-3 messages can return true without dispatch. Supplement §21
+  now links the completed contract and corrects Shutdown's grid-reference ownership.
+
+<!-- from: re-audio9 (2026-10-23) -->
+- **AU42 — full scape group/instance contract:** supplement §20 inventories all 19 primary slots,
+  but slots 7–17, resource format, parameter smoothing, timer widths, capacity outputs and allocation
+  failures need full behavior. Relevant range `0x004F51E0`–`0x004F7B60`; service tick `0x004F67C0`.
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio-scape.md §§3–7 specifies every
+  group/instance slot; §§3.5, 6.2, 7.4–7.5 complete input/ownership, u32 timer wrap,
+  signed channel smoothing, capacity/output rules, sparse grid arithmetic and allocation
+  requirements. There is no resource decoder: slot 5 copies a name string. Metadata is
+  emanation total. Allocation failures have no owner-level false/unwind path. Section 11
+  adds worked timer, channel/cache, output, sparse-grid and sound-band cases. Audio §20.4
+  and supplement §20 now point to this complete contract.
+
+<!-- from: core-audio-close13 (2026-10-24) -->
+- **AU50 — §8.3.1 remaining SoundManager algorithms:** the AU46/AU49 answer says
+  UpdateAll applies distance/simulation-pause policies, linked UpdatePosition performs a
+  mode-specific volume/pan update, and focus gain calls Resume, but gives none of those
+  bodies. §10.8 names voice-count gates without specifying comparisons, rejection/linking
+  or existing-instance selection. Please specify these algorithms, linked averaging and
+  promotion state/reference transfer, Resume's foreign slots/transition rules, the six
+  constructor position-sentinel bits, and start/position payload reference/return rules.
+  [Implement only specified stages; record explicit Unsupported for voice policy, linked
+  position, distance/simulation pause and Resume. Require sentinel as an explicit input;
+  do not claim complete SoundManager execution or invent foreign Resume slots.]
+  (re-tsound8, 2026-10-25, partial: the instance side, linked averaging and volume/pan by model, distance and
+  simulation pause, Resume and its foreign slots, is audio-owner-closure.md §7; the voice-count gates, UpdateAll
+  and the sentinel bits on the manager side stay open.)
+
+  **ANSWERED 2026-10-26 (re-au29):** DIFFERS — audio.md §8.3.2 completes the manager
+  algorithms and incorporates audio-owner-closure.md §7's sound-side bodies. Last matching
+  instance supplies the 50-tick test, repeated one-shots alone meet the unsigned count gates,
+  loops link to the first master, gain uses the pre-insertion count, refresh order is specified,
+  promotion transfers interfaces/list rather than instance state, all six sentinel words are
+  positive zero, and non-null start/position payloads return true independently of worker success.
+  Worked cases cover admission boundaries, gain, promotion, payload references and Resume.
+
 **ANSWERED 2026-10-24 (re-audio-au40):** DIFFERS — AU41: audio.md §19.2 specifies
 SEM/model defaults, binding, registration, retained-state failure and teardown, and all six
 model slot 5/6 contracts with twelve vectors. Primary slot 4 calls the supplied object's
@@ -121,3 +172,28 @@ superseded by the cited spec sections, checked against 1.1.641 instructions.
 - **AU16 - sections 7 and 9.5, DoEvent, torch ownership and destruction:** The owner exposes DoEvent (0x004EF490) and a deleting destructor (0x004EFC60), but no callback event table, effects, or destruction algorithm is specified. What events does DoEvent accept, how do they trigger/stop sounds and modify handler state, what are its failure returns, and what cleanup does destruction require beyond Shutdown? Section 7.4 assigns torch entry points to cSC4AudioEventHandlerDisasterFire while section 9.5 names cSC4AudioEventHandler::_StartTorchSound/_StopTorchSound: which owner has them, and what selects their sounds, instances and failure behavior? [DoEvent reports a gap; explicit Shutdown implements the documented successful-path cleanup. Rust owns its collections; no foreign callbacks are guessed during Drop. Torch algorithms remain unspecified. Owner closure remains open.]
 
   **ANSWERED 2026-10-23 (re-audio-au5):** DIFFERS — audio.md §§7.4–7.6 gives the event table, true-only-on-missing-sound-system callback return, torch globals/numeric order, sound/key/volume table and destruction contract. Torch belongs to the main handler. Destruction does not call Shutdown or stop sounds; it destroys timer/list storage and releases remaining member services. Leftover raw modal pointers are not released by the native list destructor. Conformance groups 26–42 cover all four answers.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- ~~**AU47 — SC4 director complete lifetime and ordering:** §§1.1/1.3/11 give the five-director
+  add/start order and 92 registrations, but not the constructor interleaving of the nine named
+  classes with the 83 leaves, OnStart return/failure policy, or full PostAppInit service creation,
+  initialization, failure unwind and shutdown/destruction ordering. What are those contracts?
+  [Execute the settled add/start sequence; register the measured class set in literal table order.
+  Leave unspecified application lifetime unsupported rather than invent service success.]~~
+  **ANSWERED 2026-10-25 (re-audiofilters8):** already answered in audio.md §11.3 (no interleaving, OnStart
+  ignores child results and returns true, PostAppInit's ten steps with no unwind, PreAppShutdown order versus the
+  destructor's release order); archived here. The 83 leaves' tests are audio-filters.md.
+
+<!-- from: core-audio-close11 (2026-10-24) -->
+- ~~**AU48 — AEMS owner lifetime and missing event-system bodies:** §10.7 specifies raw bank slurp,
+  resource TGI caching, successful AddBank linkage and registrar prerequisites, while §17 inventories
+  24 event-system entries but gives no full QI, constructor fields, Init/Shutdown, StopAllSounds,
+  event/service dispatch, bank removal/destruction, allocator and callback contracts. Please specify
+  them, plus AddBank result convention, file reference ownership, allocation/read failures and
+  the two GetSize calls disagreeing. §10.8 also lacks failed/short tuning read policy for AEMS.
+  [Implement raw IO and successful linkage as explicit stages; no guessed full owner execution.
+  Refuse a read larger than allocation; native unstable-size/error behavior stays unsupported.]~~
+  **ANSWERED 2026-10-25 (re-audioclose8):** audio.md §10.7.1 answers every point (constructor, QI, Init and
+  Shutdown with the latch, StopAllSounds' 19 indices, Start/EndSound, DoEvent and the message callback, AddBank's
+  zero-means-success, RemoveBank, file ownership and the two GetSize calls, tuning read policy); archived here.
+  RemoveAllBanks' address and the view thunks are audio-owner-closure.md §1.
