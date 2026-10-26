@@ -73,6 +73,7 @@ struct ProbeHost {
         if (!copy.Query(driver, 0xE69BFE2A)) return false;
         buffer.p = Call<cIGZUnknown*, int32_t, int32_t, uint32_t, uint32_t, void*>(copy.p, 3, 0, 0, 64, 64, nullptr);
         buffer.created = true;
+        if (buffer.p) FC4_ACQUIRED(buffer.p, "cfgrules readback created");
         return true;
     }
     void Flush() { Call<void>(driver, 43); }
@@ -118,6 +119,7 @@ struct Host {
         if (!com || !com->GetClassObject(0xE9C622D8, 0x681BD529, reinterpret_cast<void**>(&render.p)) || !render.p)
             return false;
         render.created = true;
+        FC4_ACQUIRED(render.p, "cfgrules renderer facade created");
         StoreHost store{render.p};
         m.backingStore = BackingStore(store);
         Ref<> audio;
@@ -135,7 +137,9 @@ struct Host {
     FC4ConfigRulesHost Callbacks() {
         return {this,
             [](void* p) { FC4_ADDREF(static_cast<cISC4RenderProperties*>(p)); },
-            [](void* p) { FC4_RELEASE(static_cast<cISC4RenderProperties*>(p)); },
+            // graphics-rules 1: destroying the retained property holder may
+            // release its last reference after the application has let go.
+            [](void* p) { FC4_RELEASE_AT_DESTRUCTION(static_cast<cISC4RenderProperties*>(p)); },
             [](void* p, uint32_t k, FC4ConfigRulesBytes b) -> int32_t {
                 auto* r = static_cast<cISC4RenderProperties*>(p); const auto s = Text(b);
                 return k == 0 ? r->BoolPropertyIDFromName(s.c_str()) : k == 1 ? r->IntPropertyIDFromName(s.c_str()) : r->FloatPropertyIDFromName(s.c_str());
@@ -256,6 +260,7 @@ public:
         // application 9: SDK directory aliases/signatures differ from the game.
         // Slot 51 copies the data path, slot 56 the user-data path; neither takes
         // a language index (that belongs to plugin path slot 53).
+        // SPEC-GAP: GR10: native rule-file root/search acquisition is unspecified; these paths cause fallback in the measured run.
         Call<void, cIGZString&>(app.app.p, 51, data);
         Call<void, cIGZString&>(app.app.p, 56, user);
         if (!data.Strlen() || !user.Strlen()) {
