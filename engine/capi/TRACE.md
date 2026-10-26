@@ -52,8 +52,10 @@ Exit codes: 0 all exact, 1 inexact/incomplete, 2 invalid invocation/manifest.
 An empty manifest is an invalid invocation, including one containing only
 comments; it cannot certify an empty suite.
 
-Cache files under `verdict-cache/` are keyed by trace SHA-256 and the compiled
-source fingerprint. The fingerprint covers all Rust sources and Cargo
+Cache files under `verdict-cache/` are keyed by trace SHA-256, shadow owner key
+and the compiled source fingerprint. Owner namespacing prevents a manifest
+from relabeling a trace and inheriting another owner's warm verdict.
+The fingerprint covers all Rust sources and Cargo
 manifests/lockfile of `fc4-capi` and its local dependencies (`core`, `formats`),
 including the thunk generator. These owners share crates, so invalidation is
 conservative: any source change in those crates invalidates all pilot owners.
@@ -73,6 +75,13 @@ Coverage tool ingestion and attribution of the recording census's reach
 counters belong to the coordinator. This implementation does not create reach
 credit or infer reach from replay. Further callback-host keys and live-object
 or draw-stream adapters remain outside the three-owner pilot.
+
+A completed trace certifies its recorded steps, not completion of the census
+scenario. Keep the original game verdict, requested/reached end date and reach
+counters alongside the manifest. Coverage ingestion must exclude failed or
+unfinished scenarios even if an earlier month closed successfully and replays
+exactly. A watchdog termination can leave only `.partial` files; those never
+enter the manifest and cannot supply replay evidence.
 
 ## Next adapters and boundary limits
 

@@ -422,7 +422,7 @@ pub fn run(manifest: &Path, no_cache: bool, jobs: usize) -> Result<bool, String>
                     if digest != row.sha {
                         return Err("trace content digest mismatch".into());
                     }
-                    let cached = cache.join(format!("{}-{source}", row.sha));
+                    let cached = cache.join(format!("{}-{source}-{}", row.sha, row.key));
                     if !no_cache {
                         if let Ok(bytes) = fs::read(&cached) {
                             let mut r = Reader(&bytes);

@@ -101,6 +101,11 @@ fn budget_trace_roundtrip_and_content_address_validation() {
     assert!(run(&manifest, true, 2).unwrap());
     assert!(run(&manifest, false, 2).unwrap());
     let text = fs::read_to_string(&manifest).unwrap();
+    // A different owner in a later manifest must not inherit the warm
+    // verdict, even when its recorded counters happen to be identical.
+    fs::write(&manifest, text.replace("\tbudget_shadow\t", "\tpower_shadow\t")).unwrap();
+    assert!(!run(&manifest, false, 2).unwrap());
+    fs::write(&manifest, &text).unwrap();
     // The same content can appear in several census scenarios. A healthy
     // cached row must not hide stale metadata in another trace of that key.
     let mut stale: Vec<_> = text.trim_end().split('\t').collect();
