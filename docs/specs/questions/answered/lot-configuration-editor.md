@@ -1,5 +1,23 @@
 # Native lot configuration editor answered questions
 
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE11 — Retaining-wall and foundation selector bodies**
+
+**ANSWERED 2026-10-26 (re-le30):** MATCHES — §29 specifies unfiltered enumeration, two-column rows, preselection, selection capacities, empty OK writes, return values and lifetime/failure order, with worked wall/foundation cases and both selector closure rows.
+
+Resolve 0x00480910 and 0x00485D60 row schemas, enumeration/filtering,
+preselection, empty selection, acceptance, missing-control and cancel/failure
+behavior. Foundation popup dispatch is §26.2; the dialog itself remains open.
+
+<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
+**LE12 — SetLotSize arithmetic and refresh**
+
+**ANSWERED 2026-10-26 (re-le30):** DIFFERS — §30 specifies full-unsigned comparisons versus low-byte storage, aspect-dependent x87 scale selection, outer sizing using the horizontal margin twice, degenerate values and conditional dirty/unconditional draw order; worked cases identify both affected rows.
+
+Resolve 0x00486080 scale selection, rectangle sizing, integer/float widths,
+byte truncation, degenerate dimensions and dirty/refresh order. The size
+dialog wrapper in §16 is already resolved.
+
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE3/LE5 -->
 **LE9 — Hit-test coordinate conversion and fallback geometry**
 

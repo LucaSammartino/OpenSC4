@@ -5,20 +5,6 @@ their unresolved scope; retiring the broad entries does not close the owner.
 LE6/LE8 remain answered and are not reopened.
 
 <!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
-**LE11 — Retaining-wall and foundation selector bodies**
-
-Resolve 0x00480910 and 0x00485D60 row schemas, enumeration/filtering,
-preselection, empty selection, acceptance, missing-control and cancel/failure
-behavior. Foundation popup dispatch is §26.2; the dialog itself remains open.
-
-<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
-**LE12 — SetLotSize arithmetic and refresh**
-
-Resolve 0x00486080 scale selection, rectangle sizing, integer/float widths,
-byte truncation, degenerate dimensions and dirty/refresh order. The size
-dialog wrapper in §16 is already resolved.
-
-<!-- from: re-lotcfg-editor-le10 (2026-10-24), residual LE4 -->
 **LE13 — Selected-object popup remainder and add/select wrappers**
 
 Resolve 0x00487B30 types 3/5, exact detail markers, edge table 0x00A8E6C8

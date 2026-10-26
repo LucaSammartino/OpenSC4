@@ -715,8 +715,7 @@ It calls the record overload, then sets dirty and updates title; no match
 does none of these operations. Thus its draw/invalidation precedes dirty/title
 (`0x00484718..0x00484839`). Constants are binary32 1 at `0x00A81228` and
 1/16 at `0x00A8E174`. Conversion is helper `0x009EEF04`, with signed 64-bit
-intermediate and low-byte use here. Invalid/overflow conversion is not assigned
-a portable fence coordinate; ordinary finite in-range truncation is established.
+intermediate and low-byte use here. §28 completes invalid/overflow conversion.
 
 LotFoundationIsPresent (`0x0047B420`) returns the `+0x20` ID of the **first**
 type-3 object, or zero if none; it is not a Boolean test and a zero-ID first
@@ -1133,9 +1132,9 @@ null output, without continuing to grid/lot fallback tests
 
 Object pixel bounds are obtained through `_ftol2` integer conversions, **not**
 direct floating-point comparisons (`0x00483E60..0x00483EC3`). Consequently the
-unordered-skip rules of §9.6 cannot be copied into this hit test. Exact
-reciprocal precision differences, invalid/overflow conversions, remaining
-grid/resize/inside fallback rectangles and helper `0x0047B310` are LE3/LE5.
+unordered-skip rules of §9.6 cannot be copied into this hit test. §27–§28 complete
+reciprocal precision differences, invalid/overflow conversions, grid/resize/inside
+fallback rectangles and helper `0x0047B310`.
 
 Discriminators: with overlapping records `[A,B]`, selected B and flag zero,
 B wins; with no selection and flag zero, A wins. With flag `0x02`, the selected
@@ -1298,6 +1297,122 @@ and nonzero finite s give `(0,0,0,0)`.
 
 Closure mapping: `0x0047B310`, `0x0047B390`, and the invalid-conversion
 dependency of pixel ToggleFence `0x00484700` (LE3/LE5 geometry rows).
+
+## 29. Retaining-wall and foundation selectors (LE11) *[compat]*
+
+Both bodies create script resource `(0,0x96A006B0,0xE9263D4E)` with creation
+argument `0xA9264C0E`, then request child `0xE9264E71`, IID `0xDAA6B9BE`.
+A missing window returns false. A failed child-interface request shuts down
+and releases the window and returns false, without showing a modal dialog or
+changing the lot. The successful path clears/configures the grid, registers
+the window with the modal service, runs it, unregisters it and restores editor
+focus **before** interpreting the result. Only result `0x42B7C356` accepts.
+Cancel/other results return false without lot writes. The acquired grid is
+released, enumeration storage freed, and the window shut down/released on
+completion (`0x00480916..0x004809B9`, `0x00480B41..0x00480D0C`,
+`0x00485D63..0x00485E01`, `0x00485F5D..0x0048607E`).
+
+| Contract | Retaining wall `0x00480910` | Foundation `0x00485D60` |
+|---|---|---|
+| Grid configuration | 2 columns, selection capacity 32, final option 0 | 2 columns, selection capacity 1, final option 0 |
+| Enumeration source | Global foundation/wall manager `+0x6C` into an ID vector | Same manager `+0x54` into an ID vector |
+| Row order/filter | Every enumerated ID, in returned order; no local filter, deduplication, synthetic None row, or sort | Same; implementation-type output from the name helper is not a filter |
+| Column 0 | ID formatted `0x%08x`, eight lower-case hex digits | Same |
+| Column 1 | Retaining-wall name helper output | Foundation name helper output |
+| Preselection | Select every row whose ID occurs in configuration ID vector `+0x9C` | Select the row matching the supplied current ID (first argument); no auto-selection when absent |
+| OK result | True, even with no rows selected or no effective change | Same |
+
+Wall OK constructs a fresh ID vector. When the grid reports selections, it
+requests at most 32 selected-cell pairs and reads column zero at each returned
+row, in the grid's returned order. Parse each as `RZAtoUint32HexA`; append only
+nonzero values. There is no second deduplication/sort. Assign this vector to
+configuration `+0x9C` even if it is empty, then dirty=1, SetTitle, DrawCurrent,
+invalidate, in order (`0x00480B81..0x00480CBD`). It is a replacement, not an
+incremental toggle of the preselection.
+
+Foundation OK begins with result ID zero. If a cell is selected, obtain the
+selected cell coordinates and parse column zero of that row. Unlike walls,
+zero is retained. With a non-null second argument, write the result directly
+to that record's `+0x20` (no type check, bounds update, removal, or selection
+repair). With a null second argument, call AddLotFoundation(result ID, true).
+Then dirty=1, SetTitle, DrawCurrent, invalidate, even if the ID did not change
+or the helper's same-ID path was a no-op (`0x00485F9D..0x00486043`).
+
+Worked cases: enumerated wall IDs `[0x10,0x20,0x30]` and stored IDs
+`[0x30,0x10]` preselect rows 0 and 2. OK with returned selected rows `[2,0]`
+stores `[0x30,0x10]`; OK with no selection stores `[]` and still dirties and
+refreshes. Cancel preserves the original list. For a building record with
+foundation ID `0x20`, empty-selection foundation OK writes zero and refreshes;
+the same operation with null record asks the first-foundation helper to
+install ID zero rather than invoking its disable/remove operation.
+
+Closure mapping: DoSetRetainingWallUI `0x00480910` and DoSetFoundationUI
+`0x00485D60`, the two LE4 selector-body rows. Name resolution is §35; the
+foundation popup's dispatch/result-ID distinction remains §26.2.
+
+## 30. SetLotSize arithmetic and refresh (LE12) *[compat]*
+
+SetLotSize `0x00486080` accepts two **unsigned 32-bit** dimensions and a byte
+option. With option nonzero, return immediately if both full arguments equal
+the current zero-extended dimension bytes. Otherwise remember whether either
+full argument is unsigned-less than its old byte and whether either differs.
+Store the **low byte** of each argument in the lot. If the less-than condition
+was true, invoke RemoveOutOfBoundsLotConfigurationObjects **after** those
+stores. No range validation or minimum dimension is imposed
+(`0x00486080..0x00486101`). A wrapped byte becoming smaller does not itself
+cause cleanup if the full argument was larger.
+
+Obtain the edit control's underlying window width and height, subtract 7 from
+each using 32-bit integer arithmetic, convert each signed result to binary32:
+call these W and H. Separately shift each full unsigned dimension left four
+bits, with 32-bit wrap, convert the resulting unsigned integer to binary32:
+call these X and Y. The unsigned conversion is signed conversion plus binary32
+`4294967296` when the shifted sign bit is set (`0x0048611C..0x00486183`).
+It uses the full arguments, not the newly truncated lot bytes.
+
+Compute viewport aspect A=W/H and lot aspect B=X/Y in x87, without a binary32
+store of either ratio. Choose the new scale as follows, then store the chosen
+quotient to binary32 editor `+0x1AC` (`0x00486187..0x004861CC`):
+
+| First comparison | Choose X/W only when | Otherwise |
+|---|---|---|
+| A is ordered and greater than 1 | B is ordered and greater than A | Y/H |
+| A is at most 1, or unordered | B is ordered and less than A | Y/H |
+
+This is the native aspect-dependent branch, including equality; it is not
+a universal maximum or minimum of the two scales. Zero/negative viewport
+space, zero dimensions, infinities and unordered ratios are not rejected.
+An unordered B-versus-A comparison always chooses Y/H. Floating exceptions
+follow the current masks as in §28.
+
+Next request the containing window by ID `0x6946DA25`, IID `0xC2AFA76F`.
+If acquired, read the edit and containing-window integer rectangles. Preserve
+the containing rectangle's left/top; let D be twice (edit-left minus
+containing-left), with 32-bit wrap. Set its right to containing-left + D + 7
++ T(X/s), and bottom to containing-top + D + 7 + T(Y/s). T is §28, and the
+reciprocal stays in x87 across these two products. **The horizontal margin
+is reused for height**; the edit-top offset is not used. Apply the rectangle
+and release the acquired window. A failed request skips only this resizing
+(`0x004861D2..0x004862AA`).
+
+Finally, if the option is nonzero and the full dimensions differed, dirty=1
+then SetTitle. Always DrawCurrent then invalidate on the non-early-return
+path. Option zero therefore forces recalculation/redraw even with equal
+dimensions, but suppresses this final dirty/title pair (cleanup's own effects
+still apply). No selection reset is added (`0x004862AE..0x004862E5`).
+
+Worked cases: edit window 135×71 gives W=128,H=64. Request 2×1: X=32,Y=16,
+A=B=2, so s=0.25. With edit-left=4 and containing rectangle initially at
+`(0,0,...)`, D=8 and the resulting rectangle is `(0,0,143,79)`.
+A 71×135 edit window instead gives A=0.5; the same request chooses s=0.125
+and a **256×128** lot pixel extent, despite the 64-pixel available width.
+Changing old 4×1 to full arguments 258×1 stores 2×1 but does not run shrink
+cleanup; X is 4128. With positive H and a 0×0 request, B is unordered,
+the selected scale is zero, and later masked-invalid extent conversions
+yield zero (§28), rather than silently forcing a one-tile lot.
+
+Closure mapping: SetLotSize `0x00486080` and the arithmetic dependency of
+DoSetLotSizeUI `0x00486BA0` (LE4); the wrapper itself remains §16.1.
 
 ## 19. Window-owner integration and slot inventory *[compat]*
 
