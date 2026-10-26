@@ -6,7 +6,7 @@
 use super::{Buffer, ResultValue};
 use fc4_core::watercraft::{quantize_heading, sign, Watercraft, WatercraftRecord, CLASS_ID};
 
-unsafe fn receiver<'a>(buffers: &'a mut [Buffer], size: usize) -> Option<&'a mut [u8]> {
+unsafe fn receiver(buffers: &mut [Buffer], size: usize) -> Option<&mut [u8]> {
     let buffer = buffers.iter_mut().find(|b| b.base == 0 && b.offset == 0)?;
     if buffer.size as usize != size || buffer.data.is_null() {
         return None;

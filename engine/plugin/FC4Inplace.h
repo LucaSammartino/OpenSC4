@@ -3,7 +3,8 @@
 #include <cstdint>
 
 namespace fc4 {
-// Every entry point is inert unless compare (or its inplace alias) selects rows.
+// Inert unless compare/inplace selects rows, or watercraft_shadow selects its
+// four complete value-method bindings.
 void InplaceStartup();
 void InplaceCityLoaded();
 void InplaceReport();

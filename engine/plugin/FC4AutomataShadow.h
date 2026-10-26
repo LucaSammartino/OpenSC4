@@ -26,6 +26,9 @@
 // PushState/PopState sequence on a private native factory instance each month.
 // It does not Init, animate, or register that fixture. AI, physics, ferry and
 // route stepping are explicitly unmeasured; this is partial owner coverage.
+// Also selects four value-only function bindings: sign, angular proximity
+// (including its heading writes), direction quantization and class ID. Monthly
+// method evidence comes from exact captured returns/bytes, never record resyncs.
 // The helicopter switch is an independent, partial AF11 metadata comparison:
 // class and four nested record versions only; private COM fixture when no
 // saved aircraft-manager reference names a helicopter. It does not tick or
