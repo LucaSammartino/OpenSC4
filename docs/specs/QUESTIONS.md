@@ -293,7 +293,7 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
-| graphics-rules | 4 | 6 | GR11 | questions/graphics-rules.md |
+| graphics-rules | 5 | 7 | GR12 | questions/graphics-rules.md |
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
@@ -365,7 +365,7 @@ generated index: the questions live one file per spec, so read only the file for
 | region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
 | region-model | 13 | 6 | RM19, RQ4 | questions/region-model.md |
-| region-screen | 4 | 0 | QR5 | questions/region-screen.md |
+| region-screen | 5 | 0 | QR6 | questions/region-screen.md |
 | region-view | 6 | 0 | RGV7 | questions/region-view.md |
 | regional-city | 6 | 3 | RY10 | questions/regional-city.md |
 | regional-city-records | 2 | 7 | RR10 | questions/regional-city-records.md |
@@ -434,4 +434,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **607** | **1695** | | |
+| **total** | **609** | **1696** | | |

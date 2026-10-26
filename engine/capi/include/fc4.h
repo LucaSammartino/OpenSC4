@@ -196,8 +196,9 @@ extern "C" {
  * 102 = merge-train batch train212 (re-map-view-qv18, glue-renderprops-shadow13, glue-app-shadow13): merged (no C ABI history entry of its own)
  * 103 = merge-train batch train233 (glue-netrules-replace23, glue-lotconfobj-replace22): merged (no C ABI history entry of its own)
  * 104 = merge-train batch train237 (re-netocc-no33, glue-regionalcity-replace23, glue-floraocc-replace22, glue-formats-shadow24): merged (no C ABI history entry of its own)
- * 105 = merge-train batch train278 (re-at30, re-nm30, re-wt29, re-ovv29, re-ov30, re-gr30, re-ef30, replace-netocc29, close-fb29, landvalue-flake29, close-propdev29, close-legacyctl29, traffic-cities29, netocc-cities29, occupants-cities29, plans-cities29, automata-actions29, close-lotwall29, growth-cities29, close-pt29, suite-health28): merged (no C ABI history entry of its own) */
-#define FC4_ABI_VERSION 105u
+ * 105 = merge-train batch train278 (re-at30, re-nm30, re-wt29, re-ovv29, re-ov30, re-gr30, re-ef30, replace-netocc29, close-fb29, landvalue-flake29, close-propdev29, close-legacyctl29, traffic-cities29, netocc-cities29, occupants-cities29, plans-cities29, automata-actions29, close-lotwall29, growth-cities29, close-pt29, suite-health28): merged (no C ABI history entry of its own)
+ * 106 = merge-train batch train284 (re-gr31, impl-render3d30, close-no30, growth-cities29, impl-region30): merged (no C ABI history entry of its own) */
+#define FC4_ABI_VERSION 106u
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
 #define FC4_ERR_UNSUPPORTED_VERSION (-1)
