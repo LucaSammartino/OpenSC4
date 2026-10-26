@@ -35,6 +35,7 @@ pub(super) unsafe fn adapt(entry: &str, args: &[u32; 16], buffers: &mut [Buffer]
             result.eax = quantize_heading(vector(bytes, 0x30c));
         }
         "watercraft-angular" => {
+            // SPEC-GAP: WC13 native heading writes differ; retain all mismatches and claim no exact credit.
             let Some(bytes) = receiver(buffers, 0x64) else {
                 return false;
             };
