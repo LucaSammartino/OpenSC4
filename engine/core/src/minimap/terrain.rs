@@ -218,7 +218,7 @@ mod tests {
     }
     #[test]
     fn all_five_resamplers_and_skip() {
-        let block = std::array::from_fn(|i| 0xff000000 | (i as u32) * 0x010101);
+        let block = std::array::from_fn(|i| 0xff000000 | ((i as u32) * 0x010101));
         assert_eq!(resample_block(&block, 0).unwrap().0, block);
         assert_eq!(resample_block(&block, 1).unwrap().0[0], 0x090909);
         assert_eq!(resample_block(&block, 2).unwrap().0[0], 0x1a1a1a);
