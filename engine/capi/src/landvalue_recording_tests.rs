@@ -2,6 +2,7 @@
 //! landvalue §6.1.6 / §16.36: preserved numeric observations, not Step inputs.
 
 use super::*;
+use fc4_core::simgrid::CityCells;
 
 #[test]
 fn lv10_march6_base1_selected_native_bytes_are_not_replaced_by_sampled_replay() {
