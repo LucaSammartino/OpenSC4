@@ -92,6 +92,17 @@ fn budget_trace_roundtrip_and_content_address_validation() {
     assert!(run(&manifest, true, 2).unwrap());
     assert!(run(&manifest, false, 2).unwrap());
     let text = fs::read_to_string(&manifest).unwrap();
+    // The same content can appear in several census scenarios. A healthy
+    // cached row must not hide stale metadata in another trace of that key.
+    let mut stale: Vec<_> = text.trim_end().split('\t').collect();
+    stale[3] = "2";
+    let duplicate = stale.join("\t");
+    fs::write(&manifest, format!("{text}{duplicate}\n")).unwrap();
+    assert!(!run(&manifest, false, 2).unwrap());
+    let suite = fs::read_to_string(dir.join("replay-suite.tsv")).unwrap();
+    let summary: Vec<_> = suite.lines().nth(1).unwrap().split('\t').collect();
+    assert_eq!(&summary[3..10], &["inexact", "false", "2", "2", "0", "0", "2"]);
+    fs::write(&manifest, &text).unwrap();
     let sha = text.split('\t').nth(2).unwrap();
     let path = dir.join(sha);
     OpenOptions::new()

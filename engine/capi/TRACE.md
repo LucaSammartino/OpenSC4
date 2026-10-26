@@ -43,6 +43,11 @@ numeric identities, not pointers into the replay process.
 exact/inexact/incomplete, shadow agreement, comparison/mismatch/incomplete
 counts, cache use and error details. Agreement with a recorded inexact shadow
 is distinct from an exact verdict. Zero observations never count as exact.
+`replay-suite.tsv` aggregates every trace for each scenario/key in sorted
+order. One inexact or incomplete trace prevents strict suite credit for that
+pair, including a trace with stale manifest counters even if its content's
+cached replay verdict is exact. `shadow_equal` remains independent: faithfully
+reproducing an inexact game shadow is agreement, without exact credit.
 Exit codes: 0 all exact, 1 inexact/incomplete, 2 invalid invocation/manifest.
 
 Cache files under `verdict-cache/` are keyed by trace SHA-256 and the compiled

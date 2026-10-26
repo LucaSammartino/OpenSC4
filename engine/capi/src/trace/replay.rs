@@ -2,6 +2,7 @@
 use super::*;
 use crate::{budget::*, pollution_shadow::*, power_shadow::*};
 use std::{
+    collections::BTreeMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -318,6 +319,39 @@ struct Row {
     mismatches: u64,
     incomplete: u64,
 }
+
+#[derive(Default)]
+struct ScenarioVerdict {
+    traces: u64,
+    comparisons: u64,
+    mismatches: u64,
+    incomplete: u64,
+    cached: u64,
+    unequal: bool,
+    inexact: bool,
+    unobserved: bool,
+}
+impl ScenarioVerdict {
+    fn add(&mut self, v: &Verdict, equal: bool, cached: bool) {
+        self.traces += 1;
+        self.comparisons += v.comparisons;
+        self.mismatches += v.mismatches;
+        self.incomplete += v.incomplete;
+        self.cached += u64::from(cached);
+        self.unequal |= !equal;
+        self.inexact |= !equal || v.mismatches > 0;
+        self.unobserved |= v.comparisons == 0;
+    }
+    fn verdict(&self) -> &'static str {
+        if self.inexact {
+            "inexact"
+        } else if self.unobserved || self.incomplete > 0 || self.traces == 0 {
+            "incomplete"
+        } else {
+            "exact"
+        }
+    }
+}
 fn rows(manifest: &Path) -> Result<Vec<Row>, String> {
     let text = fs::read_to_string(manifest).map_err(|e| e.to_string())?;
     text.lines()
@@ -406,6 +440,7 @@ pub fn run(manifest: &Path, no_cache: bool, jobs: usize) -> Result<bool, String>
     });
     let results = results.lock().unwrap();
     let mut passed = true;
+    let mut scenarios: BTreeMap<(String, String), ScenarioVerdict> = BTreeMap::new();
     let mut report=String::from("scenario\tkey\ttrace_sha\tsource_sha\tverdict\tshadow_equal\tcomparisons\tmismatches\tincomplete\tcache\terrors\n");
     for row in rows {
         let (v, cached) = match &results[&row.sha] {
@@ -422,6 +457,7 @@ pub fn run(manifest: &Path, no_cache: bool, jobs: usize) -> Result<bool, String>
             ),
         };
         let equal = v.equal
+            && v.errors.is_empty()
             && v.comparisons == row.comparisons
             && v.mismatches == row.mismatches
             && v.incomplete == row.incomplete;
@@ -433,6 +469,10 @@ pub fn run(manifest: &Path, no_cache: bool, jobs: usize) -> Result<bool, String>
             "exact"
         };
         passed &= equal && verdict == "exact";
+        scenarios
+            .entry((row.scenario.clone(), row.key.clone()))
+            .or_default()
+            .add(&v, equal, cached);
         let errors = v.errors.join("; ").replace(['\t', '\r', '\n'], " ");
         println!(
             "{} {} {verdict} shadow_equal={equal} comparisons={} mismatches={} incomplete={} cache={cached} {errors}",
@@ -444,10 +484,56 @@ pub fn run(manifest: &Path, no_cache: bool, jobs: usize) -> Result<bool, String>
         );
     }
     fs::write(dir.join("replay-verdicts.tsv"), report).map_err(|e| e.to_string())?;
+    // SPEC-GAP: suite credit requires every recorded trace for a scenario/key
+    // to be exact; agreement with an inexact shadow is diagnostic evidence only.
+    let mut suite = String::from("scenario\tkey\tsource_sha\tverdict\tshadow_equal\ttraces\tcomparisons\tmismatches\tincomplete\tcached_traces\n");
+    for ((scenario, key), v) in scenarios {
+        let verdict = v.verdict();
+        println!(
+            "{scenario} {key} suite_verdict={verdict} traces={} shadow_equal={}",
+            v.traces, !v.unequal
+        );
+        suite += &format!(
+            "{scenario}\t{key}\t{source}\t{verdict}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            !v.unequal, v.traces, v.comparisons, v.mismatches, v.incomplete, v.cached
+        );
+    }
+    fs::write(dir.join("replay-suite.tsv"), suite).map_err(|e| e.to_string())?;
     println!(
         "fc4-replay traces={} jobs={jobs} wall_seconds={:.3} source_sha={source}",
         work.len(),
         start.elapsed().as_secs_f64()
     );
     Ok(passed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scenario_summary_keeps_inexact_agreement_and_incomplete_distinct() {
+        // Faithfully reproducing a known game-shadow mismatch is agreement,
+        // but cannot earn strict suite credit.
+        let exact = Verdict {
+            equal: true,
+            comparisons: 1,
+            mismatches: 0,
+            incomplete: 0,
+            errors: Vec::new(),
+        };
+        let mut suite = ScenarioVerdict::default();
+        assert_eq!(suite.verdict(), "incomplete");
+        suite.add(&exact, true, false);
+        assert_eq!(suite.verdict(), "exact");
+        let mut incomplete = exact.clone();
+        incomplete.comparisons = 0;
+        suite.add(&incomplete, true, true);
+        assert_eq!(suite.verdict(), "incomplete");
+        let mut inexact = exact;
+        inexact.mismatches = 1;
+        suite.add(&inexact, true, false);
+        assert_eq!(suite.verdict(), "inexact");
+        assert!(!suite.unequal);
+    }
 }
