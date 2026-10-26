@@ -56,3 +56,24 @@
   the slot-58 copy; a copy only in the other base is ignored. Missing rules fail aggregate
   parsing and cause fallback even when options exist; missing options alone are ignored.
   Availability cases and worked paths are in §3.1; no new game/parity result is claimed.
+
+<!-- from: replace-cfgrules30 (2026-10-26) -->
+- **GR11 — native rendering/caller state after independent Init:** Does the manager's Init/Gather/probe sequence have a required renderer, driver or UI state-restoration contract beyond §§2.3–2.4, or another native caller contract beyond the manager IID? Please specify any missing interface-only steps; no native layout or extra restore is being guessed.
+  - Source `afc66170e`, DLL SHA256 prefix `f2e48878`: GR10 roots open the required rules and included card file; Init status=0. Main `build-runs/game-results/cfgrules30-r1-queries-{off2,on2}.log` measure final properties 77/77 and recommendations 12/12 exact. The key-off owner shadow has 13/13 exact snapshots (77 properties and 12 recommendations each); both opposite-key save loads and s1-grow controls are clean/ref_warnings=0.
+  - House list plus cfgrules: `cfgrules30-r1-house2.log:9293` records access violation reading null at `SimCity 4.exe+0xE2C06` on 2026-01-27, before simulation advances. Its stack has no return into the plugin. Both `cfgrules30-r1-house-on3.verdict` and the same-DLL key-off control `cfgrules30-r1-house-off3.verdict` are clean through 2032-01-01/ref_warnings=0, so (a) has a passing run but the initial fault remains unexplained.
+  - s0-grow with cfgrules: `cfgrules30-r1-s0-grow-on1.log` fails at the same `+0xE2C06` on 2026-01-30; `cfgrules30-r1-s0-grow-on2.log:9294` repeats it on 2026-01-27. The same script without cfgrules (`cfgrules30-r1-s0-grow-off1.log:11409`) instead fails at `+0x3529C0` on 2026-03-13. All have ref_warnings=0. These are distinct from the task's known quit-time construction-occupant Shutdown fault.
+  - The s0 portion of acceptance (c) is held on this unexplained difference. The logs above are in the main checkout's game-results directory. No rendering-state, private-memory, caller-layout or exception-address behavior is inferred from them.
+
+  **ANSWERED 2026-10-26 (re-gr31):** DIFFERS — §2.4 corrects the root acquisition to
+  `cIGZWinMgr` service `0xA417445E`, IID `0x000005A4`, slot 3; §2.7 makes borrowed versus counted
+  GS/driver/window/view/renderer references explicit. No further saved-state restore or
+  application-specific manager IID is required by the examined native paths. Native Init is void,
+  gathers/parses, and is followed by a separate slot-4 evaluation; it does not own a view lifecycle.
+  Three worked interface cases cover live-view lifetime, the uninitialized renderer facade, and
+  repeated Init. The `+0xE2C06` fault reads a null shared view reference in an audio-ambience
+  condition before `GetCurrentViewLevel`, rather than entering the driver. The first writer/cause
+  in the supplied runs is not statically settled: §2.7 specifies paired replay, view publication/
+  Shutdown and acquisition-release traces, and the first null-reference writer's stack needed to
+  settle it. The distinct key-off terrain fault does not supply a restoration rule. This closes
+  the specification question by narrowing crash attribution to that runtime observation; s0
+  acceptance and a crash fix are not claimed.
