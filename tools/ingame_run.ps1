@@ -37,7 +37,8 @@ autotest_unpause = 0 in the ini when an action pauses the game, or the autotest 
 
 Several games at once (slots). Every run, slot or not, starts its game under a launch lock and swaps the game's
 single-instance mutex (tools\sc4mutex.ps1) as soon as the game holds it, so the next game can start. -Slot N runs the
-game with -UserDir:"<slot root>\slotN\" instead of the Documents user dir; the slot gets its own Plugins
+game with -UserDir:"<slot root>\slotNN\" (two digits: slot01..slot16, so every slot's paths have one length; the game
+copies them into its heap, and a longer path moves the blocks after it) instead of the Documents user dir; the slot gets its own Plugins
 (FreeCity4.dll and .pdb from -Dll, else the DLL staged in Documents), FreeCity4.ini, FreeCity4.log, SimCity 4.cfg and
 Regions\<Region>, mirrored from Documents before every run (so a city a run changed is restored). The slot root is
 <main checkout>\build-runs\sc4slots (override: -SlotRoot or $env:FC4_SLOT_ROOT). A path with a component that starts
@@ -308,7 +309,7 @@ if (-not (Test-Path -LiteralPath $regionSource -PathType Container)) { Write-Out
 
 if ($Slot -gt 0) {
     $root = if ($SlotRoot) { $SlotRoot } elseif ($env:FC4_SLOT_ROOT) { $env:FC4_SLOT_ROOT } else { Join-Path (MainCheckout) "build-runs\sc4slots" }
-    $UserDir = [IO.Path]::GetFullPath((Join-Path $root "slot$Slot"))
+    $UserDir = [IO.Path]::GetFullPath((Join-Path $root ("slot{0:D2}" -f $Slot)))
     if ($UserDir -match '\\\.') { Write-Output "BLOCKED: slot user dir $UserDir has a path component starting with '.'; the game would ignore it and use Documents (use -SlotRoot)"; exit 2 }
 } else { $UserDir = $DocsUser }
 $Plugins = Join-Path $UserDir "Plugins"
@@ -344,8 +345,10 @@ $dirLock = TakeMutex ("FC4UserDir-" + ($UserDir.TrimEnd('\').ToLower() -replace 
 if (-not $dirLock) { Write-Output "BLOCKED: another harness run is using $UserDir"; exit 2 }
 
 # A previous run's game can still be exiting (a quit ending unloads for a few seconds): wait up to 60 s.
-for ($i = 0; @(GamesUsing $UserDir).Count -gt 0 -and $i -lt 30; $i++) { Start-Sleep -Seconds 2 }
+# One answer for the loop and the verdict: a game whose command line cannot be read counts as busy, and a
+# second query can catch one that the loop did not.
 $busy = @(GamesUsing $UserDir)
+for ($i = 0; $busy.Count -gt 0 -and $i -lt 30; $i++) { Start-Sleep -Seconds 2; $busy = @(GamesUsing $UserDir) }
 if ($busy.Count -gt 0) {
     Write-Output "BLOCKED: SimCity 4 is already running on $UserDir (pid $($busy -join ', ')); close it first"
     exit 2

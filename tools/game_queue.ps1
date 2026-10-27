@@ -9,7 +9,7 @@ Usage (the coordinator starts it detached and leaves it running):
   powershell -File tools\game_queue.ps1 -Status [-Last 10] [-Roots ...]
   powershell -File tools\game_queue.ps1 -Check <worktree>\build-runs\game-queue\<file>.req
 
-  -Slots N      games at once, slots 1..N (default 3; each slot is one game, build-runs\sc4slots\slotN of the main
+  -Slots N      games at once, slots 1..N (default 3; each slot is one game, build-runs\sc4slots\slotNN of the main
                 checkout)
   -SlotList     the slot numbers to use instead, e.g. 4,5 (1..16; slots 1-7 each get their own P-core, see
                 docs\harness.md); give each queue instance its own slots
@@ -130,7 +130,7 @@ function MutexExists([string]$name) {
 }
 function SlotDir([int]$n) {
     $sr = if ($env:FC4_SLOT_ROOT) { $env:FC4_SLOT_ROOT } else { Join-Path $Main "build-runs\sc4slots" }
-    return [IO.Path]::GetFullPath((Join-Path $sr "slot$n"))
+    return [IO.Path]::GetFullPath((Join-Path $sr ("slot{0:D2}" -f $n)))  # ingame_run.ps1's name
 }
 function SlotBusy([int]$n) { return HeldElsewhere ("FC4UserDir-" + ((SlotDir $n).TrimEnd('\').ToLower() -replace '[^a-z0-9]', '_')) }
 function Sha([string]$s) {

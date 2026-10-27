@@ -389,6 +389,11 @@ game:
   exemplar properties on the timer thread, and the loader allocates them on its own thread, both from unlocked
   pools.
 - `FreeCity4.dll` loads at a fixed base.
+- The city loads at the first frame on which the region lists its cities. About 3 s (wall clock) after the region,
+  the region screen seeds its clouds from the clock (`0x007A9B66`) and allocates on the main thread; a run in which
+  any clock seed comes before the load logs a warning and is not a reference.
+- Every test slot's user directory has a path of one length (`slot01` to `slot16`): the game copies the city's
+  path into the main thread's heap, and a longer path moves every block after it.
 - From the load, the main thread allocates from one region at `0x20000000`. The free lists hand out the lowest
   address first.
 - The 45 static object pools start fresh pages at the load.

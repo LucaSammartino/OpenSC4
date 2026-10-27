@@ -29,6 +29,8 @@ import sys
 REPO = Path(__file__).resolve().parents[1]
 GOLDEN = Path(__file__).with_name('golden.py')
 SECONDS = 900  # a run's watchdog; not part of a fixed-schedule key
+# Owners that switch on only together with others (engine/plugin/FC4Subsystems.cpp, Resolve): "alone" includes them.
+REQUIRES = {'mysims': ['advisors'], 'netrules': ['netmgr', 'nettool']}
 
 
 def scenarios():
@@ -163,6 +165,10 @@ def describe(name, report, owners, reference):
     return '; '.join(parts)
 
 
+def alone(key):
+    return [key] + REQUIRES.get(key, [])
+
+
 def run_each(args, rows, dll):
     covers = owner_covers()
     skipped = set(select('all', None, rows)[1])
@@ -170,7 +176,7 @@ def run_each(args, rows, dll):
     print(f'{len(jobs)} runs: {len(covers) - 1} owners, each alone on its cover', flush=True)
     owners = record_owners()
     with ThreadPoolExecutor(args.jobs) as pool:
-        reports = list(pool.map(lambda job: compare(rows[job[1]], dll, [job[0]]), jobs))
+        reports = list(pool.map(lambda job: compare(rows[job[1]], dll, alone(job[0])), jobs))
     table, exact = [], {}
     for (key, name), report in zip(jobs, reports):
         line = describe(f'{key} on {name}', report, owners, REPO / 'build-runs/golden' / report.get('key', '-'))
@@ -211,8 +217,8 @@ def run(args):
         print(f'each owner alone on {", ".join(culprits)}:', flush=True)
         jobs = [(n, k) for n in culprits for k in keys]
         with ThreadPoolExecutor(args.jobs) as pool:
-            alone = list(pool.map(lambda job: compare(rows[job[0]], dll, [job[1]]), jobs))
-        for (name, key), report in zip(jobs, alone):
+            results = list(pool.map(lambda job: compare(rows[job[0]], dll, alone(job[1])), jobs))
+        for (name, key), report in zip(jobs, results):
             print(f'  {key} on {name}: {report["verdict"]}' + (f' ({report["error"]})' if 'error' in report else ''))
     return 2 if errors else 1 if failing else 0
 

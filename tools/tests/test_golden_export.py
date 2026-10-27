@@ -38,7 +38,7 @@ class ExportTests(unittest.TestCase):
                 self.assertEqual(snapshot.returncode, 0, captured)
                 self.assertEqual(fixture.returncode, 0, reused)
                 self.assertEqual((folder / 'output/end.sc4').read_text(), 'original end save')
-                self.assertEqual((folder / 'build-runs/sc4slots/slot6/Regions/FC4 Test/City - C.sc4').read_text(), 'next run save')
+                self.assertEqual((folder / 'build-runs/sc4slots/slot06/Regions/FC4 Test/City - C.sc4').read_text(), 'next run save')
             finally:
                 for process in (snapshot, fixture):
                     if process is not None and process.poll() is None:

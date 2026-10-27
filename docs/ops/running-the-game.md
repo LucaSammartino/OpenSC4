@@ -65,7 +65,8 @@ Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile -Executio
 ```
 
 It logs to `build-runs\game-queue.log` of that checkout. `-Once` runs what is queued and exits; `-Roots a,b` scans
-only those checkouts. Slot games live in `build-runs\sc4slots\slotN` of the main checkout (the game ignores a
+only those checkouts. Slot games live in `build-runs\sc4slots\slotNN` of the main checkout (two digits, slot01 to
+slot16: the game copies its paths into its heap, so every slot's paths have one length; the game ignores a
 `-UserDir` with a path component that starts with `.`, such as `.claude`, and falls back to Documents). Stopping the
 queue does not stop its games. Restart at a quiet moment: stop queue, `ingame_run` children and games together;
 otherwise old games hold slots and results are lost while requests rerun. Inspect `-Status` first.

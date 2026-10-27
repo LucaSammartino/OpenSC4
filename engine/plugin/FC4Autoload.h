@@ -16,7 +16,7 @@
 //
 // FreeCity4.ini `autoload_city = <full path of a .sc4 save>` (else
 // FC4_AUTOLOAD_CITY). Once the region view is up (the app has a region with
-// cities) and `autoload_delay_ticks` framework ticks (default 60) have passed,
+// cities) and `autoload_delay_ticks` framework ticks (default 60; 1 under the fixed schedule) have passed,
 // the observer's tick finds the region's city whose save path is that file
 // and calls cISC4App::LoadCity(path, <that city's entry in the region>)
 // (compiled slot 13). The save must belong to the region the game opens at

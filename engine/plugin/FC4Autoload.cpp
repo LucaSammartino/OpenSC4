@@ -142,7 +142,10 @@ void AutoloadOnTick() {
             g_state = State::Off;
             return;
         }
-        g_delayTicks = SettingInt("autoload_delay_ticks", "FC4_AUTOLOAD_DELAY_TICKS", 60);
+        // [choice] Under the fixed schedule the city loads at the first tick the region lists its cities: the
+        // region screen comes about 3 s (wall clock) after the region and seeds its clouds from the clock before
+        // the load (simulator.md §5.8), which 60 ticks on a busy machine sometimes outlast.
+        g_delayTicks = SettingInt("autoload_delay_ticks", "FC4_AUTOLOAD_DELAY_TICKS", ScheduleFixed() ? 1 : 60);
         if (g_delayTicks < 1) g_delayTicks = 1;
         g_state = State::Waiting;
         Log("autoload: %s (from %s); waiting for the region view, then %ld ticks", g_path.c_str(), source,

@@ -23,7 +23,7 @@ if ($City -notmatch '^[A-Za-z0-9 ._()-]+$' -or $Region -notmatch '^[A-Za-z0-9 ._
 $Output = [IO.Path]::GetFullPath($Output)
 if (Test-Path -LiteralPath $Output) { throw "Run output already exists: $Output" }
 $slotRoot = Join-Path $HarnessRoot 'build-runs/sc4slots'
-$userDir = [IO.Path]::GetFullPath((Join-Path $slotRoot "slot$Slot"))
+$userDir = [IO.Path]::GetFullPath((Join-Path $slotRoot ("slot{0:D2}" -f $Slot)))
 $docs = [IO.Path]::GetFullPath((Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SimCity 4'))
 if ($userDir -match '\\\.' -or $userDir.StartsWith($docs, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Unsafe slot directory: $userDir"

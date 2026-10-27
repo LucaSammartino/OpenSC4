@@ -1525,6 +1525,12 @@ void ScheduleBeforeCityLoad() {
     Log("schedule: file-local generators re-seeded, rand() set, the virtual performance counter and the fixed heap "
         "(%s; %u object pools restarted, %u earlier pages retired) started before the city load", g_heap ? "on" : "off",
         g_poolsRetired, g_pagesRetired);
+    // A clock seed on the start-up screens is state the load does not reset (in every run so far, the region
+    // screen's clouds, 0x007A9B66, with their allocations on the main thread).
+    if (g_clockSeedSites[0] != 0) {
+        Log("schedule: WARNING a clock seed at 0x%08X came before the city load: this run does not repeat",
+            static_cast<unsigned>(g_clockSeedSites[0]));
+    }
 }
 
 void ScheduleDayOpened(int32_t julian) {

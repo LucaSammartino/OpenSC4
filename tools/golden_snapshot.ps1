@@ -14,7 +14,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($City -notmatch '^[A-Za-z0-9 ._()-]+$' -or $Region -notmatch '^[A-Za-z0-9 ._()-]+$') { throw 'Invalid name' }
-$userDir = [IO.Path]::GetFullPath((Join-Path $HarnessRoot "build-runs/sc4slots/slot$Slot"))
+$userDir = [IO.Path]::GetFullPath((Join-Path $HarnessRoot ("build-runs/sc4slots/slot{0:D2}" -f $Slot)))
 $locks = @()
 $sourceLog = Join-Path $userDir 'Plugins/FreeCity4.log'
 $limit = [DateTime]::UtcNow.AddSeconds($WaitSeconds)

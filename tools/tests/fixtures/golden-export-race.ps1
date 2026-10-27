@@ -1,6 +1,6 @@
 param([string]$Root)
 $ErrorActionPreference = 'Stop'
-$slot = [IO.Path]::GetFullPath((Join-Path $Root 'build-runs/sc4slots/slot6'))
+$slot = [IO.Path]::GetFullPath((Join-Path $Root 'build-runs/sc4slots/slot06'))
 $name = 'FC4UserDir-' + ($slot.TrimEnd('\').ToLower() -replace '[^a-z0-9]', '_')
 $mutex = New-Object Threading.Mutex($false, $name)
 try {
