@@ -270,6 +270,7 @@ def prepare(args):
     settings = {'region': region, 'city': city, 'until': args.until, 'speed': 2,
                 'turbo_requested': args.turbo, 'turbo_frame_ms': 250, 'pacing': 'original',
                 'clock': args.clock, 'fixed_deliveries_per_frame': 64 if args.clock == 'fixed' else None,
+                'schedule': args.schedule,
                 'session_seed': SEED, 'slot': args.slot if args.backend == 'direct' else 'queue-selected',
                 'timeout_seconds': args.seconds, 'cpu_count': 1,
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
@@ -343,9 +344,15 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     ini.write_text(f'disable = {disable}\nenable = {",".join(selected)}\nobserve = 1\n'
                    f'session_seed = {SEED}\npacing = original\nsim_turbo = {int(args.turbo)}\n'
                    f'sim_fixed_step = {int(args.clock == "fixed")}\n'
+                   f'schedule = {args.schedule}\n'
                    f'script_save_grace_ms = {SAVE_GRACE_MS}\n'
                    f'sim_turbo_frame_ms = 250\npopup_dialogs = 0\nautotest_unpause = 2\n'
                    f'autotest_end = quit\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
+    # Diagnostics only (for example `heap trace = <dir>`): GOLDEN_INI_EXTRA lines, separated by ';',
+    # are appended; a run that uses it is not a reference.
+    if os.environ.get('GOLDEN_INI_EXTRA'):
+        with ini.open('a', encoding='utf-8') as stream:
+            stream.write(os.environ['GOLDEN_INI_EXTRA'].replace(';', '\n') + '\n')
     if args.backend == 'queue' and reach_supported(args.harness_root):
         with ini.open('a', encoding='utf-8') as stream:
             stream.write('reach = 1\n')
@@ -377,6 +384,8 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
         raise ValueError(f'DLL did not acknowledge script_save_grace_ms; not cached: {result}')
     if args.clock == 'fixed' and 'sim_fixed_step ON: 64 agent deliveries/frame' not in text:
         raise ValueError(f'DLL did not acknowledge sim_fixed_step; not cached: {result}')
+    if args.schedule == 'fixed' and ('schedule: fixed (' not in text or 'schedule: WARNING' in text):
+        raise ValueError(f'DLL did not apply schedule = fixed cleanly; not cached: {result}')
     digests = parse_digests(text)
     if not digests:
         raise ValueError(f'no DIGEST observations; see {result}')
@@ -581,6 +590,8 @@ def parser():
         sub.add_argument('--turbo', action='store_true', help='request turbo (only our simulator supports it)')
         sub.add_argument('--clock', choices=('fixed', 'original'), default='original',
                          help='original scheduler (default); fixed replaces only the scheduler for an explicit experiment')
+        sub.add_argument('--schedule', choices=('original', 'fixed'), default='original',
+                         help='fixed: the fixed schedule of docs/specs/simulator.md §5.8 (implies --clock fixed)')
         sub.add_argument('--comparison', choices=('auto', 'exact', 'envelope'), default='auto',
                          help='auto (default): exact for identical originals, envelope for varying originals')
         sub.add_argument('--strict', action='store_true',
@@ -596,6 +607,8 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.schedule == 'fixed':
+        args.clock = 'fixed'
     if args.strict:
         args.comparison = 'exact'
     try:

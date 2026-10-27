@@ -1577,6 +1577,8 @@ Names come from the symbol port and may be imprecise *[inferred]*.
   matches a fresh process in which nothing else drew numbers. Subsystem specs must state the number of `rand()`
   calls for each operation, so that differential tests can align sequences once the observer forces the
   original's state.
+- Under the fixed schedule (simulator.md §5.8) the state is set at the city load and before every agent delivery,
+  in both games.
 
 ## 13. Order of agents within a level (month level)
 

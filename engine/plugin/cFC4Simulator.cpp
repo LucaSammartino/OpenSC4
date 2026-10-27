@@ -39,6 +39,7 @@
 #include "FC4HarnessLogic.h"
 #include "FC4Config.h"
 #include "FC4Pacing.h"
+#include "FC4Schedule.h"
 #include "FC4Perf.h"
 #include "FC4Turbo.h"
 #include "FC4Log.h"
@@ -345,6 +346,7 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     if (self != nullptr && self->fixedStep_) self->fixedClock_.Delivered();
     cIGZMessageTarget2* target = AgentPtr(agent);
     if (target == nullptr || msg == nullptr) return true;
+    fc4::ScheduleBeforeDelivery(target, msg->type);  // schedule = fixed only: digest, then the rand() rule
     // Synchronous delivery (spec §4) with the simulator's pattern from
     // foundations §5.1: create, AddRef, set, send, Release. An agent that
     // keeps the message (AddRef) keeps it alive.
@@ -614,6 +616,8 @@ void cFC4Simulator::Post(const fc4_message& msg) {
     if (fixedStep_ && msg.type == 0x66956814) fixedClock_.FinishFrame();
     const bool calendar = msg.type >= 0x66956814 && msg.type <= kMsgSimNewYear;  // SimNewDay..SimNewYear
     if (msg.type == 0x66956814) fc4::PacingDayOpened(static_cast<int32_t>(msg.data1));
+    if (msg.type == 0x66956814) fc4::ScheduleDayOpened(static_cast<int32_t>(msg.data1));
+    if (msg.type == kMsgSimNewMonth) fc4::ScheduleMonthLine(static_cast<int32_t>(msg.data1));
     bool posted = false;
     bool deferred = false;
     if (msgServer_ != nullptr) {
@@ -1132,6 +1136,7 @@ bool cFC4Simulator::OnTick(uint32_t unknown1) {
     ++ticks_;
     if (fixedStep_) {
         fixedClock_.BeginFrame();
+        fc4::ScheduleFrame();  // schedule = fixed only: the virtual performance counter (FC4Schedule.h)
         // Reuse the core's existing budget checks, measured in deliveries,
         // and ready day gate. This adds no C ABI or saved-game state.
         fc4_sim_set_turbo(sim_, true, fc4::harness::FixedStepClock::kDeliveries, 0);

@@ -29,6 +29,7 @@
 #include "FC4Dialogs.h"  // the harness lane: close_dialogs
 #include "FC4Seed.h"     // the seeding lane: session_seed
 #include "FC4Pacing.h"   // the detpacing lane: pacing
+#include "FC4Schedule.h" // schedule = fixed (docs/specs/simulator.md §5.8)
 #include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
@@ -718,6 +719,7 @@ void Resolve() {
     ConfigReload("game start");
     SessionSeedStartup();  // session_seed (FC4Seed.h): one line with S
     PacingStartup();       // pacing (FC4Pacing.h): before any core exists; one line
+    ScheduleStartup();     // schedule = fixed (FC4Schedule.h): hooks before the city loads
     RefAuditReload();
     CheckedStartup();
     AutotestReload();

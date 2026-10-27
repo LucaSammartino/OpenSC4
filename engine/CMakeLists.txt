@@ -188,6 +188,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Seed.h
         plugin/FC4Pacing.cpp
         plugin/FC4Pacing.h
+        plugin/FC4Schedule.cpp
+        plugin/FC4Schedule.h
         plugin/FC4RefAudit.cpp
         plugin/FC4RefAudit.h
         plugin/FC4Checked.cpp
@@ -630,6 +632,9 @@ if(FC4_IS_WIN32_X86)
     endif()
     target_link_libraries(FreeCity4 PRIVATE fc4_capi)
     set_target_properties(FreeCity4 PROPERTIES OUTPUT_NAME "FreeCity4" PREFIX "")
+    # A fixed load address (no ASLR): the fixed schedule's heap lies below it, and the game's
+    # pointer-keyed sets that hold this DLL's objects keep one order (FC4Schedule.cpp kDllBase).
+    target_link_options(FreeCity4 PRIVATE /DYNAMICBASE:NO /BASE:0x5C000000)
     # Exports: GZDllGetGZCOMDirector (from cRZCOMDllDirector.cpp) and the
     # test seam FC4TestSeam (plugin/FC4TestSeam.h; never called by the game).
 

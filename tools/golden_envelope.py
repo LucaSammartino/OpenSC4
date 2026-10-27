@@ -46,7 +46,15 @@ def snapshot(entry, run):
         metadata = {'source_run': str(run.resolve()), 'recorded_ns': time.time_ns(),
                     'artifacts': {n: _hash(stage / n) for n in names}}
         (stage / 'sample.json').write_text(json.dumps(metadata, sort_keys=True), encoding='utf-8')
-        stage.rename(directory / identity)
+        # A scanner can still hold a just-written file (WinError 5); retry briefly.
+        for attempt in range(20):
+            try:
+                stage.rename(directory / identity)
+                break
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time.sleep(0.5)
     finally:
         if stage.exists():
             shutil.rmtree(stage)

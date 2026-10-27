@@ -437,6 +437,10 @@ try {
     if ($foreign) { $failedStart = "another SimCity 4 holds its single-instance mutex (a game this harness did not start?)" }
     else {
         $gameArgs = @("-CPUCount:1", "-w", "-intro:off")
+        # The fixed schedule keeps the object pools to the main thread: models load there (the
+        # background loader's worker can also hold the simulator paused, model-maker.md §15), and
+        # audio is off (the sound update runs on the timer thread and frees exemplar properties).
+        if ($Ini -match '(?im)^[ \t]*schedule[ \t]*=[ \t]*fixed[ \t]*\r?$') { $gameArgs += "-backgroundLoader:off", "-audio:off" }
         if ($Slot -gt 0) { $gameArgs += "-UserDir:`"$UserDir\`"" }
         # Optional Maxis command script; execute only a private slot copy, with the shared Lua helpers.
         $luaExtensions = $Ini -match '(?im)^[ \t]*lua_extensions[ \t]*=[ \t]*1[ \t]*\r?$'

@@ -363,6 +363,37 @@ item count; the clock is read through the adaptive helper of §5.5.
 On a current machine that holds for every per-tract state at these sizes. The census of a 256² city is the most
 likely exception.
 
+### 5.8 The fixed schedule *[choice]*
+
+The original is not deterministic (§5.5, §5.7, foundations §6, §12). Under the **fixed schedule**, the same city,
+actions and session seed `S` give the same save, compared record by record after decompression. FreeCity4's game
+**must** follow these rules. The original follows them through `FreeCity4.dll` (`schedule = fixed`) and is the
+reference. Everything is counted from the city load; the start-up screens are outside the schedule.
+
+| Part | Rule |
+|---|---|
+| Calendar | The simulator with a fixed step: each frame (one `OnTick`) makes 64 agent deliveries, and a day opens only after every day-level agent has finished (§5.2). |
+| Clock | The main thread reads one virtual counter. It starts at the load, advances 1 tick per read, 33 ms per frame and `n` ms per sleep of `n` ms. A stopwatch (timers.md §1) still running at the load reads as started at the load, with nothing accumulated. |
+| Timer callbacks | The timer schedulers' callbacks (timers.md §2.5) run on the main thread at the start of each frame. They run in each scheduler's list order, by a clock that is 0 at the load and advances 33 ms per frame. Each entry is first due one period after the load. A one-shot entry is removed when it fires. A fixed-rate entry is next due at `due + period`; any other at `now + period`. Nothing fires on the scheduler's own thread. |
+| Time limits | A `LimitTimer` (small-owners-b9.md §4) counts reads from its `Start`. The building developer's Grow timer (building-development.md §4.4) expires at its 16th read; every other timer expires at its 2²⁴th read. Doubling 2²⁴ must not change any result. The traffic remaining-time query (`0x0070E2B0`) answers 1 ms. |
+| Wall clock | `time()` = 1767225600 (2026-01-01 00:00 UTC). The `clock()` reads of the generators' seeding (`cRZRandom`) return 1000. |
+| Random numbers | The file-local generators are seeded with `derive(K)` (foundations §6.3) at start-up and again at the load. `rand()` (foundations §12) is `srand(derive(0x4C0AD000))` at the load. Before the `n`-th agent delivery (from 0) of day `d` (the Julian day last opened), `rand()` is `srand(S XOR (d × 0x9E3779B1) XOR (n × 0x85EBCA77))`, in 32-bit arithmetic. |
+| Object IDs | The save's reference writer (foundations §2.7) numbers objects 1, 2, 3, … in the order it first writes them, from 1 in each save. |
+
+**The original only.** These make the original repeat its own heap addresses. They are not rules for FreeCity4's
+game:
+
+- Audio and the background model loader are off (`-audio:off`, `-backgroundLoader:off`). The sound update frees
+  exemplar properties on the timer thread, and the loader allocates them on its own thread, both from unlocked
+  pools.
+- `FreeCity4.dll` loads at a fixed base.
+- From the load, the main thread allocates from one region at `0x20000000`. The free lists hand out the lowest
+  address first.
+- The 45 static object pools start fresh pages at the load.
+
+Where an original result depends on address order, the reference is the order under this heap. Examples are agent
+order (foundations §13) and pointer-keyed sets such as the traffic network map, which buckets by address modulo 193.
+
 ## 6. Speed and pause
 
 | Method | Behaviour |

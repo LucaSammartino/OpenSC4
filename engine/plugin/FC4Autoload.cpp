@@ -17,6 +17,7 @@
 #include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Schedule.h"
 
 #include "SC4String.h"
 #include "SC4Vector.h"
@@ -113,6 +114,7 @@ void Attempt(cISC4App* sc4, cISC4Region* region, const Locations& locations) {
     // reference: we create and destroy the string (A buffer) and the game only
     // reads it, which allocators.md (Strings) says is safe.
     SC4String path(g_path.c_str(), static_cast<uint32_t>(g_path.size()));
+    ScheduleBeforeCityLoad();  // schedule = fixed only (FC4Schedule.h)
     g_busy = true;
     // [abi-ret] Slot 13 (interfaces.tsv eax-or-void): no spec gives its result (question HG2); the value is
     // only logged, the load is judged by the city that appears.

@@ -21,6 +21,7 @@
 #include "FC4HarnessLogic.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Schedule.h"
 #include "FC4Script.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
@@ -394,9 +395,11 @@ int AutotestOnTick() {
     }
     if (g_unpause == 0) return 0;
     // [choice] Unpause at the first tick, and again after 3 s and 10 s in case
-    // the game paused the city after loading it.
+    // the game paused the city after loading it; under `schedule = fixed` at the
+    // first tick only (the wall clock is not an input there).
     const DWORD at[3] = {0, 3000, 10000};
-    if (g_unpauseStage < 3 && ElapsedMs(now, g_startMs) >= at[g_unpauseStage]) {
+    const int stages = ScheduleFixed() ? 1 : 3;
+    if (g_unpauseStage < stages && ElapsedMs(now, g_startMs) >= at[g_unpauseStage]) {
         ++g_unpauseStage;
         return static_cast<int>(g_unpause);
     }
