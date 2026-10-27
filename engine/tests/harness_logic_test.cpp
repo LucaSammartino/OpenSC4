@@ -130,6 +130,18 @@ bool ErrorIs(const std::string& line, const std::string& message) {
 void ScriptParseTests() {
     using namespace fc4::harness;
     {
+        const auto p = One("2026-01-28 watercraft auto\n2026-02-01 watercraft 21 99");
+        CHECK(p.errors.empty() && p.actions.size() == 2);
+        CHECK(p.actions[0].op == ScriptOp::Watercraft && p.actions[0].on);
+        CHECK(p.actions[1].op == ScriptOp::Watercraft && !p.actions[1].on);
+        CHECK(p.actions[1].x0 == 21 && p.actions[1].z0 == 99);
+        CHECK(ScriptOpName(ScriptOp::Watercraft) == std::string("watercraft"));
+        CHECK(One("2026-01-28 watercraft").errors.size() == 1);
+        CHECK(One("2026-01-28 watercraft auto 1").errors.size() == 1);
+        CHECK(One("2026-01-28 watercraft -1 3").errors.size() == 1);
+        CHECK(One("2026-01-28 watercraft 4096 3").errors.size() == 1);
+    }
+    {
         const auto p = One("2000-01-01 budgetwindow # explicit opt-in");
         CHECK(p.errors.empty() && p.actions.size() == 1);
         CHECK(p.actions[0].op == ScriptOp::BudgetWindow);

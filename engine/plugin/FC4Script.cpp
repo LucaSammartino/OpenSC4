@@ -51,6 +51,8 @@
 #include "cISC4NetworkTool.h"
 #include "cISC4TutorialSystem.h"  // the glue-tutorial4 lane: the tutorial action
 #include "cISTETerrain.h"
+#include "cISC4AutomataManager.h"
+#include "cISC4Automaton.h"
 
 #include <cctype>
 #include <cstdio>
@@ -724,6 +726,52 @@ std::string RunDispatch(const harness::ScriptAction& a, int32_t julian, cISC4Cit
     return result;
 }
 
+std::string RunWatercraft(const harness::ScriptAction& a, cISC4City* city) {
+    auto* manager = city ? city->GetWatercraftManager() : nullptr;
+    auto* terrain = city ? city->GetTerrain() : nullptr;
+    if (!manager || !terrain) return "skipped: no watercraft manager or terrain";
+    const int nx = static_cast<int>(city->CellCountX()), nz = static_cast<int>(city->CellCountZ());
+    unsigned candidates = 0;
+    const auto create = [&](int x, int z) -> std::string {
+        // [choice] A 5x5 water patch keeps this fixture away from immediate grounding.
+        if (x < 2 || z < 2 || x + 2 >= nx || z + 2 >= nz) return {};
+        for (int dz = -2; dz <= 2; ++dz) for (int dx = -2; dx <= 2; ++dx) {
+            float wx = 0, wz = 0;
+            city->CellCenterToPosition(x + dx, z + dz, wx, wz);
+            if (!(terrain->GetAltitude(wx, wz) < terrain->GetWaterLevel(wx, wz))) return {};
+        }
+        ++candidates;
+        cS3DVector3 position;
+        city->CellCenterToPosition(x, z, position.fX, position.fZ);
+        position.fY = terrain->GetWaterLevel(position.fX, position.fZ);
+        const cGZPersistResourceKey key{};
+        // automata §7.2: slot 15 returns a borrowed primary interface. The
+        // watercraft override ignores orientation; group/flags are §5.1.2's.
+        auto* boat = manager->CreateAutomaton(0x4418, position, 0x10002, key, nullptr, 0xff, nullptr);
+        if (!boat) return {};
+        boat->AddRef();
+        FC4_ACQUIRED(boat, "script watercraft fixture");
+        boat->SetVisible(true);
+        cS3DVector3 actual;
+        boat->GetPosition(actual);
+        FC4_RELEASE(boat);
+        char text[256];
+        _snprintf_s(text, sizeof(text), _TRUNCATE,
+            "created group=0x4418 flags=0x10002 cell=(%d,%d) position=(%.9g,%.9g,%.9g) candidates=%u count=%u",
+            x, z, actual.fX, actual.fY, actual.fZ, candidates, manager->GetAutomataCount());
+        return text;
+    };
+    if (!a.on) {
+        const auto result = create(a.x0, a.z0);
+        return result.empty() ? "skipped: no water patch or native creation refused" : result;
+    }
+    for (int z = 2; z + 2 < nz; z += 4) for (int x = 2; x + 2 < nx; x += 4) {
+        const auto result = create(x, z);
+        if (!result.empty()) return result;
+    }
+    return "skipped: no water patch or native creation refused; candidates=" + std::to_string(candidates);
+}
+
 void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) {
     using harness::ScriptOp;
     std::string result;
@@ -734,6 +782,7 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         case ScriptOp::UiControl:
             result = ui_driver::Run(a); break;
         case ScriptOp::Funds: result = RunFunds(a, city); break;
+        case ScriptOp::Watercraft: result = RunWatercraft(a, city); break;
         case ScriptOp::Establish: result = RunEstablish(a, city); break;
         case ScriptOp::BudgetWindow: result = RunBudgetWindow(city); break;
         case ScriptOp::Zone:

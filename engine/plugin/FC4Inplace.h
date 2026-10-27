@@ -3,10 +3,13 @@
 #include <cstdint>
 
 namespace fc4 {
-// Every entry point is inert unless compare (or its inplace alias) selects rows.
+// Inert unless compare/inplace selects rows, or watercraft_shadow selects its
+// four complete value-method bindings.
 void InplaceStartup();
 void InplaceCityLoaded();
 void InplaceReport();
+// Complete watercraft value-method samples; called alongside the monthly shadow.
+void InplaceWatercraftMethods(const char* date);
 // Optional per-row outgoing-call interposition. Context and callbacks outlive the
 // run; registration happens before Startup, callbacks must not reconfigure it.
 // No serialized data includes these pointers. Internal C++ interface, not DLL ABI.

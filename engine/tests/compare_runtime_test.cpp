@@ -33,6 +33,20 @@ extern "C" bool fc4_compare_adapter(const char*,const uint32_t*,fc4::compare::Bu
 }
 extern "C" bool fc4_compare_fixture(const char*,unsigned,uint32_t*,fc4::compare::Buffer*,size_t) {return false;}
 int main() {
+    // Validate the actual generated watercraft rows before replacing a row
+    // with authored code below. A malformed field must fail this offline gate.
+    bool straight=false;
+    uint32_t schemaArgs[16]{};
+    for (const auto& row:functions) if (std::string(row.owner)=="cSC4Watercraft") {
+        const auto specs=fc4::compare::Parse(row.windows,row.argCount);
+        for (const auto& spec:specs)
+            assert(fc4::compare::Fields(spec,schemaArgs,spec.Size(schemaArgs),[](const auto&,size_t){}));
+        if (std::string(row.name)=="watercraft-straight") {
+            straight=true;
+            assert(specs.size()==3&&specs[0].fixed==0x358&&specs[1].fixed==0x38&&specs[2].fixed==12);
+        }
+    }
+    assert(straight);
     auto& fn=functions[0];fn.name="authored-unit";fn.ret="eax";fn.mode="compare";
     fn.receiver=false;fn.argCount=1;fn.pop=0;fn.fingerprint=123;
     fn.original=reinterpret_cast<void*>(AuthoredNative);

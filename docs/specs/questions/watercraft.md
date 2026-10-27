@@ -1,3 +1,6 @@
 # watercraft: open questions
 <!-- Questions about [watercraft.md](../watercraft.md). Append new entries at the END; when one is answered, move it to answered/watercraft.md. Rules: README.md. -->
 
+<!-- from: method-watercraft31 (2026-10-26) -->
+- **WC13 - section 3.4:** What complete receiver/precondition and heading-read/write contract does `0x00567ED0` require? The same-process value fixture supplies a zeroed 100-byte whole-receiver window, heading at +0x58, and three by-value stack floats `(1,0,0)`, as specified. With heading `(-0,0,1)`, native writes `0xFFC00000` into all three heading components and returns false; core leaves `(-0,0,1)` and returns false. Across all 16 unrestricted fixtures, 15 differ in heading writes and/or the boolean. The native result is not explained by normalization of this nonzero heading. Is another input field, interface adjustment, initialization precondition, or different source heading required? Evidence: `build-runs/watercraft31-census-b.log` in main, lines 2199-2217 and 2640-2643; value-only cases in this worktree's `build-runs/compare-cases/watercraft-angular.jsonl`. [current choice: keep the spec-based adapter and strict comparisons, report all mismatches with resyncs=0, claim no credit for this method, and stop this item pending specification clarification]
+

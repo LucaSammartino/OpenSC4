@@ -1,0 +1,6 @@
+name	address	class	convention	this	stack_arg_dwords	callee_pop	ret	windows	rust_entry	mode
+watercraft-sign	00566e00	cSC4Watercraft	stdcall	none	1	4	x87-f32	-	watercraft-sign	compare
+watercraft-angular	00567ed0	cSC4Watercraft	thiscall	ecx	3	12	al	this+0/100/rw/88:f32!:3	watercraft-angular	compare
+watercraft-direction	00567fd0	cSC4Watercraft	thiscall	ecx	0	0	eax	this+0/792/r/780:f32!:3	watercraft-direction	compare
+watercraft-clsid	0056dc60	cSC4Watercraft	thiscall	ecx	0	0	eax	-	watercraft-clsid	compare
+watercraft-straight	00568230	cSC4Watercraft	thiscall	ecx	3	12	void	this+0/856/r/732:f32!:1,756:f32!:3,780:f32!:3,852:f32!:1;arg1+0/56/rw/0:u8:2,4:f32:13;arg2+0/12/w/0:f32:3	watercraft-straight	compare
