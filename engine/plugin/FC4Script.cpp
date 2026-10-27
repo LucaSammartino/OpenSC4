@@ -27,6 +27,7 @@
 #include "FC4NetMgrShadow.h"
 #include "FC4Observer.h"
 #include "FC4RefAudit.h"
+#include "FC4Schedule.h"
 #include "FC4TerrainShadow.h"  // the glue16 lane: terrain
 #include "FC4Turbo.h"
 #include "FC4Watchdog.h"
@@ -89,6 +90,9 @@ namespace {
 harness::ScriptSchedule g_schedule;  // main thread only (game start, SimNewDay)
 DWORD g_uiReady = 0;
 bool g_uiDelay = false;
+// [choice] Under the fixed schedule a UI wait counts the schedule's clock, not the wall clock
+// (simulator.md §5.8, Scripted input).
+DWORD UiClockMs() { return ScheduleFixed() ? ScheduleClockMs() : GetTickCount(); }
 std::string g_path;                  // the loaded script, "" = none
 // A `save` and every action due after it, waiting for the observer's next
 // tick (pointers into g_schedule; cleared whenever it is reloaded).
@@ -949,7 +953,7 @@ void ScriptOnTick() {
                 return;
             }
     if (g_waiting.empty()) return;
-    if (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0) return;
+    if (g_uiDelay && static_cast<int32_t>(UiClockMs() - g_uiReady) < 0) return;
     g_uiDelay = false;
     // Modal windows pump framework ticks. Consume a UI action before calling
     // the game so a nested tick can deliver the queued close/input action.
@@ -960,7 +964,7 @@ void ScriptOnTick() {
         g_waiting.erase(g_waiting.begin());
         const bool previousTick = g_inTick;
         g_inTick = true;
-        g_uiReady = GetTickCount() + (first->op == harness::ScriptOp::UiWait ? first->type : 150);
+        g_uiReady = UiClockMs() + (first->op == harness::ScriptOp::UiWait ? first->type : 150);
         g_uiDelay = true;
         RunAction(*first, static_cast<int32_t>(PublishedJulian()), ObserverCity());
         g_inTick = previousTick;
@@ -987,7 +991,7 @@ void ScriptOnTick() {
 
 bool ScriptWaiting() {
     return g_inTick || !g_waiting.empty() ||
-        (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0);
+        (g_uiDelay && static_cast<int32_t>(UiClockMs() - g_uiReady) < 0);
 }
 
 uint32_t ScriptSaveGraceMs() { return static_cast<uint32_t>(InterlockedCompareExchange(&g_saveGraceMs, 0, 0)); }

@@ -1540,6 +1540,11 @@ void ScheduleFrame() {
     TimersFrame();
 }
 
+uint32_t ScheduleClockMs() {
+    if (!g_fixed || !g_virtual || g_qpcPerMs == 0) return 0;
+    return static_cast<uint32_t>((g_qpc - g_loadQpc) / g_qpcPerMs);
+}
+
 void ScheduleBeforeDelivery(const void* target, uint32_t msgType) {
     if (!g_fixed) return;
     {

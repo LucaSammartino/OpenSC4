@@ -6,6 +6,9 @@
   python tools/check.py run --dll <worktree or DLL> --replace <keys> [--scenarios SEL] [--jobs 12] [--no-bisect]
       each scenario with those owners switched on: exact, or the first differing delivery, day, record and
       owner; on a difference with several owners, each owner alone, to name the ones that differ
+  python tools/check.py run --dll <worktree or DLL> --replace each [--jobs 12]
+      every owner alone on each scenario of its cover; per owner, how many are exact; the table is written to
+      build-runs/golden/owner-check.tsv
 
 SEL is `cover` (the default: for each owner, the scenarios of its greedy reach cover in
 build-runs/golden/owner-scenarios.tsv, written by `tools/coverage.py --owner-scenarios`), `all`, a set from
@@ -80,8 +83,8 @@ def record(args):
 
     def one(name):
         code, out = golden('record', rows[name])
-        state = ('cached' if 'cached:' in out else 'recorded' if 'recorded:' in out else
-                 'error: ' + (re.findall(r'golden: (.*)', out) or [out.strip()[-200:]])[-1])
+        state = ('error: ' + (re.findall(r'golden: (.*)', out) or [out.strip()[-200:]])[-1] if code else
+                 'cached' if re.search(r'^cached:', out, re.M) else 'recorded')
         return name, code, state
 
     with ThreadPoolExecutor(args.jobs) as pool:
@@ -160,10 +163,37 @@ def describe(name, report, owners, reference):
     return '; '.join(parts)
 
 
+def run_each(args, rows, dll):
+    covers = owner_covers()
+    skipped = set(select('all', None, rows)[1])
+    jobs = [(key, name) for key in sorted(covers) if key != 'simulator' for name in covers[key] if name not in skipped]
+    print(f'{len(jobs)} runs: {len(covers) - 1} owners, each alone on its cover', flush=True)
+    owners = record_owners()
+    with ThreadPoolExecutor(args.jobs) as pool:
+        reports = list(pool.map(lambda job: compare(rows[job[1]], dll, [job[0]]), jobs))
+    table, exact = [], {}
+    for (key, name), report in zip(jobs, reports):
+        line = describe(f'{key} on {name}', report, owners, REPO / 'build-runs/golden' / report.get('key', '-'))
+        print(line, flush=True)
+        table.append((key, name, report['verdict'], line.split(': ', 1)[1]))
+        exact.setdefault(key, []).append(report['verdict'] == 'exact')
+    path = REPO / 'build-runs/golden/owner-check.tsv'
+    with path.open('w', encoding='utf-8', newline='\n') as stream:
+        stream.write(f'# {dll} ({len(jobs)} runs)\nkey\tscenario\tverdict\tdetail\n')
+        stream.writelines('\t'.join(row) + '\n' for row in table)
+    whole = sorted(key for key, flags in exact.items() if all(flags))
+    print(f'owners exact on their whole cover: {len(whole)} of {len(exact)}' + (f': {", ".join(whole)}' if whole else ''))
+    print(f'table: {path}')
+    errors = sum(report['verdict'] == 'error' for report in reports)
+    return 2 if errors else 0 if len(whole) == len(exact) else 1
+
+
 def run(args):
     rows = scenarios()
     keys = [] if args.replace == 'none' else sorted(set(filter(None, re.split(r'[,\s]+', args.replace))))
     dll = args.dll / 'engine/build-x86/FreeCity4.dll' if args.dll.is_dir() else args.dll
+    if args.replace == 'each':
+        return run_each(args, rows, dll)
     names, lua = select(args.scenarios, keys, rows)
     print(f'{len(names)} scenarios, owners {", ".join(keys) or "none"}' +
           (f'; not run (Lua or clockless): {", ".join(lua)}' if lua else ''), flush=True)

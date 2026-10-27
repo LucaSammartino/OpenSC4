@@ -28,6 +28,7 @@ void ScheduleStartup();             // install the hooks; one log line per lever
 void ScheduleBeforeCityLoad();      // re-seed the file-local generators again, set rand()
 void ScheduleDayOpened(int32_t julian);
 void ScheduleFrame();               // one simulator frame (cFC4Simulator::OnTick, fixed step)
+uint32_t ScheduleClockMs();         // the main thread's virtual clock in ms since the load (0 before it)
 // One digest line (the rand() state the delivery's predecessors left, a hash of
 // the 34 generators, the target's class), then the rand() rule. Main thread only.
 void ScheduleBeforeDelivery(const void* target, uint32_t msgType);
