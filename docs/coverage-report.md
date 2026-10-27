@@ -10,13 +10,13 @@ The denominator is the game's own code: **5,584,344 bytes in 29,535 functions** 
 |---|---|---:|---:|---:|---|
 | **Specified** | a clean-room spec in docs/specs describes the owning class | **91.9%** | 5,132,879 | 25,599 | - |
 | **Implemented** | our clean-room code in engine/ implements the owning class | **63.0%** | 3,520,534 | 15,906 | 0.0% implemented without a spec |
-| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train290.out`) | **31.4%** | 1,752,231 | 7,472 | 0.0% verified while its owner is not marked implemented |
+| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train291.out`) | **30.7%** | 1,712,985 | 7,319 | 0.0% verified while its owner is not marked implemented |
 | ↳ strict | ... and exact in every scenario of the test suite that reached it (`sh28-census3`, 179 runs) | **5.9%** | 329,798 | 1,407 | - |
-| **Replaced** | our code runs in the game instead of the original (house replace run) | **29.7%** | 1,656,452 | 6,630 | 2.8% running in the game before it was verified |
+| **Replaced** | our code runs in the game instead of the original (house replace run) | **29.7%** | 1,656,452 | 6,630 | 3.5% running in the game before it was verified |
 
 Reach, not a step: the suite entered 28.5% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
 
-Verified includes 20,416 bytes of single-method evidence (see Method verification).
+Verified includes 23,455 bytes of single-method evidence (see Method verification).
 
 ## Whole executable
 
@@ -37,32 +37,32 @@ Function comparison columns show byte share, followed by function share in paren
 
 | Area | Functions | Bytes | % of game | Specified | Implemented | Verified | ↳ strict | Replaced | Suite reach | bound | matched | matched-natural | matched-dense |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| simulation | 8,748 | 1,978,253 | 35.4% | 100.0% | 84.3% | 69.9% | 13.0% | 67.7% | 52.1% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | 8,748 | 1,978,253 | 35.4% | 100.0% | 84.3% | 67.7% | 13.0% | 67.7% | 52.1% | 0.0% (0.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | framework | 4,912 | 637,923 | 11.4% | 96.6% | 78.7% | 13.7% | 4.8% | 3.4% | 21.9% | 0.3% (0.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| renderer | 5,244 | 1,222,529 | 21.9% | 99.2% | 70.7% | 21.1% | 1.8% | 22.2% | 23.8% | 0.7% (0.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| ui | 5,210 | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.1% | 0.0% | 0.0% | 8.6% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| renderer | 5,244 | 1,222,529 | 21.9% | 99.2% | 70.7% | 21.3% | 1.8% | 22.2% | 23.8% | 0.7% (0.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| ui | 5,210 | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.1% | 0.0% | 0.0% | 8.6% | 1.8% (1.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | audio | 1,981 | 214,477 | 3.8% | 100.0% | 9.4% | 0.0% | 0.0% | 0.0% | 5.4% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | region | 417 | 112,894 | 2.0% | 100.0% | 30.7% | 21.0% | 18.0% | 21.0% | 18.3% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | other | 187 | 17,873 | 0.3% | 68.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | shared | 2,005 | 189,808 | 3.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | unattributed | 831 | 85,977 | 1.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| **all game code** | **29,535** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **31.4%** | **5.9%** | **29.7%** | **28.5%** | 0.2% (0.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| **all game code** | **29,535** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **30.7%** | **5.9%** | **29.7%** | **28.5%** | 0.6% (0.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 
 ## By subsystem
 
-One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes. Shadow: clean/total lines in `regress-train290.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run.
+One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes. Shadow: clean/total lines in `regress-train291.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run.
 
 | Area | Subsystem | Owners | Bytes | Shadow | Specified | Implemented | Verified | ↳ strict | Replaced | Suite reach | bound | matched | matched-natural | matched-dense |
 |---|---|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| simulation | automata (vehicles, animation) | 33 | 231,259 | 72/72 | 100.0% (100.0%) | 26.1% (28.7%) | 2.3% (3.3%) | - | 2.3% (3.3%) | 18.3% (19.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | traffic | 9 | 162,482 | 71/71, 72/72 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 72.2% (74.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | automata (vehicles, animation) | 33 | 231,259 | 72/72 | 100.0% (100.0%) | 26.1% (28.7%) | 2.3% (3.3%) | - | 2.3% (3.3%) | 18.3% (19.6%) | 0.4% (0.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | traffic | 9 | 162,482 | 72/72 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 72.2% (74.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | network tools | 12 | 150,282 | 73/73 | 100.0% (100.0%) | 94.3% (93.1%) | 80.3% (74.3%) | - | 70.5% (63.1%) | 82.8% (77.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | network occupants | 28 | 123,459 | 72/72 | 100.0% (100.0%) | 48.3% (50.5%) | 33.1% (40.2%) | - | - | 33.7% (33.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | automata (managers, records) | 13 | 121,603 | 72/72 | 100.0% (100.0%) | 99.5% (99.0%) | 99.5% (99.0%) | 22.9% (23.3%) | 99.5% (99.0%) | 47.4% (48.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | terrain | 5 | 84,631 | 615/615 | 100.0% (100.0%) | 99.6% (99.4%) | 87.3% (85.8%) | - | 87.3% (85.8%) | 30.2% (34.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | terrain | 5 | 84,631 | 620/620 | 100.0% (100.0%) | 99.6% (99.4%) | 87.3% (85.8%) | - | 87.3% (85.8%) | 30.2% (34.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | mysims | 8 | 80,498 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 53.4% (53.2%) | - | 80.8% (76.0%) | 47.9% (41.9%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | advisors | 18 | 71,970 | 73/73 | 100.0% (100.0%) | 99.2% (97.6%) | 90.6% (74.3%) | 61.3% (33.3%) | 90.6% (74.3%) | 63.3% (39.9%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | occupants and props | 38 | 70,035 | - | 100.0% (100.0%) | 37.9% (16.1%) | 0.2% (0.4%) | - | - | 34.8% (11.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | occupants and props | 38 | 70,035 | - | 100.0% (100.0%) | 37.9% (16.1%) | 0.3% (0.8%) | - | - | 34.8% (11.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | development | 2 | 50,083 | 913/913 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 51.6% (60.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | disasters | 17 | 46,988 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 83.9% (83.7%) | - | 83.9% (83.7%) | 42.7% (32.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | network manager | 6 | 41,985 | 73/73 | 100.0% (100.0%) | 99.2% (98.2%) | 99.2% (98.2%) | - | 65.3% (67.7%) | 38.4% (38.9%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -73,9 +73,9 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | simulation | tract developer | 1 | 36,811 | 145/145 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 72.6% (49.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | city and save file | 11 | 35,103 | - | 100.0% (100.0%) | 78.2% (79.3%) | 0.0% (0.0%) | - | - | 40.8% (55.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | budget | 3 | 30,911 | 72/72 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 57.7% (57.3%) | 100.0% (100.0%) | 57.7% (57.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | demand | 2 | 29,573 | 2237/2237 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 62.1% (49.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | demand | 2 | 29,573 | 2236/2237 | 100.0% (100.0%) | 100.0% (100.0%) | 0.0% (0.0%) | - | 100.0% (100.0%) | 62.1% (49.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | neighbours | 3 | 26,974 | 71/71 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 77.6% (73.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | power | 1 | 26,475 | 383/383 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 75.3% (64.2%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | power | 1 | 26,475 | 380/380 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 75.3% (64.2%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | lots and lot records | 5 | 24,896 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 82.6% (81.5%) | 69.1% (64.0%) | - | 84.6% (78.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | pollution | 1 | 24,357 | 71/71 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 65.2% (59.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | protection | 3 | 23,130 | 288/288 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 55.9% (48.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -98,15 +98,15 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | simulation | simulator | 2 | 9,529 | - | 100.0% (100.0%) | 98.1% (98.7%) | 0.0% (0.0%) | - | 98.1% (98.7%) | 0.5% (8.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | ordinance | 8 | 9,326 | 71/71 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 44.0% (53.1%) | 100.0% (100.0%) | 44.0% (53.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | dispatch | 1 | 7,425 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 20.0% (32.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | landvalue | 1 | 6,711 | 72/72 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 63.6% (70.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | landvalue | 1 | 6,711 | 70/72 | 100.0% (100.0%) | 100.0% (100.0%) | 0.0% (0.0%) | - | 100.0% (100.0%) | 63.6% (70.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | zones | 1 | 6,513 | 292/292 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 62.3% (51.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | history | 2 | 6,285 | 79/79 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 76.3% (71.4%) | 100.0% (100.0%) | 76.3% (71.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | flammability | 1 | 6,001 | 54/54 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 63.5% (67.9%) | 100.0% (100.0%) | 63.5% (67.9%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | flammability | 1 | 6,001 | 53/54 | 100.0% (100.0%) | 100.0% (100.0%) | 0.0% (0.0%) | 63.5% (67.9%) | 100.0% (100.0%) | 63.5% (67.9%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | civic buildings | 1 | 4,463 | 71/71 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 61.8% (66.7%) | 100.0% (100.0%) | 61.8% (66.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | 24-hour clock | 1 | 3,693 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | 43.8% (48.2%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | parks | 1 | 3,006 | 72/72 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 43.7% (42.1%) | 100.0% (100.0%) | 43.7% (42.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | city detail | 1 | 2,081 | 1/1 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 7.4% (38.5%) | 100.0% (100.0%) | 7.4% (38.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| simulation | commercial/industrial | 2 | 2,022 | 10/10, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 35.7% (34.6%) | 100.0% (100.0%) | 42.4% (46.2%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| simulation | commercial/industrial | 2 | 2,022 | 16/16, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 35.7% (34.6%) | 100.0% (100.0%) | 42.4% (46.2%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | automata groups | 2 | 1,662 | - | 100.0% (100.0%) | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | simulation | foundations | 1 | 918 | - | 100.0% (100.0%) | 100.0% (100.0%) | 0.0% (0.0%) | - | - | 97.2% (85.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | framework | application | 20 | 146,519 | 72/72 | 99.9% (99.3%) | 94.1% (84.9%) | 0.6% (1.9%) | - | - | 23.9% (21.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -129,7 +129,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | framework | tree diagnostics | 1 | 768 | - | - | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | framework | container helpers | 1 | 109 | - | 100.0% (100.0%) | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | framework | cheats | 1 | 5 | - | - | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| renderer | 3D scene and models | 19 | 177,441 | 615/615 | 100.0% (100.0%) | 62.6% (59.0%) | 24.1% (23.6%) | - | - | 33.1% (31.3%) | 1.9% (0.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| renderer | 3D scene and models | 19 | 177,441 | 620/620 | 100.0% (100.0%) | 62.6% (59.0%) | 24.1% (23.6%) | - | - | 33.1% (31.3%) | 1.9% (0.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | effects | 72 | 171,628 | - | 100.0% (100.0%) | 93.8% (93.9%) | 0.0% (0.0%) | - | 39.9% (33.9%) | 24.7% (22.8%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | 3D driver (DirectX 7) | 11 | 152,278 | - | 97.0% (95.7%) | 96.8% (95.6%) | 0.0% (0.0%) | - | - | 36.9% (16.8%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | 2D drawing and fonts | 48 | 146,443 | - | 96.6% (97.5%) | 17.0% (25.0%) | 0.0% (0.0%) | - | - | 8.1% (9.3%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -141,7 +141,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | renderer | model maker | 2 | 35,327 | - | 100.0% (100.0%) | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | terrain overlays | 1 | 30,436 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | 72.1% (59.1%) | - | 72.1% (59.1%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | 2D drawing (span render 8) | 1 | 24,545 | span8_source_own_direct 160/160, span8_source_own_native 160/160, span8_source_current40_direct 160/160, span8_source_current40_native 160/160, span8_joint98_direct 160/160, span8_joint98_native 160/160 (lane run) | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) | - | 100.0% (100.0%) | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| renderer | lighting and shadows | 4 | 23,453 | - | 100.0% (100.0%) | 98.5% (96.2%) | 0.0% (0.0%) | - | - | 46.0% (42.3%) | 3.6% (7.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| renderer | lighting and shadows | 4 | 23,453 | - | 100.0% (100.0%) | 98.5% (96.2%) | 12.6% (1.9%) | - | - | 46.0% (42.3%) | 3.6% (7.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | render properties | 79 | 23,179 | 73/73 | 100.0% (100.0%) | 100.0% (100.0%) | 4.6% (7.5%) | - | - | 0.2% (1.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | graphics rules | 7 | 22,162 | - | 100.0% (100.0%) | 99.9% (98.2%) | 0.0% (0.0%) | - | - | - | 3.2% (4.5%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | view utilities | 3 | 19,748 | - | 100.0% (100.0%) | 100.0% (100.0%) | 88.5% (76.0%) | - | - | 72.4% (84.0%) | 16.4% (40.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -160,7 +160,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | renderer | glyph and string textures | 3 | 4,475 | - | 100.0% (100.0%) | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | fire flames | 2 | 3,513 | - | 100.0% (100.0%) | - | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | renderer | graphics formats (FSH, S3D) | 3 | 3,279 | - | 100.0% (100.0%) | 100.0% (100.0%) | 0.0% (0.0%) | - | - | 90.2% (82.4%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
-| ui | widget toolkit | 123 | 466,421 | - | 87.4% (85.2%) | 51.0% (35.0%) | 0.2% (0.2%) | - | - | 16.5% (8.7%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
+| ui | widget toolkit | 123 | 466,421 | - | 87.4% (85.2%) | 51.0% (35.0%) | 0.2% (0.2%) | - | - | 16.5% (8.7%) | 4.4% (2.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | ui | windows and panels | 72 | 404,342 | - | 93.6% (91.9%) | 25.7% (12.0%) | 0.0% (0.0%) | - | - | 4.8% (3.6%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | ui | city tools and input | 34 | 184,793 | - | 100.0% (100.0%) | 41.0% (32.5%) | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
 | ui | resource and exemplar editor | 26 | 69,054 | - | 21.8% (21.3%) | 19.5% (19.6%) | 0.0% (0.0%) | - | - | - | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) | 0.0% (0.0%) |
@@ -175,14 +175,14 @@ Registry bindings and exact value comparisons are independent of owner shadow ve
 
 | Step | Bytes | Functions | % of game bytes |
 |---|---:|---:|---:|
-| **bound** | 9,929 | 38 | 0.2% |
+| **bound** | 31,405 | 109 | 0.6% |
 | **matched** | 0 | 0 | 0.0% |
 | **matched-natural** | 0 | 0 | 0.0% |
 | **matched-dense** | 0 | 0 | 0.0% |
 
 ## Method verification
 
-**method-verified 20,416 bytes / 72 functions**; 18,466 bytes / 48 functions additional to verified owner rows. The union is included once in verified. TSV identities must match the coverage function start, literal name, owner and byte size. Their named family must be exact with zero resynced lines in this house shadows run. Logged methods require positive final calls, final complete=calls, monotone counters, and zero mismatches and resyncs on every line. Unknown addresses, interface slots and collisions gain no credit.
+**method-verified 23,455 bytes / 75 functions**; 21,505 bytes / 51 functions additional to verified owner rows. The union is included once in verified. TSV identities must match the coverage function start, literal name, owner and byte size. Their named family must be exact with zero resynced lines in this house shadows run. Logged methods require positive final calls, final complete=calls, monotone counters, and zero mismatches and resyncs on every line. Unknown addresses, interface slots and collisions gain no credit.
 
 | Address | Name | Bytes | Additional to owner | Evidence |
 |---|---|---:|---|---|
@@ -202,6 +202,9 @@ Registry bindings and exact value comparisons are independent of owner shadow ve
 | 0x0044C010 | cSC4App::GetCDPluginDirectory | 121 | - | proposed-shadow-methods.tsv:app_shadow:app |
 | 0x004C37B0 | cSC4HoverQueriableOccupantFilter::IsOccupantIncluded | 96 | yes | proposed-shadow-methods.tsv:querytool_shadow:querytool |
 | 0x004C46C0 | cSC4QueriableOccupantFilter::IsOccupantIncluded | 51 | yes | proposed-shadow-methods.tsv:querytool_shadow:querytool |
+| 0x005CA7D0 | cSC4ConstructionOccupant::GetPosition | 69 | yes | log:construction |
+| 0x005D04A0 | cSC4ConstructionOccupant::GetGZCLSID | 6 | yes | log:construction |
+| 0x007D8C80 | cSC4LightingManager::CalcShadowProjection | 2964 | yes | log:lighting |
 | 0x007DDE10 | cSC4RenderProperties::GetBoolCount | 10 | - | proposed-shadow-methods.tsv:renderprops_shadow:renderprops |
 | 0x007DDE20 | cSC4RenderProperties::GetIntCount | 26 | - | proposed-shadow-methods.tsv:renderprops_shadow:renderprops |
 | 0x007DDE40 | cSC4RenderProperties::GetFloatCount | 26 | - | proposed-shadow-methods.tsv:renderprops_shadow:renderprops |
@@ -382,14 +385,16 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-map.tsv | b25f1b300aff97c7 | |
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | fe38461524a619f8 | |
-| engine/plugin/FC4Subsystems.cpp | 1108aa82f7ad9c30 | |
-| build-runs/regress-train290.out | 0d15081c619d965c | regress train290 (PASS; turbo to 2032-01-01, timeout 3600 s; queue (priority high, at the same time); shadows combined); replace run clean |
-| build-runs/regress-train290-replace.log | ca2a4c8e17a34da0 | function compare evidence |
-| build-runs/regress-train290-shadows.log | f63e9b155f365053 | function compare evidence |
+| engine/plugin/FC4Subsystems.cpp | 7af61f4ca0c55805 | |
+| build-runs/regress-train291.out | 0212abb8090e3d71 | regress train291 (PASS; turbo to 2032-01-01, timeout 3600 s; queue (priority high, at the same time); shadows combined); replace run clean |
+| build-runs/regress-train291-replace.log | 19e9be1d373e82a8 | function compare evidence |
+| build-runs/regress-train291-shadows.log | d9aba49baf104cf7 | function compare evidence |
+| engine/plugin/compare/cHTMLDocument.tsv | af17dc17fabf7368 | function compare evidence |
 | engine/plugin/compare/cRZLanguageManager.tsv | ad5d82ba2f45a1c3 | function compare evidence |
 | engine/plugin/compare/cSC4ConfigRuleManager.tsv | 2a3a670db94fd3db | function compare evidence |
 | engine/plugin/compare/cSC4LightingManager.tsv | 03e81a8d1d9e5cc4 | function compare evidence |
 | engine/plugin/compare/cSC4View3DWin-cfgrules.tsv | e4c066931150b977 | function compare evidence |
+| engine/plugin/compare/cSC4Watercraft.tsv | 167dcd4a6ef3102b | function compare evidence |
 | engine/plugin/compare/SC4ViewUtilities.tsv | 57624e810c88d848 | function compare evidence |
 | build-runs/suite/sh28-census3/berlin-konradshohe.log | adb0557759cb122b | suite evidence |
 | build-runs/suite/sh28-census3/berlin-konradshohe.reach.tsv | 4b69ba9b27f0144f | suite evidence |
@@ -1036,4 +1041,4 @@ Read from tools/regress.ps1: 56 replace keys, 91 shadows. On by default in FC4Su
 - method evidence 0x0094C413: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x0094C47C: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x009C32AC: name/owner/bytes collision with coverage table; not credited
-- shadow `span8888_shadow` is in the regress list but `regress-train290.out` has no `span8888` lines
+- shadow `span8888_shadow` is in the regress list but `regress-train291.out` has no `span8888` lines
