@@ -345,7 +345,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 12 | OV18 | questions/overlay-manager.md |
+| overlay-manager | 7 | 12 | OV20 | questions/overlay-manager.md |
 | overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 0 | 13 | PT14 | questions/particles.md |
@@ -357,11 +357,11 @@ generated index: the questions live one file per spec, so read only the file for
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
-| power | 0 | 12 | CR2, PW12 | - |
+| power | 0 | 12 | CR2, PW12 | questions/power.md |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
 | prop-lotconfig | 7 | 12 | PL25 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
-| protection | 0 | 20 | PR21 | - |
+| protection | 0 | 20 | PR21 | questions/protection.md |
 | radio | 4 | 0 | RA5 | questions/radio.md |
 | region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
@@ -435,4 +435,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **614** | **1698** | | |
+| **total** | **616** | **1698** | | |
