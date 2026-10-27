@@ -1578,3 +1578,10 @@ endif()
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4HTMLDocumentShadow.cpp plugin/FC4HTMLDocumentShadow.h)
 endif()
+# Cargo's console target can prune cached link steps through Ninja restat.
+# Emit a completed edge afterwards so the native gate sees final progress.
+add_custom_target(fc4_capi_ready ALL
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Rust static archive ready"
+    VERBATIM)
+add_dependencies(fc4_capi_ready fc4_capi_cargo)

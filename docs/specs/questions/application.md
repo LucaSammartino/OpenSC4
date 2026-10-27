@@ -56,3 +56,6 @@
   Is this an intended modal/message wait, and which independently observable input releases it?
   Ownership is unassigned: the current capture does not establish an automata or terrain-view call.
   [runtime observation required; stop this item without changing the application loop or watchdog]
+
+<!-- from: method-app31 (2026-10-27) -->
+- **AP21 - sections 2 and 9, string-getter return contracts:** the public SDK declares bool returns for cISC4App slots 28/30 and 51-66, while these sections specify output-string assignment but no return value. Are these actual boolean-returning methods or SDK return-type errors? Please publish each return contract, including empty app names and negative language indices. No result is inferred from incidental registers or seeded from native output. Method evidence now keeps complete=0 for these getters despite exact strings; lazy slots additionally lack cache-write/base-call observation. Superseded-source run `suite-method-app31-house-r2-play-shadows` was clean, with 19 exact string samples each, but its string-method complete=19 claims are invalid because returns were not compared. The frozen `suite-method-app31-gen-r1-gen27-konradshohe-s1-default-shadows` DLL has the same superseded flags; retain its raw evidence without method credit.
