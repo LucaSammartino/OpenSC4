@@ -11128,6 +11128,7 @@ int LotDevEnableTest(const std::string& dll, const std::string& ini, const std::
 #include "plugin_lotconf_ownership_test.inc"
 #include "plugin_netlot_ownership_test.inc"
 #include "plugin_effects_resource_registration_test.inc"
+#include "plugin_demolition_occupant_test.inc"
 
 int main(int argc, char** argv) {
     prop_compare_test::Check();
@@ -13561,6 +13562,7 @@ int main(int argc, char** argv) {
     }
     CHECK(text.find("OUT-PARAM OVERRUN #2") == std::string::npos);
 
+    DemolitionLotBuildingTest(reinterpret_cast<FC4TestSeamFn>(GetProcAddress(h, "FC4TestSeam")));
     CheckCw("the whole normal run");
     FreeLibrary(h);
     CheckCw("FreeLibrary");

@@ -774,7 +774,16 @@ void LotsInCellRect(void* u, const fc4_cell_rect* r, fc4_token_callback cb, void
 
 uint64_t LotBuilding(void*, uint64_t t) {
     cISC4Lot* l = Lot(t);
-    return l != nullptr ? TokenOf(fc4::AsGame(l)->GetBuilding()) : 0;  // slot 48, borrowed
+    cISC4BuildingOccupant* b = l != nullptr ? fc4::AsGame(l)->GetBuilding() : nullptr;  // slot 48, borrowed
+    cISC4Occupant* o = nullptr;
+    if (b == nullptr || !b->QueryInterface(kIID_cISC4Occupant, reinterpret_cast<void**>(&o)) || o == nullptr)
+        return 0;
+    // All occupant callbacks consume cISC4Occupant*, not the building view.
+    // The lot's borrowed building keeps the object alive after this QI release.
+    FC4_ACQUIRED(o, "QueryInterface");
+    const uint64_t token = TokenOf(o);
+    FC4_RELEASE(o);
+    return token;
 }
 
 uint32_t LotState(void*, uint64_t t) {

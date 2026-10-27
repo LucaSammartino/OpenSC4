@@ -703,8 +703,8 @@ void DropShadow() {
 
 // Builds ours from the original (PostCityInit) and compares the load state.
 void Load(int32_t julian) {
-    // The original queries compute on demand. New-city setup can leave Lua's
-    // precision active here; compare under simulation precision (§18.2).
+    // The original queries compute on demand in the caller's live PC (§18.4).
+    // SPEC-GAP: terrain §4.1/§4.3 PC53 spill boundaries need TR-GC30-1; retain live PC.
     FpuSimulationEntry("terrain shadow load queries");
     const uint32_t cx = g_s.src.cellsX, cz = g_s.src.cellsZ;
     g_s.vertsX = cx + 1;
