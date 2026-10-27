@@ -906,7 +906,7 @@ Similarly, comparing texture identities/dimensions does not verify image bytes (
 report any missing event/resource/lighting input as incomplete coverage; the absence of those inputs is the
 answer to OV12's snapshot-reconstruction question, not permission to inject computed owner results.
 
-#### 3.8.1 Capture availability and the earliest boundary (OV13)
+#### 3.8.1 Capture availability and the earliest boundary (OV13/OV18)
 
 There is **no supported native capture-registration or history-export API on this owner**: the §3
 interface exposes overlay operations/getters, not an event subscription for their arguments or consumed
@@ -914,6 +914,7 @@ resources. The concrete earliest boundary for a future instrumented adapter is t
 before the four manager Init calls at `0x0075C6BC`, `0x0075C6C8`, `0x0075C6D7`, `0x0075C6E7`:
 static land, static water, dynamic land, dynamic water respectively. These are direct calls, following direct
 construction of the managers (`0x0075C5B2–0x0075C6B3`); replacing only interface slots does not capture Init.
+The complete pre-allocation routing and matching teardown boundary are specified below (OV18).
 Capture must precede Init itself, not merely the first successful add, because Init acquires resources and
 settings (§1.1). This is an instrumentation boundary, not a callback the game promises to invoke. A
 post-load read-only observer cannot supply it retrospectively. Its supported result remains the §2
@@ -946,6 +947,93 @@ Upload pointers are transient (`0x00809B90–0x00809CC6`); neither the owner nor
 complete recording facility. Missing any of these input families limits the claimed coverage to the
 boundary actually captured; it does not block implementing the observation invariants now.
 
+##### Pre-allocation construction and teardown boundary (OV18)
+
+In terrain-view Init (`0x0075C420`), the complete manager creation/Init unit is the half-open instruction
+interval **[`0x0075C5B2`, `0x0075C6EC`)**. Entry is before the first allocation's size argument; continuation
+is after the fourth Init returns and before height updates. The construction-only prefix ends at
+`0x0075C6B6`. There is no test of the four existing manager fields before allocation: pre-populating them
+causes replacement/reference release, not a construction bypass. The optional ripple path rejoins at
+`0x0075C5B2` (`0x0075C582`, `0x0075C5AD`). These are semantic boundaries for replacing the entire unit;
+they do not specify a forwarding gateway or authorize executing native constructors on foreign storage.
+
+All four allocations/constructions and field-reference transfers finish **before any** manager Init:
+
+| View field / role | Size argument begins | Allocation call | Constructor call | New AddRef / field store / old Release | Init call and arguments after this |
+|---|---|---|---|---|---|
+| `+0x78`, static land | `0x0075C5B2` | `0x0075C5B7` | `0x0075C5C5` | `0x0075C5DF` / `0x0075C5E4` / `0x0075C5ED` | `0x0075C6BC`: view, 0, 0 |
+| `+0x7C`, static water | `0x0075C5F0` | `0x0075C5F5` | `0x0075C603` | `0x0075C61D` / `0x0075C622` / `0x0075C62B` | `0x0075C6C8`: view, 0, 1 |
+| `+0x80`, dynamic land | `0x0075C62E` | `0x0075C633` | `0x0075C641` | `0x0075C65E` / `0x0075C663` / `0x0075C66F` | `0x0075C6D7`: view, 1, 0 |
+| `+0x84`, dynamic water | `0x0075C672` | `0x0075C677` | `0x0075C685` | `0x0075C6A2` / `0x0075C6A7` / `0x0075C6B3` | `0x0075C6E7`: view, 1, 1 |
+
+Call/continuation contracts, established from the instruction bytes:
+
+- Allocation is `GlobalHeapAlloc`, `0x005E55E0`: one 32-bit size argument **`0xFC`**, caller cleanup 4 bytes,
+  storage pointer in EAX. No incoming ECX object is consumed by this allocator. Null skips that constructor
+  and produces a null new pointer; it is not a clean Init failure. Each constructor is `0x0073BC20`,
+  ECX=allocated storage, no explicit arguments or argument cleanup, EAX=constructed manager base
+  (`0x0073BD98–0x0073BD9B`). Its result becomes EDI and is used for the field-reference transfer.
+- A field transfer compares new and old pointers. If different: AddRef the nonnull new object through
+  primary-interface slot 1, publish the new pointer, then Release the nonnull old object through slot 2.
+  If equal, none of those operations occurs. Their scalar returns are ignored. The constructor's embedded
+  reference count starts at **zero**, so the ordinary new object's field AddRef establishes count 1;
+  there is no extra constructor/factory reference for the caller to release. Evidence: embedded-base
+  construction at `0x0073BC24–0x0073BC36`, zero store `0x0090DA20`, AddRef `0x004302A0`/`0x00968B60`.
+- Each Init is thiscall: ECX=the manager read from that view field; three 32-bit argument slots in order
+  **(complete view base, dynamic byte, water byte)**. The latter slots contain 0 or 1; Init reads their low
+  bytes. At callee entry these are `[ESP+4]`, `[ESP+8]`, `[ESP+12]`; Init removes **12 argument bytes**
+  (`0x0073CD39`). No Init result is tested or consumed. All four calls are unconditional, including after
+  a null allocation. Init's first new-parent retention takes one view AddRef per manager (§1.1,
+  `0x0073CB6D–0x0073CB96`); it does not add another manager reference.
+- At whole-unit entry ESI=complete view base and EBP=0. EBX holds the original terrain argument of view
+  Init; EDI still holds the service pointer loaded at `0x0075C4F7`. Neither EBX nor EDI is a creation input.
+  EAX/ECX/EDX depend on the preceding optional ripple path and supply no inputs to this unit. Preserve
+  ESI, EBP, the inherited floating-point control state, and the caller's saved registers/local frame.
+  With S denoting view Init's entry ESP (pointing to its return address), boundary ESP is **S−`0x28`**,
+  and remains that value at continuation. No additional arguments belong to the whole unit itself;
+  a bridge's own return address must not be mistaken for this native frame.
+- The native unit uses EBX/EDI as temporaries: on exit EBX is the former `+0x84` pointer and EDI is the
+  new `+0x84` pointer. The continuation has no live dependency on those values, EAX/ECX/EDX, condition
+  flags or a scalar result; preserving entry EBX/EDI instead is sufficient. It does depend on ESI, zero
+  EBP, the unchanged stack and the four initialized fields. Evidence: frame setup `0x0075C425–0x0075C487`,
+  continuation `0x0075C6EC–0x0075C77A`, later temporary definitions `0x0075C810–0x0075C882`, and epilogue
+  `0x0075C964–0x0075C9C1`. The whole view Init later returns boolean true; that is not a manager result.
+
+The native allocation belongs to the view-held reference protocol, not to terrain-view slot 18 or to the
+draw adapter. Final primary-interface Release reaches the embedded unknown at manager `+8`; its deleting
+destructor route subtracts 8 (`0x0073BDC0`), runs the body (§1.2), then uses **GlobalHeapFree**
+`0x005E5620` on the complete allocation when deletion bit 0 is set (`0x0073C983–0x0073C995`). Allocation
+and free are a matched native heap pair. Replacing the whole unit may use a different allocation owner,
+but that object's Release/destruction must stay with its own owner; neither the native constructor nor
+native destructor/free is a foreign-object lifetime gateway.
+
+Creation is not the only direct route that must change when these fields contain replacement objects:
+
+| View teardown route | Calls / effects in order |
+|---|---|
+| Initialized view Shutdown (`0x007560F0`) | If the draw registry exists, unregister the four draw subobjects (nonnull manager base **+4**) at `0x00756126`, `0x0075613F`, `0x0075615B`, `0x00756177`, in field order. |
+| Manager Shutdown calls | `0x0075621F`, `0x00756227`, `0x00756232`, `0x0075623D` directly call `0x0073AC90` on `+0x78`, `+0x7C`, `+0x80`, `+0x84` respectively; ECX=manager base, no arguments/cleanup, no consumed result. A single nonnull `+0x78` check gates this entire block, not four independent checks. |
+| View-field release after those four calls | Clear each nonnull field **before** primary slot-2 Release at `0x0075624E`, `0x0075625D`, `0x00756272`, `0x00756287`. The same first-field guard skips these releases too when `+0x78` is null; continuation is `0x0075628A`. |
+| View destructor (`0x00756980`) | If view initialized byte `+0x18` is nonzero, direct call `0x007569B0` invokes the view Shutdown above. Independently, the loop at `0x007569D0–0x007569E0` makes primary slot-2 Release at `0x007569DC` on nonnull fields in reverse order: `+0x84`, `+0x80`, `+0x7C`, `+0x78`. It does not directly call the manager destructor. |
+
+The four direct manager Shutdown calls therefore require replacement routing even with valid replacement
+vtables. Virtual field Releases and the destructor's residual-release loop must reach the replacement's
+own implementation. Normal Shutdown clears the fields, making the destructor loop empty. Draw registration
+is later, outside the creation unit: calls `0x0075C89F`, `0x0075C8D1`, `0x0075C909`, `0x0075C95E` pass
+the corresponding base+4 draw subobject at the layers/priorities of §1. Registry-held references are
+separate from the one field reference established here; they are not a constructor reference to transfer.
+
+Worked lifecycle case (service callbacks otherwise inert): start with four null fields and successful
+allocations A/B/C/D. Construct A, retain/publish A, then B, C, D in that order; their field-owned counts
+are each 1. Only then Init A/B/C/D with (view,0,0), (view,0,1), (view,1,0), (view,1,1). Those parent
+retentions add four view references. No allocation or Init scalar result decides whether to continue.
+With no draw registry or other manager owners, routed view Shutdown must call all four manager Shutdowns
+before releasing any field reference: parent retentions fall by four, then clear/release A/B/C/D and destroy
+each with its matching owner. The view destructor afterward makes no further manager calls. For the
+replacement variant, the same trace must contain **zero** native manager constructions, native manager
+Shutdowns or native manager frees on A/B/C/D. A second discriminator is a pre-existing `+0x78`=P: native
+creation still allocates A, AddRefs A, publishes A, Releases P, and later Initializes A.
+
 ## 4. Drawing (`Draw`, `0x00738A50`) *[compat]*
 
 A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
@@ -961,8 +1049,9 @@ A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
 
 ### 4.1 Draw states (`InitDrawStates`, `0x0073BA10`)
 
-Five packed states, all with colour write, depth test, blending and one texture, and stage-0 mode 1 except state 4
-(which keeps the mode):
+Five packed states, all with colour write, depth test, blending, one texture and **culling off**, and stage-0
+mode 1 except state 4 (which keeps the mode). The alpha reference is the packing input; packed replay uses
+the quantized reference of draw-context.md §5, rather than forwarding that input unchanged:
 
 | Index | Depth write | Depth function | Blend | Alpha test |
 |---|---|---|---|---|
@@ -970,7 +1059,70 @@ Five packed states, all with colour write, depth test, blending and one texture,
 | 1 | no | less-or-equal | source alpha / one (additive) | no |
 | 2 | no | less-or-equal | zero / source colour (multiply) | no |
 | 3 | no | greater | source alpha / one minus source alpha | no |
-| 4 | yes | less | source alpha / one minus source alpha | greater than 0.5 |
+| 4 | yes | less | source alpha / one minus source alpha | greater; reference input 0.5 |
+
+#### Complete native packing arguments and combiner bytes (OV19)
+
+The native vector at manager `+0x24` contains five **8-byte** records: value dword at record `+0`, write-mask
+dword at `+4`, in little-endian order. Record i starts at vector begin +8i, not at an enum value or at a
+combiner offset. `InitDrawStates` resizes this vector to 5 before packing (`0x0073BA15–0x0073BA1C`).
+
+These are the complete **14 arguments**, excluding this, to `PackRenderState` (`0x007D2B50`), split across
+two tables by ordinal. Each argument occupies a four-byte stack slot; the boolean arguments use its low
+byte, the reference is binary32, and the packer removes 56 argument bytes (`0x007D2CFF`, `0x007D2D13`).
+
+| State | 1 colour write | 2 depth write | 3 depth test | 4 alpha test | 5 blending | 6 texture count | 7 culling |
+|---|---|---|---|---|---|---|---|
+| 0 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 1 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 2 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 3 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 4 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+
+| State / native pack call | 8 depth function | 9 source blend | 10 destination blend | 11 alpha function | 12 alpha reference | 13 stage-0 mode | 14 stage-1 mode |
+|---|---|---|---|---|---|---|---|
+| 0 / `0x0073BA41` | 3 | 4 | 5 | −1 | −1.0 | 1 | −1 |
+| 1 / `0x0073BA67` | 3 | 4 | 1 | −1 | −1.0 | 1 | −1 |
+| 2 / `0x0073BA8C` | 3 | 0 | 2 | −1 | −1.0 | 1 | −1 |
+| 3 / `0x0073BAB2` | 4 | 4 | 5 | −1 | −1.0 | 1 | −1 |
+| 4 / `0x0073BADA` | 1 | 4 | 5 | 4 | 0.5 | −1 | −1 |
+
+Integer −1 is the word `0xFFFFFFFF`; the exact reference argument words are `0xBF800000` for −1.0 and
+`0x3F000000` for 0.5. Compare/blend integers use graphics-formats.md §3.8's native enums. A −1 argument
+means **preserve the corresponding field**, not choose a default. States 0–3 leave alpha function,
+alpha-reference nibble and stage-1 mode alone: their write masks are **`0x1E1FE3FF`**. State 4 leaves both
+stage modes alone: its mask is **`0x11FFFFFF`**. All five masks include culling bit 6, which is explicitly
+cleared. Texture count 1 explicitly enables stage 0 and disables stage 1 (bits 5/28), even when the modes
+are preserved. These mask choices follow the packer's explicit field masks, not the current context state
+(`0x007D2BBA–0x007D2BFC`, `0x007D2C64–0x007D2D13`).
+
+The following are the three **complete 12-byte native combiner records after construction and
+InitDrawStates**. Column labels are byte offsets within each record; all entries are hexadecimal bytes.
+
+| Manager offset | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 0A | 0B |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `+0x38` | 00 | 02 | 03 | 01 | 01 | 00 | 02 | 01 | 00 | 00 | 00 | 00 |
+| `+0x44` | 00 | 01 | 03 | 01 | 01 | 00 | 01 | 01 | 00 | 00 | 00 | 00 |
+| `+0x50` | 00 | 00 | 03 | 01 | 00 | 00 | 03 | 01 | 00 | 00 | 00 | 00 |
+
+The constructor establishes every byte, including byte zeros at relative `+8/+9` and **word zeros at
+`+0x0A`**: stores at `0x0073BC8D–0x0073BCF1`. InitDrawStates then overwrites only the selected bytes at
+`0x0073BAE0–0x0073BB0C`; the other constructor bytes persist. Thus the final four zero bytes in each row
+are proved storage contents, including any padding, rather than assumed uninitialized padding. Borrowing
+a native descriptor means borrowing these 12 bytes, not reinterpreting a language enum or a packed-state
+vector element. Their full-shadow normal/debug selection is §4.8; these records establish the adapter
+inputs without claiming execution of the terrain geometry consumers.
+
+Worked record/state cases: initialize the 36 combiner bytes to a nonzero sentinel before running the
+specified constructor/Init stores; the final three records must equal the rows above, including all four
+tail zeros. In a nonempty full normal pass with a shadow binding, stage 0 receives the `+0x38` row and
+stage 1 the `+0x44` row; debug setting exactly 4 instead sends `+0x38` then `+0x50` to stage 0 (§4.8).
+For state replay, begin with culling enabled, alpha function 6, reference nibble 3 and stage-1 mode 4.
+State 0 disables culling and alpha testing, selects depth function 3 and blend 4/5, but preserves function
+6, nibble 3 and mode 4 while disabling stage-1 texturing. Alternatively begin with stage modes 4/7 and
+culling enabled: state 4 preserves modes 4/7, disables culling/stage-1 texturing, enables depth write and
+alpha testing, and packs alpha function 4 with binary32 reference input 0.5. These distinguish keeping a
+mode from keeping its enable bit, and keeping an alpha comparison from disabling alpha testing.
 
 ### 4.2 Decals (`DrawDecals`, `0x00736790`)
 
@@ -1201,7 +1353,8 @@ The signed cached quality must exceed 2 **and** context render boolean `+0x17C` 
 the full pass; otherwise an enabled shadow pass uses the rough body (`0x00739342–0x00739376`). This test
 is separate from the add-time quality decisions in §3.7.
 
-For a nonempty full pass, debug mode is exactly cached second-stage setting ==4. Stage 0 gets filtering
+For a nonempty full pass, debug mode is exactly cached second-stage setting ==4. The complete 12-byte
+combiner records at the three offsets below are specified in §4.1 (OV19). Stage 0 gets filtering
 `(1,1)`, combiner descriptor manager `+0x38`. If `+0xD4` exists, enable and bind it on stage j, where
 j=0 in debug and j=1 otherwise; filtering is `(0,0)`, wrap modes `(2,2)`, and combiner is manager `+0x50`
 in debug or `+0x44` otherwise (`0x00736CB2–0x00736D3A`). No dummy binding is supplied when it is absent.
