@@ -556,6 +556,11 @@ the whole record is a base record of that version.
 Each of the three lists is in its keys' creation order (simulator.md §5.8): the lot of a pair or ferry entry, the
 occupant of list 4. The original's own order is that of three hash maps keyed by those pointers, by address.
 
+At each animation tick (`DoAnimationTick`, `0x005736A0`) the manager creates the ferries its ferry entries lack
+(`CreateFerry`) and then the boats its marina occupants (list 4) lack (`CreateMarinaBoat`), each walk in its keys'
+creation order too; the original walks the two hash maps by address, so the order the boats are created in, and so
+their IDs, followed the heap.
+
 A route element: `ref` lot, `ref` lot, `s32` kind (0, 1, otherwise −1), 4 × `u16`, `bool`, `s16`, `s16`,
 `bytes`, `bytes`.
 

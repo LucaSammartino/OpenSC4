@@ -1889,10 +1889,11 @@ const WalkExit kWalkExits[] = {
 };
 constexpr uint8_t kHashBeginBytes[] = {0x8B, 0x51, 0x08, 0x56, 0x8B};
 
-// The tree walks redirected (TreeBegin, TreeNext): demolition's set of the occupants it removes (demolition.md
-// §4.4 step 5, §4.6). Each begin is `mov reg, [header + 8]; cmp reg, header`, replaced by a thunk that sets reg to
-// TreeBegin's node and the flags as that compare did; each step ends at the loop's compare of its node (eax) with
-// the header, where its thunk continues.
+// The walks whose begin is inline too, each begin and step replaced by a thunk.
+// Red-black trees (TreeBegin, TreeNext): demolition's set of the occupants it removes (demolition.md §4.4 step 5,
+// §4.6). Each begin is `mov reg, [header + 8]; cmp reg, header`, replaced by a thunk that sets reg to TreeBegin's
+// node and the flags as that compare did; each step ends at the loop's compare of its node (eax) with the header,
+// where its thunk continues.
 __declspec(naked) void DemolishOccupantsBegin() {  // DemolishRegion's price and remove (0x00468410): edx, header ecx
     __asm {
         push eax
@@ -1949,7 +1950,57 @@ __declspec(naked) void UpdateNetworksStep() {  // its header at [esp + 0x14]
         ret
     }
 }
-struct TreeWalkSite {
+// Hash tables (OrderedBegin, OrderedNext): the watercraft manager's DoAnimationTick (0x005736A0) creating the
+// missing ferries of its ferry entries (the map at +0xA8C) and the missing marina boats of its marina map (+0xAB4),
+// each walk's begin an inline search for the first bucket (automata.md §5.3). Each begin thunk sets the walk's node
+// register (and the table register) and continues at the loop's test of the node.
+__declspec(naked) void FerriesBegin() {  // ebx the manager; the node in ebp, the table in edi
+    __asm {
+        lea edi, [ebx + 0xA8C]
+        sub esp, 8
+        mov edx, esp
+        push edx
+        mov ecx, edi
+        call OrderedBegin
+        mov ebp, dword ptr [esp]
+        add esp, 8
+        push 0x0057403D
+        ret
+    }
+}
+__declspec(naked) void FerriesStep() {
+    __asm {
+        call OrderedNext
+        mov ebp, eax
+        push 0x00574114
+        ret
+    }
+}
+__declspec(naked) void MarinaBoatsBegin() {  // ebx the manager; the node in esi, the table in eax (then edi)
+    __asm {
+        lea eax, [ebx + 0xAB4]
+        push eax
+        sub esp, 8
+        mov edx, esp
+        push edx
+        mov ecx, eax
+        call OrderedBegin
+        mov esi, dword ptr [esp]
+        add esp, 8
+        pop eax
+        push 0x00574158
+        ret
+    }
+}
+__declspec(naked) void MarinaBoatsStep() {
+    __asm {
+        call OrderedNext
+        mov esi, eax
+        push 0x005741FF
+        ret
+    }
+}
+struct InlineWalkSite {
     const char* name;
     uintptr_t begin;
     uint8_t beginBytes[5];
@@ -1958,7 +2009,7 @@ struct TreeWalkSite {
     uint8_t stepBytes[5];
     const void* stepThunk;
 };
-const TreeWalkSite kTreeWalks[] = {
+const InlineWalkSite kInlineWalks[] = {
     // mov edx, [ecx + 8]; cmp edx, ecx / mov eax, [esp + 0x10]; mov ecx, ...
     {"demolition's removal of a region's occupants (0x00468410)", 0x00468912, {0x8B, 0x51, 0x08, 0x3B, 0xD1},
      reinterpret_cast<const void*>(&DemolishOccupantsBegin), 0x00468DF8, {0x8B, 0x44, 0x24, 0x10, 0x8B},
@@ -1967,6 +2018,14 @@ const TreeWalkSite kTreeWalks[] = {
     {"demolition's network update (0x004681A0)", 0x0046820F, {0x8B, 0x69, 0x08, 0x3B, 0xE9},
      reinterpret_cast<const void*>(&UpdateNetworksBegin), 0x00468337, {0x8B, 0x4D, 0x0C, 0x85, 0xC9},
      reinterpret_cast<const void*>(&UpdateNetworksStep)},
+    // mov ecx, [ebx + 0xA94] / mov eax, [ebp]; test eax, eax
+    {"the watercraft manager's ferry creation (0x005736A0)", 0x00573FFE, {0x8B, 0x8B, 0x94, 0x0A, 0x00},
+     reinterpret_cast<const void*>(&FerriesBegin), 0x005740D9, {0x8B, 0x45, 0x00, 0x85, 0xC0},
+     reinterpret_cast<const void*>(&FerriesStep)},
+    // mov edx, [ebx + 0xABC] / mov eax, [esi]; test eax, eax; je ...
+    {"the watercraft manager's marina boat creation (0x005736A0)", 0x00574120, {0x8B, 0x93, 0xBC, 0x0A, 0x00},
+     reinterpret_cast<const void*>(&MarinaBoatsBegin), 0x005741C6, {0x8B, 0x06, 0x85, 0xC0, 0x74},
+     reinterpret_cast<const void*>(&MarinaBoatsStep)},
 };
 
 // A trampoline: the entry's first n bytes (whole instructions, no relative operands), then a jump back.
@@ -2221,7 +2280,7 @@ void ScheduleStartup() {
             Log("schedule: WARNING %s not reordered: %s", w.name, err);
         }
     }
-    for (const TreeWalkSite& w : kTreeWalks) {
+    for (const InlineWalkSite& w : kInlineWalks) {
         const char* err = std::memcmp(reinterpret_cast<const void*>(w.step), w.stepBytes, sizeof(w.stepBytes)) != 0
                               ? "unexpected bytes at its step"
                               : PatchJump(w.begin, w.beginBytes, sizeof(w.beginBytes), w.beginThunk);
