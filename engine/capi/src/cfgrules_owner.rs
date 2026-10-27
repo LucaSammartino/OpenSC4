@@ -301,11 +301,6 @@ pub unsafe extern "C" fn fc4_cfgrules_owner_init(
         if renderer.is_null() {
             return -1;
         }
-        // SPEC-GAP: GR9 has no interface-only native probe/backing-store acquisition recipe.
-        // Refuse unavailable acquisition before retaining/replacing properties or parsing.
-        let Some(mut provider) = s.host.provider() else {
-            return -2;
-        };
         if !s
             .renderer
             .as_ref()
@@ -317,6 +312,13 @@ pub unsafe extern "C" fn fc4_cfgrules_owner_init(
                 host: s.host,
             })));
         }
+        // GR11: both holders replace their reference before gathering. Repeated
+        // Init with the same object still gathers/parses without another AddRef.
+        s.manager
+            .retain_properties(s.renderer.as_ref().expect("renderer retained"));
+        let Some(mut provider) = s.host.provider() else {
+            return -2;
+        };
         s.manager.init(
             s.renderer.as_ref().expect("renderer retained"),
             &mut provider,

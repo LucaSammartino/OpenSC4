@@ -27,13 +27,15 @@ impl Vec3 {
         )
     }
     pub fn normalized(self) -> Self {
-        // §2.2: no zero guard. Widen products before sqrt and store components
-        // once. f64 is a portable evaluation policy, not x87 bit emulation.
+        // §§2.3/3.5: PC=24 rounds each operation, retaining x87 exponent range;
+        // there is no zero guard or intermediate float32 store.
+        let r = crate::x87::r24;
         let x = f64::from(self.x);
         let y = f64::from(self.y);
         let z = f64::from(self.z);
-        let inverse = 1.0 / ((x * x + y * y) + z * z).sqrt();
-        Self::new((x * inverse) as f32, (y * inverse) as f32, (z * inverse) as f32)
+        let squared = r(r(r(x * x) + r(y * y)) + r(z * z));
+        let inverse = r(1.0 / r(squared.sqrt()));
+        Self::new(r(x * inverse) as f32, r(y * inverse) as f32, r(z * inverse) as f32)
     }
     pub fn min(self, other: Self) -> Self {
         Self::new(

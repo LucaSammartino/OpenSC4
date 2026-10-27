@@ -1,0 +1,23 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| close-viewutil29: view utilities, engine | Codex; .claude/worktrees/close-viewutil29; reserved branch close-viewutil29, detached HEAD | ready: code 2c75c7ce9; ABI unchanged; all gate PASS: cargo 8082, clippy 0, CTest 135/135; house-r6b clean 73/73 exact; gen27-r6a clean 25/25 exact; all 50 methods complete; questions none | 1. Publish detached HEAD. 2. Consume the ready engine merge-queue entry and attach verified credit. |
+
+Main merged first (82e49a45b); resolved the question-file conflict to main's answered state. No new question filed; VU12/VU17/VU18 contracts are now consumed.
+2c75c7ce9 fixes city-width's two separately PC24-rounded products before the sum, PC24 normalization, draw field/line loading, and city-clipped-box recomputation from selected corners.
+The eight yaw mismatches were the retained earlier PC24 multiply fix; the seven width mismatches were operation order, not capture timing. No comparisons were suppressed or compensated.
+Compared: all 50 entries in view-utilities.md §12 (48 owner bodies / 19,574 bytes plus two min/max helpers / 174 bytes), named in FC4ViewUtilShadow.cpp Method()/family tables; no checklist body is omitted or remains at calls=complete=0.
+New cached bodies: 007F6910 draw-box and 007F7F60 city-frustum-box (both selectors). New provider/resource bodies: 007F9160 viewport-ground,007F91C0 MeshPick,007F9A40 ModelPick,007F9EA0 ground-corners,007F9F50 draw-build,0080B320 iterator-select.
+Fixtures use the published mesh/vertex/index/group graph and private perspective camera. Model count/mesh/transform call order and arguments, return/out words, every owner word and camera preservation are compared.
+Scope limits: camera update/direct ray still exercise missing-renderer paths; visible area is warm-cache; draw build is whole-viewport; destructor is non-deleting; generic numeric decoder retains its documented checked domain. Successful update/direct-ray, cold visible area, narrowed draw and heap deletion are unexercised.
+Final-round qbuild all PASS, one invocation: cargo 8082/8082, clippy zero diagnostics, CMake 226/226 edges (206 cache hits, zero misses), CTest 135/135. No source changed. All six owned Rust files passed fmt with zero diff lines after correcting the invocation paths.
+Gate logs: WT/build-runs/{qbuild-test.log,qbuild-clippy.log,fc4verify-build.log,fc4verify-ctest.log}; native build 19.3 s, CTest 112.0 s, fc4verify PASS.
+Game DLL SHA256: 2A37DBDC911252049701D395EE21F70F925C73470A35E2F6DF21F2E2B93CA6D2; final gate rebuilt unchanged source as 7A0913E4143E066035996B0E01F27CD606C687618EAEECD82E401919727D0C94. No ABI export changes.
+gen27-r6a: clean/ref_warnings=0 through 2028-01-28; 25/25 aggregate exact; 1,275 family lines exact; 1,250 method records, all calls=complete>0, mismatches=0, resyncs=0.
+gen27 evidence: MAIN/build-runs/game-results/close-viewutil29-gen27-r6a.{verdict,log}; request uses gen27-konradshohe-s1-default.script; line 948 logs seed=1 mix=default complete, with no failed script actions.
+Live VU12 observation: immediately-before-entry CW=007f, capture=f32; yaw (3,3)=408A3AE6, width64=42A73D74, width128=43273D74. Numeric lines are in both completed r6 logs.
+house-r6a: stalled at 2027-03-01 (watchdog_stalls=1, foreign_exceptions=0, ref_warnings=0); viewutil 15/15 exact, all 50 complete, resyncs=0. Not accepted as clean.
+house failure evidence: MAIN/build-runs/game-results/close-viewutil29-house-r6a.{verdict,log}; viewutil finishes at 20:58:45.619, later probes continue through 20:58:48, watchdog terminates at 20:58:49 after 10953 ms without OnTick.
+house-r6b: clean through 2032-01-01; foreign_exceptions=0, watchdog_stalls=0, ref_warnings=0, INCOMPLETE=0, other warnings=0; 73/73 aggregate exact, 3,723 family lines exact, both numeric sub-keys 73/73 exact, resyncs=0.
+Retry keeps the complete train283 house [ini] block and 2032-01-01 end date; adds documented autotest_stall_grace_ms=120000 (engine/README.md), seconds=7200, timeout=7350, parallel=1. No cases or shadows removed.
+House evidence: MAIN/build-runs/game-results/close-viewutil29-house-r6b.{verdict,log}; 3,650 monthly method records, all 50 methods every date, cumulative calls=complete (2,336–11,388 per method), mismatches=0, resyncs=0; analyze-viewutil7.py reports zero errors for both accepted logs.
+Ready engine merge-queue entry: WT/build-runs/merge-queue/close-viewutil29.json, ABI=false, full post-handoff HEAD. Whole-owner verified credit is supported by the clean house and gen27 evidence; coordinator publishes the detached commits and flips credit. No game request remains outstanding.

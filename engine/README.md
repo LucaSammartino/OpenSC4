@@ -2651,3 +2651,11 @@ Packed-file segments remain original and are the next replacement step.
 `formats_shadow = 1` checks the replacement against the formats crate and labels
 the comparison as a replacement consistency check. The install-time exemplar
 contract fixture also compares the retained original factories with ours.
+
+`dbpf_shadow_hold_date = 1` opts into holding the simulation date throughout
+each DBPF shadow acquisition. It uses a balanced hidden pause, which also
+suppresses idle agents and can change the first traffic pass after load.
+It defaults off; ordinary DBPF shadows continue their complete comparisons
+on framework ticks. Interrupted acquisitions still require an observed native
+save return and the same city/date before replay (data-formats section 8.3.2);
+an advanced date remains a refusal, never an exact old-date sample.

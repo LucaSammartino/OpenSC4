@@ -349,6 +349,8 @@ fn prescribed_info_wire_bytes_and_read_fields() {
     assert_eq!(info.city(), b"Big Town");
     assert_eq!(info.funds(), b"-9876543210");
     assert!(Information::decode(b"not an info file").unwrap().is_none());
+    assert_eq!(info.caption(), Err(Error::Gap(Unsupported::CaptionLayout)));
+    assert_eq!(Unsupported::CaptionLayout.question(), "SN2");
 }
 
 #[test]
@@ -388,6 +390,7 @@ fn names_trim_at_character_boundary_and_do_not_invent_collision_suffixes() {
     );
     assert_eq!(album_directory_name("Big Town", 2).unwrap(), "Big Town--2");
     assert_eq!(album_directory_name("A/B", 2), Err(Error::Gap(Gap::FilenameSanitizing)));
+    assert_eq!(Unsupported::FilenameSanitizing.question(), "SN3");
     let mut fs = MemoryFs::default();
     fs.create_dir(&path("Albums")).unwrap();
     let mut album = SnapshotAlbum::new(path("Albums"));

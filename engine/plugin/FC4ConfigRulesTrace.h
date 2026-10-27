@@ -4,4 +4,6 @@
 namespace fc4 {
 void ConfigRulesTraceOriginal(const char*, uint32_t self, const uint32_t* args, uint32_t result);
 void ConfigRulesTraceProperties(void* properties);
+void ConfigRulesTraceView(const char* phase);
+void ConfigRulesTraceLifecycle(const char* name, uint32_t self, bool before);
 }

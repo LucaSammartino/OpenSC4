@@ -196,6 +196,93 @@ fn base_len(r: &NetworkBaseRecord) -> usize {
     w.into_bytes().len()
 }
 
+fn prebuilt_worked_case(gate: u32) -> PrebuiltRecord {
+    PrebuiltRecord {
+        base: sample_network_record(),
+        saved_178: [1.0, 2.0, 3.0],
+        saved_1b0: 0x1122_3344,
+        saved_1b4: 0xA5,
+        gate_19c: gate,
+        saved_1a0: [4.0, 5.0, 6.0, 7.0],
+    }
+}
+
+#[test]
+fn no46_prebuilt_bridge_envelope_raw_word_gate_and_v3_discard() {
+    for gate in [0, 0x8000_0000] {
+        let record = prebuilt_worked_case(gate);
+        let mut out = ByteWriter::new();
+        assert!(record.write(&mut out));
+        let bytes = out.into_bytes();
+        let suffix = 2 + encode(&record.base).len();
+        assert_eq!(&bytes[..4], &[4, 0, 8, 0]);
+        assert_eq!(bytes.len() - suffix, if gate == 0 { 21 } else { 37 });
+        assert_eq!(
+            &bytes[suffix + 12..suffix + 21],
+            &[0x44, 0x33, 0x22, 0x11, 0xA5, 0, 0, 0, (gate >> 24) as u8]
+        );
+        if gate != 0 {
+            assert_eq!([f(&bytes, suffix + 21), f(&bytes, suffix + 33)], [4.0, 7.0]);
+        }
+        let mut loaded = PrebuiltRecord {
+            saved_1a0: [99.0; 4],
+            ..PrebuiltRecord::default()
+        };
+        assert!(loaded.read_into(&mut ByteReader::new(&bytes)));
+        assert_eq!(loaded.saved_1a0, if gate == 0 { [99.0; 4] } else { record.saved_1a0 });
+        let mut again = ByteWriter::new();
+        assert!(loaded.write(&mut again));
+        assert_eq!(again.bytes(), bytes);
+
+        let mut v3 = bytes.clone();
+        v3[..2].copy_from_slice(&3u16.to_le_bytes());
+        let discarded: Vec<_> = (10u32..16).flat_map(u32::to_le_bytes).collect();
+        v3.splice(suffix + 12..suffix + 12, discarded);
+        v3.extend_from_slice(&0xDEAD_BEEFu32.to_le_bytes());
+        let mut inp = ByteReader::new(&v3);
+        assert!(loaded.read_into(&mut inp));
+        assert_eq!(inp.remaining(), 0);
+        let mut canonical = ByteWriter::new();
+        assert!(loaded.write(&mut canonical));
+        assert_eq!(canonical.bytes(), bytes);
+        assert_eq!(v3.len() - canonical.len(), 28);
+
+        for n in 0..bytes.len() {
+            assert!(!loaded.read_into(&mut ByteReader::new(&bytes[..n])), "truncation {n}");
+        }
+    }
+    for version in [0u16, 2, 5] {
+        let mut bytes = version.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&[8, 0, 0, 0]);
+        let mut inp = ByteReader::new(&bytes);
+        assert!(!PrebuiltRecord::default().read_into(&mut inp));
+        assert_eq!(inp.position(), 2);
+    }
+}
+
+#[test]
+fn no46_tunnel_wraps_prebuilt_and_clears_pair() {
+    use crate::stream::RefValue;
+    let mut tunnel = TunnelRecord {
+        prebuilt: prebuilt_worked_case(0),
+        pair: RefValue::Host {
+            token: 99,
+            class_id: 0x8A4B_D52B,
+        },
+    };
+    let mut out = ByteWriter::new();
+    // A failed serialization QI emits no reference even when a pair exists.
+    assert!(tunnel.write(&RefValue::Null, &mut out));
+    let bytes = out.into_bytes();
+    assert_eq!(&bytes[..6], &[2, 0, 4, 0, 8, 0]);
+    assert_eq!(bytes.last(), Some(&0));
+    assert!(tunnel.read_into(&mut ByteReader::new(&bytes)));
+    assert!(tunnel.pair.is_null());
+    let mut bad = ByteReader::new(&[3, 0, 4, 0, 8, 0]);
+    assert!(!tunnel.read_into(&mut bad));
+    assert_eq!(bad.position(), 2);
+}
+
 #[test]
 fn network_record_v8_layout_and_round_trip() {
     let r = sample_network_record();

@@ -98,6 +98,13 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
         &self.log
     }
 
+    /// Retain/replace before synchronous host acquisition (graphics-rules §2.7).
+    pub fn retain_properties(&mut self, properties: &Arc<Mutex<P>>) {
+        if !self.properties.as_ref().is_some_and(|old| Arc::ptr_eq(old, properties)) {
+            self.properties = Some(Arc::clone(properties));
+        }
+    }
+
     /// Native Init has no success result and does not evaluate any rule (§3).
     pub fn init(
         &mut self,
@@ -106,9 +113,7 @@ impl<P: Properties, L: LogFile> GraphicsRuleManager<P, L> {
         files: &mut impl ScriptFiles,
         context: &InitContext,
     ) {
-        if !self.properties.as_ref().is_some_and(|old| Arc::ptr_eq(old, properties)) {
-            self.properties = Some(Arc::clone(properties));
-        }
+        self.retain_properties(properties);
         self.last_init_error = None;
         // Presence is guaranteed above. Poison recovery preserves owned state;
         // there is no RefCell or panic across a future foreign binding.
