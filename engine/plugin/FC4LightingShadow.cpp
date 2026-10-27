@@ -4,6 +4,7 @@
 #include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4MethodEvidence.h"
 #include "FC4Properties.h"
 #include "FC4PropertyHolder.h"
 #include "compat/FC4Compat.h"
@@ -28,6 +29,18 @@ uint32_t inputs[10]{};
 int32_t lastMonth = -1;
 uint32_t lines = 0, clean = 0;
 uint32_t queryLines = 0, queryClean = 0;
+fc4::MethodEvidence shadowParams, decalParams, projection;
+
+void MethodLines(const fc4_date& date) {
+    const auto line = [&](const char* address, const char* method, const fc4::MethodEvidence& evidence) {
+        fc4::Log("lighting method %s cSC4LightingManager::%s (month) %04d-%02d-%02d: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+            address, method, date.year, date.month, date.day_of_month,
+            evidence.calls, evidence.complete, evidence.mismatches);
+    };
+    line("0x007D6B70", "GetShadowParams", shadowParams);
+    line("0x007DA490", "GetDecalShadowParams", decalParams);
+    line("0x007D8C80", "CalcShadowProjection", projection);
+}
 
 uint32_t Bits(float value) {
     uint32_t result;
@@ -79,6 +92,7 @@ bool Capture(uint32_t (&fields)[kFields]) {
     if (!owner) return false;
     float a = 0, b = 0, c = 0;
     cS3DVector3 color;
+    shadowParams.Begin();
     owner->GetShadowParams(a, b, color);
     fields[0] = Bits(a);
     fields[1] = Bits(b);
@@ -87,6 +101,7 @@ bool Capture(uint32_t (&fields)[kFields]) {
     fields[4] = Bits(color.fZ);
     unsigned long texture = 0;
     cS3DVector2 pair;
+    decalParams.Begin();
     owner->GetDecalShadowParams(nullptr, texture, a, b, c, pair, color);
     fields[5] = texture;
     fields[6] = Bits(a);
@@ -143,17 +158,23 @@ uint32_t CompareQueries(int32_t julian) {
         float a = 0, b = 0, c = 0;
         cS3DVector2 pair;
         cS3DVector3 color;
+        decalParams.Begin();
         owner->GetDecalShadowParams(holder.AsSdk(), texture, a, b, c, pair, color);
         const uint32_t values[9] = {texture, Bits(a), Bits(b), Bits(c), Bits(pair.fX), Bits(pair.fY),
             Bits(color.fX), Bits(color.fY), Bits(color.fZ)};
         std::memcpy(native, values, sizeof(native));
         overrides[0] = mask;
         const uint32_t diff = ready ? fc4_lighting_shadow_decal_compare(inputs, overrides, native, expected) : 511;
+        uint32_t methodDifferences = 0;
         for (uint32_t i = 0; i < 9; ++i) if (diff & (1u << i)) {
             if (queryLines < 3 && mismatches < 3) fc4::Log("lighting query: slot=16 presence=%02X field=%u native=%08X expected=%08X ready=%u",
                 mask, i, native[i], expected[i], ready ? 1u : 0u);
             ++mismatches;
+            ++methodDifferences;
         }
+        // LT14: no effective shared-parameter history or outgoing holder-call
+        // transcript. All nine values stay compared, but this is partial.
+        decalParams.End(false, methodDifferences);
         ++cases;
     }
     // §5.8 publishes this byte layout; SDK forward-declares these types.
@@ -164,14 +185,20 @@ uint32_t CompareQueries(int32_t julian) {
         TransformInput transform = {flags << 8, {1, 0, 0, 0, 1, 0, 0, 0, 1}, {2, 3, 4}, 2};
         uint32_t native[17]{}, expected[17]{};
         for (uint32_t i = 0; i < 16; ++i) native[i + 1] = 0x3E800001 + i;
+        projection.Begin();
         native[0] = owner->CalcShadowProjection(0, nullptr, nullptr,
             reinterpret_cast<const cS3DTransform&>(transform), reinterpret_cast<cS3DMatrix4&>(native[1])) ? 1u : 0u;
         const uint32_t diff = fc4_lighting_shadow_empty_compare(flags, native, expected);
+        uint32_t methodDifferences = 0;
         for (uint32_t i = 0; i < 17; ++i) if (diff & (1u << i)) {
             if (queryLines < 3 && mismatches < 3) fc4::Log("lighting query: slot=17 count=0 flags=%u field=%u native=%08X expected=%08X",
                 flags, i, native[i], expected[i]);
             ++mismatches;
+            ++methodDifferences;
         }
+        // Section 5.8: this call changes no owner state and calls no other
+        // object. Return and every output byte, including no-write, compared.
+        projection.End(true, methodDifferences);
         ++cases;
     }
     fc4_date date{};
@@ -194,19 +221,27 @@ void Compare(int32_t julian) {
     uint32_t native[kFields]{}, expected[kFields]{};
     const bool captured = inputsReady && Capture(native);
     const uint32_t mask = captured ? fc4_lighting_shadow_compare(inputs, native, expected) : (1u << kFields) - 1;
-    uint32_t mismatches = 0;
+    uint32_t mismatches = 0, shadowDifferences = 0, decalDifferences = 0;
     for (uint32_t i = 0; i < kFields; ++i) {
         if ((mask & (1u << i)) != 0) {
             ++mismatches;
+            if (i < 5) ++shadowDifferences;
+            else ++decalDifferences;
             if (lines < 3) fc4::Log("lighting: field=%u native=%08X expected=%08X captured=%u",
                 i, native[i], expected[i], captured ? 1u : 0u);
         }
+    }
+    if (captured) {
+        // LT14: a resource read is not a process-lifetime property transcript.
+        shadowParams.End(false, shadowDifferences);
+        decalParams.End(false, decalDifferences);
     }
     mismatches += queryMismatches;
     fc4::Log("lighting shadow %04d-%02d-%02d: scope=exemplar-and-queries fields=%u captured=%u mismatches=%u",
         date.year, date.month, date.day_of_month, kFields + 610, captured ? 1u : 0u, mismatches);
     ++lines;
     if (mismatches == 0) ++clean;
+    MethodLines(date);
 }
 }
 
@@ -216,12 +251,14 @@ void LightingShadowCityLoaded(cISC4City* city, int32_t julian) {
     lastMonth = -1;
     lines = clean = 0;
     queryLines = queryClean = 0;
+    shadowParams = {}; decalParams = {}; projection = {};
     inputsReady = false;
     if (!enabled) return;
     // LT14: §1.4 exemplar inputs only. No native output seeds or resyncs.
     // No hook, debug register, native mutation, Init, Shutdown or lifetime probe.
     Log("lighting: ON; slots14/16(null) original 14 fields; slot16(nonnull) 64 masks; slot17 count-zero 2 flags; whole_owner=unavailable (LT14 section1.6)");
     Log("lighting coverage: slots0-13,15,18-29 and slot17 nonempty unavailable: no construction-to-query ordered tint/settings/view/terrain transcript; cImageARGB8 unavailable");
+    Log("lighting method scope: slot17 count-zero return+64 output bytes complete; slots14/16 partial (shared property history and nonnull holder calls unobserved); synthetic getter probes, not all natural entries");
     inputsReady = CaptureInputs();
     if (auto* sim = AsGame(city->GetSimulator())) julian = sim->GetSimDateNumber();
     Compare(julian);

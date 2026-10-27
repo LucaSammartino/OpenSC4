@@ -1542,3 +1542,8 @@ if(TARGET fc4_plugin_load_test)
         set_tests_properties(plugin_cfgrules_${mode} PROPERTIES RUN_SERIAL TRUE)
     endforeach()
 endif()
+
+# Method evidence must retain incomplete entries and every observed mismatch.
+add_executable(fc4_method_evidence_test tests/method_evidence_test.cpp)
+target_include_directories(fc4_method_evidence_test PRIVATE plugin)
+add_test(NAME method_evidence COMMAND fc4_method_evidence_test)

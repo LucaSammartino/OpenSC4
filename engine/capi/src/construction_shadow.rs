@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private static-link transport for LR14/T79 live construction getters.
-use fc4_core::lot_records::construction::ConstructionOccupant;
+use fc4_core::lot_records::{
+    construction::{ConstructionOccupant, ConstructionRecord},
+    OccupantRecord,
+};
+
+// Private static-link comparison input; not part of the DLL export surface.
+#[no_mangle]
+pub extern "C" fn fc4_construction_shadow_class_id() -> u32 {
+    ConstructionRecord::CLASS_ID
+}
 
 // The six inputs come only from the native bounding-box getter, never position.
 // No native references, record Read, Init or lifecycle callbacks are involved.
@@ -22,6 +31,7 @@ mod tests {
 
     #[test]
     fn native_bounds_are_the_only_inputs() {
+        assert_eq!(fc4_construction_shadow_class_id(), 0xa97f_909e);
         let bounds = [-8.0, 0.25, 100.0, 12.0, 1.75, 200.0];
         let mut position = [f32::NAN; 3];
         assert!(unsafe { fc4_construction_shadow_position(bounds.as_ptr(), position.as_mut_ptr()) });
