@@ -118,6 +118,22 @@ const ExecutableVersion kVersions[] = {
             0x005B1C80,  // EffectsParticleDrop (effects.md 18.8-18.10; effects-owners.md 5)
             0x00583700,  // EffectsDynamicDestroy (effects.md 18.8-18.10; effects-owners.md 5),
             0x0074FE40,  // terrain StaticInit (terrain.md section 15.5.12.2)
+            0x007D4480,  // overlay depth offset (draw-context section 8)
+            0x007D4530,  // packed render state (section 5.2)
+            0x007D2A20,  // transparency (section 3; stdcall float)
+            0x007D3140,  // shade
+            0x007D31B0,  // self-lit shade
+            0x007D2A30,  // reset transparency (no receiver/arguments)
+            0x007D3290,  // reset shade
+            0x007D4340,  // texture transform (section 7)
+            0x007D4420,  // clear texture transform
+            0x007D4280,  // filtering
+            0x007D41E0,  // wrap
+            0x007D3030,  // combiner
+            0x007D3EF0,  // texture state
+            0x007D30B0,  // environment colour (stdcall pointer)
+            0x007D3E90,  // alpha test enable
+            0x007D2F50,  // alpha function/reference
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -595,7 +611,14 @@ uintptr_t DirectCall(Direct which) {
                                          "EffectsVisualWrite",
                                          "EffectsParticleDrop",
                                          "EffectsDynamicDestroy",
-                                         "terrain StaticInit"};
+                                         "terrain StaticInit",
+                                         "overlay depth offset", "overlay packed draw state",
+                                         "overlay transparency", "overlay shade", "overlay self-lit shade",
+                                         "overlay reset transparency", "overlay reset shade",
+                                         "overlay texture transform", "overlay clear texture transform",
+                                         "overlay filtering", "overlay wrap", "overlay combiner",
+                                         "overlay texture state", "overlay environment colour",
+                                         "overlay alpha enable", "overlay alpha function"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
