@@ -148,11 +148,11 @@ void Observe(const char* name, uint32_t self, const uint32_t* args, uint32_t val
         const auto scalarOp = op == 7 ? 0u : op == 8 ? 1u : 2u;
         bad = fc4_html_document_scalar_check(scalarOp, frame.scalars.data(), after.data(), frame.input.data(), count, out, value);
     }
-    ++method->complete;
     if (bad) {
         const auto n = ++method->mismatches;
         if (n <= 8) Log("html-document difference address=%08X method=%s mask=%08X", address, method->name, bad);
     }
+    ++method->complete;
 }
 #endif
 }
@@ -168,15 +168,27 @@ void HTMLDocumentShadowMonth(int32_t julian) {
     if (!seen.load()) return;
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
+    struct Count { uint32_t calls, complete, mismatches; };
+    std::array<Count, std::size(methods)> counts{};
     uint32_t calls = 0, complete = 0, bad = 0;
-    for (const auto& m : methods) {
-        calls += m.calls.load(); complete += m.complete.load(); bad += m.mismatches.load();
+    for (unsigned i = 0; i < std::size(methods); ++i) {
+        const auto& m = methods[i];
+        // Errors are published before completion. Reading completion first and
+        // entries last cannot report an exact completed error or complete>calls.
+        const auto done = m.complete.load();
+        const auto errors = m.mismatches.load();
+        const auto entered = m.calls.load();
+        counts[i] = {entered, done, errors};
+        calls += entered; complete += done; bad += errors;
     }
     Log("html-document shadow (month) %04d-%02d-%02d: calls=%u complete=%u partial=%u mismatches=%u; resyncs=0",
         date.year, date.month, date.day_of_month, calls, complete, calls - complete, bad);
-    for (const auto& m : methods)
+    for (unsigned i = 0; i < std::size(methods); ++i) {
+        const auto& m = methods[i];
+        const auto& count = counts[i];
         Log("html-document method 0x%08X cHTMLDocument::%s (month) %04d-%02d-%02d: calls=%u complete=%u mismatches=%u; resyncs=0",
             m.address, m.name, date.year, date.month, date.day_of_month,
-            m.calls.load(), m.complete.load(), m.mismatches.load());
+            count.calls, count.complete, count.mismatches);
+    }
 }
 }

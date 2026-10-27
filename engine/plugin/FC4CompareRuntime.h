@@ -399,7 +399,7 @@ void InplaceCityLoaded() {
     if (fixtures) {
         source=1;
         for (unsigned sample=0;sample<16;++sample) for (auto& fn:functions) {
-            if (!fn.installed) continue;Input input;
+            if (!fn.installed || fn.nativeObserver) continue;Input input;
             if (!fc4_compare_fixture(fn.rustEntry,sample,input.args.data(),nullptr,0)) continue;
             bool valid=true;for (const auto& spec:fn.specs) {const auto size=spec.Size(input.args.data());if (!size) {valid=false;break;}input.windows.emplace_back(size);}
             if (!valid) continue;
@@ -409,7 +409,7 @@ void InplaceCityLoaded() {
             Replay(fn,input);
         }
     }
-    if (replayCorpus||denseCount) for (auto& fn:functions) if (fn.installed) {
+    if (replayCorpus||denseCount) for (auto& fn:functions) if (fn.installed && !fn.nativeObserver) {
         const auto inputs=LoadCorpus(fn);
         Log("inplace corpus name=%s inputs=%zu dense=%u",fn.name,inputs.size(),denseCount);
         for (const auto& input:inputs) {
