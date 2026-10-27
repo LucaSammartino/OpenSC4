@@ -1,0 +1,4 @@
+name	address	class	convention	this	stack_arg_dwords	callee_pop	ret	windows	rust_entry	mode
+cfgrules-view-create	007f0a70	cSC4View3DWin	thiscall	ecx	0	0	eax	-	cfgrules-view-create	record
+cfgrules-view-precity	007f41b0	cSC4View3DWin	thiscall	ecx	0	0	void	-	cfgrules-view-precity	record
+cfgrules-view-shutdown	007f1320	cSC4View3DWin	thiscall	ecx	0	0	al	-	cfgrules-view-shutdown	record

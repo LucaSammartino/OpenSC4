@@ -677,12 +677,18 @@ fn other_thread_runs_during(slot: u32) -> (bool, u32) {
         .recv_timeout(Duration::from_secs(10))
         .expect("thread A reached the callback");
     let (done_tx, done_rx) = mpsc::channel();
+    let (started_tx, started_rx) = mpsc::channel();
     let b = std::thread::spawn(move || {
         let m = m;
+        started_tx.send(()).unwrap();
         // SAFETY: live manager.
         let empty = unsafe { fc4_occmgr_is_cell_empty(m.0, 64, 64) };
         done_tx.send(empty).unwrap();
     });
+    // Measure contention after B starts, not while the OS is scheduling it.
+    started_rx
+        .recv_timeout(Duration::from_secs(10))
+        .expect("thread B started its query");
     let during = match done_rx.recv_timeout(Duration::from_millis(300)) {
         Ok(empty) => {
             assert!(!empty);

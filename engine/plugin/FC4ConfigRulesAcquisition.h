@@ -51,4 +51,11 @@ template<class Host> bool BackingStore(Host& h) {
     h.Set(saved);
     return present;
 }
+
+// GR11: prefer the actual view; only the absence of a view permits a facade.
+// Host owns the counted service/view/QI outputs, never the lookup results.
+template<class Host> bool AcquireRenderer(Host& h) {
+    if (h.FindView()) return h.QueryRenderer();
+    return h.CreateFacade();
+}
 }

@@ -1214,6 +1214,7 @@ mod draw_stream;
 mod gzfw_owner;
 // Native simulation invocation context; private, no C ABI exports.
 mod invocation;
-
 // Private sub-budget method transcript; no public DLL ABI changes.
 mod budgetwin_shadow;
+// Opt-in C ABI host-boundary record/replay tooling.
+pub mod trace;
