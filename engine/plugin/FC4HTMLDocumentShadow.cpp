@@ -5,7 +5,6 @@
 #include "FC4Inplace.h"
 #include "FC4Log.h"
 #include "cIGZString.h"
-#include "cRZBaseString.h"
 #include "fc4.h"
 #include <algorithm>
 #include <array>
@@ -64,20 +63,9 @@ std::array<int32_t, 10> Scalars(uint32_t address) {
     words[9] = p[0x29];
     return words;
 }
-// Section 2.1 requires the SAME shared helpers, including DBCS character steps.
-// The temporary implements the public string interface; it owns no game refs.
-uint32_t __cdecl CharacterQuery(uint32_t op, const uint8_t* bytes, uint32_t size, uint32_t index) {
-    cRZBaseString text(reinterpret_cast<const char*>(bytes), size);
-    if (op == 0)
-        return reinterpret_cast<bool(__cdecl*)(const cIGZString*, uint32_t)>(0x0090A929)(&text, index);
-    return reinterpret_cast<uint32_t(__cdecl*)(const cIGZString*, uint32_t)>(0x0090A947)(&text, index);
-}
 int Operation(uint32_t address) {
     switch (address) {
-        case 0x008FFAC2: return 0; // ParseCDATA
-        case 0x008FE7B8: return 1; // SkipDocumentWhitespace
-        case 0x008FEB74: return 2; // StripWhiteSpace
-        case 0x00900138: return 3; // SplitTag (two string references, cdecl)
+        // SPEC-GAP: character-helper argument ABI is unpublished; HD9 blocks CDATA/whitespace/split completion.
         case 0x008FE8D6: return 4;
         case 0x008FE92B: return 5;
         case 0x009006B4: return 6; // source string reference
@@ -139,7 +127,7 @@ void Observe(const char* name, uint32_t self, const uint32_t* args, uint32_t val
             if (op == 3) after.values[3] = String(reinterpret_cast<const void*>(args[1]));
         }
         const auto b = frame.before.View(), a = after.View();
-        bad = fc4_html_document_text_check(op, &b, &a, op == 0 ? value & 255u : value, &CharacterQuery);
+        bad = fc4_html_document_text_check(op, &b, &a, value, nullptr);
         if (op == 6 && value != self + 0x180) bad |= 32;
     } else {
         const auto after = Scalars(self);
