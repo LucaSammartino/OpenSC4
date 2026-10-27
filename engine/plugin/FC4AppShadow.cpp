@@ -22,9 +22,10 @@ void* fc4_app_shadow_new();
 void fc4_app_shadow_free(void*);
 uint32_t fc4_app_shadow_input(void*, uint32_t, const char*, uint32_t);
 void fc4_app_shadow_message(void*, uint32_t);
-uint32_t fc4_app_shadow_mode(const void*, uint32_t);
+uint32_t fc4_app_shadow_mode(void*, uint32_t, uint32_t);
 uint32_t fc4_app_shadow_compare(void*, uint32_t, const char*, uint32_t);
 uint32_t fc4_app_shadow_expected(void*, uint32_t, char*, uint32_t);
+uint32_t fc4_app_shadow_method_stats(const void*, uint32_t, uint64_t*);
 }
 
 namespace {
@@ -93,6 +94,37 @@ bool __fastcall SaveForward(void* self, void* edx, const cIGZString& path, bool 
 // AP3: exact slots, never the incompatible SDK directory names/signatures.
 constexpr uint32_t offsets[] = {0x7C, 0x90, 0xA4, 0xB8, 0xCC, 0xE0, 0x108, 0x11C};
 
+// Only spec-published addresses; unresolved identities retain interface slots.
+// Counts cover our explicit same-input getter calls, not total native entries.
+constexpr const char* methodIds[][2] = {
+    {"0x00449DE0", "cSC4App::GetDataDirectory"},
+    {"0x00449E00", "cSC4App::GetCDDataDirectory"},
+    {"0x0044BF90", "cSC4App::GetPluginDirectory"},
+    {"0x0044C010", "cSC4App::GetCDPluginDirectory"},
+    {"0x00449E20", "cSC4App::GetSkuDirectory"},
+    {"0x00449E40", "cSC4App::GetUserDataDirectory"},
+    {"0x00449E60", "cSC4App::GetDirectorySlot57"},
+    {"0x00449E80", "cSC4App::GetDirectorySlot58"},
+    {"-", "cISC4App::slot59"}, {"-", "cISC4App::slot60"},
+    {"-", "cISC4App::slot61"}, {"-", "cISC4App::slot62"},
+    {"-", "cISC4App::slot63"}, {"-", "cISC4App::slot64"},
+    {"-", "cISC4App::slot65"}, {"-", "cISC4App::slot66"},
+    {"-", "cISC4App::slot28"}, {"-", "cISC4App::slot30"},
+    {"0x0080BC00", "cSC4App::GetMode"},
+};
+
+void ReportMethods(const fc4_date& date) {
+    for (uint32_t field = 0; field < 19; ++field) {
+        if ((field == 14 || field == 15) && !pathCacheDiagnostic) continue;
+        uint64_t stats[3]{};
+        if (fc4_app_shadow_method_stats(model, field, stats) != 0) continue;
+        fc4::Log("app method %s %s (month) %04d-%02d-%02d: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+            methodIds[field][0], methodIds[field][1], date.year, date.month, date.day_of_month,
+            static_cast<unsigned long long>(stats[0]), static_cast<unsigned long long>(stats[1]),
+            static_cast<unsigned long long>(stats[2]));
+    }
+}
+
 cISC4App* AcquireApp() {
     auto* fw = RZGetFrameWork();
     auto* app = fw ? fw->Application() : nullptr; // borrowed
@@ -154,7 +186,7 @@ void Report(int32_t julian, bool load) {
         // Inputs were captured at the native app target's normal returns.
         using Mode = uint32_t (__thiscall*)(void*);
         const uint32_t nativeMode = reinterpret_cast<Mode>(table[25])(app);
-        const uint32_t modeMismatch = fc4_app_shadow_mode(model, nativeMode);
+        const uint32_t modeMismatch = fc4_app_shadow_mode(model, nativeMode, messageEntry ? 1u : 0u);
         differences += modeMismatch;
         if (!messageEntry) ++differences; // missing app-input coverage is never exact
         if (modeMismatch) fc4::Log("app: mode differs; native=%u observed_events=%u", nativeMode, events);
@@ -168,6 +200,7 @@ void Report(int32_t julian, bool load) {
         load ? "first-city-quiet-point" : "month", fields, events, differences);
     if (load) { ++startupLines; startupClean += differences == 0; }
     else { ++lines; clean += differences == 0; }
+    if (!load) ReportMethods(date);
     if (pathCacheDiagnostic) {
         if (cacheFields != 2) ++cacheDifferences;
         fc4::Log("app-path-cache shadow %04d-%02d-%02d: phase=%s fields=%u AP18 resyncs=0; mismatches=%u",
@@ -213,6 +246,9 @@ void AppShadowStart() {
     }
     if (app) FC4_RELEASE(app);
     if (model) Log("app: ON; 17 supported path/filename/mode fields; AP18 excludes slots65/66 (app_shadow_path_cache diagnostic=%u); AP17 excludes startup replay, pause/speed, frame/tick counters, idle/pump decisions; no whole-owner credit", pathCacheDiagnostic ? 1u : 0u);
+    // SPEC-GAP: AP6/AP17 lack pre-startup inputs, timer accessors at OnIdle,
+    // and shutdown helper destruction order; none earns complete method credit.
+    if (model) Log("app: method coverage bounded to getter calls; lazy folders complete=0 (cache writes/base calls unobserved); startup/OnIdle/shutdown unobserved (AP6/AP17)");
 }
 void AppShadowMessage(uint32_t kind) {
     if (!model) return;

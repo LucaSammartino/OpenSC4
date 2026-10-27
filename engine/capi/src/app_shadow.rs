@@ -9,6 +9,24 @@ use fc4_core::gz_messages::Token;
 struct Shadow {
     app: Application,
     seeded: bool,
+    inputs_seen: u16,
+    methods: [MethodEvidence; 19],
+}
+
+#[derive(Clone, Copy, Default)]
+struct MethodEvidence {
+    calls: u64,
+    complete: u64,
+    mismatches: u64,
+}
+
+impl MethodEvidence {
+    fn record(&mut self, complete: bool, mismatch: bool) -> u32 {
+        self.calls += 1;
+        self.complete += u64::from(complete);
+        self.mismatches += u64::from(mismatch);
+        u32::from(mismatch)
+    }
 }
 
 fn new_shadow() -> Shadow {
@@ -34,6 +52,8 @@ fn new_shadow() -> Shadow {
             Directories::default(),
         ),
         seeded: false,
+        inputs_seen: 0,
+        methods: [MethodEvidence::default(); 19],
     }
 }
 
@@ -146,10 +166,11 @@ unsafe extern "C" fn fc4_app_shadow_input(shadow: *mut Shadow, field: u32, bytes
         7 => shadow.app.directories.user_base_11c = value,
         8 => {
             shadow.app.app_name = value;
-            shadow.seeded = true;
         }
         _ => return 1,
     }
+    shadow.inputs_seen |= 1 << field;
+    shadow.seeded = shadow.inputs_seen == 0x1FF;
     0
 }
 
@@ -162,23 +183,52 @@ unsafe extern "C" fn fc4_app_shadow_message(shadow: *mut Shadow, kind: u32) {
 }
 
 #[no_mangle]
-unsafe extern "C" fn fc4_app_shadow_mode(shadow: *const Shadow, native: u32) -> u32 {
+unsafe extern "C" fn fc4_app_shadow_mode(shadow: *mut Shadow, native: u32, inputs_observed: u32) -> u32 {
     if shadow.is_null() {
         return 1;
     }
     // SAFETY: observer owns this live handle; never shared with game getter threads.
-    u32::from(unsafe { &*shadow }.app.mode != native)
+    let shadow = unsafe { &mut *shadow };
+    let mismatch = inputs_observed == 0 || shadow.app.mode != native;
+    shadow.methods[18].record(inputs_observed != 0, mismatch)
 }
 
 #[no_mangle]
 unsafe extern "C" fn fc4_app_shadow_compare(shadow: *mut Shadow, field: u32, bytes: *const u8, len: u32) -> u32 {
-    if shadow.is_null() || bytes.is_null() || len > 32768 {
+    if shadow.is_null() || field >= 18 {
         return 1;
     }
     // SAFETY: caller supplies exclusive live handle and len readable bytes.
     let shadow = unsafe { &mut *shadow };
-    let sample = unsafe { std::slice::from_raw_parts(bytes, len as usize) };
-    u32::from(!shadow.seeded || expected(shadow, field).as_deref() != Some(sample))
+    let captured = shadow.seeded && !bytes.is_null() && len <= 32768;
+    let mismatch = if captured {
+        let sample = unsafe { std::slice::from_raw_parts(bytes, len as usize) };
+        expected(shadow, field).as_deref() != Some(sample)
+    } else {
+        true
+    };
+    // Section 2: these methods only assign out (no return, owner writes or
+    // collaborator calls). The language getters are sampled with index -1.
+    // SPEC-GAP: lazy-folder cache writes and base-getter calls are not captured;
+    // matching their strings alone must never grant complete method credit.
+    let complete = captured && matches!(field, 0..=7 | 16 | 17);
+    shadow.methods[field as usize].record(complete, mismatch)
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_app_shadow_method_stats(shadow: *const Shadow, field: u32, out: *mut u64) -> u32 {
+    if shadow.is_null() || out.is_null() || field >= 19 {
+        return 1;
+    }
+    // SAFETY: private static-link transport; caller owns the live handle and
+    // three writable u64s. Diagnostics never execute or count another method.
+    let evidence = unsafe { &*shadow }.methods[field as usize];
+    unsafe {
+        out.write(evidence.calls);
+        out.add(1).write(evidence.complete);
+        out.add(2).write(evidence.mismatches);
+    }
+    0
 }
 
 #[no_mangle]
@@ -202,6 +252,99 @@ unsafe extern "C" fn fc4_app_shadow_expected(shadow: *mut Shadow, field: u32, ou
 mod tests {
     use super::*;
 
+    fn seeded_shadow(name: &[u8]) -> *mut Shadow {
+        let shadow = fc4_app_shadow_new();
+        unsafe {
+            for field in 0..8 {
+                assert_eq!(fc4_app_shadow_input(shadow, field, b"base\\".as_ptr(), 5), 0);
+            }
+            assert_eq!(fc4_app_shadow_input(shadow, 8, name.as_ptr(), name.len() as u32), 0);
+        }
+        shadow
+    }
+
+    fn stats(shadow: *const Shadow, field: u32) -> [u64; 3] {
+        let mut out = [0; 3];
+        assert_eq!(
+            unsafe { fc4_app_shadow_method_stats(shadow, field, out.as_mut_ptr()) },
+            0
+        );
+        out
+    }
+
+    #[test]
+    fn complete_getter_mismatch_is_cumulative_and_diagnostics_do_not_count() {
+        let shadow = seeded_shadow(b"SimCity 4");
+        unsafe {
+            for field in 0..8 {
+                assert_eq!(fc4_app_shadow_compare(shadow, field, b"base\\".as_ptr(), 5), 0);
+                assert_eq!(stats(shadow, field), [1, 1, 0]);
+            }
+            assert_eq!(fc4_app_shadow_compare(shadow, 0, b"wrong".as_ptr(), 5), 1);
+            assert_eq!(fc4_app_shadow_compare(shadow, 0, b"base\\".as_ptr(), 5), 0);
+            let mut out = [0; 16];
+            assert_eq!(fc4_app_shadow_expected(shadow, 0, out.as_mut_ptr(), 16), 5);
+            assert_eq!(stats(shadow, 0), [3, 3, 1]);
+            assert_eq!(stats(shadow, 1), [1, 1, 0]);
+            assert_eq!(fc4_app_shadow_input(shadow, 0, b"wrong".as_ptr(), 5), 1);
+            assert_eq!(stats(shadow, 0), [3, 3, 1]);
+            fc4_app_shadow_free(shadow);
+        }
+    }
+
+    #[test]
+    fn missing_capture_never_counts_as_complete_even_when_default_bytes_match() {
+        let shadow = fc4_app_shadow_new();
+        unsafe {
+            // A missing stored input cannot silently become an empty-base input.
+            for field in 1..8 {
+                assert_eq!(fc4_app_shadow_input(shadow, field, b"".as_ptr(), 0), 0);
+            }
+            assert_eq!(fc4_app_shadow_input(shadow, 8, b"".as_ptr(), 0), 0);
+            assert_eq!(fc4_app_shadow_compare(shadow, 0, b"".as_ptr(), 0), 1);
+            assert_eq!(stats(shadow, 0), [1, 0, 1]);
+            assert_eq!(fc4_app_shadow_input(shadow, 0, b"".as_ptr(), 0), 0);
+            assert_eq!(fc4_app_shadow_compare(shadow, 0, std::ptr::null(), 0), 1);
+            assert_eq!(fc4_app_shadow_compare(shadow, 0, b"".as_ptr(), 32769), 1);
+            assert_eq!(stats(shadow, 0), [3, 0, 3]);
+            assert_eq!(fc4_app_shadow_compare(shadow, 0, b"".as_ptr(), 0), 0);
+            assert_eq!(stats(shadow, 0), [4, 1, 3]);
+            fc4_app_shadow_free(shadow);
+        }
+    }
+
+    #[test]
+    fn exact_cached_strings_and_missing_mode_inputs_do_not_earn_complete_credit() {
+        let shadow = seeded_shadow(b"SimCity 4");
+        unsafe {
+            let path = b"base\\Plugins\\";
+            assert_eq!(fc4_app_shadow_compare(shadow, 8, path.as_ptr(), path.len() as u32), 0);
+            assert_eq!(stats(shadow, 8), [1, 0, 0]);
+            assert_eq!(fc4_app_shadow_mode(shadow, 0, 0), 1);
+            fc4_app_shadow_message(shadow, 0xEA8A_E29A);
+            assert_eq!(fc4_app_shadow_mode(shadow, 2, 1), 0);
+            assert_eq!(stats(shadow, 18), [2, 1, 1]);
+            fc4_app_shadow_free(shadow);
+        }
+    }
+
+    #[test]
+    fn empty_filename_preserves_the_callers_output_in_complete_comparisons() {
+        let shadow = seeded_shadow(b"");
+        unsafe {
+            for field in [16, 17] {
+                let sentinel = b"app-shadow-sentinel";
+                assert_eq!(
+                    fc4_app_shadow_compare(shadow, field, sentinel.as_ptr(), sentinel.len() as u32),
+                    0
+                );
+                assert_eq!(fc4_app_shadow_compare(shadow, field, b"".as_ptr(), 0), 1);
+                assert_eq!(stats(shadow, field), [2, 2, 1]);
+            }
+            fc4_app_shadow_free(shadow);
+        }
+    }
+
     #[test]
     fn transport_detects_corruption_and_keeps_message_state() {
         let shadow = fc4_app_shadow_new();
@@ -216,12 +359,12 @@ mod tests {
             assert_eq!(fc4_app_shadow_compare(shadow, 16, b"SimCity 4.ini".as_ptr(), 13), 0);
             assert_eq!(fc4_app_shadow_input(shadow, 7, b"wrong".as_ptr(), 5), 1);
             fc4_app_shadow_message(shadow, 0xCBB5_BB45);
-            assert_eq!(fc4_app_shadow_mode(shadow, 1), 0);
+            assert_eq!(fc4_app_shadow_mode(shadow, 1, 1), 0);
             fc4_app_shadow_message(shadow, 0xEA8A_E29A);
-            assert_eq!(fc4_app_shadow_mode(shadow, 1), 1);
-            assert_eq!(fc4_app_shadow_mode(shadow, 2), 0);
+            assert_eq!(fc4_app_shadow_mode(shadow, 1, 1), 1);
+            assert_eq!(fc4_app_shadow_mode(shadow, 2, 1), 0);
             fc4_app_shadow_message(shadow, 0x26D3_1EC2);
-            assert_eq!(fc4_app_shadow_mode(shadow, 0), 0);
+            assert_eq!(fc4_app_shadow_mode(shadow, 0, 1), 0);
             fc4_app_shadow_free(shadow);
         }
     }
