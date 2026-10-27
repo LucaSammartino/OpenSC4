@@ -41,7 +41,7 @@
 //   funds amount               budget SetTotalFunds, whole simoleons 0..999999999
 //   uicommand/uimouse/uicell/uicontrol/uikey/uitext/uiwait
 //                              tick-driven UI actions (docs/ops/ui-drivers.md)
-//   budgetwindow               budget ShowBudgetWindow (slot 24); opens native UI
+//   budgetwindow               city-view budget advice link; shows the compact panel
 //                              only when explicitly present in an opt-in script
 //   establish <name>           name and found only an unfounded city; a leading
 //                              due establish can run at a tick without new days
