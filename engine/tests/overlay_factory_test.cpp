@@ -4,6 +4,7 @@
 #include "FC4OverlayOwner.h"
 #include "FC4OverlayBindings.h"
 #include "FC4OverlayRectangles.h"
+#include "FC4OverlayDevice.h"
 #include "cIGZMessage2.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZCOMDirector.h"
@@ -19,6 +20,7 @@ namespace {
 void Collect(uint32_t id, uint32_t, void* out) { static_cast<std::vector<uint32_t>*>(out)->push_back(id); }
 int failures = 0;
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "line %d: %s\n", __LINE__, #expr); ++failures; } } while (0)
+#include "overlay_device_cases.h"
 
 struct Resources {
     int refs = 0, bindings = 0, sources = 0, marks = 0, subscriptions = 0;
@@ -177,7 +179,10 @@ void CheckNativeRectangles() {
 
 struct Drawing {
     uint32_t resets = 0, acquires = 0, releases = 0, rowReads = 0, parameterReads = 0;
-    bool extension = true, nativeTextures = false;
+    bool extension = true, nativeTextures = false, nativeCommands = false;
+    NativeDeviceSink nativeDevice;
+    uint32_t deviceStates[5][2]{};
+    uint8_t deviceCombiners[3][12]{};
     std::vector<FC4OverlayCommand> commands;
     struct Texture { uint32_t stage; uintptr_t binding, source; };
     struct Rectangle { uint32_t route; int32_t vertices[4]; };
@@ -206,7 +211,18 @@ struct Drawing {
         ++d.rowReads;
         *out = {0, 64, 64, d.starts.data(), d.ends.data()};
     }
-    static void Command(uintptr_t p, const FC4OverlayCommand* command) { Of(p).commands.push_back(*command); }
+    static void Command(uintptr_t p, const FC4OverlayCommand* command) {
+        auto& d = Of(p);
+        d.commands.push_back(*command);
+        if (d.nativeCommands) {
+            fc4::overlay_device::Inputs inputs{&d.nativeDevice, reinterpret_cast<cIGZGDriver*>(&d.nativeDevice)};
+            for (uint32_t i = 0; i != 5; ++i) inputs.states[i] = d.deviceStates[i];
+            for (uint32_t i = 0; i != 3; ++i) inputs.combiners[i] = d.deviceCombiners[i];
+            NativeDeviceSink::receiverless = &d.nativeDevice;
+            CHECK(fc4::overlay_device::Submit(NativeDeviceSink::Calls(), inputs, *command));
+            NativeDeviceSink::receiverless = nullptr;
+        }
+    }
     static void Bind(uintptr_t p, uint32_t stage, uintptr_t binding, uintptr_t source) {
         auto& d = Of(p);
         d.textures.push_back({stage, binding, source});
@@ -252,6 +268,7 @@ void CheckDrawing(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
     const auto binding = native->AddBinding(reinterpret_cast<void*>(2), xz, 32, 0);
     CHECK(source != UINT32_MAX && binding != UINT32_MAX);
     Drawing drawing;
+    drawing.nativeCommands = true;
     auto frame = drawing.Frame();
     CHECK(owner->DrawFrame(&frame));
     CHECK(drawing.resets == 1 && drawing.acquires == 1 && drawing.releases == 1 && drawing.rowReads == 0);
@@ -268,6 +285,8 @@ void CheckDrawing(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
     CHECK(transform != drawing.commands.end());
     if (transform != drawing.commands.end()) CHECK(transform->a == 0 && transform->data[12] == -3.0f);
     CHECK(drawing.commands.back().kind == FC4OverlayCommandKind::DepthOffset && drawing.commands.back().a == 17);
+    CHECK(drawing.nativeDevice.calls == drawing.commands.size());
+    CHECK(drawing.nativeDevice.tag == 0 && drawing.nativeDevice.a == 17);
     CHECK(drawing.commands[drawing.commands.size() - 2].kind == FC4OverlayCommandKind::ClearTransform);
     // Dynamic snapshot must return before even checking the producer callbacks.
     FC4OverlayFrame snapshot{};
@@ -569,6 +588,7 @@ void CheckNative(FC4IOverlayOwner* owner, FC4INativeOverlay* native) {
 int main(int argc, char** argv) {
     if (argc != 3) return 2;
     CheckNativeRectangles();
+    CheckNativeDevice();
     char cwd[MAX_PATH];
     if (!GetCurrentDirectoryA(MAX_PATH, cwd)) return 2;
     const std::string dir = std::string(cwd) + "/overlay-factory-" + std::to_string(GetCurrentProcessId());

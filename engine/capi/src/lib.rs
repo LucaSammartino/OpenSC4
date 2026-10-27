@@ -1214,5 +1214,7 @@ mod draw_stream;
 mod gzfw_owner;
 // Native simulation invocation context; private, no C ABI exports.
 mod invocation;
+// Opt-in C ABI host-boundary record/replay tooling.
+pub mod trace;
 // Private same-invocation HTML document differential; no public DLL exports.
 mod html_document_shadow;

@@ -17,7 +17,7 @@ mod highlights;
 mod overlay;
 mod palette;
 mod panels;
-mod ring_float;
+pub(crate) mod ring_float;
 mod settled;
 mod source;
 mod traffic;

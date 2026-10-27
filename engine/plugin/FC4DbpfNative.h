@@ -12,7 +12,8 @@ void DbpfShadowObserve(int32_t julian);
 void DbpfShadowTick();
 // Main-thread only: let an autotest quit drain the final dated sample first.
 bool DbpfShadowPending();
-// Hold a balanced hidden pause from sample capture until pending reads drain.
+// Hold a balanced hidden pause while a save/quit drains pending reads.
+// dbpf_shadow_hold_date also opts into holding every acquisition's date.
 // Tick releases it when the queue empties; Shutdown releases it on interruption.
 bool DbpfShadowWait();
 // Invalidate readers before native save/re-registration; harness saves wait
