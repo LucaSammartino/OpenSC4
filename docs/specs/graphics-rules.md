@@ -481,8 +481,9 @@ call in `cSC4AudioAmbienceLayer::CanHandle` (`0x004E519B–0x004E51AD`). The key
 it is a distinct dereference and supplies no state-restoration rule for this manager.
 
 Native publication occurs at view construction (`0x007F0FC4` → `0x00602120`) and is refreshed at
-pre-city initialization (`0x007F45FE` → `0x00602590`). View Shutdown clears the shared view reference
-without checking which view previously published it (`0x007F1529` → `0x00602130`). Thus even a
+pre-city initialization (`0x007F45FE` → `0x00602590`). View Shutdown, when its initialized path reaches
+the clearing helper, clears the shared view reference without checking which view previously
+published it (`0x007F1529` → `0x00602130`). Thus even a
 temporary view's lifecycle can disturb this shared reference; a temporary **renderer facade** in
 §2.4 is a different object. None of these view publication/clearing operations belongs to manager
 Init, the FSAA probe, or the backing-store getter/setter. This is a reason to check acquisition
@@ -509,6 +510,92 @@ The supplied 77/77 properties, 12/12 recommendations, 13/13 shadow snapshots and
 warnings do not observe these lifetimes. They cannot settle that first writer or the s0 acceptance
 condition. No new runtime result, crash fix, additional restore, native-layout dependency or
 replacement acceptance is claimed by this answer.
+
+#### GR12: publication events, replay evidence and the outstanding observation
+
+**Native publication rules.** The shared reference consumed by the ambience predicate and the
+view obtainable from the public window tree are separate observations. A successful public lookup
+does not prove that this native reference still denotes that view. The examined publication paths
+have these precise effects; the instruction ranges establish the stores and guards:
+
+| Event actually reached | Effect on the predicate's shared view reference | Evidence |
+|---|---|---|
+| Completed view construction calls the creation helper | Overwrites the reference with the constructed view; does not preserve an older publisher | `0x007F0FC3–0x007F0FC9`, `0x00602120–0x0060212B` |
+| Pre-city initialization calls the refresh helper, with an application present | Overwrites it with the application's current view, then uses that view to obtain other services; does not validate a null result before dereferencing it | `0x007F45FE`, `0x00602590–0x006025BB`, getter `0x004E0960–0x004E0966` |
+| Refresh helper finds no application | Returns false without changing the reference | `0x00602590–0x00602598`, `0x006025EF–0x006025F1` |
+| Initialized view Shutdown reaches the clearing helper | Writes null, regardless of which view most recently published the reference | `0x007F1529`, `0x00602130–0x00602152` |
+| View Shutdown takes its uninitialized early exit | Returns true without reaching that clearing helper | `0x007F1325–0x007F132F`, `0x007F162B–0x007F1630` |
+
+Consequently, construction/pre-city/Shutdown **entry** traces alone do not establish the value
+written, completion of publication, or execution of the clear. These paths do not establish an
+exhaustive writer inventory. At `0x004E2C00–0x004E2C08` the consumer loads the shared reference and
+dereferences it without a null guard before calling slot 22. A null reference here is a violated
+view-lifecycle precondition; native behavior is a fault, not a false predicate or a graphics-rule
+fallback. Manager Init before any view exists remains allowed, as the interface cases above state.
+
+**Evidence separation (artifacts inspected 2026-10-27).** Sources below are the revisions identified
+in GR12; DLL hash prefixes and outcomes are recorded in the named verdict/log artifacts under main
+`build-runs/game-results/`. These are existing results, not a new RE replay.
+
+| Cohort / log | Recorded outcome | What it establishes for GR12 |
+|---|---|---|
+| `afc66170e` / `f2e48878`, `cfgrules30-r1-s0-grow-on2.log:9294–9297` | `+0xE2C06`, null read, ECX zero; simulated 2026-01-27 in its verdict | The predicate's loaded reference is null at this use; no earlier writer is recorded |
+| Same reported source/DLL, `cfgrules30-r1-s0-grow-on1.log:11973` | `+0x1DF76E` on simulated 2026-01-30; `0x005DF76E` belongs to `cSC4LotBaseTextureOccupant::UpdateExistingModels` | The currently preserved file differs from GR12's claim that on1 repeats `+0xE2C06`; retain it as a distinct fault, not a second view-reference reproduction |
+| Same reported source/DLL, `cfgrules30-r1-s0-grow-off1.log:11409` | `+0x3529C0` on simulated 2026-03-13 | Distinct terrain failure; does not explain on2's missing reference |
+| `37219ef48` / `7234fd3c`, `cfgrules30-r2-s0-on1.log:363,372,383,407,419` | Public view absent at Init entry, gather entry, after probe, after cleanup and Init exit; driver recorded at line 379 | No observed public-view loss during this acquisition; does not measure the earlier DLL's shared-reference history |
+| Same corrected cohort, `cfgrules30-r2-s0-on1.log:8000–8005,8032–8037` | One view's constructor and pre-city entry/exit follow acquisition; no view Shutdown trace during gathering | Consistent with the allowed pre-view Init order; method hooks do not observe the shared stores themselves |
+| Same corrected cohort, `cfgrules30-r2-s0-{on1,on2,off1}.log:17681,17756,17792`, respectively | `+0x1D0F94` during type `096E763C` Shutdown after reaching 2028-02-02, 2028-02-01, 2028-01-30, respectively | Distinct quit-time construction-occupant fault (`0x005D0CE0` owner); neither reproduces nor explains `+0xE2C06` |
+
+The original on1/off1 verdicts record minimization after load; original on2 records no minimization.
+Corrected s0 on1/on2/off1 record minimization after load. Keep those window-state histories separate;
+their difference does not itself identify a cause. The corrected s1-on1 clean result through
+2028-01-28 and s1-off1/off2 watchdog stalls on 2026-01-30, without foreign exceptions, likewise supply
+no view-reference writer. Numerical query/shadow matches and zero reference warnings retain their
+existing scope; they do not discharge s0 acceptance (c).
+
+**Exact outstanding RE observation.** No runtime debugger/watchpoint facility is configured for this
+lane, and the supplied logs contain no first-writer observation for the failing on2 execution.
+GR12 is narrowed to the following runtime requirement; crash attribution and acceptance remain open:
+
+1. Replay the original failing cohort with both cfgrules settings, preserving the original source
+   and DLL, exact initial save bytes and `gen27-konradshohe-s0-grow.script` contents, other switches,
+   graphics mode/current driver, pacing and window/minimization sequence. The archived requests
+   name Konradshohe, turbo, a 2028-01-28 target and quit at the end; city/script names alone do not
+   prove byte identity. Record full artifact hashes and actual run settings. Treat the minimized
+   on1/off1 pair and visible on2 as separate baselines. A changed or unavailable failing artifact,
+   a non-reproduction, or a corrected-source repeat must be reported as such.
+2. Start an RE observer before view construction/publication. Resolve the reference consumed by the
+   load at `0x004E2C00` on the RE side and observe its writes without changing program state. Record
+   its initial value and every subsequent old/new value, writer instruction, view identity where
+   known, thread, ordered event number and caller stack through the failed predicate. Storage is
+   diagnostic evidence only; it is not an engine field or a new implementation interface. Retain
+   the Init/gather/driver/public-view and acquired-reference cleanup observations already required
+   above, including which Shutdown calls actually reach the clearing helper.
+3. At the fault, capture the consumed null value and contemporaneous public-view availability.
+   If a nonnull publication preceded it, identify the first transition to null after the **last**
+   nonnull publication, with no later publication before failure. Correlate that writer with any
+   lifecycle call and the acquisition/release chain that caused it. A clear during provider cleanup
+   establishes a lifecycle deviation; an unrelated writer requires that writer's cause to be traced.
+   A Shutdown entry without the clear, or a much earlier null later overwritten, does not settle it.
+4. Alternatively, establish missing publication: observation begins with a verified null reference
+   before any publication, covers all writes without gaps, and shows no nonnull publication before
+   the first failing use. Record the consumer's caller stack and construction/pre-city chronology.
+   Late observer attachment or absence of a constructor line in a sampled log is insufficient.
+
+**Worked discriminators (observer/provider fixtures, not additional engine storage).**
+
+- Start with no public view. Independent Init/gather completes without constructing or shutting
+  down a view; then construction publishes view A, pre-city refresh selects A, and the predicate
+  reads A with slot 22 returning 1. Expected: predicate true; the earlier absent-view snapshots
+  are not a first-null-writer finding. A slot-22 result of 2 instead makes the predicate false.
+- With live views A and B, let the application refresh publish A and let public lookup
+  continue to return live A. B's Shutdown then reaches the clearing helper before the predicate.
+  Expected: publication A → null, despite live public A; the consumer faults before slot 22.
+  The writer is the clearing helper, and B's lifecycle caller must explain why it ran. If B takes
+  the uninitialized early exit instead, there is no clear and the reference remains A.
+- Begin complete observation with a null reference and reach the failed predicate before any
+  nonnull publication. Expected: missing publication, with no invented nulling writer. If that
+  same history is observed only from Init exit onward, classify the evidence as incomplete.
 
 ## 3. Reading the rules (`ParseConfigFile`, `0x007CFE10`) *[compat]*
 
