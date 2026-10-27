@@ -113,6 +113,41 @@ drop alarms at city shutdown — choice]*.
 Unregister the event target from `cIGZSndSys` (slot `+0x40`), unsubscribe the 12 message types of §2.1 (the
 order differs, the set is the same), release the layers (`0x004E9660`) and the held services.
 
+### 2.5 Native first-tick prerequisite: a live city-screen view (EF28) *[compat]*
+
+Added 2026-10-27 (re-ef32). `Init` starts the timer and sets enabled, but city
+PostCityInit is the boundary that adds this service to the framework's tick
+list (§2.2). PreCityShutdown synchronously clears enabled and removes it
+(§2.3). The application creates the city screen **before** PreCityInit, city
+Init and queued PostCityInit; on an ordinary close it sends PreCityShutdown
+**before** destroying that screen (application §§11.4,11.7–11.9).
+
+This ordering supplies a live `cISC4View3DWin` for the native ambience
+filters. It is a caller/lifecycle precondition, not a view lookup or readiness
+handshake in the audio service. The view-level-1 global filter `004E2C00`
+reads global `00B43DC4`, dereferences it at `004E2C06`, and calls its slot 22
+at `004E2C08`; it returns whether the result equals 1. There is no null check.
+The level-2/level-3 and zoom filter families also require the city view
+(audio-filters §2). OnTick's enabled check (`004EA156–004EA15B`) is not a view
+check. Its stage-2 cell processing reaches these filters through §8.4.
+
+A view-less service can exist before city initialization or after city
+shutdown without being scheduled for city ambience. A **view-less active city
+tick with one of these filters is not supported** by the original; neither
+PostCityInit receipt alone nor the presence of a region renderer/effects
+manager makes it valid. A replacement must preserve the lifecycle ordering
+when retaining native audio. This specifies no null-global patch or timing
+delay.
+
+Worked case: publish city view V, deliver PostCityInit, then tick a layer using
+the level-1 filter. With V slot 22 returning 1, CanHandle accepts that global
+predicate. Send PreCityShutdown: enabled becomes 0, tick-list membership is
+removed, and layers shut down. Only then shut down the city screen and clear
+V. There must be no later city-filter evaluation against that cleared view.
+Manually calling the filter while V is absent violates its prerequisite and
+faults at `004E2C06`; it does not return false. The trace needed to classify
+the reported intermittent violation is effects §18.11.3.
+
 ## 3. Occupant sounds and alarms
 
 Every occupant handler first skips **preview occupants**: an occupant whose property holder has `0x029244DB`
