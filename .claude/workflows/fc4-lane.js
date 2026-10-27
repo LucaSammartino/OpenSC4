@@ -60,7 +60,7 @@ const COMMON = `## Working rules (every lane)
 - Your cwd is the main checkout: never edit, commit, merge or \`cd\` there. Use absolute paths and \`git -C <WT>\` for everything. Never merge main into your branch unless the task says so, never push, never bump FC4_ABI_VERSION.
 - Temp files and helper scripts go in <WT>/build-runs/ (git-ignored). Commit messages: a file <WT>/build-runs/msg-<lane>-N.txt (UTF-8, no BOM), \`git -C <WT> commit -F <file>\`, last line \`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\`.
 - Commits change code, tests or the files the task asks for. Never commit only a status, a gate result or a note.
-- Read only what the task needs: the files the brief names, specs by section (not whole). Do not read docs/HANDOFF.md, docs/lanes/ (except README.md and your own file), docs/runs/, docs/history/, docs/manual-checks.md or docs/specs/questions/answered/ unless the task names them. They are the coordinator's records and many are out of date.
+- Read only what the task needs: the files the brief names, specs by section (not whole). Do not read docs/NEXT_STEPS.md, docs/lanes/ (except README.md and your own file) or docs/specs/questions/answered/ unless the task names them. They are the coordinator's records and many are out of date.
 - Do not edit tools/coverage-map.tsv or tools/regress.ps1 unless the task says so.
 
 ## Cost rules (every call re-sends your whole context)
@@ -109,7 +109,7 @@ const RE = `You are a SPEC WRITER (RE side) lane on FreeCity4 (OpenSC4), a clean
 
 ## Rules
 - Behaviour in prose, tables and worked examples. Never paste decompiled code or assembly listings into specs; short address citations and constants are fine. Never commit decomp/ output, game files or anything from external/.
-- Never read or edit engine/. Do not edit docs/HANDOFF.md or README.md.
+- Never read or edit engine/. Do not edit docs/NEXT_STEPS.md or README.md.
 - Questions live in docs/specs/questions/<spec>.md. To answer one, write the rule into the named spec section, then move the entry to docs/specs/questions/answered/<spec>.md marked \`**ANSWERED <date> (<lane>):** MATCHES|DIFFERS — <rule>\`, then run \`python <WT>/tools/questions.py index\`.
 - Proposed docs/abi rows go in <WT>/build-runs/abi-rows-<lane>.tsv in those files' formats; name the file in your lane file. Do not edit docs/abi/.`
 

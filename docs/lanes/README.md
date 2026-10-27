@@ -14,10 +14,8 @@ Engine lanes do not run these tools ([clean room](../../CONTRIBUTING.md)). Gener
 | Region | File | Content |
 |---|---|---|
 | `lanes` | `docs/lanes/INDEX.md` | one row per lane file; created if missing |
-| `latest-run` | `docs/HANDOFF.md` §0 | the `- **Latest in-game run:** ...` bullet |
-| `runs` | `docs/manual-checks.md` | the in-game run log, one row per `docs/runs/<tag>.md` |
 
-Outside text survives regeneration. Lanes sort naturally by filename; runs sort by `run` number.
+Outside text survives regeneration. Lanes sort naturally by filename.
 
 ## `docs/lanes/<lane>.md` — one row per lane
 
@@ -38,27 +36,6 @@ Escape `|` inside cells. Invalid rows stop generation. Write the lane file once 
 25 report lines below the row; an interrupted round follows the prompt's handoff instructions.
 The generator appends an optional `## Next steps` section to the last cell and ignores `## Handoff`
 and `## Retired roster row` sections.
-
-## `docs/runs/<tag>.md` — one file per in-game run
-
-A run file is one `key: value` per line, no continuations:
-
-| Field | Meaning |
-|---|---|
-| `tag` | Filename stem: `<label>-<run>`; label is regress `-Tag`, else request label, lane name, or `run`. |
-| `run` | Next free sequential number: highest `run:` plus one. Preserve existing numbers. |
-| `date` | Real-world `YYYY-MM-DD`, or `unknown`. |
-| `lane` | The lane that requested or owned the run. |
-| `dll` | `FreeCity4-<lane>`, build hash, or `unknown`. |
-| `pacing` | `turbo`, `normal`, or `unknown`. |
-| `verdict` | `clean`, `corrupt`, `crash`, `ended`, `none` (no information), or `PASS` / `FAIL` for a regress. |
-| `switches` | Exact build/settings and command. |
-| `result` | Exact measured counts, verdicts and subsystem shadow lines. |
-| `summary` | Optional latest-run bullet parenthetical, without brackets or trailing period. Only runs with it appear there. |
-| `summary_note` | Optional sentence after that parenthetical, without trailing period. |
-
-Required: `tag`, `run`, `verdict`, `switches`, `result`; omission fails generation.
-Escape `|` in `switches` and `result`. Preserve existing measured text verbatim. Link your runs in the lane file.
 
 ## How a lane lands
 

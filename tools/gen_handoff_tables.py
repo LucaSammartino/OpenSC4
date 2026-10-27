@@ -313,12 +313,7 @@ def main(argv):
 
     try:
         lanes = load_lanes()
-        runs = load_runs()
-        jobs = [
-            (LANES_INDEX, "lanes", build_lane_table(lanes)),
-            (HANDOFF, "latest-run", build_latest_run(runs)),
-            (MANUAL, "runs", build_run_table(runs)),
-        ]
+        jobs = [(LANES_INDEX, "lanes", build_lane_table(lanes))]
     except Error as exc:
         sys.stderr.write("gen_handoff_tables: %s\n" % exc)
         return 1
@@ -345,15 +340,15 @@ def main(argv):
         if dirty:
             sys.stderr.write("gen_handoff_tables: out of date: %s\n" % "; ".join(dirty))
             return 1
-        print("gen_handoff_tables: up to date (%d lanes, %d runs)" % (len(lanes), len(runs)))
+        print("gen_handoff_tables: up to date (%d lanes)" % len(lanes))
         return 0
 
     for path, text in cache.items():
         if original[path] != text:
             with open(path, "w", encoding="utf-8", newline="") as fh:
                 fh.write(text)
-    print("gen_handoff_tables: %d lanes, %d runs; rewrote %s"
-          % (len(lanes), len(runs), ", ".join(dirty) if dirty else "nothing"))
+    print("gen_handoff_tables: %d lanes; rewrote %s"
+          % (len(lanes), ", ".join(dirty) if dirty else "nothing"))
     return 0
 
 

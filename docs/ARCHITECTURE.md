@@ -63,11 +63,9 @@ Migration path (to all-Rust, or any other rewrite) built in from day one:
 | `engine/tests/` | C++ tests: the C ABI, the plugin, and `abi_conformance_test` against `docs/abi/` |
 | `engine/third_party/gzcom-dll/` | LGPL-2.1+ SDK headers (submodule) |
 | `docs/specs/` + `docs/abi/` | clean-room behaviour specs and interface facts: the only inputs for engine authors, besides the SDK headers ([CONTRIBUTING.md](../CONTRIBUTING.md)) |
-| `docs/HANDOFF.md` | the one page every agent reads first: the current state and an index of the rest |
+| `docs/NEXT_STEPS.md` | what we are doing next: the one pick-up document, rewritten in full on every change, never a log |
 | `docs/ops/` | operating knowledge: rules, running the game, lessons (§5.x), coordinating the merge train, conventions |
 | `docs/lanes/` | one file per lane, and the generated lane table `docs/lanes/INDEX.md` |
-| `docs/manual-checks.md` | log of in-game runs and the remaining human checks |
-| `docs/history/` | superseded docs and old stop notes, kept verbatim; nobody reads them by default |
 | `docs/subsystems/`, `re/`, `tools/` | research material for spec writers |
 
 ## Roadmap

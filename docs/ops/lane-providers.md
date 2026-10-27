@@ -6,7 +6,7 @@ subsystem, worker, three-glue and round caps. Changing providers never resets li
 
 ## Run commands
 
-From the clean main checkout, after the mandatory HANDOFF section0 read and `lanes.py guard`:
+From the clean main checkout, after reading `docs/NEXT_STEPS.md` and `lanes.py guard`:
 
 ```powershell
 python tools/lane_launch.py                                      # true live workers and rounds

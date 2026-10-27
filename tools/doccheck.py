@@ -23,8 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 INSTRUCTION_GLOBS = ("README.md", "CONTRIBUTING.md", "docs/*.md", "docs/ops/*.md", "docs/lanes/README.md",
                      "docs/specs/questions/README.md",
                      ".claude/agents/*.md")
-NOT_INSTRUCTIONS = {"docs/manual-checks.md", "docs/coverage-report.md", "docs/history/token-ledger.md",
-                    "docs/sdk-errata-draft.md", "docs/sim-engine.md"}
+NOT_INSTRUCTIONS = {"docs/coverage-report.md", "docs/sdk-errata-draft.md", "docs/sim-engine.md"}
 
 # Superseded rules: (pattern, the current rule). Add a row whenever a rule is replaced.
 STALE = (

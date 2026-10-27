@@ -144,9 +144,8 @@ without output.
 
 ## Keeping the coordinator cheap
 
-- **Restart fresh, from a note:** every 10 trains, write a complete restart note in
-  HANDOFF section 0 (live lanes and their rounds, the queue, the train, open alerts, the next three actions) so a
-  fresh coordinator session can take over from it alone.
+- **Restart fresh, from a note:** keep `docs/NEXT_STEPS.md` current (live lanes, the queue, the train, the next
+  actions) so a fresh coordinator session can take over from it alone. Overwrite it; never append history.
 - **One monitor, events only:** run `python tools/lanes.py monitor` under the Monitor tool for the whole session. It
   prints a line only when a lane enqueues, a verdict is not clean, a train gate/regress finishes, `main` moves or a
   lane stalls; do not re-arm timers or poll status between events.
@@ -158,9 +157,8 @@ without output.
   See [heartbeat waits](../lane-tools.md#heartbeat-backlog-and-wait-until).
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
   read an agent's output file. Batch status updates to the user instead of one per event.
-- **Measure:** `python tools/lanes.py ledger --md docs/history/token-ledger.md` after each landed batch; it reads the
-  workflow journals and puts tokens per lane, merge share and tokens per coverage point in
-  [docs/history/token-ledger.md](../history/token-ledger.md). Quote it, not estimates.
+- **Measure:** `python tools/lanes.py ledger` after each landed batch; it reads the workflow journals and writes
+  tokens per lane, merge share and tokens per coverage point to `build-runs/lane-ledger.tsv`. Quote it, not estimates.
 
 ## Landing work: the merge train
 
@@ -198,9 +196,8 @@ otherwise re-summarise that regress's logs with the landed script.
   never per lane, never by hand). `abi_entries.inc` is generated at build time and not in git: never merge,
   renumber or revert it. Write merge messages to a file and use `-F <msgfile>`; preserve the lane prompt's
   provider attribution and contributor credit.
-- **After a landing:** the regress ran in the batch (read the shadow column, not only the verdict); run records go
-  in `docs/runs/<tag>.md` and `python tools/gen_handoff_tables.py` regenerates `docs/lanes/INDEX.md`, the HANDOFF's
-  latest-run line and `docs/manual-checks.md`; questions: see docs/specs/questions/README.md; regenerate `docs/coverage-report.md` and `docs/coverage-map.svg`
+- **After a landing:** the regress ran in the batch (read the shadow column, not only the verdict); `python tools/gen_handoff_tables.py` regenerates
+  `docs/lanes/INDEX.md`; questions: see docs/specs/questions/README.md; regenerate `docs/coverage-report.md` and `docs/coverage-map.svg`
   (`python tools/coverage.py`, `python tools/coverage_treemap.py`) and check the delta: it must never go down.
 - **Pause / stop:** `TaskStop`, resume with `SendMessage` to the lane's agent ID (but never `SendMessage` a
   workflow subagent: that spawns a duplicate). After a hard stop, check the worktree's *unstaged* diff
@@ -230,8 +227,7 @@ refusals block ready. `merge-train.py plan` prints claims; `land` prints coverag
 - `reset_integration` (`checkout --force -B integration/<n> main`) discards a previous attempt's merges, so a batch
   re-run from scratch can record a lane as merged whose merge did not survive; `land` writes its list from its own
   state file, which is not a proof of ancestry.
-- `docs/HANDOFF.md` and `docs/lanes/INDEX.md` conflicts take the integration side, then regenerate with
-  `tools/gen_handoff_tables.py`. Union `docs/manual-checks.md`, then regenerate its run table.
+- `docs/lanes/INDEX.md` conflicts take the integration side, then regenerate with `tools/gen_handoff_tables.py`.
 - `docs/specs/QUESTIONS.md` conflicts take either side, then `python tools/questions.py index`.
   Open question files can union two append-only changes; other conflicts require operator review.
 - `fc4.h` and `engine/capi/src/lib.rs` version conflicts take the higher constant; other hunks need normal review.

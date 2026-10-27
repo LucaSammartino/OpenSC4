@@ -378,20 +378,16 @@ def reset_integration(name):
 ABI_HEADER = "engine/capi/include/fc4.h"
 ABI_RS = "engine/capi/src/lib.rs"
 ABI_INC = "engine/tests/abi_entries.inc"
-HANDOFF = "docs/HANDOFF.md"
 LANES_INDEX = "docs/lanes/INDEX.md"
-MANUAL = "docs/manual-checks.md"
 QUESTIONS = "docs/specs/QUESTIONS.md"  # generated index; the questions live in the per-spec files below
 QUESTIONS_DIR = "docs/specs/questions/"
-PROGRESS = "docs/PROGRESS.md"
-# Derived docs: lanes change them only by running tools/gen_handoff_tables.py (the lane table in INDEX.md, the
-# latest-run line in HANDOFF.md), and the HANDOFF's prose is the coordinator's. On a conflict take ours (the
-# integration side) and let regenerate() rebuild the generated regions from docs/lanes/ and docs/runs/. A union
-# would paste a lane's stale copy back in: HANDOFF.md was cut from 134 KB to one page on 2026-10-20, and every
-# lane cut before that carries the old file with its lane table.
-DERIVED = (HANDOFF, LANES_INDEX)
-# Append-only docs: both sides only ever add rows or sections, so a union always keeps everything.
-APPEND_ONLY = (MANUAL, PROGRESS)
+# Derived docs: lanes change them only by running tools/gen_handoff_tables.py (the lane table in INDEX.md). On a
+# conflict take ours (the integration side) and let regenerate() rebuild the generated region from docs/lanes/.
+DERIVED = (LANES_INDEX,)
+# Retired docs (2026-10-27): the one pick-up document is docs/NEXT_STEPS.md, rewritten by the coordinator. A lane
+# cut before the deletion still carries these; on a modify/delete conflict keep the deletion.
+RETIRED = ("docs/HANDOFF.md", "docs/manual-checks.md", "docs/PROGRESS.md")
+APPEND_ONLY = ()
 # Shared source files where every lane only appends its own registration. These union ONLY when the hunks
 # are disjoint additions (see can_union) — blindly unioning FC4Config.cpp once produced a function body with
 # `Log` and `kCount` out of scope, which the batch gate then rejected.
@@ -659,6 +655,10 @@ def resolve_conflicts(wt, lanes):
         return [], []
     resolved, left = [], []
     for p in paths:
+        if p in RETIRED or p.startswith("docs/runs/"):
+            git(["-C", str(wt), "rm", "--cached", "-f", "--", p], check=False)
+            resolved.append(p + " (kept deleted: retired doc)")
+            continue
         if p == ABI_INC:
             if not (Path(wt) / p).exists():
                 # modify/delete: abi-hygiene generates it at build time and removed it from git. Keep the
@@ -1439,8 +1439,8 @@ def write_notices(cur, main_sha):
             f"- branch `{lane}` merged into `main` as `{main_sha}` in merge-train batch `{cur['id']}`.\n"
             f"- integration: `{cur['integration']}` at `{cur['head'][:12]}`\n"
             f"- gate: {cur.get('gate')}   regress: {cur.get('regress')}\n\n"
-            "Nothing more to do on this lane. Any `docs/lanes/<lane>.md` and `docs/runs/<tag>.md` you wrote are now\n"
-            "the source of the generated docs/lanes/INDEX.md / HANDOFF / manual-checks tables.\n",
+            "Nothing more to do on this lane. Any `docs/lanes/<lane>.md` you wrote is now the source of the\n"
+            "generated docs/lanes/INDEX.md table.\n",
             encoding="utf-8",
         )
     # one copy in the main tree as well, so a later session can see what landed

@@ -13,7 +13,7 @@ at another checkout, read-only.
 | `check <lane> [--deps a,b] [--touches k1,k2]` | coordinator, before every spawn | refuses a lane that would be wasted work; prints `ok` or one reason per line |
 | `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | tooling and RE lanes, the coordinator (engine lanes use `.claude/lane-bin/qwait.py`: they do not run `tools/`) | one tool call instead of a polling loop |
 | `monitor [--interval 30]` | coordinator, under the Monitor tool | one line per event, silence otherwise |
-| `ledger [--out ...] [--md docs/history/token-ledger.md]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
+| `ledger [--out ...] [--md <file>]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
 | `brief <subsystem-or-key> [--kind engine\|re] [--focus <regex>]` | coordinator | at most 60 lines: spec sections/ranges/sizes, question/core/ABI/conformance pointers, keys and coverage; `--focus` marks task sections |
 
 ## The cap rule
@@ -57,8 +57,8 @@ coordinator can add `--lane <name>` to look in another worktree.
   Stalls mean no queue/file changes for 60 minutes, reported once within 8 hours; startup state is the baseline.
 - `brief` reads `tools/coverage-map.tsv`; engine output filters RE paths, notes and executable addresses.
 - **Cost:** `ledger` reads the workflow journals (`%USERPROFILE%\.claude\projects\<slug>\*\workflows\wf_*.json`) and
-  writes `build-runs/lane-ledger.tsv` (one row per run), `build-runs/lane-ledger-by-lane.tsv` and, with `--md`,
-  [history/token-ledger.md](history/token-ledger.md). Caveats: train landings lack merge journals;
+  writes `build-runs/lane-ledger.tsv` (one row per run), `build-runs/lane-ledger-by-lane.tsv` and, with `--md`, a
+  markdown table. Caveats: train landings lack merge journals;
   coverage-tool changes also move coverage.
 
 ## Heartbeat backlog and `--wait-until`
