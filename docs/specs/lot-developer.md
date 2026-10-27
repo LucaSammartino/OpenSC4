@@ -792,7 +792,7 @@ Without animation the state is set to 3 at once, so §6.5 runs when the queued m
 - **`ChangeBuilding(lot, type)`** (slot 10, `0x006C5210`, pop 8): no-op when the lot has no configuration (returns
   0). Otherwise `ClearLotBuildings(lot, 1, true, 0)` (§7.1), place `type` with BDS slot 7 at `GetPositionForBuilding`,
   and, when the lot has no foundation (flags & 3 = 0), the occupant-slope levelling / `AddBuildingFoundation` step
-  of §6.1. Finally `lot.SetState(3, 0, 0)` (also when no building was created *[quirk]*); returns its AL. The lot's
+  of §6.1. Finally `lot.SetState(3, 0, 0)` (also when no building was created *[quirk]*); returns whatever `SetState` leaves (no defined flag, see LD34). The lot's
   building type is not changed here.
 - **`AbandonBuilding(lot, reason)`** (slot 8, `0x006C3D30`): `lot.SetState(4, 0, reason)` and nothing else; **no defined
   result** (LD34): the function returns straight after the call, so AL is whatever `SetState` left, which is not a
@@ -811,8 +811,7 @@ Without animation the state is set to 3 at once, so §6.5 runs when the queued m
   exists (lot slot 9): `s := GetLotSlope(lot, cfg.IsCompatibleWithWater())`; if
   `cfg.GetMaximumSlopeBeforeFoundation() < s` (NaN → no), `AddLotFoundation(lot, cfg, cfg.HasObjectsOfType(7),
   false, true)` (slot 54, may draw) and `added := true`; if `|s| > 0.25` (float `0x00A8821C`; NaN → no),
-  `UpdateLotObjectAlitudes`. Then `UpdateLotBaseTextureOccupant(lot, added)` (slot 45: true only when this call
-  added a foundation) and lot slot 20 (`UpdateSlope`). The original pushes `added` as a dword whose upper three
+  `UpdateLotObjectAlitudes`. Then `UpdateLotBaseTextureOccupant(lot, added)` (slot 45: its result is not a defined flag, see §6.6) and lot slot 20 (`UpdateSlope`). The original pushes `added` as a dword whose upper three
   bytes are leftover stack contents; slot 45 reads only the low byte. The kind-5 sender is not identified here
   (the power simulator also ignores kinds 4 and 5, `power.md`).
 
@@ -1778,7 +1777,7 @@ verified from the bodies).
 | 7 | +0x1C | `bool ConstructDefaultLot(lot, cfg, uint32 type, bool)` | 16 | AL of slot 6 | `0x006CCEF0` | ok |
 | 8 | +0x20 | `bool AbandonBuilding(lot, int32 reason)` | 8 | **undefined** (incidental leftover of `SetState`, which has no result) | `0x006C3D30` | **error**: no defined bool result (LD34) |
 | 9 | +0x24 | `bool ReoccupyBuilding(lot, int32 devType)` | 8 | AL of `SetPopulation` | `0x006C3D50` | ok |
-| 10 | +0x28 | `bool ChangeBuilding(lot, uint32 type)` | 8 | AL of `SetState`; **0** when the lot has no configuration | `0x006C5210` | ok |
+| 10 | +0x28 | `bool ChangeBuilding(lot, uint32 type)` | 8 | no defined flag from `SetState` (LD34); **0** when the lot has no configuration | `0x006C5210` | ok |
 | 11 | +0x2C | `bool RemoveBuildingZotProp(lot)` | 4 | AL of the variant setter; 0 when no zot property | `0x006CB940` | ok |
 | 12 | +0x30 | `StartDemolishLot(lot)` | 4 | AL of `ClearLotBuildings` (slot 11's) | `0x006CC1D0` | declared bool: value is incidental |
 | 13 | +0x34 | `EndDemolishLot(lot)` | 4 | **undefined** (last call's EAX) | `0x006C90A0` | **error**: SDK `bool` |

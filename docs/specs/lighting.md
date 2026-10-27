@@ -419,7 +419,7 @@ The model gives its bounding box (slot 8) and its owner (slot 3), queried for th
 
 1. Weight w := `0x29189BF2` (0.4). For an occupant:
    - a network occupant (`0xA821EF94`) whose slot 8 (`HasNetworkFlag`, true when every given bit is set) answers true
-     for `0x40000`, i.e. a piece on a **bridge step**, abutments included (network-manager.md §10.3,
+     for `0x40000`, i.e. a piece on a **bridge step**, abutments included (network-geometry.md §10.3,
      network-geometry.md §10.3), so bridge decks and ramps are lit with the up normal and the default weight: out := light ⊙ (w·m + (1 − w)·white),
      m the model colour of the up normal; done;
    - flora (`0x74758926`) or in occupant group `0x5004` (occupant slot 22): w := `0x29189BF1` (0.9);

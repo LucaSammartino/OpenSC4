@@ -58,4 +58,4 @@
 <!-- from: re-lighting (2026-10-19) -->
 - ~~**LT2 - §4.3:** which network occupants answer true to slot 8 with `0x40000`? Their models are lit with the up
   normal and the default weight, ahead of the type tests.~~
-  **ANSWERED 2026-10-27 (re-q-misc):** MATCHES — slot 8 of the network occupant (`HasNetworkFlag`, all given bits) with `0x40000` is true for pieces on a bridge step, abutments included, so bridge pieces are lit with the up normal and the default weight (lighting.md §4.3; network-manager.md §10.3).
+  **ANSWERED 2026-10-27 (re-q-misc):** MATCHES — slot 8 of the network occupant (`HasNetworkFlag`, all given bits) with `0x40000` is true for pieces on a bridge step, abutments included, so bridge pieces are lit with the up normal and the default weight (lighting.md §4.3; network-geometry.md §10.3).

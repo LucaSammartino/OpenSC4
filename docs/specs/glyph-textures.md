@@ -107,8 +107,8 @@ read as `+0x3B4` of the render-properties object `+0x18` of the application's se
 registers the service with the framework: first `AddSystemService` (framework slot 3, argument: the `+0x04`
 system-service view, so the service is found under its ID `0xABEB5E37` with priority −2,000,000 and the framework
 rejects a second service of that ID), then `AddToTick` (framework slot 9, `+0x24`, same argument), which puts the
-service on the framework's tick list so that `OnTick` (§1.5) runs once per frame, in descending priority order and
-so after the message server and the simulator (flammability.md, framework-gz-services.md §4.4); subscribes the
+service on the framework's tick list so that `OnTick` (§1.5) runs once per frame, in descending priority order, tying with
+the simulator's priority, so the relative order depends on insertion (flammability.md, framework-gz-services.md §4.4); subscribes the
 `+0x20` target to `kSGLMessage_RestoreTextures` `0x8ACAA95F`. Always true.
 
 `Shutdown` (when initialised): for each glyph in the map, clear its manager link (releasing it) and release the map's
