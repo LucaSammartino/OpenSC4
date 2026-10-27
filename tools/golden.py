@@ -229,12 +229,21 @@ def cache_record(cache, key, manifest, run):
             shutil.copyfile(run / filename, stage / filename)
         write_json(stage / 'baseline.json', {'key': key, 'inputs': manifest, 'source_run': str(run.resolve()),
                                              'artifacts': {name: sha256(stage / name) for name in artifacts}})
-        try:
-            stage.rename(entry)
-        except OSError:
-            if not entry.exists():
-                raise
-            return cache_record(cache, key, manifest, run)
+        for attempt in range(20):
+            try:
+                stage.rename(entry)
+                break
+            except PermissionError:
+                # A scanner can hold a just-written file open for a moment (WinError 5); retry.
+                if entry.exists():
+                    return cache_record(cache, key, manifest, run)
+                if attempt == 19:
+                    raise
+                time.sleep(0.5)
+            except OSError:
+                if not entry.exists():
+                    raise
+                return cache_record(cache, key, manifest, run)
     finally:
         if stage.exists():
             shutil.rmtree(stage)
@@ -300,6 +309,13 @@ def input_script(path, until):
     return text + f'\n{until} digest\n{until} save\n{until} mark GOLDEN_FULL_SAVE_COMPLETE\n'
 
 
+def autotest_end(args):
+    # [choice] Under the fixed schedule a run ends at the end date's save (terminate): the original's quit
+    # after it can crash in the teardown (a construction occupant's Shutdown at 0x005D0F94, the terrain's
+    # edge reconcile at 0x0074D290), and nothing after the save is compared.
+    return 'terminate' if args.schedule == 'fixed' else 'quit'
+
+
 def prepare(args):
     region, city = safe_name(args.region), safe_name(args.city)
     date(args.until)
@@ -316,7 +332,7 @@ def prepare(args):
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
                 'full_save': True, 'script_save_grace_ms': SAVE_GRACE_MS,
                 'environment': 'explicit switches; FC4_* removed in direct backend',
-                'backend': args.backend, 'autotest_end': 'quit', 'window': 'minimized after load',
+                'backend': args.backend, 'autotest_end': autotest_end(args), 'window': 'minimized after load',
                 'reach': reach_supported(root) if args.backend == 'queue' else False}
     settings['queue_parallel'] = args.backend == 'queue'
     generated = input_script(args.script, args.until)
@@ -370,6 +386,12 @@ def _validate_log(text, until, selected, run):
     return verdicts[-1]
 
 
+def saved_city(args, generated):
+    # A script that establishes the city renames it; the game saves it under the last established name.
+    names = re.findall(r'^\S+\s+establish\s+(.+?)\s*$', generated, re.M)
+    return names[-1] if names else args.city
+
+
 def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     # Golden originals use only our scheduler; every simulated subsystem stays
     # original. Candidates must use the same scheduler and window settings.
@@ -394,7 +416,7 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
                    f'schedule = {args.schedule}\n'
                    f'script_save_grace_ms = {SAVE_GRACE_MS}\n'
                    f'sim_turbo_frame_ms = 250\npopup_dialogs = 0\nautotest_unpause = 2\n'
-                   f'autotest_end = quit\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
+                   f'autotest_end = {autotest_end(args)}\nautotest_seconds = {args.seconds}\nscript = {script.resolve()}\n', encoding='utf-8')
     # Diagnostics only (for example `heap trace = <dir>`): GOLDEN_INI_EXTRA lines, separated by ';',
     # are appended; a run that uses it is not a reference.
     if os.environ.get('GOLDEN_INI_EXTRA'):
@@ -538,10 +560,11 @@ def wait_snapshot(args, verdict_file, result, work):
             if process is None and marker.is_file():
                 match = re.search(r'running in slot (\d+)', marker.read_text(encoding='utf-8-sig'))
                 if match:
+                    city = saved_city(args, (work / 'actions.script').read_text(encoding='utf-8'))
                     command = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
                                '-File', str(Path(__file__).with_name('golden_snapshot.ps1')),
                                '-HarnessRoot', str(args.harness_root.resolve()), '-Output', str(result.resolve()),
-                               '-City', args.city, '-Region', args.region, '-Slot', match[1],
+                               '-City', city, '-Region', args.region, '-Slot', match[1],
                                '-ScriptPath', str((work / 'actions.script').resolve()),
                                '-ExpectedLog', str(verdict_file.with_suffix('.log').resolve()),
                                '-VerdictFile', str(verdict_file.resolve()), '-WaitSeconds', str(args.seconds + 150)]
