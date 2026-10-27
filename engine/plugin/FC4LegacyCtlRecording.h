@@ -396,12 +396,13 @@ inline uint32_t __cdecl ExchangeCall(void* context,const uint32_t* input,uint32_
     if(event.call.size()!=count || !std::equal(event.call.begin(),event.call.end(),input)) {
         // Keep unsupported startup traces from consuming another method's diagnostics.
         static std::atomic<uint32_t> reports[30]{};
-        if(trace.bad==0 && trace.exhaustive && reports[trace.method].fetch_add(1)<8) {
+        if(trace.exhaustive && reports[trace.method].fetch_add(1)<8) {
             Log("legacyctl trace difference: method=%u index=%u native=(%u,%08X,%X) core=(%u,%08X,%X)",
                 trace.method,static_cast<unsigned>(trace.cursor-1),event.call[0],event.call[1],event.call[2],input[0],input[1],input[2]);
             for(size_t i=0;i<std::min<size_t>(event.call.size(),count);++i) {
                 if(event.call[i]!=input[i]) {
-                    Log("legacyctl trace word difference: word=%u native=%08X core=%08X",static_cast<unsigned>(i),event.call[i],input[i]);
+                    Log("legacyctl trace word difference: method=%u index=%u word=%u native=%08X core=%08X",
+                        trace.method,static_cast<unsigned>(trace.cursor-1),static_cast<unsigned>(i),event.call[i],input[i]);
                     break;
                 }
             }

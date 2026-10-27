@@ -228,6 +228,7 @@ fn list(h: Handle, t: Handle, p: Properties<'_>, first: bool, f: &mut impl Forei
         if let Some(s) = p.text(0x40b) {
             let c = scan(&s, "(%d,%d,%d)(%d,%d,%d)")?;
             if c.len() == 6 {
+                // SPEC-GAP: §9.12 does not order the two colour-pack calls; keep tuple order pending LC19.
                 let a = f.colour([c[0] as u8, c[1] as u8, c[2] as u8]);
                 let b = f.colour([c[3] as u8, c[4] as u8, c[5] as u8]);
                 call(f, t, 0xdc, vec![n(a), n(b)]);
