@@ -36,19 +36,24 @@ The schedule is `docs/specs/simulator.md` §5.8. The original follows it through
 **The reference store** (`tools/golden.py`, `build-runs/golden`) keys a fixed-schedule reference on the schedule code
 (sha256 of `FC4Schedule.cpp` and `.h`), the pinned reference DLL and the run settings; it requires exact equality and
 refuses a candidate whose schedule code differs. Any edit of `FC4Schedule.cpp` or `.h` means: rebuild, `python
-tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 62ae49c3, schedule code f08256c35f49fa1a
-(commit 0bb4968d5); its 55 references are recorded and the original repeats every one of them (drift check exact,
-55 of 55). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit after it
+tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 3c2afcf8, schedule code 1107b55f0944ecb8
+(commit 562a1f41e); its 55 references are recorded (walk census on) and the original repeats
+every one of them (55 of 55 exact). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit after it
 can crash in the city teardown.
 
 **Comparison:** the save at each scenario's end date, record by record after decompression (`golden_dbpf` ignores
 container layout; our QFS compressor is our own design), plus the DIGEST lines and the schedule's per-delivery digests.
 
 **What replace mode still lacks to match** (step 2.2; the host `rand()`, derive(S, K) seeds and object IDs are in):
-- Address order: results depend on heap address order wherever a container is keyed by pointer (the traffic network
-  map's buckets are address mod 193; agent order, foundations §13). The original's order is fixed by its heap (lowest
-  address first from 0x20000000). Find every pointer-keyed container a replaced owner touches and either allocate in
-  the original's order or make the spec state the order it implies.
+- Address order: where the original walks a container keyed by object address, the schedule makes it walk in creation
+  order (or the order its spec states); simulator.md §5.8's Address order row lists every such walk, and each is in
+  its owner's spec. Two detectors run the original with other addresses, so a result that still follows addresses
+  changes: `GOLDEN_INI_EXTRA="heap perturb = holes"` (or `= reverse`) `python tools/check.py run --dll <copy of the
+  build> --replace none`. Measured on the pin: holes 54 of 55 exact, reverse 53 of 55, plain 55 of 55. Open: the
+  watercraft record `0x096E75F5` and the watercraft manager `0xA98F9D28` in paradis-jinae (holes, reverse) and
+  maxisland-east-weburg (reverse). `walk census = on` digests the order of every hash-table walk
+  (`hashtable::begin`, 0x004B0390) per call site; red-black tree walks are inline (299 successor loops in the exe) and
+  are not counted, so find those from the record that differs.
 - Two clock seeds still keep the schedule's `time()`/`clock()` instead of derive(S, K): the flammability generator's
   zero-state reseed (`cRZRandom::RandomDoubleUniform`, 0x0091373B) and the growth decline seed. Map them only if
   `check` shows them.
@@ -89,8 +94,12 @@ Berlin cities (set `clockless` in `engine/tests/scenarios/suite.tsv`) are not ru
 1. **Each owner alone** over its cover: `python tools/check.py run --dll <copy of the build> --replace each` (an
    owner that needs others runs with them: mysims with advisors, netrules with netmgr and nettool). It writes
    `build-runs/golden/owner-check.tsv`: per run, exact, or the first differing delivery, DIGEST date and record
-   (with its owner). This table is the first Exact-replaced measurement. Running since 2026-10-27 16:45.
-2. **Address order and the two clock seeds** (section 2), driven by that table.
+   (with its owner). Measured once, before most address-order walks: 13 of 108 runs exact (aura 2, gzfw 2,
+   protection 2, budget, citydetail, industrial, nettool, span565, tract, tutorial), 72 outside, 23 errors (a
+   foreign exception or a stall: automata 9, disasters 3, netmgr 3, regionalcity 3, effects, netrules, span8888,
+   terrain, traffic). The errors are engine findings for step 4. Run it again on the current pin next.
+2. **Address order** (section 2): the two watercraft scenarios, then whatever the new table shows. The two clock
+   seeds only if `check` shows them.
 
 ### Step 3: Exact-replaced in `tools/coverage.py`, and the landing rule
 
