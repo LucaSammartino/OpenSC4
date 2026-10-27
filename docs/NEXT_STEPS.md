@@ -36,9 +36,10 @@ The schedule is `docs/specs/simulator.md` §5.8. The original follows it through
 **The reference store** (`tools/golden.py`, `build-runs/golden`) keys a fixed-schedule reference on the schedule code
 (sha256 of `FC4Schedule.cpp` and `.h`), the pinned reference DLL and the run settings; it requires exact equality and
 refuses a candidate whose schedule code differs. Any edit of `FC4Schedule.cpp` or `.h` means: rebuild, `python
-tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha c8a26ae4, schedule code 645111c38ccbc723
-(commit d4025c1f0). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit
-after it can crash in the city teardown.
+tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 62ae49c3, schedule code f08256c35f49fa1a
+(commit 0bb4968d5); its 55 references are recorded and the original repeats every one of them (drift check exact,
+55 of 55). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit after it
+can crash in the city teardown.
 
 **Comparison:** the save at each scenario's end date, record by record after decompression (`golden_dbpf` ignores
 container layout; our QFS compressor is our own design), plus the DIGEST lines and the schedule's per-delivery digests.
@@ -85,13 +86,11 @@ The scenarios are the owner cover `build-runs/golden/owner-scenarios.tsv` (`pyth
 <path>`): per replace key, a greedy cover of its census reach, 55 scenarios. Lua scenarios and the two clockless
 Berlin cities (set `clockless` in `engine/tests/scenarios/suite.tsv`) are not run.
 
-1. **Address order and the two clock seeds** (section 2), driven by `check` results.
-2. **Record the 55 references:** `python tools/check.py record` (records those without one). Running on
-   2026-10-27 15:08 after the key changed.
-3. **Drift check:** `python tools/check.py run --dll <main build> --replace none` must be exact on every reference.
-4. **Each owner alone** over its cover: `python tools/check.py run --dll <build> --replace <key>`. It prints exact,
-   or the first differing delivery, DIGEST date and record (with its owner); with several owners it runs each alone
-   on the first two differing scenarios. This table is the first Exact-replaced measurement.
+1. **Each owner alone** over its cover: `python tools/check.py run --dll <copy of the build> --replace each` (an
+   owner that needs others runs with them: mysims with advisors, netrules with netmgr and nettool). It writes
+   `build-runs/golden/owner-check.tsv`: per run, exact, or the first differing delivery, DIGEST date and record
+   (with its owner). This table is the first Exact-replaced measurement. Running since 2026-10-27 16:45.
+2. **Address order and the two clock seeds** (section 2), driven by that table.
 
 ### Step 3: Exact-replaced in `tools/coverage.py`, and the landing rule
 
