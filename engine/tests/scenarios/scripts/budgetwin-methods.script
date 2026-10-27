@@ -1,4 +1,7 @@
-# Native budget-panel/sub-budget lifecycle, all nine selectors (budget-window section 2.1).
+# Entry probe, not a passing conformance scenario: ShowBudgetWindow opens the
+# income/expense dialogs (budget-dialogs section 1), not cSC4BudgetUIWinProc.
+# The nine panel selectors below diagnose availability; SKIPPED is a failure
+# to establish the native owner, never method evidence (budget-window BW26).
 # UI actions run from the opt-in script; waits permit modal tick re-entry.
 2026-01-28 mark budgetwin-methods begin
 2026-01-28 budgetwindow
