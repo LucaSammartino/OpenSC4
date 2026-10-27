@@ -931,7 +931,7 @@ def main():
     ap.add_argument("--min-dense", type=int, default=200)
     current = REPO / "build-runs" / "suite" / "CURRENT"
     ap.add_argument("--suite", default=current.read_text(encoding="utf-8").strip() if current.is_file() else None,
-                    help="suite tag under build-runs/suite for strict suite-verified (default: build-runs/suite/CURRENT)")
+                    help="census tag or replay:<manifest.tsv> for strict suite-verified (default: suite/CURRENT)")
     args = ap.parse_args()
     if min(args.min_natural, args.min_dense) < 1:
         ap.error("compare thresholds must be positive")
@@ -1070,6 +1070,15 @@ def main():
           "implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced "
           f"(implemented owners switched on in clean suite replace runs) is {pct(whole['suite-replaced_b'], game_b)}.")
         w("")
+        if suite_evidence.get('key_sources'):
+            w("Replay reach uses only the recording game's entry counters. Untraced keys use the newest census verdict.")
+            w("")
+            w("| Key | Verdict source | Scenarios | Strict exact |")
+            w("|---|---|---:|---|")
+            for key, source in sorted(suite_evidence['key_sources'].items()):
+                label = source['source'].replace('|', r'\|')
+                w(f"| {key} | {label} | {source['scenarios']} | {'yes' if source['exact'] else 'no'} |")
+            w("")
     w(f"Verified includes {method_eligible_bytes:,} bytes of single-method evidence (see Method verification).")
     w("")
     w("## Whole executable")
@@ -1228,6 +1237,9 @@ def main():
     if suite_evidence:
         print(f"suite {args.suite}: " + ", ".join(
             f"{s} {whole[s + '_b']} bytes ({pct(whole[s + '_b'], game_b)})" for s in suite_stats))
+        if suite_evidence.get('key_sources'):
+            sources = Counter(s['source'].split(':', 1)[0] for s in suite_evidence['key_sources'].values())
+            print("suite sources: " + ", ".join(f"{source} {count} keys" for source, count in sorted(sources.items()))
 
 
 if __name__ == "__main__":
