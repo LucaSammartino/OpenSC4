@@ -63,6 +63,10 @@ struct Shadow {
     // mirror's twin.
     std::map<std::string, uint32_t> byName;
     EffectsShadowCounts counts;
+    // Native HasVisualEffect probes only, independent of the replacement mirror.
+    uint64_t nameCalls = 0;
+    uint64_t nameComplete = 0;
+    uint64_t nameMismatches = 0;
     bool loggedOnce = false;
 };
 
@@ -204,6 +208,7 @@ void EffectsShadowStop() {
 }
 
 void EffectsShadowCityLoaded(cISC4City* city) {
+    g.nameCalls = g.nameComplete = g.nameMismatches = 0;
     if (!g.enabled) return;
     g.city = city;
     g.ctx.city = city;
@@ -327,27 +332,32 @@ bool EffectsReadDirectory(std::vector<uint8_t>& bytes) {
 
 namespace {
 
-uint32_t NativeHasName(void* user, const char* name) {
-    // Borrowed city manager: no AddRef/Release and no mutation.
-    // [abi-ret] effects.md section 4.2: slot 5 answers name existence;
-    // public SDK declares bool. Compare that boolean only, never an index.
-    return static_cast<cISC4EffectsManager*>(user)->HasVisualEffect(name) ? 1u : 0u;
-}
-
 struct NameSample {
     cISC4City* city;
+    cISC4EffectsManager* manager = nullptr;
     uint32_t counts[3] = {};
+    uint32_t calls = 0;
     uint32_t bytes = 0;
     bool captured = false;
 };
 
+uint32_t NativeHasName(void* user, const char* name) {
+    auto& s = *static_cast<NameSample*>(user);
+    // Count entry separately: an exceptional exit has no compared return.
+    ++s.calls;
+    // Borrowed city manager: no AddRef/Release and no mutation.
+    // [abi-ret] effects.md section 4.2: slot 5 answers name existence;
+    // public SDK declares bool. Compare that boolean only, never an index.
+    return s.manager->HasVisualEffect(name) ? 1u : 0u;
+}
+
 void CompareNames(void* context) {
     auto& s = *static_cast<NameSample*>(context);
-    auto* manager = s.city ? s.city->GetEffectsManager() : nullptr;
+    s.manager = s.city ? s.city->GetEffectsManager() : nullptr;
     std::vector<uint8_t> bytes;
-    if (!manager || !EffectsReadDirectory(bytes)) return;
+    if (!s.manager || !EffectsReadDirectory(bytes)) return;
     s.bytes = static_cast<uint32_t>(bytes.size());
-    s.captured = fc4_effects_verify_names(bytes.data(), bytes.size(), NativeHasName, manager, s.counts);
+    s.captured = fc4_effects_verify_names(bytes.data(), bytes.size(), NativeHasName, &s, s.counts);
     // EF21 §18.8.2: a load/month callback proves neither owner identity nor
     // exclusion of reload/Init writers. Do not traverse retained native
     // payloads without natural-call attachment and a verified outer boundary.
@@ -367,6 +377,9 @@ void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load) {
     }
     NameSample sample{city};
     const bool safe = SehGuard("effects record shadow", CompareNames, &sample);
+    g.nameCalls += sample.calls;
+    g.nameComplete += sample.counts[1];
+    g.nameMismatches += sample.counts[2];
     const uint32_t refusal = safe && sample.captured && sample.counts[1] > 0 ? 0u : 1u;
     fc4_date date{};
     fc4_date_from_julian(julian, &date);
@@ -374,6 +387,17 @@ void EffectsShadowObserve(cISC4City* city, int32_t julian, bool load) {
         date.year, date.month, date.day_of_month, load ? "load" : "month",
         sample.bytes, sample.counts[0], sample.counts[1],
         refusal, sample.counts[2] + refusal);
+    // Section 4.2 names only a Boolean result, with no out-parameters, writes
+    // or collaborator side effects. Each returned probe is fully compared.
+    // These are observer queries, not the reach census's natural entry counts;
+    // they cannot credit creation, parser commands, payloads or tick history.
+    if (!load) {
+        Log("effects method 0x005916C0 cSC4EffectsManager::HasVisualEffect (month) %04d-%02d-%02d: calls=%llu complete=%llu mismatches=%llu; resyncs=0",
+            date.year, date.month, date.day_of_month,
+            static_cast<unsigned long long>(g.nameCalls),
+            static_cast<unsigned long long>(g.nameComplete),
+            static_cast<unsigned long long>(g.nameMismatches));
+    }
 }
 
 }  // namespace fc4
