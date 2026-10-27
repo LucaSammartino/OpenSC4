@@ -13,6 +13,7 @@
 
 #include "FC4Subsystems.h"
 #include "FC4LegacyCtlShadow.h"
+#include "FC4View3DShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "cFC4PowerLineOccupant.h"
 #include "cFC4PowerPoleOccupant.h"
@@ -904,6 +905,7 @@ void Resolve() {
     ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
     LegacyCtlShadowStartup();
     InplaceStartup();
+    View3DShadowStartup();
 }
 
 }  // namespace

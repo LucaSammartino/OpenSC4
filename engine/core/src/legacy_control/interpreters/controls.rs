@@ -11,7 +11,7 @@ pub(super) fn fit(h: Handle, t: Handle, p: Properties<'_>, slots: &[u32], f: &mu
     }
 }
 
-/// LC13: the named-font helper's payload is unsettled; never fabricate one.
+/// Section 9.4: named fonts copy bytes into metadata without resolving a font.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn font(
     h: Handle,
@@ -28,8 +28,8 @@ pub(super) fn font(
         let value = if object { Value::Handle(f.font(id)) } else { n(id) };
         call(f, t, slot, vec![value]);
         param(h, 0xfaa3be85u32.wrapping_add(selector), n(id), f);
-    } else if p.text(key).is_some() {
-        return Err(Unsupported::Open("LC13 named-font helper"));
+    } else if let Some(name) = p.text(key) {
+        param(h, 0xfaa3be85u32.wrapping_add(selector), text(name), f);
     } else if let Some(default_slot) = default {
         let id = f.font_id("main9");
         let font = f.font(id);
@@ -228,6 +228,7 @@ fn list(h: Handle, t: Handle, p: Properties<'_>, first: bool, f: &mut impl Forei
         if let Some(s) = p.text(0x40b) {
             let c = scan(&s, "(%d,%d,%d)(%d,%d,%d)")?;
             if c.len() == 6 {
+                // SPEC-GAP: §9.12 does not order the two colour-pack calls; keep tuple order pending LC19.
                 let a = f.colour([c[0] as u8, c[1] as u8, c[2] as u8]);
                 let b = f.colour([c[3] as u8, c[4] as u8, c[5] as u8]);
                 call(f, t, 0xdc, vec![n(a), n(b)]);

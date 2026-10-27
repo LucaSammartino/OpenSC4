@@ -1,0 +1,3 @@
+scenario	key	source_sha	verdict	shadow_equal	traces	comparisons	mismatches	incomplete	cached_traces
+one	foo_shadow	cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc	exact	true	1	1	0	0	0
+two	foo_shadow	cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc	exact	true	1	1	0	0	0

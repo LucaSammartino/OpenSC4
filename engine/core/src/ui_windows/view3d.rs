@@ -62,6 +62,7 @@ mod registry;
 pub use registry::COMMANDS;
 mod state;
 mod status;
+pub mod shadow;
 pub use actions::{ActionCall, ActionHost, DisasterProperties, ToolSpec};
 pub use city::{CityCall, CityHost, CityObject, TunableValues};
 pub use commands::{CommandHost, PanelState, QueryTool};

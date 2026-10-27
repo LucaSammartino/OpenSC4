@@ -122,6 +122,7 @@ template<class F> uint32_t Capture(void* owner,uint32_t op,const std::array<uint
     Trace trace;
     trace.exhaustive=Setup();
     {
+        Scope scope(trace);
         Quiet q;
         if(props) input.Capture(props);
         ObserveWindow(reinterpret_cast<void*>(before.words[1]));

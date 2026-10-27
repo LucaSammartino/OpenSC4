@@ -63,8 +63,8 @@ endif()
 
 # Compiler cache. Lanes build in fresh git worktrees, so every lane used to compile everything from scratch.
 # With sccache installed (`cargo install sccache --version 0.18.0 --locked`; docs/ops/coordinating.md "Build
-# cache") the C/C++ compiler and rustc go through it. .claude/lane-bin/fc4verify.py runs one sccache server per
-# worktree, without SCCACHE_BASEDIRS, so objects hit only within their worktree. The cargo env below is
+# cache") the C/C++ compiler and rustc go through it. fc4verify uses normalized cache keys and maps
+# replayed MSVC header dependencies into the consuming worktree before Ninja records them. The cargo env is
 # the one fc4verify uses: sccache hashes every CARGO_* variable, and incremental builds are not cacheable.
 option(FC4_COMPILER_CACHE "Compile C/C++ and Rust through sccache when it is installed" ON)
 set(FC4_CARGO_ENV "")
@@ -72,10 +72,19 @@ if(FC4_COMPILER_CACHE)
     find_program(FC4_SCCACHE_EXECUTABLE sccache
         HINTS "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin" "$ENV{HOME}/.cargo/bin")
     if(FC4_SCCACHE_EXECUTABLE)
-        set(CMAKE_C_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${FC4_SCCACHE_EXECUTABLE}")
-        set(FC4_CARGO_ENV "RUSTC_WRAPPER=${FC4_SCCACHE_EXECUTABLE}" CARGO_INCREMENTAL=0
-            CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0)
+        if(DEFINED ENV{SCCACHE_BASEDIRS} AND NOT "$ENV{SCCACHE_BASEDIRS}" STREQUAL "" AND NOT FC4_CACHE_LAUNCHER)
+            message(FATAL_ERROR "SCCACHE_BASEDIRS requires FC4_CACHE_LAUNCHER to repair cached /showIncludes; use fc4verify")
+        endif()
+        # fc4verify supplies a /showIncludes mapper before sccache: cache hits
+        # may contain another worktree's absolute header paths (train278).
+        set(CMAKE_C_COMPILER_LAUNCHER ${FC4_CACHE_LAUNCHER} "${FC4_SCCACHE_EXECUTABLE}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${FC4_CACHE_LAUNCHER} "${FC4_SCCACHE_EXECUTABLE}")
+        # Preserve fc4verify's wrapper (registry cwd normalization and uncached
+        # clippy diagnostics), also for ctest's Cargo command.
+        set(FC4_CARGO_ENV CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0)
+        if(NOT DEFINED ENV{RUSTC_WRAPPER})
+            list(APPEND FC4_CARGO_ENV "RUSTC_WRAPPER=${FC4_SCCACHE_EXECUTABLE}")
+        endif()
         message(STATUS "FC4_COMPILER_CACHE: compiling through ${FC4_SCCACHE_EXECUTABLE}")
     else()
         message(STATUS "FC4_COMPILER_CACHE: sccache not found, compiling without a cache")
@@ -724,6 +733,11 @@ if(FC4_IS_WIN32_X86)
     # Needed here as well as below: the conformance test needs the generator.
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
+        if(FC4_COMPILER_CACHE AND FC4_SCCACHE_EXECUTABLE)
+            add_test(NAME compiler_cache_dependency_regression
+                COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../.claude/lane-bin/cache_probe.py")
+            set_tests_properties(compiler_cache_dependency_regression PROPERTIES TIMEOUT 180)
+        endif()
         # ALL, and the command is the target's own action: it runs on every
         # build rather than only when a dependency is newer than the output.
         add_custom_target(fc4_abi_entries ALL
@@ -1541,4 +1555,11 @@ if(TARGET fc4_plugin_load_test)
             COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --cfgrules-${mode})
         set_tests_properties(plugin_cfgrules_${mode} PROPERTIES RUN_SERIAL TRUE)
     endforeach()
+endif()
+if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4View3DShadow.cpp plugin/FC4View3DShadow.h plugin/FC4View3DObservation.h)
+    add_executable(fc4_view3d_observation_test tests/view3d_observation_test.cpp)
+    target_include_directories(fc4_view3d_observation_test PRIVATE plugin)
+    target_compile_options(fc4_view3d_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
+    add_test(NAME view3d_observation COMMAND fc4_view3d_observation_test)
 endif()

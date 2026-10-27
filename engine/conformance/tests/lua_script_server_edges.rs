@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Additional ownership, ordering, retry and non-invalidating reentry boundaries.
 use fc4_core::lua_script_server::*;
-#[path = "support/lua_script_server.rs"]
-mod support;
+use crate::lua_script_server_support as support;
 use support::Mock;
 
 #[test]

@@ -255,7 +255,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(REPO / "docs" / "coverage-map.svg"))
     ap.add_argument("--suite", default=current_suite(),
-                    help="suite tag under build-runs/suite for strict (default: build-runs/suite/CURRENT)")
+                    help="census tag or replay:<manifest.tsv> for strict (default: suite/CURRENT)")
     args = ap.parse_args()
 
     def git(*a):

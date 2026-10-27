@@ -5,13 +5,14 @@ gets only the verdict, the counts and the first errors (capped).
 Usage: python qbuild.py --wt <worktree> <step>... [--errors N]
   test     cargo test --workspace --target i686-pc-windows-msvc (from engine/): summed "test result:" counts,
            failed test names, the first lines of each panic, compile errors
-  clippy   cargo clippy --workspace --all-targets -- -D warnings: error/warning count and the first diagnostics
+  clippy   cargo clippy --workspace --all-targets --target i686-pc-windows-msvc -- -D warnings
   verify   build-runs\\coord-verify-lane.ps1 (CMake build + ctest; copied from the main checkout if missing):
            configure/build/ctest exit, BUILD ERROR lines, the ctest summary and failed tests
   fmt F..  rustfmt --check --edition 2021 on the given .rs files (paths relative to engine/ or absolute)
   all      test, clippy, verify
 Cargo runs with CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0 (the disk is shared).
-The test and clippy steps share FC4_QBUILD_MAX (default 3) lock slots in <main>/build-runs/qbuild-sem: a fourth run
+All Cargo steps use fc4verify's cache environment and engine/build-x86/cargo, also used by CMake and ctest.
+The test and clippy steps share FC4_QBUILD_MAX (default 2) lock slots in <main>/build-runs/qbuild-sem: a third run
 waits (a message every 5 min) until one finishes. 0 disables the limit; an unusable lock directory disables it too.
 Exit 0 only if every step passed. Read more of a log with grep or Read offset/limit, never whole.
 The native steps (quick, verify) go through tools/build_queue.py while its worker runs (main checkout
@@ -32,9 +33,9 @@ except ImportError:  # not Windows
     msvcrt = None
     import fcntl
 
-# Cargo steps (test, clippy) hold one of FC4_QBUILD_MAX (default 3) lock files under <main>/build-runs/qbuild-sem, so
+# Cargo steps (test, clippy) hold one of FC4_QBUILD_MAX (default 2) lock files under <main>/build-runs/qbuild-sem, so
 # at most that many cargo test/clippy runs from all lanes compile at once (six at once pushed the commit charge to 88%).
-SEM_MAX_DEFAULT = 3
+SEM_MAX_DEFAULT = 2
 
 
 def sem_dir():
@@ -125,10 +126,14 @@ def run(cmd, cwd, log, env=None):
     return p.returncode, text.splitlines()
 
 
-def cargo_env():
-    env = dict(os.environ)
-    env.update(CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0")
-    return env
+def cargo_env(wt):
+    from fc4verify import build_env
+    return build_env(wt, "fc4lane-" + os.path.basename(wt))
+
+
+def cargo_args(wt, *args):
+    return ["cargo", *args, "--target", "i686-pc-windows-msvc", "--target-dir",
+            os.path.join(wt, "engine", "build-x86", "cargo")]
 
 
 def compile_errors(lines, cap):
@@ -143,8 +148,8 @@ def compile_errors(lines, cap):
 def step_test(wt, logdir, cap):
     log = os.path.join(logdir, "qbuild-test.log")
     with cargo_slot("test"):
-        rc, lines = run(["cargo", "test", "--workspace", "--target", "i686-pc-windows-msvc"],
-                        os.path.join(wt, "engine"), log, cargo_env())
+        rc, lines = run(cargo_args(wt, "test", "--workspace"),
+                        os.path.join(wt, "engine"), log, cargo_env(wt))
     tot = [0, 0, 0]
     for l in lines:
         m = re.search(r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored", l)
@@ -175,8 +180,8 @@ def step_test(wt, logdir, cap):
 def step_clippy(wt, logdir, cap):
     log = os.path.join(logdir, "qbuild-clippy.log")
     with cargo_slot("clippy"):
-        rc, lines = run(["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
-                        os.path.join(wt, "engine"), log, cargo_env())
+        rc, lines = run([*cargo_args(wt, "clippy", "--workspace", "--all-targets"), "--", "-D", "warnings"],
+                        os.path.join(wt, "engine"), log, cargo_env(wt))
     diags = []
     for i, l in enumerate(lines):
         if re.match(r"^(error|warning)(\[\w+\])?:", l) and "generated" not in l and "could not compile" not in l:
