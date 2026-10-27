@@ -104,6 +104,36 @@ fn effects_name_comparison_repeats_inputs_without_resync_or_early_exit() {
 }
 
 #[test]
+fn effects_name_comparison_refuses_truncated_native_inputs_before_any_query() {
+    unsafe extern "C" fn native(user: *mut c_void, _: *const c_char) -> u32 {
+        *user.cast::<u32>() += 1;
+        0
+    }
+    let mut directory = fc4_core::effects::shipped::volcano_directory();
+    // A serialized name can contain a NUL, but the SDK method takes a C
+    // string. Refuse the entire sample instead of comparing truncated input
+    // or crediting the valid prefix of the probe sequence.
+    directory.names = vec![("valid".into(), 0), ("truncated\0suffix".into(), 0)];
+    directory.reindex();
+    let bytes = directory.to_bytes();
+    let original = bytes.clone();
+    let mut calls = 0u32;
+    let mut counts = [99; 3];
+    unsafe {
+        assert!(!fc4_effects_verify_names(
+            bytes.as_ptr(),
+            bytes.len(),
+            Some(native),
+            (&mut calls as *mut u32).cast(),
+            counts.as_mut_ptr()
+        ));
+    }
+    assert_eq!(calls, 0);
+    assert_eq!(counts, [0; 3]);
+    assert_eq!(bytes, original);
+}
+
+#[test]
 fn effects_record_names_native_case_membership_and_refusals() {
     unsafe extern "C" fn native(user: *mut c_void, name: *const c_char) -> u32 {
         let name = std::ffi::CStr::from_ptr(name).to_str().unwrap();
