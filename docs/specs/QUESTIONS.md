@@ -302,7 +302,7 @@ generated index: the questions live one file per spec, so read only the file for
 | gz-graphics | 0 | 7 | GZG8 | questions/gz-graphics.md |
 | history | 0 | 17 | HW18 | - |
 | hit-music | 8 | 0 | HM9 | questions/hit-music.md |
-| html-document | 2 | 6 | HD9 | questions/html-document.md |
+| html-document | 3 | 6 | HD10 | questions/html-document.md |
 | html-ui-hooks | 4 | 0 | HU5 | questions/html-ui-hooks.md |
 | intro-video | 2 | 0 | IV3 | questions/intro-video.md |
 | landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
@@ -345,7 +345,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 7 | 12 | OV20 | questions/overlay-manager.md |
+| overlay-manager | 6 | 13 | OV20 | questions/overlay-manager.md |
 | overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 0 | 13 | PT14 | questions/particles.md |
@@ -435,4 +435,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **619** | **1698** | | |
+| **total** | **619** | **1699** | | |
