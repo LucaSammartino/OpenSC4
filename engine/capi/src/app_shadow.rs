@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Private, main-thread-only static-link application shadow. No DLL ABI exports.
 //! AP17: paths and lifecycle message state only; no guessed timers or startup defaults.
+use fc4_core::application::compatibility::{AppValue, Embedded};
 use fc4_core::application::{
     Application, Directories, Effect, Host, HostFailure, Object, Preferences, Service, UserFolder,
 };
 use fc4_core::gz_messages::Token;
 
+const SCALAR_SLOTS: [u32; 16] = [21, 23, 26, 32, 34, 36, 37, 40, 41, 43, 45, 46, 47, 48, 49, 50];
+const METHOD_COUNT: usize = 20 + SCALAR_SLOTS.len();
+
 struct Shadow {
     app: Application,
     seeded: bool,
     inputs_seen: u16,
-    methods: [MethodEvidence; 19],
+    methods: [MethodEvidence; METHOD_COUNT],
 }
 
 #[derive(Clone, Copy, Default)]
@@ -53,7 +57,7 @@ fn new_shadow() -> Shadow {
         ),
         seeded: false,
         inputs_seen: 0,
-        methods: [MethodEvidence::default(); 19],
+        methods: [MethodEvidence::default(); METHOD_COUNT],
     }
 }
 
@@ -194,6 +198,120 @@ unsafe extern "C" fn fc4_app_shadow_mode(shadow: *mut Shadow, native: u32, input
 }
 
 #[no_mangle]
+unsafe extern "C" fn fc4_app_shadow_delivery(shadow: *mut Shadow, kind: u32, result: u32, mode: u32) -> u32 {
+    if shadow.is_null() {
+        return 1;
+    }
+    // SAFETY: the app-target forwarder owns the serialized live handle. The
+    // input transition has already been applied, without reading native mode.
+    let shadow = unsafe { &mut *shadow };
+    let mode_input = matches!(kind, 0x26D3_1EC2 | 0x8BB5_BB46 | 0xCBB5_BB45 | 0xEA8A_E29A);
+    let mismatch = result != 1 || (mode_input && shadow.app.mode != mode);
+    // SPEC-GAP: AP19 supplies the pure mode branches, but actual GetType calls
+    // are not traced; other branches additionally lack timer/collaborator capture.
+    // Count every app delivery, including unsupported branches, as incomplete.
+    shadow.methods[19].record(false, mismatch)
+}
+
+// These section-2 getters make no collaborator calls. A host that fails on any
+// attempted call prevents accidental expansion to region forwarding or I/O.
+struct NoGetterHost;
+impl fc4_core::application::save_path::SavePathHost for NoGetterHost {
+    fn save_directory(&mut self, _: Token) -> Option<Vec<u8>> {
+        unreachable!()
+    }
+    fn city_name(&mut self, _: Token) -> Vec<u8> {
+        unreachable!()
+    }
+    fn city_id(&mut self, _: Token) -> u32 {
+        unreachable!()
+    }
+    fn filename_system_roundtrip(&mut self, _: &[u8]) -> Vec<u8> {
+        unreachable!()
+    }
+    fn filename_encoding_valid(&mut self, _: &[u8]) -> bool {
+        unreachable!()
+    }
+    fn file_exists(&mut self, _: &[u8]) -> bool {
+        unreachable!()
+    }
+    fn existing_city_id(&mut self, _: &[u8]) -> Option<u32> {
+        unreachable!()
+    }
+}
+impl fc4_core::application::city::CityHost for NoGetterHost {
+    fn query(&mut self, _: fc4_core::application::city::Query) -> fc4_core::application::city::Reply {
+        unreachable!()
+    }
+    fn effect(&mut self, _: fc4_core::application::city::Effect) {
+        unreachable!()
+    }
+    fn create(&mut self, _: fc4_core::application::city::Object) -> Token {
+        unreachable!()
+    }
+    fn regional_geometry(&mut self, _: Token) -> fc4_core::application::city::RegionalCity {
+        unreachable!()
+    }
+    fn all_cities(&mut self, _: Token) -> Vec<fc4_core::application::city::RegionalCity> {
+        unreachable!()
+    }
+    fn city_at(&mut self, _: Token, _: i32, _: i32) -> Token {
+        unreachable!()
+    }
+    fn adjacent_cities(&mut self, _: Token) -> Vec<Token> {
+        unreachable!()
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn fc4_app_shadow_scalar(
+    shadow: *mut Shadow,
+    index: u32,
+    before: u32,
+    result: u32,
+    after: u32,
+    owner: u32,
+) -> u32 {
+    let Some(&slot) = SCALAR_SLOTS.get(index as usize) else {
+        return 1;
+    };
+    if shadow.is_null() {
+        return 1;
+    }
+    // SAFETY: independent owner state is captured before the native getter;
+    // result is never used to initialize the model. Tokens remain borrowed.
+    let shadow = unsafe { &mut *shadow };
+    let token = (before != 0).then_some(u64::from(before));
+    match slot {
+        21 => shadow.app.debug_enabled = before != 0,
+        23 => shadow.app.popup_dialogs_enabled = before != 0,
+        26 => shadow.app.handles.stored_4c = before,
+        32 => shadow.app.field_314 = token,
+        34 => shadow.app.city_state.region_owner = token,
+        36 => shadow.app.city_state.regional_city = token,
+        37 => shadow.app.city_state.city = token,
+        40 => shadow.app.handles.debug_console = token,
+        41 => shadow.app.handles.gimex_factory = token,
+        43 => shadow.app.handles.window_location_saver = token,
+        46 => shadow.app.handles.unnamed_660 = token,
+        47 => shadow.app.handles.lua_interpreter = token,
+        50 => shadow.app.handles.flag_668 = before as u8,
+        45 | 48 | 49 => (),
+        _ => unreachable!(),
+    }
+    let expected = match shadow.app.app_interface_getter(slot, None, &mut NoGetterHost) {
+        Ok(AppValue::Bool(value)) => u32::from(value),
+        Ok(AppValue::Byte(value)) => u32::from(value),
+        Ok(AppValue::Word(value)) => value,
+        Ok(AppValue::Token(value)) => value.unwrap_or(0) as u32,
+        Ok(AppValue::Embedded(Embedded::GlyphTextureManager)) => owner.wrapping_add(0x1E8),
+        Ok(AppValue::Embedded(Embedded::TutorialRegistry)) => owner.wrapping_add(0x1CC),
+        _ => unreachable!("bounded scalar getter set"),
+    };
+    shadow.methods[20 + index as usize].record(true, result != expected || before != after)
+}
+
+#[no_mangle]
 unsafe extern "C" fn fc4_app_shadow_compare(shadow: *mut Shadow, field: u32, bytes: *const u8, len: u32) -> u32 {
     if shadow.is_null() || field >= 18 {
         return 1;
@@ -216,7 +334,7 @@ unsafe extern "C" fn fc4_app_shadow_compare(shadow: *mut Shadow, field: u32, byt
 
 #[no_mangle]
 unsafe extern "C" fn fc4_app_shadow_method_stats(shadow: *const Shadow, field: u32, out: *mut u64) -> u32 {
-    if shadow.is_null() || out.is_null() || field >= 19 {
+    if shadow.is_null() || out.is_null() || field as usize >= METHOD_COUNT {
         return 1;
     }
     // SAFETY: private static-link transport; caller owns the live handle and
@@ -269,6 +387,64 @@ mod tests {
             0
         );
         out
+    }
+
+    #[test]
+    fn scalar_getters_compare_null_high_bit_and_embedded_identity_without_adopting_outputs() {
+        let shadow = fc4_app_shadow_new();
+        unsafe {
+            for (index, slot) in SCALAR_SLOTS.iter().enumerate() {
+                for before in [0, 1, 0xFF, 0x8000_0010, u32::MAX] {
+                    let before = if matches!(slot, 21 | 23 | 50) {
+                        before & 0xFF
+                    } else {
+                        before
+                    };
+                    let owner = 0x1234_0000;
+                    let result = match slot {
+                        21 | 23 => u32::from(before != 0),
+                        45 | 48 => owner + 0x1E8,
+                        49 => owner + 0x1CC,
+                        _ => before,
+                    };
+                    assert_eq!(
+                        fc4_app_shadow_scalar(shadow, index as u32, before, result, before, owner),
+                        0
+                    );
+                    // Neither a corrupted output nor a forbidden field change
+                    // may disappear into the next sample's captured input.
+                    assert_eq!(
+                        fc4_app_shadow_scalar(shadow, index as u32, before, result ^ 1, before, owner),
+                        1
+                    );
+                    assert_eq!(
+                        fc4_app_shadow_scalar(shadow, index as u32, before, result, before ^ 1, owner),
+                        1
+                    );
+                }
+                assert_eq!(stats(shadow, 20 + index as u32), [15, 15, 10]);
+            }
+            assert_eq!(fc4_app_shadow_scalar(shadow, 16, 0, 0, 0, 0), 1);
+            fc4_app_shadow_free(shadow);
+        }
+    }
+
+    #[test]
+    fn every_delivery_counts_and_partial_outputs_never_complete_the_method() {
+        let shadow = fc4_app_shadow_new();
+        unsafe {
+            for (kind, mode) in [(0xCBB5_BB45, 1), (0xEA8A_E29A, 2), (0x26D3_1EC2, 0), (0x8BB5_BB46, 0)] {
+                fc4_app_shadow_message(shadow, kind);
+                assert_eq!(fc4_app_shadow_delivery(shadow, kind, 1, mode), 0);
+            }
+            // A non-mode branch is retained even when its effects are missing.
+            assert_eq!(fc4_app_shadow_delivery(shadow, 0xBA44_EB51, 1, 0), 0);
+            assert_eq!(fc4_app_shadow_delivery(shadow, 0xFA0C_6390, 0, 0), 1);
+            assert_eq!(fc4_app_shadow_delivery(shadow, 0x26D3_1EC2, 1, 2), 1);
+            assert_eq!(stats(shadow, 19), [7, 0, 2]);
+            assert_eq!(fc4_app_shadow_mode(shadow, 0, 1), 0);
+            fc4_app_shadow_free(shadow);
+        }
     }
 
     #[test]
