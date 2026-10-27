@@ -59,7 +59,13 @@ try {
         throw "Slot $Slot was reused before export; no save exported. Retry the run."
     }
     # ingame_run mirrors EVERY source region into the slot's sole FC4 Test
-    # folder, regardless of the selected source region's name.
+    # folder, regardless of the selected source region's name. A script that
+    # establishes an unfounded city renames it, and the game saves it under
+    # that name (an established city keeps its own).
+    $renamed = Select-String -LiteralPath $sourceLog -Pattern '\(SetEstablished\(true\); city name=(.+)\)\s*$' |
+        Select-Object -Last 1
+    if ($renamed) { $City = $renamed.Matches[0].Groups[1].Value }
+    if ($City -notmatch '^[A-Za-z0-9 ._()-]+$') { throw 'Invalid established name' }
     $source = Join-Path $userDir "Regions/FC4 Test/City - $City.sc4"
     Copy-Item -LiteralPath $source -Destination (Join-Path $Output 'end.sc4')
     Write-Output "golden snapshot: slot $Slot, matched completed log, copied end.sc4"

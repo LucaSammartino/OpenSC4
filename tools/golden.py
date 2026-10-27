@@ -386,12 +386,6 @@ def _validate_log(text, until, selected, run):
     return verdicts[-1]
 
 
-def saved_city(args, generated):
-    # A script that establishes the city renames it; the game saves it under the last established name.
-    names = re.findall(r'^\S+\s+establish\s+(.+?)\s*$', generated, re.M)
-    return names[-1] if names else args.city
-
-
 def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
     # Golden originals use only our scheduler; every simulated subsystem stays
     # original. Candidates must use the same scheduler and window settings.
@@ -560,11 +554,10 @@ def wait_snapshot(args, verdict_file, result, work):
             if process is None and marker.is_file():
                 match = re.search(r'running in slot (\d+)', marker.read_text(encoding='utf-8-sig'))
                 if match:
-                    city = saved_city(args, (work / 'actions.script').read_text(encoding='utf-8'))
                     command = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
                                '-File', str(Path(__file__).with_name('golden_snapshot.ps1')),
                                '-HarnessRoot', str(args.harness_root.resolve()), '-Output', str(result.resolve()),
-                               '-City', city, '-Region', args.region, '-Slot', match[1],
+                               '-City', args.city, '-Region', args.region, '-Slot', match[1],
                                '-ScriptPath', str((work / 'actions.script').resolve()),
                                '-ExpectedLog', str(verdict_file.with_suffix('.log').resolve()),
                                '-VerdictFile', str(verdict_file.resolve()), '-WaitSeconds', str(args.seconds + 150)]
