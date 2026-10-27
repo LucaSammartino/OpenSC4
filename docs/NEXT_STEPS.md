@@ -6,7 +6,7 @@ Evidence lives in git, in `docs/lanes/` and in `build-runs/`, never here. Where 
 one, this one wins.
 
 State as of 2026-10-27: **run 7 is halted.** No lanes, trains, operator or conductor are running (the shared game
-queue service is up). The user approved the plan below. **Step 2 is in progress**, run by the coordinator directly.
+queue service is up). The user approved the plan below. **Step 2 is done** (2026-10-27); step 3 is next.
 
 ## 1. The goal, worked backwards
 
@@ -36,27 +36,26 @@ The schedule is `docs/specs/simulator.md` §5.8. The original follows it through
 **The reference store** (`tools/golden.py`, `build-runs/golden`) keys a fixed-schedule reference on the schedule code
 (sha256 of `FC4Schedule.cpp` and `.h`), the pinned reference DLL and the run settings; it requires exact equality and
 refuses a candidate whose schedule code differs. Any edit of `FC4Schedule.cpp` or `.h` means: rebuild, `python
-tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 9ea67eec, schedule code a4b4d988dde97371
-(commit bed449350); its 55 references are recorded (walk census on) and the original repeats every one of them (55
+tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 265d2a2e, schedule code a33857dd12297904
+(commit bb6d427d0); its 55 references are recorded (walk census on) and the original repeats every one of them (55
 of 55 exact). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit after it
 can crash in the city teardown.
 
 **Comparison:** the save at each scenario's end date, record by record after decompression (`golden_dbpf` ignores
 container layout; our QFS compressor is our own design), plus the DIGEST lines and the schedule's per-delivery digests.
 
-**Address order is done.** Where the original walks a container keyed by object address, the schedule makes it walk
-in creation order (or the order its spec states); simulator.md §5.8's Address order row lists every such walk, and
-each is in its owner's spec. Two detectors run the original with other addresses, so a result that still follows
+**Address order.** Where the original walks a container keyed by object address, the schedule makes it walk in
+creation order (or the order its spec states); simulator.md §5.8's Address order row lists every such walk, and each
+is in its owner's spec. Two detectors run the original with other addresses, so a result that still follows
 addresses changes: `GOLDEN_INI_EXTRA="heap perturb = holes"` (or `= reverse`) `python tools/check.py run --dll <copy
-of the build> --replace none`. On the pin: holes 55 of 55 exact, reverse 55 of 55, plain 55 of 55. Run both whenever
-the corpus grows. `walk census = on` digests the order of every hash-table walk (`hashtable::begin`, 0x004B0390) per
-call site; red-black tree walks and some hash scans are inline and not counted, so find those from the record that
-differs.
+of the build> --replace none`. On the pin: holes 55 of 55 exact, reverse 55 of 55, plain 55 of 55. Run both
+whenever the corpus grows. `walk census = on` digests the order of every hash-table walk (`hashtable::begin`,
+0x004B0390) per call site; red-black tree walks and some hash scans are inline and not counted, so find those from the
+record that differs.
 
-**Clock seeds.** The flammability generator's zero-state reseed (its first fire roll) now gets `derive(0xE990C045)`
-like our core (`ZeroStateClock`, schedule code 34f160546f48a589, not yet pinned): `check` showed it (flammability on
-ui29-weburg first differs 2197-03-21). The growth decline seed never reads the clock in the 55 scenarios. Nine other
-clock seeds keep the schedule's `time()`/`clock()` (the game logs name them); none is a generator of our cores.
+**Seeds.** Every generator our cores seed with derive(S, K) gets the same seed in the original (simulator.md §5.8,
+Random numbers). The game logs name the clock seeds that keep the schedule's `time()`/`clock()` ("a clock seed at
+...", nine today); none is a generator of our cores. When a core adopts one, map it in the schedule.
 
 ## 3. The metric (agreed with the user)
 
@@ -85,35 +84,27 @@ Exact-replaced cannot exceed 28.3% of game code until the corpus reaches more.
 
 ## 5. Steps
 
-### Step 2: references and the check command (in progress)
-
-The scenarios are the owner cover `build-runs/golden/owner-scenarios.tsv` (`python tools/coverage.py --owner-scenarios
-<path>`): per replace key, a greedy cover of its census reach, 55 scenarios. Lua scenarios and the two clockless
-Berlin cities (set `clockless` in `engine/tests/scenarios/suite.tsv`) are not run.
-
-1. **Each owner alone** over its cover: `python tools/check.py run --dll <copy of the build> --replace each` (an
-   owner that needs others runs with them: mysims with advisors, netrules with netmgr and nettool). It writes
-   `build-runs/golden/owner-check.tsv`: per run, exact, or the first differing delivery, DIGEST date and record
-   (with its owner; the first record listed is often the ordinance record only because it sorts first, so read the
-   first delivery). Measured on the previous pin (before the watercraft walks): 32 of 108 runs exact, and 21 keys
-   exact on every run of their cover (aura, citydetail, civic, crime, flora, gzfw, history, industrial, landfill,
-   occmgr, plumbing, ports, propdev, protection, simgrids, span1555, span4444, span565, span8888, tract, weather);
-   56 outside, 20 errors (a foreign exception or a stall: automata 8, disasters 3, netmgr 3, regionalcity 3, effects,
-   terrain, traffic). The errors and the owners' own differences are engine findings for step 4.
-2. **Pin the reseed and run it again**: pin 34f160546f48a589, record, plain 55 of 55, then the table. Step 2 is done
-   when no outside run comes from the schedule rather than its owner. To classify: seven keys first differ at the
-   load delivery (#0: advisors, automata, effects, lotdev, pollution, terrain, tutorial), which points at the owner's
-   load path.
-
 ### Step 3: Exact-replaced in `tools/coverage.py`, and the landing rule
 
 Step 3 adds Exact-replaced from `check` results and makes an exact `check` the landing rule for an engine lane that
 switches owners on.
 
+The input is the per-owner table: `python tools/check.py run --dll <copy of the build> --replace each` runs each
+owner alone over its cover (`build-runs/golden/owner-scenarios.tsv`, 55 scenarios; an owner that needs others runs
+with them: mysims with advisors, netrules with netmgr and nettool) and writes `build-runs/golden/owner-check.tsv`. On
+the pin: 32 of 108 runs exact; 22 keys exact on every run of their cover (aura, citydetail, civic, crime,
+flammability, flora, gzfw, history, industrial, landfill, occmgr, plumbing, ports, propdev, protection, simgrids,
+span1555, span4444, span565, span8888, tract, weather); 57 outside; 19 errors (automata 8, disasters 3, netmgr 3,
+regionalcity 3, effects, terrain: foreign exceptions, stalls, crashes).
+
 ### Step 4: restart engine lanes (about 9, no operator layer)
 
 Each lane takes implemented owners, switches them on in replace mode and makes `check` exact on their scenarios. Each
 names the owners and the scenarios it will make exact. Specs and RE answers feed them as before (clean room unchanged).
+Every outside run in the table starts in its owner: a delivery whose `rand()` differs, a DIGEST, or save object IDs
+that shift from one of its own objects (IDs are numbered in save order, so one reference out of order shifts every
+later ID; `check` names the first shifted ID and the first record whose content still differs, and
+`tools/golden_relabel.py` compares two saves the same way). The errors come first.
 
 ### Step 5: the corpus, built from reach (1 lane, ongoing)
 
