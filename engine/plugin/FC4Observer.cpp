@@ -14,6 +14,7 @@
 #include "FC4Observer.h"
 #include "FC4LegacyCtlShadow.h"
 #include "FC4View3DShadow.h"
+#include "FC4HTMLDocumentShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
@@ -893,6 +894,7 @@ public:
                 OverlaysShadowMonth(CurrentCity(), julian);
                 SCResShadowLine("month", julian);
                 LegacyCtlShadowMonth(julian);
+                HTMLDocumentShadowMonth(julian);
                 SpanRender8888Month(julian);
                 View3DShadowMonth(julian);
                 BudgetWinShadowMonth(julian);

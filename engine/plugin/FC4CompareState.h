@@ -13,6 +13,7 @@ struct Function {
     unsigned records=0,cases=0;
     std::vector<fc4::compare::WindowSpec> specs;
     const fc4::CompareInterposition* interposition=nullptr;
+    fc4::CompareNativeObserver nativeObserver=nullptr;
 };
 #include "FC4CompareRows.inc"
 SRWLOCK sampleLock=SRWLOCK_INIT;

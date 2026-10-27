@@ -1220,3 +1220,5 @@ mod budgetwin_shadow;
 pub mod trace;
 // Private View3D method differential; no public C ABI exports.
 mod view3d_shadow;
+// Private same-invocation HTML document differential; no public DLL exports.
+mod html_document_shadow;

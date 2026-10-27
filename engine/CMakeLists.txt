@@ -1573,3 +1573,8 @@ add_test(NAME method_evidence COMMAND fc4_method_evidence_test)
 if(TARGET FreeCity4)
     target_sources(FreeCity4 PRIVATE plugin/FC4BudgetWinShadow.cpp plugin/FC4BudgetWinShadow.h)
 endif()
+
+# Same-invocation cHTMLDocument observer; selected with compare=class:cHTMLDocument.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4HTMLDocumentShadow.cpp plugin/FC4HTMLDocumentShadow.h)
+endif()

@@ -227,11 +227,22 @@ void Dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* mac
     const auto* args=reinterpret_cast<const uint32_t*>(registers+1);
     const uint32_t traceSelf=registers->ecx;
     const auto original=[&] {
+        if (fn.nativeObserver) fn.nativeObserver(fn.name,traceSelf,args,0,true);
         fc4::ConfigRulesTraceLifecycle(fn.name,traceSelf,true);
         fc4_inplace_invoke(registers,machine,fn.original,args,fn.argCount*4,fn.pop!=0||fn.argCount==0);
         fc4::ConfigRulesTraceLifecycle(fn.name,traceSelf,false);
         fc4::ConfigRulesTraceOriginal(fn.name,traceSelf,args,registers->eax);
+        if (fn.nativeObserver) fn.nativeObserver(fn.name,traceSelf,args,registers->eax,false);
     };
+    if (fn.nativeObserver) {
+        // Counts share the reporter's lock; never hold a new lock across a
+        // native call, whose getters may run concurrently on another thread.
+        if (!depth) AcquireSRWLockExclusive(&sampleLock);
+        ++count.calls;
+        if (!depth) ReleaseSRWLockExclusive(&sampleLock);
+        original();
+        return;
+    }
     const bool locking=depth==0;if (locking) AcquireSRWLockExclusive(&sampleLock);
     if (depth) ++count.nested;
     const auto call=++count.calls;const std::string mode=modeOverride.empty()?fn.mode:modeOverride;
@@ -339,6 +350,15 @@ void Report(const Function& fn,const Count& c,const char* inputSource) {
 } // private namespace
 extern "C" void fc4_inplace_dispatch(fc4::inplace::Registers* registers,fc4::inplace::MachineState* machine) { Dispatch(registers,machine); }
 namespace fc4 {
+bool CompareObserveNative(const char* owner, CompareNativeObserver observer) {
+    if (active || !owner || !observer) return false;
+    bool found = false;
+    for (auto& fn : functions) if (std::string(fn.owner) == owner) {
+        fn.nativeObserver = observer;
+        found = true;
+    }
+    return found;
+}
 bool CompareAttach(const char* name,const CompareInterposition* callbacks) {
     if (active||!name) return false;
     for (auto& fn:functions) if (std::string(fn.name)==name) {fn.interposition=callbacks;return true;}
@@ -365,7 +385,7 @@ void InplaceStartup() {
         if (!Selected(selection,fn)) continue;fn.selected=true;fn.mutate=Selected(mutations,fn);
         try {fn.specs=fc4::compare::Parse(fn.windows,fn.argCount);fn.valid=true;}
         catch (const std::exception&) {Log("inplace install name=%s installed=0 reason=invalid-window-schema",fn.name);continue;}
-        fn.records=unsigned(LoadCorpus(fn).size());
+        if (!fn.nativeObserver) fn.records=unsigned(LoadCorpus(fn).size());
         fn.installed=Install(fn,fn.forwarder);active|=fn.installed;
         Log("inplace install name=%s rva=%08x bytes=%u installed=%u reason=%s",fn.name,fn.va-uint32_t(imageBase),fn.bytes,fn.installed?1:0,fn.installed?"ok":"unsupported-entry-or-busy");
     }
@@ -405,7 +425,7 @@ void InplaceCityLoaded() {
     if (fixtures||watercraft) {
         source=1;
         for (unsigned sample=0;sample<16;++sample) for (auto& fn:functions) {
-            if (!fn.installed) continue;Input input;
+            if (!fn.installed || fn.nativeObserver) continue;Input input;
             if (!fixtures&&std::string(fn.owner)!="cSC4Watercraft") continue;
             if (!fc4_compare_fixture(fn.rustEntry,sample,input.args.data(),nullptr,0)) continue;
             bool valid=true;for (const auto& spec:fn.specs) {const auto size=spec.Size(input.args.data());if (!size) {valid=false;break;}input.windows.emplace_back(size);}
@@ -416,7 +436,7 @@ void InplaceCityLoaded() {
             Replay(fn,input);
         }
     }
-    if (replayCorpus||denseCount) for (auto& fn:functions) if (fn.installed) {
+    if (replayCorpus||denseCount) for (auto& fn:functions) if (fn.installed && !fn.nativeObserver) {
         const auto inputs=LoadCorpus(fn);
         Log("inplace corpus name=%s inputs=%zu dense=%u",fn.name,inputs.size(),denseCount);
         for (const auto& input:inputs) {
