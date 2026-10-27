@@ -1295,7 +1295,8 @@ std::vector<int32_t> MySimsActiveIds(SC4Vector<cISC4MySim*>& sims) {
 
 bool MySimsUiBlocked(cIGZWinMgr* manager) {
     // SPEC-GAP: an unavailable window-manager service is treated as no modal window.
-    return manager != nullptr && manager->IsModal(); // SDK slot 42, mysims §4.2
+    // [abi-ret] SDK slot 42: IsModal returns 0/1 in EAX (mysims §4.2, interfaces.tsv).
+    return manager != nullptr && manager->IsModal();
 }
 
 // ---- public API ---------------------------------------------------------------------------------
