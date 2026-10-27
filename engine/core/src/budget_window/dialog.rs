@@ -82,6 +82,14 @@ pub fn slider_fraction(position: i32) -> f32 {
     (f64::from(position) * f64::from(FUNDING_SCALE)) as f32
 }
 
+/// The ordered group branch of `RestoreStartSettings` (§5.1). Keep duplicate
+/// departments and the saved f32 bits; this is also the native shadow boundary.
+pub fn restore_group_start_settings(saved: &[(f32, DeptRef)], mut set: impl FnMut(DeptRef, f32, u32)) {
+    for &(fraction, department) in saved {
+        set(department, fraction, 0);
+    }
+}
+
 /// §4.4: the property is owned and released; its object result is borrowed.
 pub fn get_window_indiv_item<H: BudgetWindowHost + ?Sized>(host: &mut H, win: WinRef, id: u32) -> Option<ItemRef> {
     let child = host.find_child(win, id)?;
@@ -781,9 +789,9 @@ impl SubBudgetWindow {
     /// `RestoreStartSettings` (`0x0077C5E0`, §5.1).
     pub fn restore_start_settings<H: BudgetWindowHost + ?Sized>(&mut self, host: &mut H) {
         if self.department == 0 {
-            for &(f, dept) in &self.saved_fractions {
-                host.set_funding_percentage(dept, f, 0);
-            }
+            restore_group_start_settings(&self.saved_fractions, |dept, fraction, line| {
+                host.set_funding_percentage(dept, fraction, line);
+            });
         } else {
             for r in self.restore.clone() {
                 self.set_occupant_funding_level(host, r.occupant, false, r.level0);

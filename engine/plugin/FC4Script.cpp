@@ -41,6 +41,7 @@
 
 #include "SC4Rect.h"
 #include "SC4String.h"
+#include "cGZMessage.h"
 #include "cISC4City.h"
 #include "cISC4DispatchManager.h"
 #include "cISC4Occupant.h"
@@ -486,13 +487,46 @@ std::string RunFunds(const harness::ScriptAction& a, cISC4City* city) {
 }
 
 std::string RunBudgetWindow(cISC4City* city) {
-    // Borrowed city getter; no reference is acquired or released here. Budget
-    // slot 24 takes no arguments (docs/abi/interfaces.tsv; budget.md method inventory).
-    auto* budget = city ? AsGame(city->GetBudgetSimulator()) : nullptr;
-    if (!budget) return "ok=0 (skipped: no city budget)";
-    // SPEC-GAP: budget.md specifies a replacement return, not a native return channel.
-    budget->ShowBudgetWindow();
-    return "ok=1 (ShowBudgetWindow requested)";
+    if (!city) return "ok=0 (skipped: no city)";
+    auto* fw = RZGetFrameWork();
+    auto* app = fw ? fw->Application() : nullptr; // borrowed
+    cISC4App* sc4 = nullptr;
+    if (!app || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || !sc4)
+        return "ok=0 (skipped: no app)";
+    FC4_ACQUIRED(sc4, "budgetwindow app");
+    auto* main = reinterpret_cast<cFC4IGZWin*>(sc4->GetMainWindow()); // borrowed
+    auto* shell = main ? main->GetChildWindowFromID(0x6104489A) : nullptr; // borrowed
+    cISC4View3DWin* view = nullptr;
+    bool visible = false;
+    if (shell && shell->GetChildAs(0x9A47B417, kGZIID_cISC4View3DWin,
+            reinterpret_cast<void**>(&view)) && view) {
+        FC4_ACQUIRED(view, "budgetwindow city view");
+        auto* win = reinterpret_cast<cFC4IGZWin*>(view->AsIGZWin()); // borrowed
+        if (win) {
+            // view3d-window §6 (advice-link payload): select budget and send
+            // AA3AC40E to show tab AA3AC001. Budget slot 24 opens the
+            // separate income/expense dialog (budget-dialogs §1).
+            cGZMessage link(0xEA5BDFBC);
+            link.dwData1 = 0x4A5BDFB8;
+            win->DoMessage(link); // falls through to base; result is not visibility
+            auto* panel = win->GetChildWindowFromIDRecursive(0xAA3AC001); // borrowed
+            auto* taxes = win->GetChildWindowFromIDRecursive(0xAA3AC500); // borrowed
+            auto* alternate = win->GetChildWindowFromIDRecursive(0xAA3AC400); // borrowed
+            Log("budgetwindow observation: tab AA3AC001 visible=%u; selectors AA3AC500=%u AA3AC400=%u",
+                panel && panel->GetFlag(1) ? 1u : 0u,
+                taxes && taxes->GetFlag(1) ? 1u : 0u,
+                alternate && alternate->GetFlag(1) ? 1u : 0u);
+            // widget-toolkit section 5.3: recursive lookup prefers descendants,
+            // including a hidden duplicate tab ID. Qualify the actual selector's
+            // full ancestry and area with the same check used by uicontrol.
+            int x = 0, y = 0;
+            visible = ui_driver::ControlPixel(0xAA3AC500, x, y);
+        }
+        FC4_RELEASE(view);
+    }
+    FC4_RELEASE(sc4);
+    return visible ? "ok=1 (budget panel selector AA3AC500 eligible; advice-link entry)"
+                   : "ok=0 (budget panel selector unavailable after advice-link entry)";
 }
 
 std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
@@ -865,6 +899,7 @@ void ScriptOnTick() {
                 DbpfShadowWait();
                 return;
             }
+    if (g_waiting.empty()) return;
     if (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0) return;
     g_uiDelay = false;
     // Modal windows pump framework ticks. Consume a UI action before calling

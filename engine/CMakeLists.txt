@@ -1568,3 +1568,8 @@ endif()
 add_executable(fc4_method_evidence_test tests/method_evidence_test.cpp)
 target_include_directories(fc4_method_evidence_test PRIVATE plugin)
 add_test(NAME method_evidence COMMAND fc4_method_evidence_test)
+
+# Same-invocation sub-budget method recording (private static-link transport).
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4BudgetWinShadow.cpp plugin/FC4BudgetWinShadow.h)
+endif()

@@ -136,16 +136,24 @@ inline bool ControlPixel(uint32_t id, int& x, int& y) {
     FC4_ACQUIRED(sc4, "UI driver app");
     auto* main = reinterpret_cast<cFC4IGZWin*>(sc4->GetMainWindow());
     auto* child = main ? main->GetChildWindowFromIDRecursive(id) : nullptr; // borrowed
+    if (!child) Log("UI control %08X unavailable: child not found (main=%p)", id, static_cast<void*>(main));
     bool ok = false;
     bool visible = child != nullptr;
     for (auto* ancestor = child; ancestor; ancestor = ancestor->GetParentWin()) {
         // [abi-ret] widget-toolkit.md section 3: GetFlag returns (flags & mask) != 0.
-        if (!ancestor->GetFlag(1) || !ancestor->GetFlag(2)) { visible = false; break; }
+        if (!ancestor->GetFlag(1) || !ancestor->GetFlag(2)) {
+            Log("UI control %08X unavailable: ancestor %08X visible=%u enabled=%u",
+                id, ancestor->GetID(), ancestor->GetFlag(1) ? 1u : 0u, ancestor->GetFlag(2) ? 1u : 0u);
+            visible = false;
+            break;
+        }
     }
     if (visible && child->GetW() > 0 && child->GetH() > 0) {
         x = child->GetW() / 2; y = child->GetH() / 2;
         child->WindowToScreenCoordinates(x, y); // consume coordinates, not a leftover AL
         ok = true;
+    } else if (visible) {
+        Log("UI control %08X unavailable: area %dx%d", id, child->GetW(), child->GetH());
     }
     FC4_RELEASE(sc4);
     return ok;

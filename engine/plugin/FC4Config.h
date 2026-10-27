@@ -696,3 +696,5 @@ std::string IniPath();
 // compare selects names/class:<Class>/all (inplace alias); compare_mode overrides
 // registry compare/record/replace. Corpus, dense and value exports: docs/harness.md.
 // drawstream_shadow = 0 / 1 (default 0): same-invocation UI draw/surface oracle.
+// budgetwin_shadow = 0 / 1 (default budget_shadow): native sub-budget restore
+// method transcript. Individual service calls remain incomplete; no resyncs.

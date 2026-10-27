@@ -1,0 +1,55 @@
+# Entry probe, not a passing conformance scenario: budgetwindow selects tab
+# AA3AC001 through the city-view advice link (view3d-window section 6).
+# The nine panel selectors below diagnose availability; SKIPPED is a failure
+# to establish the native owner, never method evidence (budget-window BW26).
+# UI actions run from the opt-in script; waits permit modal tick re-entry.
+2026-01-28 mark budgetwin-methods begin
+2026-01-28 budgetwindow
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC500
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x00000200
+2026-01-28 uiwait 300
+2026-01-28 uikey 37
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA4C353B
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC501
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC502
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC503
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC504
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC506
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC507
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC508
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0x0000006D
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC50B
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uicontrol 0xAA3AC50C
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 uikey 27
+2026-01-28 uiwait 300
+2026-01-28 mark budgetwin-methods end
