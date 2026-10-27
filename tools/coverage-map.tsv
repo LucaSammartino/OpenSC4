@@ -472,7 +472,7 @@ cSC4DispatchVehicleView	3D scene and models	renderer	dispatch.md,dispatch-vehicl
 cSC4DispatchVehicleView::TrackInfo	3D scene and models	renderer	dispatch-vehicle-view.md	-	-	-
 fn:GetPointsOnModel	fire flames	renderer	fire-flames.md	-	-	-
 cSC4EffectsManager	effects	renderer	effects.md	core/src/effects	-	effects
-cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	effectsres
+cSC4EffectsResource	effects	renderer	effects.md	core/src/effects	-	-
 cSC4EffectsParser	effects	renderer	effects.md	-	-	-
 cSC4EffectsCollection	effects	renderer	effects.md	core/src/effects	-	-
 cSC4BrushDescription	effects	renderer	effects.md	core/src/effects	-	-
