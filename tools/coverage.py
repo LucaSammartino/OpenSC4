@@ -689,6 +689,8 @@ def main():
     ap.add_argument("--exe", help="SimCity 4.exe (default bin/SimCity4.exe)")
     ap.add_argument("--out", default=str(REPO / "docs" / "coverage-report.md"))
     ap.add_argument("--owners", help="also write a per-function TSV (address, bytes, owner, rule, subsystem)")
+    ap.add_argument("--owner-scenarios", help="also write, per replace key, a greedy cover of the code the census "
+                    "reaches: scenarios in order, each with the bytes it adds (tools/check.py selects by it)")
     current = REPO / "build-runs" / "suite" / "CURRENT"
     ap.add_argument("--suite", default=current.read_text(encoding="utf-8").strip() if current.is_file() else None,
                     help="census tag whose original entry counters give Reach (default: suite/CURRENT)")
@@ -935,6 +937,31 @@ def main():
             f.write("address\tbytes\towner\trule\tsubsystem\n")
             for va in att.order:
                 f.write(f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\n")
+    if args.owner_scenarios:
+        if not suite_evidence:
+            ap.error("--owner-scenarios needs census reach (--suite)")
+        code = {}
+        for va, size, i, _area in game:
+            for key in split_list(rows[i]["replace"]) if i is not None else ():
+                code.setdefault(key, {})[va] = size
+        # tools/golden.py runs .script and load-only scenarios; Lua scenarios are left out of the cover.
+        with open(REPO / "engine/tests/scenarios/suite.tsv", encoding="utf-8-sig", newline="") as f:
+            lua = {r["name"] for r in csv.DictReader(f, delimiter="\t") if r["script"].lower().endswith(".lua")}
+        runs = [(item["name"], item["reached"]) for item in suite_evidence["scenarios"]
+                if suite_coverage.clean(item["row"]) and item["name"] not in lua]
+        with open(args.owner_scenarios, "w", encoding="utf-8", newline="\n") as f:
+            f.write(f"# census {args.suite}, clean runs without Lua; per key the scenarios of a greedy cover of its "
+                    "reached code\n"
+                    "key\tscenario\tadded_bytes\tcovered_bytes\treached_bytes\n")
+            for key in sorted(code):
+                left = {va for _, reached in runs for va in reached & code[key].keys()}
+                total, covered = sum(code[key][va] for va in left), 0
+                while left:
+                    gain, name, hit = max((sum(code[key][va] for va in reached & left), name, reached & left)
+                                          for name, reached in runs)
+                    covered += gain
+                    left -= hit
+                    f.write(f"{key}\t{name}\t{gain}\t{covered}\t{total}\n")
     reach_text = (f"reach {pct(whole['reach_b'], game_b)} of game code, "
                   f"{pct(whole['impl_reach_b'], whole['implemented_b'])} of implemented ({args.suite})"
                   if suite_evidence else "reach not measured")
