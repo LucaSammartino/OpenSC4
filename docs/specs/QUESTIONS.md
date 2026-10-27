@@ -315,7 +315,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-configuration-editor | 0 | 18 | LE19 | questions/lot-configuration-editor.md |
 | lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
-| lot-records | 2 | 13 | LR16 | questions/lot-records.md |
+| lot-records | 3 | 14 | LR18 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 1 | 16 | DS30, QV17 | questions/map-view.md |
 | minimap | 4 | 0 | MMW5 | questions/minimap.md |
@@ -435,4 +435,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **617** | **1701** | | |
+| **total** | **618** | **1702** | | |

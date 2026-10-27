@@ -1635,7 +1635,16 @@ already-existing nonzero cache key in ascending order. It does not clear/add all
 
 Direct access normally examines the lot-manager's outside edge-cell rectangles for network occupants: zones
 1…6 inspect the facing edge only; other zones inspect edges 0…3. A network occupant answering IID
-`0xA821EF94` with network flag test `0x449` true suffices. Store key 0 true at the first match; otherwise false.
+`0xA821EF94` qualifies through **network-interface slot 9, +0x24, `HasAnyNetworkFlag(0x449)`**:
+the intersection of its u32 network flags with `0x449` must be nonzero. The mask is the union of
+`0x1`, `0x8`, `0x40` and `0x400`; any one of these bits suffices, and flags outside the mask do not disqualify
+the occupant. **Slot 8, +0x20, `HasNetworkFlag` / `HasAllNetworkFlags`, is not this predicate**: it requires
+the intersection to equal the entire mask. Store key 0 true at the first qualifying occupant; otherwise false.
+The normal path's IID, mask, indirect call and AL branch are at `0x006C1BC0–006C1BDB`; the call at
+`0x006C1BD6` uses +0x24. The native all-bits and any-bit bodies are `0x00604D10–00604D25` and
+`0x00604D30–00604D42`, respectively. QI for this IID returns the network primary interface
+(`0x006192C6–006192E9`), matching traffic-network.md's network-occupant interface table.
+
 The building-type test `0x1304` selects the ferry-terminal helper instead: scan occupants of type `0xA823821E`
 within the rect, QI `0xE9793A65`, and inspect model IDs `0x2C520000`/`0x2C530000`; at their city cell, the
 four cardinal traffic-network lookups use mask `0x449` and mode true, accepting a returned network whose
@@ -1644,6 +1653,42 @@ the result false before its four tests, so the last such model determines the re
 without writing key 0. These tests acquire/release temporary occupant/list/interface references but change
 no saved lot fields or network flags. Evidence: `0x006C1A30–006C1ABF`, `0x006C1B00–006C1D0F`,
 `0x006C15D0–006C17DE`, `0x006C17E0–006C1939`, `0x006C1D10–006C1E01`.
+
+**Live-state consequence and diagnostic limit (LR16; replace-lot29 LR8).** The missing normal-path contract
+is the any-bit predicate. Slot 28 delegates to slot 29(0)
+(`0x006C20E0–006C20E7`); a cached false therefore reaches callers without another network test. A network
+whose flags are `0x1` gives true under the native predicate and false under an all-bits substitution. That
+substitution can retain a false direct-access result and change the lot developer's travel decision.
+In lot-developer.md §§4.2/5.4, residential purpose 1 combines slot 28 with job access; purposes 5…8 use slot
+29(purpose); the other purposes test slot 28 when they have positive travel jobs. A false road result increments
+the shared travel counter `0x8999B10B` and fails `TestTravel` when the new counter exceeds 2; starting at
+zero, this is the third consecutive failing visit. Prior commute failures count toward the same counter. For a
+developed nonzero-purpose lot whose state changes, `UpdateLot` then calls `SetState(4, 0, 4)`; the last
+failing test supplies reason 4. The road result itself does not vacate the lot or change its population/income.
+Road/commute decision and counter evidence: `0x006CB075–006CB0C3`, `0x006CB136–006CB1B1`.
+See §17.10 for a worked flag/cache case and its travel consequence.
+
+This explains a mechanism for excess reason-4 transitions, not the measured house run's entire decline.
+The supplied ON/OFF logs first differ in a monthly DIGEST on **2026-04-01**, not at termination in 2029:
+`lot29-r6-house-on1.log:16634` has funds 2044, R/C/I 12789/2386/7609 and income/expense 2957/3597;
+`lot29-r6-house-off.log:11925` has 3195, 12797/2386/7609 and 4107/3597. These aggregates do not identify
+which lot first differed or prove that road access caused the income difference. The reported 4238 reason-4
+transitions also do not distinguish road failure from commute failure. No additional lifecycle effect, city
+termination rule or explanation for the income amount is inferred from those observations.
+
+To settle causality at runtime, compare native and replacement calls from the same starting city before that
+first differing April DIGEST. At the first unequal road result, record city day and lot identity, saved rect,
+zone/facing, ferry selection, key-0 cache presence/value, the ordered queried occupants and their u32 flag
+words, selected interface slot/mask, predicate result and returned lot result. Compare identical inputs;
+a prior cached false must be traced back to its calculation, or refreshed through slot 30 for the comparison.
+Then record that lot's `TestTravel` state/purpose, job-access result, trip-length byte, travel counter before
+and after, and ensuing state/reason change. A native true/replacement false with a nonzero intersection
+smaller than `0x449` identifies this predicate defect; a no-road failure with a nonzero trip byte distinguishes
+it from a commute-only failure. To establish that it accounts for the whole acceptance failure, rerun the
+same house pair with only this predicate corrected and compare the first differing monthly populations,
+income and funds through the control's 2032-01-01 endpoint. If they still diverge, locate the first unequal
+per-lot population/wealth or income contribution and its preceding mutations; this spec does not assign
+that remaining divergence to road access. Acceptance item (a) remains a runtime obligation.
 
 **Jobs and travel aggregation (slots 57/58/64).** Slot 64 zeros only the three Jobs16 payload floats first.
 With a nonzero fallback type and a profile whose purpose is nonzero, get the developer type for that purpose
@@ -2424,3 +2469,27 @@ interfaces at a synchronous boundary; keep discovery, capture and exact counts s
 | T86 | Full grid has three walls; query with finite maxCount=1; repeat with unlimited; inject duplicate/null result into a separate malformed fixture | Finite call can return true with one result but is not complete evidence. Unlimited yields three distinct walls. Malformed duplicate/null observation is an explicit inventory error, never a deduplicated exact verdict. |
 | T87 | Target type selected but Serializable class differs, or QI fails; separately unregistered target allocation exists | Selected unsupported/unqueryable object remains error in B/W; do not decode as base class or skip it. Unregistered allocation is outside registered-grid scope and cannot be credited by that census. |
 | T88 | Selected wall writes mask=0, hashes=(1,0,0,0), otherwise valid record; independently select a base texture with nondefault unnamed/frame bytes | Wall Read ORs mask to 1 (§7), producing a mismatch even after full successful consumption; no mask normalization. Texture comparison preserves all 14 record bytes, including unnamed/frame bytes, without randomizing saved frames. |
+
+### 17.10 Normal road-access predicate and live-state vectors (LR16; replace-lot29 LR8)
+
+These are statically derived behavioural fixtures for §13.2.5, not measured house-run results. Unless a row
+says otherwise, use a non-ferry lot in zone 1, facing edge 0, an empty road-access cache and exactly one
+occupant in that edge's outside-cell rectangle. Its QI for `0xA821EF94` succeeds. Each fresh trial starts
+from that setup. Preserve the saved lot fields and occupant flags throughout the road-only operations.
+
+| Test | Setup / stimulus | Required result |
+|---|---|---|
+| T89 | Call lot slot 28 with network flags `0x1`; repeat fresh with `0x8`, `0x40`, `0x400` and `0x200001` | Each returns true and stores key 0=true. Each invokes network slot 9 (+0x24) once with mask `0x449`, never slot 8. In particular, `0x1 & 0x449` is `0x1`: this is a positive direct-access case even though the all-bits predicate is false. Extra flag `0x200000` does not exclude a normal-path occupant. |
+| T90 | Fresh trials with flags `0`, `0x2`, `0x200000` and `0x449` | First three return false/store key 0=false; the last returns true/stores key 0=true. Every case uses slot 9. Testing only `0x449` would fail to discriminate slots 8 and 9. |
+| T91 | Obtain key 0=true with flags `0x1`; change the fixture's network flags to `0` without notifying the lot; call slot 28, then slot 30, then slot 28 | First slot 28 returns cached true without a flag query. Slot 30 recomputes through network slot 9 and overwrites key 0=false. Last slot 28 returns false without another flag query. The fixture's cache has no nonzero purpose keys. |
+| T92 | Fresh lot with flags `0x1`; call slot 29(5) | Returns true from direct access and stores key 0=true; it neither queries neighbouring lots nor creates purpose key 5. Direct success short-circuits any purpose-specific path. |
+| T93 | Same edge/occupant layout, but QI fails; separately, return two occupants whose QIs succeed, with flags `0` then `0x40` | Failed-QI trial returns false with no network-flag call. Ordered two-occupant trial calls slot 9 twice and stops at the second occupant, returning true; references acquired for the query/interfaces are balanced. |
+
+**Worked travel case.** Use T89's flags `0x1` with a developed residential lot (state 3, profile purpose 1),
+job access true, a nonzero trip-length byte and travel counter `0x8999B10B` initially 0. Keep all other
+`UpdateLot` tests passing. Three successive `TestTravel` visits must each pass, leave the counter at 0 and
+produce no reason-4 state transition. As a negative comparison, supplying false road access with all other
+inputs held equal gives counter values 1, 2, 3 and `TestTravel` results true, true, false; on the third visit
+`UpdateLot` changes state 3 to 4 with reason 4. This distinguishes a road predicate defect from a failing
+commute map without asserting any numeric population, tax or city-ending result. The lifetime of this
+counter and the zot side effects remain those of lot-developer.md §5.4.

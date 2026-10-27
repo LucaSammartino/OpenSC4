@@ -168,3 +168,30 @@
   Is serialized-object replacement alone an intended supported scope, or which additional owner replacement
   or proved installation/restoration contract is required to cover new walls? No interception is implemented.~~
   **ANSWERED 2026-10-26 (re-lotocc29):** MATCHES — §15.1.1 distinguishes limited factory/class-store substitution from complete wall activation. New walls bypass the registry. The lot developer and all add/remove/update/neighbour-wall operations must be replaced together, or every direct edge requires a separately proved installation/restoration contract. No such standalone contract is supplied; the worked load/add/clear case distinguishes the scopes.
+
+<!-- from: replace-lot29 (2026-10-27) -->
+- ~~**LR16 - section 13 live-lot lifecycle/state effects (replace-lot29 LR8):** the house replacement run with `lotrec`
+  ended the city at 2029-04-01, without an exception or reference warning, while the same house list
+  without `lotrec` reached 2032-01-01. Which lifecycle/state effect or caller contract is missing from
+  section 13 that can account for this difference? Evidence: main `build-runs/game-results/`
+  `lot29-r5-house-on5.log` (shutdown warning line 19107, ended verdict line 68046) and
+  `lot29-r5-house-off3.log` (clean to 2032). Acceptance item (a) stays open pending explanation.
+  Follow-up: the final DIGEST has funds=-102373, R/C/I=5319/0/0, income/expense=282/3262;
+  at the same city date the control has funds=30597, R/C/I=15315/2511/7597, income/expense=4046/3262.
+  Both start with the same February 2026 population and income. The unexplained item is therefore the
+  subsequent population/income loss, followed by city termination; no cause is assumed.
+  Reproduced with current-main merge and rebuilt DLL `cd94b72a`: `lot29-r6-house-on1.log` ends
+  2029-04-01 (funds=-102740; R/C/I=1385/0/0), while `lot29-r6-house-off.log` reaches 2032 cleanly.
+  Vacancy tracing counts 4238 reason-4 transitions, 3 reason-6 and 5 reason-5 transitions. Under
+  lot-developer section 5.4, reason 4 includes failed road/commute tests. In section 13.2.5's normal
+  road-access path, which precise network-flag predicate is required for mask `0x449`: interface slot 8
+  HasNetworkFlag or slot 9 HasAnyNetworkFlag (traffic-network interface table)? The adapter currently
+  uses slot 8. The phrase "network flag test" does not distinguish these; no predicate change is guessed.
+  Final-round value comparison: the first differing monthly DIGEST is 2026-04-01, not the 2029 stop
+  date. The complete February/March DIGEST payloads match. At April 1, ON/OFF funds are 2044/3195,
+  R population 12789/12797 and income 2957/4107; C/I populations 2386/7609, expense 3597 and every
+  demand value still match. Source lines: `lot29-r6-house-on1.log:16634` versus
+  `lot29-r6-house-off.log:11925` (March: 16247/11795). By May 1 ON/OFF C/I populations are
+  2046/1800 versus 2417/7604. This establishes the earliest sampled value divergence, not that the
+  road-flag predicate is its cause. Please specify the predicate before that behavior is changed.~~
+  **ANSWERED 2026-10-27 (re-lr32):** DIFFERS — §13.2.5's normal road-access path requires network slot 9 (+0x24), `HasAnyNetworkFlag(0x449)`: any nonzero intersection passes. Slot 8's all-bits test differs for flags such as `0x1`. The native call is at `0x006C1BD6`. §17.10 supplies flag/cache vectors T89–T93 and a residential travel-counter case. This can cause false road access and reason-4 abandonment; attributing the measured income/population decline and city termination requires §13.2.5's paired per-lot observation and predicate-only rerun. Acceptance item (a) is not claimed passed. Imported LR8 is renumbered LR16 because main already archived an unrelated LR8; imported LR9 is preserved open as LR17 for the same reason.
