@@ -3457,7 +3457,8 @@ The original permits the region-owner path above; attributing this particular
 second request to it requires a runtime observation.
 
 To settle the remaining EF28 attribution, capture one failing and one passing
-load with a single ordered, per-thread trace containing:
+load with a single sequence-numbered trace, including thread identities,
+containing:
 
 1. Each manager GetClassObject request: caller stack/return address, result
    identity, and its Init/Shutdown/Release lifetime. `007AD129` identifies the
@@ -3472,7 +3473,7 @@ load with a single ordered, per-thread trace containing:
 3. Delivery boundaries, including nested delivery, for PreCityInit,
    PostCityInit and PreCityShutdown; ambience `_HandleInitMessage`
    (`004EABF0`) and shutdown handler (`004E9810`); framework tick-list add/remove
-   results; and the first ambience OnTick/filter entry with the view pointer
+   calls and owner identities; and the first ambience OnTick/filter entry with the view pointer
    and ambience enabled state. Record the application's current-city and
    current-screen identities at each transition.
 
