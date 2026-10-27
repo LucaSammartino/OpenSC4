@@ -379,7 +379,7 @@ void InplaceStartup() {
         if (!Selected(selection,fn)) continue;fn.selected=true;fn.mutate=Selected(mutations,fn);
         try {fn.specs=fc4::compare::Parse(fn.windows,fn.argCount);fn.valid=true;}
         catch (const std::exception&) {Log("inplace install name=%s installed=0 reason=invalid-window-schema",fn.name);continue;}
-        fn.records=unsigned(LoadCorpus(fn).size());
+        if (!fn.nativeObserver) fn.records=unsigned(LoadCorpus(fn).size());
         fn.installed=Install(fn,fn.forwarder);active|=fn.installed;
         Log("inplace install name=%s rva=%08x bytes=%u installed=%u reason=%s",fn.name,fn.va-uint32_t(imageBase),fn.bytes,fn.installed?1:0,fn.installed?"ok":"unsupported-entry-or-busy");
     }

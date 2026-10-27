@@ -13,7 +13,6 @@ html-008fee4a	008fee4a	cHTMLDocument	cdecl	none	2	0	al	-	html-native-observer	re
 html-008feeb8	008feeb8	cHTMLDocument	thiscall	ecx	2	8	void	-	html-native-observer	record
 html-008feefa	008feefa	cHTMLDocument	thiscall	ecx	1	4	al	-	html-native-observer	record
 html-008ff187	008ff187	cHTMLDocument	cdecl	none	2	0	void	-	html-native-observer	record
-html-008ff1b9	008ff1b9	cHTMLDocument	unknown	none	0	0	void	-	html-native-observer	record
 html-008ff725	008ff725	cHTMLDocument	stdcall	none	1	4	al	-	html-native-observer	record
 html-008ff7fd	008ff7fd	cHTMLDocument	thiscall	ecx	2	8	void	-	html-native-observer	record
 html-008ff82e	008ff82e	cHTMLDocument	thiscall	ecx	1	4	al	-	html-native-observer	record
@@ -33,7 +32,6 @@ html-00900a58	00900a58	cHTMLDocument	thiscall	ecx	1	4	al	-	html-native-observer	
 html-00900c31	00900c31	cHTMLDocument	thiscall	ecx	0	0	al	-	html-native-observer	record
 html-00900d78	00900d78	cHTMLDocument	thiscall	ecx	0	0	al	-	html-native-observer	record
 html-00901222	00901222	cHTMLDocument	thiscall	ecx	2	8	eax	-	html-native-observer	record
-html-00902d4f	00902d4f	cHTMLDocument	unknown	none	0	0	void	-	html-native-observer	record
 html-009056da	009056da	cHTMLDocument	thiscall	ecx	0	0	void	-	html-native-observer	record
 html-00905985	00905985	cHTMLDocument	thiscall	ecx	0	0	al	-	html-native-observer	record
 html-00905ac5	00905ac5	cHTMLDocument	thiscall	ecx	0	0	eax	-	html-native-observer	record
