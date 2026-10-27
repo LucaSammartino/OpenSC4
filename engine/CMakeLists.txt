@@ -1563,3 +1563,8 @@ if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_compile_options(fc4_view3d_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
     add_test(NAME view3d_observation COMMAND fc4_view3d_observation_test)
 endif()
+
+# Method evidence must retain incomplete entries and every observed mismatch.
+add_executable(fc4_method_evidence_test tests/method_evidence_test.cpp)
+target_include_directories(fc4_method_evidence_test PRIVATE plugin)
+add_test(NAME method_evidence COMMAND fc4_method_evidence_test)
