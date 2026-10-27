@@ -57,7 +57,7 @@ void MySimsActiveOwnershipChecks(FC4TestSeamFn seam) {
         CHECK(values.push_back(reinterpret_cast<cISC4MySim*>(&refused.sim)));
         int32_t ids[5] = {-1, -1, -1, -1, -1};
         CHECK(seam(kFC4SeamMySimsActiveIds, &values, ids) == 0);
-        CHECK(ids[0] == 3 && ids[1] == 3 && ids[2] == 0 && ids[3] == -1);
+        CHECK(ids[0] == 3 && ids[1] == 0 && ids[2] == 3 && ids[3] == 0 && ids[4] == -1);
         for (auto* value : values) CHECK(value == nullptr);
         CHECK(first.refs == 1 && first.acquisitions == 4 && first.releases == 4);
         CHECK(refused.refs == 1 && refused.acquisitions == 1 && refused.releases == 1);

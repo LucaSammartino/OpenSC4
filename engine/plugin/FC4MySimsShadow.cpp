@@ -1275,7 +1275,6 @@ int RunCompare(int32_t julian, uint32_t event, char (&date)[16]) {
 std::vector<int32_t> MySimsActiveIds(SC4Vector<cISC4MySim*>& sims) {
     std::vector<int32_t> ids;
     for (cISC4MySim*& sim : sims) {
-        if (sim == nullptr) continue;
         FC4_ACQUIRED(sim, "GetActiveMySims");  // mysims §7.1, slot 5: one reference per entry
         int32_t id = 0;
         if (cISC4Advisor* advisor = Query<cISC4Advisor>(sim, kIIDAdvisor)) {
