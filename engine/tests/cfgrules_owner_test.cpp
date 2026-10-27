@@ -27,6 +27,8 @@ struct Service {
     int measures = 0, closes = 0;
     std::vector<std::string> files, logPaths;
     std::string log;
+    Renderer* expectedRetained = nullptr;
+    bool ownershipOrder = true;
 };
 void Retain(void* p) { ++static_cast<Renderer*>(p)->adds; }
 void Release(void* p) { ++static_cast<Renderer*>(p)->drops; }
@@ -60,6 +62,7 @@ int32_t Read(void* p, FC4ConfigRulesBytes path, FC4ConfigRulesBytes* output) {
 bool Measure(void* p, FC4ConfigRulesMeasurement* m) {
     auto& s = *static_cast<Service*>(p);
     ++s.measures;
+    if (s.expectedRetained) s.ownershipOrder &= s.expectedRetained->adds - s.expectedRetained->drops == 1;
     if (!s.available) return false;
     m->cpuFeatures = (1u << 23) | 1;
     m->cpuMHz = 2000;
@@ -141,15 +144,15 @@ int main() {
     // Failed native acquisition must never look like a successful zero-filled gather.
     s.available = false;
     CHECK(fc4_cfgrules_owner_init(owner, &b, Bytes("data"), Bytes("user"), true) == -2);
-    CHECK(b.adds == 0 && a.drops == 0 && s.files.size() == 2);
+    CHECK(b.adds == 1 && a.drops == 1 && s.files.size() == 2);
     CHECK(fc4_cfgrules_owner_log(owner, Bytes("unavailable.txt"), &input, &opened) == -2 && !opened);
     CHECK(s.logPaths.size() == 3);
     CHECK(fc4_cfgrules_owner_auto(owner, 2, &setting) == 0 && setting == 3);
     s.available = true;
     CHECK(fc4_cfgrules_owner_init(owner, &a, Bytes("data"), Bytes("user"), false) == 0);
-    CHECK(a.adds == 1 && a.drops == 0);
+    CHECK(a.adds == 2 && a.drops == 1);
     CHECK(fc4_cfgrules_owner_init(owner, &b, Bytes("data"), Bytes("user"), false) == 0);
-    CHECK(a.drops == 1 && b.adds == 1 && b.drops == 0);
+    CHECK(a.drops == 2 && b.adds == 2 && b.drops == 1);
     CHECK(fc4_cfgrules_owner_evaluate(owner, &input) == 0);
     std::atomic<bool> clean{true};
     std::thread getter([&] {
@@ -169,9 +172,24 @@ int main() {
         *static_cast<std::string*>(p) = Text(value);
     }) == 0);
     CHECK(diagnostic.find("Missing rules file") != std::string::npos);
-    CHECK(b.adds == 1 && b.drops == 0);
+    CHECK(b.adds == 2 && b.drops == 1);
     fc4_cfgrules_owner_destroy(owner);
     CHECK(a.adds == a.drops && b.adds == b.drops);
+    // GR11 worked case 3: retain before each gather; same-object Init gathers
+    // and parses twice with one counted reference and no property writes.
+    Service repeated;
+    Renderer retained;
+    repeated.expectedRetained = &retained;
+    auto repeatedHost = host;
+    repeatedHost.context = &repeated;
+    void* independent = fc4_cfgrules_owner_create(&repeatedHost);
+    CHECK(independent);
+    for (int i = 0; i < 2; ++i)
+        CHECK(fc4_cfgrules_owner_init(independent, &retained, Bytes("data"), Bytes("user"), false) == 0);
+    CHECK(repeated.ownershipOrder && repeated.measures == 2 && repeated.files.size() == 4);
+    CHECK(retained.adds == 1 && retained.drops == 0 && retained.writes.empty());
+    fc4_cfgrules_owner_destroy(independent);
+    CHECK(retained.drops == 1);
     CHECK(!fc4_cfgrules_owner_create(nullptr));
     CHECK(fc4_cfgrules_owner_auto(nullptr, 0, &setting) == -1);
     fc4_cfgrules_owner_destroy(nullptr);

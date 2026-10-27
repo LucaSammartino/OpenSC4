@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Bounded portable owner from `docs/specs/video-preferences.md` §§2–7.
+//! Portable `cSC4VideoPreferencesWinProc` from `docs/specs/video-preferences.md`.
 //!
-//! This is not a native constructor, COM layout, widget implementation, or a
-//! complete panel. Raw initial fields and pointer identities are explicit inputs.
+//! Native COM layout and widgets remain foreign. Raw initial fields and pointer
+//! identities are explicit inputs; §9 supplies the normal constructor and bodies.
 //! Calls require valid, nonaliasing foreign storage and no foreign reentry. Rust
 //! cleanup does not perform logical Release/free. Unknown slices fail explicitly.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Object(pub u64);
+pub struct Object(pub crate::widget_controls::Handle);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Payload {
@@ -53,6 +53,11 @@ impl Preferences {
 
     pub fn raw(&self) -> &[u8; 0x29] {
         &self.raw
+    }
+
+    /// The foreign application may mutate the live block, including padding.
+    pub fn raw_mut(&mut self) -> &mut [u8; 0x29] {
+        &mut self.raw
     }
 
     pub fn byte(&self, field: Byte) -> u8 {
@@ -115,9 +120,8 @@ pub enum Unsupported {
     MissingService,
     AllocationFailure,
     UnqualifiedEvent(u32),
-    RemainingRedrawVp1,
-    AutoRedrawVp1Vp4,
-    ShowMiddleVp3,
+    NeedsShowHost,
+    RawReferenceCount,
     FreedOwner,
 }
 
@@ -136,6 +140,7 @@ pub enum Call {
     Lookup { root: Object, id: u32, iid: u32 },
     Slot { object: Object, slot: u16, args: Vec<Arg> },
     Utility { root: Object, id: u32 },
+    SetToggle { root: Object, id: u32, on: bool },
     Global(Global),
     Framework,
     Service { framework: Object, id: u32, iid: u32 },
@@ -169,6 +174,11 @@ pub trait Host {
     /// Must not reenter the owner or alias its storage. Errors stop the portable
     /// slice; they are never native graceful-failure claims or rollback requests.
     fn call(&mut self, call: &Call) -> Result<Reply, Unsupported>;
+
+    /// App Auto/Apply receive the live preference block, never a candidate copy.
+    fn preferences(&mut self, call: &Call, _preferences: &mut Preferences) -> Result<Reply, Unsupported> {
+        self.call(call)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -197,12 +207,12 @@ pub enum EndResult {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShowPrefix {
     ReturnedAl(bool),
-    /// Qualified stop before the unreviewed full redraw and middle bindings.
+    /// Prefix exit before redraw and bindings; show_dialog supplies continuation.
     AtRedraw,
 }
 
 /// Qualified first-group exit at 0079020d. The retained reference belongs to
-/// the unimplemented continuation. Dropping this token emits no native Release.
+/// the caller's continuation. Dropping this token emits no native Release.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FirstGroupExit {
     NullPreferencesReturn,
@@ -213,10 +223,11 @@ pub struct Owner {
     state: RawState,
     effects: Vec<Effect>,
     freed: bool,
+    references: Option<u32>,
 }
 
 impl Owner {
-    /// Portable boundary choice, not the native constructor (VP3).
+    /// Explicit qualified state entry; new implements the §9.1 constructor.
     pub fn from_raw(state: RawState, domain: Domain) -> Result<Self, Unsupported> {
         if !domain.valid_objects {
             return Err(Unsupported::InvalidObject);
@@ -237,6 +248,7 @@ impl Owner {
             state,
             effects: Vec::new(),
             freed: false,
+            references: None,
         })
     }
 
@@ -267,6 +279,14 @@ impl Owner {
     fn slot(&mut self, host: &mut impl Host, object: Object, slot: u16, args: Vec<Arg>) -> Result<Reply, Unsupported> {
         if object.0 == 0 {
             return Err(Unsupported::InvalidObject);
+        }
+        if object == self.state.owner && self.references.is_some() && matches!(slot, 4 | 8) {
+            self.effects.push(Effect::Call(Call::Slot { object, slot, args }));
+            return Ok(Reply::U32(if slot == 4 {
+                self.add_ref()?
+            } else {
+                self.release(host)?
+            }));
         }
         self.call(host, Call::Slot { object, slot, args })
     }
@@ -490,14 +510,9 @@ impl Owner {
         Ok(FirstGroupExit::At0079020d { retained: local })
     }
 
-    /// Full redraw has only one qualified complete path: null P (§6.1).
+    /// Complete redraw, including the settled intervening groups (§9.2).
     pub fn redraw(&mut self, host: &mut impl Host) -> Result<(), Unsupported> {
-        self.live()?;
-        if self.state.preferences.is_some() {
-            return Err(Unsupported::RemainingRedrawVp1);
-        }
-        self.redraw_first_group(host)?;
-        Ok(())
+        self.redraw_complete(host)
     }
 
     /// Qualified entry at 00791201 with the live preceding local reference.
@@ -640,12 +655,11 @@ impl Owner {
             }
             0xea5e99d9 => {
                 if let Some(app) = self.global(host, Global::App)? {
-                    if self.state.preferences.is_some() {
-                        // VP1/VP4: no literal Auto outputs or full redraw. Stop
-                        // before the unqualified work; do not call a host oracle.
-                        return Err(Unsupported::AutoRedrawVp1Vp4);
-                    }
                     self.slot(host, app, 4, vec![])?;
+                    if self.state.preferences.is_some() {
+                        self.application_preferences(host, app, 0x50)?;
+                        self.redraw(host)?;
+                    }
                     self.slot(host, app, 8, vec![])?;
                 }
             }
@@ -659,7 +673,7 @@ impl Owner {
                 )?;
                 self.release_local(host, &mut local)?;
             }
-            _ => return Err(Unsupported::UnqualifiedEvent(id)),
+            _ => self.selection_event(host, id)?,
         }
         Ok(true)
     }
@@ -668,13 +682,7 @@ impl Owner {
         let app = self.global(host, Global::App)?.ok_or(Unsupported::NullRequiredOutput)?;
         self.slot(host, app, 4, vec![])?;
         self.slot(host, app, 0x44, vec![])?;
-        let payload = self
-            .state
-            .preferences
-            .as_ref()
-            .ok_or(Unsupported::NullPreferences)?
-            .payload();
-        self.slot(host, app, 0x4c, vec![Arg::Payload(payload)])?;
+        self.application_preferences(host, app, 0x4c)?;
         self.slot(host, app, 8, vec![])?;
         let allocation = Self::object(self.call(host, Call::Allocate(44))?)?.ok_or(Unsupported::AllocationFailure)?;
         let message = Self::required(self.call(host, Call::ConstructMessage(allocation))?)?;
@@ -731,8 +739,7 @@ impl Owner {
         Ok(0)
     }
 
-    /// Full ShowDialog only supports the qualified early returns. For selector
-    /// zero use show_prefix explicitly, with its qualified stop at redraw.
+    /// Host-free guard/selector prefix. Use show_dialog for the complete method.
     pub fn show(&mut self, selector: u32) -> Result<bool, Unsupported> {
         self.live()?;
         if self.state.initialized == 0 {
@@ -746,7 +753,7 @@ impl Owner {
         if selector != 0 {
             return Ok(false);
         }
-        Err(Unsupported::ShowMiddleVp3)
+        Err(Unsupported::NeedsShowHost)
     }
 
     /// §7.1 prefix, ending before first full redraw. A borrowed global P must
@@ -759,7 +766,7 @@ impl Owner {
     ) -> Result<ShowPrefix, Unsupported> {
         match self.show(selector) {
             Ok(al) => return Ok(ShowPrefix::ReturnedAl(al)),
-            Err(Unsupported::ShowMiddleVp3) => {}
+            Err(Unsupported::NeedsShowHost) => {}
             Err(e) => return Err(e),
         }
         if let Some(h) = self.state.host.take() {
@@ -863,6 +870,10 @@ impl Owner {
     }
 }
 
+mod completion;
+pub use completion::{DialogGlobals, BINDINGS};
+#[cfg(test)]
+mod completion_tests;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]

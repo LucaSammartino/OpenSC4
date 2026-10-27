@@ -6,6 +6,7 @@
 #include "FC4ConfigRulesSnapshot.h"
 #include "cFC4ConfigRules.h"
 #include "cISC4RenderProperties.h"
+#include <Windows.h>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -56,6 +57,19 @@ struct Shadow {
     }
 };
 std::map<uint32_t, std::unique_ptr<Shadow>> shadows;
+}
+void ConfigRulesTraceLifecycle(const char* name, uint32_t self, bool before) {
+    if (strcmp(name, "cfgrules-init") != 0 && strncmp(name, "cfgrules-view-", 14) != 0) return;
+    if (!SettingInt("cfgrules_lifecycle", "FC4_CFGRULES_LIFECYCLE", 0)) return;
+    if (strcmp(name, "cfgrules-init") == 0) {
+        ConfigRulesTraceView(before ? "native-Init-entry" : "native-Init-exit");
+        return;
+    }
+    if (strncmp(name, "cfgrules-view-", 14) != 0) return;
+    void* stack[12]{};
+    const auto count = CaptureStackBackTrace(1, 12, stack, nullptr);
+    Log("cfgrules lifecycle name=%s phase=%s self=%08x thread=%lu frames=%u", name, before ? "entry" : "exit", self, GetCurrentThreadId(), count);
+    for (unsigned i = 0; i < count; ++i) Log("cfgrules lifecycle stack[%u]=%p", i, stack[i]);
 }
 void ConfigRulesTraceProperties(void* properties) {
     auto* p = static_cast<cISC4RenderProperties*>(properties);
