@@ -157,6 +157,7 @@ FC4_DISASTER_FACTORY_DECL(Toxic)
 
 #include "FC4OverlayOwner.h"
 #include "FC4GZFramework.h"
+#include "FC4HTMLDocumentShadow.h"
 
 namespace fc4 {
 namespace {
@@ -903,6 +904,7 @@ void Resolve() {
     OrdinanceShadowStartup(enabledKey("simulator"), enabledKey("ordinance"));
     ConfigurationSimulatorShadowStartup(enabledKey("lotcfg"), enabledKey("simulator"));
     LegacyCtlShadowStartup();
+    HTMLDocumentShadowStartup(); // Register before the entry shells are installed.
     InplaceStartup();
 }
 

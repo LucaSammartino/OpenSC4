@@ -22,4 +22,9 @@ struct CompareInterposition {
     void (*end)(void*,const CompareCallView&);
 };
 bool CompareAttach(const char* name,const CompareInterposition* callbacks);
+// Selected native observers see every invocation, including nested calls. They
+// bypass sampling, copying, persistence and replacement; native machine results
+// are preserved by the existing entry shell. Register before InplaceStartup.
+using CompareNativeObserver = void (*)(const char*, uint32_t, const uint32_t*, uint32_t, bool);
+bool CompareObserveNative(const char* owner, CompareNativeObserver observer);
 }

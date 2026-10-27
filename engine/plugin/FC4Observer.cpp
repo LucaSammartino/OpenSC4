@@ -13,6 +13,7 @@
 
 #include "FC4Observer.h"
 #include "FC4LegacyCtlShadow.h"
+#include "FC4HTMLDocumentShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
@@ -891,6 +892,7 @@ public:
                 OverlaysShadowMonth(CurrentCity(), julian);
                 SCResShadowLine("month", julian);
                 LegacyCtlShadowMonth(julian);
+                HTMLDocumentShadowMonth(julian);
                 SpanRender8888Month(julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

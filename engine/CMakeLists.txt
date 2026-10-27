@@ -1538,3 +1538,8 @@ if(TARGET fc4_plugin_load_test)
         set_tests_properties(plugin_cfgrules_${mode} PROPERTIES RUN_SERIAL TRUE)
     endforeach()
 endif()
+
+# Same-invocation cHTMLDocument observer; selected with compare=class:cHTMLDocument.
+if(TARGET FreeCity4)
+    target_sources(FreeCity4 PRIVATE plugin/FC4HTMLDocumentShadow.cpp plugin/FC4HTMLDocumentShadow.h)
+endif()
