@@ -12,7 +12,7 @@ Usage: python qbuild.py --wt <worktree> <step>... [--errors N]
   all      test, clippy, verify
 Cargo runs with CARGO_INCREMENTAL=0, CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0 (the disk is shared).
 All Cargo steps use fc4verify's cache environment and engine/build-x86/cargo, also used by CMake and ctest.
-The test and clippy steps share FC4_QBUILD_MAX (default 3) lock slots in <main>/build-runs/qbuild-sem: a fourth run
+The test and clippy steps share FC4_QBUILD_MAX (default 2) lock slots in <main>/build-runs/qbuild-sem: a third run
 waits (a message every 5 min) until one finishes. 0 disables the limit; an unusable lock directory disables it too.
 Exit 0 only if every step passed. Read more of a log with grep or Read offset/limit, never whole.
 The native steps (quick, verify) go through tools/build_queue.py while its worker runs (main checkout
@@ -33,9 +33,9 @@ except ImportError:  # not Windows
     msvcrt = None
     import fcntl
 
-# Cargo steps (test, clippy) hold one of FC4_QBUILD_MAX (default 3) lock files under <main>/build-runs/qbuild-sem, so
+# Cargo steps (test, clippy) hold one of FC4_QBUILD_MAX (default 2) lock files under <main>/build-runs/qbuild-sem, so
 # at most that many cargo test/clippy runs from all lanes compile at once (six at once pushed the commit charge to 88%).
-SEM_MAX_DEFAULT = 3
+SEM_MAX_DEFAULT = 2
 
 
 def sem_dir():
