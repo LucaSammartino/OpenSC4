@@ -1,24 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| method-html31: cHTMLDocument method observations (engine) | Codex; method-html31 worktree; detached HEAD; reserved branch method-html31 | continue; code e62de3543; cargo 8358 passed, clippy 0, CTest 142/142; r3 clean/ref_warnings=0; two methods exact; HD9 open; ABI unchanged | 1. Finish the advisor/help action with turbo off during UI steps. 2. Resolve HD9 and bind remaining outputs. 3. Run house shadows and have the coordinator credit/enqueue. |
+| method-html31: cHTMLDocument method observations (engine) | Codex; method-html31 worktree; detached HEAD; reserved branch method-html31 | wip; code af22934b4; cargo 8359 passed, clippy 0, CTest 142/142; catalog-r4 and news-r5 clean/ref_warnings=0; four methods exact; HD9 open; ABI unchanged | 1. Calibrate an available advisor/news/help control. 2. Publish HD9 and bind remaining outputs. 3. Coordinator runs house shadows, credits and enqueues. |
 
-Code commits: b06f7d9d5, b27bb0127, bbe25c3fc, e62de3543. No public C ABI or seam change.
-Final gate on e62de3543: qbuild all PASS; 8358 Rust tests, zero clippy diagnostics, CTest 142/142. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
-Owned Rust fmt: 2 files passed. Initial quick had 691 passing tests but a stale/failed native build; unpublished static-helper conventions were removed before the successful full gates.
-method-html31-catalog-r1: rejected before launch (script belonged under [ini]); not game evidence.
-method-html31-catalog-r2 on bbe25c3fc: corrupt, foreign AV 009106d9 through the unsupported HTMLAdvance temporary adapter; ref_warnings=0. Superseded by removal of that adapter in e62de3543.
-method-html31-catalog-r3 on e62de3543: clean, foreign_exceptions=0, ref_warnings=0, Rust panics=0, resyncs=0; DLL SHA prefix 086d3f26.
-Run evidence: C:/Users/tlori/FreeCity4/build-runs/game-results/method-html31-catalog-r3.{verdict,log,reach.tsv}.
-Latest monthly snapshot 2049-05-01: 3,870,951 entries, 26,358 complete, 0 mismatches; all other entries explicitly incomplete.
-Method 0x008FEEB8 SetFontSizeTable: 66 bytes; calls=319 complete=319 mismatches=0 resyncs=0.
-Method 0x009006C0 SetSlot15Byte: 10 bytes; calls=26039 complete=26039 mismatches=0 resyncs=0.
-Potential method credit: 76 bytes only. GetFontSizeTable, SourceText and both alignment bindings had no observed invocation; no credit claimed.
-Per-method table: [build-runs/html-methods-r3.tsv](../../build-runs/html-methods-r3.tsv), 73 rows including the 70 named-inventory entries and three extra slots; 36 rows reached. Sorted by reach then bytes; includes calls, complete, mismatches and missing observations.
-Largest reached gaps: InitTagList 10635 B and BuildFirstSets 1388 B (one reach entry each; calling conventions and full global contents unbound), ParseSPAN 939 B, ParseAttributeList 683 B, ParseBODY 608 B, ParseFONTSTYLE 598 B.
-HD9 in docs/specs/questions/html-document.md blocks ParseCDATA, SkipDocumentWhitespace, StripWhiteSpace and SplitTag: character-helper argument ABI/safe copied-text service missing; complete remains 0 for every input.
-Other parser methods have entry census only: complete owner post-state, attribute-map contents and ordered element/host calls still need bindings. Entity-map/encoding and lifecycle/refcount observations also remain absent.
-Entry shells refused 008fe7b8, 009065c5, 00908122; reach tracked these instead. No unsupported prologue or convention was guessed.
-House/action acceptance NOT met: script stopped before the first tick-driven uicommand completed; requested 2026-03-03 end was overshot to 2049-05-03. Clean verdict is not an action/profile pass.
-Next: start the UI script with turbo off, drive an advisor/news/help page, then enable turbo after UI actions finish; use the shared main queue and new labels. All three existing requests have final verdicts.
-Coverage/map and merge-train tools were not run because tools/ is forbidden to this clean-room lane. Coordinator owns credit and final enqueue.
-Continuation checkpoint: full gate passes, no outstanding game request, no merge-queue entry; restart to finish remaining method observations and house-profile acceptance.
+Code af22934b4 adds full IsInSet/AppendSet observations and core helpers; fixes the misplaced save-wait brace and premature nested-tick return that made scripted UI dispatch unreachable.
+ABI/seam unchanged. DLL SHA256: 6d9be1bbaa65c02b14fd1c49aa09fe9461954c775851e2d0df9a4b7b9a2b7442.
+Gate: qbuild all PASS; 8359 Rust tests, clippy diagnostics=0, native build 45/45 edges, CTest 142/142. Logs: build-runs/qbuild-test.log, qbuild-clippy.log, fc4verify-build.log, fc4verify-ctest.log.
+Focused: six html_document_shadow tests passed, including return/state mutations, overlapping sets, empty sets and aliasing; owned Rust fmt passed for three files. Bash q.py failed to start; direct Cargo succeeded.
+Game evidence root: C:/Users/tlori/FreeCity4/build-runs/game-results/; labels below have .verdict, .log and .reach.tsv.
+method-html31-catalog-r4: clean; foreign_exceptions=0, ref_warnings=0, Rust panics=0, HTML mismatches=0, resyncs=0; DLL SHA prefix 6d9be1bb.
+catalog-r4: all 18 script actions ran; query and MySim commands plus budget-window request completed. Verdict date 2026-03-14; April snapshot occurred during quit. This is a targeted profile, not the house profile.
+catalog-r4 latest monthly snapshot 2026-04-01: calls=56227 complete=9365 partial=46862 mismatches=0 resyncs=0.
+Per-method table: [build-runs/html-methods-r4.tsv](../../build-runs/html-methods-r4.tsv), all 73 rows (70 inventory entries and three extra slots), sorted by reach then bytes; calls, complete, mismatches and every missing observation. 36 rows reached.
+0x008FEE4A IsInSet: 28 B; calls=9026 complete=9026 mismatches=0 resyncs=0; AL return and complete unchanged set compared.
+0x008FF187 AppendSet: 50 B; calls=8 complete=8 mismatches=0 resyncs=0; complete destination union and unchanged source compared.
+0x008FEEB8 SetFontSizeTable: 66 B; calls=20 complete=20 mismatches=0 resyncs=0.
+0x009006C0 SetSlot15Byte: 10 B; calls=311 complete=311 mismatches=0 resyncs=0.
+Four completely compared methods total 154 B (78 B added this round); coordinator owns coverage credit. Other 69 rows remain uncredited, including uninvoked getters/alignment helpers and unobserved lifetime/map helpers.
+Largest reached gaps: InitTagList 10635 B and BuildFirstSets 1388 B need calling conventions/global contents; ParseSPAN 939 B, ParseAttributeList 683 B, ParseBODY 608 B and ParseFONTSTYLE 598 B need full state and collaborator traces.
+HD9 remains open in docs/specs/questions/html-document.md: character-helper argument ABI/copied-text service blocks CDATA, document whitespace, whitespace stripping and tag splitting. No new question filed.
+Other missing observations: complete native attribute-map contents, ordered element/host calls, entity-map/encoding effects, and lifecycle/refcount/download effects; partial comparisons keep complete=0.
+method-html31-news-r5: clean/ref_warnings=0; all 11 actions processed, but ticker 0xCA2AEDC0 was SKIPPED: control unavailable (log line 3897). This is not a successful page-driving action.
+news-r5 at 2026-03-01: HTML calls=3263 complete=526 mismatches=0 resyncs=0; IsInSet 504/504, AppendSet 8/8, SetFontSizeTable 4/4, SetSlot15Byte 10/10; all method mismatches=0.
+House-profile and confirmed advisor/news/help action acceptance remain unmet. Coverage, regress and merge-train scripts are forbidden under tools/; coordinator must run them and flip credit/enqueue.
+Next: calibrate an available page control, resolve HD9, bind the remaining outputs, then run the house shadows profile. Both new requests are final; none outstanding. Local merge-queue state is wip, kind engine.
