@@ -79,7 +79,7 @@ struct Event { Words call,result; };
 struct Trace {
     std::vector<Event> events;
     std::vector<void*> parameterTemporaries;
-    size_t cursor=0; uint32_t bad=0; bool exhaustive=true,allOutputs=true;
+    size_t cursor=0; uint32_t bad=0,method=0; bool exhaustive=true,allOutputs=true;
 };
 inline thread_local Trace* active=nullptr;
 inline thread_local unsigned suppressed=0;
@@ -394,10 +394,11 @@ inline uint32_t __cdecl ExchangeCall(void* context,const uint32_t* input,uint32_
     if(trace.cursor>=trace.events.size()) {++trace.bad;return UINT32_MAX;}
     const auto& event=trace.events[trace.cursor++];
     if(event.call.size()!=count || !std::equal(event.call.begin(),event.call.end(),input)) {
-        static std::atomic<uint32_t> reports{0};
-        if(trace.bad==0 && trace.exhaustive && reports.fetch_add(1)<8) {
-            Log("legacyctl trace difference: index=%u native=(%u,%08X,%X) core=(%u,%08X,%X)",
-                static_cast<unsigned>(trace.cursor-1),event.call[0],event.call[1],event.call[2],input[0],input[1],input[2]);
+        // Keep unsupported startup traces from consuming another method's diagnostics.
+        static std::atomic<uint32_t> reports[30]{};
+        if(trace.bad==0 && trace.exhaustive && reports[trace.method].fetch_add(1)<8) {
+            Log("legacyctl trace difference: method=%u index=%u native=(%u,%08X,%X) core=(%u,%08X,%X)",
+                trace.method,static_cast<unsigned>(trace.cursor-1),event.call[0],event.call[1],event.call[2],input[0],input[1],input[2]);
             for(size_t i=0;i<std::min<size_t>(event.call.size(),count);++i) {
                 if(event.call[i]!=input[i]) {
                     Log("legacyctl trace word difference: word=%u native=%08X core=%08X",static_cast<unsigned>(i),event.call[i],input[i]);
@@ -414,7 +415,8 @@ struct Stats { std::atomic<uint32_t> calls{0},complete{0},bad{0}; };
 inline Stats stats[30];
 inline void Replay(Trace& trace,const uint32_t* before,uint32_t op,const std::array<uint32_t,4>& args,
     Input& input,const uint32_t* native,bool scalar=true,unsigned credit=UINT32_MAX,bool allOutputs=true) {
-    auto& s=stats[credit==UINT32_MAX?op:credit]; ++s.calls;
+    trace.method=credit==UINT32_MAX?op:credit;
+    auto& s=stats[trace.method]; ++s.calls;
     uint32_t expected[10]{};
     const bool supported=input.valid && fc4_legacyctl_shadow_run(before,op,args.data(),input.wire.data(),static_cast<uint32_t>(input.wire.size()),&ExchangeCall,&trace,expected)==1;
     if(!trace.exhaustive || !input.valid) return;
