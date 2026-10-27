@@ -10,5 +10,5 @@
 - ~~**APW3 - §6.3:** what the song buttons' slot 17 does with the buffer of the UI script key
   (`0x856DDBAC`, `0x46A006B0`, `0x14416244`), and what button slots 12 `(4, 0, 0)` and 5 `(4, 0)` set.
   [inferred: the button's look and its checkbox style]~~
-  **ANSWERED 2026-10-27 (re-q-audio):** MATCHES — Slot 12 selects eight-image bitmap style 4, slot 17 supplies the bitmap, and slot 5 clears caption flag 4; checked state is separate (§6.3).
+  **ANSWERED 2026-10-27 (re-q-audio):** DIFFERS — Slot 12 selects eight-image bitmap style 4, slot 17 supplies the bitmap, and slot 5 clears caption flag 4; checked state is separate (§6.3).
 

@@ -20,7 +20,7 @@
 <!-- from: re-hitman (2026-10-22) -->
 - ~~**HM6 - section 3.8:** what the default track-flow error handler `0x009377DD` does: it calls slot 3 of the track,
   slot 9 of that result, then slot 16 of the track. [kills the failing track]~~
-  **ANSWERED 2026-10-27 (re-q-audio):** DIFFERS — The default handler kills the track through its sound interface, then sets its error condition (§3.8).
+  **ANSWERED 2026-10-27 (re-q-audio):** MATCHES — The default handler kills the track through its sound interface, then sets its error condition (§3.8).
 
 <!-- from: re-hitman (2026-10-22) -->
 - ~~**HM8 - section 6.7:** whether the register-set slot 6 used by `UpdatePitch` means "set in the local set" (which makes
