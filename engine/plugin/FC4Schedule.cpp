@@ -28,7 +28,9 @@
 #include <intrin.h>
 #include <tlhelp32.h>
 
+#include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
@@ -71,6 +73,9 @@ constexpr uintptr_t kRegisterObject = 0x005D43F0;     // its registration (objec
 constexpr uintptr_t kQpcSlot = 0x00A802F0;            // the import slot of QueryPerformanceCounter (cRZTimer, timers.md)
 constexpr uintptr_t kSleepSlot = 0x00A800C8;          // Sleep
 constexpr uintptr_t kTempPathASlot = 0x00A8029C;      // the import slot of GetTempPathA
+constexpr uintptr_t kControllerWriteSlot = 0x00A9602C;  // the automata controller manager's Write (0x005174D0), a vtable slot
+constexpr uintptr_t kTrafficMapWriteSlot = 0x00A8FEAC;  // the traffic network map's Write (0x004B1CE0), a vtable slot
+constexpr uintptr_t kWatercraftWriteSlot = 0x00A9DF1C;  // the watercraft manager's Write (0x0056FA70), a vtable slot
 constexpr uintptr_t kTempPathW = 0x00B62904;          // cRZFile's GetTempPathW, from GetProcAddress at start-up
 constexpr uintptr_t kForeground = 0x005F85F0;         // "the game is the foreground window", asked by the save's thumbnail
 const uint8_t kForegroundBytes[] = {0x56, 0xFF, 0x15, 0x0C, 0x05, 0xA8, 0x00};  // push esi; call [GetForegroundWindow]
@@ -834,7 +839,7 @@ struct BlockHeader {   // 16 bytes before each block (the chunks have none)
     uint32_t size;     // requested
     uint32_t span;     // header + block, rounded
     uint32_t magic;
-    uint32_t reserved;
+    uint32_t stamp;    // the block's allocation number from the city load: its object's creation order (address order)
 };
 
 struct Arena {
@@ -850,6 +855,7 @@ struct Arena {
     std::map<uint8_t*, size_t> chunkSizes;
     uint32_t hash = 2166136261u;
     uint32_t ops = 0;
+    uint32_t stamps = 0;             // blocks allocated
 };
 Arena g_arena;
 bool g_heapReady = false;  // the region is reserved and every heap entry hooked
@@ -895,7 +901,7 @@ bool OnArena() { return g_heap && GetCurrentThreadId() == g_mainThread; }
 // (environment SC4_HEAP_TRACE / SC4_HEAP_TRACE_MAX: the golden harness drops FC4_*).
 HANDLE g_traceFile = INVALID_HANDLE_VALUE;
 uint32_t g_traceMax = 0;
-uint32_t g_dumpAt = 0;        // `heap dump at = N`: the region's committed bytes at operation N
+std::vector<uint32_t> g_dumpAt;  // `heap dump at = N, M, ...` (ascending): the region's bytes at those operations
 std::string g_traceDir;
 constexpr uint32_t kTraceWords = 6;  // op, size, offset, three return addresses in the executable
 uint32_t g_traceBuffer[kTraceWords * 16384];
@@ -930,8 +936,55 @@ void ArenaDump() {
     CloseHandle(f);
 }
 
+// Diagnostics: `heap watch = N:OFF[,OFF...]` (offsets in hex) arms the main thread's debug registers at operation N
+// on up to four region words and logs each write to them: the operation count, the new value, the writer and its
+// callers.
+uint32_t g_watchAt = 0;
+uint32_t g_watchOffsets[4] = {};
+unsigned g_watchCount = 0, g_watchHits = 0;
+constexpr DWORD kWatchArm = 0xE0FC4057;
+
+LONG CALLBACK WatchHandler(EXCEPTION_POINTERS* e) {
+    CONTEXT* c = e->ContextRecord;
+    if (e->ExceptionRecord->ExceptionCode == kWatchArm) {
+        DWORD* dr[4] = {&c->Dr0, &c->Dr1, &c->Dr2, &c->Dr3};
+        DWORD dr7 = 0;
+        for (unsigned i = 0; i < g_watchCount; ++i) {
+            *dr[i] = static_cast<DWORD>(reinterpret_cast<uintptr_t>(g_arena.base + g_watchOffsets[i]));
+            dr7 |= (1u << (2 * i)) | (1u << (16 + 4 * i)) | (3u << (18 + 4 * i));  // local; on write; 4 bytes
+        }
+        c->Dr7 = dr7;
+        c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
+        fc4::Log("schedule: watch armed at operation %u (%u words)", g_arena.ops, g_watchCount);
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
+    if (e->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP || (c->Dr6 & 0xF) == 0) return EXCEPTION_CONTINUE_SEARCH;
+    for (unsigned i = 0; i < g_watchCount; ++i) {
+        if ((c->Dr6 & (1u << i)) == 0 || g_watchHits >= 20000) continue;
+        ++g_watchHits;
+        char callers[128] = "";
+        int n = 0;
+        const auto* sp = reinterpret_cast<const uintptr_t*>(c->Esp);
+        for (int j = 0, k = 0; j < 64 && k < 8; ++j) {
+            if (ReturnSite(sp[j])) {
+                n += std::snprintf(callers + n, sizeof(callers) - n, " %08X", static_cast<unsigned>(sp[j]));
+                ++k;
+            }
+        }
+        fc4::Log("schedule: watch %u at operation %u: 0x%08X by 0x%08X;%s", i, g_arena.ops,
+            *reinterpret_cast<const uint32_t*>(g_arena.base + g_watchOffsets[i]), static_cast<unsigned>(c->Eip), callers);
+    }
+    c->Dr6 = 0;
+    c->ContextFlags |= CONTEXT_DEBUG_REGISTERS;
+    return EXCEPTION_CONTINUE_EXECUTION;
+}
+
 void ArenaNote(uint32_t op, uint32_t a, uint32_t b) {
-    if (g_dumpAt != 0 && g_arena.ops == g_dumpAt) ArenaDump();
+    if (g_watchAt != 0 && g_arena.ops == g_watchAt) RaiseException(kWatchArm, 0, 0, nullptr);
+    if (!g_dumpAt.empty() && g_arena.ops == g_dumpAt.front()) {
+        ArenaDump();
+        g_dumpAt.erase(g_dumpAt.begin());
+    }
     if (g_traceFile != INVALID_HANDLE_VALUE && g_arena.ops < g_traceMax) {
         uint32_t* r = g_traceBuffer + g_traceUsed;
         r[0] = op;
@@ -953,6 +1006,19 @@ void ArenaNote(uint32_t op, uint32_t a, uint32_t b) {
     }
     g_arena.hash = h;
     ++g_arena.ops;
+}
+
+// A heap trace row that is not a heap operation (a walk in creation order: 'W' {key count, 0, its caller}, then
+// 'K' {stamp} per key, in the walk's order); it changes neither the operation count nor the digest.
+void TraceNote(uint32_t op, uint32_t a, uint32_t site) {
+    if (g_traceFile == INVALID_HANDLE_VALUE || g_arena.ops >= g_traceMax) return;
+    uint32_t* r = g_traceBuffer + g_traceUsed;
+    r[0] = op;
+    r[1] = a;
+    r[2] = 0;
+    r[3] = site;
+    r[4] = r[5] = 0;
+    if ((g_traceUsed += kTraceWords) == sizeof(g_traceBuffer) / 4) TraceFlush();
 }
 
 uint8_t* ArenaBump(size_t span, size_t align) {
@@ -983,6 +1049,9 @@ void* ArenaAlloc(size_t n) {
     if (reuse != nullptr && !reuse->empty()) {
         block = g_arena.base + reuse->top();
         reuse->pop();
+        // [choice] Memory the original reads before writing reads 0 (simulator.md §5.8): a reused block is
+        // cleared, as the region's fresh memory is.
+        std::memset(block + sizeof(BlockHeader), 0, span - sizeof(BlockHeader));
     }
     if (block == nullptr && (block = ArenaBump(span, 16)) == nullptr) {
         InterlockedIncrement(&g_heapFallbacks);
@@ -992,7 +1061,7 @@ void* ArenaAlloc(size_t n) {
     h->size = static_cast<uint32_t>(n);
     h->span = static_cast<uint32_t>(span);
     h->magic = kArenaMagic;
-    h->reserved = 0;
+    h->stamp = ++g_arena.stamps;
     ArenaNote('A', static_cast<uint32_t>(n), static_cast<uint32_t>(block - g_arena.base));
     return block + sizeof(BlockHeader);
 }
@@ -1148,6 +1217,12 @@ BOOL __stdcall ChunkFree(uint32_t first, void* p) {
     return TRUE;
 }
 
+// A pool object's creation stamp and size, by its region offset (PoolTaken; main thread).
+struct PoolStamp {
+    uint32_t stamp, stride;
+};
+std::map<uint32_t, PoolStamp> g_poolStamps;
+
 // The object pools' pages (2^shift bytes; a pool finds an object's page by that alignment).
 void* __cdecl BlockAlloc(uint32_t shift) {
     if (OnArena() && shift < 24) {
@@ -1158,6 +1233,7 @@ void* __cdecl BlockAlloc(uint32_t shift) {
         if (!reuse.empty()) {
             block = g_arena.base + reuse.top();
             reuse.pop();
+            std::memset(block, 0, n);  // as fresh memory (ArenaAlloc)
         } else {
             block = ArenaBump(n, n);
         }
@@ -1179,6 +1255,7 @@ void __cdecl BlockFree(void* p, uint32_t shift) {
         g_frame = static_cast<const uintptr_t*>(_AddressOfReturnAddress());
         const auto offset = static_cast<uint32_t>(static_cast<uint8_t*>(p) - g_arena.base);
         ArenaNote('d', 1u << shift, offset);
+        g_poolStamps.erase(g_poolStamps.lower_bound(offset), g_poolStamps.lower_bound(offset + (1u << shift)));
         g_arena.blocks[shift].push(offset);
     }
 }
@@ -1191,20 +1268,24 @@ void __cdecl BlockFree(void* p, uint32_t shift) {
 struct PoolSite {
     uintptr_t pool;
     uintptr_t vtable;  // 0: set by its constructor at run time (checked against the range only)
+    uint32_t stride;   // its objects' size in a page (its page maker, vtable slot 2)
 };
 constexpr PoolSite kPools[] = {
-    {0x00B07F1C, 0x00A87370}, {0x00B07FC8, 0x00A88644}, {0x00B09428, 0x00A8CE88}, {0x00B09588, 0x00A8FE7C},
-    {0x00B098A8, 0x00A942D8}, {0x00B098B4, 0x00A942E8}, {0x00B098D0, 0x00A943E8}, {0x00B09FEC, 0x00A99E24},
-    {0x00B0A018, 0x00A9A428}, {0x00B0A09C, 0x00A9C7F4}, {0x00B0A0F8, 0x00A9D194}, {0x00B0A808, 0x00AA20A0},
-    {0x00B0A824, 0x00AA2870}, {0x00B0A830, 0x00AA2A08}, {0x00B0A86C, 0x00AA2CDC}, {0x00B0A884, 0x00AA2CEC},
-    {0x00B0A898, 0x00AA2E94}, {0x00B0A8AC, 0x00AA30B4}, {0x00B0A8C8, 0x00AA4458}, {0x00B0A8E4, 0x00AA4960},
-    {0x00B0A8F0, 0x00AA4970}, {0x00B0A8FC, 0x00AA4980}, {0x00B0A908, 0x00AA4990}, {0x00B0A914, 0x00AA49A0},
-    {0x00B0A96C, 0x00AA5288}, {0x00B0A9B8, 0x00AA54E0}, {0x00B0A9E8, 0x00AA6CB4}, {0x00B0A9F4, 0x00AA6CC4},
-    {0x00B0B2D0, 0x00AA7180}, {0x00B0B394, 0x00AA7F00}, {0x00B0B3A8, 0x00AA8224}, {0x00B0B570, 0x00AA9458},
-    {0x00B0BEC0, 0x00AA9978}, {0x00B0C0C8, 0x00AA9D04}, {0x00B0C258, 0x00AA9D14}, {0x00B0CDB8, 0x00AAA590},
-    {0x00B0D008, 0x00AAABC0}, {0x00B0D3AC, 0x00AB184C}, {0x00B0D484, 0x00AB3380}, {0x00B0DC30, 0x00000000},
-    {0x00B0E330, 0x00ABD28C}, {0x00B0E33C, 0x00ABD29C}, {0x00B0E348, 0x00ABD2AC}, {0x00B0E368, 0x00ABD4D0},
-    {0x00B0E388, 0x00ABD5F8},
+    {0x00B07F1C, 0x00A87370, 0x5C}, {0x00B07FC8, 0x00A88644, 0x5C}, {0x00B09428, 0x00A8CE88, 0x68},
+    {0x00B09588, 0x00A8FE7C, 0x58}, {0x00B098A8, 0x00A942D8, 0x4C}, {0x00B098B4, 0x00A942E8, 0x10},
+    {0x00B098D0, 0x00A943E8, 0x60}, {0x00B09FEC, 0x00A99E24, 0x3C}, {0x00B0A018, 0x00A9A428, 0x270},
+    {0x00B0A09C, 0x00A9C7F4, 0x2C8}, {0x00B0A0F8, 0x00A9D194, 0x2B8}, {0x00B0A808, 0x00AA20A0, 0x1A0},
+    {0x00B0A824, 0x00AA2870, 0x278}, {0x00B0A830, 0x00AA2A08, 0x5C}, {0x00B0A86C, 0x00AA2CDC, 0x60},
+    {0x00B0A884, 0x00AA2CEC, 0xF0}, {0x00B0A898, 0x00AA2E94, 0xB0}, {0x00B0A8AC, 0x00AA30B4, 0x6C},
+    {0x00B0A8C8, 0x00AA4458, 0x30}, {0x00B0A8E4, 0x00AA4960, 0x68}, {0x00B0A8F0, 0x00AA4970, 0xA0},
+    {0x00B0A8FC, 0x00AA4980, 0x94}, {0x00B0A908, 0x00AA4990, 0xD8}, {0x00B0A914, 0x00AA49A0, 0x88},
+    {0x00B0A96C, 0x00AA5288, 0x590}, {0x00B0A9B8, 0x00AA54E0, 0xBC}, {0x00B0A9E8, 0x00AA6CB4, 0x1C},
+    {0x00B0A9F4, 0x00AA6CC4, 0x38}, {0x00B0B2D0, 0x00AA7180, 0x1F0}, {0x00B0B394, 0x00AA7F00, 0x180},
+    {0x00B0B3A8, 0x00AA8224, 0x1D8}, {0x00B0B570, 0x00AA9458, 0x1E0}, {0x00B0BEC0, 0x00AA9978, 0x280},
+    {0x00B0C0C8, 0x00AA9D04, 0x124}, {0x00B0C258, 0x00AA9D14, 0x58}, {0x00B0CDB8, 0x00AAA590, 0x2D8},
+    {0x00B0D008, 0x00AAABC0, 0x278}, {0x00B0D3AC, 0x00AB184C, 0x8C}, {0x00B0D484, 0x00AB3380, 0x18},
+    {0x00B0DC30, 0x00000000, 0x34}, {0x00B0E330, 0x00ABD28C, 0xD0}, {0x00B0E33C, 0x00ABD29C, 0x2C},
+    {0x00B0E348, 0x00ABD2AC, 0x174}, {0x00B0E368, 0x00ABD4D0, 0xA4}, {0x00B0E388, 0x00ABD5F8, 0x7C},
 };
 constexpr uint32_t kRetired = 0x20000000;
 using PageMakeFn = uint32_t*(__fastcall*)(void*);
@@ -1236,6 +1317,657 @@ void PoolsRetire() {
         ++g_poolsRetired;
     }
 }
+
+// [choice] A pool object's creation stamp (simulator.md §5.8). Pool pages have no block headers, so each allocation
+// site of the pools (kPoolTakes) is hooked where it reads the pool's current page after the pool's slow path: the
+// page's free-list head is then still the object being taken. The object's stamp continues the blocks' count.
+struct PoolTake {
+    uintptr_t at;
+    uint8_t n;
+    uint8_t bytes[6];  // mov reg, [pool + 4]
+    uintptr_t pool;
+};
+const PoolTake kPoolTakes[] = {
+    {0x00458A78, 6, {0x8B,0x15,0x20,0x7F,0xB0,0x00}, 0x00B07F1C},
+    {0x00458F58, 6, {0x8B,0x15,0x20,0x7F,0xB0,0x00}, 0x00B07F1C},
+    {0x00472978, 6, {0x8B,0x15,0xCC,0x7F,0xB0,0x00}, 0x00B07FC8},
+    {0x00472C48, 6, {0x8B,0x15,0xCC,0x7F,0xB0,0x00}, 0x00B07FC8},
+    {0x00477338, 6, {0x8B,0x15,0x2C,0x94,0xB0,0x00}, 0x00B09428},
+    {0x004776C8, 6, {0x8B,0x15,0x2C,0x94,0xB0,0x00}, 0x00B09428},
+    {0x004B478B, 6, {0x8B,0x0D,0x8C,0x95,0xB0,0x00}, 0x00B09588},
+    {0x004B4EE4, 5, {0xA1,0x8C,0x95,0xB0,0x00}, 0x00B09588},
+    {0x004F6D2B, 6, {0x8B,0x15,0xAC,0x98,0xB0,0x00}, 0x00B098A8},
+    {0x004F747A, 6, {0x8B,0x0D,0xAC,0x98,0xB0,0x00}, 0x00B098A8},
+    {0x004F79D0, 6, {0x8B,0x0D,0xAC,0x98,0xB0,0x00}, 0x00B098A8},
+    {0x004F9F40, 6, {0x8B,0x0D,0xD4,0x98,0xB0,0x00}, 0x00B098D0},
+    {0x0054092B, 6, {0x8B,0x15,0xF0,0x9F,0xB0,0x00}, 0x00B09FEC},
+    {0x00540AE8, 6, {0x8B,0x15,0xF0,0x9F,0xB0,0x00}, 0x00B09FEC},
+    {0x00541B03, 6, {0x8B,0x15,0xF0,0x9F,0xB0,0x00}, 0x00B09FEC},
+    {0x00542828, 6, {0x8B,0x15,0xF0,0x9F,0xB0,0x00}, 0x00B09FEC},
+    {0x005448B3, 6, {0x8B,0x15,0x1C,0xA0,0xB0,0x00}, 0x00B0A018},
+    {0x005469BC, 6, {0x8B,0x0D,0x1C,0xA0,0xB0,0x00}, 0x00B0A018},
+    {0x005572B3, 6, {0x8B,0x15,0xA0,0xA0,0xB0,0x00}, 0x00B0A09C},
+    {0x0055B993, 6, {0x8B,0x15,0xFC,0xA0,0xB0,0x00}, 0x00B0A0F8},
+    {0x00562C3C, 6, {0x8B,0x0D,0xFC,0xA0,0xB0,0x00}, 0x00B0A0F8},
+    {0x005CA8B8, 6, {0x8B,0x15,0x0C,0xA8,0xB0,0x00}, 0x00B0A808},
+    {0x005D0BD8, 6, {0x8B,0x15,0x0C,0xA8,0xB0,0x00}, 0x00B0A808},
+    {0x005D5518, 6, {0x8B,0x15,0x28,0xA8,0xB0,0x00}, 0x00B0A824},
+    {0x005D6238, 6, {0x8B,0x15,0x34,0xA8,0xB0,0x00}, 0x00B0A830},
+    {0x005D64D8, 6, {0x8B,0x15,0x34,0xA8,0xB0,0x00}, 0x00B0A830},
+    {0x005DED08, 6, {0x8B,0x15,0x70,0xA8,0xB0,0x00}, 0x00B0A86C},
+    {0x005E00CD, 6, {0x8B,0x15,0x88,0xA8,0xB0,0x00}, 0x00B0A884},
+    {0x005E0838, 6, {0x8B,0x15,0x70,0xA8,0xB0,0x00}, 0x00B0A86C},
+    {0x005E14A8, 6, {0x8B,0x15,0x9C,0xA8,0xB0,0x00}, 0x00B0A898},
+    {0x005E2A68, 6, {0x8B,0x15,0xB0,0xA8,0xB0,0x00}, 0x00B0A8AC},
+    {0x005E3348, 6, {0x8B,0x15,0xB0,0xA8,0xB0,0x00}, 0x00B0A8AC},
+    {0x005EBE08, 6, {0x8B,0x15,0xCC,0xA8,0xB0,0x00}, 0x00B0A8C8},
+    {0x005ECE78, 6, {0x8B,0x15,0xE8,0xA8,0xB0,0x00}, 0x00B0A8E4},
+    {0x005ED6F8, 6, {0x8B,0x15,0xF4,0xA8,0xB0,0x00}, 0x00B0A8F0},
+    {0x005ED9B8, 6, {0x8B,0x15,0x00,0xA9,0xB0,0x00}, 0x00B0A8FC},
+    {0x005EDAF8, 6, {0x8B,0x15,0x0C,0xA9,0xB0,0x00}, 0x00B0A908},
+    {0x005EDD98, 6, {0x8B,0x15,0x18,0xA9,0xB0,0x00}, 0x00B0A914},
+    {0x005EEF68, 6, {0x8B,0x15,0xE8,0xA8,0xB0,0x00}, 0x00B0A8E4},
+    {0x005EF198, 6, {0x8B,0x15,0xF4,0xA8,0xB0,0x00}, 0x00B0A8F0},
+    {0x005EFC98, 6, {0x8B,0x15,0x0C,0xA9,0xB0,0x00}, 0x00B0A908},
+    {0x005F04A8, 6, {0x8B,0x15,0x18,0xA9,0xB0,0x00}, 0x00B0A914},
+    {0x005F0578, 6, {0x8B,0x15,0x00,0xA9,0xB0,0x00}, 0x00B0A8FC},
+    {0x005F5068, 6, {0x8B,0x15,0x70,0xA9,0xB0,0x00}, 0x00B0A96C},
+    {0x005F5CF8, 6, {0x8B,0x15,0x70,0xA9,0xB0,0x00}, 0x00B0A96C},
+    {0x005F7D98, 6, {0x8B,0x15,0xBC,0xA9,0xB0,0x00}, 0x00B0A9B8},
+    {0x005F84E8, 6, {0x8B,0x15,0xBC,0xA9,0xB0,0x00}, 0x00B0A9B8},
+    {0x005FD858, 6, {0x8B,0x15,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FD908, 6, {0x8B,0x15,0xF8,0xA9,0xB0,0x00}, 0x00B0A9F4},
+    {0x005FDF18, 6, {0x8B,0x15,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FDFF0, 6, {0x8B,0x15,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE244, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE2D4, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE364, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE3F4, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE484, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE524, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE5B4, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE644, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE6E4, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE784, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FE824, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FF304, 5, {0xA1,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FF7E9, 6, {0x8B,0x0D,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FF8DC, 6, {0x8B,0x0D,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FF9CC, 6, {0x8B,0x0D,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x005FFAC1, 6, {0x8B,0x0D,0xEC,0xA9,0xB0,0x00}, 0x00B0A9E8},
+    {0x00605058, 6, {0x8B,0x15,0xD4,0xB2,0xB0,0x00}, 0x00B0B2D0},
+    {0x00605468, 6, {0x8B,0x15,0xD4,0xB2,0xB0,0x00}, 0x00B0B2D0},
+    {0x00619EA8, 6, {0x8B,0x15,0x98,0xB3,0xB0,0x00}, 0x00B0B394},
+    {0x0061C498, 6, {0x8B,0x15,0x98,0xB3,0xB0,0x00}, 0x00B0B394},
+    {0x0061D218, 6, {0x8B,0x15,0xAC,0xB3,0xB0,0x00}, 0x00B0B3A8},
+    {0x0061E838, 6, {0x8B,0x15,0xAC,0xB3,0xB0,0x00}, 0x00B0B3A8},
+    {0x00647248, 6, {0x8B,0x15,0x74,0xB5,0xB0,0x00}, 0x00B0B570},
+    {0x00647808, 6, {0x8B,0x15,0x74,0xB5,0xB0,0x00}, 0x00B0B570},
+    {0x006487E8, 6, {0x8B,0x15,0xC4,0xBE,0xB0,0x00}, 0x00B0BEC0},
+    {0x006489C8, 6, {0x8B,0x15,0xC4,0xBE,0xB0,0x00}, 0x00B0BEC0},
+    {0x006499E8, 6, {0x8B,0x15,0xCC,0xC0,0xB0,0x00}, 0x00B0C0C8},
+    {0x0064A2F8, 6, {0x8B,0x15,0x5C,0xC2,0xB0,0x00}, 0x00B0C258},
+    {0x0064AB88, 6, {0x8B,0x15,0x5C,0xC2,0xB0,0x00}, 0x00B0C258},
+    {0x0064E358, 6, {0x8B,0x15,0xCC,0xC0,0xB0,0x00}, 0x00B0C0C8},
+    {0x00652FF8, 6, {0x8B,0x15,0xBC,0xCD,0xB0,0x00}, 0x00B0CDB8},
+    {0x00653578, 6, {0x8B,0x15,0xBC,0xCD,0xB0,0x00}, 0x00B0CDB8},
+    {0x006BF448, 6, {0x8B,0x15,0xB0,0xD3,0xB0,0x00}, 0x00B0D3AC},
+    {0x006C2722, 6, {0x8B,0x15,0xB0,0xD3,0xB0,0x00}, 0x00B0D3AC},
+    {0x006C2FD8, 6, {0x8B,0x15,0xB0,0xD3,0xB0,0x00}, 0x00B0D3AC},
+    {0x006C3434, 6, {0x8B,0x15,0xB0,0xD3,0xB0,0x00}, 0x00B0D3AC},
+    {0x0070FBA9, 6, {0x8B,0x15,0x88,0xD4,0xB0,0x00}, 0x00B0D484},
+    {0x0070FC34, 6, {0x8B,0x3D,0x88,0xD4,0xB0,0x00}, 0x00B0D484},
+    {0x007C5412, 6, {0x8B,0x15,0x34,0xDC,0xB0,0x00}, 0x00B0DC30},
+    {0x007CA292, 6, {0x8B,0x0D,0x34,0xDC,0xB0,0x00}, 0x00B0DC30},
+    {0x007FB663, 6, {0x8B,0x15,0x34,0xE3,0xB0,0x00}, 0x00B0E330},
+    {0x007FC463, 6, {0x8B,0x15,0x4C,0xE3,0xB0,0x00}, 0x00B0E348},
+    {0x007FDF08, 6, {0x8B,0x15,0x40,0xE3,0xB0,0x00}, 0x00B0E33C},
+    {0x007FED68, 6, {0x8B,0x15,0x4C,0xE3,0xB0,0x00}, 0x00B0E348},
+    {0x00801B23, 6, {0x8B,0x15,0x6C,0xE3,0xB0,0x00}, 0x00B0E368},
+    {0x008065E8, 6, {0x8B,0x15,0x8C,0xE3,0xB0,0x00}, 0x00B0E388},
+};
+
+void __cdecl PoolTaken(const uint32_t* pool, uint32_t stride) {
+    if (!OnArena()) return;
+    auto* object = reinterpret_cast<uint8_t*>(reinterpret_cast<const uint32_t*>(pool[1])[2]);
+    if (!InArena(object)) return;
+    g_poolStamps[static_cast<uint32_t>(object - g_arena.base)] = {++g_arena.stamps, stride};
+}
+
+// Each take's thunk: the hooked read, then PoolTaken(pool, stride) with every register and flag kept, then back.
+const char* HookPoolTakes(unsigned* hooked) {
+    constexpr size_t kBytes = 48 * std::size(kPoolTakes);  // a thunk is at most 6 + 27 bytes, aligned to 16
+    auto* code = static_cast<uint8_t*>(VirtualAlloc(nullptr, kBytes, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+    if (code == nullptr) return "no thunk page";
+    uint8_t* c = code;
+    const auto put32 = [&c](uint32_t v) { std::memcpy(c, &v, 4); c += 4; };
+    const auto rel32 = [&c, &put32](uintptr_t target) { put32(static_cast<uint32_t>(target - (reinterpret_cast<uintptr_t>(c) + 4))); };
+    for (const PoolTake& t : kPoolTakes) {
+        uint32_t stride = 0;
+        for (const PoolSite& site : kPools) {
+            if (site.pool == t.pool) stride = site.stride;
+        }
+        if (stride == 0) return "a take without its pool";
+        uint8_t* thunk = c;
+        std::memcpy(c, t.bytes, t.n);
+        c += t.n;
+        *c++ = 0x9C;  // pushfd
+        *c++ = 0x60;  // pushad
+        *c++ = 0x68;  // push stride
+        put32(stride);
+        *c++ = 0x68;  // push pool
+        put32(static_cast<uint32_t>(t.pool));
+        *c++ = 0xE8;  // call PoolTaken
+        rel32(reinterpret_cast<uintptr_t>(&PoolTaken));
+        *c++ = 0x83;  // add esp, 8
+        *c++ = 0xC4;
+        *c++ = 0x08;
+        *c++ = 0x61;  // popad
+        *c++ = 0x9D;  // popfd
+        *c++ = 0xE9;  // jmp back
+        rel32(t.at + t.n);
+        c = code + ((c - code + 15) & ~15);
+        FlushInstructionCache(GetCurrentProcess(), thunk, c - thunk);
+        if (const char* err = PatchJump(t.at, t.bytes, t.n, thunk)) return err;
+        ++*hooked;
+    }
+    return nullptr;
+}
+
+// ---- address order ------------------------------------------------------------------------------
+// [choice] Where the original walks a container keyed by object address, the walk is in the objects' creation
+// order (simulator.md §5.8). An object's creation stamp is the allocation number of the region block that holds
+// it: the key is the object (malloc), 4 bytes into the block (the framework allocator's blocks, FastAllocate, which
+// the game's operator new uses) or an interface further inside it (a class with several bases). Blocks never split
+// (a free block is reused only at its own span) and are cleared when reused, so the nearest header before the key
+// whose block holds it is the block's own. A pool object's stamp is its take's (PoolTaken). An object outside the
+// region (created before the city load) has none and sorts after all others, by address (counted: such a walk
+// does not repeat).
+volatile LONG g_unstamped = 0, g_ordered = 0;
+std::map<std::pair<bool, uint32_t>, uint32_t> g_unstampedClasses;
+constexpr size_t kStampScan = 0x2000;  // how far before the key its block's header may be
+
+uint32_t StampOf(void* p) {
+    auto* b = static_cast<uint8_t*>(p);
+    if (InArena(b) && !g_poolStamps.empty() && GetCurrentThreadId() == g_mainThread) {
+        const auto key = static_cast<uint32_t>(b - g_arena.base);
+        auto it = g_poolStamps.upper_bound(key);
+        if (it != g_poolStamps.begin() && key - (--it)->first < it->second.stride) return it->second.stamp;
+    }
+    if (b != nullptr && InArena(b - 4 - sizeof(BlockHeader))) {
+        if (const BlockHeader* h = ArenaHeader(b)) return h->stamp;
+        const BlockHeader* h = ArenaHeader(b - 4);
+        if (h != nullptr && *reinterpret_cast<const uint32_t*>(b - 4) == ((h->size) | 0x80000000u)) return h->stamp;
+        const uintptr_t key = reinterpret_cast<uintptr_t>(b);
+        const uintptr_t low = reinterpret_cast<uintptr_t>(g_arena.base);
+        for (uintptr_t at = (key - sizeof(BlockHeader)) & ~uintptr_t{15}; at >= low && key - at <= kStampScan; at -= 16) {
+            const auto* c = reinterpret_cast<const BlockHeader*>(at);
+            if (c->magic == kArenaMagic && c->span % 16 == 0 && c->size + sizeof(BlockHeader) <= c->span) {
+                if (key < at + sizeof(BlockHeader) + c->size) return c->stamp;
+                break;  // the block before the key ends before it: the key is in a pool page
+            }
+        }
+    }
+    return UINT32_MAX;
+}
+
+uint32_t CreationStamp(void* p) {
+    const uint32_t stamp = StampOf(p);
+    if (stamp != UINT32_MAX) return stamp;
+    auto* b = static_cast<uint8_t*>(p);
+    InterlockedIncrement(&g_unstamped);
+    if (b != nullptr && GetCurrentThreadId() == g_mainThread) {
+        // [diagnostic] by the key's first word (its vtable), in the region (a pool page) or not
+        const uint32_t vtable = *reinterpret_cast<const uint32_t*>(b);
+        ++g_unstampedClasses[{InArena(b), vtable}];
+    }
+    return UINT32_MAX;
+}
+
+// An STLport hash table of object pointers (nodes {next, key, ...}; `vector` points at its bucket vector
+// {begin, end}), put in creation order for one call that walks it without changing it: every node is chained in
+// bucket 0, sorted, and the table is restored after. The original's walk ends with bucket 0's chain: at a chain's
+// end it looks for the next bucket from the last key, and all the others are empty.
+class CreationOrder {
+  public:
+    explicit CreationOrder(uint8_t* vector)
+        : begin_(reinterpret_cast<void***>(vector)[0]), end_(reinterpret_cast<void***>(vector)[1]) {
+        for (void** b = begin_; b != end_; ++b) {
+            buckets_.push_back(*b);
+            for (auto* node = static_cast<void**>(*b); node != nullptr; node = static_cast<void**>(node[0])) {
+                nodes_.push_back({node, node[0], CreationStamp(node[1])});
+            }
+        }
+        if (nodes_.empty()) return;
+        std::stable_sort(nodes_.begin(), nodes_.end(), [](const Node& a, const Node& b) {
+            if (a.stamp != b.stamp) return a.stamp < b.stamp;
+            return reinterpret_cast<uintptr_t>(a.node[1]) < reinterpret_cast<uintptr_t>(b.node[1]);
+        });
+        TraceNote('W', static_cast<uint32_t>(nodes_.size()), 0);
+        for (const Node& n : nodes_) TraceNote('K', n.stamp, 0);
+        for (size_t i = 0; i < nodes_.size(); ++i) nodes_[i].node[0] = i + 1 < nodes_.size() ? nodes_[i + 1].node : nullptr;
+        std::fill(begin_, end_, nullptr);
+        *begin_ = nodes_[0].node;
+        InterlockedExchangeAdd(&g_ordered, static_cast<LONG>(nodes_.size()));
+    }
+    ~CreationOrder() {
+        for (const Node& n : nodes_) n.node[0] = n.next;
+        std::copy(buckets_.begin(), buckets_.end(), begin_);
+    }
+    CreationOrder(const CreationOrder&) = delete;
+    CreationOrder& operator=(const CreationOrder&) = delete;
+
+  private:
+    struct Node {
+        void** node;
+        void* next;
+        uint32_t stamp;
+    };
+    void** begin_;
+    void** end_;
+    std::vector<void*> buckets_;
+    std::vector<Node> nodes_;
+};
+
+// The automata controller manager's save (Write 0x005174D0, automata.md §3.1): its occupant entries and queues
+// are its two hash maps of occupant pointers (buckets at +0x50 and +0x64).
+using SerializeFn = bool(__fastcall*)(void*, void*, void*);
+void* g_realControllerWrite = nullptr;
+
+bool __fastcall ControllerWrite(uint8_t* self, void*, void* stream) {
+    CreationOrder entries(self + 0x50), queues(self + 0x64);
+    return reinterpret_cast<SerializeFn>(g_realControllerWrite)(self, nullptr, stream);
+}
+
+// The traffic network map's save (Write 0x004B1CE0; `self` is the map + 0x0C): its intersections, a hash map of
+// network occupant pointers (the map's +0x28, buckets at self + 0x20), and its last table, a hash map of network
+// occupant pointers to four (u32 list, u16) pairs (buckets at self + 0x38).
+void* g_realTrafficMapWrite = nullptr;
+
+bool __fastcall TrafficMapWrite(uint8_t* self, void*, void* stream) {
+    CreationOrder intersections(self + 0x20), occupants(self + 0x38);
+    return reinterpret_cast<SerializeFn>(g_realTrafficMapWrite)(self, nullptr, stream);
+}
+
+// The watercraft manager's save (Write 0x0056FA70, automata.md §5.3; `self` is the manager + 8): its (lot, occupant)
+// pairs, its occupants and its ferry entries are three hash maps of object pointers (buckets at self + 0xA9C,
+// + 0xAB0 and + 0xA88).
+void* g_realWatercraftWrite = nullptr;
+
+bool __fastcall WatercraftWrite(uint8_t* self, void*, void* stream) {
+    CreationOrder pairs(self + 0xA9C), occupants(self + 0xAB0), ferries(self + 0xA88);
+    return reinterpret_cast<SerializeFn>(g_realWatercraftWrite)(self, nullptr, stream);
+}
+
+// A walk of an STLport hash table of object pointers that may change the table: the walk's begin call
+// (hashtable::begin, 0x004B0390: thiscall, the table {?, buckets begin, buckets end}, out {node, table}) goes to
+// OrderedBegin and its step to the next node to OrderedNext. The walk visits the keys present at its start in
+// creation order; a key removed before its turn is skipped, one added during the walk is not visited. Main thread;
+// walks nest (innermost last). A table's bucket is (key >> shift) % bucket count, shift 0 or (a set of pointers) 2.
+constexpr uintptr_t kHashBegin = 0x004B0390;
+constexpr uintptr_t kTickStep = 0x004489CD;          // the animation tick manager's call of its iterator's ++
+constexpr uintptr_t kTickIteratorNext = 0x00448230;  // that ++
+struct OrderedWalk {
+    uint8_t* table;
+    unsigned shift;
+    std::vector<uint32_t> keys;
+    size_t next;
+};
+std::vector<OrderedWalk> g_walks;
+volatile LONG g_gone = 0;  // keys removed before their turn
+
+void** HashFind(uint8_t* table, unsigned shift, uint32_t key) {
+    void** begin = *reinterpret_cast<void***>(table + 4);
+    void** end = *reinterpret_cast<void***>(table + 8);
+    if (begin == end) return nullptr;
+    for (auto* node = static_cast<void**>(begin[(key >> shift) % static_cast<uint32_t>(end - begin)]); node != nullptr;
+         node = static_cast<void**>(node[0])) {
+        if (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node[1])) == key) return node;
+    }
+    return nullptr;
+}
+
+void* OrderedStep() {
+    OrderedWalk& w = g_walks.back();
+    while (w.next < w.keys.size()) {
+        if (void** node = HashFind(w.table, w.shift, w.keys[w.next++])) return node;
+        InterlockedIncrement(&g_gone);
+    }
+    g_walks.pop_back();
+    return nullptr;
+}
+
+uint32_t* OrderedBeginShift(uint8_t* table, unsigned shift, uint32_t* out, uint32_t site,
+                            uint32_t (*rank)(void*) = &CreationStamp) {
+    std::vector<std::pair<uint32_t, uint32_t>> order;  // rank, key
+    void** begin = *reinterpret_cast<void***>(table + 4);
+    void** end = *reinterpret_cast<void***>(table + 8);
+    for (void** b = begin; b != end; ++b) {
+        for (auto* node = static_cast<void**>(*b); node != nullptr; node = static_cast<void**>(node[0])) {
+            order.emplace_back(rank(node[1]), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node[1])));
+        }
+    }
+    std::sort(order.begin(), order.end());
+    TraceNote('W', static_cast<uint32_t>(order.size()), site);
+    for (const auto& o : order) TraceNote('K', o.first, 0);
+    g_walks.push_back({table, shift, {}, 0});
+    for (const auto& o : order) g_walks.back().keys.push_back(o.second);
+    InterlockedExchangeAdd(&g_ordered, static_cast<LONG>(order.size()));
+    out[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(OrderedStep()));
+    out[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(table));
+    return out;
+}
+uint32_t* __fastcall OrderedBegin(uint8_t* table, void*, uint32_t* out) {
+    return OrderedBeginShift(table, 0, out, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(_ReturnAddress())));
+}
+uint32_t* __fastcall OrderedBeginPointers(uint8_t* table, void*, uint32_t* out) {
+    return OrderedBeginShift(table, 2, out, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(_ReturnAddress())));
+}
+// A set of lot configurations (pointers) in ascending configuration ID (slot 3), zones.md §7.2.1's order.
+uint32_t LotConfigurationId(void* cfg) {
+    using GetIdFn = uint32_t(__thiscall*)(void*);
+    return reinterpret_cast<GetIdFn>((*static_cast<void***>(cfg))[3])(cfg);
+}
+uint32_t* __fastcall OrderedBeginById(uint8_t* table, void*, uint32_t* out) {
+    return OrderedBeginShift(table, 2, out, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(_ReturnAddress())),
+                             &LotConfigurationId);
+}
+
+void* __cdecl OrderedNext() { return g_walks.empty() ? nullptr : OrderedStep(); }
+
+// A walk whose step is a call of the iterator's ++ (ecx = the iterator {node, table}; returns it).
+uint32_t* __fastcall OrderedAdvance(uint32_t* iterator) {
+    iterator[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(OrderedNext()));
+    return iterator;
+}
+
+// A walk that leaves early (a search that stops at its first match) drops the keys it has not visited.
+volatile LONG g_abandonedEmpty = 0;
+void __cdecl OrderedAbandon() {
+    if (!g_walks.empty()) {
+        g_walks.pop_back();
+    } else {
+        InterlockedIncrement(&g_abandonedEmpty);
+    }
+}
+
+// A walk of an STLport red-black tree of object pointers (a set; nodes {color, parent, left, right, key}, null
+// leaves; its header {color, root, leftmost, rightmost}) whose begin (the leftmost) and step (the successor) are
+// inline: the begin goes to TreeBegin and the step to TreeNext. As for a hash table, the walk visits the keys
+// present at its start in creation order and skips a key removed before its turn; its end is the header. A walk
+// is found by its header, and a begin drops an earlier walk of the same header (one that left early).
+struct TreeWalk {
+    void** header;
+    std::vector<uint32_t> keys;
+    size_t next;
+};
+std::vector<TreeWalk> g_treeWalks;
+volatile LONG g_treeLost = 0;  // steps of a tree walk that was not begun (ended at once)
+
+void** TreeFind(void** header, uint32_t key) {
+    for (auto* node = static_cast<void**>(header[1]); node != nullptr;) {
+        const auto k = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node[4]));
+        if (k == key) return node;
+        node = static_cast<void**>(key < k ? node[2] : node[3]);
+    }
+    return nullptr;
+}
+
+void* __cdecl TreeNext(void** header) {
+    for (size_t i = g_treeWalks.size(); i-- > 0;) {
+        TreeWalk& w = g_treeWalks[i];
+        if (w.header != header) continue;
+        while (w.next < w.keys.size()) {
+            if (void** node = TreeFind(header, w.keys[w.next++])) return node;
+            InterlockedIncrement(&g_gone);
+        }
+        g_treeWalks.erase(g_treeWalks.begin() + static_cast<ptrdiff_t>(i));
+        return header;
+    }
+    InterlockedIncrement(&g_treeLost);
+    return header;
+}
+
+void* __cdecl TreeBegin(void** header, uint32_t site) {
+    g_treeWalks.erase(std::remove_if(g_treeWalks.begin(), g_treeWalks.end(),
+                                     [header](const TreeWalk& w) { return w.header == header; }),
+                      g_treeWalks.end());
+    std::vector<std::pair<uint32_t, uint32_t>> order;  // stamp, key
+    std::vector<void**> pending;
+    if (header[1] != nullptr) pending.push_back(static_cast<void**>(header[1]));
+    while (!pending.empty()) {
+        void** node = pending.back();
+        pending.pop_back();
+        order.emplace_back(CreationStamp(node[4]), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node[4])));
+        if (node[2] != nullptr) pending.push_back(static_cast<void**>(node[2]));
+        if (node[3] != nullptr) pending.push_back(static_cast<void**>(node[3]));
+    }
+    std::sort(order.begin(), order.end());
+    TraceNote('W', static_cast<uint32_t>(order.size()), site);
+    for (const auto& o : order) TraceNote('K', o.first, 0);
+    g_treeWalks.push_back({header, {}, 0});
+    for (const auto& o : order) g_treeWalks.back().keys.push_back(o.second);
+    InterlockedExchangeAdd(&g_ordered, static_cast<LONG>(order.size()));
+    return TreeNext(header);
+}
+
+// [diagnostic] `walk census = on`: hashtable::begin (kHashBegin) is replaced by an equal function that counts, per
+// caller, its walks of tables with at least two keys that are objects in the region, with a digest of their
+// orders (as creation stamps: a run with other addresses differs where a walk's order follows the addresses);
+// listed with each month.
+struct CensusSite {
+    uint32_t walks;
+    uint32_t byAddress;
+    uint32_t keys;
+    uint32_t order;  // a digest of those walks' orders, as their keys' creation stamps (0 for none)
+};
+std::map<uint32_t, CensusSite> g_census;
+bool g_censusOn = false;
+uint32_t* __fastcall HashBeginCensus(uint8_t* table, void*, uint32_t* out) {
+    void** begin = *reinterpret_cast<void***>(table + 4);
+    void** end = *reinterpret_cast<void***>(table + 8);
+    void* first = nullptr;
+    const bool count = OnArena();
+    uint32_t region = 0, order = 2166136261u;
+    for (void** b = begin; b != end; ++b) {
+        if (*b == nullptr) continue;
+        if (first == nullptr) first = *b;
+        if (!count) break;
+        for (auto* node = static_cast<void**>(*b); node != nullptr; node = static_cast<void**>(node[0])) {
+            // an object: in the used region, aligned, its first word a vtable of the executable
+            const auto* key = static_cast<const uint8_t*>(node[1]);
+            if (InArena(key) && key < g_arena.base + g_arena.top && (reinterpret_cast<uintptr_t>(key) & 3) == 0) {
+                const uint32_t first = *reinterpret_cast<const uint32_t*>(key);
+                if (first >= 0x00A80000 && first < 0x00B00000) {
+                    ++region;
+                    const uint32_t stamp = StampOf(node[1]);
+                    for (int i = 0; i < 4; ++i) order = (order ^ ((stamp >> (8 * i)) & 0xFF)) * 16777619u;
+                }
+            }
+        }
+    }
+    if (count) {
+        CensusSite& site = g_census[static_cast<uint32_t>(reinterpret_cast<uintptr_t>(_ReturnAddress()))];
+        ++site.walks;
+        if (region >= 2) {
+            ++site.byAddress;
+            site.keys += region;
+            for (int i = 0; i < 4; ++i) site.order = (site.order ^ ((order >> (8 * i)) & 0xFF)) * 16777619u;
+        }
+    }
+    out[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(first));
+    out[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(table));
+    return out;
+}
+
+// The walks redirected: each step to the next node is replaced whole by a thunk that puts OrderedNext's node in
+// the walk's node register and continues at the loop's test of it. A walk that can leave early has its exit
+// patched too (kWalkExits).
+struct WalkSite {
+    const char* name;
+    uintptr_t begin;  // its call of kHashBegin
+    uintptr_t step;   // its step to the next node
+    uint8_t bytes[5];
+    const void* thunk;
+    const void* order = nullptr;  // its begin, if not OrderedBegin (OrderedBeginPointers for a step call)
+};
+#define FC4_WALK_STEP(name, reg, test)      __declspec(naked) void name() {             __asm call OrderedNext                  __asm mov reg, eax                      __asm push test                         __asm ret                           }
+FC4_WALK_STEP(UpdateControllersStep, ebx, 0x005189E5)
+FC4_WALK_STEP(AnimationTickStep, eax, 0x00518D9B)  // the test also stores eax in the iterator
+FC4_WALK_STEP(TrafficMapRebuildStep, esi, 0x004B49DF)
+FC4_WALK_STEP(SituationPickStep, ebx, 0x0052A311)
+FC4_WALK_STEP(SituationMatchStep, eax, 0x0052A573)  // the test also stores eax in the iterator
+FC4_WALK_STEP(LotSizeConfigurationStep, eax, 0x00733201)  // the test also stores eax in the iterator
+#undef FC4_WALK_STEP
+const WalkSite kWalkSites[] = {
+    // The animation tick manager's tick (0x004487F0) of each priority class's set of targets (animation-tick.md §4),
+    // a set of pointers (its bucket step 0x0047C1A0 shifts the key by 2); its step is a call of the iterator's ++
+    // (kTickStep), which goes to OrderedAdvance.
+    {"the animation tick manager's tick (0x004487F0)", 0x004489A4, 0, {}, nullptr},
+    // The automata controller manager's per-frame walks of its occupant map (+0x58; automata.md §3.1).
+    // mov eax, [ebx]; test eax, eax; je ...
+    {"the automata controller manager's UpdateControllers (0x00518950)", 0x00518961, 0x005189AB,
+     {0x8B, 0x03, 0x85, 0xC0, 0x74}, reinterpret_cast<const void*>(&UpdateControllersStep)},
+    // mov eax, [esi]; test eax, eax; jne ...
+    {"the automata controller manager's DoAnimationTick (0x00518B80)", 0x00518C75, 0x00518D8C,
+     {0x8B, 0x06, 0x85, 0xC0, 0x75}, reinterpret_cast<const void*>(&AnimationTickStep)},
+    // The traffic network map's rebuild (0x004B48B0) of its intersections (+0x28). mov eax, [esi]; test eax, eax; je ...
+    {"the traffic network map's intersection rebuild (0x004B48B0)", 0x004B4980, 0x004B49A0,
+     {0x8B, 0x06, 0x85, 0xC0, 0x74}, reinterpret_cast<const void*>(&TrafficMapRebuildStep)},
+    // The city situation manager's pick (0x0052A1E0) of the first eligible automaton among the occupants of an
+    // area (a set it fills, 0x00525640) that it does not already track. mov eax, [ebx]; test eax, eax; je ...
+    {"the city situation manager's pick of an automaton (0x0052A1E0)", 0x0052A22D, 0x0052A2D7,
+     {0x8B, 0x03, 0x85, 0xC0, 0x74}, reinterpret_cast<const void*>(&SituationPickStep)},
+    // Its match (0x0052A380) of a situation's automaton with its tracked automata (+0xA08), up to the first match.
+    // mov eax, [esp + 0x28]; mov eax, [eax]; ...
+    {"the city situation manager's match of its tracked automata (0x0052A380)", 0x0052A4A9, 0x0052A560,
+     {0x8B, 0x44, 0x24, 0x28, 0x8B}, reinterpret_cast<const void*>(&SituationMatchStep)},
+    // The zone developer's DetermineLotSize (0x00732BF0) scoring of the lot configurations of a set of pointers it
+    // fills (zones.md §7.2.1 step 6), the first of equal scores winning. mov ecx, [esp + 0x48]; mov eax, [ecx]; ...
+    {"the zone developer's lot size choice (0x00732BF0)", 0x00732F87, 0x007331C1,
+     {0x8B, 0x4C, 0x24, 0x48, 0x8B}, reinterpret_cast<const void*>(&LotSizeConfigurationStep),
+     reinterpret_cast<const void*>(&OrderedBeginById)},
+};
+
+// The early exits of those walks: each drops the walk (OrderedAbandon), then does what it replaced.
+__declspec(naked) void SituationPickFound() {  // the pick's AddRef of the automaton it found, then its exit
+    __asm {
+        call OrderedAbandon
+        mov edx, dword ptr [esi]
+        mov ecx, esi
+        call dword ptr [edx + 4]
+        push 0x0052A322
+        ret
+    }
+}
+__declspec(naked) void SituationMatchTest() {  // the match's loop test of its found flag
+    __asm {
+        mov al, byte ptr [esp + 0x13]
+        test al, al
+        jne found
+        push 0x0052A4DC
+        ret
+    found:
+        call OrderedAbandon
+        push 0x0052A646
+        ret
+    }
+}
+struct WalkExit {
+    const char* name;
+    uintptr_t at;
+    uint8_t bytes[5];
+    const void* thunk;
+};
+const WalkExit kWalkExits[] = {
+    // mov edx, [esi]; mov ecx, esi; call [edx + 4]
+    {"the situation pick's exit at its find (0x0052A31B)", 0x0052A31B, {0x8B, 0x16, 0x8B, 0xCE, 0xFF},
+     reinterpret_cast<const void*>(&SituationPickFound)},
+    // mov al, [esp + 0x13]; test al, al
+    {"the situation match's exit at its match (0x0052A4D0)", 0x0052A4D0, {0x8A, 0x44, 0x24, 0x13, 0x84},
+     reinterpret_cast<const void*>(&SituationMatchTest)},
+};
+constexpr uint8_t kHashBeginBytes[] = {0x8B, 0x51, 0x08, 0x56, 0x8B};
+
+// The tree walks redirected (TreeBegin, TreeNext): demolition's set of the occupants it removes (demolition.md
+// §4.4 step 5, §4.6). Each begin is `mov reg, [header + 8]; cmp reg, header`, replaced by a thunk that sets reg to
+// TreeBegin's node and the flags as that compare did; each step ends at the loop's compare of its node (eax) with
+// the header, where its thunk continues.
+__declspec(naked) void DemolishOccupantsBegin() {  // DemolishRegion's price and remove (0x00468410): edx, header ecx
+    __asm {
+        push eax
+        push ecx
+        push 0x00468912
+        push ecx
+        call TreeBegin
+        add esp, 8
+        mov edx, eax
+        pop ecx
+        pop eax
+        cmp edx, ecx
+        push 0x00468917
+        ret
+    }
+}
+__declspec(naked) void DemolishOccupantsStep() {  // its header at [esp + 0x44]
+    __asm {
+        push edx
+        push dword ptr [esp + 0x48]
+        call TreeNext
+        add esp, 4
+        pop edx
+        push 0x00468E34
+        ret
+    }
+}
+__declspec(naked) void UpdateNetworksBegin() {  // UpdateNetworks (0x004681A0): ebp, header ecx
+    __asm {
+        push eax
+        push ecx
+        push edx
+        push 0x0046820F
+        push ecx
+        call TreeBegin
+        add esp, 8
+        mov ebp, eax
+        pop edx
+        pop ecx
+        pop eax
+        cmp ebp, ecx
+        push 0x00468214
+        ret
+    }
+}
+__declspec(naked) void UpdateNetworksStep() {  // its header at [esp + 0x14]
+    __asm {
+        push edx
+        push dword ptr [esp + 0x18]
+        call TreeNext
+        add esp, 4
+        pop edx
+        push 0x00468374
+        ret
+    }
+}
+struct TreeWalkSite {
+    const char* name;
+    uintptr_t begin;
+    uint8_t beginBytes[5];
+    const void* beginThunk;
+    uintptr_t step;
+    uint8_t stepBytes[5];
+    const void* stepThunk;
+};
+const TreeWalkSite kTreeWalks[] = {
+    // mov edx, [ecx + 8]; cmp edx, ecx / mov eax, [esp + 0x10]; mov ecx, ...
+    {"demolition's removal of a region's occupants (0x00468410)", 0x00468912, {0x8B, 0x51, 0x08, 0x3B, 0xD1},
+     reinterpret_cast<const void*>(&DemolishOccupantsBegin), 0x00468DF8, {0x8B, 0x44, 0x24, 0x10, 0x8B},
+     reinterpret_cast<const void*>(&DemolishOccupantsStep)},
+    // mov ebp, [ecx + 8]; cmp ebp, ecx / mov ecx, [ebp + 0xC]; test ecx, ecx
+    {"demolition's network update (0x004681A0)", 0x0046820F, {0x8B, 0x69, 0x08, 0x3B, 0xE9},
+     reinterpret_cast<const void*>(&UpdateNetworksBegin), 0x00468337, {0x8B, 0x4D, 0x0C, 0x85, 0xC9},
+     reinterpret_cast<const void*>(&UpdateNetworksStep)},
+};
 
 // A trampoline: the entry's first n bytes (whole instructions, no relative operands), then a jump back.
 uint8_t* Trampoline(uint8_t*& page, size_t& used, uintptr_t entry, size_t n) {
@@ -1332,6 +2064,8 @@ namespace fc4 {
 
 bool ScheduleFixed() { return g_fixed; }
 
+void ScheduleStampsRestart() { g_arena.stamps = 0; }
+
 void ScheduleStartup() {
     const char* source = "";
     const std::string v = Lower(Setting("schedule", "FC4_SCHEDULE", &source));
@@ -1400,6 +2134,12 @@ void ScheduleStartup() {
         {"Sleep", kSleepSlot, reinterpret_cast<void*>(&VirtualSleep), reinterpret_cast<void**>(&g_realSleep)},
         {"SleepEx", kSleepExSlot, reinterpret_cast<void*>(&VirtualSleepEx), reinterpret_cast<void**>(&g_realSleepEx)},
         {"GetTempPathA", kTempPathASlot, reinterpret_cast<void*>(&TempPathA), &g_realTempPathA},
+        {"the automata controller manager's Write", kControllerWriteSlot, reinterpret_cast<void*>(&ControllerWrite),
+         &g_realControllerWrite},
+        {"the traffic network map's Write", kTrafficMapWriteSlot, reinterpret_cast<void*>(&TrafficMapWrite),
+         &g_realTrafficMapWrite},
+        {"the watercraft manager's Write", kWatercraftWriteSlot, reinterpret_cast<void*>(&WatercraftWrite),
+         &g_realWatercraftWrite},
     };
     if (const char* err = TempStart()) {
         all = false;
@@ -1415,7 +2155,7 @@ void ScheduleStartup() {
             VirtualProtect(slot, 4, before, &ignored);
         } else {
             all = false;
-            Log("schedule: WARNING the %s import slot is not writable", e.name);
+            Log("schedule: WARNING the %s slot is not writable", e.name);
         }
     }
     *reinterpret_cast<uint64_t*>(kTimerOverhead) = 0;
@@ -1467,6 +2207,47 @@ void ScheduleStartup() {
         all = false;
         Log("schedule: WARNING the intersection insert at 0x%08X not hooked: %s", static_cast<unsigned>(kIntersectionInsert), err);
     }
+    for (const WalkSite& w : kWalkSites) {
+        const void* order = w.order != nullptr ? w.order
+                            : w.thunk != nullptr ? reinterpret_cast<const void*>(&OrderedBegin)
+                                                 : reinterpret_cast<const void*>(&OrderedBeginPointers);
+        const char* err = PatchCall(w.begin, kHashBegin, order);
+        if (err == nullptr) {
+            err = w.thunk != nullptr ? PatchJump(w.step, w.bytes, sizeof(w.bytes), w.thunk)
+                                     : PatchCall(kTickStep, kTickIteratorNext, reinterpret_cast<const void*>(&OrderedAdvance));
+        }
+        if (err != nullptr) {
+            all = false;
+            Log("schedule: WARNING %s not reordered: %s", w.name, err);
+        }
+    }
+    for (const TreeWalkSite& w : kTreeWalks) {
+        const char* err = std::memcmp(reinterpret_cast<const void*>(w.step), w.stepBytes, sizeof(w.stepBytes)) != 0
+                              ? "unexpected bytes at its step"
+                              : PatchJump(w.begin, w.beginBytes, sizeof(w.beginBytes), w.beginThunk);
+        if (err == nullptr) err = PatchJump(w.step, w.stepBytes, sizeof(w.stepBytes), w.stepThunk);
+        if (err != nullptr) {
+            all = false;
+            Log("schedule: WARNING %s not reordered: %s", w.name, err);
+        }
+    }
+    unsigned takes = 0;
+    if (const char* err = HookPoolTakes(&takes)) {
+        all = false;
+        Log("schedule: WARNING %u of %u pool takes hooked: %s", takes, static_cast<unsigned>(std::size(kPoolTakes)), err);
+    }
+    for (const WalkExit& x : kWalkExits) {
+        if (const char* err = PatchJump(x.at, x.bytes, sizeof(x.bytes), x.thunk)) {
+            all = false;
+            Log("schedule: WARNING %s not hooked: %s", x.name, err);
+        }
+    }
+    if (!Setting("walk census", "SC4_WALK_CENSUS").empty()) {
+        const char* err = PatchJump(kHashBegin, kHashBeginBytes, sizeof(kHashBeginBytes),
+                                    reinterpret_cast<const void*>(&HashBeginCensus));
+        g_censusOn = err == nullptr;
+        Log("schedule: walk census %s", err == nullptr ? "on" : err);
+    }
     if (const char* err = PatchJump(kForeground, kForegroundBytes, sizeof(kForegroundBytes),
                                     reinterpret_cast<const void*>(&NeverForeground))) {
         all = false;
@@ -1487,7 +2268,7 @@ void ScheduleStartup() {
     g_fixed = true;
     Log("schedule: fixed (code %s, %s; docs/specs/simulator.md 5.8): time limits count reads (Grow expires at read %u, others "
         "at %u), time() = %u, the generators' clock() = %d, %u file-local generators re-seeded with derive(S = "
-        "0x%08X, K), rand() set before every agent delivery and shared with our cores, save object IDs 1, 2, 3, ..., the main thread's "
+        "0x%08X, K), rand() set before every agent delivery and shared with our cores, save object IDs 1, 2, 3, ..., the controller manager's save, update and tick the traffic network map's save and rebuild, and the animation tick's targets in creation order, the main thread's "
         "performance counter virtual (+%u ms a frame), temp directory %s, the main thread's heap at 0x%08X (%u MB) from "
         "the city load%s",
         kScheduleCode + 18, source, kGrowReads, g_otherReads, kTime, kClock, static_cast<unsigned>(sizeof(kGenerators) / sizeof(kGenerators[0])),
@@ -1518,7 +2299,26 @@ void ScheduleBeforeCityLoad() {
         const std::string max = Setting("heap trace max", "SC4_HEAP_TRACE_MAX");
         g_traceMax = max.empty() ? 8000000u : static_cast<uint32_t>(std::strtoul(max.c_str(), nullptr, 10));
         g_traceDir = trace;
-        g_dumpAt = static_cast<uint32_t>(std::strtoul(Setting("heap dump at", "SC4_HEAP_DUMP_AT").c_str(), nullptr, 10));
+        const std::string dumps = Setting("heap dump at", "SC4_HEAP_DUMP_AT");
+        for (const char* at = dumps.c_str(); *at != '\0';) {
+            char* end = nullptr;
+            const unsigned long n = std::strtoul(at, &end, 10);
+            if (end == at) break;
+            if (n != 0) g_dumpAt.push_back(static_cast<uint32_t>(n));
+            at = *end == ',' ? end + 1 : end;
+        }
+        const std::string watch = Setting("heap watch", "SC4_HEAP_WATCH");
+        if (!watch.empty()) {
+            char* end = nullptr;
+            g_watchAt = static_cast<uint32_t>(std::strtoul(watch.c_str(), &end, 10));
+            for (const char* at = *end == ':' ? end + 1 : end; *at != '\0' && g_watchCount < 4;) {
+                const unsigned long off = std::strtoul(at, &end, 16);
+                if (end == at) break;
+                g_watchOffsets[g_watchCount++] = static_cast<uint32_t>(off);
+                at = *end == ',' ? end + 1 : end;
+            }
+            if (g_watchCount != 0) AddVectoredExceptionHandler(1, WatchHandler);
+        }
         Log("schedule: heap trace to %s (%s, up to %u operations)", path.c_str(),
             g_traceFile != INVALID_HANDLE_VALUE ? "open" : "FAILED", g_traceMax);
     }
@@ -1577,11 +2377,37 @@ void ScheduleMonthLine(int32_t julian) {
     Log("schedule: month at julian %d: time limits started %ld, read %ld (+%ld unstarted, never expire), Grow "
         "expiries %ld, other expiries %ld; "
         "time() calls %ld; clock() virtual %ld, real %ld; performance counter virtual %ld, real (other threads) %ld; "
-        "frames %ld, sleeps %ld (%ld ms); timer callbacks %ld on the main thread; stopwatches rebased %ld; transit switches zeroed %ld; intersections zeroed %ld; foreground tests %ld (all false); windows minimized %ld, again %ld; clock seeds derived %ld, kept %ld; rand() set %ld times; save references %ld in %ld save(s); heap %u operations "
+        "frames %ld, sleeps %ld (%ld ms); timer callbacks %ld on the main thread; stopwatches rebased %ld; transit switches zeroed %ld; intersections zeroed %ld; foreground tests %ld (all false); windows minimized %ld, again %ld; clock seeds derived %ld, kept %ld; rand() set %ld times; save references %ld in %ld save(s); address-ordered nodes walked in creation order %ld (%ld keys without a stamp, %ld gone before their turn, %ld tree steps without a walk); heap %u operations "
         "(0x%08X), %u MB used, %u MB committed, %ld blocks freed on other threads, %ld fallbacks, %ld foreign frees",
         julian, g_starts, g_reads, g_unstartedReads, g_growExpiries, g_otherExpiries, g_timeCalls, g_clockVirtual, g_clockReal, g_qpcVirtual, g_qpcReal, g_frames, g_sleeps, g_sleptMs, g_timerFires, g_stopwatchesRebased, g_switchesZeroed, g_intersectionsZeroed, g_backgrounds, g_minimized, g_reminimized, g_seedsDerived, g_seedsClock, g_srands,
-        g_refs, g_saves, g_arena.ops, g_arena.hash, static_cast<unsigned>(g_arena.top >> 20),
+        g_refs, g_saves, g_ordered, g_unstamped, g_gone, g_treeLost, g_arena.ops, g_arena.hash, static_cast<unsigned>(g_arena.top >> 20),
         static_cast<unsigned>(g_arena.committed >> 20), g_heapLeaks, g_heapFallbacks, g_heapForeign);
+    if (!g_unstampedClasses.empty()) {
+        std::string line;
+        for (const auto& [k, n] : g_unstampedClasses) {
+            char one[48];
+            std::snprintf(one, sizeof(one), " %s 0x%08X x %u", k.first ? "pool" : "outside", k.second, n);
+            line += one;
+        }
+        Log("schedule: keys without a stamp by first word:%s", line.c_str());
+    }
+    if (g_censusOn) {
+        std::vector<std::pair<uint32_t, uint32_t>> sites;  // walks by address, caller
+        for (const auto& [at, site] : g_census) {
+            if (site.byAddress != 0) sites.emplace_back(site.byAddress, at);
+        }
+        std::sort(sites.rbegin(), sites.rend());
+        std::string line;
+        for (const auto& [n, at] : sites) {
+            const CensusSite& site = g_census[at];
+            char one[80];
+            std::snprintf(one, sizeof(one), " 0x%08X %u/%u (%u keys, order %08X)", at, site.byAddress, site.walks, site.keys,
+                          site.order);
+            line += one;
+        }
+        Log("schedule: walk census (caller, walks by address/walks, keys): %u callers;%s", static_cast<unsigned>(g_census.size()),
+            line.c_str());
+    }
 }
 
 }  // namespace fc4

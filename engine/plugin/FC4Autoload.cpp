@@ -35,6 +35,7 @@
 #include <cctype>
 #include <new>
 #include <string>
+#include <vector>
 
 namespace fc4 {
 namespace {
@@ -97,6 +98,46 @@ cRZAutoRefCount<cISC4RegionalCity>* FindCity(cISC4Region* region, const Location
     return nullptr;
 }
 
+// [diagnostic] `heap perturb = shift|holes|reverse` (FreeCity4.ini): move the blocks the original allocates after
+// the load, to measure how much its results depend on heap addresses. shift: one kept block (every later address
+// moves by the same amount); holes: one freed block in each small size class (the first block of each class
+// lands below all others); reverse: 128 KB of freed blocks in each small size class and 32 freed pool pages of
+// each size, freed in address order, so the first ones taken after it come in descending address order (an
+// order by address is reversed). Never in a reference.
+void Perturb(const std::string& how) {
+    using MallocFn = void*(__cdecl*)(size_t);
+    using FreeFn = void(__cdecl*)(void*);
+    const auto gameMalloc = reinterpret_cast<MallocFn>(0x009F066E);
+    const auto gameFree = reinterpret_cast<FreeFn>(0x009F015B);
+    if (how == "shift") {
+        gameMalloc(1);
+    } else if (how == "holes") {
+        static void* blocks[255];
+        for (size_t i = 0; i < 255; ++i) blocks[i] = gameMalloc(16 * i + 1);
+        for (void* p : blocks) gameFree(p);
+    } else if (how == "reverse") {
+        using PageAllocFn = void*(__cdecl*)(uint32_t);
+        using PageFreeFn = void(__cdecl*)(void*, uint32_t);
+        const auto pageAlloc = reinterpret_cast<PageAllocFn>(0x0090D8E0);
+        const auto pageFree = reinterpret_cast<PageFreeFn>(0x0090D91C);
+        std::vector<void*> blocks;
+        for (size_t i = 0; i < 255; ++i) {
+            const size_t size = 16 * i + 1;
+            for (size_t k = (128 << 10) / (size + 31); k > 0; --k) blocks.push_back(gameMalloc(size));
+        }
+        for (void* p : blocks) gameFree(p);
+        for (uint32_t shift = 11; shift <= 16; ++shift) {
+            void* pages[32];
+            for (void*& p : pages) p = pageAlloc(shift);
+            for (void* p : pages) pageFree(p, shift);
+        }
+    } else {
+        Log("autoload: heap perturb = %s is neither shift nor holes; nothing done", how.c_str());
+        return;
+    }
+    Log("autoload: heap perturb = %s", how.c_str());
+}
+
 void Attempt(cISC4App* sc4, cISC4Region* region, const Locations& locations) {
     g_state = State::Done;  // one attempt, whatever happens
     int cities = 0;
@@ -115,6 +156,11 @@ void Attempt(cISC4App* sc4, cISC4Region* region, const Locations& locations) {
     // reads it, which allocators.md (Strings) says is safe.
     SC4String path(g_path.c_str(), static_cast<uint32_t>(g_path.size()));
     ScheduleBeforeCityLoad();  // schedule = fixed only (FC4Schedule.h)
+    const std::string perturb = Setting("heap perturb", "FC4_HEAP_PERTURB");
+    if (!perturb.empty()) {
+        Perturb(perturb);
+        ScheduleStampsRestart();  // the same creation order as without them
+    }
     g_busy = true;
     // [abi-ret] Slot 13 (interfaces.tsv eax-or-void): no spec gives its result (question HG2); the value is
     // only logged, the load is judged by the city that appears.

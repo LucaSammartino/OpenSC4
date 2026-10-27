@@ -33,5 +33,6 @@ uint32_t ScheduleClockMs();         // the main thread's virtual clock in ms sin
 // the 34 generators, the target's class), then the rand() rule. Main thread only.
 void ScheduleBeforeDelivery(const void* target, uint32_t msgType);
 void ScheduleMonthLine(int32_t julian);  // counters, once a month
+void ScheduleStampsRestart();       // [diagnostic] after `heap perturb`'s blocks: the next block gets stamp 1 again
 
 }  // namespace fc4

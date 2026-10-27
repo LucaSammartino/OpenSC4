@@ -190,14 +190,16 @@ give free indicator slots to entries that have none, while the tracked count is 
 slot 7) with the list's merge sort (`0x00527920`, merge `0x00525AF0`; null advices first). Then, for the new entry
 without a vehicle:
 
-1. `cand :=` a drivable, untracked automaton of its groups (`0x0052A1E0`). If `cand` exists and the tracked count
-   (`+0xA18`) is below `GetMaxCSI()`: track it, done.
+1. `cand :=` the first drivable, untracked automaton of its groups (`0x0052A1E0`), in the automata's creation order
+   (simulator.md §5.8; the original takes the first in the order of the set it collects them in, a hash set by
+   address). If `cand` exists and the tracked count (`+0xA18`) is below `GetMaxCSI()`: track it, done.
 2. If `cand` exists but the limit is reached: scan the entries **after** this one for a holder whose advice
    priority is **strictly lower** than this advice's (`0x00524A50`). The first such holder gives up its vehicle and
    its indicator handle to the new entry (its vehicle reference is released and its handle cleared), and `cand` is
    released.
-3. If there is no `cand`: for each tracked automaton that this advice accepts (advice slot 53), try the same
-   scan-after takeover; stop after the first success.
+3. If there is no `cand`: for each tracked automaton that this advice accepts (advice slot 53), in creation order
+   (the original's is that of its tracked set `+0xA08`, by address), try the same scan-after takeover; stop after
+   the first success.
 
 Because the list was just sorted ascending, every entry after this one has a priority ≥ this one's, so a takeover
 can happen only if some advice's priority changed since the last sort. In shipped play it does not happen

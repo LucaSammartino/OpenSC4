@@ -115,7 +115,9 @@ as a fractional hour and a day of the week. Three things change them:
       - while the hour is below 0, add 24 and subtract a day;
       - while it is 24 or more, subtract 24 and add a day;
       - the day is then brought into 0–6 (add 7 while negative, then mod 7).
-   5. The controllers are updated (when the manager is active).
+   5. The controllers are updated (when the manager is active): first UpdateControllers (`0x00518950`), then the
+      tick work, each over the occupants in creation order (simulator.md §5.8; the original's own order is that of
+      the occupant hash map, by address).
    6. B = A: the hour and the day (`0x00518DB0`).
 3. **Read** stores both times as read; it does not normalise them.
 
@@ -132,19 +134,19 @@ difference, and a replacement must round-trip both times unchanged.
 Only controllers without **flag 8** (controller slot 12 `CheckFlag(8)`, `0x00517E60`) are saved. Flag 8 marks a
 transient controller; such controllers are never written anywhere (also not from automata, §6.1).
 
-Each entry, for each occupant that has at least one controller without flag 8, in the order of the manager's
-occupant hash map:
+Each entry, for each occupant that has at least one controller without flag 8, in the occupants' creation order
+(simulator.md §5.8; the original's own order is that of the manager's occupant hash map, by address):
 
 1. `ref` occupant (read checks `0x26BB767E`);
 2. `u32` m = the number of its controllers without flag 8;
 3. m × `ref` controller (read checks `0x6A1857F8`), in list order.
 
-A replacement must write the entries in some fixed order and need not reproduce the hash order *[choice]*; the
-original reads any order.
+The original reads any order.
 
 ### 3.3 Automaton sets
 
 Each entry: `ref` occupant (`0x26BB767E`), `u32` k, k × `ref` automaton (`0xA9B40F05`), `vec3`, `vec3`, `bool`.
+The entries are in the occupants' creation order, as in §3.2.
 Only one corpus save (Big City Tutorial) has an entry: a building with k = 0, the vectors (1256, 0, 1041) and
 (−1, 0, 0), and `true`.
 
@@ -550,6 +552,9 @@ the whole record is a base record of that version.
 3. `s32` count, count × (`ref` lot `0xE818FCED`, `ref` occupant `0x26BB767E`);
 4. `s32` count, count × `ref` occupant;
 5. `s32` count, count × ferry entry: `ref` lot, `ref` occupant, `s32` n, n × route element.
+
+Each of the three lists is in its keys' creation order (simulator.md §5.8): the lot of a pair or ferry entry, the
+occupant of list 4. The original's own order is that of three hash maps keyed by those pointers, by address.
 
 A route element: `ref` lot, `ref` lot, `s32` kind (0, 1, otherwise −1), 4 × `u16`, `bool`, `s16`, `s16`,
 `bytes`, `bytes`.

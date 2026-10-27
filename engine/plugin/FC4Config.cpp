@@ -289,7 +289,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "sim_turbo_wait_days", "close_dialogs",
                                   "sim_fixed_step",  // golden harness; default off
                                   "schedule",  // FC4Schedule.h: fixed schedule for the original; default off
-                                  "schedule limit reads", "heap trace", "heap trace max", "heap dump at",  // its checks
+                                  "schedule limit reads", "heap trace", "heap trace max", "heap dump at", "heap perturb", "heap watch", "walk census",  // its checks
                                   "script_save_grace_ms",  // golden full-save allowance; default off
                                   "autotest_stall_grace_ms",  // suite city-size allowance; default off
                                   "autotest_quit_post", "script_port_instant", "script_port_probe",  // off

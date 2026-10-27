@@ -216,7 +216,8 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
    directly use it **also** with `privilege = 0` or `flags & 0x2000`: the empty-lot qualification of step 4
    (`0x00468960`–`0x00468974`, view filter slot 4) and the effect gate of step 5 (`0x00468D02`–`0x00468D12`, view
    filter slot 3).
-3. `result := true`; `occs :=` an ordered set of occupants; `lots :=` a list (new entries at the **front**);
+3. `result := true`; `occs :=` a set of occupants, walked in their creation order (step 5); `lots :=` a list (new
+   entries at the **front**);
    `seen :=` a set of lots; `count := 0`.
 4. For `x := R.x0 … R.x1` (outer), `z := R.z0 … R.z1` (inner), for each cell in the mask:
    - `lot := lotManager.GetLot(x, z, false)` (**slot 6**; see the DQ4 note below). If `lot` is non-null and not in `seen`, add it to `seen` and
@@ -257,8 +258,8 @@ Returns a bool (AL). Writes `*cost` (if non-null) on every path **except** the f
    without that re-check. For a cell walk that is already inside the demolition rectangle, `false` is the right
    choice and matches the other callers that walk cells.
 
-5. Price and remove the occupants. `total := 0` (int64); `orphans :=` an empty list. For each `o` in `occs` (set
-   order):
+5. Price and remove the occupants. `total := 0` (int64); `orphans :=` an empty list. For each `o` in `occs`, in
+   creation order (the original's set is ordered by address, so its order is the heap's; simulator.md §5.8):
    - `ok := DemolishOccupant(doIt and not effects, o, privilege, flags, &c, true, orphans)`.
    - If `ok`: if `effects`: when `viewFilter` is null or includes `o`, start the occupant effect
      (`DoDemolishOccupantEffect(o, flags, lotAt(o), o = clicked, sx, sy)`, §4.8, where `lotAt` is the lot under
@@ -315,7 +316,7 @@ natural reading.
 
 ### 4.6 `UpdateNetworks(set)` (`0x004681A0`, not in the interface)
 
-For each occupant `o` in the set (set order) with `o.IsFlagSet(1)`:
+For each occupant `o` in the set, in creation order (as §4.4 step 5), with `o.IsFlagSet(1)`:
 
 - power pole (type `0x2890D4DE`): send `0xAA7A014D` (§3), then `occupantManager.RemoveOccupant(o, true, 0)`;
 - network occupant (type `0xC772BF98`): append to a list (AddRef) and call `neighbors.DeleteOccupantConnection(o)`

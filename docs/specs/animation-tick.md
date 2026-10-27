@@ -82,8 +82,9 @@ A nested call returns at once. Otherwise:
 3. When the system is not paused, or a step is pending, each class k whose bit is set in this frame's mask and whose
    set is not empty ticks: with a step pending, `now := lastTick[k] + stepDelta`; `dt = clamp(now − lastTick[k],
    min, max)`; the message gets `dt` (slot 16) and `dt · 0.001` as a float (milliseconds, slot 21); every target of the
-   set that was not removed during this tick receives it (its slot 3, `DoMessage`); then `lastTick[k] := now`. The
-   step-pending flag is cleared after the classes.
+   set that was not removed during this tick receives it (its slot 3, `DoMessage`), in the targets' creation order
+   (simulator.md §5.8; the original's own order is that of the set, a hash set by address); then
+   `lastTick[k] := now`. The step-pending flag is cleared after the classes.
 4. "Inside a tick" is cleared and the queued requests are applied in order: an add as slot 5 `(target, p)`, a remove
    as slot 6 `(target, −1)`; each queued target's reference is released.
 
