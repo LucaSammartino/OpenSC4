@@ -377,7 +377,7 @@ reference. Everything is counted from the city load; the start-up screens are ou
 | Timer callbacks | The timer schedulers' callbacks (timers.md §2.5) run on the main thread at the start of each frame. They run in each scheduler's list order, by a clock that is 0 at the load and advances 33 ms per frame. Each entry is first due one period after the load. A one-shot entry is removed when it fires. A fixed-rate entry is next due at `due + period`; any other at `now + period`. Nothing fires on the scheduler's own thread. |
 | Time limits | A `LimitTimer` (small-owners-b9.md §4) counts reads from its `Start`. The building developer's Grow timer (building-development.md §4.4) expires at its 16th read; every other timer expires at its 2²⁴th read. Doubling 2²⁴ must not change any result. The traffic remaining-time query (`0x0070E2B0`) answers 1 ms. |
 | Wall clock | `time()` = 1767225600 (2026-01-01 00:00 UTC). The `clock()` reads of the generators' seeding (`cRZRandom`) return 1000. |
-| Random numbers | The file-local generators are seeded with `derive(K)` (foundations §6.3) at start-up and again at the load. `rand()` (foundations §12) is `srand(derive(0x4C0AD000))` at the load. Before the `n`-th agent delivery (from 0) of day `d` (the Julian day last opened), `rand()` is `srand(S XOR (d × 0x9E3779B1) XOR (n × 0x85EBCA77))`, in 32-bit arithmetic. |
+| Random numbers | The file-local generators are seeded with `derive(K)` (foundations §6.3) at start-up and again at the load. `rand()` (foundations §12) is `srand(derive(0x4C0AD000))` at the load. Before the `n`-th agent delivery (from 0) of day `d` (the Julian day last opened), `rand()` is `srand(S XOR (d × 0x9E3779B1) XOR (n × 0x85EBCA77))`, in 32-bit arithmetic. A generator the original seeds from the clock gets `derive(K)` with the `K` of foundations §6.3: the owner's GZCLSID; for each MySim, the city detail increase pass, the pipe burst start and the civic monthly generator, XOR the number of earlier seeds at that site since the load. The traffic simulator's `Init` seed and the prop developer's (`derive(K) × 28`) are replaced whatever their value. Other clock seeds keep the `time()` and `clock()` above. |
 | Object IDs | The save's reference writer (foundations §2.7) numbers objects 1, 2, 3, … in the order it first writes them, from 1 in each save. |
 | Uninitialised values | What the original copies from an uninitialised stack temporary into results or the save is 0: a transit switch inserted for an unknown ID (traffic-network.md §4.7.3), and a new intersection's four sides (state, flag, three f32) and flag in the traffic network map (`0x6A0F82B2`). The original's add-intersection (`0x004B4300`) sets only the temporary's vector and list; reading a save sets all of them. |
 
@@ -395,6 +395,8 @@ game:
   and counts down while a name exists (`0x0091A497`), so games side by side would race for the same names.
 - The game is never the foreground window (`0x005F85F0` answers false): every save writes the default region-view
   thumbnail after its wait, instead of rendering one when the game happens to be in front.
+- The game's windows are minimized at the city load and again at any frame that finds one shown: a shown window is
+  painted when other windows uncover it, and the paint creates the screen's draw context on the main thread's heap.
 
 Where an original result depends on address order, the reference is the order under this heap. Examples are agent
 order (foundations §13) and pointer-keyed sets such as the traffic network map, which buckets by address modulo 193.

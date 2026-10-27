@@ -623,6 +623,31 @@ bool __cdecl NeverForeground() {
     return false;
 }
 
+// [original only] A shown window is painted when other windows uncover it (games side by side minimizing at
+// real-time moments), and the paint creates the screen's draw context on the main thread's heap. The game's
+// windows are minimized at the city load, before that heap starts; one shown again (the game restores itself at the
+// end of a load) is minimized again at the next frame and counted.
+HWND g_windows[8] = {};
+long g_windowCount = 0, g_minimized = 0, g_reminimized = 0;
+
+BOOL CALLBACK MinimizeOwn(HWND h, LPARAM) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(h, &pid);
+    if (pid == GetCurrentProcessId() && IsWindowVisible(h) && g_windowCount < 8) g_windows[g_windowCount++] = h;
+    return TRUE;
+}
+
+void MinimizeWindows() {
+    if (g_windowCount == 0) EnumWindows(&MinimizeOwn, 0);
+    for (long k = 0; k < g_windowCount; ++k) {
+        const HWND h = g_windows[k];
+        if (IsWindow(h) && IsWindowVisible(h) && !IsIconic(h)) {
+            ShowWindow(h, SW_MINIMIZE);
+            ++(g_frames == 0 ? g_minimized : g_reminimized);
+        }
+    }
+}
+
 // ---- generators ---------------------------------------------------------------------------------
 // The calling thread's rand() state (foundations §12.1); our cores draw from it too (fc4_crt_set_host).
 uint32_t* CrtState() {
@@ -635,6 +660,118 @@ void ReseedGenerators() {
     for (const Generator& g : kGenerators) {
         const auto ctor = reinterpret_cast<CtorFn>(g.super ? kRandomSuperCtor : kRandomCtor);
         ctor(reinterpret_cast<void*>(g.address), nullptr, Derive(g.k));
+    }
+}
+
+// The generators the original seeds from the clock (cRZRandom::Seed or cRZRandomSuper::Seed of 0xFFFFFFFF, reading
+// time() and clock()) get derive(K) of foundations §6.3, as our cores seed theirs (engine/core/src/seeding.rs).
+// The owner is the first return site in the table among the 16 dwords above Seed's return address (a generator's
+// constructor calls Seed; the protection simulators' common constructor is called by the fire and police ones).
+enum SeedKind : uint8_t {
+    kClockSeed,    // K, for a seed of 0xFFFFFFFF
+    kCountedSeed,  // K XOR n, n the earlier seeds at this site since the load, for a seed of 0xFFFFFFFF
+    kAnySeed,      // K, whatever the seed (the traffic simulator's Init seeds from a cRZTime)
+    kTimes28Seed,  // derive(K) x 28, whatever the seed (the prop developer: cRZTime x 28)
+};
+
+struct SeedSite {
+    uintptr_t site;
+    uint32_t k;
+    SeedKind kind;
+};
+
+const SeedSite kSeedSites[] = {
+    {0x0041AA02, 0x4A0DD616, kClockSeed},    // advisor system
+    {0x00429A68, 0x4A1DBBBF, kCountedSeed},  // each MySim (n = its creation index)
+    {0x0045DA58, 0xEAD4BA36, kCountedSeed},  // city detail manager, increase pass
+    {0x0052A02F, 0x0BB14381, kClockSeed},    // city situation manager
+    {0x0057ADD9, 0x69C1718F, kClockSeed},    // disaster fire instance
+    {0x0057D072, 0x4A132FDF, kCountedSeed},  // pipe burst, AttemptDisasterStart
+    {0x0068D2B8, 0x0990BDD8, kClockSeed},    // aura simulator
+    {0x0069E02E, 0x0A413481, kCountedSeed},  // civic building simulator, monthly
+    {0x006ADA65, 0x2990C05A, kClockSeed},    // fire protection simulator
+    {0x006E1F95, 0x6990C04F, kClockSeed},    // police simulator
+    {0x006B193A, 0xC990C034, kClockSeed},    // flora simulator
+    {0x006D0628, 0xC990C0A4, kClockSeed},    // neighbours' deal propositions (process-wide)
+    {0x006D585A, 0xAA3FE6BC, kClockSeed},    // park manager
+    {0x006DF11B, 0x0990C075, kClockSeed},    // plumbing simulator (Init)
+    {0x006F34B6, 0x89C48F47, kTimes28Seed},  // prop developer
+    {0x007005D6, 0x4990C013, kClockSeed},    // residential simulator
+    {0x0071F1A5, 0x6990C1AA, kAnySeed},      // traffic simulator (Init)
+    {0x00728E58, 0x2990C1BC, kClockSeed},    // weather simulator
+};
+constexpr size_t kSeedSiteCount = sizeof(kSeedSites) / sizeof(kSeedSites[0]);
+uint32_t g_seedCounts[kSeedSiteCount] = {};  // seeds at each site since the load
+long g_seedsDerived = 0, g_seedsClock = 0;
+uintptr_t g_clockSeedSites[16] = {};          // the sites of clock seeds not in the table, logged once each
+
+uint32_t __cdecl SeedFor(const uint32_t* stack) {
+    const uint32_t seed = stack[1];
+    for (int i = 0; i < 16; ++i) {
+        for (size_t j = 0; j < kSeedSiteCount; ++j) {
+            const SeedSite& e = kSeedSites[j];
+            if (stack[i] != e.site) continue;
+            if (seed != 0xFFFFFFFFu && e.kind != kAnySeed && e.kind != kTimes28Seed) return seed;
+            InterlockedIncrement(&g_seedsDerived);
+            const uint32_t n = g_seedCounts[j]++;
+            if (e.kind == kCountedSeed) return Derive(e.k ^ n);
+            if (e.kind == kTimes28Seed) return Derive(e.k) * 28u;
+            return Derive(e.k);
+        }
+    }
+    if (seed == 0xFFFFFFFFu) {
+        InterlockedIncrement(&g_seedsClock);
+        uintptr_t site = 0;  // the first return site outside the generators' code
+        for (int i = 0; i < 16 && site == 0; ++i) {
+            if (stack[i] >= 0x00401000 && stack[i] < 0x00A70000 && (stack[i] < kRandomFirst || stack[i] >= kRandomEnd)) site = stack[i];
+        }
+        for (uintptr_t& logged : g_clockSeedSites) {
+            if (logged == site) break;
+            if (logged == 0) {
+                logged = site;
+                fc4::Log("schedule: a clock seed at 0x%08X keeps time() and clock() (not in the seed table)", static_cast<unsigned>(site));
+                break;
+            }
+        }
+    }
+    return seed;
+}
+
+constexpr uintptr_t kRandomSeed = 0x00913667;  // cRZRandom::Seed
+const uint8_t kRandomSeedBytes[] = {0x56, 0x8B, 0xF1, 0x8B, 0x4C, 0x24, 0x08};  // push esi; mov esi, ecx; mov ecx, [esp+8]
+constexpr uintptr_t kRandomSuperSeed = 0x00913A72;  // cRZRandomSuper::Seed
+const uint8_t kRandomSuperSeedBytes[] = {0x8B, 0x44, 0x24, 0x04, 0x83, 0xF8, 0xFF};  // mov eax, [esp+4]; cmp eax, -1
+
+__declspec(naked) void RandomSeedThunk() {
+    __asm {
+        push ecx
+        lea eax, [esp + 4]  // Seed's return address, then its seed
+        push eax
+        call SeedFor
+        add esp, 4
+        pop ecx
+        mov [esp + 4], eax
+        push esi
+        mov esi, ecx
+        mov ecx, [esp + 8]
+        push 0x0091366E  // after the three replaced instructions
+        ret
+    }
+}
+
+__declspec(naked) void RandomSuperSeedThunk() {
+    __asm {
+        push ecx
+        lea eax, [esp + 4]
+        push eax
+        call SeedFor
+        add esp, 4
+        pop ecx
+        mov [esp + 4], eax
+        mov eax, [esp + 4]
+        cmp eax, -1
+        push 0x00913A79  // after the two replaced instructions (push and ret keep the flags)
+        ret
     }
 }
 
@@ -1335,6 +1472,16 @@ void ScheduleStartup() {
         all = false;
         Log("schedule: WARNING the foreground test at 0x%08X not hooked: %s", static_cast<unsigned>(kForeground), err);
     }
+    if (const char* err = PatchJump(kRandomSeed, kRandomSeedBytes, sizeof(kRandomSeedBytes),
+                                    reinterpret_cast<const void*>(&RandomSeedThunk))) {
+        all = false;
+        Log("schedule: WARNING cRZRandom::Seed at 0x%08X not hooked: %s", static_cast<unsigned>(kRandomSeed), err);
+    }
+    if (const char* err = PatchJump(kRandomSuperSeed, kRandomSuperSeedBytes, sizeof(kRandomSuperSeedBytes),
+                                    reinterpret_cast<const void*>(&RandomSuperSeedThunk))) {
+        all = false;
+        Log("schedule: WARNING cRZRandomSuper::Seed at 0x%08X not hooked: %s", static_cast<unsigned>(kRandomSuperSeed), err);
+    }
     ReseedGenerators();
     fc4_crt_set_host(&CrtState);
     g_fixed = true;
@@ -1350,6 +1497,8 @@ void ScheduleStartup() {
 
 void ScheduleBeforeCityLoad() {
     if (!g_fixed) return;
+    MinimizeWindows();
+    std::memset(g_seedCounts, 0, sizeof(g_seedCounts));
     ReseedGenerators();
     // rand() as the load (subsystem Init shuffles: flora, weather) finds it.
     reinterpret_cast<SrandFn>(kCrtSrand)(Derive(kLoadRandK));
@@ -1387,6 +1536,7 @@ void ScheduleFrame() {
     if (!g_fixed || !g_virtual) return;
     InterlockedIncrement(&g_frames);
     g_qpc += g_frameTicks;
+    MinimizeWindows();
     TimersFrame();
 }
 
@@ -1416,9 +1566,9 @@ void ScheduleMonthLine(int32_t julian) {
     Log("schedule: month at julian %d: time limits started %ld, read %ld (+%ld unstarted, never expire), Grow "
         "expiries %ld, other expiries %ld; "
         "time() calls %ld; clock() virtual %ld, real %ld; performance counter virtual %ld, real (other threads) %ld; "
-        "frames %ld, sleeps %ld (%ld ms); timer callbacks %ld on the main thread; stopwatches rebased %ld; transit switches zeroed %ld; intersections zeroed %ld; foreground tests %ld (all false); rand() set %ld times; save references %ld in %ld save(s); heap %u operations "
+        "frames %ld, sleeps %ld (%ld ms); timer callbacks %ld on the main thread; stopwatches rebased %ld; transit switches zeroed %ld; intersections zeroed %ld; foreground tests %ld (all false); windows minimized %ld, again %ld; clock seeds derived %ld, kept %ld; rand() set %ld times; save references %ld in %ld save(s); heap %u operations "
         "(0x%08X), %u MB used, %u MB committed, %ld blocks freed on other threads, %ld fallbacks, %ld foreign frees",
-        julian, g_starts, g_reads, g_unstartedReads, g_growExpiries, g_otherExpiries, g_timeCalls, g_clockVirtual, g_clockReal, g_qpcVirtual, g_qpcReal, g_frames, g_sleeps, g_sleptMs, g_timerFires, g_stopwatchesRebased, g_switchesZeroed, g_intersectionsZeroed, g_backgrounds, g_srands,
+        julian, g_starts, g_reads, g_unstartedReads, g_growExpiries, g_otherExpiries, g_timeCalls, g_clockVirtual, g_clockReal, g_qpcVirtual, g_qpcReal, g_frames, g_sleeps, g_sleptMs, g_timerFires, g_stopwatchesRebased, g_switchesZeroed, g_intersectionsZeroed, g_backgrounds, g_minimized, g_reminimized, g_seedsDerived, g_seedsClock, g_srands,
         g_refs, g_saves, g_arena.ops, g_arena.hash, static_cast<unsigned>(g_arena.top >> 20),
         static_cast<unsigned>(g_arena.committed >> 20), g_heapLeaks, g_heapFallbacks, g_heapForeign);
 }
