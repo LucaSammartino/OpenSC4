@@ -333,6 +333,10 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         }
         case kFC4SeamMySimsUiBlocked:
             return fc4::MySimsUiBlocked(static_cast<cIGZWinMgr*>(a));
+        case kFC4SeamMySimsSavedReference:
+            if (!b) return -1;
+            return static_cast<intptr_t>(fc4::MySimsSavedReferenceTest(
+                static_cast<cIGZUnknown*>(a), *static_cast<uint32_t*>(b)));
         case kFC4SeamGZFrameworkCreate: {
             if (b) return reinterpret_cast<intptr_t>(fc4::GZCommandServerTestCreate(static_cast<cIGZUnknown*>(a)));
             auto* buffer = fc4::CreateGZBuffer();

@@ -37,6 +37,65 @@ bool __fastcall IsModal(Modal* self, void*) {
     ++self->calls;
     return self->blocked;
 }
+
+struct SavedOwner;
+struct SavedView { void** vtable; SavedOwner* owner; };
+struct SavedOwner {
+    SavedView serializable, building, occupant, dispatch;
+    uint32_t refs = 1, acquisitions = 0, releases = 0;
+    bool hasBuilding = true, hasOccupant = true;
+};
+uint32_t __fastcall SavedAddRef(SavedView* self, void*) {
+    ++self->owner->acquisitions;
+    return ++self->owner->refs;
+}
+uint32_t __fastcall SavedRelease(SavedView* self, void*) {
+    ++self->owner->releases;
+    return --self->owner->refs;
+}
+bool __fastcall SavedQuery(SavedView* self, void*, uint32_t iid, void** out) {
+    *out = nullptr;
+    SavedOwner& owner = *self->owner;
+    if (iid == 0x87DDA3A9u && owner.hasBuilding) *out = &owner.building;
+    if (iid == 0x26BB767Eu && owner.hasOccupant) *out = &owner.occupant;
+    if (iid == 0xEB8B6F9Au) *out = &owner.dispatch;
+    if (*out == nullptr) return false;
+    SavedAddRef(static_cast<SavedView*>(*out), nullptr);
+    return true;
+}
+uint32_t __fastcall SavedClass(SavedView*, void*) { return 0xA9BD882Du; }
+
+void SavedReferenceChecks(FC4TestSeamFn seam) {
+    FakeVtable vt;
+    vt.slots[0] = reinterpret_cast<void*>(&SavedQuery);
+    vt.slots[1] = reinterpret_cast<void*>(&SavedAddRef);
+    vt.slots[2] = reinterpret_cast<void*>(&SavedRelease);
+    vt.slots[5] = reinterpret_cast<void*>(&SavedClass);
+    SavedOwner owner{{vt.slots.data(), nullptr}, {vt.slots.data(), nullptr},
+                     {vt.slots.data(), nullptr}, {vt.slots.data(), nullptr}};
+    owner.serializable.owner = owner.building.owner = owner.occupant.owner = owner.dispatch.owner = &owner;
+    uint32_t iid = 0x87DDA3A9u;
+    // The real InjectStream must normalize the saved Serializable/Building
+    // views to the Occupant identity used by building-removal messages.
+    CHECK(seam(kFC4SeamMySimsSavedReference, &owner.serializable, &iid) ==
+          reinterpret_cast<intptr_t>(&owner.occupant));
+    CHECK(owner.refs == 1 && owner.acquisitions == 2 && owner.releases == 2);
+    owner.hasBuilding = false;
+    CHECK(seam(kFC4SeamMySimsSavedReference, &owner.serializable, &iid) == 0);
+    CHECK(owner.refs == 1 && owner.acquisitions == 2 && owner.releases == 2);
+    owner.hasBuilding = true;
+    owner.hasOccupant = false;
+    CHECK(seam(kFC4SeamMySimsSavedReference, &owner.serializable, &iid) == 0);
+    CHECK(owner.refs == 1 && owner.acquisitions == 3 && owner.releases == 3);
+    iid = 0xEB8B6F9Au;
+    CHECK(seam(kFC4SeamMySimsSavedReference, &owner.serializable, &iid) ==
+          reinterpret_cast<intptr_t>(&owner.dispatch));
+    CHECK(owner.refs == 1 && owner.acquisitions == 4 && owner.releases == 4);
+    iid = 0xFFFFFFFFu;
+    CHECK(seam(kFC4SeamMySimsSavedReference, &owner.serializable, &iid) == 0);
+    CHECK(seam(kFC4SeamMySimsSavedReference, nullptr, &iid) == 0);
+    CHECK(owner.refs == 1 && owner.acquisitions == 4 && owner.releases == 4);
+}
 } // namespace mysims_ownership_test
 
 void MySimsActiveOwnershipChecks(FC4TestSeamFn seam) {
@@ -81,4 +140,5 @@ void MySimsActiveOwnershipChecks(FC4TestSeamFn seam) {
     CHECK(seam(kFC4SeamMySimsUiBlocked, &manager, nullptr) == 1);
     CHECK(manager.calls == 2);
     CHECK(seam(kFC4SeamMySimsUiBlocked, nullptr, nullptr) == 0);
+    SavedReferenceChecks(seam);
 }

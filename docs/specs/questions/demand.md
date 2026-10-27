@@ -15,11 +15,12 @@
   `C:/Users/tlori/FreeCity4/build-runs/suite/`. No check or tolerance was weakened.
 
 - **DM-GC30-1 — active-demand arithmetic under live PC53 (2026-10-27, growth-cities30):**
-  Please qualify §3.3's active-demand arithmetic with the operation order and
-  explicit float32 store boundaries required by foundations §18.4. Demand is
-  absent from that section's table of verified spill boundaries. Which products,
-  bonus/cap intermediates and final values remain in registers before each node
-  field is stored? This is separate from DM-GC29-2's unordered operands.
+  Please supply value-only PC24/PC53 conformance cases for §3.3 under foundations
+  §18.4: exact input bits (including history results and control word), expected
+  bonus/cap intermediate values and final active-demand bits for each node.
+  State the numeric rounding rule needed to reproduce those values; no native
+  instructions, registers or implementation excerpts are requested. This is
+  separate from DM-GC29-2's unordered operands.
   Clean/end/ref0 `build-runs/suite/growth-cities30-3/lua-lots-grown.log:3755`
   first differs at 2197-03-21 in six active values, with raw demand, supply and
   neutral rate exact: original/core 3328.56226/3328.56201, 60.5309258/60.5308838,

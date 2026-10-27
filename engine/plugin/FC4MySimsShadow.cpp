@@ -22,7 +22,8 @@
 //   fc4_mysims_agent_init) through a custom fc4_istream whose get_ref maps
 //   classes: advice (0x8A09F5F4) -> a fresh plain shadow advice, subject
 //   (0x6A26D050) -> a new subject, building/dispatch/tool/advisor -> the
-//   capture's canonical game token (no reference). Then
+//   requested interface (buildings use the host's occupant identity, no
+//   reference travels; the core takes its own). Then
 //   fc4_advisors_add_advisor per MySim, fc4_mysims_agent_init once (slot
 //   table: ids 1-5 -> indices 0-4, 30 -> index 5) and ONE hand-delivered
 //   POST_CITY_INIT (+ CITY_ESTABLISHED when established).
@@ -184,7 +185,7 @@ bool g_reportedSetup = false;
 struct SimCapture {
     WriteCapture wc;                        // owns the bytes + the object map
     std::vector<uint8_t> record;            // wc.Bytes() snapshot
-    std::map<uint32_t, uint64_t> tokens;    // capture object id -> canonical game token
+    std::map<uint32_t, uint64_t> tokens;    // capture object id -> borrowed Serializable view
     std::vector<std::pair<uint32_t, uint32_t>> refIds;  // (object id, class id) in record order
 };
 std::map<int32_t, SimCapture> g_caps;       // advisor id -> capture
@@ -679,7 +680,6 @@ public:
         return true;
     }
     bool Ref(uint32_t iid, fc4_ref* out) {
-        (void)iid;  // the mapping is by class id; the core QIs its own handles
         uint32_t id = 0, cls = 0;
         if (!Take(&id, 4)) return false;
         if (id != 0 && !Take(&cls, 4)) return false;
@@ -706,7 +706,17 @@ public:
                         if (o != nullptr) { r.core_handle = o; r.token = TokenOf(o); break; }
                     }
                     auto it = tokens_.find(id);
-                    if (it != tokens_.end()) r.token = it->second;
+                    if (it != tokens_.end()) {
+                        // mysims.md §6.2: resolve the field's requested IID, not
+                        // the writer's Serializable view. Building messages and
+                        // the live host use Occupant tokens, so saved buildings
+                        // must have that same identity for removal/quit handling.
+                        cIGZUnknown* field = Query<cIGZUnknown>(FromToken(it->second), iid);
+                        if (field != nullptr) {
+                            r.token = iid == kIIDBuildingOccupant ? CanonicalOccupant(field) : TokenOf(field);
+                            Drop(field);  // the core's get_ref takes its own reference
+                        }
+                    }
                     // Diagnostic: a class the shadow cannot resolve to a core object (each class once).
                     static std::set<uint32_t> s_reported;
                     if (s_reported.insert(cls).second) {
@@ -1297,6 +1307,15 @@ bool MySimsUiBlocked(cIGZWinMgr* manager) {
     // SPEC-GAP: an unavailable window-manager service is treated as no modal window.
     // [abi-ret] SDK slot 42: IsModal returns 0/1 in EAX (mysims §4.2, interfaces.tsv).
     return manager != nullptr && manager->IsModal();
+}
+
+uint64_t MySimsSavedReferenceTest(cIGZUnknown* serializable, uint32_t iid) {
+    WriteCapture capture;
+    if (!capture.WriteGZSerializable(static_cast<cIGZSerializable*>(serializable))) return 0;
+    std::map<uint32_t, uint64_t> tokens{{1, fc4::TokenOf(serializable)}};
+    InjectStream stream(capture, tokens);
+    fc4_ref ref{};
+    return stream.Ref(iid, &ref) ? ref.token : 0;
 }
 
 // ---- public API ---------------------------------------------------------------------------------
