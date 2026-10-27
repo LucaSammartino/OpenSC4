@@ -310,6 +310,28 @@ pub extern "C" fn fc4_seed_derive(session_seed: u32, k: u32) -> u32 {
     fc4_core::rng::derive_seed(session_seed, k)
 }
 
+static HOST_CRT_STATE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+fn host_crt(set: Option<u32>) -> u32 {
+    let f = HOST_CRT_STATE.load(std::sync::atomic::Ordering::Acquire);
+    // SAFETY: set only by fc4_crt_set_host to a non-null host function, which returns the calling thread's
+    // state word (fc4.h).
+    unsafe {
+        let state = std::mem::transmute::<usize, unsafe extern "C" fn() -> *mut u32>(f)();
+        if let Some(seed) = set {
+            *state = seed;
+        }
+        *state
+    }
+}
+
+/// Every core's C runtime `rand()` draws from the host's state (fc4.h; foundations §12.6).
+#[no_mangle]
+pub extern "C" fn fc4_crt_set_host(state: Option<unsafe extern "C" fn() -> *mut u32>) {
+    HOST_CRT_STATE.store(state.map_or(0, |f| f as usize), std::sync::atomic::Ordering::Release);
+    fc4_core::rng::set_host_crt(state.map(|_| host_crt as fc4_core::rng::HostCrt));
+}
+
 // ---- lifetime -------------------------------------------------------------------
 
 #[no_mangle]

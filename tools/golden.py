@@ -6,6 +6,11 @@ keys are deliberately excluded. record --rerun verifies an existing key without
 overwriting its artifacts. A differing repeat is retained and marked NONDETERMINISTIC.
 Identical originals require exact results; varying originals supply observed
 envelopes by default. --strict requires exact results. No gameplay mask is applied.
+
+--schedule fixed (docs/specs/simulator.md 5.8): references are recorded only by the
+pinned reference DLL (`pin --dll <dll>`, build-runs/golden/reference.json); the key is
+that DLL, its schedule code and the game inputs (not the harness sources), comparisons
+are exact, and a candidate DLL whose schedule code differs is refused.
 """
 import argparse
 import datetime as dt
@@ -31,6 +36,7 @@ REPO = Path(__file__).resolve().parents[1]
 SEED = 0x5EED1234
 SAVE_GRACE_MS = 60000
 SCHEMA = 1
+PIN = 'reference.json'  # in the store: the reference DLL for --schedule fixed
 
 
 def sha256(path):
@@ -62,6 +68,40 @@ def stage_dll(output, source):
     if sha256(staged) != digest:
         raise ValueError('corrupt staged DLL; immutable input was not overwritten')
     return staged
+
+
+def schedule_code(dll):
+    """The fixed schedule's code hash that the DLL carries (engine/CMakeLists.txt)."""
+    match = re.search(rb'FC4_SCHEDULE_CODE=([0-9a-f]{16})\0', Path(dll).read_bytes())
+    if not match:
+        raise ValueError(f'{dll} carries no schedule code; build it from a checkout that stamps one')
+    return match[1].decode()
+
+
+def pinned(output):
+    """(pin, staged DLL) of the reference DLL for --schedule fixed."""
+    path = Path(output) / 'golden' / PIN
+    if not path.is_file():
+        raise ValueError(f'no reference DLL pinned ({path}); run: golden.py pin --dll <dll>')
+    pin = load_json(path)
+    dll = Path(output) / 'golden-inputs' / (pin['dll_sha256'] + '.dll')
+    if not dll.is_file() or sha256(dll) != pin['dll_sha256']:
+        raise ValueError(f'pinned reference DLL missing or corrupt: {dll}')
+    return pin, dll
+
+
+def pin_reference(args):
+    path = args.output / 'golden' / PIN
+    if path.exists() and not args.repin:
+        print(f'already pinned: {load_json(path)}; --repin starts new references (old keys stay in the store)')
+        return 2
+    staged = stage_dll(args.output, args.dll.resolve())
+    pin = {'dll_sha256': sha256(staged), 'schedule_code': schedule_code(staged), 'source': str(args.dll.resolve()),
+           'pinned_at': dt.datetime.now().isoformat(timespec='seconds')}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(path, pin)
+    print(f'pinned: {pin}')
+    return 0
 
 
 def write_json(path, data):
@@ -272,7 +312,7 @@ def prepare(args):
                 'clock': args.clock, 'fixed_deliveries_per_frame': 64 if args.clock == 'fixed' else None,
                 'schedule': args.schedule,
                 'session_seed': SEED, 'slot': args.slot if args.backend == 'direct' else 'queue-selected',
-                'timeout_seconds': args.seconds, 'cpu_count': 1,
+                'timeout_seconds': None if args.schedule == 'fixed' else args.seconds, 'cpu_count': 1,
                 'affinity': 2 ** (2 * args.slot) if args.backend == 'direct' else '2*slot CPU index', 'popup_dialogs': 0,
                 'full_save': True, 'script_save_grace_ms': SAVE_GRACE_MS,
                 'environment': 'explicit switches; FC4_* removed in direct backend',
@@ -282,11 +322,18 @@ def prepare(args):
     generated = input_script(args.script, args.until)
     settings['effective_script_sha256'] = hashlib.sha256(generated.encode('utf-8')).hexdigest()
     files = {'exe': args.game_root / 'Apps/SimCity 4.exe', 'start.sc4': save,
-             'observer.dll': args.original_dll, 'user.cfg': args.regions_root.parent / 'SimCity 4.cfg'}
-    for name in ('ingame_run.ps1', 'city_fixture.ps1', 'sc4mutex.ps1', 'sc4ctl.ps1', 'game_queue.ps1'):
-        files['harness/' + name] = root / 'tools' / name
-    for name in ('golden.py', 'golden_run.ps1', 'golden_snapshot.ps1'):
-        files['golden/' + name] = Path(__file__).with_name(name)
+             'user.cfg': args.regions_root.parent / 'SimCity 4.cfg'}
+    if args.schedule == 'fixed':
+        # The pinned DLL and its schedule code; a harness edit that changes results shows up as a
+        # difference with no owner switched on (tools/check.py), not as new keys.
+        files['reference.dll'] = args.original_dll
+        settings['schedule_code'] = schedule_code(args.original_dll)
+    else:
+        files['observer.dll'] = args.original_dll
+        for name in ('ingame_run.ps1', 'city_fixture.ps1', 'sc4mutex.ps1', 'sc4ctl.ps1', 'game_queue.ps1'):
+            files['harness/' + name] = root / 'tools' / name
+        for name in ('golden.py', 'golden_run.ps1', 'golden_snapshot.ps1'):
+            files['golden/' + name] = Path(__file__).with_name(name)
     # Neighbour cities and region layout are simulation inputs too.
     for path in sorted((args.regions_root / region).rglob('*')):
         if path.is_file():
@@ -384,7 +431,8 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
         raise ValueError(f'DLL did not acknowledge script_save_grace_ms; not cached: {result}')
     if args.clock == 'fixed' and 'sim_fixed_step ON: 64 agent deliveries/frame' not in text:
         raise ValueError(f'DLL did not acknowledge sim_fixed_step; not cached: {result}')
-    if args.schedule == 'fixed' and ('schedule: fixed (' not in text or 'schedule: WARNING' in text):
+    if args.schedule == 'fixed' and (f'schedule: fixed (code {schedule_code(dll)},' not in text
+                                     or 'schedule: WARNING' in text):
         raise ValueError(f'DLL did not apply schedule = fixed cleanly; not cached: {result}')
     digests = parse_digests(text)
     if not digests:
@@ -579,7 +627,8 @@ def parser():
         sub.add_argument('--script', type=Path)
         sub.add_argument('--until', required=True)
         sub.add_argument('--harness-root', type=Path, default=main)
-        sub.add_argument('--original-dll', type=Path, default=main / 'engine/build-x86/FreeCity4.dll')
+        sub.add_argument('--original-dll', type=Path,
+                         help="default: the pinned reference DLL with --schedule fixed, else main's build")
         sub.add_argument('--game-root', type=Path, default=Path(r'C:\Program Files (x86)\GOG Galaxy\Games\SimCity 4 Deluxe Edition'))
         sub.add_argument('--regions-root', type=Path, default=documents() / 'SimCity 4/Regions')
         sub.add_argument('--output', type=Path, default=REPO / 'build-runs')
@@ -602,16 +651,34 @@ def parser():
         sub.add_argument('--repeats', type=int, default=3, help='determinism: independent original runs')
         sub.add_argument('--max-repeats', type=int, default=9,
                          help='upper bound for --repeats (default 9); no implicit extra games')
+    pin = commands.add_parser('pin', help='pin the reference DLL for --schedule fixed')
+    pin.add_argument('--dll', type=Path, required=True)
+    pin.add_argument('--output', type=Path, default=REPO / 'build-runs')
+    pin.add_argument('--repin', action='store_true')
     return p
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == 'pin':
+        try:
+            return pin_reference(args)
+        except (ValueError, OSError) as exc:
+            print('golden: ' + str(exc), file=sys.stderr)
+            return 2
     if args.schedule == 'fixed':
         args.clock = 'fixed'
+        args.comparison = 'exact'
     if args.strict:
         args.comparison = 'exact'
     try:
+        if args.schedule == 'fixed':
+            pin, reference = pinned(args.output)
+            if args.original_dll and sha256(args.original_dll) != pin['dll_sha256']:
+                raise ValueError('--schedule fixed records only with the pinned reference DLL; see `pin`')
+            args.original_dll = reference
+        elif not args.original_dll:
+            args.original_dll = main_checkout(REPO) / 'engine/build-x86/FreeCity4.dll'
         if args.seconds < 30 or args.seconds > 3600 or not 3 <= args.repeats <= args.max_repeats <= 50:
             raise ValueError('--seconds must be 30..3600 and 3 <= --repeats <= --max-repeats <= 50')
         key, manifest, generated, files = prepare(args)
@@ -630,6 +697,9 @@ def main(argv=None):
             if not selected:
                 raise ValueError('compare needs at least one --replace key')
             dll = args.dll / 'engine/build-x86/FreeCity4.dll' if args.dll.is_dir() else args.dll
+            if args.schedule == 'fixed' and schedule_code(dll) != manifest['settings']['schedule_code']:
+                raise ValueError(f"candidate schedule code {schedule_code(dll)} differs from the references' "
+                                 f"{manifest['settings']['schedule_code']}: take the schedule from main or re-pin")
             run = run_game(args, generated, selected, dll, 'compare', allow_window_drift=True)
             if fingerprint(files, manifest['settings'])[0] != key:
                 raise ValueError(f'input changed during comparison; no verdict: {run}')

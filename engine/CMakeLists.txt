@@ -625,6 +625,16 @@ if(FC4_IS_WIN32_X86)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
         FC4_VERSION_STRING="${PROJECT_VERSION}")
+    # The fixed schedule's code: tools/golden.py keys references on it and refuses a candidate DLL whose code differs.
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS plugin/FC4Schedule.cpp plugin/FC4Schedule.h)
+    # (line endings normalised: a checkout with core.autocrlf has CRLF)
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/plugin/FC4Schedule.cpp" FC4_SCHEDULE_CPP)
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/plugin/FC4Schedule.h" FC4_SCHEDULE_H)
+    string(REPLACE "\r\n" "\n" FC4_SCHEDULE_SOURCE "${FC4_SCHEDULE_CPP}${FC4_SCHEDULE_H}")
+    string(SHA256 FC4_SCHEDULE_CODE "${FC4_SCHEDULE_SOURCE}")
+    string(SUBSTRING "${FC4_SCHEDULE_CODE}" 0 16 FC4_SCHEDULE_CODE)
+    set_source_files_properties(plugin/FC4Schedule.cpp PROPERTIES
+        COMPILE_DEFINITIONS "FC4_SCHEDULE_CODE=\"${FC4_SCHEDULE_CODE}\"")
     target_compile_options(FreeCity4 PRIVATE /W3 /permissive- /utf-8 /EHsc)
     if(FC4_CHECKED)
         target_compile_definitions(FreeCity4 PRIVATE FC4_CHECKED=1)

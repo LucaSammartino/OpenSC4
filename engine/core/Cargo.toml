@@ -14,3 +14,8 @@ name = "fc4_core"
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
+
+# A process-wide switch (the host rand() state), so a binary of its own.
+[[test]]
+name = "host_crt"
+path = "tests/host_crt.rs"

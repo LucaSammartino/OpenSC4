@@ -354,6 +354,13 @@ uint32_t fc4_abi_version(void);
  * derive(S, K) (tooling: logs and tests). */
 uint32_t fc4_seed_derive(uint32_t session_seed, uint32_t k);
 
+/* The fixed schedule (simulator.md §5.8, foundations §12.6): while `state` is
+ * set, every core's C runtime rand() and srand() use the word it returns, the
+ * calling thread's rand() state in the host, instead of the core's own state
+ * (which starts at 1). NULL goes back to the cores' own states. Additive; no
+ * FC4_ABI_VERSION bump. */
+void fc4_crt_set_host(uint32_t* (*state)(void));
+
 /* Tooling: where a Rust panic is reported (message, location, thread and a
  * backtrace, as one UTF-8 block with lines separated by '\n') before the panic
  * goes on; release builds then abort with a fail-fast. Installs the panic

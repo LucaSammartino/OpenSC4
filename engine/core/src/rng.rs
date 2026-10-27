@@ -450,8 +450,26 @@ impl RzRandomSuper {
     }
 }
 
+/// The game's own `rand()` state, when the host provides it (foundations §12.6,
+/// simulator.md §5.8): `None` reads the calling thread's state, `Some(s)` sets it
+/// to `s` and returns `s`.
+pub type HostCrt = fn(Option<u32>) -> u32;
+
+static HOST_CRT: std::sync::RwLock<Option<HostCrt>> = std::sync::RwLock::new(None);
+
+/// While a host state is registered, every [`CrtRand`] draws from and seeds it
+/// instead of its own state, as the original's callers share one generator.
+pub fn set_host_crt(host: Option<HostCrt>) {
+    *HOST_CRT.write().unwrap_or_else(|e| e.into_inner()) = host;
+}
+
+fn host_crt() -> Option<HostCrt> {
+    *HOST_CRT.read().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The C runtime `rand()` (foundations §12.1). Each replaced subsystem owns
-/// one, seeded with 1 by default (§12.6 [choice]).
+/// one, seeded with 1 by default (§12.6 [choice]), unless the host provides the
+/// game's state ([`set_host_crt`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CrtRand {
     state: u32,
@@ -470,17 +488,23 @@ impl CrtRand {
 
     /// `srand(x)`.
     pub fn srand(&mut self, seed: u32) {
-        self.state = seed;
+        match host_crt() {
+            Some(host) => {
+                host(Some(seed));
+            }
+            None => self.state = seed,
+        }
     }
 
     pub fn state(&self) -> u32 {
-        self.state
+        host_crt().map_or(self.state, |host| host(None))
     }
 
     /// `rand()`: 0 … 32767.
     pub fn rand(&mut self) -> u32 {
-        self.state = self.state.wrapping_mul(214_013).wrapping_add(2_531_011);
-        (self.state >> 16) & 0x7FFF
+        let state = self.state().wrapping_mul(214_013).wrapping_add(2_531_011);
+        self.srand(state);
+        (state >> 16) & 0x7FFF
     }
 
     /// `std::random_shuffle(first, last)` (§12.3): exactly `n − 1` calls.

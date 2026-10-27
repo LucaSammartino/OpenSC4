@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4Seed.h"
+#include "fc4.h"
 
 #include "cIGZFrameWork.h"
 #include "cRZCOMDllDirector.h"
@@ -30,6 +31,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <cwchar>
 #include <functional>
 #include <map>
 #include <queue>
@@ -42,7 +44,14 @@
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;  // this DLL's load address
 
+#ifndef FC4_SCHEDULE_CODE
+#define FC4_SCHEDULE_CODE "unknown"
+#endif
+
 namespace {
+
+// A hash of this file and FC4Schedule.h (engine/CMakeLists.txt); tools/golden.py reads it from the DLL file.
+const char kScheduleCode[] = "FC4_SCHEDULE_CODE=" FC4_SCHEDULE_CODE;
 
 // ---- addresses in the 1.1.641 executable (an interop table; checked by Supported) ----------------
 constexpr uintptr_t kLimitTimerStart = 0x0068BF50;    // small-owners-b9.md §4
@@ -61,6 +70,10 @@ constexpr uintptr_t kWriteRef = 0x005D4810;           // the serializer's refere
 constexpr uintptr_t kRegisterObject = 0x005D43F0;     // its registration (object, id, class)
 constexpr uintptr_t kQpcSlot = 0x00A802F0;            // the import slot of QueryPerformanceCounter (cRZTimer, timers.md)
 constexpr uintptr_t kSleepSlot = 0x00A800C8;          // Sleep
+constexpr uintptr_t kTempPathASlot = 0x00A8029C;      // the import slot of GetTempPathA
+constexpr uintptr_t kTempPathW = 0x00B62904;          // cRZFile's GetTempPathW, from GetProcAddress at start-up
+constexpr uintptr_t kForeground = 0x005F85F0;         // "the game is the foreground window", asked by the save's thumbnail
+const uint8_t kForegroundBytes[] = {0x56, 0xFF, 0x15, 0x0C, 0x05, 0xA8, 0x00};  // push esi; call [GetForegroundWindow]
 constexpr uintptr_t kSleepExSlot = 0x00A802F8;        // SleepEx (cRZThread::SleepCurrentThread)
 constexpr uintptr_t kTimerOverhead = 0x00B54358;      // cRZTimer's calibrated call overhead o, u64 (timers.md §1.5)
 constexpr uintptr_t kMallocEntry = 0x009F066E;          // the C runtime heap (statically linked)
@@ -452,6 +465,61 @@ FC4_STOPWATCH_THUNK(3)
 #undef FC4_STOPWATCH_THUNK
 void (*const kStopwatchThunks[])() = {StopwatchThunk0, StopwatchThunk1, StopwatchThunk2, StopwatchThunk3};
 
+// ---- uninitialised values ------------------------------------------------------------------------
+// [choice] A transit switch inserted for an unknown ID is all zero (traffic-network.md §4.7.3), as in
+// our game: the original copies a stack temporary whose fields are whatever the stack held (pointers
+// into memory outside the fixed heap among them), into its pathing costs and the save.
+constexpr uintptr_t kSwitchInsert = 0x006D9131;  // the miss path of the switch table's insert-if-missing (0x006D90F0)
+const uint8_t kSwitchInsertBytes[] = {0x89, 0x4C, 0x24, 0x44, 0x8D, 0x4C, 0x24, 0x10};  // mov [esp+44h],ecx; lea ecx,[esp+10h]
+long g_switchesZeroed = 0;
+
+__declspec(naked) void SwitchInsertThunk() {
+    __asm {
+        push eax
+        push ecx
+        push edi
+        lea edi, [esp + 0x1C]  // the 0x34-byte temporary at [esp+10h] before the three pushes
+        mov ecx, 0x0D
+        xor eax, eax
+        rep stosd
+        pop edi
+        pop ecx
+        pop eax
+        lock inc g_switchesZeroed
+        mov dword ptr [esp + 0x44], ecx
+        lea ecx, [esp + 0x10]
+        push 0x006D9139  // kSwitchInsertResume
+        ret
+    }
+}
+
+// [choice] A new intersection's four sides and flag start at zero: the original's add-intersection
+// (0x004B4300) sets only the temporary's vector and list before copying it into the network map's
+// intersection table, and the sides that stay unused carry stack contents into the save.
+constexpr uintptr_t kIntersectionInsert = 0x004B434D;  // push 0Ch; mov dword ptr [esp+8Ch], 0
+const uint8_t kIntersectionInsertBytes[] = {0x6A, 0x0C, 0xC7, 0x84, 0x24, 0x8C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+long g_intersectionsZeroed = 0;
+
+__declspec(naked) void IntersectionInsertThunk() {
+    __asm {
+        push eax
+        push ecx
+        push edi
+        lea edi, [esp + 0x40]  // the temporary at [esp+34h] before the three pushes: sides and flag, 54h bytes
+        mov ecx, 0x15
+        xor eax, eax
+        rep stosd
+        pop edi
+        pop ecx
+        pop eax
+        lock inc g_intersectionsZeroed
+        push 0x0C
+        mov dword ptr [esp + 0x8C], 0
+        push 0x004B435A  // after the two replaced instructions
+        ret
+    }
+}
+
 // ---- wall clock ---------------------------------------------------------------------------------
 uint32_t __cdecl CrtTime(uint32_t* out) {
     InterlockedIncrement(&g_timeCalls);
@@ -500,7 +568,68 @@ DWORD WINAPI VirtualSleepEx(DWORD ms, BOOL alertable) {
     return g_realSleepEx(MainSleep(ms) && thumbnail && ms > kRealSleepMs ? kRealSleepMs : ms, alertable);
 }
 
+// ---- temporary files ----------------------------------------------------------------------------
+// [original only] cRZFile::MakeTempPathName (0x0091A497) names a file from the temp directory and time(),
+// counting down while the name exists. With time() fixed, games running side by side race for the same names
+// in one directory, and the retries reach the main thread's heap. Each process has a directory of its own,
+// emptied at start-up (a process ID can be reused).
+wchar_t g_tempW[MAX_PATH] = {};
+char g_tempA[MAX_PATH] = {};
+void* g_realTempPathA = nullptr;
+
+DWORD WINAPI TempPathA(DWORD n, LPSTR out) {
+    const DWORD len = static_cast<DWORD>(std::strlen(g_tempA));
+    if (out == nullptr || n <= len) return len + 1;
+    std::memcpy(out, g_tempA, len + 1);
+    return len;
+}
+
+DWORD WINAPI TempPathW(DWORD n, LPWSTR out) {
+    const DWORD len = static_cast<DWORD>(wcslen(g_tempW));
+    if (out == nullptr || n <= len) return len + 1;
+    std::memcpy(out, g_tempW, (len + 1) * sizeof(wchar_t));
+    return len;
+}
+
+const char* TempStart() {
+    wchar_t base[MAX_PATH];
+    const DWORD n = GetTempPathW(MAX_PATH, base);
+    if (n == 0 || n > MAX_PATH - 16) return "no temp directory";
+    swprintf(g_tempW, MAX_PATH, L"%sFC4-%08X\\", base, static_cast<unsigned>(GetCurrentProcessId()));
+    if (!CreateDirectoryW(g_tempW, nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) return "cannot create its directory";
+    WIN32_FIND_DATAW found{};
+    const HANDLE h = FindFirstFileW((std::wstring(g_tempW) + L"*").c_str(), &found);
+    if (h != INVALID_HANDLE_VALUE) {
+        do {
+            if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) DeleteFileW((std::wstring(g_tempW) + found.cFileName).c_str());
+        } while (FindNextFileW(h, &found));
+        FindClose(h);
+    }
+    if (WideCharToMultiByte(CP_ACP, 0, g_tempW, -1, g_tempA, MAX_PATH, nullptr, nullptr) == 0) return "path not convertible";
+    void** wide = reinterpret_cast<void**>(kTempPathW);
+    if (*wide == nullptr) return "cRZFile's GetTempPathW is not resolved yet";
+    *wide = reinterpret_cast<void*>(&TempPathW);
+    return nullptr;
+}
+
+// ---- the window -----------------------------------------------------------------------------------
+// [original only] A save renders the region view's thumbnail only while the game is the foreground window
+// (0x005DDEC0), which with games side by side is chance; the rendering reaches the main thread's heap. The game
+// is never in the foreground: every save writes the default thumbnail, after its wait (virtual sleeps).
+long g_backgrounds = 0;
+
+bool __cdecl NeverForeground() {
+    InterlockedIncrement(&g_backgrounds);
+    return false;
+}
+
 // ---- generators ---------------------------------------------------------------------------------
+// The calling thread's rand() state (foundations §12.1); our cores draw from it too (fc4_crt_set_host).
+uint32_t* CrtState() {
+    using GetPtdFn = uint8_t*(__cdecl*)();
+    return reinterpret_cast<uint32_t*>(reinterpret_cast<GetPtdFn>(kCrtGetPtd)() + 0x14);
+}
+
 void ReseedGenerators() {
     using CtorFn = void*(__fastcall*)(void* self, void*, uint32_t seed);
     for (const Generator& g : kGenerators) {
@@ -1133,7 +1262,12 @@ void ScheduleStartup() {
         {"QueryPerformanceCounter", kQpcSlot, reinterpret_cast<void*>(&VirtualQpc), reinterpret_cast<void**>(&g_realQpc)},
         {"Sleep", kSleepSlot, reinterpret_cast<void*>(&VirtualSleep), reinterpret_cast<void**>(&g_realSleep)},
         {"SleepEx", kSleepExSlot, reinterpret_cast<void*>(&VirtualSleepEx), reinterpret_cast<void**>(&g_realSleepEx)},
+        {"GetTempPathA", kTempPathASlot, reinterpret_cast<void*>(&TempPathA), &g_realTempPathA},
     };
+    if (const char* err = TempStart()) {
+        all = false;
+        Log("schedule: WARNING no temp directory of its own: %s", err);
+    }
     for (const auto& e : slots) {
         auto* slot = reinterpret_cast<void**>(e.slot);
         DWORD before = 0;
@@ -1186,14 +1320,31 @@ void ScheduleStartup() {
         }
     }
     if (page != nullptr) FlushInstructionCache(GetCurrentProcess(), page, 4096);
+    if (const char* err = PatchJump(kSwitchInsert, kSwitchInsertBytes, sizeof(kSwitchInsertBytes),
+                                    reinterpret_cast<const void*>(&SwitchInsertThunk))) {
+        all = false;
+        Log("schedule: WARNING the transit switch insert at 0x%08X not hooked: %s", static_cast<unsigned>(kSwitchInsert), err);
+    }
+    if (const char* err = PatchJump(kIntersectionInsert, kIntersectionInsertBytes, sizeof(kIntersectionInsertBytes),
+                                    reinterpret_cast<const void*>(&IntersectionInsertThunk))) {
+        all = false;
+        Log("schedule: WARNING the intersection insert at 0x%08X not hooked: %s", static_cast<unsigned>(kIntersectionInsert), err);
+    }
+    if (const char* err = PatchJump(kForeground, kForegroundBytes, sizeof(kForegroundBytes),
+                                    reinterpret_cast<const void*>(&NeverForeground))) {
+        all = false;
+        Log("schedule: WARNING the foreground test at 0x%08X not hooked: %s", static_cast<unsigned>(kForeground), err);
+    }
     ReseedGenerators();
+    fc4_crt_set_host(&CrtState);
     g_fixed = true;
-    Log("schedule: fixed (%s; docs/NEXT_STEPS.md section 2): time limits count reads (Grow expires at read %u, others "
+    Log("schedule: fixed (code %s, %s; docs/specs/simulator.md 5.8): time limits count reads (Grow expires at read %u, others "
         "at %u), time() = %u, the generators' clock() = %d, %u file-local generators re-seeded with derive(S = "
-        "0x%08X, K), rand() set before every agent delivery, save object IDs 1, 2, 3, ..., the main thread's "
-        "performance counter virtual (+%u ms a frame), the main thread's heap at 0x%08X (%u MB) from the city load%s",
-        source, kGrowReads, g_otherReads, kTime, kClock, static_cast<unsigned>(sizeof(kGenerators) / sizeof(kGenerators[0])),
-        g_seed, kFrameMs, static_cast<unsigned>(reinterpret_cast<uintptr_t>(g_arena.base)),
+        "0x%08X, K), rand() set before every agent delivery and shared with our cores, save object IDs 1, 2, 3, ..., the main thread's "
+        "performance counter virtual (+%u ms a frame), temp directory %s, the main thread's heap at 0x%08X (%u MB) from "
+        "the city load%s",
+        kScheduleCode + 18, source, kGrowReads, g_otherReads, kTime, kClock, static_cast<unsigned>(sizeof(kGenerators) / sizeof(kGenerators[0])),
+        g_seed, kFrameMs, g_tempA, static_cast<unsigned>(reinterpret_cast<uintptr_t>(g_arena.base)),
         static_cast<unsigned>(g_arena.size >> 20), all ? "" : " WARNING: some hooks failed (above)");
 }
 
@@ -1248,8 +1399,7 @@ void ScheduleBeforeDelivery(const void* target, uint32_t msgType) {
             const auto* b = reinterpret_cast<const uint8_t*>(g.address);
             for (size_t i = 0, n = g.super ? 0x9C8 : 12; i < n; ++i) h = (h ^ b[i]) * 16777619u;
         }
-        using GetPtdFn = uint8_t*(__cdecl*)();
-        const uint32_t randState = *reinterpret_cast<uint32_t*>(reinterpret_cast<GetPtdFn>(kCrtGetPtd)() + 0x14);
+        const uint32_t randState = *CrtState();
         Log("schedule: digest %d.%u rand 0x%08X generators 0x%08X heap %u 0x%08X target vt 0x%08X msg 0x%08X", g_day,
             g_dayDelivery, randState, h, g_arena.ops, g_arena.hash, *reinterpret_cast<const uint32_t*>(target), msgType);
     }
@@ -1266,9 +1416,9 @@ void ScheduleMonthLine(int32_t julian) {
     Log("schedule: month at julian %d: time limits started %ld, read %ld (+%ld unstarted, never expire), Grow "
         "expiries %ld, other expiries %ld; "
         "time() calls %ld; clock() virtual %ld, real %ld; performance counter virtual %ld, real (other threads) %ld; "
-        "frames %ld, sleeps %ld (%ld ms); timer callbacks %ld on the main thread; stopwatches rebased %ld; rand() set %ld times; save references %ld in %ld save(s); heap %u operations "
+        "frames %ld, sleeps %ld (%ld ms); timer callbacks %ld on the main thread; stopwatches rebased %ld; transit switches zeroed %ld; intersections zeroed %ld; foreground tests %ld (all false); rand() set %ld times; save references %ld in %ld save(s); heap %u operations "
         "(0x%08X), %u MB used, %u MB committed, %ld blocks freed on other threads, %ld fallbacks, %ld foreign frees",
-        julian, g_starts, g_reads, g_unstartedReads, g_growExpiries, g_otherExpiries, g_timeCalls, g_clockVirtual, g_clockReal, g_qpcVirtual, g_qpcReal, g_frames, g_sleeps, g_sleptMs, g_timerFires, g_stopwatchesRebased, g_srands,
+        julian, g_starts, g_reads, g_unstartedReads, g_growExpiries, g_otherExpiries, g_timeCalls, g_clockVirtual, g_clockReal, g_qpcVirtual, g_qpcReal, g_frames, g_sleeps, g_sleptMs, g_timerFires, g_stopwatchesRebased, g_switchesZeroed, g_intersectionsZeroed, g_backgrounds, g_srands,
         g_refs, g_saves, g_arena.ops, g_arena.hash, static_cast<unsigned>(g_arena.top >> 20),
         static_cast<unsigned>(g_arena.committed >> 20), g_heapLeaks, g_heapFallbacks, g_heapForeign);
 }
