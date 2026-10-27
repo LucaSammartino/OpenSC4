@@ -30,10 +30,17 @@ next to the original and matches it exactly.
 
 ### "Exactly like the original" is measured
 
-Each replacement comes with a *shadow*: our code runs next to the original on the same live city, at the same moment,
-and every result is compared, down to the bit. In the test cities, budgets match on every month-end, demand matches
-on every day, and the map-based systems match the original **cell by cell, for decades of game time**. With all ten
-map-based replacements on at once, a test city followed the same funds curve as the unmodified game for 36 game years.
+"Exactly like" has a precise meaning here: the same inputs under the same work schedule give identical results.
+SimCity 4 itself paces some simulation work by frames and machine speed, so both games are held to one fixed
+schedule, and the original, run under it, is the reference. Our game runs the same scenarios with its own code
+switched on and must produce identical save files, and later identical draw calls, sounds and UI state. That
+measurement is being built ([docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)).
+
+So far the evidence comes from *shadows*: our code runs next to the original on the same live city, at the same
+moment, and every result is compared, down to the bit. In the test cities, budgets match on every month-end, demand
+matches on every day, and the map-based systems match the original **cell by cell, for decades of game time**. With
+all ten map-based replacements on at once, a test city followed the same funds curve as the unmodified game for 36
+game years.
 
 ## Where it's going
 
@@ -65,13 +72,13 @@ both from the RE workspace.
 |---|---|
 | M0: toolchain and in-game plugin | ✅ Done |
 | M1: the clock | ✅ Done |
-| M2: budget, demand, ordinances, weather | ✅ Done, verified identical |
-| M3: map-based systems | ✅ Done, verified identical cell by cell |
-| M4: growth | 🟡 Running in game and verified, including commercial, industrial, lots and zones; the final growth check to go |
+| M2: budget, demand, ordinances, weather | ✅ Done; identical in shadow comparisons on the test cities |
+| M3: map-based systems | ✅ Done; identical cell by cell in shadow comparisons on the test cities |
+| M4: growth | 🟡 Running in game and identical in shadow comparisons, including commercial, industrial, lots and zones; the final growth check to go |
 | M5: traffic | 🟡 Running in game; matches the original on about two thirds of month lines, calibration to go |
-| M6+: rendering, UI, audio, region, standalone | ⬜ Data, save, texture and 3D model readers done; specs for the renderer and UI are next |
+| M6+: standalone (our own host), rendering, UI, audio, region | ⬜ Data, save, texture and 3D model readers done; a save round trip and a headless simulation are next |
 
-Measured progress is [docs/coverage-report.md](docs/coverage-report.md). The repository's maintained tools and documents are listed in [docs/ops/inventory.md](docs/ops/inventory.md). The
+Measured progress is [docs/coverage-report.md](docs/coverage-report.md). The
 milestones are defined in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
 ## Try it
@@ -95,7 +102,8 @@ The clock and the budget are replaced by default; everything else stays the orig
 - **Specs:** [docs/specs/](docs/specs/), one per subsystem, with conformance tests.
 - **Engine:** a portable Rust core ([engine/core](engine/core)), the data formats ([engine/formats](engine/formats))
   and a thin C++ plugin that plugs the core into the running game ([engine/plugin](engine/plugin)).
-- **Verification:** about 900 conformance test vectors, plus the in-game shadow comparisons above.
+- **Verification:** about 900 conformance test vectors; in the game, replace-mode runs compared with references
+  recorded from the original under the same fixed schedule (being built), with shadows for finding differences.
 
 ## Contributing
 

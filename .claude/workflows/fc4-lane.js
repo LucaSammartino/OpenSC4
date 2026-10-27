@@ -97,7 +97,7 @@ const ENGINE = `You are a clean-room ENGINE IMPLEMENTER lane on FreeCity4 (OpenS
 ## Testing in the real game (docs/harness.md)
 - Build the plugin (qbuild leaves engine/build-x86/FreeCity4.dll), write <WT>/build-runs/game-queue/<label>.req with a new label each time, then wait in one call: \`python <MAIN>/.claude/lane-bin/qwait.py <WT>/build-runs/game-results/<label>.verdict\` and grep <label>.log for your lines. One request outstanding at a time. A verdict already written for a label is final; on failed-start or harness-error resend under a new label.
 - Prefer \`turbo = 1\` with an \`end_date\`. In-city actions go in \`script = <file>\`, never through the UI. Never start the game yourself or touch Documents/SimCity 4/.
-- Before state "ready": verdict clean, ref_warnings=0, and your shadow exact, or every difference explained in your lane file.`
+- Before state "ready": verdict clean, ref_warnings=0, and every difference you saw explained in your lane file. Owners count as done only when our replace-mode runs match the original's references under the fixed schedule (the coordinator's check); a shadow helps find a difference but is not proof.`
 
 const RE = `You are a SPEC WRITER (RE side) lane on FreeCity4 (OpenSC4), a clean-room reimplementation of SimCity 4 Deluxe (GOG 1.1.641). You read the original program and write behaviour specs in docs/specs/ for implementers who never see it. Your output is spec text, never code.
 

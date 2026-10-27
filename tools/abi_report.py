@@ -22,8 +22,7 @@ def population(export, exe):
     att = cov.attribution_for_tree(ROOT, export, lo, hi)
     owner, _ = att.run()
     rows = cov.read_map(ROOT / 'tools/coverage-map.tsv')
-    # Call the shared status implementation; no verified/replaced evidence is needed.
-    cov.map_statuses(rows, [], [], {}, {'runs': {}, 'shadows': {}}, {}, 'abi-report')
+    cov.map_statuses(rows, {})  # the shared status implementation
     game, *_ = cov.map_functions(rows, att, owner)
     return [(f'{va:08x}', size, owner.get(va) or area,
              i is not None and rows[i]['implemented']) for va, size, i, area in game]

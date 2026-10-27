@@ -3,7 +3,8 @@
 ## Goal
 
 Make the SimCity 4 engine **open source code that compiles**, with no copyrighted code from the original.
-Players supply their own copy of the game's data.
+Players supply their own copy of the game's data. The result is a standalone game that behaves exactly like
+SimCity 4: the same inputs under the same fixed work schedule give identical results.
 
 ## Why reimplement instead of recompiling the decompilation
 
@@ -80,35 +81,33 @@ Current status: [coverage-report.md](coverage-report.md) (measured by `python to
 | M3: grid sims | SimGrid, LandValue, Pollution, Crime, Aura, Power, Plumbing, Protection, Flora, Flammability | grid snapshots match within tolerance |
 | M4: growth | BuildingDevelopment and the lot/tract/growth/zone developers ([specs](specs/building-development.md)). **Replacement units:** the growth developer together with the building development simulator's developer creation (one unit); the zone developer is headless-limited (its `Init` needs the 3D view) | the growth statistics distribution matches across seeded runs; the daily growth budget is calibrated in the original (building-development.md §12) |
 | M5: traffic | traffic simulator and pathfinding ([specs](specs/traffic-simulator.md)). **Replacement unit:** the traffic simulator and the pathfinder together (they read each other's internals) | commute and volume maps match within tolerance; the traffic work budget is calibrated in the original (traffic-simulator.md §12) |
-| M6+: beyond simulation | data formats (DBPF, exemplars, S3D, FSH), rendering, UI, audio, region; then a standalone executable | FreeCity4 starts without `SimCity 4.exe` |
+| M6+: standalone | our own host: save round trip, headless simulation, then rendering, UI, audio and region; runs in parallel with M4-M5 ([NEXT_STEPS](NEXT_STEPS.md) step 6) | FreeCity4 starts without `SimCity 4.exe` and matches the references |
 
-Verification uses **same-process shadows**. With `<sub>_shadow = 1`, the original subsystem keeps running and our
-core computes the same step beside it on the same inputs; the plugin logs every difference. Comparing two separate
-runs cannot settle exact values, because the original is not deterministic from run to run. `tools/regress.ps1` runs
-the test city twice, once with every shadow on and once with every merged replacement on, and prints a verdict per
-run. Separate-run soak comparisons (`tools/compare_soaks.ps1`) are used only for long-run paths, such as funds and
-population over decades.
+Verification holds both games to **one fixed schedule** ([NEXT_STEPS](NEXT_STEPS.md) section 2; simulator.md §5.7):
+every wall-time source reads one virtual clock, idle work runs at each day's settle point in a fixed order, no call that
+does work is cut by a time limit, posted messages are delivered at the day's end, every seed derives from one session
+seed and saved objects are numbered in registration order. `FreeCity4.dll` holds the original to that schedule at run time (never an exe file edit), the
+original is recorded once per corpus scenario as the reference, and our game, with owners switched on (replace mode),
+must produce identical checkpoints: save files first, then draw calls, sound events and UI state. The metric is
+Exact-replaced (NEXT_STEPS section 3). Same-process shadows (`<sub>_shadow = 1`: the original keeps running and our
+core computes the same step beside it) remain a debugging aid for finding the first difference; they are not proof.
 
 ### After the port: parity and beyond
 
-Collected from [issue #1](https://github.com/tloriato/OpenSC4/issues/1) and design discussions. None of this starts
-before the simulation is fully ours; until then every core keeps the original's behaviour so the shadows stay exact.
+Collected from [issue #1](https://github.com/tloriato/OpenSC4/issues/1) and design discussions. Every core keeps the
+original's behaviour under the fixed schedule; nothing below changes results under it.
 
 **Parity (a standalone game that replaces SC4):**
 
 - **Finish the port** (M4-M6+ above).
-- **Deterministic pacing.** Some of the original's simulation work is paced by frames or real time, not by game days
-  (simulator.md §5.7, the answer to DG31): the growth developers, aura and plumbing get a bounded number of idle
-  cycles per day, and the demand census, land value, crime, power and the BDS monthly rebuild restart a pass only when
-  the previous one has finished. A city therefore grows differently at different frame rates, machine speeds and game
-  speeds, and a turbo run is a slower-grown city, not a fast-forwarded one. Once no original simulator remains, switch
-  to deterministic pacing: a fixed work budget per game day for each idle-cycle kind and a fixed cycle (every N days)
-  for each restart-when-finished pass, calibrated so a city at normal speed grows like the original's on a typical
-  machine. Deterministic pacing becomes the default; the original's clock-bound pacing stays only as a testing switch
-  for conformance work against the original. Deterministic pacing gives reproducible separate runs (tests and
-  baselines without same-process shadows), a turbo clock with the same results as normal speed, replays, a
-  headless/server mode, a path to lockstep multiplayer, and lets the long passes run on worker threads. Saves are
-  unaffected (only scheduling changes).
+- **Fixed schedule.** Some of the original's simulation work is paced by frames or real time, not by game days
+  (simulator.md §5.7, the answer to DG31), so its cities grow differently at different frame rates, machine speeds and
+  game speeds. FreeCity4 runs one fixed schedule, chosen in the spec as close to an infinitely fast machine at normal
+  speed as the original allows, and comparisons hold the original to the same schedule ([NEXT_STEPS](NEXT_STEPS.md) section 2). It gives
+  reproducible separate runs, a turbo clock with the same results as normal speed, replays, a headless/server mode, a
+  path to lockstep multiplayer, and lets the long passes run on worker threads. The original's clock-bound pacing
+  stays available as a switch (`pacing = original`) for shadow debugging. Saves are unaffected (only scheduling
+  changes).
 - **Visual assets for the standalone executable.** The game's own assets cannot be shipped; the standalone build
   either reads them from the player's own SC4 install or uses assets we can distribute.
 - **Drop the C++ shim while keeping mod support.** Keep what current mods rely on (DBPF plugins and exemplars, Lua,

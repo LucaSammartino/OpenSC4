@@ -2,8 +2,10 @@
 """Byte-weighted progress metric for FreeCity4 (RE side: it reads the exe's analysis; engine lanes never read it).
 
 Every function of SimCity 4.exe (GOG 1.1.641) gets one owner by fixed rules, every owner one subsystem row of
-tools/coverage-map.tsv, and every row four yes/no statuses (specified, implemented, verified, replaced). The report
-sums function body bytes and function counts per status, for the whole exe and per area. Same inputs, same numbers:
+tools/coverage-map.tsv, and every row two yes/no statuses (specified, implemented). The report sums function body
+bytes and function counts per status, for the whole exe and per area, plus Reach (game code the corpus executes in the
+original, from a census's entry counters) and Exact-replaced (docs/NEXT_STEPS.md section 3; not measured until the
+reference store exists, so it reads "not measured"). Same inputs, same numbers:
 nothing depends on dict order, time or the machine, and the report lists the SHA-256 of every input (text inputs
 hashed with CRLF line endings normalised to LF, so a CRLF checkout and an LF checkout give the same report).
 
@@ -17,18 +19,14 @@ Inputs (all read-only):
   tools/coverage-libs.tsv       library / compiler buckets (excluded from the denominator)
   tools/coverage-ranges.tsv     owner ranges: game code whose functions have no name, owned by link order (with evidence)
   tools/coverage-map.tsv        owner pattern -> subsystem, area, spec, core module, shadow key, replace key
-  tools/coverage-shadows.tsv    shadow results a lane run recorded outside the regress shadows list; each row is
-                                checked against the run that records its counts, and is refused if they are not there
   docs/specs/*.md, engine/core/src/*        existence of the spec files and core modules the map names
-  tools/regress.ps1             the regress replace list ($Replace) and shadows list
   engine/plugin/FC4Subsystems.cpp           the enable keys and which are on by default
-  build-runs/regress-<tag>.out  the regress result read for "verified" and "replaced" (default: the PASS run of the
-                                newest lane merged into HEAD, see newest_regress; --regress overrides)
+  build-runs/suite/<tag>/       a census's reach counters (--suite; default build-runs/suite/CURRENT)
 
 Output: docs/coverage-report.md (counts, class names, address ranges and statuses only; no code), and with --owners
 a per-function TSV (address, bytes, owner, rule) for audits.
 
-Usage: python tools/coverage.py [--regress build-runs/regress-<tag>.out] [--out docs/coverage-report.md]
+Usage: python tools/coverage.py [--suite <census tag>] [--out docs/coverage-report.md]
                                 [--owners build-runs/coverage-owners.tsv] [--export <dir>] [--exe <path>]
 Rules: docs/COVERAGE.md.
 """
@@ -48,17 +46,14 @@ from pathlib import Path
 
 
 def _sibling(name):
-    """Load a module next to this file by path, writing no __pycache__: creditcheck and the merge train exec this
-    file from another tree, where neither `tools` nor this directory is on sys.path, and a `tools` package found on
-    sys.path could belong to a different tree."""
+    """Load a module next to this file by path, writing no __pycache__: other tools exec this file from another tree,
+    where neither `tools` nor this directory is on sys.path, and a `tools` package found on sys.path could belong to a
+    different tree."""
     path = Path(__file__).with_name(name + ".py")
     module = importlib.util.module_from_spec(importlib.util.spec_from_file_location(name, path))
     exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), module.__dict__)
     return module
 
-
-compare_metrics = _sibling("compare_metrics")
-coverage_methods = _sibling("coverage_methods")
 
 EXE_SHA256 = "3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b"
 AREAS = ["simulation", "framework", "renderer", "ui", "audio", "region", "other"]
@@ -523,7 +518,7 @@ class Attribution:
         return added
 
 
-# ---------------------------------------------------------------- map, statuses, regress
+# ---------------------------------------------------------------- map, statuses
 
 SHADOW_LABEL_ALIAS = {"clock24": "clock", "automata_owners": "automataowners"}  # the regress summary names a shadow by its log prefix
 
@@ -551,63 +546,12 @@ def split_list(v):
     return [] if v in ("", "-") else [x.strip() for x in v.split(",") if x.strip()]
 
 
-def read_text_any(path):
-    """Text of an input file: a UTF-16 file is read as its UTF-8 text, like text_sha256 hashes it."""
-    raw = path.read_bytes()
-    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
-        return raw.decode("utf-16")
-    return raw.decode("utf-8", "replace")
-
-
-def read_shadow_evidence(path, repo):
-    """Shadow results a lane run recorded outside the regress shadows list: key -> (rows, exact), plus warnings.
-
-    Used only for a shadow key the regress shadows list does not set; the house regress stays the primary source.
-    A row counts only when its source file literally contains "<label> <clean>/<total>", so the counts are checked
-    against the run that measured them and never taken on trust from this file. Any row that fails its check voids
-    the whole key (fail closed): a shadow with one unproven compared set is not verified."""
-    rows, warned = defaultdict(list), []
-    for r in read_tsv(path):
-        key, label = r["shadow"].strip(), r["label"].strip()
-        try:
-            clean, total = int(r["clean"]), int(r["total"])
-        except ValueError:
-            warned.append(f"shadow evidence `{key}`/{label}: clean and total must be integers; the key is void")
-            rows.pop(key, None)
-            rows[key] = None
-            continue
-        rel = r["source"].strip()
-        src = repo / rel
-        if not src.exists():
-            warned.append(f"shadow evidence `{key}`/{label}: source `{rel}` does not exist; the key is void")
-            rows[key] = None
-            continue
-        if f"{label} {clean}/{total}" not in read_text_any(src):
-            warned.append(f"shadow evidence `{key}`/{label}: `{rel}` does not contain `{label} {clean}/{total}`; "
-                          "the key is void")
-            rows[key] = None
-            continue
-        if rows.get(key) is None and key in rows:
-            continue  # already voided by an earlier row of the same key
-        rows[key].append((label, clean, total))
-    out = {}
-    for k, v in rows.items():
-        if v is None or not v:
-            continue
-        out[k] = (v, all(c == t and t > 0 for _, c, t in v))
-    return out, warned
-
-
-def map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress_name):
-    """The four statuses of every map row, its shadow note, and any warnings; returns (warnings, replace run).
+def map_statuses(rows, keys):
+    """The two statuses of every map row, and any warnings.
 
     One place for the status rules: coverage.py's report and coverage_treemap.py both call this, so the two cannot
     disagree about what a row counts as (the treemap once recomputed them and drifted)."""
     warnings = []
-    rrun = reg["runs"].get("replace", ("none", 1))
-    replace_clean = rrun[0] == "clean" and rrun[1] == 0
-    if not replace_clean:
-        warnings.append(f"the replace run of `{regress_name}` is not clean ({rrun[0]}): nothing counts as replaced")
     for r in rows:
         specs = split_list(r["spec"])
         cores = split_list(r["core"])
@@ -619,62 +563,10 @@ def map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress_
         for c in cores:
             if not (REPO / "engine" / c).exists():
                 warnings.append(f"map row `{r['pattern']}`: core path `engine/{c}` does not exist")
-        sh = r["shadow"]
-        r["verified"] = False
-        r["shadow_note"] = "-"
-        if sh != "-":
-            # "key:label" credits the owner on one line family of a shared key (flora_shadow:flora-occupant)
-            sh, _, own = sh.partition(":")
-            label = sh[: -len("_shadow")] if sh.endswith("_shadow") else sh
-            label = own or SHADOW_LABEL_ALIAS.get(label, label)
-            if sh in shadow_list and label in reg["shadows"]:
-                clean, lines = reg["shadows"][label]
-                resynced = reg.get("resynced", {}).get(label)
-                r["verified"] = lines > 0 and clean == lines and resynced == 0
-                r["shadow_note"] = f"{clean}/{lines}"
-                if resynced is None:
-                    r["shadow_note"] += "; resync evidence missing"
-                elif resynced:
-                    r["shadow_note"] += f"; {resynced} resynced lines"
-            elif sh in shadow_list:
-                r["shadow_note"] = "no lines"
-                warnings.append(f"shadow `{sh}` is in the regress list but `{regress_name}` has no `{label}` lines")
-            elif sh in shadow_ev:
-                sets, exact = shadow_ev[sh]
-                r["verified"] = exact
-                r["shadow_note"] = (", ".join(f"{lab} {c}/{t}" for lab, c, t in sets)
-                                    + (" (lane run)" if exact else " (lane run, not exact)"))
-            else:
-                r["shadow_note"] = "not in regress"
         rp = r["replace"]
-        r["replaced"] = False
-        if rp != "-":
-            if rp not in keys:
-                warnings.append(f"map row `{r['pattern']}`: replace key `{rp}` is not an enable key in "
-                                "FC4Subsystems.cpp")
-            r["replaced"] = (rp in replace_list or keys.get(rp, False)) and replace_clean
-    return warnings, rrun
-
-
-def regress_lists(path):
-    text = path.read_text(encoding="utf-8", errors="replace")
-    m = re.search(r'\[string\]\$Replace\s*=\s*"([^"]*)"', text)
-    replace = split_list(m.group(1)) if m else []
-    m = re.search(r'^\s*shadows\s*=\s*"([^"]*)"', text, re.M)
-    body = m.group(1).replace("`n", " ") if m else ""  # PowerShell newline escapes
-    shadows = sorted(set(re.findall(r"(\w+_shadow)\s*=\s*1", body)))
-    return replace, shadows
-
-
-def replace_run_keys(regress):
-    """The `enable =` keys of a regress's replace run (regress-<tag>-replace.ini beside it), or None when absent.
-
-    regress.ps1's list can be newer than the run: a key added after the run must not count until a run enables it."""
-    ini = Path(regress).with_name(Path(regress).stem + "-replace.ini")
-    if not ini.is_file():
-        return None
-    m = re.search(r"^\s*enable\s*=\s*(.*)$", ini.read_text(encoding="utf-8", errors="replace"), re.M)
-    return set(split_list(m.group(1))) if m else set()
+        if rp != "-" and rp not in keys:
+            warnings.append(f"map row `{r['pattern']}`: replace key `{rp}` is not an enable key in FC4Subsystems.cpp")
+    return warnings
 
 
 def subsystem_keys(path):
@@ -683,107 +575,6 @@ def subsystem_keys(path):
     for m in re.finditer(r'\{"(\w+)",\s*(?:nullptr|"\w+"),\s*k\w+,[^{}]*?(true|false)\}', text, re.S):
         keys[m.group(1)] = m.group(2) == "true"
     return keys
-
-
-def read_regress(path, audit_legacy=True):
-    raw = path.read_bytes()
-    text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8", "replace")
-    out = {"tag": None, "pass": False, "profile": "", "runs": {}, "shadows": {}, "resynced": {}}
-    run = None
-    method_summary = []
-    for line in text.splitlines():
-        line = line.rstrip()
-        m = re.match(r"^REGRESS (\S+): (PASS|FAIL)", line)
-        if m:
-            out["tag"], out["pass"] = m.group(1), out["pass"] or m.group(2) == "PASS"
-            continue
-        if line.startswith("profile:") and not out["profile"]:
-            out["profile"] = line[len("profile:"):].strip()
-        m = re.match(r"^=== regress-.+-(shadows|replace) \(", line)
-        if m:
-            run = m.group(1)
-            continue
-        if line.startswith("=== regress "):
-            run = None
-        if run == "shadows":
-            method_summary.append(line)
-        m = re.match(r"^(shadows|replace)\s+(\S+)\s+(\d+)\s+\d+", line)
-        if m:
-            out["runs"][m.group(1)] = (m.group(2), int(m.group(3)))
-            continue
-        m = re.match(r"^\s+([a-z0-9_-]+)\s+(\d+) lines, (\d+) with every mismatch count 0", line)
-        if m and run == "shadows":
-            out["shadows"][m.group(1)] = (int(m.group(3)), int(m.group(2)))
-        m = re.match(r"^\s+([a-z0-9_-]+) resynced lines: (\d+)\s*$", line)
-        if m and run == "shadows":
-            label, count = m.group(1), int(m.group(2))
-            out["resynced"][label] = max(count, out["resynced"].get(label, 0))
-    # Older summaries omitted reset counters. Recover them only from the
-    # corresponding recorded shadow log, with the same comparison-line filter
-    # as run_summary.ps1. A truncated log cannot prove zero resets.
-    missing = set(out["shadows"]) - set(out["resynced"])
-    source = path.with_name(path.stem + "-shadows.log")
-    if audit_legacy and missing and source.is_file():
-        counts, resets = Counter(), Counter()
-        comparison = re.compile(r"\] ([a-z]+) shadow [^:]*\d{4}-\d\d-\d\d[^:]*: .*"
-                                r"(mismatch(es|ed)[= ]\d|: clean\b)")
-        reset = re.compile(r"\bresynced:\s*(?!none\b|0\b)\S|\bresyncs?\s*[=:]\s*[1-9]\d*\b")
-        with source.open(encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                match = comparison.search(line)
-                if match and match.group(1) in missing:
-                    label = match.group(1)
-                    counts[label] += 1
-                    resets[label] += bool(reset.search(line))
-        for label in missing:
-            if resets[label] or counts[label] == out["shadows"][label][1] > 0:
-                out["resynced"][label] = resets[label]
-        out["resync_source"] = source
-    out["methods"] = coverage_methods.read_lines(method_summary, summary=True)
-    if audit_legacy and source.is_file():
-        # The complete recorded log is authoritative; summaries support archived runs without logs.
-        out["methods"] = coverage_methods.read_lines(read_text_any(source).splitlines())
-        if out["methods"]:
-            out["method_source"] = source
-    return out
-
-
-def newest_regress(revision=None):
-    """The regress run of the newest lane merged into HEAD ("Merge <tag>: ..." subjects of every merge reachable from
-    HEAD, in topological order), so the default depends on the checked-out commit, not on file times; runs of lanes
-    not yet merged are ignored. Every reachable merge is walked, not only first-parent ones: a lane branch that merged
-    main carries main's later merges only on its second parent, so a first-parent walk falls back to a run older than
-    the code checked out. Falls back to the newest PASS file by modification time when no merged lane has one."""
-    files = {}
-    for root in (main_checkout(REPO), REPO):
-        for p in (root / "build-runs").glob("regress-*.out"):
-            files[p.name[len("regress-"):-len(".out")]] = p
-    usable = {}
-    for tag, p in files.items():
-        try:
-            r = read_regress(p, audit_legacy=False)
-        except (OSError, UnicodeError):
-            continue
-        if r["pass"] and r["shadows"]:
-            usable[tag] = p
-    if not usable:
-        sys.exit("coverage: no PASS regress-*.out found; pass --regress")
-    try:
-        log = subprocess.run(["git", "-C", str(REPO), "log", "--merges", "--topo-order", "--format=%s"]
-                             + ([revision] if revision else []),
-                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
-    except (OSError, subprocess.CalledProcessError):
-        log = ""
-    for line in log.splitlines():
-        # A merge-train batch records its regress under the batch tag ("Merge glue29 into integration/17
-        # (merge-train batch train17)" -> regress-train17.out), not the lane's.
-        b = re.search(r"merge-train batch (train\d+)", line)
-        if b and b.group(1) in usable:
-            return usable[b.group(1)]
-        m = re.match(r"Merge (?:branch ')?([A-Za-z0-9_.-]+?)'?(?::| into |$)", line)
-        if m and m.group(1) in usable:
-            return usable[m.group(1)]
-    return max((p.stat().st_mtime, p.name, p) for p in usable.values())[2]
 
 
 # ---------------------------------------------------------------- report
@@ -797,7 +588,7 @@ def kib(n):
     return f"{n / 1024:,.1f}"
 
 
-STAT = ("specified", "implemented", "verified", "replaced")
+STAT = ("specified", "implemented")
 
 
 def attribution_for_tree(repo, export, text_lo, text_hi):
@@ -809,7 +600,7 @@ def attribution_for_tree(repo, export, text_lo, text_hi):
 
 
 def map_functions(rows, att, owner):
-    """The report's method-first row assignment and byte rollup, shared with creditcheck."""
+    """The report's method-first row assignment and byte rollup."""
     def match(o):
         for i, r in enumerate(rows):
             if not r["pattern"].startswith("m:") and fnmatch.fnmatchcase(o, r["pattern"]):
@@ -856,8 +647,8 @@ def map_functions(rows, att, owner):
     return game, fun_row, lib_b, lib_n, used_rows
 
 
-def load_report_data(export=None, exe=None, regress=None):
-    """Shared report/ledger inputs and the existing four coverage rules, unchanged."""
+def load_report_data(export=None, exe=None):
+    """Shared report inputs: attribution, map rows and their statuses."""
     export = find_input("ghidra/export/windows", export)
     exe = find_input("bin/SimCity4.exe", exe)
     exe_sha = sha256(exe)
@@ -867,7 +658,6 @@ def load_report_data(export=None, exe=None, regress=None):
     if f"executable_sha256={EXE_SHA256}" not in summary:
         sys.exit(f"coverage: {export} was not exported from GOG 1.1.641")
     base, text_lo, text_hi = pe_text(exe)
-    regress = Path(regress) if regress else newest_regress()
     inputs = {
         "names": REPO / "re" / "names_windows.tsv",
         "vtables": REPO / "docs" / "abi" / "vtables.tsv",
@@ -876,92 +666,52 @@ def load_report_data(export=None, exe=None, regress=None):
         "ranges": REPO / "tools" / "coverage-ranges.tsv",
         "noncode refs": REPO / "tools" / "coverage-noncode-refs.tsv",
         "map": REPO / "tools" / "coverage-map.tsv",
-        "shadows": REPO / "tools" / "coverage-shadows.tsv",
-        "regress.ps1": REPO / "tools" / "regress.ps1",
         "subsystems": REPO / "engine" / "plugin" / "FC4Subsystems.cpp",
     }
     att = attribution_for_tree(REPO, export, text_lo, text_hi)
     owner, rule = att.run()
     rows = read_map(inputs["map"])
-    replace_list, shadow_list = regress_lists(inputs["regress.ps1"])
     keys = subsystem_keys(inputs["subsystems"])
-    reg = read_regress(regress)
-    ran = replace_run_keys(regress)
-    not_run = [k for k in replace_list if ran is not None and k not in ran]
-    if not_run:
-        replace_list = [k for k in replace_list if k not in not_run]
-    if reg.get("resync_source"):
-        inputs["resync evidence"] = reg["resync_source"]
-    shadow_ev, shadow_warn = read_shadow_evidence(inputs["shadows"], REPO)
-
-    # statuses per map row
-    status_warn, rrun = map_statuses(rows, replace_list, shadow_list, keys, reg, shadow_ev, regress.name)
-    warnings = list(shadow_warn) + status_warn
-    if not_run:
-        warnings.append(f"replace keys in regress.ps1 but not enabled in `{regress.name}`'s replace run (not credited): "
-                        + ", ".join(not_run))
-
+    warnings = map_statuses(rows, keys)
     game, fun_row, lib_b, lib_n, used_rows = map_functions(rows, att, owner)
-    method_paths = sorted((REPO / "docs/specs/attribution").glob("*.tsv"))
-    methods, method_evidence, method_warnings = coverage_methods.credit(method_paths, att, owner, game, reg)
-    warnings.extend(method_warnings)
-    for path in method_paths:
-        inputs["method attribution " + path.name] = path
-    if reg.get("method_source"):
-        inputs["method evidence"] = reg["method_source"]
     for i, r in enumerate(rows):
         if not used_rows[i]:
             warnings.append(f"map row `{r['pattern']}` matches no owner")
 
     return dict(export=export, exe_sha=exe_sha, base=base, text_lo=text_lo, text_hi=text_hi,
-                regress=regress, inputs=inputs, att=att, owner=owner, rule=rule, rows=rows,
-                replace_list=replace_list, shadow_list=shadow_list, keys=keys, reg=reg, rrun=rrun,
-                warnings=warnings, game=game, fun_row=fun_row, lib_b=lib_b, lib_n=lib_n,
-                methods=methods, method_evidence=method_evidence)
+                inputs=inputs, att=att, owner=owner, rule=rule, rows=rows, keys=keys,
+                warnings=warnings, game=game, fun_row=fun_row, lib_b=lib_b, lib_n=lib_n)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--export", help="Ghidra export directory (default ghidra/export/windows)")
     ap.add_argument("--exe", help="SimCity 4.exe (default bin/SimCity4.exe)")
-    ap.add_argument("--regress", help="regress-<tag>.out to read (default: the PASS run of the newest lane merged into HEAD)")
     ap.add_argument("--out", default=str(REPO / "docs" / "coverage-report.md"))
     ap.add_argument("--owners", help="also write a per-function TSV (address, bytes, owner, rule, subsystem)")
-    ap.add_argument("--min-natural", type=int, default=20)
-    ap.add_argument("--min-dense", type=int, default=200)
     current = REPO / "build-runs" / "suite" / "CURRENT"
     ap.add_argument("--suite", default=current.read_text(encoding="utf-8").strip() if current.is_file() else None,
-                    help="census tag or replay:<manifest.tsv> for strict suite-verified (default: suite/CURRENT)")
+                    help="census tag whose original entry counters give Reach (default: suite/CURRENT)")
     args = ap.parse_args()
-    if min(args.min_natural, args.min_dense) < 1:
-        ap.error("compare thresholds must be positive")
-    data = load_report_data(args.export, args.exe, args.regress)
+    data = load_report_data(args.export, args.exe)
     export, exe_sha = data["export"], data["exe_sha"]
     base, text_lo, text_hi = data["base"], data["text_lo"], data["text_hi"]
-    regress, inputs, att = data["regress"], data["inputs"], data["att"]
+    inputs, att = data["inputs"], data["att"]
     owner, rule, rows = data["owner"], data["rule"], data["rows"]
-    replace_list, shadow_list, keys = data["replace_list"], data["shadow_list"], data["keys"]
-    reg, rrun, warnings = data["reg"], data["rrun"], data["warnings"]
+    keys, warnings = data["keys"], data["warnings"]
     game, fun_row, lib_b, lib_n = data["game"], data["fun_row"], data["lib_b"], data["lib_n"]
-    methods = data["methods"]
-    method_only = coverage_methods.incremental(game, rows, methods)
-    method_bytes = sum(size for _, size in method_only)
-    method_eligible_bytes = sum(att.funcs[va] for va in methods)
-    suite_evidence, suite_states, suite_stats = None, {}, ()
+    suite_evidence, reached, clean_runs = None, set(), 0
     if args.suite:
         suite_coverage = _sibling("suite_coverage")
         try:
-            suite_evidence = suite_coverage.load(REPO, args.suite, [k for k, on in keys.items() if on])
+            suite_evidence = suite_coverage.load(REPO, args.suite)
         except (ValueError, OSError, KeyError) as exc:
             ap.error(f"suite evidence: {exc}")
-        suite_states = suite_coverage.states(suite_evidence, game, rows, SHADOW_LABEL_ALIAS)
-        suite_stats = suite_coverage.STAT
-    compare_logs = compare_metrics.regress_logs(regress)
-    house_build = compare_metrics.regress_build(regress)
-    fn_states, bindings, _, compare_warnings = compare_metrics.collect_states(
-        game, REPO / "engine/plugin/compare", compare_logs, base, args.min_natural, args.min_dense, house_build)
-    warnings.extend(compare_warnings)
-    function_stats = ("bound", "matched", "matched-natural", "matched-dense")
+        for item in suite_evidence["scenarios"]:
+            if suite_coverage.clean(item["row"]):
+                reached |= item["reached"]
+                clean_runs += 1
+    stats = STAT + (("reach",) if suite_evidence else ())
 
     total_b = sum(att.funcs.values())
     total_n = len(att.order)
@@ -969,34 +719,35 @@ def main():
     game_n = len(game)
     excl_b, excl_n = sum(lib_b.values()), sum(lib_n.values())
 
+    def has(s, va, i):
+        if s == "reach":
+            return va in reached
+        return i is not None and rows[i][s]
+
     def tally(items):
-        t = {"n": 0, "b": 0, **compare_metrics.tally(items, fn_states)}
-        for s in STAT + suite_stats:
+        t = {"n": 0, "b": 0, "impl_reach_b": 0}
+        for s in stats:
             t[s + "_n"] = 0
             t[s + "_b"] = 0
         for va, size, i, _ in items:
             t["n"] += 1
             t["b"] += size
-            for s in STAT:
-                if coverage_methods.function_status(rows, i, va, methods, s):
+            for s in stats:
+                if has(s, va, i):
                     t[s + "_n"] += 1
                     t[s + "_b"] += size
-            for s in suite_stats:
-                if suite_states[va][s]:
-                    t[s + "_n"] += 1
-                    t[s + "_b"] += size
+            if has("implemented", va, i) and va in reached:
+                t["impl_reach_b"] += size
         return t
 
     whole = tally(game)
     by_area = {a: tally([g for g in game if g[3] == a]) for a in AREAS + ["shared", "unattributed"]}
     subs = defaultdict(list)
-    sub_rows = defaultdict(set)
     owners_in = defaultdict(set)
     for g in game:
         if g[2] is not None:
             key = (rows[g[2]]["area"], rows[g[2]]["subsystem"])
             subs[key].append(g)
-            sub_rows[key].add(g[2])
             owners_in[key].add(owner[g[0]])
 
     rule_b, rule_n = Counter(), Counter()
@@ -1028,14 +779,7 @@ def main():
     # ---- write
     L = []
     w = L.append
-    GAP_WORDS = {"implemented": "implemented without a spec", "verified": "verified while its owner is not marked "
-                 "implemented", "replaced": "running in the game before it was verified"}
-    order_gap = Counter()  # bytes that reached a step without the step before it
-    for va, size, i, _ in game:
-        f = {s: coverage_methods.function_status(rows, i, va, methods, s) for s in STAT}
-        for s, prev in (("implemented", "specified"), ("verified", "implemented"), ("replaced", "verified")):
-            if f[s] and not f[prev]:
-                order_gap[s] += size
+    unspecified = sum(size for va, size, i, _ in game if has("implemented", va, i) and not has("specified", va, i))
     w("# OpenSC4 coverage report")
     w("")
     w("Generated by `python tools/coverage.py`; the rules are in [COVERAGE.md](COVERAGE.md). Do not edit by hand: "
@@ -1046,42 +790,32 @@ def main():
     w("## The funnel")
     w("")
     w(f"The denominator is the game's own code: **{game_b:,} bytes in {game_n:,} functions** (libraries and "
-      "compiler-generated code excluded). Each step builds on the one before; the goal is 100% for every step.")
+      "compiler-generated code excluded). The goal is 100% Exact-replaced.")
     w("")
-    steps = [("**Specified**", "a clean-room spec in docs/specs describes the owning class", "specified", None),
-             ("**Implemented**", "our clean-room code in engine/ implements the owning class", "implemented",
-              "specified"),
-             ("**Verified**", "our code's results are exact against the original's, side by side in the same game "
-              f"(house city, `{regress.name}`)", "verified", "implemented")]
-    if suite_evidence:
-        steps.append(("↳ strict", f"... and exact in every scenario of the test suite that reached it (`{args.suite}`, "
-                      f"{len(suite_evidence['scenarios'])} runs)", "suite-verified", None))
-    steps.append(("**Replaced**", "our code runs in the game instead of the original (house replace run)",
-                  "replaced", "verified"))
     w("| Step | What it means | % of game code | Bytes | Functions | Out of order |")
     w("|---|---|---:|---:|---:|---|")
-    for label, desc, s, prev in steps:
-        gap = (f"{pct(order_gap[s], game_b)} {GAP_WORDS[s]}" if prev and order_gap[s] else "-")
-        w(f"| {label} | {desc} | **{pct(whole[s + '_b'], game_b)}** | {whole[s + '_b']:,} | {whole[s + '_n']:,} | "
-          f"{gap} |")
+    w(f"| **Specified** | a clean-room spec in docs/specs describes the owning class | "
+      f"**{pct(whole['specified_b'], game_b)}** | {whole['specified_b']:,} | {whole['specified_n']:,} | - |")
+    gap = f"{pct(unspecified, game_b)} implemented without a spec" if unspecified else "-"
+    w(f"| **Implemented** | our clean-room code in engine/ implements the owning class | "
+      f"**{pct(whole['implemented_b'], game_b)}** | {whole['implemented_b']:,} | {whole['implemented_n']:,} | "
+      f"{gap} |")
+    w("| **Exact-replaced** | the owner is switched off in corpus runs (our code runs instead) and every checkpoint "
+      "of every scenario that reaches it is identical to the original's reference under the fixed schedule | "
+      "**not measured** | - | - | needs NEXT_STEPS step 2 (references and `check`) |")
+    if suite_evidence:
+        w(f"| Reach (the ceiling) | the corpus executes the code at all in the original (`{args.suite}`, "
+          f"{clean_runs} clean of {len(suite_evidence['scenarios'])} runs) | **{pct(whole['reach_b'], game_b)}** | "
+          f"{whole['reach_b']:,} | {whole['reach_n']:,} | - |")
+    else:
+        w("| Reach (the ceiling) | the corpus executes the code at all in the original | **not measured** | - | - | "
+          "no census evidence (`--suite`) |")
     w("")
     if suite_evidence:
-        w(f"Reach, not a step: the suite entered {pct(whole['suite-exercised_b'], game_b)} of the game's code among "
-          "implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced "
-          f"(implemented owners switched on in clean suite replace runs) is {pct(whole['suite-replaced_b'], game_b)}.")
+        w(f"Of the implemented owners' code, the corpus reaches {pct(whole['impl_reach_b'], whole['implemented_b'])} "
+          f"({whole['impl_reach_b']:,} of {whole['implemented_b']:,} bytes), so Exact-replaced cannot exceed "
+          f"{pct(whole['impl_reach_b'], game_b)} of game code until the corpus reaches more.")
         w("")
-        if suite_evidence.get('key_sources'):
-            w("Replay reach uses only the recording game's entry counters. Untraced keys use the newest census verdict.")
-            w("")
-            w("| Key | Verdict source | Scenarios | Recording runs ready | Strict exact |")
-            w("|---|---|---:|---:|---|")
-            for key, source in sorted(suite_evidence['key_sources'].items()):
-                label = source['source'].replace('|', r'\|')
-                ready = source.get('recordings_ready', '-')
-                w(f"| {key} | {label} | {source['scenarios']} | {ready} | {'yes' if source['exact'] else 'no'} |")
-            w("")
-    w(f"Verified includes {method_eligible_bytes:,} bytes of single-method evidence (see Method verification).")
-    w("")
     w("## Whole executable")
     w("")
     w("| Part | Functions | Bytes | % of .text |")
@@ -1100,77 +834,33 @@ def main():
     w("")
     w("## By area")
     w("")
-    w("Share of each area's bytes at each step. Shared helpers and unattributed code have no owner, so no step.")
-    w("Function comparison columns show byte share, followed by function share in parentheses.")
+    w("Share of each area's bytes at each step. Shared helpers and unattributed code have no owner, so they are never "
+      "specified or implemented; Reach counts every function the corpus entered.")
     w("")
-    cols = [("Specified", "specified"), ("Implemented", "implemented"), ("Verified", "verified")]
+    cols = [("Specified", "specified"), ("Implemented", "implemented")]
     if suite_evidence:
-        cols.append(("↳ strict", "suite-verified"))
-    cols.append(("Replaced", "replaced"))
-    if suite_evidence:
-        cols.append(("Suite reach", "suite-exercised"))
-    def comparison_cells(t):
-        return " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})"
-                          for s in function_stats)
-
-    comparison_headers = " | ".join(function_stats)
-    w("| Area | Functions | Bytes | % of game | " + " | ".join(c for c, _ in cols)
-      + " | " + comparison_headers + " |")
-    w("|---|---:|---:|---:|" + "---:|" * (len(cols) + len(function_stats)))
+        cols.append(("Reach", "reach"))
+    w("| Area | Functions | Bytes | % of game | " + " | ".join(c for c, _ in cols) + " |")
+    w("|---|---:|---:|---:|" + "---:|" * len(cols))
     for a in AREAS + ["shared", "unattributed"]:
         t_ = by_area[a]
         w(f"| {a} | {t_['n']:,} | {t_['b']:,} | {pct(t_['b'], game_b)} | "
-          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + " | " + comparison_cells(t_) + " |")
+          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + " |")
     w(f"| **all game code** | **{game_n:,}** | **{game_b:,}** | 100.0% | "
-      + " | ".join(f"**{pct(whole[s + '_b'], game_b)}**" for _, s in cols)
-      + " | " + comparison_cells(whole) + " |")
+      + " | ".join(f"**{pct(whole[s + '_b'], game_b)}**" for _, s in cols) + " |")
     w("")
     w("## By subsystem")
     w("")
     w("One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the "
-      f"subsystem's bytes. Shadow: clean/total lines in `{regress.name}` (`not in regress` when the shadow exists "
-      "but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane "
-      "run.")
+      "subsystem's bytes (function share in parentheses).")
     w("")
-    w("| Area | Subsystem | Owners | Bytes | Shadow | " + " | ".join(c for c, _ in cols)
-      + " | " + comparison_headers + " |")
-    w("|---|---|---:|---:|---|" + "---:|" * (len(cols) + len(function_stats)))
+    w("| Area | Subsystem | Owners | Bytes | " + " | ".join(c for c, _ in cols) + " |")
+    w("|---|---|---:|---:|" + "---:|" * len(cols))
     for key in sorted(subs, key=lambda k: (AREAS.index(k[0]), -sum(g[1] for g in subs[k]), k[1])):
-        items = subs[key]
-        notes = sorted({rows[i]["shadow_note"] for i in sub_rows[key]} - {"-"})
-        t_ = tally(items)
-        shares = []
-        for _, s in cols:
-            shares.append(f"{pct(t_[s + '_b'], t_['b'])} ({pct(t_[s + '_n'], t_['n'])})"
-                          if t_[s + '_b'] or s == 'verified' else '-')
-        w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {t_['b']:,} | {', '.join(notes) or '-'} | "
-          + " | ".join(shares) + " | " + comparison_cells(t_) + " |")
-    w("")
-    w("## Function comparison")
-    w("")
-    w("Registry bindings and exact value comparisons are independent of owner shadow verification.")
-    w("")
-    w("| Step | Bytes | Functions | % of game bytes |")
-    w("|---|---:|---:|---:|")
-    for s in function_stats:
-        w(f"| **{s}** | {whole[s + '_b']:,} | {whole[s + '_n']:,} | {pct(whole[s + '_b'], game_b)} |")
-    w("")
-    w("## Method verification")
-    w("")
-    w(f"**method-verified {method_eligible_bytes:,} bytes / {len(methods):,} functions**; "
-      f"{method_bytes:,} bytes / {len(method_only):,} functions additional to verified owner rows. "
-      "The union is included once in verified. "
-      "TSV identities must match the coverage function start, literal name, owner and byte size. "
-      "Their named family must be exact with zero resynced lines in this house shadows run. "
-      "Logged methods require positive final calls, final complete=calls, monotone counters, and zero "
-      "mismatches and resyncs on every line. Unknown addresses, interface slots and collisions gain no credit.")
-    w("")
-    w("| Address | Name | Bytes | Additional to owner | Evidence |")
-    w("|---|---|---:|---|---|")
-    additional = {va for va, _ in method_only}
-    for va in sorted(methods):
-        w(f"| 0x{va:08X} | {att.name(va)} | {att.funcs[va]} | {'yes' if va in additional else '-'} | "
-          + ", ".join(data["method_evidence"][va]) + " |")
+        t_ = tally(subs[key])
+        shares = [f"{pct(t_[s + '_b'], t_['b'])} ({pct(t_[s + '_n'], t_['n'])})" if t_[s + '_b'] else "-"
+                  for _, s in cols]
+        w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {t_['b']:,} | " + " | ".join(shares) + " |")
     w("")
     w("## Excluded from the denominator")
     w("")
@@ -1223,24 +913,15 @@ def main():
     w(f"| SimCity 4.exe | {exe_sha[:16]} | GOG 1.1.641, image base 0x{base:08X} |")
     for f in ("functions.tsv", "function-details.tsv", "calls.tsv", "data-references.tsv", "instructions.asm"):
         w(f"| ghidra/export/windows/{f} | {text_sha256(export / f)[:16]} | Ghidra 12.1.4 auto-analysis export |")
-    for k in ("names", "vtables", "interfaces", "libs", "ranges", "noncode refs", "map", "shadows", "regress.ps1", "subsystems"):
+    for k in ("names", "vtables", "interfaces", "libs", "ranges", "noncode refs", "map", "subsystems"):
         w(f"| {inputs[k].relative_to(REPO).as_posix()} | {text_sha256(inputs[k])[:16]} | |")
-    w(f"| build-runs/{regress.name} | {text_sha256(regress)[:16]} | regress {reg['tag']} "
-      f"({'PASS' if reg['pass'] else 'FAIL'}; {reg['profile'] or 'profile not recorded'}); replace run "
-      f"{rrun[0]} |")
-    registry_files = set((REPO / "engine/plugin/compare").glob("*.tsv"))
-    for path in sorted(registry_files | (set(compare_logs) - {regress})):
-        label = path.relative_to(REPO).as_posix() if path.is_relative_to(REPO) else "build-runs/" + path.name
-        w(f"| {label} | {text_sha256(path)[:16]} | function compare evidence |")
-    if not registry_files:
-        w("| engine/plugin/compare/*.tsv | absent | no function bindings |")
     if suite_evidence:
-        for path in sorted(suite_evidence['inputs']):
-            label = path.relative_to(REPO).as_posix() if path.is_relative_to(REPO) else path.as_posix()
-            w(f"| {label} | {text_sha256(path)[:16]} | suite evidence |")
+        reach_files = sorted(p for p in suite_evidence["inputs"] if p.name.endswith(".reach.tsv"))
+        digest = hashlib.sha256("".join(text_sha256(p) for p in reach_files).encode()).hexdigest()
+        w(f"| build-runs/suite/{args.suite}/*.reach.tsv | {digest[:16]} | {len(reach_files)} entry-counter files "
+          "(hash of their hashes) |")
     w("")
-    w(f"Read from tools/regress.ps1: {len(replace_list)} replace keys, {len(shadow_list)} shadows. On by default in "
-      f"FC4Subsystems.cpp: {', '.join(sorted(k for k, v in keys.items() if v))}.")
+    w(f"On by default in FC4Subsystems.cpp: {', '.join(sorted(k for k, v in keys.items() if v))}.")
     w("")
     if warnings:
         w("## Warnings")
@@ -1254,16 +935,12 @@ def main():
             f.write("address\tbytes\towner\trule\tsubsystem\n")
             for va in att.order:
                 f.write(f"{va:08x}\t{att.funcs[va]}\t{owner[va] or '-'}\t{rule[va]}\t{fun_row[va]}\n")
+    reach_text = (f"reach {pct(whole['reach_b'], game_b)} of game code, "
+                  f"{pct(whole['impl_reach_b'], whole['implemented_b'])} of implemented ({args.suite})"
+                  if suite_evidence else "reach not measured")
     print(f"coverage: game code {game_n} functions, {game_b} bytes; "
           + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT)
-          + f"; method-verified {method_eligible_bytes} bytes ({len(methods)} functions; "
-          + f"{method_bytes} additional bytes); wrote {args.out}")
-    if suite_evidence:
-        print(f"suite {args.suite}: " + ", ".join(
-            f"{s} {whole[s + '_b']} bytes ({pct(whole[s + '_b'], game_b)})" for s in suite_stats))
-        if suite_evidence.get('key_sources'):
-            sources = Counter(s['source'].split(':', 1)[0] for s in suite_evidence['key_sources'].values())
-            print("suite sources: " + ", ".join(f"{source} {count} keys" for source, count in sorted(sources.items())))
+          + f"; exact-replaced not measured; {reach_text}; wrote {args.out}")
 
 
 if __name__ == "__main__":

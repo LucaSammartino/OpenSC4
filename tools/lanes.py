@@ -988,76 +988,6 @@ def queue_kinds(ctx):
 KIND_MAP = {"tool": "tools", "tools": "tools", "engine": "engine", "re": "re", "docs": "docs", "test": "test"}
 
 
-def parse_headline(text):
-    """{'specified': (pct_bytes, pct_funcs), ...} from the Headline table of docs/coverage-report.md."""
-    res = {}
-    for m in re.finditer(r"\|\s*\*\*(specified|implemented|verified|replaced)\*\*\s*\|[^|]*\|\s*([\d,]+)\s*\|\s*"
-                         r"\*\*([\d.]+)%\*\*\s*\|\s*([\d,]+)\s*\|\s*([\d.]+)%", text):
-        res[m.group(1)] = (float(m.group(3)), float(m.group(5)))
-    return res if len(res) == 4 else None
-
-
-def coverage_history(ctx):
-    """[(position on main's first-parent line, commit, subject, headline)] oldest first."""
-    rc, o = git(ctx.main, "log", "--format=%H", ctx.branch, "--", "docs/coverage-report.md")
-    commits = o.split()
-    rc, fp = git(ctx.main, "rev-list", "--first-parent", ctx.branch)
-    fpl = list(reversed(fp.split()))
-    index = {c: i for i, c in enumerate(fpl)}
-    res = {}
-    for c in commits:
-        if c in index:
-            pos = index[c]
-        else:
-            lo, hi = 0, len(fpl) - 1     # earliest first-parent commit that contains c
-            if not fpl or not is_ancestor(ctx.main, c, fpl[hi]):
-                continue
-            while lo < hi:
-                mid = (lo + hi) // 2
-                if is_ancestor(ctx.main, c, fpl[mid]):
-                    hi = mid
-                else:
-                    lo = mid + 1
-            pos = lo
-        rc, t = git(ctx.main, "show", f"{c}:docs/coverage-report.md")
-        h = parse_headline(t) if rc == 0 else None
-        rc, s = git(ctx.main, "log", "-1", "--format=%s", c)
-        prev = res.get(pos)
-        if prev is None or index.get(c, -1) >= index.get(prev[1], -1) and c != prev[1]:
-            # several report commits map to one position: keep the newest one that parses
-            if h or prev is None:
-                res[pos] = (pos, c, s.strip(), h)
-    return [res[p] for p in sorted(res)], fpl
-
-
-def lanes_in_interval(ctx, fpl, p0, p1, known, journal_mc):
-    """Lane names merged by the first-parent commits fpl[p0+1 .. p1]."""
-    found = set()
-    if p1 <= p0:
-        return found
-    rc, o = git(ctx.main, "log", "--first-parent", "--format=%H%x1f%P%x1f%s%x1f%b%x1e", f"{fpl[p0]}..{fpl[p1]}")
-    commits = []
-    for rec in o.split("\x1e"):
-        rec = rec.strip("\n")
-        if not rec.strip():
-            continue
-        h, parents, subj, body = (rec.split("\x1f") + ["", "", "", ""])[:4]
-        commits.append(h.strip())
-        merge = len(parents.split()) >= 2
-        if merge or subj.startswith("Merge") or subj.startswith("merge-train:"):
-            for tok in re.findall(r"[A-Za-z0-9][A-Za-z0-9_.\-]*", subj + " " + body):
-                tok = tok.rstrip(".-")
-                if tok in known:
-                    found.add(tok)
-    rc, allc = git(ctx.main, "rev-list", f"{fpl[p0]}..{fpl[p1]}")
-    allset = allc.split()
-    for lane, mcs in journal_mc.items():
-        for mc in mcs:
-            if mc and any(c.startswith(mc) for c in allset):
-                found.add(lane)
-    return found
-
-
 def cmd_ledger(ctx, a):
     journals = load_journals(ctx)
     if not journals:
@@ -1165,20 +1095,7 @@ def cmd_ledger(ctx, a):
             fh.write(f"{nm}\t{E['kind']}\t{E['runs']}\t{E['lane_tok']}\t{E['merge_tok']}\t{E['total']}\t{E['calls']}\t"
                      f"{E['ms'] / 3.6e6:.2f}\t{E['landed']}\t{(E['mc'] or [''])[-1]}\t{E['commit_on_main']}\n")
 
-    # coverage movement
-    hist, fpl = coverage_history(ctx)
-    known = (set(lanes) | allb) - {"main"}
-    journal_mc = {nm: E["mc"] for nm, E in lanes.items()}
-    cov = []
-    for (p0, c0, s0, h0), (p1, c1, s1, h1) in zip(hist, hist[1:]):
-        found = lanes_in_interval(ctx, fpl, p0, p1, known, journal_mc)
-        toks = sum(lanes[n]["total"] for n in found if n in lanes)
-        eng = sum(lanes[n]["total"] for n in found if n in lanes and lanes[n]["kind"].startswith("engine"))
-        d = {k: (h1[k][0] - h0[k][0]) for k in h1} if (h0 and h1) else None
-        cov.append({"from": c0[:8], "to": c1[:8], "subject": s1, "lanes": sorted(found), "tokens": toks, "eng_tokens": eng,
-                    "delta": d})
-
-    summary = build_summary(ctx, runs, rows, lanes, hist, cov)
+    summary = build_summary(ctx, runs, rows, lanes)
     if a.md:
         md_path = Path(a.md) if os.path.isabs(a.md) else ctx.here / a.md
         md_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1193,7 +1110,7 @@ def k(n):
     return f"{n / 1000:,.0f}k"
 
 
-def build_summary(ctx, runs, rows, lanes, hist, cov):
+def build_summary(ctx, runs, rows, lanes):
     lane_rows = [x for x in rows if x["is_lane"]]
     nonlane = [x for x in rows if not x["is_lane"]]
     tot = sum(x["total"] for x in rows)
@@ -1269,71 +1186,10 @@ def build_summary(ctx, runs, rows, lanes, hist, cov):
         md.append(f"| {nm} | {E['kind']} | {E['runs']} | {k(E['total'])} | {k(E['merge_tok'])} | {E['calls']} | "
                   f"{E['ms'] / 3.6e6:.1f} | {E['landed']} |")
     md.append("")
-    md.append("## Tokens per coverage point")
-    md.append("")
-    short_cov = "tokens per coverage point: not computable"
-    if len(hist) < 2 or not all(h[3] for h in hist):
-        md.append("Not computable: fewer than two parsable `docs/coverage-report.md` headlines in the history.")
-    else:
-        h0, h1 = hist[0][3], hist[-1][3]
-        md.append("Headline of `docs/coverage-report.md` (% of game code bytes) at the oldest and newest report "
-                  f"commit on main's first-parent line: " + ", ".join(
-                      f"{kk} {h0[kk][0]:.1f}% -> {h1[kk][0]:.1f}%" for kk in ("specified", "implemented", "verified",
-                                                                                  "replaced")) + ".")
-        md.append("")
-        md.append("| Report | Subject | Lanes merged since the previous report | Lane tokens | d specified | d implemented | "
-                  "d verified | d replaced |")
-        md.append("|---|---|---|---:|---:|---:|---:|---:|")
-        for c in cov:
-            d = c["delta"] or {}
-            names = [n for n in c["lanes"]]
-            ln = (", ".join(names[:7]) + (f" (+{len(names) - 7})" if len(names) > 7 else "")) if names else "none found"
-            nojr = sum(1 for n in names if n not in lanes)
-            if nojr:
-                ln += f" [{nojr} without a journal]"
-            md.append(f"| {c['to']} | {c['subject'][:60]} | {ln} | {k(c['tokens'])} | "
-                      + " | ".join(f"{d.get(kk, 0):+.1f}" for kk in ("specified", "implemented", "verified", "replaced"))
-                      + " |")
-        md.append("")
-        usable = [c for c in cov if c["lanes"] and c["delta"]]
-        tok_all = sum(c["tokens"] for c in usable)
-        tok_eng = sum(c["eng_tokens"] for c in usable)
-        di = sum(c["delta"]["implemented"] for c in usable)
-        dr = sum(c["delta"]["replaced"] for c in usable)
-        dv = sum(c["delta"]["verified"] for c in usable)
-        ds = sum(c["delta"]["specified"] for c in usable)
-        md.append(f"Over the {len(usable)} report intervals in which a merged lane could be identified "
-                  f"({len(usable) and sum(len(c['lanes']) for c in usable)} lanes, {k(tok_all)} lane tokens, "
-                  f"{k(tok_eng)} of them in engine lanes):")
-        md.append("")
-        pts = []
-        for nm, dd, tk in (("implemented", di, tok_eng), ("replaced", dr, tok_eng)):
-            if dd > 0:
-                pts.append(f"- **{nm}**: {dd:+.1f} points; engine-lane tokens per point {k(tk / dd)}; "
-                           f"all-lane tokens per point {k(tok_all / dd)}.")
-            else:
-                pts.append(f"- **{nm}**: {dd:+.1f} points; not computable (no gain).")
-        for nm, dd in (("specified", ds), ("verified", dv)):
-            pts.append(f"- {nm}: {dd:+.1f} points; all-lane tokens per point "
-                       f"{k(tok_all / dd) if dd > 0 else 'not computable (no gain)'}.")
-        md.extend(pts)
-        md.append("")
-        md.append("How far to trust it: coverage points also move when the coverage tool or its map changes "
-                  "(`coverage:` commits re-split or re-credit code without any lane), so some of the movement is not "
-                  "lane work; lanes are attributed by name found in the merge commit messages and by the merge "
-                  "commit in the journals, so a lane that landed some other way is missed; a lane's tokens count in "
-                  "the interval in which it merged, however long it ran before; tools, docs and RE lanes cost tokens "
-                  "but do not move implemented or replaced, hence the engine-lane column. Treat the numbers as an "
-                  "order of magnitude, not a price list.")
-        short_cov = ("tokens per point: implemented "
-                     + (f"{k(tok_eng / di)} (engine lanes)" if di > 0 else "n/a") + ", replaced "
-                     + (f"{k(tok_eng / dr)} (engine lanes)" if dr > 0 else "n/a")
-                     + f" over {len(usable)} intervals")
-    md.append("")
     per = " | ".join(f"{kd} {k(sum(e['total'] for e in bykind[kd]) / len(bykind[kd]))} ({len(bykind[kd])})"
                      for kd in kinds)
     short = (f"lanes {len(lanes)} in {len(rows)} runs, {k(tot)} tokens; avg per lane by kind: {per}; merge share "
-             f"{100 * merge_total / max(1, lane_sys_total):.1f}%; {short_cov}")
+             f"{100 * merge_total / max(1, lane_sys_total):.1f}%")
     return {"md": "\n".join(md) + "\n", "short": short}
 
 
@@ -1612,7 +1468,7 @@ def main(argv=None):
     p.add_argument("--stall-every", type=float, default=600, help="seconds between stalled-lane scans")
     p.add_argument("--stall-horizon", type=float, default=8, help="hours: older idle lanes are not reported as stalled")
 
-    p = sub.add_parser("ledger", help="token accounting from the workflow journals, and tokens per coverage point")
+    p = sub.add_parser("ledger", help="token accounting from the workflow journals")
     p.add_argument("--out", default="build-runs/lane-ledger.tsv")
     p.add_argument("--md", default=None)
 

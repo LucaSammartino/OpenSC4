@@ -193,5 +193,4 @@ sizes and schema are validated on load. Return addresses/code bytes are absent.
 `build-runs/compare-cases/<name>.jsonl` holds inputs, both outputs, declared return
 values, difference location and image-offset field locations. Paths refer to the
 building worktree, even when the queue stages the DLL elsewhere. Convert cases
-with `engine/tests/compare_case_to_rust.py --output engine/tests/vectors/<name>.rs`;
-see `docs/ops/compare.md` for the lane workflow and complete command.
+with `engine/tests/compare_case_to_rust.py --output engine/tests/vectors/<name>.rs`.

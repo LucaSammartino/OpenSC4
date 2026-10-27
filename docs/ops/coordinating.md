@@ -158,13 +158,13 @@ without output.
 - **Read results, not transcripts:** the lane's structured result and `docs/lanes/<lane>.md` are the record; never
   read an agent's output file. Batch status updates to the user instead of one per event.
 - **Measure:** `python tools/lanes.py ledger` after each landed batch; it reads the workflow journals and writes
-  tokens per lane, merge share and tokens per coverage point to `build-runs/lane-ledger.tsv`. Quote it, not estimates.
+  tokens per lane and merge share to `build-runs/lane-ledger.tsv`. Quote it, not estimates.
 
 ## Landing work: the merge train
 
 The contract is [docs/merge-train.md](../merge-train.md); the tool is `tools/merge-train.py`, run from the main
 checkout on `main`. A finished lane writes `build-runs/merge-queue/<lane>.json` in its own worktree and stops.
-At review, run `python tools/merge-train.py enqueue --lane <lane> --branch <branch> --tip <tip> --kind <kind> [--log <game log>]` to attach checked coverage `credit`; the train refuses ready entries without it.
+At review, run `python tools/merge-train.py enqueue --lane <lane> --branch <branch> --tip <tip> --kind <kind>`. The train no longer checks coverage credit (retired, [NEXT_STEPS](../NEXT_STEPS.md) section 3); step 3 makes an exact `check` the landing rule for engine entries that switch owners on. Until then land only tools, docs and spec-answer entries, named with `merge-batch --lanes`.
 
 ```
 python tools/merge-train.py status                  # queued lanes, and entries that are not really ready
@@ -198,20 +198,17 @@ otherwise re-summarise that regress's logs with the landed script.
   provider attribution and contributor credit.
 - **After a landing:** the regress ran in the batch (read the shadow column, not only the verdict); `python tools/gen_handoff_tables.py` regenerates
   `docs/lanes/INDEX.md`; questions: see docs/specs/questions/README.md; regenerate `docs/coverage-report.md` and `docs/coverage-map.svg`
-  (`python tools/coverage.py`, `python tools/coverage_treemap.py`) and check the delta: it must never go down.
+  (`python tools/coverage.py`, `python tools/coverage_treemap.py`).
 - **Pause / stop:** `TaskStop`, resume with `SendMessage` to the lane's agent ID (but never `SendMessage` a
   workflow subagent: that spawns a duplicate). After a hard stop, check the worktree's *unstaged* diff
   (`git -C .claude/worktrees/<lane> status`): the agent may have been writing the fix to something it had just
   committed.
 
-### Coverage credit before ready
+### Coverage map edits
 
 When tasked to edit `tools/coverage-map.tsv`, lanes change only their assigned owners' rows.
-Spec paths, Rust core paths, shadow keys and replace keys must be justified by the lane tree.
-Run `python tools/creditcheck.py --wt <worktree> --log <game.log>` before ready; repeat `--log` for more logs.
-Only exact shadows present in that tree's regress shadows profile earn verified credit.
-Use `--json <out>` to retain rows flipped, byte deltas and refusals. The review enqueue checks the claim;
-refusals block ready. `merge-train.py plan` prints claims; `land` prints coverage before and after the batch.
+Spec paths, Rust core paths, shadow keys and replace keys must be justified by the lane tree. Credit is the
+Exact-replaced metric of [NEXT_STEPS](../NEXT_STEPS.md) section 3; shadow results earn no credit.
 
 ## Merge-train operator notes
 

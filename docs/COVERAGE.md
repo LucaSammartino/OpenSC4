@@ -1,7 +1,8 @@
 # Coverage metric
 
 `python tools/coverage.py` answers "how much of SimCity 4 have we reimplemented?" with one reproducible number per
-status, weighted by the bytes of the original machine code. It writes [coverage-report.md](coverage-report.md);
+status, weighted by the bytes of the original machine code. The statuses are those of docs/NEXT_STEPS.md section 3:
+Specified, Implemented, Exact-replaced and Reach. It writes [coverage-report.md](coverage-report.md);
 rerun it after every merge and commit the report. Same inputs, same report, byte for byte, in the main checkout
 (`core.autocrlf=true`, CRLF working files) and in an LF worktree alike: text inputs are hashed with CRLF normalised to
 LF, the text as git stores it (a UTF-16 file as its UTF-8 text); only the exe is hashed as raw bytes.
@@ -57,108 +58,58 @@ Shared and unattributed code stays in the denominator and never counts as done.
 
 Each owner matches the first row whose glob matches (classes, `ns::*`, `fn:<name>`; catch-all rows at the end). A row
 whose pattern is `m:<Class>::<Method>` names one function (exact name, as `re/names_windows.tsv` gives it) and wins over
-the owner rows: it credits a partial shadow with only the functions it really compares on a game path, so the
-owner's other methods keep the owner row's statuses. A row
-gives the subsystem, its area (simulation, framework, renderer, ui, audio, region, other) and four things the
-statuses are computed from: spec files, core module paths, shadow ini key, replace ini key. The report warns about
+the owner rows. A row gives the subsystem, its area (simulation, framework, renderer, ui, audio, region, other), its
+spec files and core module paths (from which the statuses are computed), and its shadow and replace ini keys (the
+switches `check` will use; a replace key must be an enable key of `FC4Subsystems.cpp`). The report warns about
 missing spec or core files, unknown keys and rows that match nothing; it also lists the biggest owners only a
 catch-all row matches, the candidates for a new row.
 
-## Statuses (owner rows plus address-bound method verification)
+## Statuses
 
 | Status | Rule |
 |---|---|
 | specified | the row names at least one spec and every named `docs/specs/<file>` exists; a spec counts only for the classes that are its subject |
 | implemented | the row names at least one core path and every `engine/<path>` exists |
-| verified | every compared set of the row's shadow key is exact. Two sources, in this order: (1) the key is in the shadows list of `tools/regress.ps1` and every line of that shadow in the regress `.out` read has all mismatch counts 0; (2) else `tools/coverage-shadows.tsv` has the key and every row it records is exact |
-| replaced | the replace key is in `$Replace` of `tools/regress.ps1` (or is on by default in `FC4Subsystems.cpp`) and the regress replace run was clean |
+| exact-replaced | the owner is switched off in corpus runs (our code runs instead, replace mode) and every checkpoint of every scenario that reaches it is identical to the original's reference under the fixed schedule (docs/NEXT_STEPS.md sections 2 and 3). **Not measured** until the reference store and `check` exist (NEXT_STEPS step 2); the report says so |
+| reach (the ceiling) | game code with positive, unskipped original entry counters (`<scenario>.reach.tsv`) in at least one clean, completed scenario of the census named by `--suite` (default `build-runs/suite/CURRENT`). Shared and unattributed code counts too. The report also gives reach among implemented owners, the most Exact-replaced can reach with today's corpus |
 
-Method verification adds function bytes to `verified` without changing its owner's other functions.
-`docs/specs/attribution/*.tsv` records `address`, `function_name`, `owner`, `bytes`, `shadow_key` and
-`evidence_family`; only a nonempty exact family with explicit zero resynced lines in the selected house shadows
-run proves that record. `TOTAL` annotations do not name functions. The frozen 44-record proposal retains its
-exclusions; folded bodies keep coverage's literal identity, and unnamed adjustors gain no inferred credit.
+Nothing else is a coverage number. House-city "verified", "strict" suite verification, single-method credit,
+shadow-based credit and "replaced" from the house regress run were deleted on 2026-10-27; a shadow
+(`<x>_shadow = 1`) is a debugging aid that earns nothing.
 
-Alternatively, a house log may contain `<family> method <addr> <Owner>::<Method> (month) YYYY-MM-DD:
-calls=N complete=N mismatches=0; resyncs=0`. Counters are cumulative: final calls must be positive and equal final
-complete, every line must have zero mismatches and resyncs, and counters must not decrease. `complete` counts
-calls comparing every specified output and effect. Partial-output methods retain complete=0. The summary
-retains each method's line count, exact lines, final calls/complete and every failure; counters are never summed.
-Coverage reads the recorded shadows log, or its method summary when the log is unavailable, never replace lines.
-An interface slot logged with address `-` gains no bytes. Addresses must be function starts and names, owners and
-sizes must match coverage's table; duplicate TSV addresses and identity collisions are warned and refused.
-Two starts sharing a name remain distinct. Library bytes stay excluded. Owner verification subsumes method
-credit; `method-verified` reports eligible bytes, and separately the bytes additional to verified owner rows.
-
-`python tools/coverage.py --suite <tag>` adds three suite columns beside these four, without changing their rules.
-The tag lives in `build-runs/suite/<tag>/`; `summary.tsv`, `per_key.tsv`, the staged request manifest, raw logs and
-per-scenario `.reach.tsv` counters are read and hashed. Missing counters earn no exercised credit. Missing logs,
-nonzero mismatch counts and resyncs cannot earn verification credit. Verification follows the measured shadow key;
-a later game failure does not erase earlier exact comparisons. Replacement additionally requires a clean completed run.
-
-| Suite status | Rule |
-|---|---|
-| suite-exercised | implemented function bytes with positive, unskipped original entry counters in at least one scenario |
-| suite-verified | exercised bytes whose map row's shadow key has nonempty exact evidence, every mismatch count zero and zero resyncs, in every scenario that ran that key |
-| suite-replaced | implemented rows whose replacement key is enabled in at least one replace-profile run and every run enabling it is clean and reaches its end; this row measure does not assert function entry |
-
-Shadow-only tags have no suite-replaced credit. To put both profiles under one tag, run
-`python tools/suite_coverage.py <tag> --combine <shadows-tag> <replace-tag>`; this snapshots the source batches under
-the new tag, with combined summary/per-key tables. `sources.json` names only these bundled subdirectories.
+## The census and scenario selection
 
 `python tools/suite.py run --set all --profile shadows --reach --slots 12 --tag <tag> --dll <current-dll>` collects
 the census through the shared queue. A DLL without the reach tracer is rejected before submission. Runs write only
-slot copies and ignored artifacts, never the Documents region saves. `python tools/suite_coverage.py <tag> --select`
-prints reach per scenario and set, saves `reach_scenarios.tsv`, `reach_sets.tsv` and `tier1-selection.json`, and uses
-deterministic greedy byte-weighted set cover followed by redundant-row removal. The target is 98% of observed
-implemented reach; candidates must finish cleanly, and conservative packing of measured run walls must fit 900
-seconds on six slots. The heuristic is not a proof of global minimum set size. Missing traces remain explicitly
-unmeasured. Saturation dates are candidates derived from first-hit windows; rerun a shortened scenario to measure it.
-Selection is ineligible for tier1 while any current suite row or any scenario reach file is missing, even when the
-98% target of the observed subset is met.
-Mark the chosen rows `tier1` in `suite.tsv` only after measuring them. A marked tier runs directly, without local
-calibration files. Its manifest records the actual batch wall (including queue waits), slot limit and completeness.
-An interrupted census can continue with `python tools/suite.py resume <tag> --slots 12`; completed or claimed labels
-are harvested rather than submitted again. Optional `--seconds` and `--timeout` bounds affect only unclaimed requests.
+slot copies and ignored artifacts, never the Documents region saves. An interrupted census continues with
+`python tools/suite.py resume <tag> --slots 12`; completed or claimed labels are harvested rather than submitted again.
 
-The regress `.out` read is `--regress`, else the PASS run of the newest lane merged into HEAD (first-parent
-`Merge <tag>:` subjects), so the default depends on the commit, not on file times.
-
-### Shadow evidence outside the regress run: `tools/coverage-shadows.tsv`
-
-The house regress is the primary source of `verified`, but its shadows run exercises only the keys its list sets.
-A shadow that a lane run alone has measured (a new glue lane's shadow before a `regresslists*` lane adds it, or
-one kept out of the list on purpose) is recorded in `tools/coverage-shadows.tsv`: one row per compared set, with
-its clean and total counts, the label the run uses for that set, and the file that records the run.
-
-A row counts only when its `source` file literally contains `<label> <clean>/<total>`. The counts are therefore
-checked against the run that measured them and never taken on trust from the ledger; a row that fails its check
-(missing source, counts absent from it) voids its whole shadow key and is reported as a warning. `verified` is
-credited only when every compared set of a key is exact, so a shadow with one differing set stays unverified and
-the report shows its real counts (`fire 211/263, riot 2/354 (lane run, not exact)`) instead of implying the
-subsystem is proven. The regress path still wins whenever the regress shadows list sets the key.
+`python tools/suite_coverage.py <tag> --select` prints reach per scenario and set, saves `reach_scenarios.tsv`,
+`reach_sets.tsv` and `tier1-selection.json`, and uses deterministic greedy byte-weighted set cover followed by
+redundant-row removal: the target is 98% of observed implemented reach; candidates must finish cleanly, and
+conservative packing of measured run walls must fit 900 seconds on six slots. The heuristic is not a proof of global
+minimum set size. Missing traces stay unmeasured. `python tools/suite_coverage.py <tag> --combine <a> <b>` snapshots
+two batches under one tag.
 
 ## Running it
 
 ```
-python tools/coverage.py                               # writes docs/coverage-report.md
-python tools/coverage.py --regress build-runs/regress-<tag>.out
+python tools/coverage.py                               # writes docs/coverage-report.md (Reach from build-runs/suite/CURRENT)
+python tools/coverage.py --suite census-1027           # Reach from a named census
 python tools/coverage.py --owners build-runs/coverage-owners.tsv   # per-function audit TSV (address, bytes, owner, rule, subsystem); do not commit
 python tools/coverage_treemap.py                       # writes docs/coverage-map.svg from the same attribution
 ```
 
-About 6 seconds, deterministic (two runs write a byte-identical report; well under a minute). The report contains counts, class names, address ranges and statuses only, never
-code. `coverage_treemap.py` reads `coverage.py` as a module and calls its `map_statuses()` for the four statuses,
-so the two cannot drift: it colours the same owners by the furthest status their map row has reached, and its
-header shares are summed on each status's own flag rather than on that colour, since a row can be implemented
-without a spec or replaced without a module.
+About 6 seconds without `--suite`, deterministic (two runs write a byte-identical report). The report contains
+counts, class names, address ranges and statuses only, never code. `coverage_treemap.py` reads `coverage.py` as a
+module and uses the same statuses, so the two cannot drift: it colours owners by the furthest status their map row has
+reached and hatches the code the corpus reaches.
 
 ## Moving the numbers honestly
 
-- A new spec, core, shadow or replace key: edit the subsystem's row in `coverage-map.tsv`. For a shadow the house
-  regress does not run, add its measured counts to `tools/coverage-shadows.tsv` as well, each row citing the run
-  that records them: the tool refuses a row whose source does not contain the counts it claims, so the ledger
-  cannot invent a proof. Do not record a shadow at exact counts the run did not measure.
+- A new spec or core module: edit the subsystem's row in `coverage-map.tsv`. Exact-replaced moves only through
+  `check` results (NEXT_STEPS step 3), never by a map edit.
+- Reach: add or fix scenarios (NEXT_STEPS step 5) and rerun the census; never shorten a scenario without measuring it.
 - Unattributed or shared bytes: name functions (a manual file in `re/symbols/` with evidence, then
   `python tools/symport/merge_names.py` regenerates `re/names_windows.tsv` and `re/labels_windows.tsv`), add vtables to
   `docs/abi`, a library range with its evidence to `coverage-libs.tsv`, or a game-code owner range with its evidence

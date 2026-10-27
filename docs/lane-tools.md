@@ -13,7 +13,7 @@ at another checkout, read-only.
 | `check <lane> [--deps a,b] [--touches k1,k2]` | coordinator, before every spawn | refuses a lane that would be wasted work; prints `ok` or one reason per line |
 | `wait --verdict <label>` or `wait --file <path> [--pattern <re>]` | tooling and RE lanes, the coordinator (engine lanes use `.claude/lane-bin/qwait.py`: they do not run `tools/`) | one tool call instead of a polling loop |
 | `monitor [--interval 30]` | coordinator, under the Monitor tool | one line per event, silence otherwise |
-| `ledger [--out ...] [--md <file>]` | coordinator, now and then | tokens per lane, merge share, tokens per coverage point |
+| `ledger [--out ...] [--md <file>]` | coordinator, now and then | tokens per lane and merge share |
 | `brief <subsystem-or-key> [--kind engine\|re] [--focus <regex>]` | coordinator | at most 60 lines: spec sections/ranges/sizes, question/core/ABI/conformance pointers, keys and coverage; `--focus` marks task sections |
 
 ## The cap rule

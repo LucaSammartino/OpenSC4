@@ -1179,7 +1179,7 @@ fn:SendFatalExceptionNotification	application	framework	app-shell-window.md	-	-	
 fn:D3DXMatrixIsIdentity	3D driver (DirectX 7)	renderer	renderer-driver.md, tiny-owners-b9.md	-	-	-
 fn:*	other free functions	other	-	-	-	-
 *	other	other	-	-	-	-
-# ---- partial shadows credited per function (m: rows, docs/specs/attribution/proposed-shadow-methods.tsv; renderprops and app exact in shadowtrial2, 0 resyncs)
+# ---- per-function rows (m:): these methods take the row below instead of their owner's row
 m:cSC4RenderProperties::GetBoolCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
 m:cSC4RenderProperties::GetIntCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-
 m:cSC4RenderProperties::GetFloatCount	render properties	renderer	render-properties.md	core/src/render_properties	renderprops_shadow	-

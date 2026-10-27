@@ -49,9 +49,10 @@ of wall time and the turbo frame budget. The DLL must acknowledge this switch
 in its log. `--clock original` retains the all-original wall-time audit;
 `--turbo` cannot speed up that original scheduler. Both choices are in the key.
 `session_seed` fixes our generators, not the game's clock-seeded generators.
-Foundations §6.2 lists independent member, file-local and temporary generators;
-no shared public seed interface is specified. We do not patch their memory.
-Original agents' own timers, rendering and RNGs can still vary.
+Foundations §6.2 lists independent member, file-local and temporary generators.
+In these runs the original's own timers, rendering and RNGs can still vary; the
+fixed schedule (docs/NEXT_STEPS.md section 2) re-seeds them from the session seed
+at DLL load and virtualises the timers.
 
 Raw save variation also includes identity encoding: foundations §2.7 specifies
 that original object IDs are heap addresses, and §§3.3–3.4 specify entry checksums

@@ -1,15 +1,14 @@
 """Render the coverage treemap (docs/coverage-map.svg) from tools/coverage.py's attribution.
 
-The top of the picture is the funnel: specified -> implemented -> verified -> replaced, each the share of the game's
-machine code bytes, goal 100% each; strict suite-verified sits under verified. Below it every game function of
-SimCity 4.exe, grouped area > subsystem > owning class, sized by bytes and coloured by the furthest funnel step it has
-reached (one colour ramp, light to dark). Two marks sit outside the ramp: replaced before verified (out of order) and
-the hatch for strict (verified in every suite scenario, not only the house city). RE-side tool, like coverage.py:
-run it from the main checkout.
+The top of the picture is the funnel: specified -> implemented -> exact-replaced, each the share of the game's
+machine code bytes, and Reach, the ceiling (docs/NEXT_STEPS.md section 3). Below it every game function of
+SimCity 4.exe, grouped area > subsystem > owning class, sized by bytes and coloured by the furthest step it has reached
+(one colour ramp, light to dark); the hatch marks code the corpus reaches in the original. RE-side tool, like
+coverage.py: run it from the main checkout.
 
     python tools/coverage_treemap.py [--out docs/coverage-map.svg] [--suite <tag>]
 
---suite defaults to the tag in build-runs/suite/CURRENT (the census the strict numbers come from).
+--suite defaults to the tag in build-runs/suite/CURRENT (the census whose entry counters give Reach).
 """
 import argparse
 import html
@@ -23,22 +22,18 @@ spec = importlib.util.spec_from_file_location("coverage", REPO / "tools" / "cove
 cov = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cov)
 
-STAT = ("specified", "implemented", "verified", "replaced")
-STEPS = [  # the funnel steps in order (the map's original palette)
+STAT = cov.STAT
+STEPS = [  # the funnel steps in order (the map's original palette); exact-replaced gets "#1f6b43" once measured
     ("Not specified", "#d5d9d4"),
     ("Specified", "#9cc3e4"),
     ("Implemented", "#e8b04a"),
-    ("Verified", "#4fa36b"),
-    ("Replaced", "#1f6b43"),
 ]
-EARLY = ("Replaced before verified", "#c97b2a")  # outside the ramp: out of funnel order
-EARLY_STEP = len(STEPS)
 BG, INK, MUTED, TRACK = "#f6f7f4", "#1d2320", "#5b6560", "#e3e6e0"
 
 
 def step(flags):
-    s, i, v, r = flags
-    return 4 if v and r else 3 if v else EARLY_STEP if r else 2 if i else 1 if s else 0
+    s, i = flags
+    return 2 if i else 1 if s else 0
 
 
 def current_suite():
@@ -49,24 +44,23 @@ def current_suite():
 def collect(suite=None):
     data = cov.load_report_data()
     owner, rows = data["owner"], data["rows"]
-    regress, methods = data["regress"], data["methods"]
-    strict = {}
+    reached = set()
     if suite:
         sc = cov._sibling("suite_coverage")
-        evidence = sc.load(REPO, suite, [k for k, on in data["keys"].items() if on])
-        strict = {va: st["suite-verified"] for va, st in
-                  sc.states(evidence, data["game"], rows, cov.SHADOW_LABEL_ALIAS).items()}
+        for item in sc.load(REPO, suite)["scenarios"]:
+            if sc.clean(item["row"]):
+                reached |= item["reached"]
     agg = defaultdict(int)
-    stat_b = {s: 0 for s in STAT + ("strict",)}
+    stat_b = {s: 0 for s in STAT + ("reach",)}
     for va, size, index, _ in data["game"]:
         o = owner[va]
-        flags = [cov.coverage_methods.function_status(rows, index, va, methods, s) for s in STAT]
+        flags = [index is not None and rows[index][s] for s in STAT]
         for s, flag in zip(STAT, flags):
             if flag:
                 stat_b[s] += size
-        hatch = bool(strict.get(va))
+        hatch = va in reached
         if hatch:
-            stat_b["strict"] += size
+            stat_b["reach"] += size
         if o is None:
             k = ("unattributed", "unattributed", "unattributed")
         elif o == cov.SHARED:
@@ -78,7 +72,7 @@ def collect(suite=None):
     tree = defaultdict(lambda: defaultdict(list))
     for (a, s, o, st, hatch), b in agg.items():
         tree[a][s].append((b, st, o, hatch))
-    return tree, regress.name, stat_b
+    return tree, stat_b
 
 
 def worst(row, w):
@@ -120,30 +114,31 @@ def squarify(values, x, y, w, h):
 
 
 def fill(st):
-    return EARLY[1] if st == EARLY_STEP else STEPS[st][1]
+    return STEPS[st][1]
 
 
 def funnel(svg, stat_b, total, suite, y0):
-    """One bar per step on a common 0-100% scale; strict is a hatched bar under verified."""
+    """One bar per step on a common 0-100% scale; Reach, the ceiling, is a hatched bar."""
     e = html.escape
     bx, bw, bh, gap = 560, 860, 26, 8
     bars = [("Specified", "a clean-room spec describes the code", "specified", 1, False),
             ("Implemented", "our code exists for it", "implemented", 2, False),
-            ("Verified", "our code gives exactly the original's results (house city)", "verified", 3, False)]
+            ("Exact-replaced", "our code runs instead and matches the references", None, None, False)]
     if suite:
-        bars.append(("strict", "… and in every scenario of the test suite", "strict", 3, True))
-    bars.append(("Replaced", "our code runs in the game instead of the original", "replaced", 4, False))
+        bars.append(("Reach", "the corpus executes it in the original (ceiling)", "reach", 0, True))
     for n, (label, meaning, key, st, hatch) in enumerate(bars):
         y = y0 + n * (bh + gap)
-        share = stat_b[key] / total
-        x_label = 40 if hatch else 16
-        svg.append(f'<text x="{x_label}" y="{y + 18}" font-size="16" font-weight="{400 if hatch else 700}" '
-                   f'fill="{INK}">{"↳ " if hatch else ""}{e(label)}</text>')
+        svg.append(f'<text x="16" y="{y + 18}" font-size="16" font-weight="700" fill="{INK}">{e(label)}</text>')
         svg.append(f'<text x="150" y="{y + 18}" font-size="14" fill="{MUTED}">{e(meaning)}</text>')
         svg.append(f'<rect x="{bx}" y="{y}" width="{bw}" height="{bh}" rx="3" fill="{TRACK}"/>')
-        svg.append(f'<rect x="{bx}" y="{y}" width="{bw * share:.1f}" height="{bh}" rx="3" fill="{STEPS[st][1]}"/>')
+        if key is None:
+            svg.append(f'<text x="{bx + bw + 12}" y="{y + 19}" font-size="15" fill="{MUTED}">not measured</text>')
+            continue
+        share = stat_b[key] / total
+        svg.append(f'<rect x="{bx}" y="{y}" width="{bw * share:.1f}" height="{bh}" rx="3" '
+                   f'fill="{MUTED if hatch else STEPS[st][1]}"/>')
         if hatch:
-            svg.append(f'<rect x="{bx}" y="{y}" width="{bw * share:.1f}" height="{bh}" rx="3" fill="url(#strict)"/>')
+            svg.append(f'<rect x="{bx}" y="{y}" width="{bw * share:.1f}" height="{bh}" rx="3" fill="url(#reach)"/>')
         svg.append(f'<text x="{bx + bw + 12}" y="{y + 19}" font-size="18" font-weight="700" fill="{INK}">'
                    f'{share:.1%}</text>')
     end = y0 + len(bars) * (bh + gap)
@@ -172,35 +167,31 @@ def legend(svg, y, suite):
     y += 28
     x = 16
     if suite:
-        svg.append(f'<rect x="{x}" y="{y}" width="18" height="18" fill="{STEPS[3][1]}" stroke="{INK}" '
+        svg.append(f'<rect x="{x}" y="{y}" width="18" height="18" fill="{STEPS[2][1]}" stroke="{INK}" '
                    'stroke-width="0.5"/>')
-        svg.append(f'<rect x="{x}" y="{y}" width="18" height="18" fill="url(#strict)"/>')
-        svg.append(f'<text x="{x + 25}" y="{y + 14}" font-size="14" fill="{INK}">Hatched = strict: exact in every '
-                   'scenario of the test suite, not only the house city</text>')
-        x = 720
-    svg.append(f'<rect x="{x}" y="{y}" width="18" height="18" fill="{EARLY[1]}" stroke="{INK}" stroke-width="0.5"/>')
-    svg.append(f'<text x="{x + 25}" y="{y + 14}" font-size="14" fill="{INK}">Out of order: running in the game '
-               'before it was verified</text>')
+        svg.append(f'<rect x="{x}" y="{y}" width="18" height="18" fill="url(#reach)"/>')
+        svg.append(f'<text x="{x + 25}" y="{y + 14}" font-size="14" fill="{INK}">Hatched = reached: the corpus '
+                   'executes it in the original, so a reference can check it</text>')
 
 
-def render(tree, regress, head, out, stat_b, suite=None):
+def render(tree, head, out, stat_b, suite=None):
     W, H = 1600, 1200
     e = html.escape
     total = sum(b for subs in tree.values() for os in subs.values() for b, *_ in os)
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
            'font-family="Segoe UI, Helvetica, Arial, sans-serif">',
-           '<defs><pattern id="strict" width="8" height="8" patternUnits="userSpaceOnUse" '
+           '<defs><pattern id="reach" width="8" height="8" patternUnits="userSpaceOnUse" '
            'patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#ffffff" stroke-width="2.4"/>'
            '</pattern></defs>',
            f'<rect width="{W}" height="{H}" fill="{BG}"/>',
            f'<text x="16" y="40" font-size="30" font-weight="700" fill="{INK}">OpenSC4 coverage of SimCity 4.exe</text>',
            f'<text x="16" y="66" font-size="15" fill="{MUTED}">Share of the game\'s {total / 1048576:.2f} MB of '
-           'machine code (libraries excluded) that has reached each step. Each step builds on the one before; the '
-           'goal is 100% for every step.</text>']
+           'machine code (libraries excluded) that has reached each step. The goal is 100% '
+           'exact-replaced; Reach is its ceiling.</text>']
     y = funnel(svg, stat_b, total, suite, 84)
     svg.append(f'<text x="16" y="{y + 14}" font-size="13" fill="{MUTED}">The map below: one box per class of the '
                'original, area = its bytes, grouped by area and subsystem. '
-               f'{e(head)}, {e(regress)}' + (f', suite {e(suite)}' if suite else '') + '.</text>')
+               f'{e(head)}' + (f', suite {e(suite)}' if suite else '') + '.</text>')
 
     legend_h = 62
     mx, my = 16, y + 28
@@ -224,7 +215,7 @@ def render(tree, regress, head, out, stat_b, suite=None):
                         svg.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" fill="{fill(st)}"/>')
                         if hatch:
                             svg.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
-                                       'fill="url(#strict)"/>')
+                                       'fill="url(#reach)"/>')
                 if ow > 0.4 and oh > 0.4:
                     svg.append(f'<rect x="{ox:.1f}" y="{oy:.1f}" width="{ow:.1f}" height="{oh:.1f}" fill="none" '
                                f'stroke="{BG}" stroke-width="0.6"/>')
@@ -255,7 +246,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(REPO / "docs" / "coverage-map.svg"))
     ap.add_argument("--suite", default=current_suite(),
-                    help="census tag or replay:<manifest.tsv> for strict (default: suite/CURRENT)")
+                    help="census tag whose entry counters give Reach (default: suite/CURRENT)")
     args = ap.parse_args()
 
     def git(*a):
@@ -263,8 +254,8 @@ def main():
     short = git("rev-parse", "--short", "HEAD")
     branch = git("rev-parse", "--abbrev-ref", "HEAD")  # a worktree is not on `main`; name the branch it is on
     head = f"{branch} {short}" if branch and branch != "HEAD" else short
-    tree, regress, stat_b = collect(args.suite)
-    total = render(tree, regress, head, Path(args.out), stat_b, args.suite)
+    tree, stat_b = collect(args.suite)
+    total = render(tree, head, Path(args.out), stat_b, args.suite)
     print(f"coverage_treemap: {total} bytes; " + ", ".join(f"{s} {b / total:.1%}" for s, b in stat_b.items())
           + f"; wrote {args.out}")
 

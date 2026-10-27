@@ -17,11 +17,6 @@ The game runs its main thread at 24-bit precision; our DLL's presence raises it 
 plugin re-asserts 24-bit at PostAppInit (foundations §18). Declaring `float`/`double` where the game returns nothing
 leaves values on the x87 stack and eventually produces NaN sizes; `docs/abi/README.md` states the return rule.
 
-### 5.3 Differentials
-Separate runs of the original are not deterministic, so compare with **same-process shadows**: our core runs on the
-original's live inputs at the same moment, read-only, and the results are diffed bitwise (budget, demand and every
-grid sim have one). Separate-run soaks are only for long-run paths.
-
 ### 5.3b Demand
 Operation order matters for bitwise agreement (demand.md §8.1). For unspecified behaviour, follow the engine
 prompt's `SPEC-GAP` rule. The coordinator can assign RE follow-up when a difference needs a spec change.

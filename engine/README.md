@@ -2619,7 +2619,6 @@ Use `compare = <names|class:Class|all>` (`inplace` remains an alias). Everything
 is off without that selection. Per-row compare/record/replace modes, bounded
 value-only corpus/case exports and nearby-input replay are documented as a
 stable interface in [docs/harness.md](../docs/harness.md#stable-function-compare-interface-run-7).
-Class-binding workflow: [docs/ops/compare.md](../docs/ops/compare.md).
 
 ### Construction quit experiments
 

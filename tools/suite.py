@@ -748,8 +748,6 @@ def successful(results):
 def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    import suite_replay
-    suite_replay.add_commands(commands)
     run = commands.add_parser('run')
     run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'reach29', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
@@ -786,8 +784,6 @@ def main(argv=None, root=ROOT):
     resume.add_argument('--timeout', type=int)
     args = parser.parse_args(argv)
     try:
-        if args.command in ('record', 'replay'):
-            return getattr(suite_replay, args.command)(root, args)
         if args.command == 'resume':
             if not NAME.fullmatch(args.tag):
                 raise ValueError('invalid suite tag')

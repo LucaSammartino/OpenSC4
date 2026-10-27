@@ -60,7 +60,7 @@ const char* NeverArm(uint32_t address, uintptr_t preferredBase) {
     if (preferredBase != 0x00400000) return "";
     // 1.1.641 ABI roster artifacts, verified with re_query.py. These addresses
     // are operands, not instruction boundaries. INT3 corrupts the containing
-    // instruction without delivering a breakpoint. See docs/ops/reach-tracing.md.
+    // instruction without delivering a breakpoint.
     switch (address) {
     case 0x00420036: return "not-entry:IID-immediate-at-00420034";
     case 0x004f4442: return "not-entry:call-displacement-at-004f4440";

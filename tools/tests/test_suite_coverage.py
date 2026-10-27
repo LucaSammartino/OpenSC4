@@ -63,23 +63,6 @@ class SuiteCreditTests(unittest.TestCase):
             self.assertEqual(evidence['scenarios'][0]['row']['actions_failed'], '1')
             self.assertFalse(evidence['scenarios'][0]['selection_ready'])
 
-    def test_only_entered_implemented_bytes_are_exercised_or_verified(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            batch(root)
-            evidence = metric.load(root, 'test')
-        self.assertEqual(evidence['reached'], {0x401000})
-        rows = [dict(implemented=True, shadow='foo_shadow', replace='foo'),
-                dict(implemented=False, shadow='foo_shadow', replace='foo')]
-        game = [(0x401000, 100, 0, 'simulation'), (0x402000, 900, 0, 'simulation'),
-                (0x403000, 700, 1, 'simulation'), (0x404000, 50, None, 'shared')]
-        states = metric.states(evidence, game, rows, {})
-        self.assertTrue(states[0x401000]['suite-verified'])
-        for address in (0x402000, 0x403000, 0x404000):
-            self.assertFalse(states[address]['suite-exercised'])
-            self.assertFalse(states[address]['suite-verified'])
-        self.assertFalse(states[0x401000]['suite-replaced'])
-
     def test_any_scenario_mismatch_voids_the_key(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -171,13 +154,6 @@ class SuiteCreditTests(unittest.TestCase):
             suite.write_tsv(directory / 'summary.tsv', suite.COLUMNS, [])
             with self.assertRaisesRegex(ValueError, 'every requested'):
                 metric.load(root, 'test')
-
-    def test_owner_label_and_clock_alias(self):
-        evidence = dict(reached={1, 2}, exact={'clock', 'flora-occupant'}, replaced=set())
-        rows = [dict(implemented=True, shadow='clock24_shadow', replace='-'),
-                dict(implemented=True, shadow='flora_shadow:flora-occupant', replace='-')]
-        states = metric.states(evidence, [(1, 10, 0, ''), (2, 20, 1, '')], rows, {'clock24': 'clock'})
-        self.assertTrue(all(row['suite-verified'] for row in states.values()))
 
 
 def item(name, addresses, wall=100, verdict='clean'):

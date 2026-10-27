@@ -1,4 +1,4 @@
-"""Byte-weighted scenario reach, conservative suite credit, and greedy tier selection.
+"""Byte-weighted scenario reach (Reach, docs/NEXT_STEPS.md section 3) and greedy tier selection.
 
 python tools/suite_coverage.py TAG [--select --slots 6 --budget-seconds 900]
 python tools/suite_coverage.py TAG --combine SHADOW_TAG REPLACE_TAG
@@ -13,9 +13,7 @@ import json
 from pathlib import Path
 import re
 import shutil
-from types import SimpleNamespace
 
-STAT = ('suite-exercised', 'suite-verified', 'suite-replaced')
 NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$')
 
 
@@ -153,9 +151,6 @@ def read_batch(directory, default_enabled=()):
 
 
 def load(root, tag, default_enabled=()):
-    if tag.startswith('replay:'):
-        return sibling('replay_coverage').load(root, tag[len('replay:'):],
-            SimpleNamespace(load=load, tsv=tsv, sibling=sibling), default_enabled)
     directory = folder(root, tag)
     index = directory / 'sources.json'
     if index.is_file():
@@ -190,22 +185,6 @@ def load(root, tag, default_enabled=()):
             failed.update(item['enabled'])
     return dict(tag=tag, scenarios=scenarios, reached=union, exact=ran - bad,
                 replaced=enabled - failed, inputs=files)
-
-
-def states(evidence, game, rows, aliases):
-    result = {}
-    for address, _, index, _ in game:
-        row = rows[index] if index is not None else {}
-        implemented = row.get('implemented', False)
-        shadow, _, own = row.get('shadow', '-').partition(':')
-        label = shadow.removesuffix('_shadow')
-        label = own or aliases.get(label, label)
-        reached = evidence.get('key_reached', {}).get(label, evidence['reached'])
-        exercised = implemented and address in reached
-        result[address] = {'suite-exercised': exercised,
-                           'suite-verified': exercised and label in evidence['exact'],
-                           'suite-replaced': implemented and row.get('replace') in evidence['replaced']}
-    return result
 
 
 def greedy(items, weights, fraction=0.98, slots=6, budget=900):
