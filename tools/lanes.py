@@ -616,11 +616,8 @@ def cmd_check(ctx, a):
         wts = {w["branch"]: w["path"] for w in list_worktrees(ctx) if w["branch"]}
         now = time.time()
         hits = {}
-        # lanes the operator retired (one name per line in build-runs/lanes-retired.txt on main) are not duplicates
-        retired_file = ctx.main / "build-runs" / "lanes-retired.txt"
-        retired = set(read_text(retired_file).split()) if retired_file.is_file() else set()
         for b in sorted(allb - merged):
-            if b == lane or b == ctx.branch or b in retired:
+            if b == lane or b == ctx.branch:
                 continue
             wt = wts.get(b)
             sources = []
