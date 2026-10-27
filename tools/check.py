@@ -26,6 +26,8 @@ import re
 import subprocess
 import sys
 
+import golden_relabel
+
 REPO = Path(__file__).resolve().parents[1]
 GOLDEN = Path(__file__).with_name('golden.py')
 SECONDS = 900  # a run's watchdog; not part of a fixed-schedule key
@@ -125,11 +127,15 @@ def digests(log):
     return found
 
 
-def first_delivery(reference_log, candidate_log):
+def first_delivery(reference_log, candidate_log, replaced):
+    """The first delivery whose rand() state differs, or (with no owner replaced) its file-local generators' digest.
+    A replaced owner draws from our core's copy of its generators, so the original's copy stays behind by design;
+    rand() is shared with our cores, so a difference there is behaviour."""
     expected, actual = digests(reference_log), digests(candidate_log)
+    fields = 1 if replaced else 2
     for key in sorted(expected.keys() | actual.keys()):
         a, b = expected.get(key), actual.get(key)
-        if a is None or b is None or a[:2] != b[:2]:
+        if a is None or b is None or a[:fields] != b[:fields]:
             day = str(dt.date(2000, 1, 1) + dt.timedelta(days=key[0] - 2451545)) if key[0] > 2451545 else 'load'
             return {'day': day, 'delivery': key[1], 'expected': a, 'actual': b}
     return None
@@ -143,13 +149,13 @@ def compare(row, dll, keys):
     return json.loads(Path(path[1]).read_text(encoding='utf-8'))
 
 
-def describe(name, report, owners, reference):
+def describe(name, report, owners, reference, replaced):
     if report['verdict'] == 'error':
         return f'{name}: ERROR {report["error"]}'
     if report['verdict'] == 'exact':
         return f'{name}: exact'
     parts = [f'{name}: {report["verdict"]}']
-    delivery = first_delivery(reference / 'game.log', Path(report['run']) / 'game.log')
+    delivery = first_delivery(reference / 'game.log', Path(report['run']) / 'game.log', replaced)
     if delivery:
         target = delivery['expected'][2] if delivery['expected'] else '-'
         parts.append(f'first delivery {delivery["day"]} #{delivery["delivery"]} (reference target vt {target})')
@@ -158,10 +164,21 @@ def describe(name, report, owners, reference):
         parts.append(f'first DIGEST {first["date"]} ({", ".join(first["fields"])})')
     records = report['save']['records']
     if records:
-        kind = int(records[0]['tgi'].split('/')[0], 16)
+        first, note = records[0]['tgi'], ''
+        saves = reference / 'end.sc4', Path(report['run']) / 'end.sc4'
+        if all(path.exists() for path in saves):
+            labels = golden_relabel.compare(*saves)
+            content = [tgi for tgi, verdict in labels['records'].items() if verdict != 'relabel']
+            relabelled = len(labels['records']) - len(content)
+            if relabelled:
+                shift = labels['first_shift']
+                note = f' ({relabelled} only relabelled: object IDs shift from {shift[0]}, class {shift[1]:08X})'
+                if content:
+                    first = content[0]
+        kind = int(first.split('/')[0], 16)
         key, cls = owners.get(kind, ('-', '-'))
-        parts.append(f'{report["save"]["different_records"]} records differ, first {records[0]["tgi"]} '
-                     f'(owner {key}, {cls})')
+        parts.append(f'{report["save"]["different_records"]} records differ{note}, first '
+                     f'{"content " if note else ""}{first} (owner {key}, {cls})')
     return '; '.join(parts)
 
 
@@ -179,7 +196,7 @@ def run_each(args, rows, dll):
         reports = list(pool.map(lambda job: compare(rows[job[1]], dll, alone(job[0])), jobs))
     table, exact = [], {}
     for (key, name), report in zip(jobs, reports):
-        line = describe(f'{key} on {name}', report, owners, REPO / 'build-runs/golden' / report.get('key', '-'))
+        line = describe(f'{key} on {name}', report, owners, REPO / 'build-runs/golden' / report.get('key', '-'), True)
         print(line, flush=True)
         table.append((key, name, report['verdict'], line.split(': ', 1)[1]))
         exact.setdefault(key, []).append(report['verdict'] == 'exact')
@@ -208,7 +225,7 @@ def run(args):
         reports = dict(zip(names, pool.map(lambda n: compare(rows[n], dll, keys), names)))
     for name in names:
         entry = REPO / 'build-runs/golden' / reports[name].get('key', '-')
-        print(describe(name, reports[name], owners, entry), flush=True)
+        print(describe(name, reports[name], owners, entry, bool(keys)), flush=True)
     failing = [n for n in names if reports[n]['verdict'] != 'exact']
     errors = [n for n in failing if reports[n]['verdict'] == 'error']
     print(f'exact: {len(names) - len(failing)} of {len(names)}')
