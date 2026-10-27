@@ -70,19 +70,23 @@ void Measure565(int slot, const uint32_t* spans, uint32_t n, const fc4_span565_d
         ++g_rows565[2 * blt->format + blt->key_flag][kind];
     }
     std::vector<uint8_t> before(g_dst565, g_dst565 + g_dstBytes565);
-    std::vector<uint8_t> copy(g_dstBytes565 + 64, 0xD3);
+    // span565's C ABI takes one bounded address hull. Keep both independent
+    // preimages in one allocation: unrelated heap blocks can be >256 MiB apart
+    // under the full shadows profile and make valid samples return WINDOW.
+    const size_t sourceOffset = g_dstBytes565 + 64;
+    std::vector<uint8_t> copy(sourceOffset + (src ? g_srcBytes565 + 64 : 0), 0xD3);
     std::memcpy(copy.data() + 32, before.data(), before.size());
     fc4_span565_dest rd = *dst;
     rd.pixels = copy.data() + 32;
     const fc4_span565_dest savedDst = *dst;
     const std::vector<uint32_t> savedSpans(spans, spans + 2 * n);
-    std::vector<uint8_t> source;
+    uint8_t* source = src ? copy.data() + sourceOffset : nullptr;
     std::vector<uint8_t> sourceBefore;
     fc4_span565_source rs{};
     fc4_span565_blt savedBlt{};
     if (src) {
-        source.assign(g_srcBytes565 + 64, 0xE7);
-        std::memcpy(source.data() + 32, g_src565, g_srcBytes565);
+        std::memset(source, 0xE7, g_srcBytes565 + 64);
+        std::memcpy(source + 32, g_src565, g_srcBytes565);
         sourceBefore.assign(g_src565, g_src565 + g_srcBytes565);
         rs = *src;
         savedBlt = *blt;
@@ -91,15 +95,15 @@ void Measure565(int slot, const uint32_t* spans, uint32_t n, const fc4_span565_d
     int status;
     if (src) {
         const uintptr_t bias = reinterpret_cast<uintptr_t>(rs.texels) - reinterpret_cast<uintptr_t>(g_src565);
-        rs.texels = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(source.data() + 32) + bias);
+        rs.texels = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(source + 32) + bias);
         // Rust uses the captured source, including plain pointer bias and padding.
         status = fc4_span565_render_blt(savedSpans.data(), n, &rd, &rs, &savedBlt, kind);
-        if (std::memcmp(source.data() + 32, sourceBefore.data(), g_srcBytes565) ||
+        if (std::memcmp(source + 32, sourceBefore.data(), g_srcBytes565) ||
             std::memcmp(g_src565, sourceBefore.data(), g_srcBytes565) ||
             std::memcmp(src, &g_expectedSource565, sizeof(*src)) ||
             std::memcmp(blt, &savedBlt, sizeof(savedBlt))) ++g_contract565;
         for (size_t i = 0; i < 32; ++i)
-            if (source[i] != 0xE7 || source[source.size()-1-i] != 0xE7) ++g_contract565;
+            if (source[i] != 0xE7 || source[g_srcBytes565+63-i] != 0xE7) ++g_contract565;
     } else {
         status = rust(&rd,savedSpans.data());
     }
@@ -119,7 +123,7 @@ void Measure565(int slot, const uint32_t* spans, uint32_t n, const fc4_span565_d
         if (!writable[i] && (g_dst565[i] != before[i] || copy[32+i] != before[i])) ++g_contract565;
     }
     for (size_t i = 0; i < 32; ++i)
-        if (copy[i] != 0xD3 || copy[copy.size()-1-i] != 0xD3) ++g_contract565;
+        if (copy[i] != 0xD3 || copy[sourceOffset-1-i] != 0xD3) ++g_contract565;
     g_bytes565 += before.size();
     g_changed565 += changed;
     if (diff) ++g_diff565;
@@ -129,7 +133,7 @@ void Measure565(int slot, const uint32_t* spans, uint32_t n, const fc4_span565_d
     if (noop) { ++g_noop565; if (changed) ++g_contract565; }
     else if (!changed) ++g_unchanged565;
     if (diff || status != FC4_SPAN565_OK)
-        Log("span565 compare: DIFF case=%llu slot=%d kind=%u row=%u bytes=%u different=%u status=%d",
+        Log("span565 compare: DIFF case=%llu slot=%d kind=%u row=%u bytes=%u different=%u status=%d copy_arena_bytes=%u",
             g_cases565, slot, kind, blt ? 2*blt->format+blt->key_flag : 0,
-            unsigned(before.size()), unsigned(diff), status);
+            unsigned(before.size()), unsigned(diff), status, unsigned(copy.size()));
 }

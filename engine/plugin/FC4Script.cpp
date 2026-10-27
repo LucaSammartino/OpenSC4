@@ -37,6 +37,7 @@
 #include "cFC4MySim.h"
 #include "FC4GDriverShadow.h"
 #include "FC4GZFramework.h"
+#include "FC4Span565Bridge.h"
 
 #include "SC4Rect.h"
 #include "SC4String.h"
@@ -801,6 +802,9 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
         case ScriptOp::GDriverProbe:
             result = GDriverShadowProbe();
             break;
+        case ScriptOp::Span565Probe:
+            result = Span565ScriptProbe(harness::FormatDate(harness::CivilFromJulian(julian)).c_str());
+            break;
     }
     std::string late;
     if (julian != a.julian) late = " (run on " + harness::FormatDate(harness::CivilFromJulian(julian)) + ")";
@@ -900,7 +904,7 @@ void ScriptOnTick() {
             }
         }
     }
-    if (g_waiting.empty() || g_inTick) return;
+    if (g_waiting.empty()) return;
     // Complete both readers on stable pre-save bytes across normal ticks.
     // A synchronous drain inside PreSave can exceed the watchdog interval.
     // Keep the save and every action behind it in their existing order.
@@ -909,7 +913,7 @@ void ScriptOnTick() {
             if (action->op == harness::ScriptOp::Save) {
                 DbpfShadowWait();
                 return;
-    if (g_waiting.empty()) return;
+            }
     if (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0) return;
     g_uiDelay = false;
     // Modal windows pump framework ticks. Consume a UI action before calling
@@ -929,7 +933,6 @@ void ScriptOnTick() {
         return;
     }
     if (g_inTick) return;
-}
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them

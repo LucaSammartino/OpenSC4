@@ -399,11 +399,14 @@ bool Resource::Read(cIGZIStream* stream) {
         uint32_t index = 0;
         stream->GetGZStr(spelling); stream->GetUint32(index);
         if (spelling.Strlen() == 3 && !std::memcmp(spelling.ToChar(), "end", 3) && index == 0xFFFFFFFF) break;
-        if (!bindings_.insertVisualName) {
-            fc4::Log("effectsres: visual-map insertion unavailable; replacement incomplete (EF27)");
-            return false;
-        }
-        bindings_.insertVisualName(Bytes() + 4, spelling.ToChar(), index);
+        // EF27: grow first, including duplicates; the native helper copies the
+        // counted source bytes and owns its allocations. The cursor is borrowed.
+        const char* begin = spelling.ToChar();
+        const FC4EffectsVisualName pair{begin, begin + spelling.Strlen(), begin + spelling.Strlen(), index};
+        void* dictionary = Bytes() + 4;
+        bindings_.growVisualNames(dictionary, At<uint32_t>(dictionary, 0x10) + 1);
+        FC4EffectsVisualIterator result;
+        bindings_.insertVisualName(dictionary, &result, &pair);
     }
     stream->GetUint8(Bytes()[0xD0]);
     if (Bytes()[0xD0]) {
@@ -445,6 +448,7 @@ cIGZUnknown* CreateFC4EffectsResource() {
          n <= static_cast<unsigned>(Direct::EffectsDynamicDestroy); ++n) {
         if (!DirectCall(static_cast<Direct>(n))) return nullptr;
     }
+    if (!DirectCall(Direct::EffectsVisualNamesGrow) || !DirectCall(Direct::EffectsVisualNameInsert)) return nullptr;
     FC4EffectsResourceBindings bindings{};
     bindings.constructCollection = [](void* receiver) {
         reinterpret_cast<void*(__thiscall*)(void*)>(DirectCall(Direct::EffectsCollectionConstruct))(receiver);
@@ -519,6 +523,14 @@ cIGZUnknown* CreateFC4EffectsResource() {
                 family == 16 ? Direct::EffectsDynamicWrite : Direct::EffectsVisualWrite;
             reinterpret_cast<void(__cdecl*)(cIGZOStream*, const void*)>(DirectCall(target))(stream, value);
         }
+    };
+    bindings.growVisualNames = [](void* dictionary, uint32_t count) {
+        reinterpret_cast<void(__thiscall*)(void*, uint32_t)>(DirectCall(Direct::EffectsVisualNamesGrow))(dictionary, count);
+    };
+    bindings.insertVisualName = [](void* dictionary, FC4EffectsVisualIterator* result, const FC4EffectsVisualName* pair) {
+        // Explicit hidden aggregate result: EAX returns result, not an AL status.
+        return reinterpret_cast<FC4EffectsVisualIterator*(__thiscall*)(void*, FC4EffectsVisualIterator*, const FC4EffectsVisualName*)>(
+            DirectCall(Direct::EffectsVisualNameInsert))(dictionary, result, pair);
     };
     if (!bindings.stringVtable) return nullptr;
     return CreateFC4EffectsResourceWithBindings(bindings);

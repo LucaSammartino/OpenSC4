@@ -646,10 +646,12 @@ void DbpfShadowObserve(int32_t julian) {
     }
     for (const auto& file : sample.files) sample.citySelected += file.city;
     cityAfterSave = false;
-    // EX58: a live-file obligation cannot be replayed at a later date. Hold
-    // the date from capture, not only once a save has already interrupted it.
-    // Framework ticks still drain the queue; the final tick balances the pause.
-    DbpfShadowWait();
+    // HiddenPause suppresses idle agents too (simulator.md 5.1/5.4). Holding
+    // every load sample changes the first traffic pass; keep that intrusive
+    // date hold opt-in for record investigations. EX58's same-date replay
+    // check still refuses an obligation whose date advanced before a save.
+    if (sample.interrupted || SettingInt("dbpf_shadow_hold_date", nullptr, 0) != 0)
+        DbpfShadowWait();
 }
 
 namespace {

@@ -5,6 +5,7 @@
 namespace fc4 {
 void Log(const char*,...) {}
 void ConfigRulesTraceOriginal(const char*,uint32_t,const uint32_t*,uint32_t) {}
+void ConfigRulesTraceLifecycle(const char*,uint32_t,bool) {}
 std::string Setting(const char*,const char*,const char**) {return {};}
 long SettingInt(const char*,const char*,long fallback) {return fallback;}
 }

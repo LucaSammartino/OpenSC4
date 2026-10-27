@@ -99,7 +99,15 @@ impl<F: FnMut(&Call) -> Value> Foreign for RecordingHost<F> {
             Write::ChildRemove(h) => (0x3c, vec![Value::Handle(h)]),
             Write::Front => (0x5c, vec![]),
         };
-        self.call(7, h, slot, args);
+        let result = self.call(7, h, slot, args);
+        if slot == 0x1c8 {
+            // The recording bridge supplies only the temporary's identity.
+            // Payload/type/order come from the core; the adapter balances its
+            // reference after handing the value to the foreign window (§8.9).
+            if let Some(temporary) = optional(result) {
+                self.release(temporary);
+            }
+        }
     }
     fn widget(&mut self, h: Handle, slot: u32, args: Vec<Value>) -> Value {
         self.call(8, h, slot, args)
@@ -168,6 +176,52 @@ impl<F: FnMut(&Call) -> Value> Foreign for RecordingHost<F> {
 mod tests {
     use super::*;
     use crate::legacy_control::observation::{replay_build, OwnerState};
+
+    #[test]
+    fn metadata_transfer_compares_payload_then_releases_the_same_temporary() {
+        let values = [
+            Value::U32(1),
+            Value::Text("named font".into()),
+            Value::Pair(0x12345678, 0x87654321),
+            Value::Key(ResourceKey {
+                kind: 0x2026960b,
+                group: 2,
+                instance: 3,
+            }),
+        ];
+        let mut host = RecordingHost::new(|call: &Call| if call.op == 7 { Value::Handle(77) } else { Value::U32(1) });
+        for value in values {
+            host.write(42, Write::Param(0xfaa3be85, value.clone()));
+            let pair = &host.calls[host.calls.len() - 2..];
+            assert_eq!(
+                pair[0],
+                Call {
+                    op: 7,
+                    object: 42,
+                    slot: 0x1c8,
+                    arguments: vec![Value::U32(0xfaa3be85), value],
+                }
+            );
+            assert_eq!(
+                pair[1],
+                Call {
+                    op: 4,
+                    object: 77,
+                    slot: 0,
+                    arguments: vec![]
+                }
+            );
+        }
+        host.write(42, Write::Id(9));
+        assert_eq!(host.calls.len(), 9, "ordinary setters do not release their results");
+    }
+
+    #[test]
+    fn unobserved_private_parameter_does_not_invent_a_temporary_identity() {
+        let mut host = RecordingHost::new(|_: &Call| Value::None);
+        host.write(42, Write::Param(0xbaca6879, Value::Comments(Default::default())));
+        assert_eq!(host.calls.len(), 1);
+    }
 
     #[test]
     fn rejected_and_custom_builds_record_factory_geometry_flags_and_attach_order() {

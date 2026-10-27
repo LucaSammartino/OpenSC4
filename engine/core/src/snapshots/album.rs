@@ -174,7 +174,7 @@ impl SnapshotAlbum {
                 albums.push(entry.name);
             }
         }
-        // SN4: literal "sorted" means bytewise order until native collation is published.
+        // SPEC-GAP: SN4 is open; the portable list uses bytewise sorting.
         albums.sort();
         albums.dedup();
         self.album_index = old.and_then(|name| albums.iter().position(|s| *s == name));
@@ -193,7 +193,7 @@ impl SnapshotAlbum {
                 pictures.push(entry.name);
             }
         }
-        // SN4: picture order is unspecified; bytewise sorting is the portable literal policy.
+        // SPEC-GAP: SN4 is open; the portable picture list uses bytewise sorting.
         pictures.sort();
         pictures.dedup();
         Ok(pictures)
@@ -232,7 +232,7 @@ impl SnapshotAlbum {
     pub fn go_to_album_index(&mut self, fs: &mut impl FileSystem, index: usize) -> Result<()> {
         let name = self.albums.get(index).ok_or(Error::InvalidIndex)?;
         let folder = self.root.join(name)?;
-        // SN4: save before changing albums; errors leave the edit and selection in place.
+        // SPEC-GAP: SN4 is open; portable album changes save the previous description.
         self.save_description(fs)?;
         let pictures = Self::list_pictures(fs, &folder)?;
         let loaded = if let Some(first) = pictures.first() {
@@ -328,7 +328,7 @@ impl SnapshotAlbum {
     pub fn next(&mut self, fs: &mut impl FileSystem) -> Result<()> {
         self.save_description(fs)?;
         if let Some(index) = self.picture_index {
-            // SN4: no wrap is specified for album navigation; clamp at the endpoint.
+            // SPEC-GAP: SN4 is open; portable navigation clamps at the endpoint.
             self.go_to_graphic(fs, (index + 1).min(self.pictures.len() - 1))?;
         }
         Ok(())
@@ -352,7 +352,7 @@ impl SnapshotAlbum {
         self.picture_index = None;
         self.loaded = Loaded::default();
         self.refresh_pictures(fs)?;
-        // SN4: choose the successor at the same index, or the last survivor.
+        // SPEC-GAP: SN4 is open; portable deletion selects the successor or last survivor.
         if !self.pictures.is_empty() {
             self.go_to_graphic(fs, index.min(self.pictures.len() - 1))?;
         }
@@ -362,7 +362,7 @@ impl SnapshotAlbum {
     pub fn delete_album(&mut self, fs: &mut impl FileSystem, directory: &str) -> Result<()> {
         let folder = self.root.join(directory)?;
         let entries = fs.entries(&folder)?;
-        // SN9: spec says every file, not recursive directories. Refuse before deleting anything.
+        // SPEC-GAP: SN9 is open; nested album deletion is Unsupported before any removal.
         if entries.iter().any(|e| e.kind == EntryKind::Directory) {
             return Err(Error::Gap(Gap::NestedAlbumDirectory));
         }
@@ -378,7 +378,7 @@ impl SnapshotAlbum {
         let base = format!("{}-{}.png", city_prefix(&city.name)?, safe_name(&city.info.date)?);
         let folder = self.root.join(&directory)?;
         let path = folder.join(&base)?;
-        // SN3: collision suffix/search order is unpublished; never overwrite or invent one.
+        // SPEC-GAP: SN3 is open; collision naming is Unsupported, so existing files survive.
         if fs.entries(&folder)?.iter().any(|e| e.name == base) {
             return Err(Error::Gap(Gap::CollisionNaming));
         }

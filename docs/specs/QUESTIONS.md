@@ -274,6 +274,7 @@ generated index: the questions live one file per spec, so read only the file for
 | demolition | 0 | 16 | DM15, DQ5 | - |
 | disasters | 3 | 44 | DS48 | questions/disasters.md |
 | dispatch | 0 | 13 | DP14 | questions/dispatch.md |
+| dispatch-vehicle-view | 0 | 0 | - | questions/dispatch-vehicle-view.md |
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
@@ -293,7 +294,7 @@ generated index: the questions live one file per spec, so read only the file for
 | geometry-utilities | 6 | 1 | GU8 | questions/geometry-utilities.md |
 | glyph-textures | 2 | 0 | GT3 | questions/glyph-textures.md |
 | graphics-formats | 6 | 35 | FS18, GF25 | questions/graphics-formats.md |
-| graphics-rules | 5 | 7 | GR12 | questions/graphics-rules.md |
+| graphics-rules | 5 | 7 | GR13 | questions/graphics-rules.md |
 | graphs-window | 4 | 0 | GW5 | questions/graphs-window.md |
 | grid-interpolation | 3 | 0 | GINT4 | questions/grid-interpolation.md |
 | growth-developer | 0 | 0 | - | questions/growth-developer.md |
@@ -307,7 +308,7 @@ generated index: the questions live one file per spec, so read only the file for
 | landfill | 0 | 39 | LF7, LG34 | questions/landfill.md |
 | landvalue | 2 | 10 | LV11 | questions/landvalue.md |
 | language-utility | 4 | 0 | LU5 | questions/language-utility.md |
-| legacy-control | 3 | 13 | LC19 | questions/legacy-control.md |
+| legacy-control | 4 | 13 | LC20 | questions/legacy-control.md |
 | lighting | 6 | 9 | LT16 | questions/lighting.md |
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
@@ -323,7 +324,7 @@ generated index: the questions live one file per spec, so read only the file for
 | model-maker | 1 | 1 | MM3 | questions/model-maker.md |
 | my-street-sim | 5 | 0 | ST6 | questions/my-street-sim.md |
 | mysim-tools | 3 | 0 | MST4 | questions/mysim-tools.md |
-| mysim-windows | 2 | 0 | MW3 | questions/mysim-windows.md |
+| mysim-windows | 3 | 0 | MW4 | questions/mysim-windows.md |
 | mysims | 0 | 22 | MS23 | questions/mysims.md |
 | nation | 0 | 4 | NQ5 | questions/nation.md |
 | neighbors | 0 | 64 | NB20, NG46 | - |
@@ -344,7 +345,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 5 | 12 | OV18 | questions/overlay-manager.md |
+| overlay-manager | 7 | 12 | OV20 | questions/overlay-manager.md |
 | overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 0 | 13 | PT14 | questions/particles.md |
@@ -356,11 +357,11 @@ generated index: the questions live one file per spec, so read only the file for
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
 | pollution | 0 | 16 | PG17 | - |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
-| power | 0 | 12 | CR2, PW12 | - |
+| power | 0 | 12 | CR2, PW12 | questions/power.md |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
 | prop-lotconfig | 7 | 12 | PL25 | questions/prop-lotconfig.md |
 | prop-occupant | 0 | 5 | PO7 | - |
-| protection | 0 | 20 | PR21 | - |
+| protection | 0 | 20 | PR21 | questions/protection.md |
 | radio | 4 | 0 | RA5 | questions/radio.md |
 | region | 3 | 0 | RQ4 | questions/region.md |
 | region-city-dialogs | 12 | 0 | CY13 | questions/region-city-dialogs.md |
@@ -434,4 +435,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **613** | **1698** | | |
+| **total** | **617** | **1698** | | |

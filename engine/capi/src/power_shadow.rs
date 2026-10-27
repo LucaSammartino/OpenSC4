@@ -2691,6 +2691,9 @@ pub unsafe extern "C" fn fc4_power_shadow_create(
             let o = options
                 .as_ref()
                 .filter(|o| (o.struct_size as usize) >= std::mem::size_of::<fc4_power_shadow_options>());
+            let (traced_host, traced_options) = crate::trace::power_create(*h, o.copied());
+            let h = &traced_host;
+            let o = traced_options.as_ref();
             let host = Rc::new(ShadowHost {
                 live: CHost(*h),
                 connection_visited: o.and_then(|o| o.connection_visited),
@@ -2743,7 +2746,9 @@ pub unsafe extern "C" fn fc4_power_shadow_destroy(s: *mut fc4_power_shadow) {
     if s.is_null() {
         return;
     }
+    crate::trace::will_destroy("power");
     guard((), || drop(Box::from_raw(s as *mut Shadow)));
+    crate::trace::destroy("power");
 }
 
 /// Whether the delivery of `msg_type` must be wrapped: every SimNewMonth and
@@ -2754,7 +2759,10 @@ pub unsafe extern "C" fn fc4_power_shadow_destroy(s: *mut fc4_power_shadow) {
 /// have requested a recompute). A delivery passed through is counted.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_power_shadow_wants(s: *mut fc4_power_shadow, msg_type: u32, event: bool) -> bool {
-    with_shadow(s, false, |sh| sh.wants(msg_type, event))
+    crate::trace::power_wants(msg_type, event);
+    let r = with_shadow(s, false, |sh| sh.wants(msg_type, event));
+    crate::trace::bool_result("power", "wants", r);
+    r
 }
 
 /// Before the original's delivery of `msg_type` (SimNewMonth, SimNewDay or
@@ -2773,9 +2781,12 @@ pub unsafe extern "C" fn fc4_power_shadow_begin(
     if msg_type != msg::SIM_NEW_DAY && msg_type != msg::SIM_NEW_MONTH && msg_type != msg::SIM_IDLE {
         return -2;
     }
+    crate::trace::power_step("begin", msg_type, julian, before, counts);
     let c = capture_of(before);
     let n = counts_of(counts);
-    with_shadow(s, -1, |sh| sh.begin(msg_type, julian, c, n))
+    let r = with_shadow(s, -1, |sh| sh.begin(msg_type, julian, c, n));
+    crate::trace::step_result("power", "begin", r, &[]);
+    r
 }
 
 /// After the original's delivery: compares (see the module notes) and hands
@@ -2792,10 +2803,12 @@ pub unsafe extern "C" fn fc4_power_shadow_finish(
     sink: fc4_bytes_sink,
     ctx: *mut c_void,
 ) -> i32 {
+    crate::trace::power_step("finish", 0, 0, after, counts);
     let c = capture_of(after);
     let n = counts_of(counts);
     let mut lines = Vec::new();
     let r = with_shadow(s, -1, |sh| sh.finish(c, n, &mut lines));
+    crate::trace::step_result("power", "finish", r, &lines);
     emit(&lines, sink, ctx);
     r
 }
@@ -2811,8 +2824,11 @@ pub unsafe extern "C" fn fc4_power_shadow_finish(
 #[no_mangle]
 pub unsafe extern "C" fn fc4_power_shadow_message(s: *mut fc4_power_shadow, m: *const fc4_power_message) -> bool {
     let Some(m) = m.as_ref() else { return false };
+    crate::trace::power_message(m);
     let m = PowerMessage::from(m);
-    with_shadow(s, false, |sh| sh.message(&m))
+    let r = with_shadow(s, false, |sh| sh.message(&m));
+    crate::trace::bool_result("power", "message", r);
+    r
 }
 
 /// Totals since creation.
