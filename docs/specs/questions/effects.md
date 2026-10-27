@@ -75,3 +75,8 @@ guarantees that native audio sees a live view before its first tick? Is a
 view-less load valid for that service? Please also identify any resource-class
 registration side effect, before its first factory call, that the replacement
 must preserve. No native audio/global patch or speculative timing fix was made.
+<!-- re-ef32 (2026-10-27) imported EF28 from replace-effectsres30 and answered
+     ownership, registration and the native-view prerequisite in effects.md
+     section 18.11, audio-ambience.md section 2.5 and view3d-window.md section 2.1.
+     Execution-specific attribution is narrowed to the trace in section 18.11.3;
+     original question and answer moved to answered/effects.md. -->

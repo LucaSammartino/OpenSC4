@@ -100,6 +100,34 @@ Order of effects:
 6. `SL::OnView3DCreate(this)` (`0x00602120`) is called last: the scripting layer learns the window exists before
    `Init`.
 
+### 2.1 Application screen ownership and native audio lifetime (EF28) *[compat]*
+
+Added 2026-10-27 (re-ef32). `cWinSC4App::CreateCityScreen` (`004E0DD0`)
+returns false if a current screen already exists. Otherwise it constructs the
+city-screen object, retains its `cIGZWin` face (`this+0x0C`) as the current
+screen, attaches it to the window owner and gives it focus. The constructor's
+last call, `SL::OnView3DCreate` (`00602120`), stores the **primary city-view
+interface**, not the `cIGZWin` face, in global `00B43DC4` and returns true.
+It does not AddRef that global: the owning screen lifetime must cover its use.
+
+`DestroyCurrentScreen` (`004E0E70`) removes the current screen through the
+window owner's slot 16, clears and Releases its current-screen reference,
+then clears its city-screen pointer. City-screen `Shutdown` calls
+`SL::OnView3DShutdown` at `007F1529`; that helper (`00602130`) clears
+`00B43DC4` and its associated view-service globals. Publication and withdrawal
+are separate from city Pre/PostCityInit notification processing.
+
+On successful LoadCity the application calls DestroyCurrentScreen at
+`004557D0`, CreateCityScreen at `004557D8`, then sends PreCityInit and initializes
+the city at `00455898–004558A2`; PostCityInit is queued at `004558CE`.
+NewCity similarly creates the screen before city initialization (application
+§§11.7–11.9). On returning to the region, CloseCity sends PreCityShutdown
+synchronously before the screen is destroyed (application §§11.3–11.4).
+This is the ordering native ambience relies on; its view filters do not
+acquire a replacement view or tolerate a null one (audio-ambience §2.5).
+For the city-open/close worked case and the distinct region-screen effects
+manager, see effects §§18.11.1,18.11.3.
+
 ## 3. `Init` (window slot 4, `0x007E9900`) *[compat]*
 
 `Init` runs once: it returns at once if the `cGZWin` init flag is already set. Otherwise, in order:

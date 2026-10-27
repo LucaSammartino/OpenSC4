@@ -3365,6 +3365,127 @@ not measured game goldens):
 | EF26-C6 | Presence byte 7; camera value u16 `FFFF`, curve [7], final floats 1,2,3,4 | Reader ignores inner version and consumes **26** value bytes. Stored presence stays 7. Write emits presence 7 then inner version 0, curve count 1/value 7, and four scalars. Presence 0 skips the whole value and retains the previous stored value. |
 | EF26-C7 | Direct writer calls on valid values, including flags with high bits set | Five writers receive O then the const value pointer and no version/receiver. They write full stored flag words. Only Decal Write has the specified EAX=O result; no writer supplies an AL success contract. |
 
+### 18.11 Startup ownership, registration and the native audio dependency (EF28) *[compat]*
+
+Added 2026-10-27 (re-ef32). The effects-resource class, an effects manager and
+the city-screen window have separate lifetimes. A resource-class advertisement
+does not establish a city view or enable native ambience. The view/tick
+precondition is specified in [audio-ambience.md](audio-ambience.md) §2.5 and
+[view3d-window.md](view3d-window.md) §2.1; the application orders the transition
+as in [application.md](application.md) §§11.3–11.9.
+
+#### 18.11.1 Two native owners of effects managers
+
+The manager creator `005919B0` constructs a new object on each call; it is not
+a process singleton. Both of these original owners request CLSID `49822F75`,
+IID `C97CF5CD`, through GZCOM slot 3:
+
+| Owner | Creation and initialization | End of ownership |
+|---|---|---|
+| City | `cSC4City::CreateCityComponents` (`0045AA10`) requests a manager only when its effects member is empty; city `Init` (`0045BD20`) calls manager slot 3 after the surface-water initialization (`0045BF0A–0045BF15`). | City `Shutdown` (`0045B1D0`) calls manager slot 4, then Release, then clears its member. |
+| Region screen | `cSC4WinRegionScreen::InitApplicationServices` (`007ACC90`) releases any old effects member, requests a new manager at `007AD11A–007AD129`, calls its slot 3 at `007AD130`, then publishes it as the current effects global `00B43D1C` at `007AD13D`. | `ShutdownApplicationServices` (`007AC380`) clears that global, calls its manager's slot 4, Releases it and clears the member. |
+
+The region screen first creates its renderer/camera/lighting services; its
+publication of `00B43DD0`, `00B43DD8` and `00B43DDC` at `007AD0C5–007AD0EB`
+does **not** publish a `cISC4View3DWin` at `00B43DC4`. Region rendering and a
+live city-screen window are different prerequisites. Creating the region's
+manager therefore cannot repair a missing city-screen view for city ambience.
+
+An ordinary city-to-region transition is `RequestGoToRegionView` →
+`CloseCity` → synchronous PreCityShutdown → city shutdown/release →
+`DestroyCurrentScreen` → `CreateRegionScreen` (application §§11.3–11.4).
+The screen change occurs only if the application's current-city reference is
+empty after CloseCity (`00454482–0045449B`). City-screen Shutdown clears the
+view global. Region-screen initialization can then construct another effects
+manager. Conversely, a successful LoadCity destroys the old screen and creates
+the city screen before PreCityInit and city Init (`004557D0–004558A2`).
+
+Thus a second manager is allowed by the original ownership model. Its factory
+count alone does not establish which owner requested it, whether the city
+closed, or whether native ambience was removed from the tick list. Preserve
+separate instances and balanced ownership; do not turn this class into a
+singleton to enforce one creation per load.
+
+#### 18.11.2 Resource advertisement before construction
+
+`cSC4COMDirector` construction (`00460090`) records these separate class
+entries, in manager/resource/resource-factory order after the effects parser:
+
+| Class | CLSID | Registered creator |
+|---|---|---|
+| Effects manager | `49822F75` | `005919B0` |
+| Effects resource | `2A5118AD` | `005A5110` |
+| Effects resource factory | `EA5118B5` | `005A3BD0` |
+
+For these entries, `AddCls` (`0090E133`) inserts the class ID, creator address
+and constructor-kind value 1 into the director's unique-key class map. It
+does not invoke the creator. `EnumClassObjects` (`0090E02B`) enumerates child
+directors first, then its own stored entries, calling the supplied callback
+with **(class ID, 0, caller context)** (`0090E05E–0090E06B`). It does not
+construct each advertised class. Own-entry order is map traversal, not a
+promise to repeat AddCls order. A callback may itself request a class; that
+would be a separate GetClassObject operation.
+
+The later `GetClassObject` (`0090DFAC`) tries child directors, then finds the
+local entry, invokes its creator for kind 1 and queries the requested IID on
+the new object. Resource CLSID getter `005A4D50` simply supplies `2A5118AD`;
+the separate factory getter `005A3B30` supplies `EA5118B5`. The factory's
+CreateInstance (`005A3C30`) handles resource type `EA5118B0` by requesting the
+resource class with IID `CA51189B`, then querying the caller's requested IID.
+Preserve the advertised identities, callback arguments and subsequent class
+lookup/QI behavior. Advertising the resource class has **no additional native
+view-publication, effects-manager construction or audio-tick side effect**.
+The resource factory and resource instance remain distinct boundaries.
+
+#### 18.11.3 Worked cases and the remaining runtime observation
+
+Static conformance cases; these are not new measured game results:
+
+| Case | Setup/action | Required observation |
+|---|---|---|
+| EF28-C1 | Register the three classes above, enumerate them, but make no class request from the enumeration callback. | Each advertised class has callback argument 2 equal to 0 and the supplied context; all three creator counts stay zero. No city-view or ambience-tick-list change occurs. Requesting `2A5118AD` afterwards reaches the resource creator/QI boundary in §18.9. |
+| EF28-C2 | Open a city normally, then request region view without a confirmation dialog. | City-screen construction publishes a live view before PreCityInit. PostCityInit enables ambience as in audio-ambience §2.5. On close, synchronous PreCityShutdown disables/removes ambience before the screen is shut down and clears the view. Region initialization may create another, independently owned effects manager. No city ambience filter runs against the absent city view. |
+| EF28-C3 | Run the native level-1 global filter with a live city view whose slot 22 returns 1, then 2. | Results are true, then false. With no view, the original does not define a false/no-op result: it dereferences the absent interface at `004E2C06`. A harness should report the missing prerequisite before making this native call. |
+
+The reported failing `effectsres30-r3-house-on1` run and passing `house-on2`
+repeat used the same DLL hash but have different manager-creation counts.
+The failure's zero logged resource GetClassObject/creator calls excludes an
+observed entry through that creator; it does not prove absence of unrelated
+state damage. Neither that count nor the final native stack identifies the
+caller of the second manager request or the last writer of the view global.
+The original permits the region-owner path above; attributing this particular
+second request to it requires a runtime observation.
+
+To settle the remaining EF28 attribution, capture one failing and one passing
+load with a single sequence-numbered trace, including thread identities,
+containing:
+
+1. Each manager GetClassObject request: caller stack/return address, result
+   identity, and its Init/Shutdown/Release lifetime. `007AD129` identifies the
+   region-owner request; the request inside `0045AA10` identifies the city
+   owner. A different caller must be recorded rather than assigned to either.
+2. Entry/exit and object identity for CreateCityScreen (`004E0DD0`),
+   DestroyCurrentScreen (`004E0E70`), region application-service Init/Shutdown
+   (`007ACC90`/`007AC380`), view publication (`00602120`) and view shutdown
+   (`00602130`). Record **every write** to `00B43DC4`, including its instruction
+   address, old/new value and thread. This distinguishes a missing creation,
+   an intervening shutdown and an unexpected memory write.
+3. Delivery boundaries, including nested delivery, for PreCityInit,
+   PostCityInit and PreCityShutdown; ambience `_HandleInitMessage`
+   (`004EABF0`) and shutdown handler (`004E9810`); framework tick-list add/remove
+   calls and owner identities; and the first ambience OnTick/filter entry with the view pointer
+   and ambience enabled state. Record the application's current-city and
+   current-screen identities at each transition.
+
+If a region transition is seen, its caller stack plus whether synchronous
+PreCityShutdown completed before the view clear settles whether the native
+contract was followed. If there is no transition, the view-write trace
+identifies the divergence. These observations, not elapsed-time differences
+or a delay, are required to distinguish the two unchanged-DLL runs. EF28 is
+statically answered for ownership/registration and narrowed to this runtime
+observation for the actual failing execution; no replacement acceptance is
+inferred from either the earlier corrupt run or the later clean repeat.
+
 ## 19. Effects-script command contracts *[compat]*
 
 This section concerns text-description commands, separate from the binary
