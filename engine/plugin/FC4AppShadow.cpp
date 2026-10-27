@@ -169,8 +169,12 @@ void CompareScalars(cISC4App* app, uint32_t& fields, uint32_t& differences) {
         const auto& getter = getters[i];
         const auto read = [&]() -> uint32_t {
             if (!getter.offset) return 0;
-            return getter.byte ? *reinterpret_cast<const uint8_t*>(object + getter.offset) :
+            const uint32_t stored = getter.byte ? *reinterpret_cast<const uint8_t*>(object + getter.offset) :
                 *reinterpret_cast<const uint32_t*>(object + getter.offset);
+            // Section 11: +0x58 holds a reference slot, whose first word is
+            // the regional-city token used by the portable application model.
+            return getter.slot == 36 && stored ?
+                *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(stored)) : stored;
         };
         const uint32_t before = read();
         uint32_t result = 0;
