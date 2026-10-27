@@ -49,6 +49,8 @@ mod resource_editor;
 mod sc_resources;
 #[path = "terrain_view.rs"]
 mod terrain_view;
+#[path = "terrain_view_tr47.rs"]
+mod terrain_view_tr47;
 #[path = "turbo_off.rs"]
 mod turbo_off;
 #[path = "vc29_precision.rs"]
