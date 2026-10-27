@@ -4,9 +4,9 @@ The one pick-up document for the next coordinator session. It states what we do 
 replaces the whole file: no history, no logs, no "previously". Evidence lives in git, in `docs/lanes/` and in
 `build-runs/`, never here. Where another document disagrees with this one, this one wins.
 
-State as of 2026-10-27: **run 7 is halted.** No lanes, trains, operator or conductor are running; census-1027 has
-finished (the shared game queue service is still up and idle). The user approved the plan below. Step 1 is next and
-is run by the coordinator directly.
+State as of 2026-10-27: **run 7 is halted.** No lanes, trains, operator or conductor are running (the shared game
+queue service is still up and idle). The user approved the plan below. **Step 1 is done** (section 5); step 2 is next
+and is run by the coordinator directly.
 
 ## 1. The goal, worked backwards
 
@@ -33,25 +33,24 @@ For this to be true at the end:
 
 ## 2. The fixed schedule
 
-The schedule is written once, in `docs/specs/simulator.md` §5.7 (with the seed, `rand()`, FPU and object-ID rules
-in `foundations.md`), and both games follow it. Everything on the original's side is done by `FreeCity4.dll` at run
-time (in-memory hooks and writes; never an edit of the exe file).
+The schedule is `docs/specs/simulator.md` §5.8: clock, timer callbacks, time limits, wall clock, random numbers,
+object IDs and what only the original needs (heap, pools, DLL base, audio and loader off). The original follows it
+through `FreeCity4.dll` (`engine/plugin/FC4Schedule.cpp`, `schedule = fixed` in FreeCity4.ini, `golden.py --schedule
+fixed`; in-memory hooks only, never an edit of the exe file).
 
-| Part | Rule | Our game | The original |
-|---|---|---|---|
-| Time | one virtual clock; every wall-time source reads it; a fixed number of frames per game day | `sim_fixed_step` already virtualises the scheduler's clock (`cFC4Simulator.cpp`) | hook `QueryPerformanceCounter`, `timeGetTime`, `GetTickCount` and the local-time source behind `cRZTime` so all read the virtual clock; today only our scheduler's clock is virtual. The sliced-call timer is the next row |
-| Calendar | a day advances only after every day-level agent has finished (simulator.md §5.2) | `fc4_core` simulator | our simulator replacement `cFC4Simulator` already drives every agent |
-| Idle work | at each day's settle point every idle agent runs in one fixed order written in the spec (the building developer waits for its 12 developers, so order changes results by design); each agent gets a fixed number of deliveries; what runs while the game is paused is written down (the original runs idle work while paused) | one `SimIdle` per agent runs the whole cycle (`FC4Pacing.h`, deterministic pacing, the default without shadows) | original idle agents always answer "done", so the core's re-delivery never repeats them: give each a counted number of deliveries. Known per-delivery workers: prop developer (20, already paced), neighbours (neighbors.md), plumbing restart (flammability.md); find the rest. The caps of 1024 deliveries and the 22 ms `data3` (simulator.rs) must never cut |
-| Time limits | large but finite: no sliced call that does work is ever cut; the building developer's idle spin (building-development.md §4.4: it re-sums demand until the 3 ms timer expires) still ends | budgets unlimited (building-development §4.4.1 default 0; the spin has no effect) | the sliced-call timer is `RDTSC + ms × MillisecsToCycles` (small-owners-b9.md). Either scale `MillisecsToCycles` (`0x00B0A83C`, simulator.md §5.5) by a measured factor F, keeping ms × M below about 2^62 (a larger product converts to an already-expired deadline, foundations §18.1), and set `CyclesToMillisecs` (`0x00B0A840`) to match; or hook the timer so it reads a counter that advances per read (cut points then depend on work done, not on the machine). Step 1 picks one; F and 2F (or step and step/2) must give identical results |
-| Posted messages | delivered in posting order at the day's settle point, before the next day's agents (§5.7 item 4) | `PacingDefer` / `PacingFlush` | `PacingFlush` already drains the message server at the settle point. Still open: posts from outside the simulator (24-hour clock hour messages, animation tick, UI), the 64-tick / queue-not-shrinking exit and the 10 s walk cap (simulator.rs) |
-| Random numbers | every generator's seed is derived from the session seed, derive(S, K), per the generator table of foundations §6.3; member and temporary generators get the seeds §6.4 prescribes; the C runtime `rand()` sequence is one sequence shared by the original's code and ours | seeded generators (`rng.rs`, `seeding.rs`); add a host `rand` callback so cores running inside the game draw from the game's own `rand()` state (today each core keeps a private copy starting at state 1, foundations §12.6) | the file-local generators are seeded during static initialisation from `cRZTime()`, before the plugin loads, so re-seed each one at DLL load with the game's own `Seed` and derive(S, K); force member and temporary seeds; audio, radio, music and automata off in test runs, or log the `rand()` draw count at every delivery |
-| Object IDs | objects are numbered 1, 2, 3, … in registration order (foundations §3.4 *[choice]*) | already | hook the original's ID assignment at registration (`0x005D43F0`) so it numbers objects the same way |
-| FPU precision | 24-bit on the simulation thread at every agent delivery (foundations §18); paths reached from Lua run at 53-bit (§18.4), so write down what applies there | not applicable (Rust floats are explicit) | pin it at each delivery if measurements show drift |
-| Frames | nothing above depends on frames or wall time; rendering can run at any frame rate | | |
+What our game still needs to follow it (step 2):
+- `rand()`: cores running inside the game draw from the game's own `rand()` state through a host callback (today each
+  core keeps a private copy starting at state 1, foundations §12.6).
+- Seeds: derive(S, K) for every generator, as the original's re-seeding does (foundations §6.3, §6.4).
+- Object IDs: 1, 2, 3, ... per save, as the original's writer now numbers them.
+- Address order: results depend on heap address order wherever a container is keyed by pointer (the traffic network
+  map's buckets are address mod 193; agent order, foundations §13). The original's order is now fixed by its heap
+  (lowest address first from 0x20000000). Our objects must sit in the same order: find every pointer-keyed container
+  a replaced owner touches and either allocate in the original's order or make the spec state the order it implies.
 
-Comparison: saves at fixed checkpoint days, compared **record by record after decompression** (`golden_dbpf` already
-ignores container layout; our QFS compressor is our own design, so compressed bytes never match). Rendered records
-such as the thumbnail are compared by the renderer checks (step 6), not here.
+Comparison: saves at day 30 and day 60, compared **record by record after decompression** (`golden_dbpf` ignores
+container layout; our QFS compressor is our own design, so compressed bytes never match). Rendered records such as
+the thumbnail are compared by the renderer checks (step 6), not here.
 
 ## 3. The metric (agreed with the user)
 
@@ -73,43 +72,27 @@ Exact-replaced cannot exceed 28.3% of game code until the corpus reaches more.
 
 | Loop | What runs | Duration |
 |---|---|---|
-| **Reference recording** | the original under the fixed schedule, once per scenario; checkpoint saves into an immutable store (golden27's `tools/golden.py` store) | per run about 15 s outside the simulation (plain runs, game-queue.log) plus the window at the schedule's speed, which step 1 measures (golden27's budget-only candidates took 44.5 s and 142 s for their windows). 189 scenarios on 12 slots (one queue with `-SlotList`, as census-1027 ran): estimate 30-90 min. Redone only when the corpus or the schedule changes |
-| **Per change (inner loop)** | incremental build, then our game in replace mode on the scenarios whose reach includes the changed owners, compared with the references | estimate 3-8 min: build 1-2 min, about 20 scenarios at 45-140 s each on 12 slots. The run is reproducible, so the lane's own result is the credit |
+| **Reference recording** | the original under the fixed schedule, once per scenario; day-30 and day-60 saves into an immutable store (`tools/golden.py`) | measured, 6 games in parallel: 1.6-7.3 game days/s (Konradshohe 4.4-7.3, West Weburg 2.5-3.8, Mitras 1.6-2.4), plus about 15 s outside the simulation and about 1.2 s a save. 189 scenarios on 12 slots: estimate 15-40 min. Redone only when the corpus or the schedule changes |
+| **Per change (inner loop)** | incremental build, then our game in replace mode on the scenarios whose reach includes the changed owners, compared with the references | estimate 3-8 min: build 1-2 min, about 20 scenarios at 25-55 s each on 12 slots. The run is reproducible, so the lane's own result is the credit |
 | **Landing** | merge, gate (409 s today), the same check on main | estimate under 15 min |
 | **Nightly** | the whole corpus, ours against references | the same as one reference recording |
 | **Later: standalone headless** | our own exe, no game process, against the same references | seconds per scenario (estimate) |
 
-Today, for comparison (run 7, measured): shadow runs go at 0.39 game days/s against about 3 for plain runs; a census
-costs 22 slot-hours (about 5 h on 6 slots); credit arrived only after a merge-train regress on main; a lane took a
-median of about 3 h from first commit to landing; game slots were about a third busy.
-
 ## 5. Steps
 
-### Step 1: hold the original to the fixed schedule (coordinator; first report at 6 h, stop and report at 2 days)
+### Step 1: the original under the fixed schedule (done 2026-10-27, commit 8d3c3168d)
 
-1. Write the schedule of section 2 into simulator.md §5.7 and foundations.md: the time rule, the idle-agent order,
-   per-agent delivery counts and the paused rule, the time-limit choice, message delivery, derive(S, K) seeds, the shared `rand()` and
-   object IDs.
-2. Implement it for the original in `cFC4Simulator` / `FC4Pacing` behind one switch (`pacing = fixed` or similar):
-   virtual clock hooks, counted idle deliveries, the time-limit choice, external posts drained, static generators
-   re-seeded and member seeds forced, ID numbering, audio, radio, music and automata off (in-memory writes by the DLL
-   are allowed; exe file edits are not).
-3. Make checkpoint saves: the golden store keeps only `end.sc4` today, and a full save took 10.8 s on Konradshohe
-   (60 s watchdog grace), so save at day 30 and day 60 inside one run.
-4. Measure with golden27's cities (FC4 Test/Konradshohe, Maxisland/West Weburg, Paradis/Mitras), every subsystem
-   original except the scheduler:
-   - **Pass:** 3 runs of each city give identical decompressed records at day 30 and day 60.
-   - F and 2F give identical records; N and 2N deliveries give identical records.
-   - Speed: game days/s under the schedule, including the building developer's spin (3 ms × F per day).
-   - Sanity (not a gate): population and funds stay within golden27's real-time envelopes, so the schedule is still
-     the game.
-5. Finding what still varies: diff records per checkpoint; then per-delivery digests (new work: `FC4Observer`'s
-   DIGEST lines are monthly and cover funds, R/C/I, demand, income and expense only), a hash of the records an agent
-   owns plus the `rand()` draw count after each delivery, to find the first delivery that differs. Suspects not yet
-   ruled out: worker threads (model background loader, sound mixer; INVENTORY-M6 §8), heap-address-dependent
-   ordering other than IDs, FPU precision.
-6. **If after 2 days unexplained variation remains:** report the numbers to the user. Fallback: golden27's envelopes
-   for the simulation, and paused-save checks (step 6) for everything else.
+Konradshohe, Mitras and West Weburg, every subsystem original except the scheduler, 6 games in parallel:
+- 3 runs of each city: identical decompressed records at day 30 and day 60 (152, 159 and 159/158 records).
+- N and 2N reads before a time limit expires: identical records in all 6 windows.
+- Speed: in section 4.
+- Sanity (not a gate): population and funds sit 0.2-1.5% outside golden27's real-time envelopes (Konradshohe day 60:
+  industrial 7907 against 7770-7791, funds 1033 against 1039-1051). The likely cause is fewer timer and animation
+  callbacks per game day at about one frame a day. It is the schedule's game, not a defect; the references are the
+  schedule's results.
+
+The references for these 6 windows are in `build-runs/golden`. Their keys include the hash of the DLL those runs
+used, so any rebuild gives new keys until step 2.1 changes the key.
 
 ### Step 2: references and the check command
 
@@ -117,12 +100,14 @@ median of about 3 h from first commit to landing; game slots were about a third 
    Today the key hashes the observer DLL and the harness sources (golden.py), so every DLL rebuild or harness edit
    would invalidate every reference: key on the schedule code and a pinned reference DLL instead, and refuse a
    candidate whose schedule code differs.
-2. Make replace mode able to match: cores draw from the game's `rand()` through the host callback, seed with the same
-   derive(S, K), and register objects in the original's order.
+2. Make replace mode able to match (section 2): the host `rand()` callback, derive(S, K) seeds, object IDs and
+   address order.
 3. Record references for the census scenarios.
 4. `check`: owners to switch on (replace mode) and scenarios chosen by reach (`tools/suite_select.py`,
    `tools/suite_coverage.py --select`); compares checkpoint records and prints the first differing day, record and
    owner. On a difference it switches owners back to the original one at a time (or by halves) to find the culprit.
+   The schedule's per-delivery digest lines (`rand()` state, generator hash, target class) find the first delivery
+   that differs.
 
 ### Step 3: Exact-replaced in `tools/coverage.py`, and the landing rule
 
