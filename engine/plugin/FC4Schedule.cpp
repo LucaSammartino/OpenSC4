@@ -780,6 +780,29 @@ __declspec(naked) void RandomSuperSeedThunk() {
     }
 }
 
+// cRZRandom::RandomDoubleUniform reseeds a zero multiplicative state from clock() (foundations §6.1). The flammability
+// simulator's generator is seeded 0 and keeps it, so its first fire roll (flammability.md §6.8) reseeds: that reseed
+// gets derive(GZCLSID) of foundations §6.3, as our core's. The owner is the first return site in the table among the
+// 16 dwords above the clock() call's return address; other zero states keep clock().
+constexpr uintptr_t kZeroStateClock = 0x0091373B;  // call clock() in cRZRandom::RandomDoubleUniform
+
+const SeedSite kReseedSites[] = {
+    {0x006AF19A, 0xE990C045, kClockSeed},  // flammability simulator, the fire roll's RandomDoubleRangeUniform
+};
+
+int32_t __cdecl ZeroStateClock() {
+    const auto* stack = static_cast<const uintptr_t*>(_AddressOfReturnAddress());
+    for (int i = 0; i < 16; ++i) {
+        for (const SeedSite& e : kReseedSites) {
+            if (stack[i] != e.site) continue;
+            InterlockedIncrement(&g_seedsDerived);
+            return static_cast<int32_t>(Derive(e.k));
+        }
+    }
+    InterlockedIncrement(&g_clockVirtual);  // the generators' clock(), as CrtClock gives their code
+    return kClock;
+}
+
 // ---- object IDs ---------------------------------------------------------------------------------
 struct SaveIds {
     std::unordered_map<uintptr_t, uint32_t> ids;
@@ -2321,6 +2344,10 @@ void ScheduleStartup() {
                                     reinterpret_cast<const void*>(&RandomSuperSeedThunk))) {
         all = false;
         Log("schedule: WARNING cRZRandomSuper::Seed at 0x%08X not hooked: %s", static_cast<unsigned>(kRandomSuperSeed), err);
+    }
+    if (const char* err = PatchCall(kZeroStateClock, kCrtClock, reinterpret_cast<const void*>(&ZeroStateClock))) {
+        all = false;
+        Log("schedule: WARNING the zero-state reseed at 0x%08X not hooked: %s", static_cast<unsigned>(kZeroStateClock), err);
     }
     ReseedGenerators();
     fc4_crt_set_host(&CrtState);
