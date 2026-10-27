@@ -1049,8 +1049,9 @@ A dynamic manager is not drawn under `kRenderSnapshot` (boolean 28). Otherwise:
 
 ### 4.1 Draw states (`InitDrawStates`, `0x0073BA10`)
 
-Five packed states, all with colour write, depth test, blending and one texture, and stage-0 mode 1 except state 4
-(which keeps the mode):
+Five packed states, all with colour write, depth test, blending, one texture and **culling off**, and stage-0
+mode 1 except state 4 (which keeps the mode). The alpha reference is the packing input; packed replay uses
+the quantized reference of draw-context.md §5, rather than forwarding that input unchanged:
 
 | Index | Depth write | Depth function | Blend | Alpha test |
 |---|---|---|---|---|
@@ -1058,7 +1059,70 @@ Five packed states, all with colour write, depth test, blending and one texture,
 | 1 | no | less-or-equal | source alpha / one (additive) | no |
 | 2 | no | less-or-equal | zero / source colour (multiply) | no |
 | 3 | no | greater | source alpha / one minus source alpha | no |
-| 4 | yes | less | source alpha / one minus source alpha | greater than 0.5 |
+| 4 | yes | less | source alpha / one minus source alpha | greater; reference input 0.5 |
+
+#### Complete native packing arguments and combiner bytes (OV19)
+
+The native vector at manager `+0x24` contains five **8-byte** records: value dword at record `+0`, write-mask
+dword at `+4`, in little-endian order. Record i starts at vector begin +8i, not at an enum value or at a
+combiner offset. `InitDrawStates` resizes this vector to 5 before packing (`0x0073BA15–0x0073BA1C`).
+
+These are the complete **14 arguments**, excluding this, to `PackRenderState` (`0x007D2B50`), split across
+two tables by ordinal. Each argument occupies a four-byte stack slot; the boolean arguments use its low
+byte, the reference is binary32, and the packer removes 56 argument bytes (`0x007D2CFF`, `0x007D2D13`).
+
+| State | 1 colour write | 2 depth write | 3 depth test | 4 alpha test | 5 blending | 6 texture count | 7 culling |
+|---|---|---|---|---|---|---|---|
+| 0 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 1 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 2 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 3 | 1 | 0 | 1 | 0 | 1 | 1 | 0 |
+| 4 | 1 | 1 | 1 | 1 | 1 | 1 | 0 |
+
+| State / native pack call | 8 depth function | 9 source blend | 10 destination blend | 11 alpha function | 12 alpha reference | 13 stage-0 mode | 14 stage-1 mode |
+|---|---|---|---|---|---|---|---|
+| 0 / `0x0073BA41` | 3 | 4 | 5 | −1 | −1.0 | 1 | −1 |
+| 1 / `0x0073BA67` | 3 | 4 | 1 | −1 | −1.0 | 1 | −1 |
+| 2 / `0x0073BA8C` | 3 | 0 | 2 | −1 | −1.0 | 1 | −1 |
+| 3 / `0x0073BAB2` | 4 | 4 | 5 | −1 | −1.0 | 1 | −1 |
+| 4 / `0x0073BADA` | 1 | 4 | 5 | 4 | 0.5 | −1 | −1 |
+
+Integer −1 is the word `0xFFFFFFFF`; the exact reference argument words are `0xBF800000` for −1.0 and
+`0x3F000000` for 0.5. Compare/blend integers use graphics-formats.md §3.8's native enums. A −1 argument
+means **preserve the corresponding field**, not choose a default. States 0–3 leave alpha function,
+alpha-reference nibble and stage-1 mode alone: their write masks are **`0x1E1FE3FF`**. State 4 leaves both
+stage modes alone: its mask is **`0x11FFFFFF`**. All five masks include culling bit 6, which is explicitly
+cleared. Texture count 1 explicitly enables stage 0 and disables stage 1 (bits 5/28), even when the modes
+are preserved. These mask choices follow the packer's explicit field masks, not the current context state
+(`0x007D2BBA–0x007D2BFC`, `0x007D2C64–0x007D2D13`).
+
+The following are the three **complete 12-byte native combiner records after construction and
+InitDrawStates**. Column labels are byte offsets within each record; all entries are hexadecimal bytes.
+
+| Manager offset | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 0A | 0B |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `+0x38` | 00 | 02 | 03 | 01 | 01 | 00 | 02 | 01 | 00 | 00 | 00 | 00 |
+| `+0x44` | 00 | 01 | 03 | 01 | 01 | 00 | 01 | 01 | 00 | 00 | 00 | 00 |
+| `+0x50` | 00 | 00 | 03 | 01 | 00 | 00 | 03 | 01 | 00 | 00 | 00 | 00 |
+
+The constructor establishes every byte, including byte zeros at relative `+8/+9` and **word zeros at
+`+0x0A`**: stores at `0x0073BC8D–0x0073BCF1`. InitDrawStates then overwrites only the selected bytes at
+`0x0073BAE0–0x0073BB0C`; the other constructor bytes persist. Thus the final four zero bytes in each row
+are proved storage contents, including any padding, rather than assumed uninitialized padding. Borrowing
+a native descriptor means borrowing these 12 bytes, not reinterpreting a language enum or a packed-state
+vector element. Their full-shadow normal/debug selection is §4.8; these records establish the adapter
+inputs without claiming execution of the terrain geometry consumers.
+
+Worked record/state cases: initialize the 36 combiner bytes to a nonzero sentinel before running the
+specified constructor/Init stores; the final three records must equal the rows above, including all four
+tail zeros. In a nonempty full normal pass with a shadow binding, stage 0 receives the `+0x38` row and
+stage 1 the `+0x44` row; debug setting exactly 4 instead sends `+0x38` then `+0x50` to stage 0 (§4.8).
+For state replay, begin with culling enabled, alpha function 6, reference nibble 3 and stage-1 mode 4.
+State 0 disables culling and alpha testing, selects depth function 3 and blend 4/5, but preserves function
+6, nibble 3 and mode 4 while disabling stage-1 texturing. Alternatively begin with stage modes 4/7 and
+culling enabled: state 4 preserves modes 4/7, disables culling/stage-1 texturing, enables depth write and
+alpha testing, and packs alpha function 4 with binary32 reference input 0.5. These distinguish keeping a
+mode from keeping its enable bit, and keeping an alpha comparison from disabling alpha testing.
 
 ### 4.2 Decals (`DrawDecals`, `0x00736790`)
 
@@ -1289,7 +1353,8 @@ The signed cached quality must exceed 2 **and** context render boolean `+0x17C` 
 the full pass; otherwise an enabled shadow pass uses the rough body (`0x00739342–0x00739376`). This test
 is separate from the add-time quality decisions in §3.7.
 
-For a nonempty full pass, debug mode is exactly cached second-stage setting ==4. Stage 0 gets filtering
+For a nonempty full pass, debug mode is exactly cached second-stage setting ==4. The complete 12-byte
+combiner records at the three offsets below are specified in §4.1 (OV19). Stage 0 gets filtering
 `(1,1)`, combiner descriptor manager `+0x38`. If `+0xD4` exists, enable and bind it on stage j, where
 j=0 in debug and j=1 otherwise; filtering is `(0,0)`, wrap modes `(2,2)`, and combiner is manager `+0x50`
 in debug or `+0x44` otherwise (`0x00736CB2–0x00736D3A`). No dummy binding is supplied when it is absent.

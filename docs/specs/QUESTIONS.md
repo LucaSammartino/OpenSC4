@@ -345,7 +345,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | - |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
-| overlay-manager | 6 | 13 | OV20 | questions/overlay-manager.md |
+| overlay-manager | 5 | 14 | OV20 | questions/overlay-manager.md |
 | overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
 | parks | 0 | 11 | PK12 | - |
 | particles | 0 | 13 | PT14 | questions/particles.md |
@@ -435,4 +435,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **619** | **1699** | | |
+| **total** | **618** | **1700** | | |

@@ -46,6 +46,3 @@
 
 <!-- from: core-overlay-manager-close5 (2026-10-23) -->
 - **OV11 - §4.2 simultaneous wrap flags:** when both repeat bit1 and replacement-matrix bit5 are set, does repeat/repeat or repeat/clamp take precedence? Slot21 sets bit5 without clearing bit1. [literal first matching rule: bit1 selects repeat/repeat, otherwise bit5 selects repeat/clamp; no native precedence claim]
-
-<!-- from: replace-overlays31 (2026-10-26) -->
-- **OV19 - §§4.1,4.8 native draw records:** please give the three complete 12-byte combiner records initialized at manager +0x38/+0x44/+0x50, including padding bytes, and the five packed draw-state value/mask records or their complete PackRenderState arguments. The draw-state summary omits the culling and keep-mask choices; the full-shadow section selects the three combiner offsets without their bytes. [the typed device adapter accepts explicit borrowed native records and refuses absent records; no Rust state/ordinal cast, invented combiner bytes or successful production Draw claim]
