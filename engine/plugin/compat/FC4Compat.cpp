@@ -118,6 +118,8 @@ const ExecutableVersion kVersions[] = {
             0x005B1C80,  // EffectsParticleDrop (effects.md 18.8-18.10; effects-owners.md 5)
             0x00583700,  // EffectsDynamicDestroy (effects.md 18.8-18.10; effects-owners.md 5),
             0x0074FE40,  // terrain StaticInit (terrain.md section 15.5.12.2)
+            0x00587010,  // visual dictionary grow (effects.md 18.9.7)
+            0x00589E80,  // visual dictionary insert, hidden iterator result (effects.md 18.9.7)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -595,7 +597,8 @@ uintptr_t DirectCall(Direct which) {
                                          "EffectsVisualWrite",
                                          "EffectsParticleDrop",
                                          "EffectsDynamicDestroy",
-                                         "terrain StaticInit"};
+                                         "terrain StaticInit",
+                                         "effects visual names grow", "effects visual name insert"};
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
     static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
