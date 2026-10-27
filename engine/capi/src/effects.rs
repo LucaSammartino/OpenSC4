@@ -392,8 +392,13 @@ pub unsafe extern "C" fn fc4_effects_verify_names(
             probes.push(std::ffi::CString::new(name).unwrap());
         }
         counts[0] = directory.names.len() as u32;
+        // Exercise the credited manager method, including its directory
+        // lookup, rather than comparing only the directory helper. The
+        // manager is built from the resource bytes, never native answers.
+        let mut manager = EffectsManager::new(0);
+        manager.set_directory(Rc::new(directory));
         for name in probes {
-            let expected = u32::from(directory.has(name.to_str().unwrap()));
+            let expected = u32::from(manager.has_visual_effect(name.to_str().unwrap()));
             let native = has_name(user, name.as_ptr());
             counts[2] += u32::from(native != expected);
             // Publish completion only after the Boolean has been compared.
