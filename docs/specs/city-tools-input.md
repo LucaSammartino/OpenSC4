@@ -892,8 +892,9 @@ independent (a click can reach both), and neither return value is used.
   (float `+0x10`) (the layout `TickSingleIntersection`, `0x004AFB80`, counts down). For each approach: in state 2
   (timed signal) the light flag **flips** and the remaining time is reloaded from the on-time when the flag is now
   set, else from the off-time (the warning flag is left alone); in state 3 the flag is cleared and the remaining
-  time set to 5.0; other states are untouched. When any approach changed, the intersection's stoplight props are
-  refreshed (`UpdateIntersectionProps`, `0x004AE850`, with the record and a false flag). It therefore advances the
+  time set to 5.0; other states are untouched. The intersection's stoplight props are refreshed after the loop only if the last approach that changed left a
+  "changed" marker set: a state-3 approach always sets it, a state-2 flip sets it only when the flag ends up set, so a
+  state-2 flip to cleared as the last change (and no changes at all) skips the refresh *[compat]* (`UpdateIntersectionProps`, `0x004AE850`, with the record and a false flag). It therefore advances the
   signal phase of the clicked intersection at once *[compat]*; how the props show a state is traffic work outside
   this spec.
 
@@ -935,7 +936,7 @@ occupant, which is QI'd for the wanted interface (the result is held by the call
 | hover, mode 0 (`0x00A909B0`) | `0x004C37B0` | buildings, power poles, landfill, network occupants; flora and props only when their exemplar has property `0x8A416A99` |
 | route, mode 1 (`0x00A909E4`) | `0x004C39A0` | buildings; network occupants (interface `0xA821EF94`) of any of the network types 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12 (not 4 or 5) |
 | stoplight (`0x00A90A4C`) | `0x004C3AD0` | props in occupant group `0x5002` or `0x5003` |
-| automaton (`0x00A90A18`) | `0x004BDF90` | (not in this owner; Q CT9) |
+| automaton (`0x00A90A18`) | `0x004BDF90` | (not in this owner; answered in §8.6.1) |
 
 `PickQueriableOccupant(x, z, &out, filter)` (`0x004C4C90`) wants `0x26BB767E` (cISC4Occupant);
 `PickStoplightProp(x, z, &out)` (`0x004C4DC0`) wants `0xE9793A65`; both return true on a hit, false (and null)

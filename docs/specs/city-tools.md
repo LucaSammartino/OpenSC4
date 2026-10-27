@@ -177,18 +177,18 @@ offsets in the tool object; `+0x1C` is the city view and `+0x24` onward belong t
   `+0xE8` and `+0xEC` released, before the base view-input-control destructor.
 
 *Owner boundary.* The function at `0x008AE57B`, auto-named `SetCursorEchoPos` by a weak Mac match (score 0.618,
-support 0), is not this class's. Its only caller is `0x008A6D50` (inside `0x008A6CF5`) and the routine it follows
-is `0x008AE16E`, both inside the FreeType library range. It fills a table of 64-bit fixed-point constants and
+support 0), is not this class's. Its only caller is `0x008A6D50` (inside `0x008A6CF5`) and it itself calls
+`0x008AE16E` first, both inside the FreeType library range. It fills a table of 64-bit fixed-point constants and
 shorts at block `+0x400`/`+0x4A0`, and the game's next function is the Lua script server's CLSID getter at
 `0x008AE770`. The FreeType range of `tools/coverage-libs.tsv` now ends there (re-scrubber7).
 
 *Library identity (answers CT3).* `0x008A6CF5` allocates a context object (0x154 bytes) and a 0x4C8-byte block
-through the library's allocator, then calls `0x008AE16E`, which stores 256 code pointers in the block's first
-0x400 bytes, and then `0x008AE57B`. The 256 pointers are a **TrueType bytecode instruction dispatch table**: the
+through the library's allocator; its helper `0x008A6D50` calls `0x008AE57B`, which first calls `0x008AE16E` (it stores
+256 code pointers in the block's first 0x400 bytes) and then fills the constants described below. The 256 pointers are a **TrueType bytecode instruction dispatch table**: the
 repeats follow the TrueType opcode groups exactly (opcodes 0x02/0x03, 0x04/0x05, 0x06/0x07 and 0x08/0x09 share
 handlers in pairs, 0x10-0x12 and 0x13-0x16 in a triple and a quad, 0x2E/0x2F, 0x30/0x31, 0x32/0x33, 0x34/0x35,
-0x36/0x37, 0x3A/0x3B, 0x3E/0x3F in pairs, and the jump handlers sit at 0x1B/0x1C), and the handlers are
-inside the same library range. `0x008AE57B` then fills the rest of the same block, which its caller stores in the
+0x36/0x37, 0x3A/0x3B, 0x3E/0x3F in pairs, and the jump handlers are not independently checked), and the handlers are
+inside the same library range. `0x008AE57B`, after calling it, fills the rest of the same block, which its caller stores in the
 context: 20 Q62 fixed-point direction cosines (1, 0.7071, 0.8944, 0.9487, 0.8321, 0.9701, 0.8, 0.9806, ...) paired
 with 20 integer lengths (64, 91, 143, 202, 231, 264, ...), whose addresses it stores at `+0xC0`/`+0xC4` of the
 structure it is passed. Both routines are part
