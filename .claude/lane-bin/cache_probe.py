@@ -110,7 +110,12 @@ def probe(root):
             for name in ("object.obj", "smoke.exe", ".ninja_deps", ".ninja_log"):
                 (b / name).unlink(missing_ok=True)
             fixture(b, True)
+            before = json.loads(run([cache, "--show-stats", "--stats-format", "json"]))["stats"]
             run(["ninja"], b)
+            after = json.loads(run([cache, "--show-stats", "--stats-format", "json"]))["stats"]
+            require(after["cache_hits"]["counts"].get("C/C++", 0)
+                    > before["cache_hits"]["counts"].get("C/C++", 0),
+                    "mapped B must reuse A's cached object")
             deps = run(["ninja", "-t", "deps"], b).replace("\\", "/").lower()
             require(has_header(deps, b / "value.h"), "mapped dependency must name B: " + deps)
             require(not has_header(deps, a / "value.h"), "no foreign dependency remains: " + deps)
