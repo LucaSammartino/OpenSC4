@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -36,17 +37,48 @@ def gate_child(root, telemetry):
             if time.monotonic() > deadline:
                 raise RuntimeError("measurement Job was not assigned")
             time.sleep(.01)
+    spec = importlib.util.spec_from_file_location("measured_qbuild", root / ".claude/lane-bin/qbuild.py")
+    qbuild = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(qbuild)
+    timings = {}
+
+    def timed(name, fn):
+        def step(*args):
+            started, cpu = time.monotonic(), job_cpu()
+            result = fn(*args)
+            ended_cpu = job_cpu()
+            timings[name] = {"seconds": round(time.monotonic() - started, 2),
+                             "cpu_seconds": round(ended_cpu - cpu, 2) if cpu is not None else None}
+            return result
+        return step
+
+    for name in ("test", "clippy", "verify"):
+        setattr(qbuild, "step_" + name, timed(name, getattr(qbuild, "step_" + name)))
     with foreground_server(exe, env):
-        rc = subprocess.call([sys.executable, str(root / ".claude/lane-bin/qbuild.py"),
-                              "--wt", str(root), "all"], cwd=root)
+        sys.argv = [str(root / ".claude/lane-bin/qbuild.py"), "--wt", str(root), "all"]
+        rc = qbuild.main()
         stats = subprocess.check_output([exe, "--show-stats", "--stats-format", "json"], env=env, text=True)
-        Path(telemetry).write_text(stats, encoding="utf-8")
+        payload = json.loads(stats)
+        payload["steps"] = timings
+        Path(telemetry).write_text(json.dumps(payload), encoding="utf-8")
     return rc
 
 
 class Accounting(ctypes.Structure):
     _fields_ = [(n, ctypes.c_int64) for n in ("user", "kernel", "period_user", "period_kernel")]
     _fields_ += [(n, ctypes.c_uint32) for n in ("faults", "processes", "active", "terminated")]
+
+
+def job_cpu():
+    if os.name != "nt":
+        return None
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.QueryInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p,
+                                              ctypes.c_uint32, ctypes.c_void_p]
+    info = Accounting()
+    if not api.QueryInformationJobObject(None, 1, ctypes.byref(info), ctypes.sizeof(info), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return (info.user + info.kernel) / 10_000_000
 
 
 class Performance(ctypes.Structure):
@@ -206,8 +238,10 @@ def main():
         result = measured_run([sys.executable, str(Path(__file__).resolve()), "--gate-child", str(root),
                                str(telemetry)], root, env, out / f"{a.label}-{index}.log")
         if telemetry.exists():
-            stats = json.loads(telemetry.read_text(encoding="utf-8"))["stats"]
+            payload = json.loads(telemetry.read_text(encoding="utf-8"))
+            stats = payload["stats"]
             result["cache"] = {k: stats[k] for k in ("cache_hits", "cache_misses", "not_cached") if k in stats}
+            result["steps"] = payload["steps"]
         result.update(worktree=str(root), index=index, label=a.label,
                       revision=revision, lld=a.lld, jobs=a.jobs,
                       disk_bytes=sum(disk_bytes(root / "engine" / n) for n in ("target", "build-x86")))
