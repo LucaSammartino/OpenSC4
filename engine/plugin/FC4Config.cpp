@@ -457,6 +457,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   // Intrusive date hold for DBPF record investigations; default off.
                                   "dbpf_shadow_hold_date",
                                   "trace_record", "trace_scenario",
+                                  // View3D invocation-method differential, default off.
+                                  "view3d_shadow",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

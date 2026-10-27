@@ -1216,3 +1216,5 @@ mod gzfw_owner;
 mod invocation;
 // Opt-in C ABI host-boundary record/replay tooling.
 pub mod trace;
+// Private View3D method differential; no public C ABI exports.
+mod view3d_shadow;

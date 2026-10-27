@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+from types import SimpleNamespace
 
 STAT = ('suite-exercised', 'suite-verified', 'suite-replaced')
 NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$')
@@ -152,6 +153,9 @@ def read_batch(directory, default_enabled=()):
 
 
 def load(root, tag, default_enabled=()):
+    if tag.startswith('replay:'):
+        return sibling('replay_coverage').load(root, tag[len('replay:'):],
+            SimpleNamespace(load=load, tsv=tsv, sibling=sibling), default_enabled)
     directory = folder(root, tag)
     index = directory / 'sources.json'
     if index.is_file():
@@ -196,7 +200,8 @@ def states(evidence, game, rows, aliases):
         shadow, _, own = row.get('shadow', '-').partition(':')
         label = shadow.removesuffix('_shadow')
         label = own or aliases.get(label, label)
-        exercised = implemented and address in evidence['reached']
+        reached = evidence.get('key_reached', {}).get(label, evidence['reached'])
+        exercised = implemented and address in reached
         result[address] = {'suite-exercised': exercised,
                            'suite-verified': exercised and label in evidence['exact'],
                            'suite-replaced': implemented and row.get('replace') in evidence['replaced']}
