@@ -1549,3 +1549,11 @@ if(WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_compile_options(fc4_view3d_observation_test PRIVATE /W3 /permissive- /utf-8 /EHsc /UNDEBUG)
     add_test(NAME view3d_observation COMMAND fc4_view3d_observation_test)
 endif()
+
+# Cargo's console target can prune cached link steps through Ninja restat.
+# Emit a completed edge afterwards so the native gate sees final progress.
+add_custom_target(fc4_capi_ready ALL
+    COMMAND ${CMAKE_COMMAND} -E true
+    COMMENT "Rust static archive ready"
+    VERBATIM)
+add_dependencies(fc4_capi_ready fc4_capi_cargo)
