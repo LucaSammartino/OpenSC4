@@ -13,6 +13,7 @@
 
 #include "FC4Observer.h"
 #include "FC4LegacyCtlShadow.h"
+#include "FC4View3DShadow.h"
 #include "FC4IndustrialShadow.h"
 #include "FC4FontSysVerify.h"
 #include "FC4PropOccupantVerify.h"
@@ -892,6 +893,7 @@ public:
                 SCResShadowLine("month", julian);
                 LegacyCtlShadowMonth(julian);
                 SpanRender8888Month(julian);
+                View3DShadowMonth(julian);
                 ++monthsSinceLoad_;                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
                     // simulator's month-change message.
