@@ -116,7 +116,8 @@ def test_train278_header_change_after_cross_worktree_hit():
     assert result["unsafe_stale_success"] and result["mapped_header_rebuilt_object_and_test"]
 
 
-def test_rust_cache_falls_back_to_the_compiler_when_sccache_is_unreachable(tmp_path):
+@pytest.mark.parametrize("exit_code", [1, 2])
+def test_rust_cache_falls_back_to_the_compiler_when_sccache_is_unreachable(tmp_path, exit_code):
     """A cache server fault (sccache exit 2) must never fail a gate: the wrapper runs the compiler directly."""
     import rust_cache
     fake_sccache = tmp_path / "fake_sccache.py"
