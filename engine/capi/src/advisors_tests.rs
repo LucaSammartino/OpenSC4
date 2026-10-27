@@ -388,6 +388,86 @@ fn shadow_scheduler_import_does_not_replay_old_startup_month() {
 }
 
 #[test]
+fn shadow_scheduler_worked_case_mixed_advisor_counters() {
+    // mysims §3.1.1: ID 30's zero counters do not reset the system ticker.
+    unsafe extern "C" fn date(u: *mut c_void, out: *mut fc4_adv_date) {
+        let day_number = g(u).day.get();
+        *out = fc4_adv_date {
+            day_number,
+            year: 2000,
+            month: 1,
+            day: day_number - 2_451_544,
+        };
+    }
+    let game = Game::new();
+    game.day.set(2_451_545);
+    let mut h = advisor_host(&game);
+    h.sim_date = Some(date);
+    let p = unsafe { fc4_advisors_create(&h, &mysim_host(&game), 0x1234) };
+    assert!(!p.is_null());
+    assert!(unsafe { fc4_advisors_init(p) });
+    let f = Fixture { game, p };
+    unsafe {
+        for id in 1..=5 {
+            assert!(fc4_advisors_advisor_simulate(p, id, 1));
+            assert!(fc4_advisors_advisor_simulate(p, id, 0));
+        }
+        assert!(fc4_advisors_shadow_last_day(p, 2_451_545));
+        for msg_type in [fc4_core::advisors::msg::POST_CITY_INIT, fc4_core::advisors::msg::TICKER] {
+            assert!(fc4_advisors_do_message(
+                p,
+                &fc4_adv_message {
+                    msg_type,
+                    ..Default::default()
+                }
+            ));
+        }
+        for id in 1..=5 {
+            assert_eq!((f.advisor(id).month_counter, f.advisor(id).current_day), (1, 2_451_545));
+        }
+        assert_eq!((f.advisor(30).month_counter, f.advisor(30).current_day), (0, 0));
+        f.game.day.set(2_451_572);
+        assert!(fc4_advisors_do_message(
+            p,
+            &fc4_adv_message {
+                msg_type: fc4_core::advisors::msg::TICKER,
+                ..Default::default()
+            }
+        ));
+        for id in 1..=5 {
+            assert_eq!((f.advisor(id).month_counter, f.advisor(id).current_day), (2, 2_451_572));
+        }
+        assert_eq!((f.advisor(30).month_counter, f.advisor(30).current_day), (1, 2_451_572));
+    }
+}
+
+#[test]
+fn shadow_scheduler_worked_case_two_startup_deliveries_before_ticker() {
+    let f = Fixture::new();
+    unsafe {
+        assert!(fc4_advisors_shadow_last_day(f.p, 0));
+        for msg_type in [
+            fc4_core::advisors::msg::CITY_ESTABLISHED,
+            fc4_core::advisors::msg::POST_CITY_INIT,
+        ] {
+            assert!(fc4_advisors_do_message(
+                f.p,
+                &fc4_adv_message {
+                    msg_type,
+                    ..Default::default()
+                }
+            ));
+        }
+        let mut state = fc4_advisors_state::default();
+        assert!(fc4_advisors_get_state(f.p, &mut state));
+        assert_eq!(state.last_day, 0);
+        for id in [1, 2, 3, 4, 5, 30] {
+            assert_eq!((f.advisor(id).month_counter, f.advisor(id).current_day), (2, 0));
+        }
+    }
+}
+
+#[test]
 fn create_checks_its_tables() {
     let game = Game::new();
     let mut h = advisor_host(&game);

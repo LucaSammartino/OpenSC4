@@ -13,22 +13,51 @@ use std::rc::Rc;
 
 use super::*;
 use crate::development::{GrowthItem, GrowthProfile};
-use crate::grid::{CityDims, CoreGrids, GridElem, GridProvider, SimGrid, TractGrid};
+use crate::grid::{CityDims, CoreGrids, GridElem, GridProvider, SimGrid, TractGeometry, TractGrid};
 use crate::property::PropertyHolder;
 use crate::rng::FixedSeeds;
 use crate::stream::{ByteReader, ByteWriter, RefValue, SaveObject};
 use crate::variant::{mem, Elem, Variant};
 
+type PopulationObserver = Rc<dyn Fn(&GrowthProfile)>;
+
+// Exercise the bulk-read path offered by the plugin's host grids, including
+// the visibility of writes to a synchronous tract-developer callback.
+struct BulkGrid<T: GridElem>(Rc<SimGrid<T>>);
+
+impl<T: GridElem> TractGrid<T> for BulkGrid<T> {
+    fn geometry(&self) -> TractGeometry {
+        self.0.geometry()
+    }
+    fn get(&self, x: i32, z: i32) -> T {
+        self.0.get(x, z)
+    }
+    fn set(&self, x: i32, z: i32, value: T) {
+        self.0.set(x, z, value);
+    }
+    fn save_ref(&self) -> RefValue {
+        self.0.save_ref()
+    }
+    fn snapshot_values(&self) -> Option<Vec<T>> {
+        Some(
+            (0..self.count_x())
+                .flat_map(|x| (0..self.count_z()).map(move |z| self.get(x, z)))
+                .collect(),
+        )
+    }
+}
+
 struct Fake {
     grids: CoreGrids,
     park: RefCell<Option<Rc<SimGrid<i16>>>>,
-    made_u8: RefCell<Vec<Rc<SimGrid<u8>>>>,
-    made_i16: RefCell<Vec<Rc<SimGrid<i16>>>>,
-    made_u16: RefCell<Vec<Rc<SimGrid<u16>>>>,
+    made_u8: RefCell<Vec<Rc<BulkGrid<u8>>>>,
+    made_i16: RefCell<Vec<Rc<BulkGrid<i16>>>>,
+    made_u16: RefCell<Vec<Rc<BulkGrid<u16>>>>,
     calls: RefCell<Vec<String>>,
     demand_added: RefCell<Vec<f32>>,
     nodes: RefCell<HashMap<(u32, u32), u64>>,
     date: Cell<u32>,
+    population_observer: RefCell<Option<PopulationObserver>>,
 }
 
 impl Fake {
@@ -45,6 +74,7 @@ impl Fake {
             demand_added: RefCell::new(Vec::new()),
             nodes: RefCell::new(HashMap::new()),
             date: Cell::new(0),
+            population_observer: RefCell::new(None),
         })
     }
 
@@ -57,7 +87,7 @@ macro_rules! provider {
     ($t:ty, $list:ident) => {
         impl GridProvider<$t> for Fake {
             fn create_grid(&self, i: u32, s: i32) -> Option<Rc<dyn TractGrid<$t>>> {
-                let g = SimGrid::<$t>::create(&self.grids.city, i, s);
+                let g = Rc::new(BulkGrid(SimGrid::<$t>::create(&self.grids.city, i, s)));
                 self.$list.borrow_mut().push(g.clone());
                 Some(g as Rc<dyn TractGrid<$t>>)
             }
@@ -69,10 +99,10 @@ provider!(u8, made_u8);
 provider!(i16, made_i16);
 provider!(u16, made_u16);
 
-fn resize<T: GridElem>(city: &CityDims, made: &[Rc<SimGrid<T>>], g: &Rc<dyn TractGrid<T>>, s: i32) {
+fn resize<T: GridElem>(city: &CityDims, made: &[Rc<BulkGrid<T>>], g: &Rc<dyn TractGrid<T>>, s: i32) {
     let p = Rc::as_ptr(g) as *const ();
     if let Some(sg) = made.iter().find(|m| Rc::as_ptr(m) as *const () == p) {
-        sg.set_tract_size(city, s);
+        sg.0.set_tract_size(city, s);
     }
 }
 
@@ -142,7 +172,7 @@ impl GrowthDeveloperHost for Fake {
         1.0
     }
     fn tract_developer(&self) -> Option<u64> {
-        None
+        self.population_observer.borrow().as_ref().map(|_| 2)
     }
     fn special_buildings(&self) -> Vec<u64> {
         Vec::new()
@@ -153,7 +183,11 @@ impl GrowthDeveloperHost for Fake {
     fn building_purpose(&self, _bt: u32) -> u32 {
         1
     }
-    fn update_population(&self, _td: u64, _p: &GrowthProfile) {}
+    fn update_population(&self, _td: u64, p: &GrowthProfile) {
+        if let Some(observe) = &*self.population_observer.borrow() {
+            observe(p);
+        }
+    }
     fn zone_type(&self, _x: i32, _z: i32) -> i8 {
         1
     }
@@ -320,6 +354,40 @@ fn update_builds_sorted_lists() {
     assert_eq!(*d.growth_list(), vec![item(0, 1), item(0, 0), item(1, 0)]);
     assert_eq!(*d.decline_list(), vec![item(1, 1)]);
     assert_eq!(st.draws(), 0);
+}
+
+#[test]
+fn state_18_publishes_population_before_each_lot_callback() {
+    // growth-developer §5.2.1: the native callback reads the just-stored
+    // population; its lot-level changes do not rewrite later grid inputs.
+    let host = Fake::new(8);
+    let st = GrowthStatics::new(0, &seeds());
+    let d = developer(&host, &st, exemplar(0x1010, 1, 1));
+    let w = d.working_map().unwrap();
+    let cap = d.capacity_map().unwrap();
+    let pop = d.population_map().unwrap();
+    w.fill(100);
+    cap.fill(226);
+    cap.set(0, 0, 85);
+    pop.fill(-1);
+    let observed = Rc::new(RefCell::new(Vec::new()));
+    let calls = observed.clone();
+    let population = pop.clone();
+    let capacity = cap.clone();
+    let working = w.clone();
+    *host.population_observer.borrow_mut() = Some(Rc::new(move |p| {
+        calls.borrow_mut().push((p.x, p.z, population.get(p.x, p.z)));
+        assert_eq!(capacity.get(1, 0), 226);
+        assert_eq!(working.get(1, 0), 100);
+    }));
+    d.data_mut().update_state = 18;
+    d.do_idle(5);
+    assert_eq!(*observed.borrow(), [(0, 0, 85), (1, 0, 226), (0, 1, 226), (1, 1, 226)]);
+    // A later delivery changes capacity without a population delta. The
+    // completed pass keeps the earlier read (the answer's 85/226 case).
+    cap.set(0, 0, 226);
+    assert_eq!(pop.get(0, 0), 85);
+    assert_eq!(cap.get(0, 0), 226);
 }
 
 #[test]

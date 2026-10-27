@@ -611,6 +611,55 @@ fn occupant_cones() {
     assert_eq!(s.building_effect_grid().unwrap().get(0, 0), 7);
 }
 
+#[test]
+fn recipient_boundary_cone_worked_cases() {
+    // aura §14.3.1: presence of the preview property, even value zero,
+    // suppresses broadcasts. The direct PostCityInit helper bypasses it.
+    let f = Fake::new(64);
+    let s = sim(&f);
+    let mut occ = Occ {
+        pos: [256.0, 0.0, 256.0],
+        dept: Some(0x8A41_6368),
+        ..Default::default()
+    };
+    occ.props.insert(ids::PROP_PARK_EFFECT, vec![100, 4]);
+    occ.props.insert(ids::PROP_PREVIEW_OCCUPANT, vec![0]);
+    f.occupants.borrow_mut().insert(1, occ.clone());
+    s.do_message(&AuraMessage {
+        msg_type: msg::OCCUPANT_INSERTED,
+        void1: 1,
+        ..Default::default()
+    });
+    let raw = s.raw_park_grid().unwrap();
+    assert!(all_zero(&*raw));
+
+    occ.props.remove(&ids::PROP_PREVIEW_OCCUPANT);
+    f.occupants.borrow_mut().insert(1, occ.clone());
+    *f.lots.borrow_mut() = vec![residential_lot(16, 16, 24, 24, vec![])];
+    s.occupant_changed(1, true);
+    assert_eq!(raw.get(5, 5), 100);
+    s.occupant_changed(1, false);
+    assert!(all_zero(&*raw));
+    // Reading removal after the lot disappears would subtract at (4,4).
+    s.occupant_changed(1, true);
+    f.lots.borrow_mut().clear();
+    s.occupant_changed(1, false);
+    assert_eq!((raw.get(5, 5), raw.get(4, 4)), (100, -100));
+
+    occ.props.clear();
+    occ.props.insert(ids::PROP_LANDMARK_EFFECT, vec![40, 20]);
+    occ.props.insert(ids::PROP_PREVIEW_OCCUPANT, vec![0]);
+    f.occupants.borrow_mut().insert(1, occ);
+    *f.lots.borrow_mut() = vec![residential_lot(16, 16, 24, 24, vec![])];
+    assert!(s.department_ids().is_empty());
+    s.data_mut().re_add_landmarks = true;
+    s.do_message(&AuraMessage {
+        msg_type: msg::POST_CITY_INIT,
+        ..Default::default()
+    });
+    assert_eq!(s.department_grid(0x8A41_6368).unwrap().get(5, 5), 40);
+}
+
 /// §11.3 (AU1), test 16: `Read` into a used object merges the departments
 /// (an ID already held gets the record's grid, other IDs stay) and appends
 /// the hotspots.
