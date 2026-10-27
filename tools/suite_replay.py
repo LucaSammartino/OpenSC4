@@ -44,7 +44,7 @@ def identity(root, row, exe, profile, extra):
     city = Path(row['_prepared_city']) if row.get('_prepared_city') else suite.city_path(row)
     if not city.is_absolute():
         city = root / city
-    harness = ['tools/suite.py', 'tools/suite_replay.py', 'tools/game_queue.py',
+    harness = ['tools/suite.py', 'tools/suite_replay.py', 'tools/game_queue.ps1', 'tools/ingame_run.ps1',
                'tools/regress.ps1', 'docs/abi/functions.tsv']
     inputs = dict(version=1, scenario=row, exe_sha256=sha(exe), city_sha256=sha(city),
                   scripts={p.relative_to(root).as_posix(): sha(p) for p in scripts},
@@ -123,17 +123,23 @@ def record(root, args):
             print(f'record {row["name"]}: reused {fingerprint}')
             reused += 1
         else:
-            if store.exists():
-                raise ValueError(f'unfinished recording: {store}; resume its suite batch before retrying')
             tag = 'record-' + fingerprint[:32]
-            overrides = extra + [f'trace_record = {store.as_posix()}', f'trace_scenario = {row["name"]}']
-            batch, results = suite.run_scenarios(root, [row], profile=args.profile, dll=args.dll,
-                tag=tag, extra=overrides, wait_seconds=args.wait_seconds, dry_run=args.dry_run, slots=1)
+            batch = root / 'build-runs/suite' / tag
+            results = None
+            if batch.exists():
+                print(f'record {row["name"]}: checking staged/resumed batch {tag}')
+            else:
+                overrides = extra + [f'trace_record = {store.as_posix()}', f'trace_scenario = {row["name"]}']
+                batch, results = suite.run_scenarios(root, [row], profile=args.profile, dll=args.dll,
+                    tag=tag, extra=overrides, wait_seconds=args.wait_seconds, dry_run=args.dry_run, slots=1)
             if args.dry_run:
                 print(f'record {row["name"]}: staged {batch}; no recording cached')
                 continue
+            if not (batch / 'summary.tsv').is_file():
+                raise ValueError(f'unfinished recording; run suite.py resume {tag}, then repeat record')
             evidence = suite_coverage.load(root, tag)
-            if not suite.successful(results) or not all(s['selection_ready'] for s in evidence['scenarios']):
+            if ((results is not None and not suite.successful(results))
+                    or not all(s['selection_ready'] for s in evidence['scenarios'])):
                 print(f'record {row["name"]}: failed/incomplete recording; not cached; {batch}')
                 return 1
             trace_rows = replay_coverage.manifest_rows(store / 'manifest.tsv')

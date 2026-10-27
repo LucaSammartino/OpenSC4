@@ -51,7 +51,8 @@ def test_lua_companion_script_invalidates_recording(tmp_path, monkeypatch):
     assert trace.identity(tmp_path, row, exe, 'shadows', [])[0] != first
 
 
-def test_record_once_reuses_complete_content_store(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize('recover_marker', [False, True])
+def test_record_once_reuses_complete_content_store(tmp_path, monkeypatch, capsys, recover_marker):
     row, exe = inputs(tmp_path, monkeypatch)
     args = ['record', '--set', 'full', '--tag', 'pilot', '--exe', str(exe), '--reach']
     calls = []
@@ -73,6 +74,8 @@ def test_record_once_reuses_complete_content_store(tmp_path, monkeypatch, capsys
     with patch.object(suite, 'read_scenarios', return_value=[row]), \
             patch.object(suite, 'run_scenarios', side_effect=record_game):
         assert suite.main(args, root=tmp_path) == 0
+        if recover_marker:
+            next((tmp_path / 'build-runs/traces/store').glob('*/recording.json')).unlink()
         assert suite.main(args, root=tmp_path) == 0
     assert len(calls) == 1
     assert calls[0]['slots'] == 1
@@ -83,7 +86,8 @@ def test_record_once_reuses_complete_content_store(tmp_path, monkeypatch, capsys
     metadata = json.loads((directory / 'recordings.json').read_text())
     assert metadata['recordings'][row['name']]['identity']
     assert len(trace.replay_coverage.manifest_rows(directory / 'manifest.tsv')) == 1
-    assert 'recorded=0 reused=1' in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert ('checking staged/resumed batch' if recover_marker else 'recorded=0 reused=1') in output
 
 
 def test_record_dry_run_stages_real_opt_in_request_without_cache_or_game(tmp_path, monkeypatch):

@@ -119,3 +119,10 @@ def test_newest_census_per_untraced_key(tmp_path):
     evidence = load(tmp_path, directory)
     assert evidence['key_sources']['bar']['source'] == 'census:new'
     assert 'bar' not in evidence['exact']
+
+
+def test_path_loaded_coverage_does_not_require_tools_on_sys_path(tmp_path, monkeypatch):
+    _, directory = recording(tmp_path)
+    module = metric.sibling('suite_coverage')
+    monkeypatch.setattr(sys, 'path', [p for p in sys.path if Path(p).resolve() != ROOT / 'tools'])
+    assert load(tmp_path, directory)['exact'] == module.load(tmp_path, f'replay:{directory / "manifest.tsv"}')['exact']

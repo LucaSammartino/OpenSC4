@@ -153,7 +153,9 @@ def load(root, value, sc, enabled=()):
         if ready:
             verified.add(owner)
         sources[owner] = dict(source=f'replay:{path.as_posix()}', exact=ready,
-                              scenarios=len(observations))
+                              scenarios=len(observations),
+                              recordings_ready=sum(bool(by_name.get(n) and by_name[n]['selection_ready'])
+                                                   for n, _ in observations))
     fallback = fallbacks(root, metadata, sc, enabled)
     for owner, evidence in fallback.items():
         if owner in per_key:
