@@ -971,12 +971,17 @@ def main():
 
     def tally(items):
         t = {"n": 0, "b": 0, **compare_metrics.tally(items, fn_states)}
-        for s in STAT + suite_stats:
+        for s in STAT + suite_stats + ("verified-owner", "method-verified"):
             t[s + "_n"] = 0
             t[s + "_b"] = 0
         for va, size, i, _ in items:
             t["n"] += 1
             t["b"] += size
+            for s, credited in (("verified-owner", i is not None and rows[i]["verified"]),
+                                ("method-verified", va in methods)):
+                if credited:
+                    t[s + "_n"] += 1
+                    t[s + "_b"] += size
             for s in STAT:
                 if coverage_methods.function_status(rows, i, va, methods, s):
                     t[s + "_n"] += 1
@@ -1092,20 +1097,42 @@ def main():
     w("")
     w("Share of each area's bytes at each step. Shared helpers and unattributed code have no owner, so no step.")
     w("")
-    cols = [("Specified", "specified"), ("Implemented", "implemented"), ("Verified", "verified")]
+    cols = [("Specified", "specified"), ("Implemented", "implemented"),
+            ("Verified owner", "verified-owner"), ("Method verified", "method-verified")]
     if suite_evidence:
         cols.append(("↳ strict", "suite-verified"))
     cols.append(("Replaced", "replaced"))
     if suite_evidence:
         cols.append(("Suite reach", "suite-exercised"))
-    w("| Area | Bytes | % of game | " + " | ".join(c for c, _ in cols) + " |")
-    w("|---|---:|---:|" + "---:|" * len(cols))
+    fn_cols = ("Bound", "Matched", "Matched natural", "Matched dense")
+
+    def function_cells(t):
+        return " | ".join(f"{100 * t[s + '_b'] / t['b'] if t['b'] else 0:.1f}% "
+                          f"({100 * t[s + '_n'] / t['n'] if t['n'] else 0:.1f}%)"
+                          for s in function_stats)
+
+    def coverage_cells(t):
+        cells = []
+        for _, s in cols:
+            if s == "method-verified":
+                cells.append(f"{100 * t[s + '_b'] / t['b'] if t['b'] else 0:.1f}% "
+                             f"({100 * t[s + '_n'] / t['n'] if t['n'] else 0:.1f}%)")
+            else:
+                cells.append(pct(t[s + '_b'], t['b']) if t[s + '_b'] else "-")
+        return " | ".join(cells)
+
+    w("Function evidence columns show byte share (function share).")
+    w("")
+    w("| Area | Functions | Bytes | % of game | " + " | ".join(c for c, _ in cols)
+      + " | " + " | ".join(fn_cols) + " |")
+    w("|---|---:|---:|---:|" + "---:|" * (len(cols) + len(fn_cols)))
     for a in AREAS + ["shared", "unattributed"]:
         t_ = by_area[a]
-        w(f"| {a} | {t_['b']:,} | {pct(t_['b'], game_b)} | "
-          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + " |")
-    w(f"| **all game code** | **{game_b:,}** | 100.0% | "
-      + " | ".join(f"**{pct(whole[s + '_b'], game_b)}**" for _, s in cols) + " |")
+        w(f"| {a} | {t_['n']:,} | {t_['b']:,} | {pct(t_['b'], game_b)} | "
+          + coverage_cells(t_) + " | " + function_cells(t_) + " |")
+    w(f"| **all game code** | **{game_n:,}** | **{game_b:,}** | 100.0% | "
+      + coverage_cells(whole)
+      + " | " + function_cells(whole) + " |")
     w("")
     w("## By subsystem")
     w("")
@@ -1114,14 +1141,16 @@ def main():
       "but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane "
       "run.")
     w("")
-    w("| Area | Subsystem | Owners | Bytes | " + " | ".join(c for c, _ in cols) + " | Shadow |")
-    w("|---|---|---:|---:|" + "---:|" * len(cols) + "---|")
+    w("| Area | Subsystem | Owners | Bytes | Shadow | " + " | ".join(c for c, _ in cols)
+      + " | " + " | ".join(fn_cols) + " |")
+    w("|---|---|---:|---:|---|" + "---:|" * (len(cols) + len(fn_cols)))
     for key in sorted(subs, key=lambda k: (AREAS.index(k[0]), -sum(g[1] for g in subs[k]), k[1])):
         items = subs[key]
         notes = sorted({rows[i]["shadow_note"] for i in sub_rows[key]} - {"-"})
         t_ = tally(items)
-        w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {t_['b']:,} | "
-          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + f" | {', '.join(notes) or '-'} |")
+        w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {t_['b']:,} | {', '.join(notes) or '-'} | "
+          + coverage_cells(t_)
+          + " | " + function_cells(t_) + " |")
     w("")
     w("## Method verification")
     w("")

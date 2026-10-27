@@ -8,10 +8,38 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 import cache_compile
 from cache_server import foreground_server
 import fc4verify
+
+
+def queued_probe(root):
+    """Use the native worker when present; inspect this request's fresh CTest proof.
+
+    Ninja's Windows process pipes cannot run in the lane sandbox. This runs the
+    same probe via CTest, rather than skipping it or trusting an earlier result.
+    The CLI below always runs directly, so CTest cannot recursively queue itself.
+    """
+    import qbuild
+    root = Path(root)
+    alive = fc4verify.main_root(root) / "build-runs/build-queue-worker.alive"
+    if not alive.exists() or time.time() - alive.stat().st_mtime > 60:
+        return probe(root)
+    started = time.time_ns()
+    if not qbuild.queued_fc4verify(str(root), ["build", "ctest"]):
+        raise AssertionError("native worker cache regression gate failed")
+    log = root / "engine/build-x86/Testing/Temporary/LastTest.log"
+    if log.stat().st_mtime_ns < started:
+        raise AssertionError("native worker returned an old CTest log")
+    text = log.read_text(encoding="utf-8", errors="replace")
+    for line in text.splitlines():
+        if line.startswith('{"cache":'):
+            result = json.loads(line)
+            if "mapped_header_rebuilt_object_and_test" in result:
+                return result
+    raise AssertionError("fresh CTest log contains no real cache regression proof")
 
 
 def probe(root):

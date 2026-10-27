@@ -111,6 +111,6 @@ def test_train278_header_change_after_cross_worktree_hit():
     No fake compiler or cache: Ninja's deps database and the linked executable
     are inspected. This fails if the launcher is removed from the fixed case.
     """
-    from cache_probe import probe
-    result = probe(ROOT)
+    from cache_probe import queued_probe
+    result = queued_probe(ROOT)
     assert result["unsafe_stale_success"] and result["mapped_header_rebuilt_object_and_test"]
