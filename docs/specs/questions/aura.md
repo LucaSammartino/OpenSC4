@@ -16,11 +16,13 @@
   and landmark maps are exact in `growth-cities29-12/lua-lots-grown.log:3093`, but
   93 work cells first differ after state 5; eight base/aura tracts then differ
   (maximum 225/97). The run is clean, ref0 and reaches its end date. Please specify
-  a native per-lot capture boundary and exact call/argument layouts for the lot
-  enumeration and the state-5 population/wealth/building inputs, including skipped
-  or removed lots, so the shadow can replay the original read sequence independently
-  of its own timed scan. Which live lot/grid results must be retained before the
-  original advances its cursor? This blocks the grown unqualified Lua work/base case,
+  value-only per-slice input/output fixtures: ordered lot identities, inclusion
+  results (including skipped/removed lots), population, wealth, building inputs
+  and cursor values before/after each slice, with expected work/base grids.
+  Specify when those input values are sampled relative to cursor advancement,
+  so the shadow can replay the same sequence independently of its timed scan.
+  No native hook, call layout or implementation excerpt is requested.
+  This blocks the grown unqualified Lua work/base case,
   not the permanent cone maps; both grown variants were exact in tag 11, and the
   qualified variant is exact in tag 12. Evidence root:
   `C:/Users/tlori/FreeCity4/build-runs/suite/`. No output grid is used to hide a difference.

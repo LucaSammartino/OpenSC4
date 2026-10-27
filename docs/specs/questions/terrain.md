@@ -49,3 +49,23 @@
 
 <!-- from: replace-terrainview29 restart round 3 (2026-10-26); TR45/TR46 are in answered/terrain.md -->
 - **TR47 - section 15.5.15.4 remaining complete-frame observation:** TR46 specifies the six cell indices and plain floor/water row subsequences (now implemented with the worked vectors), but explicitly leaves complete cache bytes, boundary rounding and auxiliary/extension streams unestablished. Please supply the observations or equivalent verified deterministic rules listed in section 15.5.15.4: draw-time land/water/edge vertex and edge-index bytes, resource identities and UV/colour producers; frustum boundaries at/either side of a 16-metre boundary and equality cases for all rotations with qualified numeric control; ordered grid, plumbing, LevelCell and extension-success/failure streams including state restores. Keep layer-0/layer-2, first-dirty/unchanged, interior/edge height edits, texture-only, lighting and zoom/rotation cases separate, and retain all context count arguments and draw-time mutations. What complete ordered call/argument and referenced-byte fixture can the independent replacement compare against? No native-frame capture or complete-frame parity is claimed by this implementation round. Frame implementation/comparison and registration stop at this documented boundary; missing passes or bytes are not defaulted to zero/empty or forwarded to the native view for credit.
+
+- **TR-GC30-1 — sections 4.1/4.3 under live PC53 (2026-10-27, growth-cities30):**
+  Please supply value-only GetAltitude and GetFaceNormal conformance cases
+  when entered under foundations §18.4's PC53 Lua/modal
+  scope. Terrain's formulas prescribe r24, while the new general contract
+  retains live PC; terrain is absent from its table of verified spill boundaries.
+  Give exact height-grid and query-coordinate bits, expected normal components
+  and altitude output bits, plus intermediate values and a numeric rounding rule
+  sufficient to reproduce them at PC24 and PC53. Include floor/interpolation
+  boundary cases. No native instructions, registers or excerpts are requested.
+  In `C:/Users/tlori/FreeCity4/build-runs/suite/growth-cities30-1/london-sydenham.log`,
+  load samples at lines 2800 and 2857 each have 637 differences (normal 388/1024,
+  altitude 1023/1024 exact); all grid/depth/type/navigation checks are exact.
+  At (720,1673.2113), original normal z = -0.100063026 versus core -0.100063033.
+  Tick 1 logs CW 027F at 01:01:13.436; tick 63 logs the return to 007F at
+  01:01:22.897, bracketing both loads. Later queries are exact. The authoritative
+  verdict is clean/end reached/ref_warnings=0; terrain is 33/35, as in census3.
+  The earlier lane's FpuSimulationEntry call now diagnoses without changing PC.
+  No precision was forced, sample excluded or tolerance changed; this item stops
+  pending the PC53 numeric contract and its worked vectors.

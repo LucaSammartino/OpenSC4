@@ -77,6 +77,7 @@
 #include <cstring>
 #include <vector>
 #include "FC4GZFramework.h"
+#include "FC4DemolitionHost.h"
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {
@@ -323,6 +324,19 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
                                          [](void*, uint64_t) {}, nullptr);
             return fc4::RefWarningCount() - before;
         }
+        case kFC4SeamMySimsActiveIds: {
+            if (!a || !b) return -1;
+            const long before = fc4::RefWarningCount();
+            const auto ids = fc4::MySimsActiveIds(*static_cast<SC4Vector<cISC4MySim*>*>(a));
+            for (size_t i = 0; i < ids.size() && i < 5; ++i) static_cast<int32_t*>(b)[i] = ids[i];
+            return fc4::RefWarningCount() - before;
+        }
+        case kFC4SeamMySimsUiBlocked:
+            return fc4::MySimsUiBlocked(static_cast<cIGZWinMgr*>(a));
+        case kFC4SeamMySimsSavedReference:
+            if (!b) return -1;
+            return static_cast<intptr_t>(fc4::MySimsSavedReferenceTest(
+                static_cast<cIGZUnknown*>(a), *static_cast<uint32_t*>(b)));
         case kFC4SeamGZFrameworkCreate: {
             if (b) return reinterpret_cast<intptr_t>(fc4::GZCommandServerTestCreate(static_cast<cIGZUnknown*>(a)));
             auto* buffer = fc4::CreateGZBuffer();

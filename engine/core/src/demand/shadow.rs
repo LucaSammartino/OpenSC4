@@ -195,6 +195,7 @@ mod tests {
     struct Fake {
         exemplars: RefCell<Vec<(ResKey, Rc<PropertyHolder>)>>,
         history: Cell<Option<f32>>,
+        ordinance: Cell<Option<f32>>,
         other_calls: Cell<u32>,
     }
 
@@ -285,6 +286,9 @@ mod tests {
             self.history.get()
         }
         fn ordinance_factor(&self, prop: u32, _index: u32) -> f32 {
+            if let Some(factor) = self.ordinance.get() {
+                return factor;
+            }
             if prop == 0x2A65_1010 {
                 1.25
             } else {
@@ -493,6 +497,35 @@ mod tests {
         assert_eq!(m.nodes[6].economy_modifier, 0.06f32 + 0.5); // CO$$: + co bonus
         assert_eq!(m.nodes[8].economy_modifier, 0.06f32 + 0.25); // I-R: + i bonus
         assert_eq!(f.other_calls.get(), 0);
+    }
+
+    #[test]
+    fn captured_history_maximum_worked_cases() {
+        // demand §8.1.1: the capture supplies the consumed maximum-slot
+        // bits even when history returned false. None would instead select
+        // the replacement's missing-history choice, not these inputs.
+        let f = Fake::default();
+        f.ordinance.set(Some(1.0));
+        let mut g = ShadowGraph::from_host(&f);
+        g.tuning = DemandTuning {
+            neutral_tax_curve: crate::curve::ResponseCurve::from_flat(&[0.0, 9.0, 100.0, 9.0]),
+            tax_modifier_curve: crate::curve::ResponseCurve::from_flat(&[0.2, 0.3, 1.0, 0.0, 5.0, -3.5]),
+            ..DemandTuning::default()
+        };
+        for (slot_bits, modifier_bits) in [(0x0000_0000, 0x3E99_999A), (0x4400_0000, 0xC060_0000)] {
+            f.history.set(Some(f32::from_bits(slot_bits)));
+            let m = g.modifiers(&f, 0.0, 0.0, 0.0, 0.0, 0.0);
+            assert_eq!(m.neutral, 9.0);
+            for node in m.nodes {
+                assert_eq!(node.max_rate.to_bits(), slot_bits);
+                assert_eq!(node.tax_modifier.to_bits(), modifier_bits);
+            }
+        }
+        // A successful type-0 query can leave 90 for a wholly empty type-1
+        // series; both consumed outputs have the same neutral modifier.
+        f.history.set(Some(90.0));
+        let m = g.modifiers(&f, 0.0, 0.0, 0.0, 0.0, 0.0);
+        assert_eq!((m.nodes[0].tax_modifier, m.nodes[1].tax_modifier), (0.0, 0.0));
     }
 
     /// Runs 42 and 43 (demand shadow, Spandau): §8.1's tax term with the
