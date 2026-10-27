@@ -11,7 +11,7 @@ SEL is `cover` (the default: for each owner, the scenarios of its greedy reach c
 build-runs/golden/owner-scenarios.tsv, written by `tools/coverage.py --owner-scenarios`), `all`, a set from
 engine/tests/scenarios/suite.tsv, or scenario names separated by commas. `--replace none` switches on no owner of
 ours: the candidate must then match the references exactly (a drift check of the harness and the schedule).
-Lua scenarios are not run yet. Exit code: 0 all exact, 1 a difference, 2 an error. Standard library only.
+Lua and clockless scenarios are not run. Exit code: 0 all exact, 1 a difference, 2 an error. Standard library only.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -57,8 +57,10 @@ def select(text, keys, rows):
     unknown = names - set(rows)
     if unknown:
         raise ValueError(f'unknown scenarios: {sorted(unknown)}')
-    lua = {name for name in names if rows[name]['script'].lower().endswith('.lua')}
-    return sorted(names - lua), sorted(lua)
+    # Not run: Lua scripts, and clockless cities (no day comes, so no run reaches a dated save).
+    skipped = {name for name in names if rows[name]['script'].lower().endswith('.lua')
+               or 'clockless' in rows[name]['sets'].split(',')}
+    return sorted(names - skipped), sorted(skipped)
 
 
 def golden(command, row, *extra):
@@ -73,7 +75,7 @@ def golden(command, row, *extra):
 def record(args):
     rows = scenarios()
     names, lua = select(args.scenarios, None, rows)
-    print(f'{len(names)} scenarios' + (f'; not run (Lua): {", ".join(lua)}' if lua else ''), flush=True)
+    print(f'{len(names)} scenarios' + (f'; not run (Lua or clockless): {", ".join(lua)}' if lua else ''), flush=True)
     failed = 0
 
     def one(name):
@@ -164,7 +166,7 @@ def run(args):
     dll = args.dll / 'engine/build-x86/FreeCity4.dll' if args.dll.is_dir() else args.dll
     names, lua = select(args.scenarios, keys, rows)
     print(f'{len(names)} scenarios, owners {", ".join(keys) or "none"}' +
-          (f'; not run (Lua): {", ".join(lua)}' if lua else ''), flush=True)
+          (f'; not run (Lua or clockless): {", ".join(lua)}' if lua else ''), flush=True)
     owners = record_owners()
     with ThreadPoolExecutor(args.jobs) as pool:
         reports = dict(zip(names, pool.map(lambda n: compare(rows[n], dll, keys), names)))

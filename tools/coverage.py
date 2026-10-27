@@ -944,13 +944,14 @@ def main():
         for va, size, i, _area in game:
             for key in split_list(rows[i]["replace"]) if i is not None else ():
                 code.setdefault(key, {})[va] = size
-        # tools/golden.py runs .script and load-only scenarios; Lua scenarios are left out of the cover.
+        # tools/check.py runs .script scenarios; Lua and clockless ones are left out of the cover.
         with open(REPO / "engine/tests/scenarios/suite.tsv", encoding="utf-8-sig", newline="") as f:
-            lua = {r["name"] for r in csv.DictReader(f, delimiter="\t") if r["script"].lower().endswith(".lua")}
+            skipped = {r["name"] for r in csv.DictReader(f, delimiter="\t")
+                       if r["script"].lower().endswith(".lua") or "clockless" in r["sets"].split(",")}
         runs = [(item["name"], item["reached"]) for item in suite_evidence["scenarios"]
-                if suite_coverage.clean(item["row"]) and item["name"] not in lua]
+                if suite_coverage.clean(item["row"]) and item["name"] not in skipped]
         with open(args.owner_scenarios, "w", encoding="utf-8", newline="\n") as f:
-            f.write(f"# census {args.suite}, clean runs without Lua; per key the scenarios of a greedy cover of its "
+            f.write(f"# census {args.suite}, clean runs without Lua or clockless cities; per key the scenarios of a greedy cover of its "
                     "reached code\n"
                     "key\tscenario\tadded_bytes\tcovered_bytes\treached_bytes\n")
             for key in sorted(code):
