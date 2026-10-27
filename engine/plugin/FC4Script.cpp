@@ -855,7 +855,7 @@ void ScriptOnTick() {
             }
         }
     }
-    if (g_waiting.empty() || g_inTick) return;
+    if (g_waiting.empty()) return;
     // Complete both readers on stable pre-save bytes across normal ticks.
     // A synchronous drain inside PreSave can exceed the watchdog interval.
     // Keep the save and every action behind it in their existing order.
@@ -864,6 +864,7 @@ void ScriptOnTick() {
             if (action->op == harness::ScriptOp::Save) {
                 DbpfShadowWait();
                 return;
+            }
     if (g_waiting.empty()) return;
     if (g_uiDelay && static_cast<int32_t>(GetTickCount() - g_uiReady) < 0) return;
     g_uiDelay = false;
@@ -884,7 +885,6 @@ void ScriptOnTick() {
         return;
     }
     if (g_inTick) return;
-}
     std::vector<const harness::ScriptAction*> run;
     run.swap(g_waiting);
     g_inTick = true;  // a SimNewDay during these calls queues behind them

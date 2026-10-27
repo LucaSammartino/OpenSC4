@@ -210,3 +210,53 @@ unsafe extern "C" fn fc4_html_document_scalar_check(
 
 #[cfg(test)]
 mod tests;
+
+#[repr(C)]
+struct SetState {
+    members: *const u32,
+    count: u32,
+}
+
+impl SetState {
+    unsafe fn value(&self) -> &[u32] {
+        if self.count == 0 {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.members, self.count as usize) }
+        }
+    }
+}
+
+// Private static-link observation only; no public C ABI export or version change.
+// Safety: each state contains a live, sorted, complete copy of a native set.
+// Both before sets are independent of every native after value.
+#[no_mangle]
+unsafe extern "C" fn fc4_html_document_set_check(
+    operation: u32,
+    id: u32,
+    before: *const SetState,
+    after: *const SetState,
+    source_before: *const SetState,
+    source_after: *const SetState,
+    native_value: u32,
+) -> u32 {
+    if before.is_null() || after.is_null() {
+        return u32::MAX;
+    }
+    let b = unsafe { (*before).value() };
+    let a = unsafe { (*after).value() };
+    match operation {
+        0 => u32::from(u32::from(html_document::sets::is_in_set(id, b)) != native_value) | (u32::from(b != a) << 1),
+        1 => {
+            if source_before.is_null() || source_after.is_null() {
+                return u32::MAX;
+            }
+            let sb = unsafe { (*source_before).value() };
+            let sa = unsafe { (*source_after).value() };
+            let mut expected = b.to_vec();
+            html_document::sets::append_set(&mut expected, sb);
+            (u32::from(expected != a) << 1) | (u32::from(sb != sa) << 2)
+        }
+        _ => u32::MAX,
+    }
+}

@@ -205,29 +205,41 @@ pub fn tag_id(name: &[u8]) -> Option<u32> {
 
 /// Grammar sets of BuildFirstSets (§4.1).
 pub mod sets {
+    /// IsInSet (008fee4a): membership in a copied grammar set (§4.1).
+    pub fn is_in_set(id: u32, set: &[u32]) -> bool {
+        set.contains(&id)
+    }
+
+    /// AppendSet (008ff187): insert every source member, preserving unique keys.
+    pub fn append_set(dest: &mut Vec<u32>, source: &[u32]) {
+        dest.extend_from_slice(source);
+        dest.sort_unstable();
+        dest.dedup();
+    }
+
     pub fn fontstyle(t: u32) -> bool {
-        matches!(t, 18 | 20 | 22 | 24 | 26 | 28 | 30 | 32)
+        is_in_set(t, &[18, 20, 22, 24, 26, 28, 30, 32])
     }
     pub fn phrase(t: u32) -> bool {
-        matches!(t, 34 | 36 | 38 | 40 | 42 | 44 | 46 | 48 | 50 | 52)
+        is_in_set(t, &[34, 36, 38, 40, 42, 44, 46, 48, 50, 52])
     }
     pub fn special(t: u32) -> bool {
-        matches!(t, 54 | 56 | 57 | 59 | 60 | 62 | 64 | 66 | 68 | 70 | 72 | 74)
+        is_in_set(t, &[54, 56, 57, 59, 60, 62, 64, 66, 68, 70, 72, 74])
     }
     pub fn formctrl(t: u32) -> bool {
-        matches!(t, 76 | 77 | 83 | 85 | 87)
+        is_in_set(t, &[76, 77, 83, 85, 87])
     }
     pub fn inline(t: u32) -> bool {
         t == super::tok::TEXT || fontstyle(t) || phrase(t) || special(t) || formctrl(t)
     }
     pub fn heading(t: u32) -> bool {
-        matches!(t, 89 | 91 | 93 | 95 | 97 | 99)
+        is_in_set(t, &[89, 91, 93, 95, 97, 99])
     }
     pub fn list(t: u32) -> bool {
-        matches!(t, 105 | 107)
+        is_in_set(t, &[105, 107])
     }
     pub fn block(t: u32) -> bool {
-        matches!(t, 101 | 103 | 109 | 111 | 113 | 115 | 117 | 119 | 120 | 122 | 124 | 126) || heading(t) || list(t)
+        is_in_set(t, &[101, 103, 109, 111, 113, 115, 117, 119, 120, 122, 124, 126]) || heading(t) || list(t)
     }
     pub fn flow(t: u32) -> bool {
         inline(t) || block(t)

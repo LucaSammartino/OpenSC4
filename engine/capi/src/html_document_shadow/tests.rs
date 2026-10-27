@@ -1,6 +1,37 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use super::*;
 
+#[test]
+fn set_observation_checks_membership_return_and_both_complete_postsets() {
+    let view = |s: &[u32]| SetState {
+        members: s.as_ptr(),
+        count: s.len() as u32,
+    };
+    let before = view(&[18, 20, 32]);
+    let source = view(&[20, 54, u32::MAX]);
+    let union = view(&[18, 20, 32, 54, u32::MAX]);
+    let check = |op, id, a: &SetState, sa: &SetState, value| unsafe {
+        fc4_html_document_set_check(op, id, &before, a, &source, sa, value)
+    };
+    assert_eq!(check(0, 20, &before, &source, 1), 0);
+    assert_eq!(check(0, 19, &before, &source, 0), 0);
+    assert_eq!(check(0, 20, &before, &source, 0), 1);
+    assert_eq!(check(0, 20, &union, &source, 1), 2);
+    assert_eq!(check(1, 0, &union, &source, 0), 0);
+    assert_eq!(check(1, 0, &before, &source, 0), 2);
+    assert_eq!(check(1, 0, &union, &before, 0), 4);
+    let empty = view(&[]);
+    assert_eq!(
+        unsafe { fc4_html_document_set_check(1, 0, &empty, &source, &source, &source, 0) },
+        0
+    );
+    // A source aliased with the destination is still a set union, not an append.
+    assert_eq!(
+        unsafe { fc4_html_document_set_check(1, 0, &before, &before, &before, &before, 0) },
+        0
+    );
+}
+
 fn state(values: [&[u8]; 4], position: u32) -> TextState {
     let b = values.map(|s| Bytes {
         data: s.as_ptr(),
