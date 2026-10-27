@@ -1153,25 +1153,15 @@ int CompareAgent(char (&date)[16], uint32_t& sims) {
     cISC4MySimAgentSimulator* agent = city ? city->GetMySimAgentSimulator() : nullptr;  // slot 71
     if (agent == nullptr) return 0;
     // 1. The game getters vs the shadow core's slots.
-    SC4Vector<cISC4MySim*> active;
     // GetActiveMySims appends AddRef'd pointers to an SC4Vector owned by the
     // caller (allocated with the framework allocator A).
-    // A local SC4Vector of trivially-destructible pointers (FC4GameContainers).
+    // Its destructor releases non-null interface pointers (SDK SC4Vector).
     SC4Vector<cISC4MySim*> vec;
     // [abi-ret] agent slot 5 (interfaces.tsv eax-or-void): the ids come
     // from the vector; the bool only says any active sim exists.
     if (agent->GetActiveMySims(vec)) {
-        std::vector<int32_t> ids;
-        for (cISC4MySim* s : vec) {
-            ++sims;
-            int32_t sid = 0;
-            if (cISC4Advisor* adv = Query<cISC4Advisor>(s, kIIDAdvisor)) {
-                sid = adv->GetID();
-                Drop(adv);
-            }
-            ids.push_back(sid);
-            Drop(s);  // GetActiveMySims AddRefs each element
-        }
+        const std::vector<int32_t> ids = MySimsActiveIds(vec);
+        sims = static_cast<uint32_t>(ids.size());
         int32_t shadow[8] = {};
         const size_t got = fc4_mysims_active(g_core, shadow, 8);
         if (got != ids.size()) {
@@ -1281,6 +1271,23 @@ int RunCompare(int32_t julian, uint32_t event, char (&date)[16]) {
 }
 
 }  // namespace
+
+std::vector<int32_t> MySimsActiveIds(SC4Vector<cISC4MySim*>& sims) {
+    std::vector<int32_t> ids;
+    for (cISC4MySim*& sim : sims) {
+        if (sim == nullptr) continue;
+        FC4_ACQUIRED(sim, "GetActiveMySims");  // mysims §7.1, slot 5: one reference per entry
+        int32_t id = 0;
+        if (cISC4Advisor* advisor = Query<cISC4Advisor>(sim, kIIDAdvisor)) {
+            id = advisor->GetID();
+            Drop(advisor);
+        }
+        ids.push_back(id);
+        Drop(sim);
+        sim = nullptr;  // SC4Vector also releases non-null pointer elements.
+    }
+    return ids;
+}
 
 // ---- public API ---------------------------------------------------------------------------------
 
