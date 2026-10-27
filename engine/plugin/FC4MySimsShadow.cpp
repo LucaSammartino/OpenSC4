@@ -63,6 +63,7 @@
 #include "FC4WriteCapture.h"
 
 #include "GZServPtrs.h"
+#include "cIGZWinMgr.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2Standard.h"
@@ -517,6 +518,10 @@ void MDispatchCommand(void*, int32_t, const char*) {}
 void MPost(void*, const fc4_mysim_post*) {}
 void MAutomataTrigger(void*, const char*, const float*) {}
 void MSubscribe(void*, uint32_t, bool) {}
+bool MUiBlocked(void*) {
+    cIGZWinMgrPtr manager;
+    return MySimsUiBlocked(manager);
+}
 void MAddRef(void*, uint64_t t) { HoldToken(t); }
 void MRelease(void*, uint64_t t) { DropToken(t); }
 uint64_t MResolveRef(void*, uint64_t t, uint32_t) { return t; }
@@ -595,7 +600,7 @@ void FillHosts() {
     g_mysimHost.set_field = nullptr;      // no table to feed
     g_mysimHost.activate_lua = nullptr;   // reads false
     g_mysimHost.tuning = nullptr;         // code defaults (mysims.md §4.11)
-    g_mysimHost.ui_blocked = nullptr;     // false (question MS2)
+    g_mysimHost.ui_blocked = &MUiBlocked; // mysims §4.2/4.3: skip while a modal window runs
     g_mysimHost.register_agent_lua = nullptr;
     FillMySimGameServices(&g_mysimHost);  // the read-only city services (FC4MySimGameHost.h)
     g_mysimHost.travel_time_ratio = nullptr;   // trip fields not compared
@@ -1286,6 +1291,11 @@ std::vector<int32_t> MySimsActiveIds(SC4Vector<cISC4MySim*>& sims) {
         sim = nullptr;  // SC4Vector also releases non-null pointer elements.
     }
     return ids;
+}
+
+bool MySimsUiBlocked(cIGZWinMgr* manager) {
+    // SPEC-GAP: an unavailable window-manager service is treated as no modal window.
+    return manager != nullptr && manager->IsModal(); // SDK slot 42, mysims §4.2
 }
 
 // ---- public API ---------------------------------------------------------------------------------

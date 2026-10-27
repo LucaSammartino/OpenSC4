@@ -326,6 +326,7 @@ enum : uint32_t {
     kFC4SeamDemolitionLotBuilding = 0xD3000001, // a = borrowed lot; returns borrowed occupant token
     kFC4SeamDemolitionLotOccupants = 0xD3000002, // a = query-owned occupant list; returns reference warnings
     kFC4SeamMySimsActiveIds = 0x4D530001, // a = query-owned MySim vector; b = int32[5] IDs; returns ref warnings
+    kFC4SeamMySimsUiBlocked = 0x4D530002, // a = borrowed window manager; returns specified modal gate
 };
 
 class cIGZUnknown;

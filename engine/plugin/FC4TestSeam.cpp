@@ -331,6 +331,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             for (size_t i = 0; i < ids.size() && i < 5; ++i) static_cast<int32_t*>(b)[i] = ids[i];
             return fc4::RefWarningCount() - before;
         }
+        case kFC4SeamMySimsUiBlocked:
+            return fc4::MySimsUiBlocked(static_cast<cIGZWinMgr*>(a));
         case kFC4SeamGZFrameworkCreate: {
             if (b) return reinterpret_cast<intptr_t>(fc4::GZCommandServerTestCreate(static_cast<cIGZUnknown*>(a)));
             auto* buffer = fc4::CreateGZBuffer();

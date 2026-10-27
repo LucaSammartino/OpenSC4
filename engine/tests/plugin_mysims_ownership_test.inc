@@ -32,6 +32,11 @@ struct Allocator {
     static void* Allocate(uint32_t size) { return std::malloc(size); }
     static void Free(void* p) { std::free(p); }
 };
+struct Modal { void** vtable; bool blocked = false; unsigned calls = 0; };
+bool __fastcall IsModal(Modal* self, void*) {
+    ++self->calls;
+    return self->blocked;
+}
 } // namespace mysims_ownership_test
 
 void MySimsActiveOwnershipChecks(FC4TestSeamFn seam) {
@@ -68,4 +73,12 @@ void MySimsActiveOwnershipChecks(FC4TestSeamFn seam) {
         CHECK(seam(kFC4SeamMySimsActiveIds, &values, ids) == 0); // empty vector
     }
     CHECK(first.refs == 1 && refused.refs == 1);
+    FakeVtable managerVt;
+    managerVt.slots[42] = reinterpret_cast<void*>(&IsModal);
+    Modal manager{managerVt.slots.data()};
+    CHECK(seam(kFC4SeamMySimsUiBlocked, &manager, nullptr) == 0);
+    manager.blocked = true;
+    CHECK(seam(kFC4SeamMySimsUiBlocked, &manager, nullptr) == 1);
+    CHECK(manager.calls == 2);
+    CHECK(seam(kFC4SeamMySimsUiBlocked, nullptr, nullptr) == 0);
 }

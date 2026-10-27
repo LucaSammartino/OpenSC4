@@ -54,6 +54,7 @@
 
 class cISC4City;
 class cISC4MySim;
+class cIGZWinMgr;
 template <class T> class SC4Vector;
 
 namespace fc4 {
@@ -91,5 +92,6 @@ intptr_t MySimsShadowTest(FC4MySimsShadowTestInput* in);  // fc4::
 
 // Consume GetActiveMySims' query references, leaving SDK cleanup safe.
 std::vector<int32_t> MySimsActiveIds(SC4Vector<cISC4MySim*>& sims);
+bool MySimsUiBlocked(cIGZWinMgr* manager);
 
 }  // namespace fc4
