@@ -248,7 +248,7 @@ generated index: the questions live one file per spec, so read only the file for
 | automata-managers | 4 | 0 | AD5 | questions/automata-managers.md |
 | automata-support | 2 | 0 | AN3 | questions/automata-support.md |
 | budget | 0 | 8 | BQ9 | - |
-| budget-window | 5 | 19 | BW26 | questions/budget-window.md |
+| budget-window | 6 | 19 | BW27 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
 | bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
@@ -355,7 +355,7 @@ generated index: the questions live one file per spec, so read only the file for
 | persistence | 8 | 1 | PR14 | questions/persistence.md |
 | persistence-manager | 4 | 1 | PR10 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
-| pollution | 0 | 16 | PG17 | - |
+| pollution | 0 | 16 | PG17 | questions/pollution.md |
 | port-developers | 0 | 12 | PD13 | questions/port-developers.md |
 | power | 0 | 12 | CR2, PW12 | questions/power.md |
 | prop-developer | 0 | 19 | GLUE22, PV19 | questions/prop-developer.md |
@@ -421,7 +421,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-utilities | 2 | 16 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
-| watercraft | 0 | 12 | WC13 | questions/watercraft.md |
+| watercraft | 1 | 12 | WC14 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 3 | 0 | Q17, UI30 | questions/web-network.md |
 | widget-controls | 0 | 0 | - | questions/widget-controls.md |
@@ -435,4 +435,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **617** | **1698** | | |
+| **total** | **619** | **1698** | | |
