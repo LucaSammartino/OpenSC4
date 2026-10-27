@@ -393,10 +393,11 @@ pub unsafe extern "C" fn fc4_effects_verify_names(
         }
         counts[0] = directory.names.len() as u32;
         for name in probes {
-            let expected = u32::from(directory.find(name.to_str().unwrap(), u32::MAX).is_some());
+            let expected = u32::from(directory.has(name.to_str().unwrap()));
             let native = has_name(user, name.as_ptr());
-            counts[1] += 1;
             counts[2] += u32::from(native != expected);
+            // Publish completion only after the Boolean has been compared.
+            counts[1] += 1;
         }
         true
     })
