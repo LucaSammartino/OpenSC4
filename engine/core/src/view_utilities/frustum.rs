@@ -47,6 +47,7 @@ pub struct Frustum {
     pub city_clipped_bounds: Option<Aabb>,
     pub volume: ViewVolume,
     pub planes: [Plane; 6],
+    pub reduced_planes: [Vec3; 6],
     pub ground_lines: [GroundLine; 2],
     pub ground_points: [Vec3; 4],
 }
@@ -105,6 +106,7 @@ impl Frustum {
             bounds: Aabb::from_points(&corners),
             volume,
             planes,
+            reduced_planes: planes.map(|p| Vec3::new(p.normal.x, p.normal.z, p.offset)),
             ground_lines,
             city_clipped_bounds: city_clipped_bounds(&corners, city),
             ground_points: [Vec3::ZERO; 4],
@@ -122,7 +124,7 @@ impl Frustum {
     }
 }
 
-fn city_clipped_bounds(corners: &[Vec3; 8], (width, depth): (f32, f32)) -> Option<Aabb> {
+pub(crate) fn city_clipped_bounds(corners: &[Vec3; 8], (width, depth): (f32, f32)) -> Option<Aabb> {
     let mut a = Vec3::ZERO;
     let mut b = Vec3::ZERO;
     ray_intersects_ground_plane(

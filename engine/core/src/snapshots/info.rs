@@ -31,7 +31,7 @@ impl GraphicInfo {
     }
 
     pub fn encode(&self) -> Result<Vec<u8>> {
-        // SN5: portable text inputs are UTF-8. Refuse ambiguous LF-containing fields.
+        // SPEC-GAP: SN5 is open; portable text inputs are UTF-8 and cannot contain LF.
         let fields = [
             "SanityCheck".to_owned(),
             self.user.clone(),
@@ -97,7 +97,7 @@ impl Information {
         for field in &mut fields {
             *field = parts.next().ok_or(Error::Gap(Gap::MalformedInformation))?.to_vec();
         }
-        // SN5: preserve fields literally; do not guess atoi/error behavior or caption layout.
+        // SPEC-GAP: SN5 is open; preserve fields literally without numeric conversion.
         Ok(Some(Self { fields }))
     }
 
@@ -118,5 +118,11 @@ impl Information {
             population: self.fields[5].clone(),
             funds: self.fields[6].clone(),
         }
+    }
+
+    /// The five caption inputs are known; their exact localized layout is not.
+    pub fn caption(&self) -> Result<Vec<u8>> {
+        // SPEC-GAP: SN2 is open; do not invent the caption's punctuation or money formatting.
+        Err(Error::Gap(Gap::CaptionLayout))
     }
 }

@@ -10,13 +10,13 @@ The denominator is the game's own code: **5,584,344 bytes in 29,535 functions** 
 |---|---|---:|---:|---:|---|
 | **Specified** | a clean-room spec in docs/specs describes the owning class | **91.9%** | 5,132,879 | 25,599 | - |
 | **Implemented** | our clean-room code in engine/ implements the owning class | **63.0%** | 3,520,534 | 15,906 | 0.0% implemented without a spec |
-| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train285.out`) | **28.2%** | 1,572,360 | 6,993 | 0.0% verified while its owner is not marked implemented |
+| **Verified** | our code's results are exact against the original's, side by side in the same game (house city, `regress-train286.out`) | **28.5%** | 1,589,753 | 7,030 | 0.0% verified while its owner is not marked implemented |
 | ↳ strict | ... and exact in every scenario of the test suite that reached it (`sh28-census3`, 179 runs) | **5.9%** | 329,798 | 1,407 | - |
 | **Replaced** | our code runs in the game instead of the original (house replace run) | **29.7%** | 1,656,452 | 6,630 | 5.7% running in the game before it was verified |
 
 Reach, not a step: the suite entered 28.5% of the game's code among implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced (implemented owners switched on in clean suite replace runs) is 0.0%.
 
-Verified includes 3,023 bytes of single-method evidence (see Method verification).
+Verified includes 20,416 bytes of single-method evidence (see Method verification).
 
 ## Whole executable
 
@@ -38,27 +38,27 @@ Share of each area's bytes at each step. Shared helpers and unattributed code ha
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | simulation | 1,978,253 | 35.4% | 100.0% | 84.3% | 61.7% | 13.0% | 67.7% | 52.1% |
 | framework | 637,923 | 11.4% | 96.6% | 78.7% | 13.7% | 4.8% | 3.4% | 21.9% |
-| renderer | 1,222,529 | 21.9% | 99.2% | 70.7% | 19.7% | 1.8% | 22.2% | 23.8% |
+| renderer | 1,222,529 | 21.9% | 99.2% | 70.7% | 21.1% | 1.8% | 22.2% | 23.8% |
 | ui | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.1% | 0.0% | 0.0% | 8.6% |
 | audio | 214,477 | 3.8% | 100.0% | 9.4% | 0.0% | 0.0% | 0.0% | 5.4% |
 | region | 112,894 | 2.0% | 100.0% | 30.7% | 21.0% | 18.0% | 21.0% | 18.3% |
 | other | 17,873 | 0.3% | 68.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | shared | 189,808 | 3.4% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
 | unattributed | 85,977 | 1.5% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% |
-| **all game code** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **28.2%** | **5.9%** | **29.7%** | **28.5%** |
+| **all game code** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **28.5%** | **5.9%** | **29.7%** | **28.5%** |
 
 ## By subsystem
 
-One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes. Shadow: clean/total lines in `regress-train285.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run.
+One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes. Shadow: clean/total lines in `regress-train286.out` (`not in regress` when the shadow exists but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane run.
 
 | Area | Subsystem | Owners | Bytes | Specified | Implemented | Verified | ↳ strict | Replaced | Suite reach | Shadow |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | simulation | automata (vehicles, animation) | 33 | 231,259 | 100.0% | 26.1% | 2.3% | 0.0% | 2.3% | 18.3% | 72/72 |
-| simulation | traffic | 9 | 162,482 | 100.0% | 100.0% | 0.0% | 0.0% | 100.0% | 72.2% | 71/73; 1 resynced lines, 72/72 |
+| simulation | traffic | 9 | 162,482 | 100.0% | 100.0% | 0.0% | 0.0% | 100.0% | 72.2% | 70/72; 1 resynced lines, 72/72 |
 | simulation | network tools | 12 | 150,282 | 100.0% | 94.3% | 80.3% | 0.0% | 70.5% | 82.8% | 73/73 |
 | simulation | network occupants | 28 | 123,459 | 100.0% | 48.3% | 33.1% | 0.0% | 0.0% | 33.7% | 72/72 |
 | simulation | automata (managers, records) | 13 | 121,603 | 100.0% | 99.5% | 99.5% | 22.9% | 99.5% | 47.4% | 72/72 |
-| simulation | terrain | 5 | 84,631 | 100.0% | 99.6% | 87.3% | 0.0% | 87.3% | 30.2% | 616/616 |
+| simulation | terrain | 5 | 84,631 | 100.0% | 99.6% | 87.3% | 0.0% | 87.3% | 30.2% | 618/618 |
 | simulation | mysims | 8 | 80,498 | 100.0% | 100.0% | 53.4% | 0.0% | 80.8% | 47.9% | 74/74 |
 | simulation | advisors | 18 | 71,970 | 100.0% | 99.2% | 90.6% | 61.3% | 90.6% | 63.3% | 73/73 |
 | simulation | occupants and props | 38 | 70,035 | 100.0% | 37.9% | 0.2% | 0.0% | 0.0% | 34.8% | - |
@@ -105,7 +105,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | simulation | 24-hour clock | 1 | 3,693 | 100.0% | 100.0% | 100.0% | 0.0% | 100.0% | 43.8% | 73/73 |
 | simulation | parks | 1 | 3,006 | 100.0% | 100.0% | 100.0% | 43.7% | 100.0% | 43.7% | 72/72 |
 | simulation | city detail | 1 | 2,081 | 100.0% | 100.0% | 100.0% | 7.4% | 100.0% | 7.4% | 1/1 |
-| simulation | commercial/industrial | 2 | 2,022 | 100.0% | 100.0% | 100.0% | 35.7% | 100.0% | 42.4% | 40/40, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) |
+| simulation | commercial/industrial | 2 | 2,022 | 100.0% | 100.0% | 100.0% | 35.7% | 100.0% | 42.4% | 18/18, industrial_constructed_source 263052/263052, industrial_constructed_joint97 131526/131526 (lane run) |
 | simulation | automata groups | 2 | 1,662 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | simulation | foundations | 1 | 918 | 100.0% | 100.0% | 0.0% | 0.0% | 0.0% | 97.2% | - |
 | framework | application | 20 | 146,519 | 99.9% | 94.1% | 0.6% | 0.0% | 0.0% | 23.9% | 72/72 |
@@ -128,7 +128,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | framework | tree diagnostics | 1 | 768 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | framework | container helpers | 1 | 109 | 100.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
 | framework | cheats | 1 | 5 | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | 0.0% | - |
-| renderer | 3D scene and models | 19 | 177,441 | 100.0% | 62.6% | 24.1% | 0.0% | 0.0% | 33.1% | 616/616 |
+| renderer | 3D scene and models | 19 | 177,441 | 100.0% | 62.6% | 24.1% | 0.0% | 0.0% | 33.1% | 618/618 |
 | renderer | effects | 72 | 171,628 | 100.0% | 93.8% | 0.0% | 0.0% | 39.9% | 24.7% | - |
 | renderer | 3D driver (DirectX 7) | 11 | 152,278 | 97.0% | 96.8% | 0.0% | 0.0% | 0.0% | 36.9% | - |
 | renderer | 2D drawing and fonts | 48 | 146,443 | 96.6% | 17.0% | 0.0% | 0.0% | 0.0% | 8.1% | - |
@@ -143,7 +143,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | renderer | lighting and shadows | 4 | 23,453 | 100.0% | 98.5% | 0.0% | 0.0% | 0.0% | 46.0% | - |
 | renderer | render properties | 79 | 23,179 | 100.0% | 100.0% | 4.6% | 0.0% | 0.0% | 0.2% | 73/73 |
 | renderer | graphics rules | 7 | 22,162 | 100.0% | 99.9% | 0.0% | 0.0% | 0.0% | 0.0% | - |
-| renderer | view utilities | 3 | 19,748 | 100.0% | 100.0% | 0.4% | 0.0% | 0.0% | 72.4% | - |
+| renderer | view utilities | 3 | 19,748 | 100.0% | 100.0% | 88.5% | 0.0% | 0.0% | 72.4% | - |
 | renderer | model instances | 8 | 15,346 | 100.0% | 100.0% | 0.6% | 0.0% | 0.0% | 75.2% | - |
 | renderer | terrain ripples and selection | 2 | 15,308 | 100.0% | 63.3% | 0.0% | 0.0% | 0.0% | 56.2% | - |
 | renderer | overlay views | 6 | 14,867 | 100.0% | 77.6% | 0.0% | 0.0% | 0.0% | 32.2% | - |
@@ -170,7 +170,7 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 
 ## Method verification
 
-**method-verified 3,023 bytes / 35 functions**; 1,073 bytes / 11 functions additional to verified owner rows. The union is included once in verified. TSV identities must match the coverage function start, literal name, owner and byte size. Their named family must be exact with zero resynced lines in this house shadows run. Logged methods require positive final calls, final complete=calls, monotone counters, and zero mismatches and resyncs on every line. Unknown addresses, interface slots and collisions gain no credit.
+**method-verified 20,416 bytes / 72 functions**; 18,466 bytes / 48 functions additional to verified owner rows. The union is included once in verified. TSV identities must match the coverage function start, literal name, owner and byte size. Their named family must be exact with zero resynced lines in this house shadows run. Logged methods require positive final calls, final complete=calls, monotone counters, and zero mismatches and resyncs on every line. Unknown addresses, interface slots and collisions gain no credit.
 
 | Address | Name | Bytes | Additional to owner | Evidence |
 |---|---|---:|---|---|
@@ -199,7 +199,44 @@ One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each 
 | 0x007DE1F0 | cSC4RenderProperties::FindBool | 295 | - | proposed-shadow-methods.tsv:renderprops_shadow:renderprops |
 | 0x007DE320 | cSC4RenderProperties::FindInt | 328 | - | proposed-shadow-methods.tsv:renderprops_shadow:renderprops |
 | 0x007DE470 | cSC4RenderProperties::FindFloat | 328 | - | proposed-shadow-methods.tsv:renderprops_shadow:renderprops |
-| 0x007F6CC0 | RotateVectorByViewRotation | 78 | yes | proposed-shadow-methods.tsv:viewutil_shadow:viewutil-rotation |
+| 0x007F6620 | SC4ViewUtilities::ClipPositionToCity2D | 104 | yes | log:viewutil |
+| 0x007F6690 | SC4ViewUtilities::ViewportUnitsToWorldUnits | 13 | yes | log:viewutil |
+| 0x007F66A0 | SC4ViewUtilities::GetZoomAndRotation | 21 | yes | log:viewutil |
+| 0x007F66C0 | SC4ViewUtilities::ProjectPointFromViewCoordinatesToViewportCoordinates | 67 | yes | log:viewutil |
+| 0x007F6710 | SC4ViewUtilities::ProjectPointToFixedViewCoordinates | 96 | yes | log:viewutil |
+| 0x007F6770 | SC4ViewUtilities::IsBoundingBoxInViewFrustum | 413 | yes | log:viewutil |
+| 0x007F6910 | SC4ViewUtilities::IsBoundingBoxInDrawFrustum | 413 | yes | log:viewutil |
+| 0x007F6AB0 | SC4ViewUtilities::GetRayIntersectionWithGroundPlane | 49 | yes | log:viewutil |
+| 0x007F6AF0 | SC4ViewUtilities::TrianglePick | 88 | yes | log:viewutil |
+| 0x007F6B50 | SC4ViewUtilities::RayIntersectsGroundPlane | 66 | yes | log:viewutil |
+| 0x007F6BA0 | SC4ViewUtilities::GetCityCornerPosition | 181 | yes | log:viewutil |
+| 0x007F6CB0 | SC4ViewUtilities::GetObjectYRotationAngle | 13 | yes | log:viewutil |
+| 0x007F6D10 | SC4ViewUtilities::GetVectorForEdge | 78 | yes | log:viewutil |
+| 0x007F6D70 | SC4ViewUtilities::RoundDownToNearestBlockBoundary | 49 | yes | log:viewutil |
+| 0x007F6DB0 | SC4ViewUtilities::RoundUpToNearestBlockBoundary | 49 | yes | log:viewutil |
+| 0x007F6DF0 | SC4ViewUtilities::SC4ViewUtilities | 2326 | yes | log:viewutil |
+| 0x007F7710 | SC4ViewUtilities::ClipWorldPositionToCityPosition | 51 | yes | log:viewutil |
+| 0x007F7750 | SC4ViewUtilities::GetVisibleEdges | 44 | yes | log:viewutil |
+| 0x007F7780 | SC4ViewUtilities::GetCameraViewAnglesForRotation | 71 | yes | log:viewutil |
+| 0x007F77D0 | SC4ViewUtilities::ProjectPointToViewCoordinates | 126 | yes | log:viewutil |
+| 0x007F7850 | SC4ViewUtilities::ProjectPointToViewportCoordinates | 75 | yes | log:viewutil |
+| 0x007F78A0 | SC4ViewUtilities::ProjectPointToViewportZ | 64 | yes | log:viewutil |
+| 0x007F78E0 | SC4ViewUtilities::ProjectPointToViewportCoordinates2D | 54 | yes | log:viewutil |
+| 0x007F7920 | SC4ViewUtilities::UnProjectPointFromViewCoordinatesToWorldCoordinates | 133 | yes | log:viewutil |
+| 0x007F79B0 | SC4ViewUtilities::UnProjectPointFromViewportCoordinatesToWorldCoordinates | 77 | yes | log:viewutil |
+| 0x007F7A40 | SC4ViewUtilities::ProjectBoundingBoxToViewportRectangle | 1018 | yes | log:viewutil |
+| 0x007F7E50 | SC4ViewUtilities::IsPointInViewFrustum | 270 | yes | log:viewutil |
+| 0x007F7F60 | SC4ViewUtilities::GetFrustumAABBCityClipped | 527 | yes | log:viewutil |
+| 0x007F8300 | SC4ViewUtilities::GetCityWidthFromOrthoView | 56 | yes | log:viewutil |
+| 0x007F8390 | SC4ViewUtilities::ProjectPointFromViewportCoordinatesToFixedViewCoordinates | 83 | yes | log:viewutil |
+| 0x007F83F0 | SC4ViewUtilities::UpdateCameraPosition | 3204 | yes | log:viewutil |
+| 0x007F9080 | SC4ViewUtilities::ViewportPositionToRay | 216 | yes | log:viewutil |
+| 0x007F9160 | SC4ViewUtilities::GetViewportPointIntersectionWithGroundPlane | 88 | yes | log:viewutil |
+| 0x007F91C0 | SC4ViewUtilities::MeshPick | 2133 | yes | log:viewutil |
+| 0x007F9A40 | SC4ViewUtilities::ModelPick | 246 | yes | log:viewutil |
+| 0x007F9B40 | SC4ViewUtilities::GetGroundPlaneVisibleAreaRectangle | 852 | yes | log:viewutil |
+| 0x007F9EA0 | SC4ViewUtilities::GetViewportRectGroundCorners | 169 | yes | log:viewutil |
+| 0x007F9F50 | SC4ViewUtilities::BuildDrawFrustumDataFromViewportRect | 3888 | yes | log:viewutil |
 | 0x00801B80 | cS3DModelInstance::GetTransform | 93 | yes | proposed-shadow-methods.tsv:modelinst_shadow:modelinst-live |
 | 0x0080BC00 | cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h]) | 4 | - | proposed-shadow-methods.tsv:app_shadow:app |
 | 0x0094C314 | cGZLegacyControl::SetOwnControl | 10 | yes | log:legacyctl |
@@ -334,12 +371,13 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-shadows.tsv | 9731b2ec2a260629 | |
 | tools/regress.ps1 | fe38461524a619f8 | |
 | engine/plugin/FC4Subsystems.cpp | 64c4f29d042ffe43 | |
-| build-runs/regress-train285.out | eea7f4daac9a3bbe | regress train285 (PASS; turbo to 2032-01-01, timeout 3600 s; queue (priority high, at the same time); shadows combined); replace run clean |
-| build-runs/regress-train285-replace.log | f65caec1d4219e1e | function compare evidence |
-| build-runs/regress-train285-shadows.log | 2b68f56dd9b5f13d | function compare evidence |
+| build-runs/regress-train286.out | c4772408f82b7aac | regress train286 (PASS; turbo to 2032-01-01, timeout 3600 s; queue (priority high, at the same time); shadows combined); replace run clean |
+| build-runs/regress-train286-replace.log | 7aa913ee31445b40 | function compare evidence |
+| build-runs/regress-train286-shadows.log | db4005d19e6cb24a | function compare evidence |
 | engine/plugin/compare/cRZLanguageManager.tsv | ad5d82ba2f45a1c3 | function compare evidence |
 | engine/plugin/compare/cSC4ConfigRuleManager.tsv | 2a3a670db94fd3db | function compare evidence |
 | engine/plugin/compare/cSC4LightingManager.tsv | 03e81a8d1d9e5cc4 | function compare evidence |
+| engine/plugin/compare/cSC4View3DWin-cfgrules.tsv | e4c066931150b977 | function compare evidence |
 | engine/plugin/compare/SC4ViewUtilities.tsv | 57624e810c88d848 | function compare evidence |
 | build-runs/suite/sh28-census3/berlin-konradshohe.log | adb0557759cb122b | suite evidence |
 | build-runs/suite/sh28-census3/berlin-konradshohe.reach.tsv | 4b69ba9b27f0144f | suite evidence |
@@ -965,8 +1003,20 @@ Read from tools/regress.ps1: 56 replace keys, 91 shadows. On by default in FC4Su
 - map row `nSC4UI*` matches no owner
 - map row `nSCRes*` matches no owner
 - method evidence 0x00407AC0: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x005D6900: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x005D6F10: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x0062CA30: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x007F6550: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x007F65B0: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x007F6CC0: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x00809240: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080AE80: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080AEF0: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080B000: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080B020: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080B090: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080B320: name/owner/bytes collision with coverage table; not credited
+- method evidence 0x0080B3B0: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x0091559A: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x0092B33A: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x00935EA0: name/owner/bytes collision with coverage table; not credited
@@ -974,4 +1024,4 @@ Read from tools/regress.ps1: 56 replace keys, 91 shadows. On by default in FC4Su
 - method evidence 0x0094C413: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x0094C47C: name/owner/bytes collision with coverage table; not credited
 - method evidence 0x009C32AC: name/owner/bytes collision with coverage table; not credited
-- shadow `span8888_shadow` is in the regress list but `regress-train285.out` has no `span8888` lines
+- shadow `span8888_shadow` is in the regress list but `regress-train286.out` has no `span8888` lines
