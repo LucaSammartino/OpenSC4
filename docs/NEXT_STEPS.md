@@ -36,8 +36,8 @@ The schedule is `docs/specs/simulator.md` §5.8. The original follows it through
 **The reference store** (`tools/golden.py`, `build-runs/golden`) keys a fixed-schedule reference on the schedule code
 (sha256 of `FC4Schedule.cpp` and `.h`), the pinned reference DLL and the run settings; it requires exact equality and
 refuses a candidate whose schedule code differs. Any edit of `FC4Schedule.cpp` or `.h` means: rebuild, `python
-tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 4993f043, schedule code 37c0fa4b573aec71
-(commit 005db4aa0). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit
+tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha c8a26ae4, schedule code 645111c38ccbc723
+(commit d4025c1f0). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit
 after it can crash in the city teardown.
 
 **Comparison:** the save at each scenario's end date, record by record after decompression (`golden_dbpf` ignores
