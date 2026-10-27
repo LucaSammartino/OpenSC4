@@ -516,13 +516,17 @@ std::string RunBudgetWindow(cISC4City* city) {
                 panel && panel->GetFlag(1) ? 1u : 0u,
                 taxes && taxes->GetFlag(1) ? 1u : 0u,
                 alternate && alternate->GetFlag(1) ? 1u : 0u);
-            visible = panel && panel->GetFlag(1) && taxes && taxes->GetFlag(1);
+            // widget-toolkit section 5.3: recursive lookup prefers descendants,
+            // including a hidden duplicate tab ID. Qualify the actual selector's
+            // full ancestry and area with the same check used by uicontrol.
+            int x = 0, y = 0;
+            visible = ui_driver::ControlPixel(0xAA3AC500, x, y);
         }
         FC4_RELEASE(view);
     }
     FC4_RELEASE(sc4);
-    return visible ? "ok=1 (budget panel tab AA3AC001 and selector visible; advice-link entry)"
-                   : "ok=0 (budget panel tab or selector unavailable after advice-link entry)";
+    return visible ? "ok=1 (budget panel selector AA3AC500 eligible; advice-link entry)"
+                   : "ok=0 (budget panel selector unavailable after advice-link entry)";
 }
 
 std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
