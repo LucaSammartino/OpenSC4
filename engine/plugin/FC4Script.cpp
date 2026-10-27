@@ -504,19 +504,25 @@ std::string RunBudgetWindow(cISC4City* city) {
         auto* win = reinterpret_cast<cFC4IGZWin*>(view->AsIGZWin()); // borrowed
         if (win) {
             // view3d-window §6 (advice-link payload): select budget and send
-            // AA3AC40F to show its compact tab. Budget slot 24 opens the
+            // AA3AC40E to show tab AA3AC001. Budget slot 24 opens the
             // separate income/expense dialog (budget-dialogs §1).
             cGZMessage link(0xEA5BDFBC);
-            link.dwData1 = 0xCA5BDFB0;
+            link.dwData1 = 0x4A5BDFB8;
             win->DoMessage(link); // falls through to base; result is not visibility
-            auto* panel = win->GetChildWindowFromIDRecursive(0xAA3AC000); // borrowed
-            visible = panel && panel->GetFlag(1);
+            auto* panel = win->GetChildWindowFromIDRecursive(0xAA3AC001); // borrowed
+            auto* taxes = win->GetChildWindowFromIDRecursive(0xAA3AC500); // borrowed
+            auto* alternate = win->GetChildWindowFromIDRecursive(0xAA3AC400); // borrowed
+            Log("budgetwindow observation: tab AA3AC001 visible=%u; selectors AA3AC500=%u AA3AC400=%u",
+                panel && panel->GetFlag(1) ? 1u : 0u,
+                taxes && taxes->GetFlag(1) ? 1u : 0u,
+                alternate && alternate->GetFlag(1) ? 1u : 0u);
+            visible = panel && panel->GetFlag(1) && taxes && taxes->GetFlag(1);
         }
         FC4_RELEASE(view);
     }
     FC4_RELEASE(sc4);
-    return visible ? "ok=1 (budget panel compact tab visible; advice-link entry)"
-                   : "ok=0 (budget panel unavailable after advice-link entry)";
+    return visible ? "ok=1 (budget panel tab AA3AC001 and selector visible; advice-link entry)"
+                   : "ok=0 (budget panel tab or selector unavailable after advice-link entry)";
 }
 
 std::string RunEstablish(const harness::ScriptAction& a, cISC4City* city) {
