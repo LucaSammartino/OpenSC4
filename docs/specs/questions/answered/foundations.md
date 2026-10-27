@@ -131,3 +131,24 @@ current choice is in brackets.
   load in the same process (crime and the development cores already keep theirs process-wide). Should budget and
   pollution keep their generator across city loads like the original, or is a restart at each load an acceptable
   *[choice]*? [restart at each load]~~ **ANSWERED 2026-10-16 (re-answers22):** **DIFFERS** (foundations §6.3). The original seeds both file-local generators once per process and never again: the budget's `0x00B47B78` is referenced only by its static initialiser (`0x00A749D2`) and its draws (`0x00693544`–`0x006935C6`), the pollution effects' `0x00B49BD0` only by `0x00A74E42` and its draws (`0x006E668D`, `0x006E66DC`). The stream therefore continues across city loads in one process, as crime and the development cores already do in FreeCity4; §6.3 now states that file-local generators are process-wide. Restarting at each load is not what §6.3 specifies.
+
+<!-- from: replace-foundations32 (2026-10-27) -->
+- ~~**HG9 — native cRZVariant replacement layout:** Please publish the byte offsets,
+  alignment and packing of the eight-byte payload, 16-bit reference count, 16-bit
+  type and 32-bit element count in the 20-byte standalone object, including the
+  embedded cSCProperty variant view. variant-storage §3 establishes size and
+  disposal semantics, but not these offsets; foundations §17.1 establishes slots.
+  The SDK cRZBaseVariant declares a different 32-bit reference count and is not
+  evidence for the native layout. Direct callers and mutable AsX aliases require
+  the native representation; an ABI-exact replacement cannot choose field order.
+  [Blocks the requested native cRZVariant replacement. Existing typed-interface
+  probes remain bounded verification, with no replacement credit.]~~
+  **ANSWERED 2026-10-27 (re-hg32):** MATCHES —
+  [foundations §17.1.1](../../foundations.md#1711-native-instance-layout-hg9-compat)
+  publishes the 20-byte, four-byte-packed layout: vtable +0, eight-byte payload +4,
+  u16 reference count +`0x0C`, u16 type +`0x0E`, u32 element count +`0x10`, no padding.
+  The property view is owner+4; the reference word at owner+`0x10` serves the owner
+  too. Instruction widths and addresses establish the layout independently of the SDK.
+  Worked scalar/alias, array/Erase and embedded-property cases are static expectations,
+  not executed native verification or replacement credit. No runtime observation is
+  needed to settle these offsets. variant-storage §3 links the same layout contract.
