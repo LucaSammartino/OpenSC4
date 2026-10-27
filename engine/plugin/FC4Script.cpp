@@ -37,6 +37,7 @@
 #include "cFC4MySim.h"
 #include "FC4GDriverShadow.h"
 #include "FC4GZFramework.h"
+#include "FC4Span565Bridge.h"
 
 #include "SC4Rect.h"
 #include "SC4String.h"
@@ -751,6 +752,9 @@ void RunAction(const harness::ScriptAction& a, int32_t julian, cISC4City* city) 
             break;
         case ScriptOp::GDriverProbe:
             result = GDriverShadowProbe();
+            break;
+        case ScriptOp::Span565Probe:
+            result = Span565ScriptProbe(harness::FormatDate(harness::CivilFromJulian(julian)).c_str());
             break;
     }
     std::string late;

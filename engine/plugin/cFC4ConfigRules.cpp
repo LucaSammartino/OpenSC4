@@ -4,6 +4,7 @@
 #include "FC4ConfigRulesAcquisition.h"
 #include "FC4ConfigRulesSystem.h"
 #include "FC4ConfigRulesTrace.h"
+#include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "cIGZApp.h"
@@ -28,6 +29,7 @@
 
 namespace {
 using namespace fc4::cfgrules;
+bool LifecycleTrace() { return fc4::SettingInt("cfgrules_lifecycle", "FC4_CFGRULES_LIFECYCLE", 0) != 0; }
 template<class R, class... A> R Call(void* p, size_t slot, A... args) {
     using Fn = R(__thiscall*)(void*, A...);
     return reinterpret_cast<Fn>((*static_cast<void***>(p))[slot])(p, args...);
@@ -35,16 +37,23 @@ template<class R, class... A> R Call(void* p, size_t slot, A... args) {
 template<class T = cIGZUnknown> struct Ref {
     T* p = nullptr;
     bool created = false;
-    ~Ref() { if (p) { if (created) FC4_RELEASE_CREATED(p); else FC4_RELEASE(p); } }
+    ~Ref() {
+        if (p) {
+            if (LifecycleTrace()) fc4::Log("cfgrules lifetime release thread=%lu object=%p created=%u", GetCurrentThreadId(), p, created);
+            if (created) FC4_RELEASE_CREATED(p); else FC4_RELEASE(p);
+        }
+    }
     bool Service(uint32_t service, uint32_t iid) {
         auto* fw = RZGetFrameWork();
         if (fw) fw->GetSystemService(service, iid, reinterpret_cast<void**>(&p));
         if (p) FC4_ACQUIRED(p, "cfgrules service");
+        if (p && LifecycleTrace()) fc4::Log("cfgrules lifetime acquire service=%08x iid=%08x object=%p", service, iid, p);
         return p != nullptr;
     }
     bool Query(cIGZUnknown* from, uint32_t iid) {
         if (from) from->QueryInterface(iid, reinterpret_cast<void**>(&p));
         if (p) FC4_ACQUIRED(p, "cfgrules query");
+        if (p && LifecycleTrace()) fc4::Log("cfgrules lifetime acquire QI from=%p iid=%08x object=%p", from, iid, p);
         return p != nullptr;
     }
 };
@@ -87,6 +96,38 @@ struct StoreHost {
     void Set(bool value) { Call<void, bool>(p, 57, value); }
 };
 
+struct RendererHost {
+    Ref<> wm, view, render;
+    bool FindView() {
+        if (!wm.Service(0xA417445E, 0x000005A4)) return false;
+        auto* root = Call<cIGZUnknown*>(wm.p, 3); // borrowed
+        auto* child = root ? Call<cIGZUnknown*, uint32_t>(root, 34, 0x6104489A) : nullptr; // borrowed
+        if (child) Call<bool, uint32_t, uint32_t, void*>(child, 36, 0x9A47B417, 0xFA47B3F9, &view.p);
+        if (view.p) FC4_ACQUIRED(view.p, "cfgrules window GetChildAs");
+        if (LifecycleTrace()) fc4::Log("cfgrules lifetime window root=%p child=%p acquired_view=%p thread=%lu", root, child, view.p, GetCurrentThreadId());
+        return view.p != nullptr;
+    }
+    bool QueryRenderer() {
+        auto* borrowed = Call<cIGZUnknown*>(view.p, 4);
+        return render.Query(borrowed, 0x681BD529);
+    }
+    bool CreateFacade() {
+        auto* fw = RZGetFrameWork();
+        auto* com = fw ? fw->GetCOMObject() : nullptr;
+        if (!com || !com->GetClassObject(0xE9C622D8, 0x681BD529, reinterpret_cast<void**>(&render.p)) || !render.p) return false;
+        render.created = true;
+        FC4_ACQUIRED(render.p, "cfgrules renderer facade created");
+        if (LifecycleTrace()) fc4::Log("cfgrules lifetime facade=%p uninitialized=1", render.p);
+        return true;
+    }
+};
+void TraceView(const char* phase) {
+    if (!LifecycleTrace()) return;
+    RendererHost h;
+    h.FindView();
+    fc4::Log("cfgrules lifetime snapshot phase=%s view=%p thread=%lu", phase, h.view.p, GetCurrentThreadId());
+}
+
 struct Host {
     std::array<std::string, 6> os;
     std::array<std::string, 2> sound;
@@ -94,11 +135,14 @@ struct Host {
     FILE* log = nullptr;
     ~Host() { if (log) fclose(log); }
     bool Measure(FC4ConfigRulesMeasurement& m) {
+        TraceView("gather-entry");
+        struct Exit { ~Exit() { TraceView("gather-exit-after-cleanup"); } } exit;
         if (!MeasureSystem(m, os)) return false;
         Ref<> gs, gs3;
         if (!gs.Service(0xC416025C, 0x0073283C) || !gs3.Query(gs.p, 0xC47B747C)) return false;
         auto* driver = Call<cIGZGDriver*>(gs3.p, 3); // borrowed current driver
         if (!driver) return false;
+        if (LifecycleTrace()) fc4::Log("cfgrules lifetime gather driver=%p thread=%lu", driver, GetCurrentThreadId());
         Call<void, void*>(driver, 64, m.driverRecord);
         Call<void, void*>(gs.p, 10, m.screen);
         m.videoBytes = Call<uint32_t, uint32_t>(gs.p, 23, 2);
@@ -111,16 +155,10 @@ struct Host {
         bool forced = false;
         if (!Probe(probe, m.driverRecord[0x30] != 0, forced)) return false;
         m.forcedFSAA = forced;
-        // 2.4: the uninitialized renderer facade observes the shared store even
-        // before the application's view exists. Never initialize this facade.
-        Ref<> render;
-        auto* fw = RZGetFrameWork();
-        auto* com = fw ? fw->GetCOMObject() : nullptr;
-        if (!com || !com->GetClassObject(0xE9C622D8, 0x681BD529, reinterpret_cast<void**>(&render.p)) || !render.p)
-            return false;
-        render.created = true;
-        FC4_ACQUIRED(render.p, "cfgrules renderer facade created");
-        StoreHost store{render.p};
+        TraceView("gather-after-probe");
+        RendererHost renderer;
+        if (!AcquireRenderer(renderer)) return false;
+        StoreHost store{renderer.render.p};
         m.backingStore = BackingStore(store);
         Ref<> audio;
         m.hasSound = audio.Service(0xE9D27715, 0x49D28666);
@@ -253,6 +291,8 @@ public:
     uint32_t AddRef() override { return ++refs_; }
     uint32_t Release() override { const auto n = --refs_; if (!n) delete this; return n; }
     void Init(cISC4RenderProperties* properties) override {
+        TraceView("Init-entry");
+        struct Exit { ~Exit() { TraceView("Init-exit"); } } exit;
         App app;
         cRZBaseString data, user;
         if (!owner_ || !properties || !app.app.p) {
@@ -307,3 +347,4 @@ public:
 }
 cIGZUnknown* CreateFC4ConfigRules() { return new Owner(); }
 cIGZUnknown* CreateFC4ConfigRulesShadow() { return new Owner(true); }
+void fc4::ConfigRulesTraceView(const char* phase) { TraceView(phase); }

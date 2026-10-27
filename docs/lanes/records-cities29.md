@@ -1,28 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| records-cities29: citywide record shadows (engine) | Codex / .claude/worktrees/records-cities29 / reserved branch records-cities29, detached HEAD | ready; recovered code 77e3eaf1 + main merge 8c3563e72; ABI unchanged; cargo 8075, clippy 0 diagnostics, CTest 135/135; suites12/13/14 latest 18 clean/end=1/ref_warnings=0, seven keys 712/712 exact; AP19/EX58 addressed | - |
-Gate: final qbuild all PASS once after merge; build-runs/qbuild-test.log (8075/0), qbuild-clippy.log (0 diagnostics), fc4verify-build.log (220/220), fc4verify-ctest.log (135/135). No Rust files changed this round.
-Changed: capture app-target mode inputs before modal loops; trace native slot-15 save continuations and replay whole DBPF acquisitions; hold the promised date from capture with a balanced hidden pause. Earlier citysit map-order, saved zone counts and dispatch Init-input fixes are retained.
-Evidence R=C:/Users/tlori/FreeCity4/build-runs; before=R/run7/census3 (house=R/run7/reach29); after=R/suite/records-cities29-<number>/<scenario>.log and summary.tsv. Below: D=B (dbpf/dbpf_bounds separately identical), C(citysit), R(dispatch), Z(zones), A(app), S(app-startup), exact/total before->after.
-Measured: suite12 broad sample has 15 clean/exact across region/gen/Lua; final suites13/14 add 8 clean on merged source, including all four house cases. Latest 18 unique: D=B 76/76, C=R 80/80, Z 320/320, A 62/62, S 18/18; all ref_warnings=0. Final DLL SHA256 e15920fdc604916c876a0ec65df1ac5de63f2febeb68547cfb36aaf99d5bfe43 (suite12 was 53529110).
-Questions: AP19 (application.md 6.2.1) and EX58 (data-formats.md 8.3.2) addressed by independent input/return observation; none unresolved or newly filed. No output seeding, omitted promised files, tolerance changes or refusal forgiveness.
-- 12/london-kensington: D=B 4/5->5/5; C 5/5->5/5; R 5/5->5/5; Z 20/20->20/20; A 4/4->4/4; S 1/1->1/1.
-- 12/timbuktu-getting-started: D=B 0/4->4/4; C 4/4->4/4; R 4/4->4/4; Z 16/16->16/16; A 3/3->3/3; S 1/1->1/1.
-- 12/gen-tegel-s0-default: D=B 0/2->2/2; C 2/2->2/2; R 2/2->2/2; Z 8/8->8/8; A 1/1->1/1; S 1/1->1/1.
-- 12/maxisland-aquaton: D=B 0/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 1/1->1/1.
-- 12/maxisland-banktonoplankton: D=B 1/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 1/1->1/1.
-- 12/maxisland-bendburger: D=B 0/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 1/1->1/1.
-- 14/maxisland-bevopolis: D=B 3/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 1/2->2/2; S 0/1->1/1.
-- 12/maxisland-norte-delano: D=B 3/3->3/3; C 0/3->3/3; R 2/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 0/1->1/1.
-- 12/maxisland-san-indersty: D=B 3/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 9/12->12/12; A 2/2->2/2; S 1/1->1/1.
-- 12/maxisland-south-pennoli: D=B 3/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 0/1->1/1.
-- 14/maxisland-south-weburg: D=B 0/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 0/1->1/1.
-- 12/lua-lots-empty: D=B 3/3->3/3; C 3/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 1/1->1/1.
-- 14/lua-lots-grown-qualified: D=B 2/3->3/3; C 0/3->4/4; R 3/3->4/4; Z 12/12->16/16; A 2/2->3/3; S 1/1->1/1.
-- 14/reach29-house: D=B 0/2->2/2; C 2/2->3/3; R 2/2->3/3; Z 8/8->12/12; A 1/1->2/2; S 1/1->1/1.
-- 14/reach29-tegel: D=B 0/2->2/2; C 2/2->3/3; R 2/2->3/3; Z 8/8->12/12; A 1/1->2/2; S 1/1->1/1.
-- 13/reach29-growth: D=B 2/4->4/4; C 4/4->4/4; R 4/4->4/4; Z 16/16->16/16; A 3/3->3/3; S 1/1->1/1.
-- 14/reach29-views: D=B 2/2->2/2; C 0/2->3/3; R 2/2->3/3; Z 8/8->12/12; A 1/1->2/2; S 1/1->1/1.
-- 14/gen27-spandau-s0-edge: D=B 25/25->25/25; C 25/25->25/25; R 25/25->25/25; Z 100/100->100/100; A 24/24->24/24; S 1/1->1/1.
-Incomplete results retained: suite12 South Weburg/growth timed out mid-full-pass; new labels14/13 respectively finish clean with unchanged comparisons and more time. Prior Konradshohe native exit crash reproduces with every shadow disabled in R/suite/records-cities29-exit-baseline/gen27-konradshohe-s0-default.log; excluded from the 18 clean scenarios above, not claimed fixed.
-Limits: action refusals remain (suite14 Spandau 227, Bevopolis 8, South Weburg 5, Lua 43; summary.tsv); suite14 process exit=1 is not claimed as an overall action-suite pass. All seven lane keys are exact in the measured sample; full-census credit remains the coordinator's decision.
+| records-cities29: citywide record shadows (engine), round 6 | Codex / .claude/worktrees/records-cities29 / reserved records-cities29, detached HEAD | ready: authorized guard fallback; main merge 9cc0d4c4f + code 2598f495e; ABI unchanged; cargo 8253, clippy 0, CTest 142/142; final house traffic 2/2 exact, refs 0 | Coordinator: land guarded fallback; default Lua DBPF refusals remain, so do not claim suite-wide default DBPF credit |
+Changed: only blanket acquisition date holds now require dbpf_shadow_hold_date=1 (default off). App-target input capture, actual native-save return/replay, citysit map order, saved zone counts and dispatch Init-input fixes remain.
+Cause isolation: baseline regress-records-cities29-r6-before-shadows.log reproduces traffic 0/2 exact after a 104 s acquisition HiddenPause, with no native save entry recorded. HiddenPause suppresses idle agents (simulator.md 5.1/5.4); disabling only the blanket hold restores traffic. Its coexistence with traffic is not repaired; the intrusive hold is explicitly opt-in.
+Gate: qbuild all ran once, PASS: cargo 8253/0, clippy 0 diagnostics, CMake 29/29 edges, CTest 142/142; WT/build-runs/{qbuild-test.log,qbuild-clippy.log,fc4verify-build.log,fc4verify-ctest.log}. No Rust files changed; git diff --check clean.
+Traffic: unchanged house profile r6-guard clean/end=1/ref_warnings=0; final records-cities29-r6-traffic clean/end=1/ref_warnings=0, traffic 2/2 exact, 47/47 deliveries clean, record mismatches=0, resyncs=0. Jan28 is within the first 10/10 clean window; clean individual days are not printed. Final house seven lane keys 27/27 exact. Logs: R/game-results/<label>.log and .verdict.
+Records: latest 13 unique clean/end=1/ref_warnings=0, 581/581 exact: D=B 63/63, C=R 65/65, Z 260/260, A 52/52, S 13/13. Eleven use default hold=0; both Lua reruns explicitly use hold=1. Same code 2598f495e throughout; broad DLL 7563d397, gate-built Lua/traffic DLL 9362dded.
+Fallback limit: default r6-broad Lua empty D=B 2/3 and grown 0/3; other five keys exact. EX58 correctly refuses replay after promised dates advance (2451545->2451548; 2523577->2523638 first refusal). Those results remain in their logs; no refusal is forgiven, tolerance widened or comparison omitted. Opt-in Lua reruns below recover record coverage while retaining the known intrusive hold.
+Paths: R=C:/Users/tlori/FreeCity4/build-runs; before=R/run7/census3/<scenario>.shadows.txt; after=R/suite/records-cities29-r6-<broad or lua>/<scenario>.log and summary.tsv. Below D(dbpf)=B(dbpf_bounds), C(citysit), R(dispatch), Z(zones), A(app), S(app-startup), exact/total before->after.
+- broad/london-kensington: D=B 4/5->5/5; C 5/5->5/5; R 5/5->5/5; Z 20/20->20/20; A 4/4->4/4; S 1/1->1/1.
+- broad/timbuktu-getting-started: D=B 0/4->4/4; C 4/4->4/4; R 4/4->4/4; Z 16/16->16/16; A 3/3->3/3; S 1/1->1/1.
+- broad/gen-tegel-s0-default: D=B 0/2->2/2; C 2/2->2/2; R 2/2->2/2; Z 8/8->8/8; A 1/1->1/1; S 1/1->1/1.
+- broad/gen27-spandau-s0-edge: D=B 25/25->25/25; C 25/25->25/25; R 25/25->25/25; Z 100/100->100/100; A 24/24->24/24; S 1/1->1/1.
+- broad/maxisland-aquaton: D=B 0/3->3/3; C 0/3->4/4; R 3/3->4/4; Z 12/12->16/16; A 2/2->3/3; S 1/1->1/1.
+- broad/maxisland-bendburger: D=B 0/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 1/1->1/1.
+- broad/maxisland-bevopolis: D=B 3/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 1/2->2/2; S 0/1->1/1.
+- broad/maxisland-norte-delano: D=B 3/3->3/3; C 0/3->3/3; R 2/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 0/1->1/1.
+- broad/maxisland-san-indersty: D=B 3/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 9/12->12/12; A 2/2->2/2; S 1/1->1/1.
+- broad/maxisland-south-pennoli: D=B 3/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 0/1->1/1.
+- broad/maxisland-south-weburg: D=B 0/3->3/3; C 0/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 0/1->1/1.
+- lua/lua-lots-empty (hold=1): D=B 3/3->3/3; C 3/3->3/3; R 3/3->3/3; Z 12/12->12/12; A 2/2->2/2; S 1/1->1/1.
+- lua/lua-lots-grown-qualified (hold=1): D=B 2/3->3/3; C 0/3->4/4; R 3/3->4/4; Z 12/12->16/16; A 2/2->3/3; S 1/1->1/1.
+Not accepted: initial r6-suite --keys invocation selected only Kensington/San Indersty with the full profile; both exited before target, retained separately. Selected-key broad runs above are clean. Action refusals remain (e.g. Spandau 227, Lua 15/43); full 179-scenario census not rerun, no suite-wide credit claim.
+Questions: none filed; AP19/EX58 observation/replay work retained. Final gate-built DLL SHA256 9362ddedd901aa7cbf5e5dcf35c6563590215c92ab0a4744dc36020f26df52cb. No C ABI exports changed.

@@ -16,8 +16,8 @@
 <text x="16" y="170" font-size="16" font-weight="700" fill="#1d2320">Verified</text>
 <text x="150" y="170" font-size="14" fill="#5b6560">our code gives exactly the original&#x27;s results (house city)</text>
 <rect x="560" y="152" width="860" height="26" rx="3" fill="#e3e6e0"/>
-<rect x="560" y="152" width="242.1" height="26" rx="3" fill="#4fa36b"/>
-<text x="1432" y="171" font-size="18" font-weight="700" fill="#1d2320">28.2%</text>
+<rect x="560" y="152" width="269.8" height="26" rx="3" fill="#4fa36b"/>
+<text x="1432" y="171" font-size="18" font-weight="700" fill="#1d2320">31.4%</text>
 <text x="40" y="204" font-size="16" font-weight="400" fill="#1d2320">↳ strict</text>
 <text x="150" y="204" font-size="14" fill="#5b6560">… and in every scenario of the test suite</text>
 <rect x="560" y="186" width="860" height="26" rx="3" fill="#e3e6e0"/>
@@ -35,7 +35,7 @@
 <text x="560.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">0%</text>
 <text x="990.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">50%</text>
 <text x="1420.0" y="264" font-size="11" fill="#5b6560" text-anchor="middle">100%</text>
-<text x="16" y="282" font-size="13" fill="#5b6560">The map below: one box per class of the original, area = its bytes, grouped by area and subsystem. main de3f8c542, regress-train285.out, suite sh28-census3.</text>
+<text x="16" y="282" font-size="13" fill="#5b6560">The map below: one box per class of the original, area = its bytes, grouped by area and subsystem. main e4652dbbe, regress-train287.out, suite sh28-census3.</text>
 <rect x="18.0" y="322.0" width="74.9" height="114.3" fill="#e8b04a"/>
 <rect x="18.0" y="322.0" width="74.9" height="114.3" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="18.0" y="436.3" width="74.9" height="107.4" fill="#9cc3e4"/>
@@ -104,23 +104,23 @@
 <rect x="241.9" y="540.6" width="10.5" height="3.1" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="18.0" y="322.0" width="234.4" height="221.7" fill="none" stroke="#f6f7f4" stroke-width="1.8"/>
 <text x="22.0" y="336.0" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">automata (vehicles, animation)</text>
-<rect x="252.4" y="322.0" width="164.7" height="123.2" fill="#c97b2a"/>
+<rect x="252.4" y="322.0" width="164.7" height="123.2" fill="#1f6b43"/>
 <rect x="252.4" y="322.0" width="164.7" height="123.2" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="252.4" y="445.2" width="69.0" height="98.5" fill="#c97b2a"/>
+<rect x="252.4" y="445.2" width="69.0" height="98.5" fill="#1f6b43"/>
 <rect x="252.4" y="445.2" width="69.0" height="98.5" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="321.4" y="445.2" width="55.3" height="81.5" fill="#c97b2a"/>
+<rect x="321.4" y="445.2" width="55.3" height="81.5" fill="#1f6b43"/>
 <rect x="321.4" y="445.2" width="55.3" height="81.5" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="376.7" y="445.2" width="40.4" height="81.5" fill="#c97b2a"/>
+<rect x="376.7" y="445.2" width="40.4" height="81.5" fill="#1f6b43"/>
 <rect x="376.7" y="445.2" width="40.4" height="81.5" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="321.4" y="526.7" width="45.4" height="17.0" fill="#c97b2a"/>
+<rect x="321.4" y="526.7" width="45.4" height="17.0" fill="#1f6b43"/>
 <rect x="321.4" y="526.7" width="45.4" height="17.0" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="366.9" y="526.7" width="32.9" height="17.0" fill="#c97b2a"/>
+<rect x="366.9" y="526.7" width="32.9" height="17.0" fill="#1f6b43"/>
 <rect x="366.9" y="526.7" width="32.9" height="17.0" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="399.7" y="526.7" width="13.2" height="9.6" fill="#c97b2a"/>
+<rect x="399.7" y="526.7" width="13.2" height="9.6" fill="#1f6b43"/>
 <rect x="399.7" y="526.7" width="13.2" height="9.6" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="399.7" y="536.2" width="13.2" height="7.4" fill="#c97b2a"/>
+<rect x="399.7" y="536.2" width="13.2" height="7.4" fill="#1f6b43"/>
 <rect x="399.7" y="536.2" width="13.2" height="7.4" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
-<rect x="413.0" y="526.7" width="4.2" height="17.0" fill="#c97b2a"/>
+<rect x="413.0" y="526.7" width="4.2" height="17.0" fill="#1f6b43"/>
 <rect x="413.0" y="526.7" width="4.2" height="17.0" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="252.4" y="322.0" width="164.7" height="221.7" fill="none" stroke="#f6f7f4" stroke-width="1.8"/>
 <text x="256.4" y="336.0" font-size="11.5" font-weight="600" fill="#1d2320" stroke="#f6f7f4" stroke-width="3" paint-order="stroke">traffic</text>
@@ -1389,8 +1389,8 @@
 <rect x="1074.4" y="664.7" width="1.0" height="1.3" fill="#9cc3e4"/>
 <rect x="1074.4" y="664.7" width="1.0" height="1.3" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="1006.5" y="595.9" width="68.9" height="70.0" fill="none" stroke="#f6f7f4" stroke-width="1.8"/>
-<rect x="1006.5" y="666.0" width="68.0" height="62.4" fill="#e8b04a"/>
-<rect x="1074.6" y="666.0" width="0.3" height="62.4" fill="#4fa36b"/>
+<rect x="1006.5" y="666.0" width="61.0" height="62.4" fill="#4fa36b"/>
+<rect x="1067.5" y="666.0" width="7.3" height="62.4" fill="#e8b04a"/>
 <rect x="1006.5" y="666.0" width="68.3" height="62.4" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>
 <rect x="1074.8" y="666.0" width="0.6" height="31.2" fill="#e8b04a"/>
 <rect x="1074.8" y="666.0" width="0.6" height="31.2" fill="none" stroke="#f6f7f4" stroke-width="0.6"/>

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "FC4OverlayOwner.h"
 #include "FC4OverlayBindings.h"
+#include "FC4OverlayDevice.h"
 #include "FC4OverlayRectangles.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
@@ -218,6 +219,9 @@ void OverlayOwnerGameCheck() {
     }
     check(targets == 8);
     Log("overlays rectangle boundary: targets=%u/8 scope=version-gated-addresses native_interception=0", targets);
+    const auto deviceTargets = overlay_device::Resolve().Count();
+    check(deviceTargets == 16);
+    Log("overlays device boundary: targets=%u/16 scope=version-gated-addresses native_interception=0", deviceTargets);
     check(!owner->IsInitialized());
     check(owner->Init(64, 64, 16, true, false));
     const uint32_t id = owner->AddDecal(64, 32, 128, 128, 32, 0);

@@ -132,6 +132,23 @@ enum class Direct : unsigned {
     // effects.md 18.9.7: duplicate-preserving visual dictionary operations.
     EffectsVisualNamesGrow,
     EffectsVisualNameInsert,
+    // overlay device boundary (draw-context sections 3, 5, 7; functions.tsv).
+    OverlayDepthOffset,
+    OverlayDrawState,
+    OverlayTransparency,
+    OverlayShade,
+    OverlaySelfLitShade,
+    OverlayResetTransparency,
+    OverlayResetShade,
+    OverlayTransform,
+    OverlayClearTransform,
+    OverlayFiltering,
+    OverlayWrap,
+    OverlayCombiner,
+    OverlayTextureEnabled,
+    OverlayEnvironment,
+    OverlayAlphaEnabled,
+    OverlayAlphaFunction,
     Count
 };
 

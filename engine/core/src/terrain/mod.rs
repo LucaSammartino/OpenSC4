@@ -71,6 +71,11 @@ pub use view::{
     cell_triangle_indices, PlainViewRow, TerrainViewHeights, TerrainViewIndices, ViewHeightError, ViewRowCall,
     ViewVertexBuffer,
 };
+pub use view::{
+    coordinate_bounds, edge_triangle_indices, plumbing_calls, row_visibility, widen_row_intervals, ExtensionBuffer,
+    ExtensionFlushCall, PlumbingCall, TerrainViewLifecycle, TerrainViewShared, TextureCoordinateCache,
+    ViewColumnInterval, ViewVertex,
+};
 
 /// Class and interface IDs (§1).
 pub const CLSID_TERRAIN: u32 = 0xE98F_9525;

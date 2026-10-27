@@ -203,7 +203,9 @@ impl Host for Inputs {
                 slot: 0xa4,
                 ..
             } => Reply::U32(self.modal_result),
-            Call::Slot { .. } | Call::Unpause(_) | Call::FreeOwner(_) => Reply::U32(self.ignored),
+            Call::Slot { .. } | Call::SetToggle { .. } | Call::Unpause(_) | Call::FreeOwner(_) => {
+                Reply::U32(self.ignored)
+            }
             other => panic!("unprovided primitive input {other:?}"),
         })
     }
@@ -712,17 +714,11 @@ fn unsupported_domains_and_unknown_work_never_become_successful_noops() {
         );
     }
     let mut o = owner(state());
-    assert_eq!(o.redraw(&mut Inputs::default()), Err(Unsupported::RemainingRedrawVp1));
     assert_eq!(
-        o.action(&mut Inputs::default(), 0x6a57da49),
-        Err(Unsupported::UnqualifiedEvent(0x6a57da49))
+        o.action(&mut Inputs::default(), 0x123),
+        Err(Unsupported::UnqualifiedEvent(0x123))
     );
     assert!(o.effects().is_empty());
-    assert_eq!(
-        o.action(&mut Inputs::default(), 0xea5e99d9),
-        Err(Unsupported::AutoRedrawVp1Vp4)
-    );
-    assert_eq!(calls(&o), [Call::Global(Global::App)]);
     for (reply, expected) in [
         (Reply::Lookup { al: 1, output: None }, Unsupported::NullRequiredOutput),
         (
