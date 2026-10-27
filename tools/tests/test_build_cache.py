@@ -114,3 +114,22 @@ def test_train278_header_change_after_cross_worktree_hit():
     from cache_probe import queued_probe
     result = queued_probe(ROOT)
     assert result["unsafe_stale_success"] and result["mapped_header_rebuilt_object_and_test"]
+
+
+def test_rust_cache_falls_back_to_the_compiler_when_sccache_is_unreachable(tmp_path):
+    """A cache server fault (sccache exit 2) must never fail a gate: the wrapper runs the compiler directly."""
+    import rust_cache
+    fake_sccache = tmp_path / "fake_sccache.py"
+    fake_sccache.write_text("import sys\nsys.stderr.write('sccache: error: server unreachable')\nsys.exit(2)\n")
+    runner = tmp_path / "sccache.cmd"
+    runner.write_text(f'@"{sys.executable}" "{fake_sccache}" %*\n')
+    env = dict(os.environ, FC4_SCCACHE=str(runner))
+    done = subprocess.run([sys.executable, rust_cache.__file__, sys.executable, "-c", "print('compiled directly')"],
+                          env=env, capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    assert "compiled directly" in done.stdout
+    assert "running the compiler directly" in done.stderr
+    # a genuine compiler failure still fails
+    bad = subprocess.run([sys.executable, rust_cache.__file__, sys.executable, "-c", "raise SystemExit(1)"],
+                         env=dict(os.environ, FC4_SCCACHE=sys.executable), capture_output=True, text=True)
+    assert bad.returncode != 0

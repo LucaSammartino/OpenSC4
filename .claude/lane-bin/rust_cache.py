@@ -41,8 +41,17 @@ def main():
     # Clippy diagnostics must be produced on every clippy invocation.
     if Path(compiler).stem.lower() == "clippy-driver":
         return subprocess.call([compiler, *args])
-    return subprocess.call([os.environ["FC4_SCCACHE"], compiler, *args],
-                           cwd=registry_cwd(args, os.environ))
+    cwd = registry_cwd(args, os.environ)
+    try:
+        # sccache exits 2 when its server cannot be reached (startup timeout, connection reset): that is a cache
+        # fault, not a compile result, so a cache problem must never fail a gate. Run the compiler directly.
+        code = subprocess.call([os.environ["FC4_SCCACHE"], compiler, *args], cwd=cwd)
+    except OSError:
+        code = 2
+    if code == 2 and os.environ.get("FC4_CACHE_FALLBACK", "1") != "0":
+        sys.stderr.write("rust_cache: sccache unavailable (exit 2); running the compiler directly\n")
+        return subprocess.call([compiler, *args], cwd=cwd)
+    return code
 
 
 if __name__ == "__main__":
