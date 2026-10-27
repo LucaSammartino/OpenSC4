@@ -101,10 +101,10 @@ constexpr const char* methodIds[][2] = {
     {"0x00449E00", "cSC4App::GetCDDataDirectory"},
     {"0x0044BF90", "cSC4App::GetPluginDirectory"},
     {"0x0044C010", "cSC4App::GetCDPluginDirectory"},
-    {"0x00449E20", "cSC4App::GetSkuDirectory"},
+    {"0x00449E20", "cSC4App::GetSkuSpecificDirectory"},
     {"0x00449E40", "cSC4App::GetUserDataDirectory"},
     {"0x00449E60", "cSC4App::GetDirectorySlot57"},
-    {"0x00449E80", "cSC4App::GetDirectorySlot58"},
+    {"0x00449E80", "cSC4App::GetRegionsDirectory"}, // AP3: slot58 is the stored user base.
     {"-", "cISC4App::slot59"}, {"-", "cISC4App::slot60"},
     {"-", "cISC4App::slot61"}, {"-", "cISC4App::slot62"},
     {"-", "cISC4App::slot63"}, {"-", "cISC4App::slot64"},
@@ -248,7 +248,7 @@ void AppShadowStart() {
     if (model) Log("app: ON; 17 supported path/filename/mode fields; AP18 excludes slots65/66 (app_shadow_path_cache diagnostic=%u); AP17 excludes startup replay, pause/speed, frame/tick counters, idle/pump decisions; no whole-owner credit", pathCacheDiagnostic ? 1u : 0u);
     // SPEC-GAP: AP6/AP17 lack pre-startup inputs, timer accessors at OnIdle,
     // and shutdown helper destruction order; none earns complete method credit.
-    if (model) Log("app: method coverage bounded to getter calls; lazy folders complete=0 (cache writes/base calls unobserved); startup/OnIdle/shutdown unobserved (AP6/AP17)");
+    if (model) Log("app: method coverage bounded to getter calls; string getters complete=0 (AP21 return unobserved; lazy cache writes/base calls also unobserved); startup/OnIdle/shutdown unobserved (AP6/AP17)");
 }
 void AppShadowMessage(uint32_t kind) {
     if (!model) return;

@@ -207,12 +207,11 @@ unsafe extern "C" fn fc4_app_shadow_compare(shadow: *mut Shadow, field: u32, byt
     } else {
         true
     };
-    // Section 2: these methods only assign out (no return, owner writes or
-    // collaborator calls). The language getters are sampled with index -1.
+    // SPEC-GAP: SDK string getters return bool, but sections 2/9 do not define
+    // that result (AP21). Comparing out alone cannot complete any string method.
     // SPEC-GAP: lazy-folder cache writes and base-getter calls are not captured;
     // matching their strings alone must never grant complete method credit.
-    let complete = captured && matches!(field, 0..=7 | 16 | 17);
-    shadow.methods[field as usize].record(complete, mismatch)
+    shadow.methods[field as usize].record(false, mismatch)
 }
 
 #[no_mangle]
@@ -273,21 +272,21 @@ mod tests {
     }
 
     #[test]
-    fn complete_getter_mismatch_is_cumulative_and_diagnostics_do_not_count() {
+    fn string_output_mismatch_is_cumulative_and_unobserved_returns_stay_incomplete() {
         let shadow = seeded_shadow(b"SimCity 4");
         unsafe {
             for field in 0..8 {
                 assert_eq!(fc4_app_shadow_compare(shadow, field, b"base\\".as_ptr(), 5), 0);
-                assert_eq!(stats(shadow, field), [1, 1, 0]);
+                assert_eq!(stats(shadow, field), [1, 0, 0]);
             }
             assert_eq!(fc4_app_shadow_compare(shadow, 0, b"wrong".as_ptr(), 5), 1);
             assert_eq!(fc4_app_shadow_compare(shadow, 0, b"base\\".as_ptr(), 5), 0);
             let mut out = [0; 16];
             assert_eq!(fc4_app_shadow_expected(shadow, 0, out.as_mut_ptr(), 16), 5);
-            assert_eq!(stats(shadow, 0), [3, 3, 1]);
-            assert_eq!(stats(shadow, 1), [1, 1, 0]);
+            assert_eq!(stats(shadow, 0), [3, 0, 1]);
+            assert_eq!(stats(shadow, 1), [1, 0, 0]);
             assert_eq!(fc4_app_shadow_input(shadow, 0, b"wrong".as_ptr(), 5), 1);
-            assert_eq!(stats(shadow, 0), [3, 3, 1]);
+            assert_eq!(stats(shadow, 0), [3, 0, 1]);
             fc4_app_shadow_free(shadow);
         }
     }
@@ -308,7 +307,7 @@ mod tests {
             assert_eq!(fc4_app_shadow_compare(shadow, 0, b"".as_ptr(), 32769), 1);
             assert_eq!(stats(shadow, 0), [3, 0, 3]);
             assert_eq!(fc4_app_shadow_compare(shadow, 0, b"".as_ptr(), 0), 0);
-            assert_eq!(stats(shadow, 0), [4, 1, 3]);
+            assert_eq!(stats(shadow, 0), [4, 0, 3]);
             fc4_app_shadow_free(shadow);
         }
     }
@@ -329,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_filename_preserves_the_callers_output_in_complete_comparisons() {
+    fn empty_filename_preserves_output_without_claiming_the_unobserved_return() {
         let shadow = seeded_shadow(b"");
         unsafe {
             for field in [16, 17] {
@@ -339,7 +338,7 @@ mod tests {
                     0
                 );
                 assert_eq!(fc4_app_shadow_compare(shadow, field, b"".as_ptr(), 0), 1);
-                assert_eq!(stats(shadow, field), [2, 2, 1]);
+                assert_eq!(stats(shadow, field), [2, 0, 1]);
             }
             fc4_app_shadow_free(shadow);
         }
