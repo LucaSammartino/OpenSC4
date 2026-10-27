@@ -198,4 +198,18 @@ mod tests {
         assert!(replay(8, &input).is_none());
         assert!(replay(7, &input).is_none());
     }
+
+    #[test]
+    fn borrowed_getters_return_the_entry_token_without_writes_or_calls() {
+        let mut input = [0xCAFE_BABE; WORDS];
+        // Distinguish the renderer, model maker and accelerator, including null.
+        input[1] = 0x1234_5678;
+        input[2] = 0x8765_4321;
+        input[3] = 0;
+        for (slot, value) in [(4, input[1]), (5, input[2]), (31, input[3])] {
+            assert_eq!(replay(slot, &input), Some((value, 0, input)));
+        }
+        input[3] = 0xF123_4567;
+        assert_eq!(replay(31, &input), Some((input[3], 0, input)));
+    }
 }

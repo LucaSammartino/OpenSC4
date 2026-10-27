@@ -180,6 +180,17 @@ bool Bind(void** table) {
     DWORD ignored; VirtualProtect(table+Slot,sizeof(void*),old,&ignored);
     return true;
 }
+
+uint32_t __fastcall KeyAcceleratorEntry(void* self, void*) {
+    // This small getter is shared. Only the View3D primary interface owns the
+    // state packet below; other receivers must pass through without inspection.
+    auto& method = Find(0,31);
+    if (!self || Load<uintptr_t>(self,0) != Address(0x00ABCE40)) {
+        using Fn = uint32_t(__fastcall*)(void*,void*);
+        return reinterpret_cast<Fn>(method.original)(self,nullptr);
+    }
+    return Hook<0,31>(self,nullptr);
+}
 } // namespace
 
 void View3DShadowStartup() {
@@ -206,7 +217,13 @@ void View3DShadowStartup() {
     bound += Bind<0,53,uint32_t>(primary); bound += Bind<0,54,uint32_t>(primary);
     bound += Bind<1,3,uint32_t>(target); bound += Bind<2,3,uint32_t>(window); bound += Bind<2,88>(window);
     bound += Bind<2,143,uint32_t,uint32_t>(window); bound += Bind<3,3,uint32_t,uint32_t>(filter);
+    // Reach3 observed direct getter calls which bypass the interface table.
+    // Both entry and vtable hooks use the same trampoline, counting each once.
+    auto& key = Find(0,31);
+    void* keyEntry = key.original ? Detour(Address(key.address),reinterpret_cast<void*>(&KeyAcceleratorEntry)) : nullptr;
+    if (keyEntry) key.original = reinterpret_cast<uintptr_t>(keyEntry);
     Log("view3d shadow installed boundaries=%u/29 virtual_zoom=%u; invocation inputs only; resyncs=0",bound,zoomBound);
+    Log("view3d shadow direct GetKeyAccelerator=%u; shared receivers checked",keyEntry != nullptr);
     Log("view3d incomplete: messages need tutorial/base/UI/dispatcher traces; camera changes need renderer, timer, hidden-pause and invalidation traces; paint needs drawing/deferred/timer traces; complete=0");
     Log("view3d incomplete: slots 20/34/53/54 compare writes; unresolved return contracts retain complete=0");
 }
