@@ -77,3 +77,24 @@
   settle it. The distinct key-off terrain fault does not supply a restoration rule. This closes
   the specification question by narrowing crash attribution to that runtime observation; s0
   acceptance and a crash fix are not claimed.
+
+<!-- from: replace-cfgrules30 (2026-10-26) -->
+- **GR12 — §2.7 residual first-null-writer observation:** GR11's interface/order answer is implemented. Please obtain the RE-side matched replay and first-null-writer (or missing-publication) observation required by §2.7 before resolving s0 acceptance (c). No RE debugger/watchpoint tool is configured for this clean-room engine lane; no private storage address, extra restore, or writer cause is being inferred.
+  - Original failing evidence remains source `afc66170e`, DLL SHA256 prefix `f2e48878`: `cfgrules30-r1-s0-grow-on2.log:9294` has `+0xE2C06` on 2026-01-27; `-on1.log` has the same fault on 2026-01-30, while `-off1.log:11409` has the distinct `+0x3529C0` terrain fault. Replay the corresponding source/DLL, save, script and graphics mode under both settings as §2.7 requests.
+  - Corrected source `37219ef48`, DLL `7234fd3c`: opt-in ABI constructor/pre-city/Shutdown hooks record identity, thread and caller stack; independent Init/gather traces record driver identity, public view snapshots and acquired-reference cleanup. `cfgrules30-r2-s0-on1.log:363–419` has no public view throughout Init; its sole view is constructed at lines 8000–8005 and pre-city initialized at 8032–8037, after acquisition has completed. No view Shutdown occurs during gathering. These observations do not identify the earlier fault's first writer.
+  - Current s0 on1/on2/off1 reach 2028-02-02/2028-02-01/2028-01-30; each then faults at `+0x1D0F94` during occupant type `096E763C` Shutdown (`-on1.log:17681`, `-on2.log:17756`, `-off1.log:17792`). This is the task's shared quit-time construction fault, not a reproduction or explanation of `+0xE2C06`. Current s1-on1 is clean to 2028-01-28; s1-off1/off2 both watchdog-stall at 2026-01-30, without foreign exceptions.
+  - All named logs are under main `build-runs/game-results/`; all current runs have ref_warnings=0. Query properties 77/77, recommendations 12/12, shadow snapshots 13/13, cross-loads 2/2 and the house run through 2032 pass. Replacement credit remains held on the required residual observation; the passing repeats do not close it.
+
+  **ANSWERED 2026-10-27 (re-gr32):** DIFFERS — §2.7's GR12 subsection specifies the native
+  publication/refresh rules and initialized-Shutdown guard, with three worked observer/provider
+  fixtures. In the currently preserved artifacts, r1 s0 on1 faults at `+0x1DF76E` (line 11973),
+  not `+0xE2C06`; on2 supplies the latter fault. Corrected-source traces and quit-time construction
+  faults remain separate evidence. No runtime debugger/watchpoint facility is configured for this
+  RE lane, so no matched replay or first-writer result is claimed. The residual is narrowed to a
+  matched original-cohort replay under both settings, observing every write to the predicate's
+  consumed reference from before publication through failure, with old/new values, writer/thread/
+  stack, actual lifecycle-helper execution, public-view availability and ownership cleanup.
+  Alternatively, gap-free observation must establish initial null and no nonnull publication before
+  first failing use. Late attachment, entry-only hooks and non-reproductions do not settle it.
+  This archives the specification answer as runtime-narrowed; s0 acceptance (c) and replacement
+  credit remain held pending that observation.
