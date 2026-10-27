@@ -1363,6 +1363,41 @@ fn a_pass_over_many_days_is_compared() {
     stop(&w);
 }
 
+/// Pipe/producer lists can change after the grid comparison. State 8 must
+/// consume the current lists, without replacing the computed pass results.
+#[test]
+fn removals_between_the_swap_and_state_8_are_live_inputs() {
+    let w = started();
+    let s = shadow(&w, 0);
+    let mut lines = Vec::new();
+    let mut removed = false;
+    let mut results = Vec::new();
+    for _ in 0..100 {
+        if !removed && state_of(&w).state == 8 {
+            message(&w, msg::REMOVE_OCCUPANT, 0, 0, PIPE0);
+            message(&w, msg::REMOVE_OCCUPANT, 0, 0, PRODUCER);
+            removed = true;
+        }
+        let r = deliver(&w, s, msg::SIM_IDLE, JULIAN, &mut lines, || {}, || {});
+        if r >= 0 {
+            results.push(r);
+        }
+        let st = state_of(&w);
+        if st.state == 9 && st.recompute == 0 {
+            break;
+        }
+    }
+    assert!(removed);
+    assert!(results.iter().all(|&r| r == 0), "{lines:#?}");
+    let first = pass_lines(&lines)[0].to_string();
+    assert!(first.contains("exact=1;"), "{first}");
+    assert!(first.contains("pipes orig/ours=99/99;"), "{first}");
+    assert!(first.contains("sources orig/ours=0/0;"), "{first}");
+    assert!(first.contains("produced orig/ours=1000/1000;"), "{first}");
+    unsafe { fc4_plumbing_shadow_destroy(s) };
+    stop(&w);
+}
+
 /// PS7: made mid-city around a month, the shadow does not know whether the
 /// next state 8 ages; the producer's condition, changed by the original's
 /// state 8, shows it did, and the conditions agree.
