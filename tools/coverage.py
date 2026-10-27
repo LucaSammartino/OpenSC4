@@ -1077,6 +1077,16 @@ def main():
         w("")
     w(f"Verified includes {method_eligible_bytes:,} bytes of single-method evidence (see Method verification).")
     w("")
+    w("## Function evidence")
+    w("")
+    w(compare_metrics.evidence_note(fn_states, compare_warnings, house_build))
+    w("")
+    w("| State | % of game bytes | Bytes | % of game functions | Functions |")
+    w("|---|---:|---:|---:|---:|")
+    for s in compare_metrics.METRICS:
+        w(f"| **{s}** | {pct(whole[s + '_b'], game_b)} | {whole[s + '_b']:,} | "
+          f"{pct(whole[s + '_n'], game_n)} | {whole[s + '_n']:,} |")
+    w("")
     w("## Whole executable")
     w("")
     w("| Part | Functions | Bytes | % of .text |")

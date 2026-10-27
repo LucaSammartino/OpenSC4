@@ -19,6 +19,31 @@ import sys
 import time
 
 
+def gate_child(root, telemetry):
+    """Own the cache server so Job CPU includes compilation done by sccache."""
+    sys.path.insert(0, str(root / ".claude/lane-bin"))
+    import fc4verify
+    # The lifecycle helper belongs to the measurement tooling, including when
+    # the measured checkout predates it.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude/lane-bin"))
+    from cache_server import foreground_server
+    env = fc4verify.build_env(root, "benchmark")
+    exe = fc4verify.sccache_exe()
+    ready = os.environ.get("FC4_BENCH_JOB_READY")
+    if ready:
+        deadline = time.monotonic() + 15
+        while not Path(ready).exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError("measurement Job was not assigned")
+            time.sleep(.01)
+    with foreground_server(exe, env):
+        rc = subprocess.call([sys.executable, str(root / ".claude/lane-bin/qbuild.py"),
+                              "--wt", str(root), "all"], cwd=root)
+        stats = subprocess.check_output([exe, "--show-stats", "--stats-format", "json"], env=env, text=True)
+        Path(telemetry).write_text(stats, encoding="utf-8")
+    return rc
+
+
 class Accounting(ctypes.Structure):
     _fields_ = [(n, ctypes.c_int64) for n in ("user", "kernel", "period_user", "period_kernel")]
     _fields_ += [(n, ctypes.c_uint32) for n in ("faults", "processes", "active", "terminated")]
@@ -56,11 +81,15 @@ def measured_run(cmd, cwd, env, log):
     peak = commit_percent()
     try:
         with log.open("w", encoding="utf-8") as out:
+            ready = log.with_suffix(".job-ready")
+            ready.unlink(missing_ok=True)
+            env = dict(env, FC4_BENCH_JOB_READY=str(ready))
             proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT)
             if job and not api.AssignProcessToJobObject(job, int(proc._handle)):
                 proc.terminate()
                 proc.wait()
                 raise ctypes.WinError(ctypes.get_last_error())
+            ready.touch()
             while proc.poll() is None:
                 value = commit_percent()
                 if value is not None:
@@ -98,6 +127,9 @@ def percentile(values, fraction):
 
 def prepare(source, dest, revision):
     if (dest / ".prepared-v2").exists():
+        actual = subprocess.check_output(["git", "-C", str(dest), "rev-parse", "HEAD"], text=True).strip()
+        if actual != revision:
+            raise ValueError(f"{dest}: prepared revision {actual} != {revision}; choose a fresh --out")
         return
     common = subprocess.check_output(["git", "-C", str(source), "rev-parse", "--path-format=absolute",
                                       "--git-common-dir"], text=True).strip()
@@ -121,6 +153,9 @@ def main():
     ap.add_argument("--source", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--label", required=True)
+    ap.add_argument("--revision", help="pin the measured source revision (default HEAD)")
+    ap.add_argument("--lld", action="store_true", help="validate rust-lld for every i686 Rust binary")
+    ap.add_argument("--jobs", type=int, help="compiler jobs per gate; leaves defaults unchanged if omitted")
     ap.add_argument("--count", type=int, default=5)
     ap.add_argument("--overlay", action="store_true", help="copy current build tooling/config into snapshots")
     a = ap.parse_args()
@@ -128,7 +163,7 @@ def main():
     if "build-runs" not in out.parts or out == source or source in out.parents and out.name == "build-runs":
         ap.error("--out must be a dedicated directory below build-runs")
     out.mkdir(parents=True, exist_ok=True)
-    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", a.revision or "HEAD"], text=True).strip()
     common = subprocess.check_output(["git", "-C", str(source), "rev-parse", "--path-format=absolute",
                                       "--git-common-dir"], text=True).strip()
     roots = [out / ("wt-" + str(i)) for i in range(3)]
@@ -152,10 +187,29 @@ def main():
             if artifact.exists():
                 shutil.rmtree(artifact)
         env = dict(os.environ, FC4_NATIVE_DIRECT="1",
+                   SCCACHE_DIR=str(out / "shared-cache"),
                    FC4_CACHE_ROOTS=os.pathsep.join(map(str, [source, Path(common).parent, *roots])))
-        result = measured_run([sys.executable, str(root / ".claude/lane-bin/qbuild.py"),
-                               "--wt", str(root), "all"], root, env, out / f"{a.label}-{index}.log")
+        # A benchmark launched by CTest inherits the outer gate's wrappers and
+        # server port. Let each pinned qbuild choose its own configuration.
+        for key in ("RUSTC_WRAPPER", "FC4_SCCACHE", "FC4_CACHE_PYTHON", "SCCACHE_SERVER_PORT",
+                    "SCCACHE_BASEDIRS", "_MSPDBSRV_ENDPOINT_"):
+            env.pop(key, None)
+        if a.jobs:
+            env.update(CARGO_BUILD_JOBS=str(a.jobs), CMAKE_BUILD_PARALLEL_LEVEL=str(a.jobs))
+        if a.lld:
+            sysroot = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
+            linkers = list((sysroot / "lib/rustlib").glob("*/bin/rust-lld.exe"))
+            if len(linkers) != 1:
+                raise RuntimeError(f"expected one rust-lld, found {linkers}")
+            env["CARGO_TARGET_I686_PC_WINDOWS_MSVC_LINKER"] = str(linkers[0])
+        telemetry = out / f"{a.label}-{index}-cache.json"
+        result = measured_run([sys.executable, str(Path(__file__).resolve()), "--gate-child", str(root),
+                               str(telemetry)], root, env, out / f"{a.label}-{index}.log")
+        if telemetry.exists():
+            stats = json.loads(telemetry.read_text(encoding="utf-8"))["stats"]
+            result["cache"] = {k: stats[k] for k in ("cache_hits", "cache_misses", "not_cached") if k in stats}
         result.update(worktree=str(root), index=index, label=a.label,
+                      revision=revision, lld=a.lld, jobs=a.jobs,
                       disk_bytes=sum(disk_bytes(root / "engine" / n) for n in ("target", "build-x86")))
         results.append(result)
         (out / (a.label + ".json")).write_text(json.dumps(results, indent=2), encoding="utf-8")
@@ -169,4 +223,6 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] == "--gate-child":
+        raise SystemExit(gate_child(Path(sys.argv[2]), sys.argv[3]))
     raise SystemExit(main())
