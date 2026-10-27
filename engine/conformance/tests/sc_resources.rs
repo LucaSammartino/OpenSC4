@@ -349,7 +349,7 @@ fn scr_v52_required_failure_continues() {
 }
 #[test]
 fn scr_v53_binary_all_wire_types() {
-    let values = vec![
+    let values = [
         Values::U8(vec![255]),
         Values::U16(vec![65535]),
         Values::U32(vec![0x12345678]),
@@ -372,7 +372,7 @@ fn scr_v53_binary_all_wire_types() {
     writer.shutdown();
     let bytes = serial.lock().unwrap().raw().get_ref().clone();
     let mut expected = b"TKB1".to_vec();
-    let payloads = vec![
+    let payloads = [
         vec![255],
         65535u16.to_le_bytes().to_vec(),
         0x12345678u32.to_le_bytes().to_vec(),

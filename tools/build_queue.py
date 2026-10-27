@@ -5,7 +5,7 @@ worktree and this poller, started outside the sandbox, runs fc4verify on that wo
 It is the native-build twin of tools/game_queue.ps1.
 
 Usage (the coordinator starts it detached and leaves it running):
-  python tools/build_queue.py [--jobs 1] [--poll 5] [--once] [--roots <dir> ...]
+  python tools/build_queue.py [--jobs 2] [--poll 5] [--once] [--roots <dir> ...]
   python tools/build_queue.py --status
   python tools/build_queue.py --stop      ask the running worker to finish its builds and exit (restart it after)
 
@@ -118,7 +118,7 @@ def run_one(root, reqs, steps, log, par):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--jobs", type=int, default=1)
+    ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--poll", type=float, default=5)
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--roots", nargs="*")

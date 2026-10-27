@@ -2,8 +2,7 @@
 //! The 31 independent public vectors in lua-host.md §6.3.3/.5/.7, in table order.
 //! Inputs are foreign responses; expectations are literal public-contract results.
 use fc4_core::lua_script_server::*;
-#[path = "support/lua_script_server.rs"]
-mod support;
+use crate::lua_script_server_support as support;
 use support::Mock;
 
 fn previous_attempts(s: &mut ScriptServer, h: &mut Mock, count: u32) {
