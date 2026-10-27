@@ -61,7 +61,10 @@ void FreeVector(Vector& v) { if (v.begin) Free(v.begin); v = {}; }
 void DestroyDecal(void* p) {
     for (size_t offset : {0x10, 0x1C, 0x28, 0x34, 0x40}) FreeVector(Field<Vector>(p, offset));
 }
+void DestroyVisualNames(void* dictionary);
 void DestroyContents(void* p) {
+    DestroyVisualNames(static_cast<uint8_t*>(p) + 4);
+    FreeVector(Field<Vector>(p, 0x18));
     auto& decals = Field<Vector>(p, 0x78);
     for (auto* d = decals.begin; d != decals.end; d += 0x64) DestroyDecal(d);
     FreeVector(decals);
@@ -174,6 +177,8 @@ public:
     bool SetGZSerializable(const cIGZSerializable&) override { throw std::runtime_error("unexpected serializable"); }
     bool SetVoid(const void*, uint32_t) override { throw std::runtime_error("unexpected raw write"); }
 };
+
+#include "effects_resource_map_test.inc"
 
 unsigned decalReads = 0, decalWrites = 0;
 void* decodedDecal = nullptr;
@@ -462,7 +467,8 @@ int main() {
     CHECK(Streams() == 0);
     CHECK(DecalWorkedCase() == 0);
     CHECK(AuxiliaryRecords() == 0);
+    CHECK(VisualMapWorkedCase() == 0);
     CHECK(constructed == destroyed && allocated == freed);
-    std::puts("effects resource: EF25 identities/streams; EF26-C1 decal typed IO/publication/source destruction and EF26-C6 camera PASS");
+    std::puts("effects resource: EF25 identities/streams; EF26 typed IO; EF27-C1/C3 visual-map grow/insert/ownership/order PASS");
     return 0;
 }

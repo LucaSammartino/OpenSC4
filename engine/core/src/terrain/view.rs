@@ -5,13 +5,21 @@
 //! (terrain.md §15.5.8, §15.5.12.1, §15.5.13.4 and §15.5.15). These implement
 //! specified parts of the view, not a complete renderer or native host bridge.
 
-// SPEC-GAP: complete cache bytes and auxiliary passes still require the §15.5.15.4 observations (TR47); no independent view is registered.
+// SPEC-GAP: resource-derived cache bytes and remaining auxiliary geometry need §15.5.15.8's capture; no independent view is registered.
 
+mod buffers;
+mod frustum;
 mod indices;
+mod lifecycle;
 mod rows;
+mod streams;
 
+pub use buffers::{edge_triangle_indices, TextureCoordinateCache, ViewVertex};
+pub use frustum::{coordinate_bounds, row_visibility, widen_row_intervals, ViewColumnInterval};
 pub use indices::{cell_triangle_indices, TerrainViewIndices};
+pub use lifecycle::{TerrainViewLifecycle, TerrainViewShared};
 pub use rows::{PlainViewRow, ViewRowCall, ViewVertexBuffer};
+pub use streams::{plumbing_calls, ExtensionBuffer, ExtensionFlushCall, PlumbingCall};
 
 use super::{msg, Post, Terrain, VertRect};
 use crate::x87::r24;
