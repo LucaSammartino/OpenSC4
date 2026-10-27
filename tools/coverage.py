@@ -931,7 +931,7 @@ def main():
     ap.add_argument("--min-dense", type=int, default=200)
     current = REPO / "build-runs" / "suite" / "CURRENT"
     ap.add_argument("--suite", default=current.read_text(encoding="utf-8").strip() if current.is_file() else None,
-                    help="suite tag under build-runs/suite for strict suite-verified (default: build-runs/suite/CURRENT)")
+                    help="census tag or replay:<manifest.tsv> for strict suite-verified (default: suite/CURRENT)")
     args = ap.parse_args()
     if min(args.min_natural, args.min_dense) < 1:
         ap.error("compare thresholds must be positive")
@@ -1070,6 +1070,16 @@ def main():
           "implemented owners (suite-exercised); strict can only credit code the suite reaches. Suite-replaced "
           f"(implemented owners switched on in clean suite replace runs) is {pct(whole['suite-replaced_b'], game_b)}.")
         w("")
+        if suite_evidence.get('key_sources'):
+            w("Replay reach uses only the recording game's entry counters. Untraced keys use the newest census verdict.")
+            w("")
+            w("| Key | Verdict source | Scenarios | Recording runs ready | Strict exact |")
+            w("|---|---|---:|---:|---|")
+            for key, source in sorted(suite_evidence['key_sources'].items()):
+                label = source['source'].replace('|', r'\|')
+                ready = source.get('recordings_ready', '-')
+                w(f"| {key} | {label} | {source['scenarios']} | {ready} | {'yes' if source['exact'] else 'no'} |")
+            w("")
     w(f"Verified includes {method_eligible_bytes:,} bytes of single-method evidence (see Method verification).")
     w("")
     w("## Whole executable")
@@ -1091,6 +1101,7 @@ def main():
     w("## By area")
     w("")
     w("Share of each area's bytes at each step. Shared helpers and unattributed code have no owner, so no step.")
+    w("Function comparison columns show byte share, followed by function share in parentheses.")
     w("")
     cols = [("Specified", "specified"), ("Implemented", "implemented"), ("Verified", "verified")]
     if suite_evidence:
@@ -1098,14 +1109,21 @@ def main():
     cols.append(("Replaced", "replaced"))
     if suite_evidence:
         cols.append(("Suite reach", "suite-exercised"))
-    w("| Area | Bytes | % of game | " + " | ".join(c for c, _ in cols) + " |")
-    w("|---|---:|---:|" + "---:|" * len(cols))
+    def comparison_cells(t):
+        return " | ".join(f"{pct(t[s + '_b'], t['b'])} ({pct(t[s + '_n'], t['n'])})"
+                          for s in function_stats)
+
+    comparison_headers = " | ".join(function_stats)
+    w("| Area | Functions | Bytes | % of game | " + " | ".join(c for c, _ in cols)
+      + " | " + comparison_headers + " |")
+    w("|---|---:|---:|---:|" + "---:|" * (len(cols) + len(function_stats)))
     for a in AREAS + ["shared", "unattributed"]:
         t_ = by_area[a]
-        w(f"| {a} | {t_['b']:,} | {pct(t_['b'], game_b)} | "
-          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + " |")
-    w(f"| **all game code** | **{game_b:,}** | 100.0% | "
-      + " | ".join(f"**{pct(whole[s + '_b'], game_b)}**" for _, s in cols) + " |")
+        w(f"| {a} | {t_['n']:,} | {t_['b']:,} | {pct(t_['b'], game_b)} | "
+          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + " | " + comparison_cells(t_) + " |")
+    w(f"| **all game code** | **{game_n:,}** | **{game_b:,}** | 100.0% | "
+      + " | ".join(f"**{pct(whole[s + '_b'], game_b)}**" for _, s in cols)
+      + " | " + comparison_cells(whole) + " |")
     w("")
     w("## By subsystem")
     w("")
@@ -1114,14 +1132,28 @@ def main():
       "but the regress shadows run does not use it), or the counts `tools/coverage-shadows.tsv` cites from a lane "
       "run.")
     w("")
-    w("| Area | Subsystem | Owners | Bytes | " + " | ".join(c for c, _ in cols) + " | Shadow |")
-    w("|---|---|---:|---:|" + "---:|" * len(cols) + "---|")
+    w("| Area | Subsystem | Owners | Bytes | Shadow | " + " | ".join(c for c, _ in cols)
+      + " | " + comparison_headers + " |")
+    w("|---|---|---:|---:|---|" + "---:|" * (len(cols) + len(function_stats)))
     for key in sorted(subs, key=lambda k: (AREAS.index(k[0]), -sum(g[1] for g in subs[k]), k[1])):
         items = subs[key]
         notes = sorted({rows[i]["shadow_note"] for i in sub_rows[key]} - {"-"})
         t_ = tally(items)
-        w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {t_['b']:,} | "
-          + " | ".join(pct(t_[s + '_b'], t_['b']) for _, s in cols) + f" | {', '.join(notes) or '-'} |")
+        shares = []
+        for _, s in cols:
+            shares.append(f"{pct(t_[s + '_b'], t_['b'])} ({pct(t_[s + '_n'], t_['n'])})"
+                          if t_[s + '_b'] or s == 'verified' else '-')
+        w(f"| {key[0]} | {key[1]} | {len(owners_in[key])} | {t_['b']:,} | {', '.join(notes) or '-'} | "
+          + " | ".join(shares) + " | " + comparison_cells(t_) + " |")
+    w("")
+    w("## Function comparison")
+    w("")
+    w("Registry bindings and exact value comparisons are independent of owner shadow verification.")
+    w("")
+    w("| Step | Bytes | Functions | % of game bytes |")
+    w("|---|---:|---:|---:|")
+    for s in function_stats:
+        w(f"| **{s}** | {whole[s + '_b']:,} | {whole[s + '_n']:,} | {pct(whole[s + '_b'], game_b)} |")
     w("")
     w("## Method verification")
     w("")
@@ -1204,7 +1236,8 @@ def main():
         w("| engine/plugin/compare/*.tsv | absent | no function bindings |")
     if suite_evidence:
         for path in sorted(suite_evidence['inputs']):
-            w(f"| {path.relative_to(REPO).as_posix()} | {text_sha256(path)[:16]} | suite evidence |")
+            label = path.relative_to(REPO).as_posix() if path.is_relative_to(REPO) else path.as_posix()
+            w(f"| {label} | {text_sha256(path)[:16]} | suite evidence |")
     w("")
     w(f"Read from tools/regress.ps1: {len(replace_list)} replace keys, {len(shadow_list)} shadows. On by default in "
       f"FC4Subsystems.cpp: {', '.join(sorted(k for k, v in keys.items() if v))}.")
@@ -1228,6 +1261,9 @@ def main():
     if suite_evidence:
         print(f"suite {args.suite}: " + ", ".join(
             f"{s} {whole[s + '_b']} bytes ({pct(whole[s + '_b'], game_b)})" for s in suite_stats))
+        if suite_evidence.get('key_sources'):
+            sources = Counter(s['source'].split(':', 1)[0] for s in suite_evidence['key_sources'].values())
+            print("suite sources: " + ", ".join(f"{source} {count} keys" for source, count in sorted(sources.items())))
 
 
 if __name__ == "__main__":
