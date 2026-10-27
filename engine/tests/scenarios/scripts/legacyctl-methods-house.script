@@ -1,0 +1,21 @@
+# Legacy-control reach: keep time paused until the framework has delivered UI actions.
+# Command IDs and query point follow the existing ui29-house scenario.
+2026-01-28 turbo off
+2026-01-28 pause
+2026-01-28 mark method-legacyctl31 query and budget window reach
+2026-01-28 uicommand 0x6a935cf3
+2026-01-28 uiwait 500
+2026-01-28 uimouse 600 350 click
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935ca4
+2026-01-28 uicontrol 0x00000041
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uicommand 0x6a935ca8
+2026-01-28 uiwait 500
+2026-01-28 uikey 27
+2026-01-28 uiwait 500
+2026-01-28 resume
+2026-01-28 turbo on
+2026-01-28 mark method-legacyctl31 UI actions finished
