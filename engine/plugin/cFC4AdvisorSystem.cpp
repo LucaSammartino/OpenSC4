@@ -37,11 +37,16 @@
 #include "cIGZApp.h"
 #include "cIGZCheatCodeManager.h"
 #include "cIGZFrameWork.h"
+#include "cIGZCOM.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
 #include "cIGZString.h"
 #include "cISC4App.h"
+#include "cISC4Advisor.h"
 #include "cISC4City.h"
+#include "cISC4NeighborsSimulator.h"
+#include "cISC4NeighborConnection.h"
+#include "cISC4NeighborDeal.h"
 #include "cISC4View3DWin.h"
 #include "cISCLua.h"
 #include "cRZBaseString.h"
@@ -507,6 +512,31 @@ uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
 // The core object behind a front is gone (FC4AdvLife.h).
 void ObjectDroppedCb(void*, uint64_t token) { fc4::AdvFront::Dropped(token); }
 
+uint64_t ForeignAdvisor(void*, uint64_t token, uint32_t operation, int32_t arg) {
+    if (operation == 0) {
+        cIGZFrameWork* fw = RZGetFrameWork();
+        cIGZCOM* com = fw ? fw->GetCOMObject() : nullptr;
+        cISC4Advisor* a = nullptr;
+        if (com && com->GetClassObject(static_cast<uint32_t>(token), 0xCA09F544,
+                                      reinterpret_cast<void**>(&a)) && a) {
+            FC4_ACQUIRED(a, "GetClassObject");
+            return fc4::TokenOf(a);
+        }
+        return 0;
+    }
+    auto* a = reinterpret_cast<cISC4Advisor*>(static_cast<uintptr_t>(token));
+    if (!a) return 0;
+    // [abi-ret] advisors.md §4.4 / §5.3 / §12.2: Init, Shutdown and
+    // Simulate return bool on the advisor interface (AL).
+    switch (operation) {
+        case 1: return a->Init(arg);
+        case 2: return a->Shutdown();  // [abi-ret] advisors.md §4.4, §12.2: AL bool.
+        case 3: return a->Simulate(arg);  // [abi-ret] advisors.md §5.3, §12.2: AL bool.
+        case 4: return static_cast<uint32_t>(a->GetID());
+        default: return 0;
+    }
+}
+
 // §6.9: the text rebuild reads the advice entry's title and message.
 // [question AD12] the detokenizer pass (UI) is not run on them here.
 void RebuildTextCb(void* u, uint32_t, uint64_t token) {
@@ -673,6 +703,49 @@ void RegisterApi(void* u, bool global) {
 
 void ReloadScriptsCb(void* u) { Self(u)->ReloadScripts(); }
 
+// advisors.md section 7.8: these lists own references supplied by the game
+// (neighbors.md section 1). AppCity and its simulator getter are borrowed.
+bool NeighborValue(void*, const fc4_adv_src* src, fc4_adv_val* out) {
+    if (!src || !out) return false;
+    cISC4City* city = AppCity();
+    auto* neighbors = city ? city->GetNeighborsSimulator() : nullptr;
+    if (!neighbors) return false;
+    *out = {};
+    if (src->kind == FC4_ADV_SRC_DEAL_COUNT) {
+        fc4::GameList<cISC4NeighborConnection*> list;
+        if (!list.valid()) return false;
+        neighbors->FindDeals(static_cast<int32_t>(src->a),
+            reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list));
+        for (auto& p : list) {
+            auto* deal = reinterpret_cast<cISC4NeighborDeal*>(p);
+            FC4_ACQUIRED(deal, "FindDeals list");
+            ++out->i;
+            FC4_RELEASE(deal);
+            p = nullptr;
+        }
+        return true;
+    }
+    if (src->kind == FC4_ADV_SRC_CONNECTIONS_OF_TYPE) {
+        fc4::GameList<cISC4NeighborConnection*> list;
+        if (!list.valid()) return false;
+        neighbors->GetConnectionsOfType(static_cast<cISC4NeighborsSimulator::ConnectionType>(src->a),
+            reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list));
+        for (auto& p : list) {
+            FC4_ACQUIRED(p, "GetConnectionsOfType list");
+            ++out->i;
+            FC4_RELEASE(p);
+            p = nullptr;
+        }
+        return true;
+    }
+    return false;
+}
+
+int64_t NeighborList(void* u, uint32_t kind, uint32_t a, const uint32_t*, size_t,
+                     fc4_adv_item* out, size_t capacity) {
+    return Self(u)->ReadNeighborList(kind, a, out, capacity);
+}
+
 fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     fc4_advisor_host h{};
     h.struct_size = sizeof(h);
@@ -716,10 +789,50 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.object_created = &ObjectCreated;
     h.object_dropped = &ObjectDroppedCb;
     h.rebuild_text = &RebuildTextCb;
+    h.foreign_advisor = &ForeignAdvisor;
+    h.value = &NeighborValue;
+    h.list = &NeighborList;
     return h;
 }
 
 }  // namespace
+
+int64_t cFC4AdvisorSystem::ReadNeighborList(uint32_t kind, uint32_t a, fc4_adv_item* out, size_t capacity) {
+    return neighborLists_.Read(kind, a, out, capacity, [kind, a](std::vector<fc4_adv_item>& items) {
+        if (kind != 6 && kind != 7) return false;
+        cISC4City* city = AppCity();
+        auto* neighbors = city ? city->GetNeighborsSimulator() : nullptr;
+        if (!neighbors) return false;
+        fc4::GameList<cISC4NeighborConnection*> list;
+        if (!list.valid()) return false;
+        auto& sdkList = reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list);
+        if (kind == 7) neighbors->ProposeDeals(sdkList, false);
+        else if (a == 0) neighbors->GetAllConnections(sdkList);
+        else neighbors->GetConnectionsOfType(static_cast<cISC4NeighborsSimulator::ConnectionType>(a), sdkList);
+        for (auto& p : list) {
+            fc4_adv_item item{};
+            if (kind == 7) {
+                // The SDK mis-types deal lists as connection lists (neighbors.md section 1).
+                auto* deal = reinterpret_cast<cISC4NeighborDeal*>(p);
+                FC4_ACQUIRED(deal, "ProposeDeals list");
+                item.kind = static_cast<uint32_t>(deal->GetType());
+                FC4_RELEASE_CREATED(deal);
+            } else {
+                FC4_ACQUIRED(p, "neighbor connections list");
+                item.kind = static_cast<uint32_t>(p->GetType());
+                int32_t x = 0, z = 0;
+                p->GetConnectionInnerCell(x, z);
+                item.x = static_cast<float>(x);
+                item.z = static_cast<float>(z);
+                FC4_RELEASE(p);
+            }
+            p = nullptr;  // already released; GameList owns only the node now
+            items.push_back(item);
+        }
+        if (kind == 7) fc4::Log("advisors neighbor proposals: %zu (single snapshot)", items.size());
+        return true;
+    });
+}
 
 fc4_advisors* fc4::CurrentAdvisorCore() { return g_live != nullptr ? g_live->Core() : nullptr; }
 
@@ -796,6 +909,28 @@ void fc4::FillMySimLuaHost(fc4_mysim_host* h) {
 }
 
 cIGZUnknown* CreateFC4AdvisorSystem() { return (new cFC4AdvisorSystem())->Primary(); }
+
+// §11: the class store must construct our saved children too. Recreating
+// advisors from Lua after dropping native references loses saved counters,
+// advice ordering and subjects. Keep the factory handle until its first QI.
+cIGZUnknown* CreateFC4AdvisorObject(uint32_t clsid) {
+    fc4_advisors* core = fc4::CurrentAdvisorCore();
+    fc4_adv_obj* h = core ? fc4_advisors_create_object(core, clsid) : nullptr;
+    if (!h) return nullptr;
+    cIGZUnknown* front = fc4::FromToken(fc4_adv_obj_token(h));
+    if (!front) {
+        fc4_adv_obj_destroy(h);
+        return nullptr;
+    }
+    if (clsid == 0x6A26D049) {
+        static_cast<cFC4AdviceSubject*>(static_cast<cFC4ISC4AdviceSubject*>(front))->HoldForFactory(h);
+    } else if (clsid == 0x8A09F5F4 || clsid == 0xAA371C32 || clsid == 0x6A3848DB) {
+        static_cast<cFC4Advice*>(static_cast<cFC4ISC4Advice*>(front))->HoldForFactory(h);
+    } else {
+        static_cast<cFC4Advisor*>(static_cast<cFC4ISC4Advisor*>(front))->HoldForFactory(h);
+    }
+    return front;
+}
 
 // ---- the cheat handler (+8) -------------------------------------------------------------------------------
 

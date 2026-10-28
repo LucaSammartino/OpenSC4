@@ -498,6 +498,7 @@ pub struct fc4_advisor_host {
     pub resolve_ref: Option<unsafe extern "C" fn(U, u64, u32) -> u64>,
     pub object_created: Option<unsafe extern "C" fn(U, u32, u32, *mut fc4_adv_obj) -> u64>,
     pub object_dropped: Option<unsafe extern "C" fn(U, u64)>,
+    pub foreign_advisor: Option<unsafe extern "C" fn(U, u64, u32, i32) -> u64>,
 }
 
 /// What the MySims need from the game (fc4.h `fc4_mysim_host`).
@@ -784,7 +785,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_mysim_post>() == 24);
     assert!(std::mem::size_of::<fc4_mysims_agent_state>() == 40);
     assert!(std::mem::size_of::<fc4_mysim_state>() == 240);
-    assert!(std::mem::size_of::<fc4_advisor_host>() == 2 * p + 65 * p);
+    assert!(std::mem::size_of::<fc4_advisor_host>() == 2 * p + 66 * p);
     assert!(std::mem::size_of::<fc4_mysim_host>() == 2 * p + 47 * p);
 };
 
@@ -1325,6 +1326,9 @@ impl AdvisorHost for CHost {
         if token != 0 {
             cb!(self, object_dropped, (), token)
         }
+    }
+    fn foreign_advisor(&self, token: u64, operation: u32, arg: i32) -> u64 {
+        cb!(self, foreign_advisor, 0, token, operation, arg)
     }
 }
 

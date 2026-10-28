@@ -18,6 +18,13 @@ int AdvisorsRegistrationTest(const std::string& dll, const std::string& ini, con
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         CHECK(std::count(classes.begin(), classes.end(), clsid) == (enabled ? 1 : 0));
+        const uint32_t children[] = {
+            0xEAC937B4, 0xCA09F543, 0x2A5F877D, 0x4BE372CD, 0xAA5292D7,
+            0x6A5F8755, 0xEA19E825, 0x4A3AD3E1, 0xCA2C2A2F,
+            0x8A09F5F4, 0xAA371C32, 0x6A3848DB, 0x6A26D049,
+        };
+        for (uint32_t child : children)
+            CHECK(std::count(classes.begin(), classes.end(), child) == (enabled ? 1 : 0));
         void* obj = nullptr;
         CHECK(director->GetClassObject(clsid, iid, &obj) == enabled);
         if (enabled) {
@@ -30,6 +37,12 @@ int AdvisorsRegistrationTest(const std::string& dll, const std::string& ini, con
                     CHECK(iface != nullptr);
                     if (iface != nullptr) static_cast<cIGZUnknown*>(iface)->Release();
                 }
+                for (uint32_t child : children) {
+                    void* saved = nullptr;
+                    CHECK(director->GetClassObject(child, 0xE4FDA3D4u, &saved));
+                    CHECK(saved != nullptr);
+                    if (saved) static_cast<cIGZUnknown*>(saved)->Release();
+                }
                 CHECK(system->Release() == 0);
             }
         } else {
@@ -38,7 +51,7 @@ int AdvisorsRegistrationTest(const std::string& dll, const std::string& ini, con
     }
     FreeLibrary(hd);
     const std::string text = ReadFile(log);
-    CHECK(text.find(enabled ? "subsystem 'advisors': enabled (1 class replaced)" :
+    CHECK(text.find(enabled ? "subsystem 'advisors': enabled (14 classes replaced)" :
                               "subsystem 'advisors': off by default") != std::string::npos);
     CHECK(text.find("WARNING: released last reference") == std::string::npos);
     CHECK(text.find("WARNING: over-release") == std::string::npos);

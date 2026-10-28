@@ -8,7 +8,7 @@
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use crate::rng::RzRandomSuper;
@@ -59,7 +59,7 @@ pub struct CitySituationState {
     pub automata_managers: Vec<u64>,
     pub track_list: Vec<TrackEntry>,
     pub tracked: BTreeSet<u64>,
-    pub success_counts: BTreeMap<u32, u16>,
+    pub success_counts: crate::stl::StlHashMap<u16>,
     pub status: u32,
     pub active_automaton: Option<u64>,
     pub current_target: Option<u64>,
@@ -97,7 +97,8 @@ impl Default for CitySituationState {
             automata_managers: Vec::new(),
             track_list: Vec::new(),
             tracked: BTreeSet::new(),
-            success_counts: BTreeMap::new(),
+            // SPEC-GAP: §7 does not give a bucket hint; use the STLport default.
+            success_counts: crate::stl::StlHashMap::new(),
             status: status::IDLE,
             active_automaton: None,
             current_target: None,
@@ -258,7 +259,7 @@ impl CitySituationManager {
                 if g == 0 {
                     break;
                 }
-                s.success_counts.insert(g, 1);
+                *s.success_counts.entry(g, || 1) = 1;
             }
         }
         // 9. Release the held window; initialised.
@@ -977,7 +978,7 @@ impl CitySituationManager {
         // 1.
         {
             let mut s = self.s.borrow_mut();
-            let c = s.success_counts.entry(info.guid).or_insert(0);
+            let c = s.success_counts.entry(info.guid, || 0);
             if *c < MAX_SUCCESS_COUNT {
                 *c += 1;
             }
@@ -1038,7 +1039,7 @@ impl CitySituationManager {
 
     /// Slot 5 / Lua `get_success_count`.
     pub fn success_count(&self, guid: u32) -> u16 {
-        self.s.borrow().success_counts.get(&guid).copied().unwrap_or(0)
+        self.s.borrow().success_counts.get(guid).copied().unwrap_or(0)
     }
 
     /// Lua `activate_situation(guid [, showBriefing])`: posts `0xAC1045EF`.
@@ -1376,7 +1377,7 @@ impl SaveObject for CitySituationManager {
         CLSID_CITY_SITUATION
     }
 
-    /// §7: version 2, the counts (ascending GUID, [choice]), the visible
+    /// §7: version 2, the counts in hash-map order, the visible
     /// flag. True unless the stream reports an error.
     fn write(&self, out: &mut dyn OutStream) -> bool {
         let (counts, visible) = {
@@ -1385,7 +1386,7 @@ impl SaveObject for CitySituationManager {
         };
         out.put_u16(RECORD_VERSION);
         out.put_u32(counts.len() as u32);
-        for (g, c) in counts {
+        for (g, &c) in counts.iter() {
             out.put_u32(g);
             out.put_u16(c);
         }
@@ -1415,7 +1416,7 @@ impl SaveObject for CitySituationManager {
             let (Some(g), Some(c)) = (inp.get_u32(), inp.get_u16()) else {
                 return false;
             };
-            self.s.borrow_mut().success_counts.entry(g).or_insert(c);
+            self.s.borrow_mut().success_counts.entry(g, || c);
         }
         if version >= 2 {
             let Some(v) = inp.get_u8() else {

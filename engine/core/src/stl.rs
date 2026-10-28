@@ -247,7 +247,7 @@ fn adjust_heap<T: Copy>(a: &mut [T], mut hole: usize, v: T, less: &mut dyn FnMut
 /// each old bucket's nodes (head first) to the head of their new bucket; a
 /// new node goes to the head of its bucket. Iteration: buckets in ascending
 /// order, each from its head.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct StlHashMap<V> {
     /// Each bucket stores its nodes tail first (the head is the last
     /// element), so a head insertion is a push.

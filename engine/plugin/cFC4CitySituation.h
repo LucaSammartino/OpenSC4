@@ -23,8 +23,8 @@
 // 0x6BB1437A at +0, 0x452294AA at +4, 0xE98B2F57 at +8, and 1 / 0xE4FDA3D4 at
 // +0xC. A sub-object at +0x10 (the window procedure) is not reachable.
 //
-// This is the §8 **minimal replacement** [choice] the spec sanctions: it keeps
-// the record byte for byte and answers the interface with "no situation". The
+// This keeps the §8 minimal replacement's mission gameplay boundary and
+// implements the unattended advice/automaton indicator tracking of §4.2. The
 // mission gameplay itself (targets, pursuit, coverage, the player-drive
 // camera, the windows and effects) is deliberately out of scope — §0 calls a
 // full one "a gameplay feature of several thousand lines". The host table
@@ -52,9 +52,12 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <vector>
 
 class cIGZMessageServer2;
 class cISC4City;
+class cISC4AutomataManager;
+class cISCLua;
 
 static const uint32_t kFC4_CLSID_cSC4CitySituationManager = 0x0BB14381;
 static const uint32_t kFC4_IID_cISC4CitySituationManager = 0x6BB1437A;
@@ -86,7 +89,7 @@ public:
     float GetCurrentTimeLimitSeconds() override;
     float GetCurrentSituationTime() override;
     float GetCurrentTimeRemainingSeconds() override;
-    void GetCurrentTargetName(cIGZString& out) override;
+    cIGZString& GetCurrentTargetName(cIGZString& out) override;
     bool GetSituationAura(float& radius, float& magnitude) override;
     bool GetSituationMoney(int64_t& money) override;
     bool IsSituationAvailable(cISC4Automaton* automaton) override;
@@ -123,13 +126,13 @@ public:
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
     cIGZUnknown* Primary() { return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4CitySituationManager*>(this)); }
 
-    bool msgServerHeld = false;
     cIGZMessageServer2* Server();
     void SetServer(cIGZMessageServer2* ms);
     cISC4City* City();
     void SetCity(cISC4City* c);
     void Send(uint32_t type, uint32_t data1, uint32_t data2, uint64_t object);
     void Post(uint32_t type, uint64_t object, uint32_t data1, uint32_t data2);
+    void FillCurrentTargetName(cIGZString& out);  // constructed string, for Lua
 
 private:
     uint32_t refCount_ = 0;
@@ -154,6 +157,10 @@ public:
     std::atomic<uint32_t> ticks{0};
     std::atomic<uint32_t> messages{0};
     bool tickRegistered = false;
+    cIGZUnknown* indicatorView = nullptr;  // acquired primary; dispatch.md §4.1.3
+    cISCLua* lua = nullptr;  // held between Init and Shutdown (§4.1)
+    cIGZUnknown* dataRegistry = nullptr;  // held while sitmgr is published
+    std::vector<cISC4AutomataManager*> automataManagers;  // borrowed from the core's holds
     void Note(int slot, const char* name);
 };
 

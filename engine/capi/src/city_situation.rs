@@ -1110,17 +1110,18 @@ pub unsafe extern "C" fn fc4_citysit_success_counts(
     capacity: usize,
 ) -> usize {
     with_p(p, 0, |h| {
-        let v: Vec<fc4_citysit_success_count> = h
+        let mut v: Vec<fc4_citysit_success_count> = h
             .sim
             .snapshot()
             .success_counts
             .iter()
-            .map(|(&guid, &count)| fc4_citysit_success_count {
+            .map(|(guid, &count)| fc4_citysit_success_count {
                 guid,
                 count,
                 reserved: 0,
             })
             .collect();
+        v.sort_by_key(|entry| entry.guid);
         copy_out(&v, out, capacity)
     })
 }

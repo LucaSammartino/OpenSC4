@@ -472,7 +472,7 @@ fn cs12_01_record_round_trip() {
     // Version 3 is rejected before anything changes.
     let (_w, m) = setup();
     m.with_state(|s| {
-        s.success_counts.insert(5, 9);
+        *s.success_counts.entry(5, || 9) = 9;
     });
     assert!(!m.read(&mut ByteReader::new(&[0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])));
     assert_eq!(m.success_count(5), 9);
@@ -518,6 +518,31 @@ fn cs12_03_profile_rewards() {
     assert_eq!(m.success_count(7), 1);
     assert_eq!(m.success_count(9), 1);
     assert_eq!(m.success_count(8), 4);
+}
+
+#[test]
+fn success_record_keeps_hash_bucket_chains_when_profile_counts_are_overwritten() {
+    let record = |pairs: &[(u32, u16)]| {
+        let mut bytes = vec![2, 0];
+        bytes.extend_from_slice(&(pairs.len() as u32).to_le_bytes());
+        for (guid, count) in pairs {
+            bytes.extend_from_slice(&guid.to_le_bytes());
+            bytes.extend_from_slice(&count.to_le_bytes());
+        }
+        bytes.push(1);
+        bytes
+    };
+    let (w, m) = setup();
+    // 1, 194 and 387 share a bucket. A duplicate read keeps the first
+    // count; a profile overwrite changes its value without moving its node.
+    let input = record(&[(1, 8), (194, 9), (2, 4), (1, 99)]);
+    assert!(m.read(&mut ByteReader::new(&input)));
+    assert_eq!(m.success_count(1), 8);
+    w.rewards.borrow_mut()[..2].copy_from_slice(&[1, 387]);
+    m.init();
+    let mut out = ByteWriter::new();
+    assert!(m.write(&mut out));
+    assert_eq!(out.bytes(), record(&[(387, 1), (194, 9), (1, 1), (2, 4)]));
 }
 
 #[test]
@@ -648,7 +673,7 @@ fn success_reward_and_saturation() {
         },
     );
     m.with_state(|s| {
-        s.success_counts.insert(G, MAX_SUCCESS_COUNT);
+        *s.success_counts.entry(G, || MAX_SUCCESS_COUNT) = MAX_SUCCESS_COUNT;
     });
     w.rewards.borrow_mut()[0] = 5;
     m.handle_status_changed(status::SUCCESS);
@@ -1205,7 +1230,7 @@ fn getters_and_reset() {
     assert!(w.has("show_all 4 false"));
     assert!(m.handle_tuning_parameters_changed());
     m.with_state(|s| {
-        s.success_counts.insert(1, 4);
+        *s.success_counts.entry(1, || 4) = 4;
     });
     w.rewards.borrow_mut()[0] = 1;
     m.reset_tutorials();

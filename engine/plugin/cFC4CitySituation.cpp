@@ -18,12 +18,18 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4GameList.h"
+#include "FC4Properties.h"
+#include "cFC4Variant.h"
+#include "cFC4AdvisorObjects.h"
 #include "cFC4Message2Standard.h"
 #include "FC4LotDevInterfaces.h"  // cFC4ISC4AnimationTickManager (lot-developer.md §6.7.8)
 
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <algorithm>
 
 #include "SC4Preferences.h"
 #include "GZServPtrs.h"
@@ -31,11 +37,21 @@
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
+#include "cIGZCommandParameterSet.h"
+#include "cISC4GameDataRegistry.h"
+#include "cISCLua.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
 #include "cISC4AuraSimulator.h"
 #include "cISC4BudgetSimulator.h"
 #include "cISC4CitySituationAdvice.h"
+#include "cISC4AdvisorSystem.h"
+#include "cISC4AutomataManager.h"
+#include "cISC4Automaton.h"
+#include "cISC4DispatchManager.h"
+#include "cISC4Occupant.h"
+#include "cISCPropertyHolder.h"
+#include "SC4Vector.h"
 #include "cRZCOMDllDirector.h"
 
 namespace {
@@ -60,6 +76,41 @@ constexpr uint32_t kMsgShowPopupNoAdvice = 0x2C16BDE7;
 
 cFC4CitySituationManager* Self(void* u) { return static_cast<cFC4CitySituationManager*>(u); }
 
+// Tokens retain the interface identity used by their producer. Query before
+// crossing to another interface (occupant insertion uses an occupant pointer).
+template <class T> class Queried {
+public:
+    Queried(uint64_t token, uint32_t iid) {
+        auto* object = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(token));
+        if (object && object->QueryInterface(iid, reinterpret_cast<void**>(&p_)) && p_)
+            FC4_ACQUIRED(p_, "QueryInterface");
+    }
+    ~Queried() { if (p_) FC4_RELEASE(p_); }
+    T* operator->() const { return p_; }
+    T* Get() const { return p_; }
+    explicit operator bool() const { return p_ != nullptr; }
+    Queried(const Queried&) = delete;
+    Queried& operator=(const Queried&) = delete;
+private:
+    T* p_ = nullptr;
+};
+
+using Situation = Queried<cISC4CitySituationAdvice>;
+using Automaton = Queried<cISC4Automaton>;
+
+// The SDK's slot 59 name is stale (automata.md §7.2, AT16):
+// GetTopStateType, not a behaviour pointer. All preceding slots are untouched.
+uint32_t TopStateType(cISC4Automaton* a) {
+    using Fn = uint32_t (__thiscall*)(void*);
+    return reinterpret_cast<Fn>((*reinterpret_cast<void***>(a))[59])(a);
+}
+
+cFC4ISC4Advisor* SituationAdvisor(void* u) {
+    auto* city = Self(u)->City();
+    auto* system = city ? city->GetAdvisorSystem() : nullptr;
+    return system ? reinterpret_cast<cFC4ISC4Advisor*>(system->GetAdvisor(29)) : nullptr;
+}
+
 cISC4App* App() {
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;
@@ -80,11 +131,9 @@ cISC4App* App() {
 // aura's AddTransientEffect and the budget's DepositFunds (the §4.5
 // outcome), and the messages of §3.
 //
-// Stubs (a missing callback reads as 0 / false / none): the cheat (the cheat
-// code manager is not in this lane's interface set), the indicator view
-// (question CS12: the vehicle view's ShowAllIndicators / TrackAutomaton slots
-// are not specified), the `sitmgr` Lua table (question CS13: its registry
-// entries are not specified), and the mission gameplay — targets and their
+// Tracking uses advisor 29, automata group queries and the dispatch view's
+// direct native boundary (dispatch.md §4.1.3). Stubs: the cheat (the cheat
+// code manager is not in this lane's interface set) and the mission gameplay — targets and their
 // names, coverage cells, pursuit, CheckForSuccess's steps 2-4, the countdown
 // and outcome effects, the player-drive mode, the joyride, the mission script
 // and the popup. city-situation.md §0 puts the gameplay out of a
@@ -118,13 +167,18 @@ void UnsubscribeCb(void* u, uint32_t t) {
     if (cIGZMessageServer2* ms = s->Server()) ms->RemoveNotification(s->Target(), t);
 }
 
-bool AcquireIndicatorView(void*) {
-    // The dispatch manager's indicator view (dispatch slot 22). The shadow and
-    // the minimal replacement only need ShowAllIndicators, which is a separate
-    // callback; without the view the core's indicator calls do nothing.
-    return false;
+bool AcquireIndicatorView(void* u) {
+    auto* s = Self(u);
+    auto* dispatch = s->City() ? s->City()->GetDispatchManager() : nullptr;
+    s->indicatorView = dispatch ? reinterpret_cast<cIGZUnknown*>(dispatch->GetDispatchVehicleView()) : nullptr;
+    if (s->indicatorView) FC4_ADDREF(s->indicatorView);  // slot 22 is borrowed (dispatch.md §4.1.3)
+    return s->indicatorView != nullptr;
 }
-void ReleaseIndicatorView(void*) {}
+void ReleaseIndicatorView(void* u) {
+    auto* s = Self(u);
+    if (s->indicatorView) FC4_RELEASE(s->indicatorView);
+    s->indicatorView = nullptr;
+}
 
 // The animation-tick manager (framework service 0x86AD10EC, IID 0x86AD10ED;
 // lot-developer.md §6.7.8), held only for the call.
@@ -166,18 +220,175 @@ void UnregisterAnimationTick(void* u) {
     s->tickRegistered = false;
 }
 
-void AcquireAutomataManagers(void*, fc4_token_callback, void*) {}
+void AcquireAutomataManagers(void* u, fc4_token_callback cb, void* ctx) {
+    auto* s = Self(u);
+    s->automataManagers.clear();
+    if (!s->City()) return;
+    // city-situation.md §4.1 step 3: this order, references returned held.
+    for (auto* manager : {s->City()->GetVehicleManager(), s->City()->GetAircraftManager(),
+                          s->City()->GetPedestrianManager(), s->City()->GetWatercraftManager()}) {
+        if (!manager) continue;
+        FC4_ADDREF(manager);
+        s->automataManagers.push_back(manager);
+        cb(ctx, fc4::TokenOf(manager));
+    }
+}
 bool AcquireLotManager(void*) { return false; }
 void ReleaseLotManager(void*) {}
 bool AcquireMysim(void*) { return false; }
 void ReleaseMysim(void*) {}
-bool AcquireLua(void*) { return false; }
-void ReleaseLua(void*) {}
-void CreateLuaTable(void*) {}
-void RemoveLuaTable(void*) {}
+bool AcquireLua(void* u) {
+    auto* s = Self(u);
+    if (!s->lua) if (auto* app = App()) {
+        s->lua = app->GetLuaInterpreter();  // borrowed, lua-host.md §11
+        if (s->lua) FC4_ADDREF(s->lua);
+        FC4_RELEASE(app);
+    }
+    return s->lua != nullptr;
+}
+void ReleaseLua(void* u) {
+    auto* s = Self(u);
+    if (s->lua) FC4_RELEASE(s->lua);
+    s->lua = nullptr;
+}
+
+// foundations.md §17.7 / game-data-registry.md §1: compiled prefix through
+// slot 21. The SDK reverses overload groups; do not call them through it.
+class SituationRegistry : public cIGZUnknown {
+public:
+    using Entry = cISC4GameDataRegistry::cEntry;
+    using Call = cISC4GameDataRegistry::AddChildEntryCallback2;
+    using Exchange = cISC4GameDataRegistry::AddChildEntryCallback1;
+    virtual Entry* AddCall(void*, const char*, Call, Entry*, int32_t, void*) = 0;  // 3
+    virtual Entry* AddExchange(void*, const char*, Exchange, Entry*, int32_t, void*) = 0;  // 4
+    virtual Entry* AddNode(cIGZUnknown*, const char*, Entry*, int32_t, void*) = 0;  // 5
+    virtual bool RemoveRaw(void*) = 0;  // 6
+    virtual bool RemoveNode(cIGZUnknown*) = 0;  // 7
+    virtual Entry* FindRaw(void*) const = 0;  // 8
+    virtual Entry* FindNode(cIGZUnknown*) const = 0;  // 9
+    virtual Entry* GetNode(Entry*) const = 0;  // 10
+    virtual void* GetValue(Entry*) const = 0;  // 11
+    virtual bool IsValid(Entry*) const = 0;  // 12
+    virtual bool IsNode(Entry*) const = 0;  // 13
+    virtual cIGZString* GetName(Entry*) const = 0;  // 14
+    virtual bool ExchangeValue(Entry*, cIGZVariant&, bool) = 0;  // 15
+    virtual bool CallValue(Entry*, cIGZCommandParameterSet*, cIGZCommandParameterSet*) = 0;  // 16
+    virtual bool SetContext(Entry*, void*) = 0;  // 17
+    virtual void* GetContext(Entry*) const = 0;  // 18
+    virtual bool CheckFlags(Entry*, int32_t) const = 0;  // 19
+    virtual Entry* GetParent(Entry*) const = 0;  // 20
+    virtual Entry* GetRoot() const = 0;  // 21
+};
+
+uint32_t SituationLuaGuid(const cFC4IGZVariant* arg) {
+    if (!arg) return 0;
+    if (arg->GetType() == cIGZVariant::RZCharArray || arg->GetType() == cIGZVariant::CharArray) {
+        cRZBaseString text;
+        if (!arg->GetValString(text)) return 0;
+        // SPEC-GAP: string GUIDs are hexadecimal, with optional 0x prefix (CS13).
+        return static_cast<uint32_t>(std::strtoul(text.ToChar(), nullptr, 16));
+    }
+    // lua-host.md §9.3: Lua numbers arrive as Float64 variants.
+    return static_cast<uint32_t>(static_cast<int64_t>(arg->GetValFloat64()));
+}
+
+template <int Kind>
+bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParameterSet* out,
+                      cISC4GameDataRegistry* native) {
+    // game-data-registry.md §3.3: the callback receives its raw key, not
+    // the separately stored context. Resolve the publisher through that key.
+    auto* registry = reinterpret_cast<SituationRegistry*>(native);
+    auto* entry = registry ? registry->FindRaw(key) : nullptr;
+    auto* s = entry ? Self(registry->GetContext(entry)) : nullptr;
+    if (!s) return false;
+    std::lock_guard<std::recursive_mutex> lock(s->mu);
+    auto* arg = in ? fc4::AsGame(in->GetParameter(0)) : nullptr;
+    if constexpr (Kind == 1) {
+        auto* briefing = in ? fc4::AsGame(in->GetParameter(1)) : nullptr;
+        // SPEC-GAP: the optional briefing argument defaults to true (CS13).
+        s->Post(kMsgInitiateByGuid, 0, SituationLuaGuid(arg),
+                !briefing || briefing->GetValBool() ? 1u : 0u);
+    } else if constexpr (Kind == 5) {
+        if (arg) s->SetCSIVisible(arg->GetValBool());
+    } else if (out) {
+        // lua-host.md §9.4: parameter 0 is the first Lua return value.
+        // operator[] does not insert: on an empty set it returns a shared
+        // empty variant (docs/abi cIGZCommandParameterSet slot 5).
+        // SetParameter inserts it.
+        cFC4Variant result;
+        if constexpr (Kind == 0) {
+            const uint32_t guid = SituationLuaGuid(arg);
+            const auto count = s->GetMissionSuccessCount(guid);
+            if (s->slotCalls[5].load() <= 12)
+                fc4::Log("citysit Lua: get_success_count guid=%08X count=%u type=%u", guid, count,
+                         arg ? arg->GetType() : 0u);
+            result.SetValUint16(count);
+        }
+        if constexpr (Kind == 2) result.SetValUnknown(s->GetCurrentTarget());
+        if constexpr (Kind == 3) result.SetValUnknown(s->GetActiveAuto());
+        if constexpr (Kind == 4) {
+            cRZBaseString name;
+            s->FillCurrentTargetName(name);
+            result.SetValString(name);
+        }
+        if constexpr (Kind == 6) result.SetValUint32(s->GetNumTargetsRemaining());
+        out->SetParameter(0, *fc4::AsSdk(&result));
+    }
+    return true;
+}
+
+template <bool Index>
+bool SituationLuaVariable(void* key, cIGZVariant& value, bool set, cISC4GameDataRegistry* native) {
+    auto* registry = reinterpret_cast<SituationRegistry*>(native);
+    auto* entry = registry ? registry->FindRaw(key) : nullptr;
+    auto* s = entry ? Self(registry->GetContext(entry)) : nullptr;
+    if (!s) return false;
+    std::lock_guard<std::recursive_mutex> lock(s->mu);
+    // SPEC-GAP: mission counters are exposed read-only until CS13 specifies writes.
+    if (set) return false;
+    fc4::AsGame(&value)->SetValUint32(Index ? s->GetCurrentTargetIndex() : s->GetNumTargets());
+    return true;
+}
+
+void CreateLuaTable(void* u) {
+    auto* s = Self(u);
+    if (s->dataRegistry) return;
+    cISC4GameDataRegistryPtr service;
+    if (!service) return;
+    auto* registry = reinterpret_cast<SituationRegistry*>(static_cast<cISC4GameDataRegistry*>(service));
+    // SPEC-GAP: publish through the sc4game mirror, keyed by this manager (CS13).
+    auto* node = registry->AddNode(s->Primary(), "sitmgr", registry->GetRoot(), 0, nullptr);
+    if (!node) return;
+    s->dataRegistry = registry;
+    FC4_ADDREF(s->dataRegistry);
+    const SituationRegistry::Call calls[] = {&SituationLuaCall<0>, &SituationLuaCall<1>, &SituationLuaCall<2>,
+        &SituationLuaCall<3>, &SituationLuaCall<4>, &SituationLuaCall<5>, &SituationLuaCall<6>};
+    const char* names[] = {"get_success_count", "activate_situation", "get_current_target", "get_active_auto",
+        "get_target_name", "show_CSI", "num_targets_remaining"};
+    for (size_t i = 0; i < 7; ++i)
+        registry->AddCall(reinterpret_cast<void*>(calls[i]), names[i], calls[i], node, 1, s);
+    registry->AddExchange(reinterpret_cast<void*>(&SituationLuaVariable<false>), "num_targets",
+                          &SituationLuaVariable<false>, node, 0, s);
+    registry->AddExchange(reinterpret_cast<void*>(&SituationLuaVariable<true>), "cur_target_index",
+                          &SituationLuaVariable<true>, node, 0, s);
+    fc4::Log("citysit Lua: published sc4game.sitmgr (seven calls, two counters)");
+}
+void RemoveLuaTable(void* u) {
+    auto* s = Self(u);
+    auto* registry = reinterpret_cast<SituationRegistry*>(s->dataRegistry);
+    if (!registry) return;
+    s->dataRegistry = nullptr;
+    registry->RemoveNode(s->Primary());  // also removes leaves, game-data-registry.md §4
+    FC4_RELEASE(registry);
+}
 void ReleaseMissionResources(void*) {}
 
-void ShowAllIndicators(void*, uint32_t, bool) {}
+void ShowAllIndicators(void* u, uint32_t kind, bool visible) {
+    using Fn = void (__thiscall*)(void*, uint32_t, bool);
+    auto address = fc4::compat::DirectCall(fc4::compat::Direct::DispatchShowAllIndicators);
+    if (Self(u)->indicatorView && address)
+        reinterpret_cast<Fn>(address)(Self(u)->indicatorView, kind, visible);
+}
 
 // §4.1 step 8, §4.5 step 2 and §4.6 (slot 33): the user preferences'
 // 64-entry reward list at preferences +0x1334 (cISC4App slot 38, borrowed:
@@ -239,11 +450,26 @@ bool IsSituationAdvice(void*, uint64_t object) {
     return ok;
 }
 
-void AdvisorAdvices(void*, fc4_token_callback, void*) {
-    // §4.2: advisor 29's advices. Without the advisor interface in this
-    // lane's set the list is empty: no situation is ever triggered.
+void AdvisorAdvices(void* u, fc4_token_callback cb, void* ctx) {
+    auto* advisor = SituationAdvisor(u);
+    if (!advisor) {
+        fc4::Log("citysit tracking: advisor 29 unavailable at PostCityInit");
+        return;
+    }
+    // advisors.md §12.2: slots 10/11 return a pointer-keyed map, not the
+    // SDK's obsolete list. Snapshot before callbacks may change the tracking.
+    std::vector<uint64_t> advices;
+    const auto status = fc4::WalkGameMap(static_cast<fc4::GameMapObject*>(advisor->GetCurrentAdvices()), 100000,
+                    [&](const fc4::GameMapNode& node) { advices.push_back(node.key); });
+    fc4::Log("citysit tracking: PostCityInit map=%s, %u advices", fc4::GameMapStatusName(status),
+             static_cast<unsigned>(advices.size()));
+    if (status != fc4::GameMapStatus::Ok) return;
+    for (auto advice : advices) cb(ctx, advice);
 }
-uint64_t FindAdvice(void*, uint32_t) { return 0; }
+uint64_t FindAdvice(void* u, uint32_t guid) {
+    auto* advisor = SituationAdvisor(u);
+    return advisor ? fc4::TokenOf(advisor->GetAdviceByGUID(guid)) : 0;
+}
 
 // The advice fields the core reads (fc4_citysit_advice_info, §6 of the capi
 // docs). Zeroed first by the core; nothing is readable here, so it stays zero.
@@ -256,7 +482,11 @@ bool BuildCoverageCells(void*, uint64_t) { return false; }
 uint64_t FirstTarget(void*, uint64_t) { return 0; }
 uint32_t TargetCount(void*, uint64_t) { return 0; }
 void TargetName(void*, uint64_t, uint64_t, fc4_bytes_sink, void*) {}
-bool AdviceAcceptsAutomaton(void*, uint64_t, uint64_t) { return false; }
+bool AdviceAcceptsAutomaton(void*, uint64_t advice, uint64_t object) {
+    Situation a(advice, GZIID_cISC4CitySituationAdvice);
+    Automaton vehicle(object, GZIID_cISC4Automaton);
+    return a && vehicle && a->IsAutomatonRelevant(vehicle.Get());
+}
 
 bool IsAutomaton(void*, uint64_t object) {
     if (object == 0) return false;
@@ -272,14 +502,69 @@ bool IsAutomaton(void*, uint64_t object) {
     }
     return ok;
 }
-bool OccupantHasProperty(void*, uint64_t, uint32_t) { return false; }
-void CandidateVehicles(void*, uint64_t, fc4_token_callback, void*) {}
-uint32_t AutomatonFlags(void*, uint64_t) { return 0; }
-uint32_t AutomatonType(void*, uint64_t) { return 0; }
-uint32_t TrackIndicator(void*, uint64_t) { return 0; }
-void UntrackIndicator(void*, uint32_t) {}
-void AddListener(void*, uint64_t) {}
-void RemoveListener(void*, uint64_t) {}
+bool OccupantHasProperty(void*, uint64_t object, uint32_t property) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    auto* occupant = a ? a->AsOccupant() : nullptr;
+    auto* holder = occupant ? occupant->AsPropertyHolder() : nullptr;
+    return holder && holder->HasProperty(property);
+}
+void CandidateVehicles(void* u, uint64_t advice, fc4_token_callback cb, void* ctx) {
+    Situation a(advice, GZIID_cISC4CitySituationAdvice);
+    auto* groups = a ? a->GetAutomataGroups() : nullptr;
+    if (!groups) return;
+    // automata.md §7.3: a caller-owned pointer set; each inserted value is
+    // returned held, and ReleaseAutomatonSet consumes those references.
+    fc4::GameHashSetU32<fc4::StlNodeAllocator, fc4::PointerHashU32> set(100);
+    for (auto* m : Self(u)->automataManagers)
+        for (uint32_t group : *groups)
+            m->GetInstancesOfGroup(group, reinterpret_cast<intptr_t&>(set));
+    std::vector<uint64_t> candidates;
+    set.ForEach([&](uint32_t value) {
+        FC4_ACQUIRED(reinterpret_cast<cIGZUnknown*>(value), "GetInstancesOfGroup");
+        candidates.push_back(value);
+    });
+    // SPEC-GAP: creation stamps are private to the harness; use native pointer order.
+    std::sort(candidates.begin(), candidates.end());
+    for (auto vehicle : candidates) cb(ctx, vehicle);
+    for (auto vehicle : candidates) {
+        auto* p = reinterpret_cast<cIGZUnknown*>(static_cast<uintptr_t>(vehicle));
+        FC4_RELEASE(p);
+    }
+}
+uint32_t AutomatonFlags(void*, uint64_t object) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    uint32_t flags = 0;
+    if (a) for (uint32_t mask : {1u, 2u, 0x08000000u, 0x10000000u})
+        // [abi-ret] SDK slot 31 returns bool; city-situation.md §4.2 tests these four flags.
+        if (a->CheckAutomataFlag(static_cast<cISC4Automaton::eAutomataFlag>(mask))) flags |= mask;
+    return flags;
+}
+uint32_t AutomatonType(void*, uint64_t object) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    return a ? TopStateType(a.Get()) : 0;
+}
+uint32_t TrackIndicator(void* u, uint64_t object) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    using Fn = uint32_t (__thiscall*)(void*, cISC4Occupant*, uint32_t, uint32_t, const void*);
+    auto address = fc4::compat::DirectCall(fc4::compat::Direct::DispatchTrackOccupant);
+    // SPEC-GAP: city-situation.md does not specify the indicator's number/label; use zero/null.
+    return a && Self(u)->indicatorView && address ?
+        reinterpret_cast<Fn>(address)(Self(u)->indicatorView, a->AsOccupant(), 4, 0, nullptr) : 0;
+}
+void UntrackIndicator(void* u, uint32_t handle) {
+    using Fn = bool (__thiscall*)(void*, uint32_t, bool);
+    auto address = fc4::compat::DirectCall(fc4::compat::Direct::DispatchUntrackOccupant);
+    if (Self(u)->indicatorView && address)
+        reinterpret_cast<Fn>(address)(Self(u)->indicatorView, handle, false);
+}
+void AddListener(void* u, uint64_t object) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    if (a) a->AddCallback(Self(u)->Target());
+}
+void RemoveListener(void* u, uint64_t object) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    if (a) a->RemoveCallback(Self(u)->Target());
+}
 void FreezeAutomata(void*, uint64_t, bool) {}
 void PlaySound(void*, uint64_t, uint32_t) {}
 void Position(void*, uint64_t, float* x, float* z) {
@@ -334,11 +619,17 @@ uint32_t ShowPopup(void*, uint32_t, uint64_t, uint64_t) { return 0; }
 uint64_t NextTarget(void*, uint64_t) { return 0; }
 bool AdviceAcceptsGroup(void*, uint64_t, uint32_t) { return false; }
 size_t AdviceGroups(void*, uint64_t, uint32_t*, size_t) { return 0; }
-uint32_t AdvicePriority(void*, uint64_t) { return 0; }
+uint32_t AdvicePriority(void*, uint64_t advice) {
+    Situation a(advice, GZIID_cISC4CitySituationAdvice);
+    return a ? static_cast<uint32_t>(reinterpret_cast<cFC4ISC4Advice*>(a->AsAdvice())->GetPriority()) : 0;
+}
 void GroupAutomata(void*, uint32_t, fc4_token_callback, void*) {}
 uint64_t CreateAutomatonForPlayerDrive(void*, uint64_t, uint32_t) { return 0; }
 void RemoveAutomaton(void*, uint64_t) {}
-void SetAutomatonFlag(void*, uint64_t, uint32_t) {}
+void SetAutomatonFlag(void*, uint64_t object, uint32_t flag) {
+    Automaton a(object, GZIID_cISC4Automaton);
+    if (a) a->SetAutomataFlag(static_cast<cISC4Automaton::eAutomataFlag>(flag), true);
+}
 void SetAutomatonGroup(void*, uint64_t, uint32_t) {}
 void EnterPlayerDriveView(void*, uint64_t, uint64_t) {}
 void ClearMissionState(void*, uint64_t) {}
@@ -444,7 +735,9 @@ void cFC4CitySituationManager::Note(int slot, const char* name) {
     if (slotCalls[slot].fetch_add(1) == 0) fc4::Log("citysit trace: first call of slot %d %s", slot, name);
 }
 
-cIGZMessageServer2* cFC4CitySituationManager::Server() { return msgServerHeld ? msgServer_ : nullptr; }
+// The constructor acquires msgServer_ and the destructor releases it. Do not
+// gate the held pointer on a second flag: that silently disables all §3 subscriptions.
+cIGZMessageServer2* cFC4CitySituationManager::Server() { return msgServer_; }
 void cFC4CitySituationManager::SetServer(cIGZMessageServer2* ms) { msgServer_ = ms; }
 cISC4City* cFC4CitySituationManager::City() { return city_; }
 void cFC4CitySituationManager::SetCity(cISC4City* c) {
@@ -546,13 +839,29 @@ uint32_t cFC4CitySituationManager::Release() {
 
 bool cFC4CitySituationManager::Init() { FC4_CS_CALL(3, "Init");
     FC4_TRACE("CitySituationManager::Init");
+    fc4_citysit_state before{};
+    before.struct_size = sizeof(before);
+    if (fc4_citysit_get_state(core_, &before) && before.initialized) return true;
+    if (!City()) if (auto* app = App()) {
+        SetCity(app->GetCity());
+        FC4_RELEASE(app);
+    }
+    // §6: automata tuning normally sets the original process-wide byte via
+    // a direct static call. Load the same property into our manager instead.
+    fc4::props::Exemplar tuning;
+    std::vector<uint32_t> limit;
+    uint8_t maxCsi = 0;
+    if (tuning.Load(0x6534284A, 0xA998D30B, 1) &&
+        fc4::props::GetU32s(tuning.Holder(), 0xEBFB4A0A, limit) && !limit.empty())
+        maxCsi = static_cast<uint8_t>(limit.front());
+    fc4_citysit_set_max_csi(core_, maxCsi);
     const bool ok = fc4_citysit_init(core_);
     fc4_citysit_state st{};
     st.struct_size = sizeof(st);
     fc4_citysit_get_state(core_, &st);
-    fc4::Log("citysit Init: ok=%d city=%p server=%p; status=%u indicators=%u successes=%u tick=%d", ok ? 1 : 0,
+    fc4::Log("citysit Init: ok=%d city=%p server=%p; status=%u indicators=%u successes=%u tick=%d max_csi=%u", ok ? 1 : 0,
              static_cast<void*>(city_), static_cast<void*>(msgServer_), st.status, st.indicators_visible,
-             st.success_counts, tickRegistered ? 1 : 0);
+             st.success_counts, tickRegistered ? 1 : 0, static_cast<unsigned>(maxCsi));
     return true;  // §8 slot 3 returns AL (1)
 }
 
@@ -563,6 +872,8 @@ bool cFC4CitySituationManager::Shutdown() {
         // The lock is released before the Release below can destroy us.
         FC4_CS_CALL(4, "Shutdown");
         fc4_citysit_shutdown(core_);
+        automataManagers.clear();
+        SetCity(nullptr);
         fc4_citysit_state st{};
         st.struct_size = sizeof(st);
         fc4_citysit_get_state(core_, &st);
@@ -615,11 +926,22 @@ float cFC4CitySituationManager::GetCurrentTimeRemainingSeconds() { FC4_CS_CALL(1
     return fc4_citysit_time_remaining_seconds(core_);
 }
 
-void cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) { FC4_CS_CALL(16, "GetCurrentTargetName");
-    // Slot 16 fills the caller's string (EAX = the argument). The name comes
-    // from the advice's target through the host, which this replacement does
-    // not wire: the string is left as it is.
-    (void)out;
+void cFC4CitySituationManager::FillCurrentTargetName(cIGZString& out) {
+    fc4_citysit_current_target_name(core_, [](void* ctx, const uint8_t* data, size_t len) {
+        static_cast<cIGZString*>(ctx)->FromChar(reinterpret_cast<const char*>(data),
+                                               static_cast<uint32_t>(len));
+    }, &out);
+}
+
+cIGZString& cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) { FC4_CS_CALL(16, "GetCurrentTargetName");
+    // SPEC-GAP: slot 16 supplies unconstructed cRZString result storage (CS19).
+    // The caller destroys the result inline, so its buffer must use allocator B.
+    cRZBaseString name;
+    FillCurrentTargetName(name);
+    auto& result = *reinterpret_cast<fc4::GameString*>(&out);
+    if (!fc4::GameStringInit(result, name.ToChar(), name.Strlen()))
+        fc4::Log("citysit target-name: native string allocation unavailable");
+    return out;
 }
 
 bool cFC4CitySituationManager::GetSituationAura(float& radius, float& magnitude) { FC4_CS_CALL(17, "GetSituationAura");
@@ -703,6 +1025,10 @@ bool cFC4CitySituationManager::DoMessage(cIGZMessage2* pMessage) {
         object = fc4::TokenOf(m->GetIGZUnknown());
         if (type == kMsgOccupantInserted || type == kMsgOccupantRemoved) {
             object = fc4::TokenOf(reinterpret_cast<void*>(static_cast<uintptr_t>(m->GetData1())));
+            Automaton a(object, GZIID_cISC4Automaton);
+            if (a) object = fc4::TokenOf(a.Get());
+        } else if (type == kMsgAutomatonNotify) {
+            object = data1;  // city-situation.md §4.7: the sender is in data1
         }
         FC4_RELEASE(m);
     }
@@ -738,8 +1064,8 @@ bool cFC4CitySituationManager::Write(cIGZOStream& s) {
     fc4_citysit_state st{};
     st.struct_size = sizeof(st);
     fc4_citysit_get_state(core_, &st);
-    fc4::Log("citysit Write -> %d (%u successes, indicators=%u)", ok ? 1 : 0, st.success_counts,
-             st.indicators_visible);
+    fc4::Log("citysit Write -> %d (%u successes, indicators=%u, track_entries=%u tracked=%u max_csi=%u)",
+             ok ? 1 : 0, st.success_counts, st.indicators_visible, st.track_entries, st.tracked, st.max_csi);
     return ok;
 }
 

@@ -121,6 +121,8 @@ pub struct Ordinance {
 
 /// The scripted host.
 pub struct ScriptedHost {
+    pub foreign_calls: RefCell<Vec<(u64, u32, i32)>>,
+    pub foreign_results: RefCell<BTreeMap<(u64, u32), u64>>,
     /// `None`: the `advisors` global is not a table.
     pub advisors: RefCell<Option<Vec<AdvisorEntry>>>,
     pub advices: RefCell<Vec<AdviceEntry>>,
@@ -191,6 +193,8 @@ impl Default for ScriptedHost {
             difficulty: Cell::new(Some(0)),
             cells: Cell::new((64, 64)),
             date: Cell::new(SimDate::default()),
+            foreign_calls: RefCell::default(),
+            foreign_results: RefCell::default(),
             start_year: Cell::new(2000),
             paused: Cell::new(false),
             now_ms: Cell::new(0),
@@ -564,6 +568,14 @@ impl AdvisorHost for ScriptedHost {
     }
     fn add_ref(&self, token: u64) {
         *self.refs.borrow_mut().entry(token).or_insert(0) += 1;
+    }
+    fn foreign_advisor(&self, token: u64, operation: u32, arg: i32) -> u64 {
+        self.foreign_calls.borrow_mut().push((token, operation, arg));
+        self.foreign_results
+            .borrow()
+            .get(&(token, operation))
+            .copied()
+            .unwrap_or(0)
     }
     fn release(&self, token: u64) {
         *self.refs.borrow_mut().entry(token).or_insert(0) -= 1;

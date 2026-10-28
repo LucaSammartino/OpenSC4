@@ -10720,6 +10720,10 @@ typedef struct fc4_advisor_host {
        core never hands the token out again (a wrapper holding only a
        fc4_adv_weak may be freed) */
     void (*object_dropped)(void* user, uint64_t token);
+    /* Advisor classes supplied by other owners: 0 create (token=class),
+     * 1 Init(arg), 2 Shutdown(), 3 Simulate(arg), 4 GetID(). Create returns
+     * an acquired advisor interface; all other operations use a borrowed one. */
+    uint64_t (*foreign_advisor)(void* user, uint64_t token, uint32_t operation, int32_t arg);
 } fc4_advisor_host;
 
 /* MySim Lua field values (§4.4). */
@@ -12604,7 +12608,7 @@ static_assert(sizeof(fc4_adv_lua_value) == (sizeof(void*) == 4 ? 32 : 40), "fc4_
 static_assert(sizeof(fc4_advisors_state) == 56, "fc4_advisors_state layout");
 static_assert(sizeof(fc4_advisor_state) == 88, "fc4_advisor_state layout");
 static_assert(sizeof(fc4_advice_state) == 96, "fc4_advice_state layout");
-static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 268 : 536), "fc4_advisor_host layout");
+static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_advisor_host layout");
 static_assert(sizeof(fc4_mysim_field) == (sizeof(void*) == 4 ? 40 : 48), "fc4_mysim_field layout");
 static_assert(sizeof(fc4_mysim_disaster_location) == 12, "fc4_mysim_disaster_location layout");
 static_assert(sizeof(fc4_mysim_building) == (sizeof(void*) == 4 ? 40 : 56), "fc4_mysim_building layout");
@@ -12772,7 +12776,7 @@ _Static_assert(sizeof(fc4_adv_lua_value) == (sizeof(void*) == 4 ? 32 : 40), "fc4
 _Static_assert(sizeof(fc4_advisors_state) == 56, "fc4_advisors_state layout");
 _Static_assert(sizeof(fc4_advisor_state) == 88, "fc4_advisor_state layout");
 _Static_assert(sizeof(fc4_advice_state) == 96, "fc4_advice_state layout");
-_Static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 264 : 528), "fc4_advisor_host layout");
+_Static_assert(sizeof(fc4_advisor_host) == (sizeof(void*) == 4 ? 272 : 544), "fc4_advisor_host layout");
 _Static_assert(sizeof(fc4_mysim_field) == (sizeof(void*) == 4 ? 40 : 48), "fc4_mysim_field layout");
 _Static_assert(sizeof(fc4_mysim_disaster_location) == 12, "fc4_mysim_disaster_location layout");
 _Static_assert(sizeof(fc4_mysim_building) == (sizeof(void*) == 4 ? 40 : 56), "fc4_mysim_building layout");
