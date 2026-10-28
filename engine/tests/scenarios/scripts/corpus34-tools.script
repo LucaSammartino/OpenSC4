@@ -1,0 +1,46 @@
+# Fresh Tempelhof tile; level, funded land before mouse placement.
+# Mouse receipts prove delivery; entry traces qualify the native methods.
+2000-01-01 establish Tempelhof
+2000-01-01 funds 25000000
+2000-01-09 terrain 40 40 88 88 270 1
+2000-01-09 network 44 60 84 60 0
+2000-01-09 network 44 76 84 76 3
+2000-01-09 zone 48 56 54 58 1
+2000-01-09 zone 56 56 62 58 4
+2000-01-09 pause
+2000-01-09 uicommand 0x6a935cbd
+2000-01-09 uiwait 500
+2000-01-09 uicommand 0x6a935e0a
+2000-01-09 uimouse 600 350 move
+2000-01-09 uiwait 500
+2000-01-09 uimouse 600 350 click
+2000-01-09 uiwait 500
+2000-01-09 uikey 27
+2000-01-09 uicommand 0x6a935cf3
+2000-01-09 uimouse 600 350 move
+2000-01-09 uimouse 600 350 click
+2000-01-09 uiwait 1000
+2000-01-09 uikey 27
+2000-01-09 uicommand 0x6a935dfa
+2000-01-09 uimouse 650 350 move
+2000-01-09 uiwait 500
+2000-01-09 uimouse 650 350 click
+2000-01-09 uiwait 500
+2000-01-09 uikey 27
+2000-01-09 uicommand 0x6a935cf3
+2000-01-09 uimouse 650 350 click
+2000-01-09 uiwait 1000
+2000-01-09 uikey 27
+2000-01-09 uicommand 0x6a935df1
+2000-01-09 uimouse 600 400 move
+2000-01-09 uimouse 600 400 click
+2000-01-09 uiwait 500
+2000-01-09 uikey 27
+2000-01-09 uicommand 0x6a935cf3
+2000-01-09 uimouse 600 400 click
+2000-01-09 uiwait 1000
+2000-01-09 uikey 27
+2000-01-09 resume
+2000-01-15 save
+2000-01-15 digest
+2000-01-15 mark corpus34-tools complete
