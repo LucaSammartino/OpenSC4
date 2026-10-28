@@ -24,6 +24,7 @@ use crate::curve::ResponseCurve;
 use crate::property::PropertyHolder;
 use crate::rng::{FixedSeeds, RzRandom};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
+use crate::x87::r24;
 
 /// The record version (§13).
 pub const SIMULATOR_RECORD_VERSION: u16 = 2;
@@ -1108,16 +1109,16 @@ impl NeighborsSimulator {
             let (produced, demanded, cpu) = match c {
                 1 => {
                     let produced = f.power_production;
-                    let cpu = f
-                        .power_department_expenses
-                        .map_or(MISSING_DEPARTMENT_COST, |e| (p as f64 + e) / (produced + imp + 1.0));
+                    let cpu = f.power_department_expenses.map_or(MISSING_DEPARTMENT_COST, |e| {
+                        r24(r24(p as f64 + e) / r24(r24(produced + imp) + 1.0))
+                    });
                     (produced, f.power_requirement, cpu)
                 }
                 2 => {
                     let produced = f.water_capacity;
-                    let cpu = f
-                        .water_department_expenses
-                        .map_or(MISSING_DEPARTMENT_COST, |e| (w as f64 + e) / (produced + imp + 1.0));
+                    let cpu = f.water_department_expenses.map_or(MISSING_DEPARTMENT_COST, |e| {
+                        r24(r24(w as f64 + e) / r24(r24(produced + imp) + 1.0))
+                    });
                     (produced, f.water_demand, cpu)
                 }
                 _ => {
@@ -1128,18 +1129,21 @@ impl NeighborsSimulator {
                     // gives +inf, or NaN with no free capacity).
                     let landfill = match tuning.max_term_years {
                         None => 0.0,
-                        Some(years) => self.free_landfill() / (12.0 * f64::from(years)),
+                        Some(years) => r24(self.free_landfill() / r24(12.0 * f64::from(years))),
                     };
-                    let produced = f.garbage_recycled
-                        + f.waste_to_energy_capacity
-                        + f.incinerator_capacity
-                        + landfill
-                        + f.garbage_abducted;
+                    // foundations §18.3: each operation rounds to PC24 even
+                    // though regional-city setters store doubles.
+                    let produced = r24(f.garbage_recycled + f.waste_to_energy_capacity);
+                    let produced = r24(produced + f.incinerator_capacity);
+                    let produced = r24(produced + landfill);
+                    let produced = r24(produced + f.garbage_abducted);
                     let cpu = match f.sanitation_department_expenses {
                         None => MISSING_DEPARTMENT_COST,
                         Some(e) => {
                             self.load_garbage_curve();
-                            let x = (f.waste_to_energy_expenses + g as f64 + e) / (produced + imp + 1.0);
+                            let x =
+                                r24(r24(r24(f.waste_to_energy_expenses + g as f64) + e)
+                                    / r24(r24(produced + imp) + 1.0));
                             f64::from(self.garbage_cost_curve().eval(x as f32))
                         }
                     };

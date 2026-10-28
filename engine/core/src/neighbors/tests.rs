@@ -1089,6 +1089,24 @@ fn test_05_curve_bug() {
 }
 
 #[test]
+fn commodity_cost_rounds_the_denominator_before_dividing() {
+    let (w, sim) = setup(true);
+    assert!(sim.init());
+    *w.figures.borrow_mut() = UtilityFigures {
+        power_production: 16_777_216.0,
+        power_department_expenses: Some(1.0),
+        water_capacity: 3.0,
+        water_department_expenses: Some(1.0),
+        ..UtilityFigures::default()
+    };
+    sim.update_commodity_stats(Some(CITY));
+    // PC24: 2^24 + 1 ties to 2^24 before division. The saved double
+    // therefore contains exactly 2^-24, rather than 1 / (2^24 + 1).
+    assert_eq!(w.stat(R, Stat::CostPerUnit, 1), f64::from(f32::from_bits(0x3380_0000)));
+    assert_eq!(w.stat(R, Stat::CostPerUnit, 2), 0.25);
+}
+
+#[test]
 fn update_commodity_stats_writes_the_regional_figures_and_history() {
     let (w, sim) = setup(true);
     assert!(sim.init());
@@ -1120,7 +1138,7 @@ fn update_commodity_stats_writes_the_regional_figures_and_history() {
     assert_eq!(w.stat(R, Stat::Produced, 1), 1000.0);
     assert_eq!(w.stat(R, Stat::Demanded, 1), 800.0);
     // (P + expenses) / (produced + imp + 1), with every deal's cost.
-    assert_eq!(w.stat(R, Stat::CostPerUnit, 1), (51.0 + 99.0) / 1051.0);
+    assert_eq!(w.stat(R, Stat::CostPerUnit, 1), f64::from(150.0_f32 / 1051.0_f32));
     assert_eq!(w.stat(R, Stat::CostPerUnit, 2), 1e-5);
     // Garbage: free / (12 × 1 year) = 1200 / 12 = 100.
     let produced = 10.0 + 20.0 + 30.0 + 100.0 + 5.0;
