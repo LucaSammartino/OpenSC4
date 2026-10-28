@@ -130,6 +130,21 @@ It also asks the base for the zipper piece type (main slot 99); when the answer 
 then lowered by twice the height of its vertex above vertex 0, 1, 11 and 10 of the same list respectively
 (`y := y − 2 × (y_4 − y_0)`, and so on) (UG3).
 
+*What selects the lowering (UG3, partly answered 2026-10-27, re-x-net).* The answer of slot 99 is a number from 0 to 2
+(network-occupants.md §3.2: `GetZipperPieceType`), and `UpdateFloor` only tests it for zero; the side byte the
+call fills in is never read here. Slot 99 answers non-zero only for a subway piece `0x4B00` that has no connection
+occupant in its cell and whose two lateral neighbours (the sides a quarter turn either way from its rotation, turned
+by two more when the piece is flipped and the rotation is odd) are runs of `0x4B00` pieces of the right length. So:
+for piece `0x300` the answer is always 0, and the four corners are always lowered when the second list has eight
+or more vertices; for piece `0x4B00` the lowering is skipped exactly when the piece is part of such a side-by-side
+arrangement (the "zipper"), and applied for an isolated piece or a run that does not satisfy the rule. The
+corners are lowered by twice a difference between two of the second list's own vertex heights (the formula above).
+The model builder treats `0x300` and `0x4B00` as two of its seven custom-geometry piece ids and gives both a
+ceiling that follows the terrain (network-occupants.md §3.2 "The ceiling height", "GetCeiling"), unlike the
+half-cell pieces `0x200`, `0x800`, `0xA00`, `0x1400`, `0x14E00` *[inferred: "whole-cell" from the ceiling rule]*. Which tunnel
+shape each piece id denotes is decided by the network rule data (network-rules.md §11), not by code in the
+executable, so the in-game names of the two pieces are not recoverable from the program alone.
+
 `GetAltitude(x, z)` (two floats, pops 8, result on the x87 stack): with `u := (x − floor[0].x) / 16` and
 `w := (z − floor[0].z) / 16`, and `y_i := floor[i].y`:
 
@@ -282,8 +297,8 @@ occupants' vtables.
   builders' geometry is NO40.
 - ~~**UG2:**~~ answered 2026-10-21 (re-ugbase): they draw the surface quad's two triangles (network-occupants.md
   §2.11).
-- **UG3:** subway pieces `0x300` and `0x4B00` (the ones whose floor comes from the second vertex list), and what the
-  zipper piece type answer selects.
+- **UG3:** partly answered 2026-10-27 (re-x-net, §3.3): the zipper answer selects whether the floor is lowered; the
+  rule data that names the two pieces is not in the executable.
 - ~~**UG4:**~~ answered 2026-10-21 (re-ugbase): they are the connections' occupant types (network-occupants.md §3.6).
 - ~~**UG5:**~~ narrowed 2026-10-26 (re-no29): §4 links the settled connection algorithms and worked
   cases. The remaining exact matrix/ceiling/input-data observation is network-occupants.md §3.6.6 NO40-C;

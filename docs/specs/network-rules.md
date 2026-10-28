@@ -1100,7 +1100,32 @@ orientation *[quirk]*. Only the orientation of a map entry changes later (the tr
 `-` 1, `|` 2, `/` 3, `\` 4, `F` 5, `R` 6, `#` 7, `X` 8; `<` and `^` set its centre (`+0xB0`, `+0xAC`). The grid is
 `+0x9C` (width `+0xA8`). Its consumer is `InsertIntersectionConstraints` (`0x00644710`), which the smoothing loop
 runs (network-geometry.md §9.4 step 4) to turn the codes into vertex-height equalities and slope limits. That is
-height geometry, not piece choice or simulation; its exact meaning is NR7 (§14).
+height geometry, not piece choice or simulation. *(NR7, answered 2026-10-27, re-x-net)* *[compat]*
+
+**What `InsertIntersectionConstraints` does with the codes.** For each record of the intersection list (`+0xCC`,
+§10.6) it finds the rule by its id and visits every occupied cell of the rule (list `+0x4C`). The code of a cell is
+the layout byte at `(centreRow + z) × width + x + centreColumn` (0 when outside the grid; a code of 0 or above 8 does
+nothing). For each visited cell that has a cell info, all four corner vertices are first added to the satisfier
+(vertex id and current corner height), then the code adds constraints. Corners are in cell-info order: c0 = (x, z),
+c1 = (x, z + 1), c2 = (x + 1, z + 1), c3 = (x + 1, z). Ls and Ld are the straight and diagonal slope rises
+(`+0x100`, `+0x104`) of the network type info that the tool currently holds (`+0x358`); "slope" is the satisfier's
+|h(a) − h(b)| ≤ limit (network-geometry.md §9.1).
+
+| Code | Char | Equalities | Slope limits | Smoothness |
+|---|---|---|---|---|
+| 1 | `-` | c0 = c1; c2 = c3 | c0–c3 and c1–c2 within Ls | none |
+| 2 | `\|` | c0 = c3; c1 = c2 | c0–c1 and c3–c2 within Ls | none |
+| 3 | `/` | c0 = c2 | c1–c3 within Ld | none |
+| 4 | `\` | c1 = c3 | c0–c2 within Ld | none |
+| 5 | `F` | c0 = c2 | c1–c3 within Ld | c0 is the mean of c1 and c3 (limit 0) |
+| 6 | `R` | c1 = c3 | c0–c2 within Ld | c1 is the mean of c0 and c2 (limit 0) |
+| 7 | `#` | c0 = c1 = c2 = c3 | none | none |
+| 8 | `X` | none | c0–c1, c0–c3, c1–c2 and c3–c2 within Ls | none |
+
+So `-` and `|` are level straight ramps across the cell, `/` and `\` level diagonal ramps, `F` and `R` planar
+diagonal cells, `#` a level cell and `X` a cell whose four edges are only slope-limited. The limits come from the
+run's primary type, not from the cell's own types. The routine runs once per smoothing level, after the per-cell
+constraints (network-geometry.md §9.4 step 4), and is also called by `CanTilesBeSupportedOnTerrain`.
 
 ### 10.4 Transforms
 
@@ -1540,7 +1565,7 @@ Answered 2026-10-16 (re-answers24), from the executable:
   texture lookup is drawing only and is left to the renderer specs. The path-info internals are NR6.
 - **NR2** (§10.3, §10.9): the tile grid and map, `AutoTileBase`, `AutoPathBase`, `InsertHighwayIntersection(s)` and
   `InsertHighwayIntersectionPiece` specified. The constraint layout's consumer is named
-  (`InsertIntersectionConstraints`, `0x00644710`, height geometry); its codes' meaning is NR7.
+  (`InsertIntersectionConstraints`, `0x00644710`, height geometry); its codes' meaning is §10.3 (NR7, answered).
 
 Answered 2026-10-21 (re-netrules-boundary4), from the executable:
 
@@ -1592,8 +1617,7 @@ Answered 2026-10-21 (re-netrules-boundary4), from the executable:
   `InitializeNetworkConnectionBitmap`, 29 `OffsetAndScissor` and 40 `VerifyPathEdges` do (§11.1). Also who writes the
   override offset `+0x168`/`+0x16C` that slot 29 receives. Needed by the traffic rebuild when it builds paths itself
   instead of borrowing the original's.
-- **NR7.** The constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
-  vertex heights each code makes equal and which slope limits it sets (§10.3; network-geometry.md §9.4 step 4).
+- ~~**NR7.**~~ Answered 2026-10-27 (re-x-net): the codes are specified in §10.3.
 - ~~**NR13.**~~ Answered (§2.4, §12): no boundary of its own; hosted by the network tool or the rule resources.
 - **NR12** (cores22: should `fc4_network_rules_cell` grow `+0x57` and the occupant's paired portal, or should a
   glue lane pass them another way?) — **ANSWERED 2026-10-16 (re-answers31): neither belongs in the cell struct

@@ -45,11 +45,11 @@ Read once (by `StaticInit`) from the exemplar `0x6534284A / 0x88CD66E9 / 1` ("Te
 | `0x29AB15C4` | true | draw the land surface |
 | `0x29AB15C5` | 0.1, 0.2, 0.8 | the water tint at full strength (RGB, §6.2) |
 | `0x29AB15C6` | 55, 65 | the base depths (m) of the two cliff strata (§7.1); their reciprocals are the strata texture scales, with 1/64 for the third |
-| `0x29AB15C7` | 0.9 | a weight used for the cliff colours (`0x007558B0`) *[inferred]* |
+| `0x29AB15C7` | 0.9 | the weight of the cliff shade: the brightness of the light times this is the grey at the foot of a cliff (§7.1; TV2) |
 
 The plumbing overlay's colours come from the same exemplar (`ReadPlumbingTuningData`, `0x00755C50`): `0x497F42A4`
 (182, 47, 0, 102), `0xE97F42B0` (0, 18, 255, 102), `0xA97F42CE` (125, 131, 255, 102), `0x097F4C4E`
-(182, 119, 116, 102), and the flag `0x297F42B7` (true).
+(182, 119, 116, 102), and the flag `0x297F42B7` (true). What they mean is in §8.2 (TV2).
 
 ## 2. Process-wide state (`StaticInit`, `0x0075C0C0`) *[compat]*
 
@@ -263,8 +263,12 @@ the terrain height h down to h − d₁, the next down to h − d₁ − d₂ (e
 0xCA5CC9C0` and `0xCA5CC9C1`): d = (pixel − 127) × 0.5 + 55 m or 65 m (`InitializeCityEdgeLayerHeights`,
 `0x00757300`). Each stratum is drawn with its zoom's cliff texture, piece by piece where its top is above its
 bottom, within the part of the edge inside the draw frustum's ground lines. The cliff vertices take the lighting
-manager's light for the edge's outward normal ((0, 0, 1), (1, 0, 0), (0, 0, −1), (−1, 0, 0)), darker below 70 m
-(`0x007558B0`) *[inferred]*.
+manager's light for the edge's outward normal ((0, 0, 1), (1, 0, 0), (0, 0, −1), (−1, 0, 0)). *(TV2)* For each of the four
+edges `ComputeCliffColors` (`0x007558B0`) takes the light colour for that normal, forms its luminance on a 0–255
+scale (0.299 R + 0.587 G + 0.114 B) and multiplies it by the weight `0x29AB15C7` (0.9 shipped; 0.7 until the exemplar is read), capped at 254:
+that grey is the shade at height 0. A vertex at height h gets the grey that rises linearly from that value at h = 0 to
+twice that value (capped at 254) at h = 70 m, and stays there above 70 m. (The light colour's components run from 0 to
+1; the luminance is rounded to 0–255 with 1.0 giving 255.)
 
 ### 7.2 Heights (`0x007569F0`, on `0x278E6003`)
 
@@ -292,7 +296,28 @@ source alpha) pass of the grid texture without depth write, filters linear / lin
 ### 8.2 Plumbing (`DrawPlumbingInfo`, `0x00759A80`)
 
 With the plumbing display on: blending, no depth write, no texture, depth offset −2, the pipe coverage drawn from
-the plumbing simulator (`0x00B43D94`) with the four colours of §1 *[inferred: by coverage state]*.
+the plumbing simulator (`0x00B43D94`) with the four colours of §1. *(TV2, answered 2026-10-27, re-x-net)* *[compat]*
+
+The overlay is a set of translucent cell quads (alpha 102), lifted 0.2 m above the land, each drawn as two
+triangles. For a cell, take the byte of the plumbing simulator's published grid (plumbing.md §2: bit `0x01` watered,
+bit `0x02` building or producer lot cell, bit `0x08` a pipe in the cell). The colour is chosen as follows, and a cell
+that gets no colour is not drawn:
+
+| Watered (`0x01`) | Building or producer lot (`0x02`) | Colour (property) |
+|---|---|---|
+| no | yes | `0x497F42A4` (182, 47, 0): a built cell without water |
+| yes | yes | `0xE97F42B0` (0, 18, 255): a built cell with water |
+| yes | no | `0xA97F42CE` (125, 131, 255): an empty cell the water reaches |
+| no | no | `0x097F4C4E` (182, 119, 116): drawn only when the flag `0x297F42B7` is true (shipped), else the cell is skipped |
+
+The four values are the RGB bytes of each property's byte array; the fourth byte is the alpha. In the code the
+colour table is filled in that order (indices 0 to 3 = the table's rows top to bottom). The flag `0x297F42B7`
+therefore switches the tint of the dry, unbuilt, unwatered cells. When the pipe bit `0x08` is set, the cell is
+looked up in the network manager (the pipe occupant of the cell, else the pipe connection occupant of the cell; network-manager.md slots 10 and 11) and its
+two "hide first / hide second triangle" answers are read (network-occupants.md §3.2): both hidden → the cell is not drawn; exactly one hidden → only the other
+triangle is drawn, and its colour uses the building test of the cell's occupants (a building `0x278128A0` present
+→ the simulator's "watered buildings in cell" answer, else its "cell watered" answer) in the same table; neither
+hidden → the byte rules above. A cell for which the view's collaborator at `+0x20` (its slot `0x130`) answers true is skipped.
 
 ## 9. Picking, selection and updates *[compat]*
 
@@ -326,7 +351,12 @@ the automatic cell cursor on (slot 10, byte `+0x30`) that cell is also marked as
 ### 9.3 `Shutdown` (`0x007560F0`)
 
 Unregisters the view, its overlays and sub-objects from the draw registry and the six message subscriptions, shuts
-down and releases the overlay managers, the ripples, the selection and the `+0x74` object, releases the city,
+down and releases the overlay managers, the ripples, the selection and the `+0x74` object (nothing in the
+executable ever stores anything but null there: the constructor clears it, `Init` registers it at draw layer 5 only
+when it is non-null and `Shutdown` tears it down through `0x00762300` only when it is non-null; that routine
+unsubscribes the sea-level-changed message `0x89171496` and the animation tick manager (tag `0xC0`) and releases one
+held object, like the ripples' own shutdown, so the slot is a vestigial hook for a second water effect that the
+shipped game never creates; TV3), releases the city,
 terrain, surface water and the `+0x28`, `+0x2C` collaborators, and writes the display grid flag back to the
 preferences byte.
 
@@ -345,8 +375,8 @@ terrain's messages and the lighting manager keep the arrays current.
 
 ## 12. Open questions
 
-See [questions/terrain-view.md](questions/terrain-view.md) TV2–TV3 (TV1, the pass value, is answered): the meaning of the four plumbing colours and of `0x29AB15C2`, `0x29AB15C5`, `0x29AB15C7`; what the
-object at `+0x74` is.
+See [questions/terrain-view.md](questions/terrain-view.md) (TV1, TV2 and TV3 are answered; TV4 is open). The meaning of
+`0x29AB15C2` and `0x29AB15C5` (the water colour ramp, §6.2) is not an open question.
 
 ## 13. Conformance tests
 

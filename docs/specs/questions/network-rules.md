@@ -12,11 +12,6 @@ Spec: [network-rules.md](network-rules.md) §14. RE-side follow-ups; nothing her
   override offset `+0x168`/`+0x16C` that slot 29 receives (network-rules.md §11.1). [not specified; the traffic
   rebuild borrows the original's path infos]
 
-<!-- from: From the network rules spec (2026-10-16) -->
-- **NR7:** the constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
-  vertex heights each code makes equal and which slope limits it sets (network-rules.md §10.3; network-geometry.md
-  §9.4 step 4). [not specified]
-
 <!-- from: glue-netrules-shadow5 Round 2 (2026-10-23) -->
 - **NR17 - section 2.5.5, fail-closed observer installation and ABI publication:** NR16 now specifies the
   semantic capture layouts, Evaluate's five-byte span and ReloadRules' six-byte span. Before installing the

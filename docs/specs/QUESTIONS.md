@@ -335,7 +335,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-occupants | 16 | 35 | NO48 | questions/network-occupants.md |
 | network-overlay-views | 1 | 2 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
-| network-rules | 3 | 12 | NR18 | questions/network-rules.md |
+| network-rules | 2 | 13 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
 | network-tools | 16 | 15 | NT37 | questions/network-tools.md |
 | network-transport | 4 | 0 | Q15 | questions/network-transport.md |
@@ -343,7 +343,7 @@ generated index: the questions live one file per spec, so read only the file for
 | news-ticker | 4 | 0 | NTK5 | questions/news-ticker.md |
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 1 | 6 | OM11 | questions/occupant-manager.md |
-| occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
+| occupants-props | 4 | 16 | OP20 | questions/occupants-props.md |
 | ordinance | 0 | 1 | SV3 | questions/ordinance.md |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 5 | 14 | OV20 | questions/overlay-manager.md |
@@ -401,7 +401,7 @@ generated index: the questions live one file per spec, so read only the file for
 | strings-language | 1 | 0 | SL2 | questions/strings-language.md |
 | system-service-pointer | 2 | 1 | SSP4 | questions/system-service-pointer.md |
 | terrain | 9 | 39 | TR48 | questions/terrain.md |
-| terrain-view | 3 | 1 | TV5 | questions/terrain-view.md |
+| terrain-view | 1 | 3 | TV5 | questions/terrain-view.md |
 | text-decal-occupant | 1 | 0 | TDO2 | questions/text-decal-occupant.md |
 | text-edit | 0 | 12 | TE13 | questions/text-edit.md |
 | texture-bindings | 3 | 1 | TB9 | questions/texture-bindings.md |
@@ -423,7 +423,7 @@ generated index: the questions live one file per spec, so read only the file for
 | view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 16 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
-| water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
+| water-ripples | 2 | 12 | WR15 | questions/water-ripples.md |
 | watercraft | 1 | 12 | WC14 | questions/watercraft.md |
 | weather | 0 | 1 | WE2 | questions/weather.md |
 | web-network | 3 | 0 | Q17, UI30 | questions/web-network.md |
@@ -438,4 +438,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **629** | **1705** | | |
+| **total** | **623** | **1711** | | |

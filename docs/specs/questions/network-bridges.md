@@ -16,3 +16,4 @@ above. The spec's tentative answer is in brackets.
   occupant manager after that (`0x0062F5A8`), so the triangles can widen the cells it is filed under. Still open:
   whether any shipped suspension or cable triangle reaches past its piece's own cell (an in-game occupant query beside
   a suspension bridge would settle it), and the formulas (visual only).
+  **PARTIAL 2026-10-27 (re-x-net):** The tower and cable structure positions are built from the piece's own cell corners shifted by per-bridge-type values (type record `+0xB0`, `+0xB4`, `+0xB8`, `+0xBC`, `+0xC0`); whether any triangle reaches another cell therefore depends on bridge-type data that is not in the executable. Formulas still unspecified (visual only).

@@ -1192,9 +1192,11 @@ State beyond the prop (measured on the object base):
 | `+0xB8…+0x118` | 4 × 3×3 f32 | four orientation matrices (identity when not loaded) |
 | `+0x11C…+0x134`, `+0x138…+0x150` | 2 × 6 × f32 | per-orientation corner positions (FUN_005F4D10 fills them) |
 | `+0x194` | 16-byte | message target sub-object |
-| `+0x4BC` | `cRZString*` | owned string (freed in the destructor) |
+| `+0x4BC…+0x4C4` | vector | the text vertices `RebuildModel` fills: four 20-byte vertices (x, y, z, u, v as f32) per text texture; element name in the export is a folded template. Not a string (corrected 2026-10-27, re-x-net) |
 | `+0x4C` | ptr | owned date-pair record (freed by `FUN_005EE160`) |
-| `+0x4D4…+0x507` | 4 rows × 4 bytes | corner colours copied from the static tables at `0x00AA5204` (row 0 = static colours, row 1 = dynamic) |
+| `+0x14C…+0x4BB` | 11 × 4 vertices | the eleven frame/post quads of the sign, 20 bytes per vertex (x, y, z, u, v as f32), 0x50 bytes per quad (RebuildModel, §10.3 "Rebuilt geometry") |
+| `+0x4C8…+0x507` | 4 × 16 bytes | the board quad: four vertices (x, y, z as f32, then a 4-byte colour) whose colours come from the static tables at `0x00AA5204` (row 0 = static colours, row 1 = dynamic) |
+| `+0x508…+0x547` | 4 × 16 bytes | the edit-mode caret quad, same vertex form |
 | `+0x54C…+0x570` | 10 × ptr | the ten piece textures, one per entry of the RID table `0x00AA5214…0x00AA523C` (instances `0x8B4A6560`–`0x8B4A6565`, `0x8B4A6564`, `0x8B4A6565`, `0x8B4A6566`, `0x8B4A6567`; keys `0x7AB50E44` / `0x1ABE787D`); `Init` fills them through the `+0x0C` view (`+0x540` there) |
 | `+0x574…+0x57C` | vector | the text textures `LoadTextures` makes (§10.3 below); `Shutdown` empties it through the `+0x0C` view (`+0x568` there). The element name in the export comes from a folded template (`0x00527180`) |
 | `+0x580` | | packed render state (`cSC4PackedRenderState::PackRenderState` `0x007D2B50`; `Init`'s `+0x574` is the `+0x0C` view's, `0x005F744F`) |
@@ -1263,7 +1265,66 @@ Behaviour:
   instance table at `+0x64`) — OP7.
 - **`Draw`** `0x005F5200` — visual only (renderer thunk `__ZThn108_N20cSC4SignpostOccupant4DrawEP14SC4DrawContextb`
   `0x005F5CD0` adjusts `this` by −108 into the +0x6C sub-object). `RebuildModel` `0x005F5FB0` (4,964 bytes) builds
-  the sign geometry from the text and matrices; it is not specified further here.
+  the sign geometry from the text and matrices; its layout is in "Rebuilt geometry" below (OP18 answered 2026-10-27).
+
+**Rebuilt geometry** *[compat]* *(OP18, OP19; re-x-net 2026-10-27)*. `RebuildModel` (`0x005F5FB0`) lays the sign out in
+its own flat frame: x across the sign (zero at the centre), y up from the foot of the post (zero at the foot),
+z always 0. All lengths below are written *px* when the original expresses them as screen pixels; a pixel length
+becomes metres by multiplying with the view's world-units-per-pixel scale (`0x007F6690`, the field at view `+0x150`) and,
+unless stated otherwise, with the zoom factor taken from the five-entry table at `0x00AA523C` (0.5, 0.75, 1, 1.5, 2)
+indexed by the view's current zoom step. Call the 8 px unit A, the 64 px post length P, and the text rectangle's
+width and height TW and TH (metres).
+
+1. *Size of the text rectangle.* Ask every text texture of the vector (`+0x574`, made by `LoadTextures`) for its
+   pixel width and height; the width is the sum, the height the largest. In edit mode the width gets 4 extra
+   pixels (the caret and its gap). With no text: outside edit mode the width is 1 px; in edit mode it is the 4 px;
+   either way, when the height is still 0 it becomes 24 px. (Outside edit mode a non-empty width with height 0 keeps height 0.)
+   TW and TH are the pixel results converted as above.
+2. *Heights.* The foot of the post is y = 0. Going up: a lower post piece y 0…A; an upper post piece y A…A+P;
+   the bottom frame strip y A+P…2A+P; the text rectangle y 2A+P…2A+P+TH; the top frame strip up to 3A+P+TH.
+   The post is A wide (x from −A/2 to +A/2). The frame reaches A to the left and right of the text rectangle
+   (x from −TW/2−A to TW/2+A); the text rectangle itself spans −TW/2…TW/2.
+3. *Board quad* (object `+0x4C8…`): the four corners of the text rectangle, in the order left-top, left-bottom,
+   right-bottom, right-top. All four share one colour: row 0 of the table at `0x00AA5204` when the model instance's
+   "dynamic" bit is clear, row 1 when it is set. Table bytes are R, G, B, A; the vertex colour is stored as
+   B, G, R, A (that is, the usual 32-bit ARGB). Row 0 = (144, 172, 190, 255); row 1 = (255, 255, 255, 204);
+   a third row at `0x00AA520C` = (78, 85, 106, 255) is what the code writes as literals for the caret.
+4. *Eleven frame quads* (object `+0x14C…`, 0x50 bytes each, vertex order left-top, left-bottom, right-bottom,
+   right-top, texture coordinates (0,0), (0,1), (1,1), (1,0)):
+   0 the text rectangle (never drawn); 1 top-left corner, 2 top-right corner, 3 bottom-left corner, 4 bottom-right
+   corner (each A × A, outside the text rectangle's x range); 5 top strip, 6 bottom strip (over the text
+   rectangle's width); 7 left side and 8 right side (A wide, TH tall, between the two corner rows; their texture
+   coordinates are turned a quarter, (1,0), (0,0), (0,1), (1,1)); 9 upper post piece; 10 lower post piece.
+   Drawing pairs the ten piece textures of `Init` (`+0x54C…`) with quads 1…10 in order, so the entries of the
+   table `0x00AA5214…` are: instances `0x8B4A6560` / `61` / `62` / `63` the four corners, `0x8B4A6564` the top strip and
+   again the left side, `0x8B4A6565` the bottom strip and again the right side, `0x8B4A6566` the upper post,
+   `0x8B4A6567` the lower post (the table's ten entries are `60, 61, 62, 63, 64, 65, 64, 65, 66, 67`).
+5. *Text vertices* (object `+0x4BC` vector): one quad per text texture, in order. Its left edge starts at −TW/2 and
+   each quad is as wide as its texture's pixel width converted as above; every quad spans the full text rectangle
+   height (not the glyph's own height). The texture coordinates are the rectangle the texture reports (left, top,
+   right, bottom). Order and winding as in item 4. The vector is resized to exactly four vertices per texture.
+6. *Caret* (object `+0x508…`, only built in edit mode, drawn only while the blink flag `+0xAD` is set): a quad over
+   the text rectangle's height; its left edge is the right edge of the last text quad plus a 2 px gap, its width is
+   2 px. The gap uses the view scale only (no zoom factor); the caret's own width does get the zoom factor. Its colour is
+   the literal (78, 85, 106, 255) in the same B, G, R, A layout.
+7. *Colour of the text.* The text quads carry no vertex colour and no table entry colours them. `Draw` binds
+   each text texture, sets the draw context's shade to the three floats (0.31, 0.34, 0.42) at `0x00B0A960`, draws
+   all text quads, then resets the shade; the board is drawn first untextured, the caret after the text, and the ten
+   piece quads last with the shade reset. A depth offset of 1 is applied while the text and pieces are drawn.
+8. *Placement* *[inferred for the angle]*. The rotation matrix (`+0xB8…`) is turned about the vertical by an angle
+   taken from an arc-tangent of the negated camera fields at view `+0x54` and `+0x5C`, which makes the sign face the
+   camera. The occupant's bounding boxes are then made from corner pairs scaled by the occupant scale (`+0xE8`) and
+   offset by the position: the whole sign (x −TW/2−A…TW/2+A, y 0…3A+P+TH) becomes the occupant box (`+0x40`),
+   the board (y A+P…3A+P+TH, same x) the box at `+0x11C`, and the post (x −A/2…A/2, y 0…A+P) the box at `+0x134`.
+
+**Text service (OP19).** The object in `0x00B43CE4` is the glyph texture manager (`cSC4GlyphTextureManager`,
+[glyph-textures.md](glyph-textures.md) §1; application slot 46 returns the pointer the application kept when it
+created the manager). Its slot 4 (`0x005D8570`, `StringToGlyphTextureArray`) takes a key whose font ID is
+`0x2C1FD612` for signposts (the key's character string is empty and unused), the text and an output vector, and
+appends one glyph texture per character of the text (§1.3 there). Its slot 5 (`0x005D8150`) is the whole-string form:
+font ID, text, output; the label (text decal) uses it with font `0xCC1FD62C` and one texture for the whole text, which
+the decal then takes as a source object (text-decal-occupant.md §4). `AddDecal`'s width is the decal's full world
+width in metres and its angle is in turns (a full turn is 1), as in overlay-manager.md §3 and §3.2.
 
 ### 10.4 `cSC4TextDecalOccupant` (`0x8B79C707`) *[compat]*
 

@@ -147,3 +147,9 @@
   without masking. Spec §2.5.6 describes fail-closed validation and cleanup's quirk: it resets a nonzero flag,
   always returns AL=1, and leaves tables allocated; readiness is invalidated on entry even for flag zero.
   Written into [network-rules.md](../../network-rules.md) §2.5.6 and §15 vectors 45–49. No hook/game result is claimed.
+
+<!-- from: From the network rules spec (2026-10-16) -->
+- ~~**NR7:** the constraint layout's codes 1–8 as `InsertIntersectionConstraints` (`0x00644710`) applies them: which
+  vertex heights each code makes equal and which slope limits it sets (network-rules.md §10.3; network-geometry.md
+  §9.4 step 4). [not specified]~~
+  **ANSWERED 2026-10-27 (re-x-net):** MATCHES (it is height geometry) — the eight codes make these corner heights equal and set these slope and mean constraints: see the table in network-rules.md §10.3.

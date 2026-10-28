@@ -1092,6 +1092,35 @@ pipe layer. Starting from 1, these tests run in this order and each later hit re
 So a prop must have `0xCAA45670` for its `0xCAA45671` or `0xCAA45672` to move it below the surface
 ([neighbors.md](neighbors.md)'s connection markers set them in pairs).
 
+**What the identifiers of §13.2.3 and §13.2.4 are** *(OM9, partly answered 2026-10-27, re-x-net)*. The executable
+never sets them; they are read from the data of the occupants (their groups and their exemplar properties), so the
+meanings below come from where the executable tests them.
+- **Groups `0x4217` and `0x4208`** are the subway's train automata: `0x4217` is the train itself and `0x4208` its
+  cars (the train's initialisation pairs engine family `0x4217` with car family `0x4208`, vehicles.md; the transit-stop
+  purpose `0x1302`, which building-development.md and city-tools-input.md identify as the subway station, makes
+  travellers board automaton group `0x4217`, mysims.md; the subway-view filter of §13.2.6 takes a vehicle of either group as
+  part of the subway layer). That is why the default filter drops them from the ordinary views and
+  `SC4GetOccupantViewLevel` puts them at level 2, the subway layer. *[inferred for the word "subway": no string names the groups]*
+- **Group `0x421D`** is treated exactly like the two above (excluded from the default filter, level 2). No other
+  code in the executable creates, compares or maps it (the only two uses of the value are the default filter's test, `0x005E969C`, and the level function's, `0x005E9D62`), so which automaton data carries it cannot be read from the program: OM9
+  stays open for it.
+- **Group `0x5001`** is tested only by the realistic filter's `+0xD` flag (§13.2.3 item 1): occupants of the group are
+  hidden unless that flag is set, and the cheat `TastyZots` toggles the flag. Nothing in the executable creates the
+  group; which objects carry it is data. Open for the same reason.
+- **Property `0x49512A09`** marks an occupant as living in the pipe layer: level 3 in §13.2.4, excluded from the
+  default filter, and accepted by the water-view filter (§13.2.6). **`0x8A15F1BD`** marks one in the subway layer:
+  level 2 (final), excluded from the default filter. Both are presence tests only; the stored value is not read.
+- **Property `0xCAA9AB92`** (presence) takes an occupant out of the query tool's click picking
+  (`cSC4QueriableOccupantFilter`, `0x004C46C0`); the hover test is separate and does not read it.
+- **Property `0xE83A081D`** (presence on the occupant's exemplar) is the flag argument of the model lookup
+  (`GetModelInstanceID` / `GetAllModelInstanceIDs`, graphics-formats.md §4.2): with it set the model key family is
+  `0x2781292x` instead of `0x2781282x` and the rotation is taken from the view rotation alone (`3a mod 4`, without the
+  occupant's own rotation). The model maker, its reload decision and the missing-pack check all pass it
+  (model-maker.md).
+- **Property `0x29F013E6`** (bool) is set to true by the tools on their preview ("ghost") occupants (the lot placement
+  preview `0x004C0873`, the toll booth `0x004DA53E`, the network tool); the immovability filter used when levelling terrain
+  (§13.2.6) skips occupants for which it is true, so previews do not block or count in the levelling test.
+
 **The view-level filter** (`cSC4ViewLevelOccupantFilter`, vtable `0x00A8FAD4`). A level at `+0xC`.
 **`IsOccupantIncluded(o)`** (`0x005E9E40`): `SC4GetOccupantViewLevel(o)` equals it. Record (`0x005E9E60` /
 `0x005E9E90`): u16 1, u8 level (widened when read), without the base's record. `GetGZCLSID` `0x005E9780`. The

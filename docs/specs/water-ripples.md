@@ -56,6 +56,16 @@ It scans **all vertices**, z ascending outside x ascending, using stride cellsX 
 and `0x01` clear starts a trace. The length comparison is unsigned and strict: retain only length > minimum,
 not ≥ minimum (`0x00761B86–0x00761C9E`). Rejected short traces still consume visit flags during this scan.
 
+**The two vertex flags** *(WR2, answered 2026-10-27, re-x-net)* *[compat]*. Terrain vertices carry a 16-bit flag word
+(terrain.md §7). Flag `0x10` is the **shore mark**. The refresh (`0x007428E0`) first clears it on every vertex, then
+tests every vertex (`0x00741B80`): a vertex gets the mark when its own altitude is strictly above the terrain's
+sea level (a NaN altitude or one at or below sea level never does) and at least one of its four edge-neighbours
+(west, north, east, south, those inside the grid) has an altitude strictly below sea level (a NaN neighbour counts as
+below). The test compares altitudes with the sea level, not with any per-vertex water depth. Flag `0x01` has no
+lasting meaning: it is the **visited mark** of the tracing walks below (and of other terrain walks), set while a
+shore is traced and cleared on every vertex at the end of the detection (`0x00740980`); it is why a vertex "with
+`0x10` set and `0x01` clear" starts a trace.
+
 The ordered trace is defined by `0x0074B570`, forward walk `0x0074AD20`, and backward walk `0x0074AB60`.
 Its direction table is executable data at `0x00AB3B80` (x) and `0x00AB3BA4` (z):
 
@@ -102,8 +112,12 @@ For each shore, the parameter walks the shore's points in steps of `0x491C9C02` 
 (`ComputeSplinePoints`, `0x0075FC40`) the uniform cubic B-spline of four consecutive shore points gives a point P
 and a unit tangent; with N the tangent turned a quarter, the **outer** vertex is P + (D + w sin φ) N and the
 **inner** vertex P − d N, with D = `0x491C9C05`, w = D × `0x491C9C0A`, d = `0x491C9C06` for the zoom, and φ
-growing by 0.1 per step. N = (tangent z, −tangent x) *[inferred: it points over the water for the traced shore
-direction]*.
+growing by 0.1 per step. N = (tangent z, −tangent x). N points to the **water side** of the trace *[inferred from the
+walk order, WR2]*: each walk looks for the next shore vertex by turning, from the direction of the underwater
+neighbour, towards higher direction numbers (lower numbers for the backward walk, whose points are then prepended),
+so along the final order the water neighbours lie on the side of lower direction numbers, which is the side N takes
+in the coordinates of the direction table (a quarter turn to lower numbers). So the outer vertex is over the water
+and the inner vertex (−N) inland.
 
 A strip (`StartNewRipple`, `0x00760EE0`) is an ordered vertex stream, with separate outer and inner acceptance.
 The following is the WR5 native contract, including asymmetric partial-pair behavior.

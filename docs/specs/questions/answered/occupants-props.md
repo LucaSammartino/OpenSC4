@@ -119,3 +119,15 @@
   widened again by sfPostWidth (`0x00B0A7CC`, default 1.0) in x and z, with the same heights. It is not the building's
   box unchanged; `SetLot` writes it only through its `RebuildModel` call, and `Read` restores the saved value
   (lot-records.md §9.1, lot-developer.md §6.7.10).
+
+<!-- from: re-signposts (2026-10-22) -->
+- ~~**OP18 - lot-records.md §10.3:** the exact vertex layout `RebuildModel` (`0x005F5FB0`) builds: where the ten
+  piece quads, the backing quad, the text quads and the caret sit relative to the position, what the lengths 8 and
+  64 (screen units) are, and which table entry colours the text. [structure and sizes only]~~
+  **ANSWERED 2026-10-27 (re-x-net):** MATCHES (structure) and DIFFERS (earlier summary: the board/caret/text quads and their colours were unspecified) — the sign is laid out in a flat frame: 8 px frame strips and a 24 px minimum text height around the measured text rectangle, a post 8 px wide and 64 px + 8 px long below, eleven quads (the first, the text rectangle, never drawn), a coloured board quad over the text rectangle (table `0x00AA5204` row 0 or 1), per-texture text quads over the full text height and a caret quad in edit mode; the 8 and 64 are pixel constants converted with the view scale and the zoom table `0x00AA523C`; the text carries no vertex colour but the fixed shade (0.31, 0.34, 0.42) (lot-records.md §10.3 "Rebuilt geometry").
+
+<!-- from: re-textdecals (2026-10-22) -->
+- ~~**OP19 - lot-records.md §10.3, §10.4:** what the text texture service kept in `0x00B43CE4` (application slot
+  46) is, and how its slots 4 and 5 render the text with fonts `0x2C1FD612` (signposts) and `0xCC1FD62C`
+  (labels); and what `AddDecal`'s width and angle (turns) mean in overlay-manager.md's terms. [as read]~~
+  **ANSWERED 2026-10-27 (re-x-net):** MATCHES — `0x00B43CE4` is the glyph texture manager (application slot 46); slot 4 renders one glyph texture per character with the key's font ID (`0x2C1FD612` for signposts), slot 5 returns a whole-string texture (`0xCC1FD62C` for labels); `AddDecal`'s width is the full world width in metres and its angle is in turns (lot-records.md §10.3, glyph-textures.md §1.3–1.4, overlay-manager.md §3).

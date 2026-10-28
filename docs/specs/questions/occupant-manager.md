@@ -7,3 +7,4 @@
   `0x8A15F1BD` (both exclude from the default filter; levels 3 and 2), `0xCAA9AB92` (not queriable), `0xE83A081D`
   (passed to the model lookup) and `0x29F013E6` (makes an occupant movable for terrain levelling)? The spec uses the
   raw IDs. [as read]
+  **PARTIAL 2026-10-27 (re-x-net):** Answered in occupant-manager.md §13.2.4 "What the identifiers ... are": `0x4217`/`0x4208` subway train and cars, `0x49512A09` pipe-layer and `0x8A15F1BD` subway-layer markers, `0xCAA9AB92` not pickable by the query tool, `0xE83A081D` the model-lookup flag, `0x29F013E6` tool preview occupants. Still open: what `0x421D` and `0x5001` are; the executable only tests them in the default filter / view level and the realistic filter, so they are data-defined.

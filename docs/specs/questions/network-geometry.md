@@ -34,3 +34,4 @@
   These fixtures use the restored specified 24-bit earthwork product. The price
   differences therefore remain blocked on admitted multi-cell solver fixtures,
   rather than being resolved by changing rounding or accepting a price tolerance.
+  **PARTIAL 2026-10-27 (re-x-net):** `GetCrossSections` (`0x00636360`) takes the cell info, the network type index and the side, returns 0 when that side's edge byte (low two bits, per type) is 0, and reports the cell as diagonal exactly when that value is odd (1 or 3); its three output pairs are vertex ids built from the cell index, the connection-node offset 100000 and per-corner offset tables at tool `+0x250` and `+0x270`, with neighbours across the opposite and next sides probed in the same way. The exact pairs and the runtime fixtures requested are not settled statically.
