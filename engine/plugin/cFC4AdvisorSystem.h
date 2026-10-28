@@ -168,3 +168,6 @@ private:
 };
 
 cIGZUnknown* CreateFC4AdvisorSystem();
+cIGZUnknown* CreateFC4AdvisorObject(uint32_t clsid);
+template<uint32_t ClassId>
+cIGZUnknown* CreateFC4AdvisorClass() { return CreateFC4AdvisorObject(ClassId); }

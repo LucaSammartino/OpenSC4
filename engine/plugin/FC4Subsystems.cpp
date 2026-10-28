@@ -543,6 +543,21 @@ const ClassEntry kDisasterClasses[] = {
 // advisors.md §1.1, §14: opt-in replacement of the advisor system.
 const ClassEntry kAdvisorsClasses[] = {
     {kFC4_CLSID_cSC4AdvisorSystem, "cSC4AdvisorSystem", &CreateFC4AdvisorSystem},
+    // Saved child objects (§11), alongside the system: leave other owners'
+    // MySim classes to their own factories when mysims is disabled.
+    {0xEAC937B4, "cSC4Advisor", &CreateFC4AdvisorClass<0xEAC937B4>},
+    {0xCA09F543, "cSC4AdvisorBase", &CreateFC4AdvisorClass<0xCA09F543>},
+    {0x2A5F877D, "cSC4AdvisorCityPlanning", &CreateFC4AdvisorClass<0x2A5F877D>},
+    {0x4BE372CD, "cSC4AdvisorCitySituations", &CreateFC4AdvisorClass<0x4BE372CD>},
+    {0xAA5292D7, "cSC4AdvisorFinance", &CreateFC4AdvisorClass<0xAA5292D7>},
+    {0x6A5F8755, "cSC4AdvisorHQ", &CreateFC4AdvisorClass<0x6A5F8755>},
+    {0xEA19E825, "cSC4AdvisorSafety", &CreateFC4AdvisorClass<0xEA19E825>},
+    {0x4A3AD3E1, "cSC4AdvisorTraffic", &CreateFC4AdvisorClass<0x4A3AD3E1>},
+    {0xCA2C2A2F, "cSC4AdvisorUtility", &CreateFC4AdvisorClass<0xCA2C2A2F>},
+    {0x8A09F5F4, "cSC4Advice", &CreateFC4AdvisorClass<0x8A09F5F4>},
+    {0xAA371C32, "cSC4RewardAdvice", &CreateFC4AdvisorClass<0xAA371C32>},
+    {0x6A3848DB, "cSC4AdviceNeghborDeal", &CreateFC4AdvisorClass<0x6A3848DB>},
+    {0x6A26D049, "cSC4AdviceSubject", &CreateFC4AdvisorClass<0x6A26D049>},
 };
 
 // mysims.md §1, §7 (glue-mysims-replace16): the MySims run in the FC4 advisor

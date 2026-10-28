@@ -164,7 +164,11 @@ impl AdvisorSystem {
             ext.attach(&adv);
             return Some(adv);
         }
-        AdvisorKind::from_class(class).map(|k| Advisor::new(&self.shared, k, None))
+        if let Some(k) = AdvisorKind::from_class(class) {
+            return Some(Advisor::new(&self.shared, k, None));
+        }
+        let token = self.host().foreign_advisor(u64::from(class), 0, 0);
+        (token != 0).then(|| Advisor::from_host(&self.shared, class, token, 0))
     }
 
     /// `CreateInstance(class, 0x8A09F5F5)`: `None` for an unknown class.
@@ -615,21 +619,23 @@ impl SaveObject for AdvisorSystem {
     }
 
     /// §11.1: `u16 1`, `u32 count`, then `{ref advisor, s32 id}` by
-    /// ascending ID.
+    /// ascending ID, including advisors supplied by other owners.
     fn write(&self, out: &mut dyn OutStream) -> bool {
         let all = self.advisors();
         out.put_u16(SYSTEM_RECORD_VERSION);
         out.put_u32(all.len() as u32);
         for (id, a) in all {
-            out.put_ref(&RefValue::Object(a));
+            // The host token keeps the foreign object's identity; its own
+            // serializer must write its record, not this adapter's state.
+            out.put_ref(&a.reference());
             out.put_i32(id);
         }
         out.error() == 0
     }
 
     /// §11.1: version 1, else false. Each advisor is read with
-    /// `0xCA09F544` and stored as `map[id]` ([choice] an unresolved
-    /// reference stores nothing). loadedFromSave := !error.
+    /// `0xCA09F544` and stored as `map[id]`, retaining host advisors too.
+    /// loadedFromSave := !error.
     fn read(&self, inp: &mut dyn InStream) -> bool {
         if inp.get_u16() != Some(SYSTEM_RECORD_VERSION) {
             return false;
@@ -640,6 +646,13 @@ impl SaveObject for AdvisorSystem {
             let Some(id) = inp.get_i32() else { break };
             if let Some(a) = r.object::<Advisor>() {
                 self.s.borrow_mut().advisors.insert(id, a);
+            } else if let RefValue::Host { token, class_id } = r {
+                if token != 0 {
+                    self.s
+                        .borrow_mut()
+                        .advisors
+                        .insert(id, Advisor::from_host(&self.shared, class_id, token, id));
+                }
             }
         }
         let ok = inp.error() == 0;

@@ -37,10 +37,12 @@
 #include "cIGZApp.h"
 #include "cIGZCheatCodeManager.h"
 #include "cIGZFrameWork.h"
+#include "cIGZCOM.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
 #include "cIGZString.h"
 #include "cISC4App.h"
+#include "cISC4Advisor.h"
 #include "cISC4City.h"
 #include "cISC4View3DWin.h"
 #include "cISCLua.h"
@@ -507,6 +509,29 @@ uint64_t ObjectCreated(void* u, uint32_t kind, uint32_t, fc4_adv_obj* handle) {
 // The core object behind a front is gone (FC4AdvLife.h).
 void ObjectDroppedCb(void*, uint64_t token) { fc4::AdvFront::Dropped(token); }
 
+uint64_t ForeignAdvisor(void*, uint64_t token, uint32_t operation, int32_t arg) {
+    if (operation == 0) {
+        cIGZFrameWork* fw = RZGetFrameWork();
+        cIGZCOM* com = fw ? fw->GetCOMObject() : nullptr;
+        cISC4Advisor* a = nullptr;
+        if (com && com->GetClassObject(static_cast<uint32_t>(token), 0xCA09F544,
+                                      reinterpret_cast<void**>(&a)) && a) {
+            FC4_ACQUIRED(a, "GetClassObject");
+            return fc4::TokenOf(a);
+        }
+        return 0;
+    }
+    auto* a = reinterpret_cast<cISC4Advisor*>(static_cast<uintptr_t>(token));
+    if (!a) return 0;
+    switch (operation) {
+        case 1: return a->Init(arg);
+        case 2: return a->Shutdown();
+        case 3: return a->Simulate(arg);
+        case 4: return static_cast<uint32_t>(a->GetID());
+        default: return 0;
+    }
+}
+
 // §6.9: the text rebuild reads the advice entry's title and message.
 // [question AD12] the detokenizer pass (UI) is not run on them here.
 void RebuildTextCb(void* u, uint32_t, uint64_t token) {
@@ -716,6 +741,7 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.object_created = &ObjectCreated;
     h.object_dropped = &ObjectDroppedCb;
     h.rebuild_text = &RebuildTextCb;
+    h.foreign_advisor = &ForeignAdvisor;
     return h;
 }
 
@@ -796,6 +822,28 @@ void fc4::FillMySimLuaHost(fc4_mysim_host* h) {
 }
 
 cIGZUnknown* CreateFC4AdvisorSystem() { return (new cFC4AdvisorSystem())->Primary(); }
+
+// §11: the class store must construct our saved children too. Recreating
+// advisors from Lua after dropping native references loses saved counters,
+// advice ordering and subjects. Keep the factory handle until its first QI.
+cIGZUnknown* CreateFC4AdvisorObject(uint32_t clsid) {
+    fc4_advisors* core = fc4::CurrentAdvisorCore();
+    fc4_adv_obj* h = core ? fc4_advisors_create_object(core, clsid) : nullptr;
+    if (!h) return nullptr;
+    cIGZUnknown* front = fc4::FromToken(fc4_adv_obj_token(h));
+    if (!front) {
+        fc4_adv_obj_destroy(h);
+        return nullptr;
+    }
+    if (clsid == 0x6A26D049) {
+        static_cast<cFC4AdviceSubject*>(static_cast<cFC4ISC4AdviceSubject*>(front))->HoldForFactory(h);
+    } else if (clsid == 0x8A09F5F4 || clsid == 0xAA371C32 || clsid == 0x6A3848DB) {
+        static_cast<cFC4Advice*>(static_cast<cFC4ISC4Advice*>(front))->HoldForFactory(h);
+    } else {
+        static_cast<cFC4Advisor*>(static_cast<cFC4ISC4Advisor*>(front))->HoldForFactory(h);
+    }
+    return front;
+}
 
 // ---- the cheat handler (+8) -------------------------------------------------------------------------------
 

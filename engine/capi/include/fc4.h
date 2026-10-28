@@ -10719,6 +10719,10 @@ typedef struct fc4_advisor_host {
        core never hands the token out again (a wrapper holding only a
        fc4_adv_weak may be freed) */
     void (*object_dropped)(void* user, uint64_t token);
+    /* Advisor classes supplied by other owners: 0 create (token=class),
+     * 1 Init(arg), 2 Shutdown(), 3 Simulate(arg), 4 GetID(). Create returns
+     * an acquired advisor interface; all other operations use a borrowed one. */
+    uint64_t (*foreign_advisor)(void* user, uint64_t token, uint32_t operation, int32_t arg);
 } fc4_advisor_host;
 
 /* MySim Lua field values (§4.4). */

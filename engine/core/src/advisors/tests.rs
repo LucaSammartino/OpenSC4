@@ -750,6 +750,64 @@ struct Store {
     records: BTreeMap<(u32, u32), Vec<u8>>,
 }
 
+#[test]
+fn saved_foreign_advisor_keeps_identity_and_receives_lifecycle_calls() {
+    const TOKEN: u64 = 0x1234;
+    const CLASS: u32 = clsid::MY_STREET_SIM;
+    let h = ScriptedHost::new();
+    *h.advisors.borrow_mut() = Some(vec![advisor_entry(CLASS, 30)]);
+    for (op, value) in [(1, 1), (2, 1), (3, 1), (4, 30)] {
+        h.foreign_results.borrow_mut().insert((TOKEN, op), value);
+    }
+    // The reader hands us one acquired native advisor, as the game loader does.
+    h.add_ref(TOKEN);
+    let sys = AdvisorSystem::new(h.clone(), 0);
+    let mut w = ByteWriter::with_registry(Rc::new(RefCell::new(SaveRegistry::new())));
+    w.put_u16(1);
+    w.put_u32(1);
+    w.put_ref(&RefValue::Host {
+        token: TOKEN,
+        class_id: CLASS,
+    });
+    w.put_i32(30);
+    let bytes = w.into_bytes();
+    let mut resolver = Loader {
+        sys: &sys,
+        made: BTreeMap::new(),
+    };
+    resolver.made.insert(
+        (CLASS, 1),
+        RefValue::Host {
+            token: TOKEN,
+            class_id: CLASS,
+        },
+    );
+    assert!(sys.read(&mut ByteReader::with_resolver(&bytes, &mut resolver)));
+    sys.update_advisors();
+    let a = sys.get_advisor(30).expect("host advisor retained");
+    assert_eq!(a.host_token(), TOKEN);
+    assert!(a.simulate(0));
+    assert!(a.simulate(1));
+    let reg = Rc::new(RefCell::new(SaveRegistry::new()));
+    assert!(sys.write(&mut ByteWriter::with_registry(reg.clone())));
+    let entries = &reg.borrow().entries;
+    assert_eq!((entries[0].0, entries[0].3), (CLASS, TOKEN));
+    assert!(entries[0].2.is_none(), "host writes its own record");
+    sys.kill_advisors();
+    drop(a);
+    assert_eq!(h.refs.borrow()[&TOKEN], 0);
+    assert_eq!(
+        *h.foreign_calls.borrow(),
+        [
+            (TOKEN, 1, 1),
+            (TOKEN, 4, 0),
+            (TOKEN, 3, 0),
+            (TOKEN, 3, 1),
+            (TOKEN, 2, 0)
+        ]
+    );
+}
+
 /// Saves `root` and everything it references.
 fn save(root: RefValue) -> (Store, Vec<u8>) {
     let reg = Rc::new(RefCell::new(SaveRegistry::new()));

@@ -1204,6 +1204,12 @@ pub trait AdvisorHost {
     /// the token out again. Lets the host free a wrapper that holds no
     /// strong handle on the object.
     fn object_dropped(&self, _token: u64) {}
+    /// Advisor interface calls for classes supplied by another owner (§4.3,
+    /// §5.3, §11.1). Operations: 0 CreateInstance(class = token), 1 Init,
+    /// 2 Shutdown, 3 Simulate, 4 GetID. Creation returns an acquired token.
+    fn foreign_advisor(&self, _token: u64, _operation: u32, _arg: i32) -> u64 {
+        0
+    }
 }
 
 /// The behaviour of an advisor class this module does not implement

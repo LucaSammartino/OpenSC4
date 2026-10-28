@@ -111,6 +111,7 @@ pub struct Advisor {
     kind: AdvisorKind,
     ext: Option<Rc<dyn AdvisorExt>>,
     token: Cell<u64>,
+    foreign: bool,
     s: RefCell<AdvisorState>,
 }
 
@@ -122,6 +123,7 @@ impl Advisor {
             kind,
             ext,
             token: Cell::new(0),
+            foreign: false,
             s: RefCell::new(AdvisorState {
                 // The constructor sets dirty (§3.4).
                 dirty: kind.is_base_family(),
@@ -130,6 +132,23 @@ impl Advisor {
         });
         a.token.set(shared.created(a.clone()));
         a
+    }
+
+    /// Keep the acquired advisor interface from Read/CreateInstance. Its
+    /// own class-store record and implementation belong to the host.
+    pub(crate) fn from_host(shared: &Rc<Shared>, class: u32, token: u64, id: i32) -> Rc<Self> {
+        Rc::new(Self {
+            shared: shared.clone(),
+            serial: shared.next_serial(),
+            kind: AdvisorKind::Ext(class),
+            ext: None,
+            token: Cell::new(token),
+            foreign: true,
+            s: RefCell::new(AdvisorState {
+                id,
+                ..AdvisorState::default()
+            }),
+        })
     }
 
     pub fn serial(&self) -> u32 {
@@ -144,6 +163,16 @@ impl Advisor {
     }
     pub fn set_token(&self, token: u64) {
         self.token.set(token);
+    }
+    pub(crate) fn reference(self: &Rc<Self>) -> RefValue {
+        if self.foreign {
+            RefValue::Host {
+                token: self.token.get(),
+                class_id: self.kind.class_id(),
+            }
+        } else {
+            RefValue::Object(self.clone())
+        }
     }
     pub fn state(&self) -> AdvisorState {
         self.s.borrow().clone()
@@ -214,6 +243,15 @@ impl Advisor {
 
     /// Slot 3 `Init(i)`.
     pub fn init(self: &Rc<Self>, table_index: i32) -> bool {
+        if self.foreign {
+            let ok = self.host().foreign_advisor(self.token.get(), 1, table_index) != 0;
+            if ok {
+                let mut s = self.s.borrow_mut();
+                s.id = self.host().foreign_advisor(self.token.get(), 4, 0) as i32;
+                s.table_index = table_index;
+            }
+            return ok;
+        }
         if let Some(ext) = &self.ext {
             return ext.init(self, table_index);
         }
@@ -363,6 +401,9 @@ impl Advisor {
 
     /// Slot 4 `Shutdown` → true.
     pub fn shutdown(self: &Rc<Self>) -> bool {
+        if self.foreign {
+            return self.host().foreign_advisor(self.token.get(), 2, 0) != 0;
+        }
         if let Some(ext) = &self.ext {
             return ext.shutdown(self);
         }
@@ -434,6 +475,9 @@ impl Advisor {
 
     /// Slot 14 `Simulate(kind)` → true.
     pub fn simulate(self: &Rc<Self>, kind: i32) -> bool {
+        if self.foreign {
+            return self.host().foreign_advisor(self.token.get(), 3, kind) != 0;
+        }
         match kind {
             0 => {
                 let day = self.host().sim_date().day_number;
@@ -1125,7 +1169,11 @@ impl Drop for Advisor {
     fn drop(&mut self) {
         let token = self.token.get();
         if token != 0 {
-            self.shared.host.object_dropped(token);
+            if self.foreign {
+                self.shared.host.release(token);
+            } else {
+                self.shared.host.object_dropped(token);
+            }
         }
     }
 }
