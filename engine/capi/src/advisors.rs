@@ -785,7 +785,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_mysim_post>() == 24);
     assert!(std::mem::size_of::<fc4_mysims_agent_state>() == 40);
     assert!(std::mem::size_of::<fc4_mysim_state>() == 240);
-    assert!(std::mem::size_of::<fc4_advisor_host>() == 2 * p + 65 * p);
+    assert!(std::mem::size_of::<fc4_advisor_host>() == 2 * p + 66 * p);
     assert!(std::mem::size_of::<fc4_mysim_host>() == 2 * p + 47 * p);
 };
 
