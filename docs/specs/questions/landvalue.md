@@ -41,3 +41,19 @@ Normal-speed counterpart: `lvstep6-20261024-isolated-normal`, same DLL, reached2
 LV2/LV7 evidence: `lvcapture7-20261024-isolated-t1` reached2032-01-02 clean/ref0,71/73 exact (isolated, turbo; not house). Pass1 at2026-01-28 has383 total differences(max15), intrinsic/slope/types/scalars exact; only live developer map available (LV7). Pass3 at2026-03-06 has1 slope difference(max0.013541221618652344), all other fields exact, previous developer map selected (LV2). SHA256ABAD0198BAA9D88E545B6FC76BAD3EF57350671A28F928F2A14C95FB62C18B59, run410. Capture remains pass-end-sample/native_step_capture=0 under LV8; no formula/sampling/golden/acceptance change. Normal-speed counterpart requested; no causal claim from this sample.
 
 Normal-speed counterpart: `lvcapture7-20261024-isolated-normal`, same DLL, reached2032-01-01 clean/ref0,72/73 exact, real110.828s (run411). Pass1 at2026-01-27 again has383 total differences(max15), all other fields exact, live developer map. No later differences. The startup discrepancy is not confined to turbo; the pass3 turbo slope difference was not reproduced here, without a global causal claim. No native capture/provenance claim or algorithm change; native_step_capture=0 throughout.
+
+- **LV-SE33-1 — observable timer reads during a delivery (2026-10-28, services-exact33):**
+  Please specify whether Step starts, restarts or reads any stopwatch in each
+  state, including the order relative to tract work and early returns. Section 6
+  bounds work by milliseconds, but does not give the observable timer-read
+  contract needed when simulator section 5.8 advances the virtual counter on
+  each read. This is a hypothesis to investigate, not an established cause.
+  Landvalue-only qcheck on ui29-weburg is clean/ref0 with equal delivery rand
+  states, DIGESTs and all land-value records. Its only changed record is
+  8BA98EDA/299B2D1B/0 (helicopter), object 636: seven changed payload bytes
+  at offsets 80, 84, 100, 101, 104, 105 and 108, in equal-length 346-byte
+  payloads. At offsets 80 and 84 the expected/actual f32 bit patterns are
+  43BE6884/43BE687D and 446A472F/446A4741. The same build with replace none
+  is exact on ui29-weburg (qcheck-10); qcheck-9 replacement is outside.
+  Evidence: main build-runs/golden-runs/compare-20261028-033243-9f6822b1/result.
+  Please provide behavior and value-only examples; no implementation excerpts.
