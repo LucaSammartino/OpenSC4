@@ -10,17 +10,22 @@ use fc4_core::automata::archive::AutomataRecord;
 use fc4_core::budget::archive::{BudgetRecord, DepartmentRecord, LineItemRecord};
 use fc4_core::camera::{CameraControl, CAMERA_CONTROL_CLASS_ID};
 use fc4_core::city_detail::DetailRecord;
+use fc4_core::civic::archive::CivicRecord;
 use fc4_core::clock24::{Clock24, CLSID_24_HOUR_CLOCK};
 use fc4_core::commercial::CommercialRecord;
 use fc4_core::commercial::IndustrialSim;
 use fc4_core::crime::archive::CrimeRecord;
 use fc4_core::demand::archive::{DemandNodeRecord, DemandRecord};
+use fc4_core::development_simulator::archive::DevelopmentRecord;
+use fc4_core::dispatch::archive::DispatchManagerRecord;
 use fc4_core::flammability::archive::FlammabilityRecord;
 use fc4_core::flora::archive::FloraSimulatorRecord;
 use fc4_core::flora::occupant::FloraInstance;
 use fc4_core::growth_developer::archive::GrowthRecord;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
+use fc4_core::landfill::archive::{LandfillOccupantRecord, LandfillRecord};
 use fc4_core::landvalue::archive::LandValueRecord;
+use fc4_core::lot_developer::archive::LotDeveloperRecord;
 use fc4_core::lot_records::{
     BusinessUnitRecord, LotRecord, OccupantRecord, RetainingWallRecord, CLSID_BUSINESS_UNIT, CLSID_LOT,
     CLSID_RETAINING_WALL_OCCUPANT,
@@ -32,8 +37,10 @@ use fc4_core::network_occupants::archive::NetworkRecord;
 use fc4_core::occupant_manager::archive::OccupantManagerRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
+use fc4_core::parks::archive::ParksRecord;
 use fc4_core::plumbing::archive::PlumbingRecord;
 use fc4_core::pollution::archive::PollutionRecord;
+use fc4_core::port_developer::archive::PortRecord;
 use fc4_core::power::archive::PowerRecord;
 use fc4_core::prop_developer::archive::PropDeveloperRecord;
 use fc4_core::prop_occupant::{
@@ -61,6 +68,14 @@ mod hosts;
 mod terrain;
 
 enum Payload {
+    Civic(CivicRecord),
+    Development(DevelopmentRecord),
+    DispatchManager(DispatchManagerRecord),
+    Landfill(LandfillRecord),
+    LandfillOccupant(LandfillOccupantRecord),
+    LotDeveloper(LotDeveloperRecord),
+    Parks(ParksRecord),
+    Port(PortRecord),
     Residential(Box<ResidentialRecord>),
     Growth(GrowthRecord),
     Tract(TractRecord),
@@ -116,6 +131,29 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0x0A41_3481 => (Self::Civic(CivicRecord::read(&mut r).ok_or("civic Read failed")?), true),
+            0x8990_BE7A => (
+                Self::Development(DevelopmentRecord::read(&mut r).ok_or("development Read failed")?),
+                true,
+            ),
+            0x4990_BD93 => (
+                Self::DispatchManager(DispatchManagerRecord::read(&mut r).ok_or("dispatch manager Read failed")?),
+                true,
+            ),
+            0xEA09_D4AE => (
+                Self::Landfill(LandfillRecord::read(&mut r).ok_or("landfill Read failed")?),
+                true,
+            ),
+            0x8A22_BEBE => (
+                Self::LandfillOccupant(LandfillOccupantRecord::read(&mut r).ok_or("landfill occupant Read failed")?),
+                true,
+            ),
+            0xA990_BFE0 => (
+                Self::LotDeveloper(LotDeveloperRecord::read(&mut r).ok_or("lot developer Read failed")?),
+                true,
+            ),
+            0xAA3F_E6BC => (Self::Parks(ParksRecord::read(&mut r).ok_or("parks Read failed")?), true),
+            0xAA20_49A1 | 0xEA23_0A28 => (Self::Port(PortRecord::read(&mut r).ok_or("port Read failed")?), true),
             0x4990_C013 => (
                 Self::Residential(Box::new(
                     ResidentialRecord::read(&mut r).ok_or("residential Read failed")?,
@@ -354,6 +392,14 @@ impl Payload {
     fn write(&self) -> Result<Vec<u8>, String> {
         let mut w = ReferenceWriter::default();
         let ok = match self {
+            Self::Civic(record) => record.write(&mut w),
+            Self::Development(record) => record.write(&mut w),
+            Self::DispatchManager(record) => record.write(&mut w),
+            Self::Landfill(record) => record.write(&mut w),
+            Self::LandfillOccupant(record) => record.write(&mut w),
+            Self::LotDeveloper(record) => record.write(&mut w),
+            Self::Parks(record) => record.write(&mut w),
+            Self::Port(record) => record.write(&mut w),
             Self::Residential(record) => record.write(&mut w),
             Self::Growth(record) => record.write(&mut w),
             Self::Tract(record) => record.write(&mut w),

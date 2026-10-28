@@ -424,6 +424,15 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
         0x0A13_4F24,
         0x2A13_4F42,
         0x4990_C013,
+        0x0A41_3481,
+        0x8990_BE7A,
+        0x4990_BD93,
+        0xEA09_D4AE,
+        0x8A22_BEBE,
+        0xA990_BFE0,
+        0xAA3F_E6BC,
+        0xAA20_49A1,
+        0xEA23_0A28,
     ] {
         let stats = &total.types[&ty];
         assert_eq!(stats.identical, stats.count, "{ty:08X}: codec coverage regressed");
