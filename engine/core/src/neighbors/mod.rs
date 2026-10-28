@@ -59,7 +59,7 @@ mod tests;
 mod tuning;
 
 pub use connection::{ConnectionState, NeighborConnection, CONNECTION_RECORD_VERSION};
-pub use deal::{DealCall, DealData, NeighborDeal, DEAL_RECORD_VERSION, DEFAULT_DATE};
+pub use deal::{DealCall, DealData, DealHost, NeighborDeal, DEAL_RECORD_VERSION, DEFAULT_DATE};
 pub use pricing::{deal_cost, deal_max_amount, CommodityStats, PriceInputs};
 pub use simulator::{answers_iid, ConnectionRequest, NeighborsSimulator, SimState, SIMULATOR_RECORD_VERSION};
 pub use tuning::{prop, shipped_tuning, Tuning, DEAL_PRICE_CURVE, GARBAGE_COST_CURVE, TUNING_KEY};

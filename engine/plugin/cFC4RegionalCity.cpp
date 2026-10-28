@@ -2,6 +2,7 @@
 #include "cFC4RegionalCity.h"
 #include "FC4RegionalCityElements.h"
 #include "FC4RegionalCityHost.h"
+#include "FC4GameMapBuild.h"
 #include "FC4Streams.h"
 #include "FC4Log.h"
 #include "FC4Diag.h"
@@ -197,16 +198,19 @@ void cFC4RegionalCity::UpdateCityCacheFromCity(cISC4City* city) {
         cache.population = residential->GetPopulation();
         cache.workforce = residential->GetGlobalWorkforcePercent().percentage;
     }
-    std::map<uint32_t, int32_t> summary;
+    fc4::GameMapObject summary{};
     std::vector<FC4RegionalCityPopulation> populations;
     auto* demand = fc4::AsGame(city->GetDemandSimulator());
-    if (demand) {
-        demand->GetLocalPopulationSummary(summary);
-        for (const auto& entry : summary) {
-            FC4RegionalCityPopulation p{}; p.type = entry.first; p.count = entry.second;
+    // allocators.md: this out-parameter is an STLport map, with B-allocated
+    // header/nodes. A map from our C++ runtime has a different layout.
+    if (demand && fc4::BuildGameMap<fc4::StlNodeAllocator>(summary, nullptr, nullptr, 0)) {
+        demand->GetLocalPopulationSummary(reinterpret_cast<std::map<uint32_t, int32_t>&>(summary));
+        fc4::WalkGameMap(&summary, summary.count, [&](const fc4::GameMapNode& entry) {
+            FC4RegionalCityPopulation p{}; p.type = entry.key; p.count = static_cast<int32_t>(entry.value);
             demand->CalculateJobsPerUnitOfDemand(p.jobs, p.type, 0);
             populations.push_back(p);
-        }
+        });
+        fc4::FreeGameMap<fc4::StlNodeAllocator>(summary);
     }
     cache.populations = populations.data(); cache.populationCount = static_cast<uint32_t>(populations.size());
     std::vector<FC4RegionalCityPoint> points;

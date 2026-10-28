@@ -1044,6 +1044,38 @@ void ReleaseDeal(void*, uint64_t deal) {
     if (o != nullptr) FC4_RELEASE_CREATED(o);
 }
 
+// neighbors §5.3–§5.5: regional-city records also create our deal objects
+// when the game's original neighbors simulator is still running. Resolve
+// that simulator on each call, through interfaces, without owning its state.
+cFC4ISC4NeighborsSimulator* IndependentNeighbors() {
+    auto* city = fc4::NeighborAppCity();
+    return city ? fc4::AsGame(city->GetNeighborsSimulator()) : nullptr;
+}
+uint64_t IndependentCurrentCity(void*) { return TokenOf(fc4::NeighborAppRegionalCity()); }
+uint64_t IndependentCityAt(void*, int32_t x, int32_t z) { return TokenOf(fc4::NeighborRegionCityAt(x, z)); }
+bool IndependentNeighborsAvailable(void*) { return IndependentNeighbors() != nullptr; }
+double IndependentDealCost(void*, uint32_t t, double amount, uint64_t other) {
+    auto* sim = IndependentNeighbors();
+    return sim ? sim->GetDealCost(static_cast<int32_t>(t), amount, CityOf(other)) : 0.0;
+}
+double IndependentBudget(void*, uint64_t city) {
+    auto* record = RcOf(city);
+    return record ? record->GetBudget() : 0.0;
+}
+bool IndependentSuitableConnection(void*, uint32_t t, uint64_t other) {
+    auto* sim = IndependentNeighbors();
+    return sim && sim->FindConnectionSuitableForDeal(static_cast<int32_t>(t), CityOf(other));
+}
+void IndependentReport(void*, uint64_t deal, uint32_t status, bool sent) {
+    fc4::NeighborsContext context{};
+    Status(&context, deal, status, sent);
+}
+const fc4_neighbor_deal_host kIndependentDealHost = {
+    sizeof(fc4_neighbor_deal_host), nullptr, IndependentCurrentCity, IndependentCityAt,
+    IndependentNeighborsAvailable, IndependentDealCost, IndependentBudget,
+    IndependentSuitableConnection, IndependentReport
+};
+
 }  // namespace
 
 // ---- shared reads -----------------------------------------------------------------------------------
@@ -1603,6 +1635,7 @@ uint32_t cFC4NeighborConnection::GetGZCLSID() { return kFC4_CLSID_cSC4NeighborCo
 
 cFC4NeighborDeal::cFC4NeighborDeal(fc4_neighbor_deal* handle) : h_(handle) {
     fc4_neighbor_deal_set_token(h_, TokenOf(Primary()));
+    fc4_neighbor_deal_bind_host(h_, &kIndependentDealHost);
     Register(g_deals, this);
     RefreshMirror();
 }
@@ -1823,6 +1856,19 @@ bool cFC4NeighborDeal::Clone(cISC4NeighborDeal** outCopy, bool silent) const {
         return false;
     }
     Claim();
+    if (g_current == nullptr) {
+        auto* nh = fc4_neighbor_deal_create();
+        if (!nh) return false;
+        auto* c = new cFC4NeighborDeal(nh);
+        c->AddRef();
+        if (!fc4_neighbor_deal_clone_into(h_, nh, silent)) {
+            c->Release();
+            return false;
+        }
+        if (outCopy) *outCopy = c->Primary();
+        else c->Release();
+        return true;
+    }
     fc4_neighbor_deal* nh = fc4_neighbor_deal_clone(h_, silent);
     if (nh == nullptr) return false;
     auto* c = new cFC4NeighborDeal(nh);

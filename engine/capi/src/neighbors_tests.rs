@@ -64,6 +64,91 @@ fn g(u: *mut c_void) -> &'static Game {
     unsafe { &*(u as *const Game) }
 }
 
+#[test]
+fn regional_city_deals_use_original_simulator_interfaces() {
+    unsafe extern "C" fn available(_: *mut c_void) -> bool {
+        true
+    }
+    unsafe extern "C" fn price(_: *mut c_void, t: u32, amount: f64, other: u64) -> f64 {
+        assert_eq!((t, other), (deal_type::BUY_POWER, W));
+        amount * 3.0
+    }
+    unsafe extern "C" fn suitable(_: *mut c_void, _: u32, _: u64) -> bool {
+        false
+    }
+    unsafe extern "C" fn report(u: *mut c_void, token: u64, s: u32, sent: bool) {
+        if sent {
+            // A real MessageSend can re-enter getters and plain setters.
+            let h = g(u).deal_objects.borrow()[&token];
+            let mut d = fc4_neighbor_deal_data::default();
+            assert!(fc4_neighbor_deal_get(h, &mut d));
+            assert_eq!(d.amount, 12);
+            fc4_neighbor_deal_set_field(h, 5, 7, 0);
+            g(u).sends.borrow_mut().push((token, s));
+        } else {
+            g(u).posts.borrow_mut().push((token, s));
+        }
+    }
+    let game = game();
+    let host = fc4_neighbor_deal_host {
+        struct_size: std::mem::size_of::<fc4_neighbor_deal_host>() as u32,
+        ctx: &*game as *const Game as *mut c_void,
+        current_city: Some(current_city),
+        city_at: Some(city_at),
+        neighbors_available: Some(available),
+        deal_cost: Some(price),
+        city_budget: Some(city_budget),
+        suitable_connection: Some(suitable),
+        report: Some(report),
+    };
+    unsafe {
+        let source = fc4_neighbor_deal_create();
+        let clone = fc4_neighbor_deal_create();
+        fc4_neighbor_deal_set_token(clone, 0xD001);
+        game.deal_objects.borrow_mut().insert(0xD001, clone);
+        let original = fc4_neighbor_deal_data {
+            deal_type: deal_type::SELL_POWER,
+            city_x: 1,
+            city_z: 3,
+            other_x: 3,
+            other_z: 3,
+            amount: 24,
+            cost: 72,
+            flags: flag::ACTIVE | flag::SILENT,
+            ..Default::default()
+        };
+        fc4_neighbor_deal_copy(source, &original);
+        assert!(!fc4_neighbor_deal_bind_host(clone, std::ptr::null()));
+        assert!(fc4_neighbor_deal_bind_host(clone, &host));
+        assert!(fc4_neighbor_deal_clone_into(source, clone, false));
+        let mut d = fc4_neighbor_deal_data::default();
+        assert!(fc4_neighbor_deal_get(clone, &mut d));
+        assert_eq!(
+            (d.deal_type, d.city_x, d.city_z, d.other_x, d.other_z),
+            (deal_type::BUY_POWER, 3, 3, 1, 3)
+        );
+        assert_eq!(&*game.posts.borrow(), &[(0xD001, status::CHANGED)]);
+        fc4_neighbor_deal_set_amount(clone, 12);
+        assert!(fc4_neighbor_deal_get(clone, &mut d));
+        assert_eq!((d.amount, d.cost, d.inc_amount), (12, 36, 7));
+        assert_eq!(&*game.sends.borrow(), &[(0xD001, status::CHANGED)]);
+        game.budget.borrow_mut().insert(R, 20.0);
+        fc4_neighbor_deal_update_state(clone);
+        assert!(fc4_neighbor_deal_get(clone, &mut d));
+        assert_ne!(d.flags & flag::CANNOT_AFFORD, 0);
+        assert_eq!(d.flags & flag::NO_CONNECTION, 0);
+        game.budget.borrow_mut().insert(R, 40.0);
+        fc4_neighbor_deal_update_state(clone);
+        assert!(fc4_neighbor_deal_get(clone, &mut d));
+        assert_ne!(d.flags & flag::NO_CONNECTION, 0);
+        let mut untouched = fc4_neighbor_deal_data::default();
+        assert!(fc4_neighbor_deal_get(source, &mut untouched));
+        assert_eq!(untouched, original);
+        fc4_neighbor_deal_destroy(clone);
+        fc4_neighbor_deal_destroy(source);
+    }
+}
+
 unsafe extern "C" fn tuning(_: *mut c_void) -> *mut fc4_props {
     std::ptr::null_mut()
 }

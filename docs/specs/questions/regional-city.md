@@ -36,3 +36,4 @@
   exact): native -11584.5830078125 versus core -11584.583251953125, for example. [Apply foundations
   §18.3 literally: load each double without rounding, round each of the two sums and the final
   subtraction to 24-bit precision; retain the double storage and return type. Please reconcile §5.]
+
