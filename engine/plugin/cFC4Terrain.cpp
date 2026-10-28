@@ -123,7 +123,7 @@ std::atomic<TerrainDrawVertex*> g_drawVertices{nullptr};
 struct HostContext {
     cISC4City* city = nullptr;  // borrowed for one call
     cIGZUnknown* self = nullptr;  // the terrain, for the messages' IGZUnknown
-    void (*syncDraw)(void*) = nullptr;
+    void (*syncDraw)(void*, const fc4_terrain_post*) = nullptr;
     void* drawOwner = nullptr;
     int inside = 0;
     std::atomic<uint32_t> guardRefused{0};
@@ -263,7 +263,7 @@ void HostPost(void* u, const fc4_terrain_post* p) {
     if (c == nullptr || p == nullptr) return;
     c->posts.fetch_add(1, std::memory_order_relaxed);
     if ((p->msg_type == 0x278E6003u || p->msg_type == 0x678E6E3Au) && c->syncDraw != nullptr) {
-        c->syncDraw(c->drawOwner);
+        c->syncDraw(c->drawOwner, p);
     }
     if (c->testMode) return;
     cIGZMessageServer2Ptr ms;
@@ -698,7 +698,7 @@ private:
     bool CreateCore(uint32_t cellsX, uint32_t cellsZ);
     void PublishCore();
     void DestroyCore();
-    void SyncDrawVertices();
+    void SyncDrawVertices(const fc4_terrain_post* changed = nullptr);
     void StopView();
     void Subscribe();
     void Unsubscribe();
@@ -740,7 +740,9 @@ cFC4STETerrain::cFC4STETerrain() {
     hostTable_ = MakeHost(&host_);
     host_.self = Primary();
     host_.drawOwner = this;
-    host_.syncDraw = [](void* owner) { static_cast<cFC4STETerrain*>(owner)->SyncDrawVertices(); };
+    host_.syncDraw = [](void* owner, const fc4_terrain_post* changed) {
+        static_cast<cFC4STETerrain*>(owner)->SyncDrawVertices(changed);
+    };
     // §1: the terrain owns the surface water at +0x24. The city may also build
     // one through the class factory; both are views over the same core.
     water_ = new cFC4STESurfaceWater();
@@ -876,11 +878,19 @@ void cFC4STETerrain::PublishCore() {
     g_drawVertices.store(drawVertices_.data(), std::memory_order_release);
 }
 
-void cFC4STETerrain::SyncDrawVertices() {
+void cFC4STETerrain::SyncDrawVertices(const fc4_terrain_post* changed) {
     if (core_ == nullptr) return;
-    for (uint32_t i = 0; i < f_.vertexCount; ++i) {
-        const int32_t x = static_cast<int32_t>(i % f_.vertsX);
-        const int32_t z = static_cast<int32_t>(i / f_.vertsX);
+    // §8.1: each height/water notification carries the inclusive changed
+    // vertex rectangle. Re-reading the whole city for every small levelling
+    // notification makes city initialization exceed the watchdog deadline.
+    const uint32_t x0 = changed ? std::min(changed->data1 >> 16, f_.cellsX) : 0;
+    const uint32_t z0 = changed ? std::min(changed->data2 >> 16, f_.cellsZ) : 0;
+    const uint32_t x1 = changed ? std::min(changed->data1 & 0xFFFFu, f_.cellsX) : f_.cellsX;
+    const uint32_t z1 = changed ? std::min(changed->data2 & 0xFFFFu, f_.cellsZ) : f_.cellsZ;
+    for (uint32_t row = z0; row <= z1; ++row) {
+      for (uint32_t column = x0; column <= x1; ++column) {
+        const uint32_t i = column + row * f_.vertsX;
+        const int32_t x = static_cast<int32_t>(column), z = static_cast<int32_t>(row);
         auto& v = drawVertices_[i];
         v.altitude = fc4_terrain_altitude_at_index(core_, i);
         // SPEC-GAP: the core exposes face normals, not smoothed rendering normals; retain the face normal here.
@@ -893,6 +903,7 @@ void cFC4STETerrain::SyncDrawVertices() {
         w.depth = fc4_terrain_water_depth_at_index(core_, i);
         fc4_terrain_water_velocity(core_, x, z, w.velocity);
         w.sediment = fc4_terrain_sediment(core_, x, z);
+      }
     }
 }
 
