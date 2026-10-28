@@ -149,6 +149,7 @@ enum class Direct : unsigned {
     OverlayEnvironment,
     OverlayAlphaEnabled,
     OverlayAlphaFunction,
+    TimerGetCycle,                   // cRZTimer static counter getter: cdecl (uint64_t*), timers §1.3
     Count
 };
 

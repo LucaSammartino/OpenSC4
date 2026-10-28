@@ -136,6 +136,7 @@ const ExecutableVersion kVersions[] = {
             0x007D30B0,  // environment colour (stdcall pointer)
             0x007D3E90,  // alpha test enable
             0x007D2F50,  // alpha function/reference,
+            0x0088FF19,  // cRZTimer::GetTimerCycle (timers §1.3; functions.tsv, cdecl out pointer)
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -622,6 +623,7 @@ uintptr_t DirectCall(Direct which) {
                                          "overlay filtering", "overlay wrap", "overlay combiner",
                                          "overlay texture state", "overlay environment colour",
                                          "overlay alpha enable", "overlay alpha function",
+                                         "timer counter",
 };
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused

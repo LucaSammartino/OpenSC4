@@ -37,6 +37,7 @@
 #include "cISC4Simulator.h"
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
+#include "compat/FC4Compat.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -485,6 +486,12 @@ bool cFC4CommercialSimulator::DoMessage(cIGZMessage2* pMessage) {
     }
     int32_t before = kStateIdle;
     if (type == kMsgSimIdle || type == kMsgSimNewDay) {
+        // §4.3 starts an unused framework stopwatch on every idle/daily step.
+        // SPEC-GAP: its unit is unspecified; use the performance counter (timers §1.2, units 1–6).
+        if (const uintptr_t counter = fc4::compat::DirectCall(fc4::compat::Direct::TimerGetCycle)) {
+            uint64_t stamp = 0;
+            reinterpret_cast<void(__cdecl*)(uint64_t*)>(counter)(&stamp);
+        }
         fc4_commercial_state st{};
         st.struct_size = sizeof(st);
         if (fc4_commercial_get_state(core_, &st)) before = st.state;
