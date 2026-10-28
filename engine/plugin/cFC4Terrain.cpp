@@ -88,7 +88,6 @@ namespace {
 // ---- messages (terrain.md §8, §12.1) -------------------------------------------------------------
 
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
-constexpr uint32_t kMsgPreCityShutdown = 0x26D31EC2;
 constexpr uint32_t kMsgViewUpdate = 0xA6B79602;      // §2.3, TR9
 constexpr uint32_t kMsgAnimationTick = 0x86AD10EE;  // §12.1
 constexpr uint32_t kMsgViewWindow = 0x470BD214;     // §12.1
@@ -97,9 +96,8 @@ constexpr uint32_t kMsgSimNewDay = 0x66956814;      // §10.3
 
 // What the original's terrain subscribes to (§12.1), minus the render-only
 // notifications and the script commands we do not implement.
-constexpr uint32_t kSubscribed[] = {kMsgPostCityInit, kMsgPreCityShutdown, kMsgViewUpdate,
-                                    kMsgAnimationTick, kMsgViewWindow,      kMsgReconcile,
-                                    kMsgSimNewDay};
+constexpr uint32_t kSubscribed[] = {kMsgPostCityInit, kMsgViewUpdate, kMsgAnimationTick,
+                                    kMsgViewWindow, kMsgReconcile, kMsgSimNewDay};
 
 // Vertex flags (§7).
 constexpr uint16_t kFlagEvenHidden = 0x0020;
@@ -1119,7 +1117,6 @@ bool cFC4STETerrain::DoMessage(cIGZMessage2* msg) {
     }
     switch (type) {
         case kMsgPostCityInit: DoPostCityInit(); break;
-        case kMsgPreCityShutdown: Shutdown(); break;
         case kMsgViewUpdate:
             Enter();
             OnViewUpdate(s);
@@ -2068,6 +2065,14 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     checkView(view.draws == 1);
     draw(t->GetView(), context, 44, 3, uv, 1.0f, true);
     checkView(view.draws == 2 && (view.drawnFlags & 0x1000) != 0);
+    // Terrain section 12.1: teardown belongs to slot 4, after the city's
+    // pre-shutdown users have finished with the view and vertex arrays.
+    auto* preShutdown = cFC4Message2Standard::New();
+    preShutdown->AddRef();
+    preShutdown->SetType(0x26D31EC2);
+    checkView(t->Target()->DoMessage(preShutdown));
+    preShutdown->Release();
+    checkView(view.shutdownCalls == 0 && t->f_.vertices == vertices && t->IsInitialized());
     t->Shutdown();
     checkView(view.shutdownCalls == 1 && view.releases == 1 && view.errors == 0);
     g_terrainStaticFixture = nullptr;
