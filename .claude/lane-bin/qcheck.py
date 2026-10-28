@@ -46,6 +46,12 @@ def main():
         print(line[:600])
     if len(lines) > 60:
         print(f'... {len(lines) - 60} more lines in {log}')
+    note = os.path.join(MAIN, 'build-runs', 'golden', 'RECORDING')
+    if 'no golden baseline' in out:
+        # the coordinator writes RECORDING while it re-records the references (a repin): not your code
+        print('NOTE: some scenarios have no reference yet ("no golden baseline"), which is not a difference of yours.'
+              + (' ' + open(note, encoding='utf-8').read().strip() if os.path.isfile(note) else '')
+              + ' Rerun those scenarios later; the others compared normally.')
     print(f'exit {p.returncode}; full output {log}')
     return p.returncode
 

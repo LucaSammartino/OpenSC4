@@ -1897,6 +1897,95 @@ behavioral equivalence; see [variant-storage §5](variant-storage.md#5-createcop
 SDK errors: slot 8 is `bool CanGetVal(uint16 type) const` (one argument, always true in the original), not
 `CanGetVal()`. Slot 60 takes `(riid, void**)`, not `(cIGZUnknown**)`.
 
+#### 17.1.1 Native instance layout (HG9) *[compat]*
+
+These are the original Windows object's bytes, separate from the serialized variant (§9.2).
+Let **V** be its `cIGZVariant` interface pointer. A standalone `cRZVariant` begins at V,
+occupies **20 bytes (`0x14`)**, and uses **four-byte alignment/packing**. There is no
+padding between the fields or at the end. In particular, the eight-byte payload begins
+at `V+4`, with only four-byte alignment required; it is not an eight-byte-aligned member.
+This describes the native layout, not the spelling of a compiler packing directive.
+The SDK `cRZBaseVariant` declaration with a 32-bit reference count does not describe it.
+
+| Field | Offset from V | Width | Offset from a containing `cSCProperty` owner B |
+|---|---:|---:|---:|
+| Variant vtable pointer | `0x00` | 4 bytes | `0x04` |
+| Payload, first/low word | `0x04` | 4 bytes | `0x08` |
+| Payload, second/high word | `0x08` | 4 bytes | `0x0C` |
+| Unsigned reference count | `0x0C` | **2 bytes** | `0x10` |
+| Memory type (§9.1), including array bit | `0x0E` | **2 bytes** | `0x12` |
+| Element count | `0x10` | 4 bytes | `0x14` |
+
+All multibyte fields are little-endian. The two payload words form one eight-byte
+storage area: a Uint64 uses its low 32 bits at `V+4` and high 32 bits at `V+8`.
+Smaller scalars occupy their type's width at `V+4`; the remaining payload bytes are
+not a second value. An array stores its 32-bit data pointer at `V+4` and its element
+count at `V+0x10`; it does not store elements inline. Scalar VoidPtr/IGZUnknown also
+use the first payload word. Construction clears all 16 bytes following the vtable,
+including reference count zero; an owned CreateCopy result has reference count one.
+Scalar count zero and disposal rules remain those of [variant-storage §3](variant-storage.md#3-representation-construction-and-erase).
+
+The constructor's stores establish every offset and width (`0x009166D8`–`0x009166EC`);
+the copy constructor repeats them (`0x0091671B`–`0x0091672E`). CreateCopy requests
+exactly `0x14` bytes (`0x00916769`–`0x0091676D`), and a native stack temporary reserves
+`0x14` without extra payload alignment (`0x00473CE4`, `0x00473D17`–`0x00473D24`).
+The Uint64 setter writes the low/high words in that order (`0x009158EA`–`0x009158F5`);
+the Float64 accessor reads eight bytes at `V+4` (`0x005FD640`). AddRef increments only
+the word at `V+0x0C` and zero-extends it for return (`0x00914E78`–`0x00914E7C`).
+Destroy clears payload/type/count but preserves that reference word and the vtable
+(`0x00914ED4`–`0x00914EDE`). These instruction widths, rather than inferred SDK members,
+establish the packing.
+
+**Embedded property view.** The property constructor constructs the same 20-byte
+variant at **V = B+4**, then installs the embedded table `0x00AA6788` there
+(`0x005FDE54`–`0x005FDE68`). The standalone table is `0x00ACECD0`. The property's
+own interface vtable is at B and its property ID is at `B+0x18`, immediately after
+the embedded variant (`0x005FDE6E`, `0x005FDE72`). There is no additional payload
+alignment gap or separate variant allocation. Slots 0/1/2 of the embedded table
+subtract four from V before reaching the owner's identity/reference paths
+(`0x005FD6F0`, `0x005FD700`, `0x005FD710`); storage methods use V directly.
+The owner's AddRef and non-final Release operate on the **same two bytes** at
+`B+0x10 = V+0x0C` (`0x005FCFF0`–`0x005FCFF4`, `0x005FD002`–`0x005FD00D`).
+Thus the embedded reference word serves the property owner; it is not an independent
+variant reference counter alongside another owner counter. Final release follows
+the owner's destruction path, rather than freeing V as a standalone allocation.
+
+Mutable numeric/character AsX aliases point exactly to `V+4` (`0x0060FB50`), so an
+embedded alias points to `B+8`. A no-argument RefX instead returns the pointer stored
+at `V+4` (`0x0060CE80`), which is the separate element allocation for an array.
+AsVoidPtr is the already documented exception: it loads that pointer value too.
+The matching scalar type determines an AsX alias's writable width; see
+[variant-storage §4](variant-storage.md#4-copying-array-setters-and-mutable-aliases).
+
+**Worked layout cases (static expectations; unexecuted).** Use valid allocations;
+the addresses below are illustrative, not fixed allocation requirements.
+
+1. Construct a standalone variant at V and acquire one reference. Set its Uint64
+   value to `0x1122334455667788`. Bytes `V+0x04` through `V+0x13`, grouped as
+   payload / reference count / type / count, are
+   `88 77 66 55 44 33 22 11 / 01 00 / 08 00 / 00 00 00 00`.
+   Mutable AsUint64 returns V+4. Writing `0x0102030405060708` through it changes
+   just the payload to `08 07 06 05 04 03 02 01`; reference/type/count stay unchanged.
+   AddRef then returns 2 with only `V+0x0C..0x0D` changed to `02 00`; non-final
+   Release restores 1. Erase zeros payload/type/count and keeps reference count 1.
+   If V is `0x01001000`, the eight-byte alias is `0x01001004`, demonstrating why
+   the native representation cannot require an eight-byte-aligned payload.
+2. From that erased, still-owned object, use the copying Uint32 array setter with
+   `[17,34,51]`. For returned allocation D, `V+4` contains D, `V+8` remains zero,
+   `V+0x0C` is 1, `V+0x0E` is `0x8006`, and `V+0x10` is 3. D contains the three
+   elements (12 bytes); RefUint32 returns D. The mutable scalar AsUint32 address
+   would be V+4, the pointer storage, and is not an element alias in this state.
+   Erase frees D and clears payload/type/count without changing the reference word.
+   The array stores and their widths are at `0x00915064`, `0x00915076`, `0x00915079`.
+3. Construct a property with ID `0x12345678` at B=`0x01002000`. Its variant view is
+   V=`0x01002004`, its inline alias is `0x01002008`, its shared reference word is
+   `0x01002010`, type is at `0x01002012`, count at `0x01002014`, and ID at
+   `0x01002018`. Acquire one property reference and set the embedded value as in
+   case 1: the same 16 bytes occur from `B+8`, while the ID remains `78 56 34 12`.
+   AddRef through the variant view returns 2 and updates only the shared reference
+   word; property non-final Release returns it to 1. Erase through the variant view
+   preserves both vtables, the shared reference word and the property ID.
+
 ### 17.2 `cISCPropertyHolder` (original vtable `0x00AA6CD8`, 22 interface slots)
 
 | Slot | Method |

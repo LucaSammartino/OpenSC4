@@ -2770,3 +2770,52 @@ fn record(w: &World, op: &Json) -> R<()> {
     }
     Err("zone_record needs 'hex' or 'read'".into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A host can report false from a reference setter without entering its
+    // sticky error state. ZoneManager::Write must still finish the record.
+    struct HostStream {
+        bytes: ByteWriter,
+        refs: usize,
+        error: i32,
+    }
+
+    macro_rules! delegate {
+        ($($name:ident: $ty:ty),* $(,)?) => {
+            $(fn $name(&mut self, v: $ty) -> bool { self.bytes.$name(v) })*
+        };
+    }
+
+    impl OutStream for HostStream {
+        delegate!(put_u8: u8, put_u16: u16, put_u32: u32, put_u64: u64,
+            put_f32: f32, put_f64: f64, put_bytes: &[u8], put_str: &[u8]);
+        fn put_ref(&mut self, r: &RefValue) -> bool {
+            self.refs += 1;
+            assert!(self.bytes.put_ref(r));
+            false
+        }
+        fn error(&self) -> i32 {
+            self.error
+        }
+    }
+
+    #[test]
+    fn zone_manager_write_uses_stream_error() {
+        let manager = ZoneManager::new(World::new());
+        let mut expected = ByteWriter::new();
+        assert!(manager.write_record(&mut expected));
+        let mut stream = HostStream {
+            bytes: ByteWriter::new(),
+            refs: 0,
+            error: 0,
+        };
+        assert!(manager.write_record(&mut stream));
+        assert_eq!(stream.refs, 6);
+        assert_eq!(stream.bytes.bytes(), expected.bytes());
+        stream.error = 1;
+        assert!(!manager.write_record(&mut stream));
+    }
+}

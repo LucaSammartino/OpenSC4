@@ -666,6 +666,11 @@ if ($p -and -not $p.HasExited) {
 }
 Start-Sleep -Seconds 2
 Copy-Item $Log (Join-Path $OutDir "$Label.log") -Force
+# Preserve the optional driver stream with the log, before a slot is reused.
+$drawStream = "$Log.draw.jsonl"
+if (Test-Path -LiteralPath $drawStream) {
+    Copy-Item -LiteralPath $drawStream -Destination (Join-Path $OutDir "$Label.draw.jsonl") -Force
+}
 if ($suiteState.Export) {
     try {
         if ($verdict -notmatch '^AUTOTEST VERDICT: clean\b' -or -not (Select-String -LiteralPath $Log -Pattern 'script: line .* save -> ok=1' -Quiet)) { throw 'export_city requires a clean run and a successful scripted save' }

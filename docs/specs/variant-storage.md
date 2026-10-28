@@ -57,7 +57,8 @@ pointer and calls that object's AddRef; unsupported IDs return false without wri
 output (`0x00914E56`–`0x00914E77`). AddRef increments an unsigned **16-bit** count and
 returns its zero-extended value (`0x00914E78`). Release decrements counts above one; for
 counts zero or one it dispatches the deleting destructor with argument 1 and returns zero
-(`0x00914E81`). These rules do not transfer to the containing owner's reference count.
+(`0x00914E81`). The embedded table instead reaches the containing property's lifetime
+paths; its shared reference-count storage is described in foundations §17.1.1.
 
 ## 3. Representation, construction and Erase
 
@@ -67,6 +68,11 @@ and the 32-bit element count. The object occupies 20 bytes on the CreateCopy all
 path. A native caller also constructs a 20-byte stack temporary directly and destroys it
 without acquiring a reference (`0x00473CE4`, `0x00473D17`–`0x00473D24`). This proves a
 native construction route, not a public factory.
+
+The exact native byte layout, four-byte packing, property-owner offsets and worked
+layout cases are in [foundations §17.1.1](foundations.md#1711-native-instance-layout-hg9-compat).
+The eight-byte payload starts at interface+4, followed by the 16-bit reference count
+at +`0x0C`, 16-bit type at +`0x0E` and 32-bit count at +`0x10`.
 
 | State | Stored payload and disposal |
 |---|---|

@@ -76,6 +76,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FQ | flora |
 | FR | font-renderer |
 | FS | freshness, graphics-formats |
+| G | commercial-industrial |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GDR | game-data-registry |
@@ -264,7 +265,7 @@ generated index: the questions live one file per spec, so read only the file for
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 4 | 0 | CL5 | questions/command-line.md |
 | command-system | 8 | 0 | GC9 | questions/command-system.md |
-| commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
+| commercial-industrial | 2 | 12 | CM11, G34, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 4 | 61 | EX59 | questions/data-formats.md |
@@ -285,7 +286,7 @@ generated index: the questions live one file per spec, so read only the file for
 | flammability | 0 | 13 | FL14 | - |
 | flora | 0 | 24 | AQ14, FQ16 | - |
 | font-renderer | 3 | 0 | FR4 | questions/font-renderer.md |
-| foundations | 9 | 10 | AO4, HG9, RN6, SV2, VC30 | questions/foundations.md |
+| foundations | 9 | 11 | AO4, HG10, RN6, SV2, VC30 | questions/foundations.md |
 | framework-gz-services | 3 | 9 | GZ13 | questions/framework-gz-services.md |
 | framework-rz-files | 11 | 0 | RZ12 | questions/framework-rz-files.md |
 | freshness | 5 | 0 | FS6 | questions/freshness.md |
@@ -435,4 +436,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **619** | **1702** | | |
+| **total** | **620** | **1703** | | |

@@ -241,6 +241,9 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
+            # A cached/native DLL can carry another worktree's source prefix.
+            # Entry contracts belong to the requesting checkout, not that path.
+            ini.setdefault('reach_contracts', (root / 'docs/abi/functions.tsv').as_posix())
             ini['reach_output'] = (directory / (row['name'] + '.reach.tsv')).as_posix()
         text = '\n'.join(f'{k} = {v}' for k, v in request.items()) + '\n[ini]\n'
         text += '\n'.join(f'{k} = {v}' for k, v in ini.items()) + '\n'
@@ -749,7 +752,7 @@ def main(argv=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run')
-    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'reach29', 'all'], default='tier1')
+    run.add_argument('--set', choices=['tier1', 'smoke', 'full', 'gen', 'findings', 'reach29', 'corpus34', 'all'], default='tier1')
     run.add_argument('--profile', choices=['shadows', 'replace', 'plain'], default='shadows')
     run.add_argument('--dll', help='worktree or DLL; default main checkout DLL')
     run.add_argument('--tag', default=None)

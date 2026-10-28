@@ -20,10 +20,13 @@
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4GameList.h"
+#include "FC4HostGrid.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4LotDevInterfaces.h"  // animation-tick manager slots 5/6
 #include "FC4RefAudit.h"
+#include "FC4Streams.h"
+#include "FC4TerrainPersistFixture.h"
 #include "cFC4Message2Standard.h"
 #include "compat/FC4Compat.h"
 
@@ -37,6 +40,10 @@
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
 #include "cIGZOStream.h"
+#include "cGZPersistResourceKey.h"
+#include "cIGZPersistDBRecord.h"
+#include "cIGZPersistDBSegment.h"
+#include "cISC4DBSegment.h"
 #include "cIGZWinMgr.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
@@ -45,6 +52,7 @@
 #include "cISC4NetworkOccupant.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
+#include "cISC4SimGrid.h"
 #include "cIGZCOM.h"
 #include "cRZCOMDllDirector.h"
 #include "SC4List.h"
@@ -80,7 +88,6 @@ namespace {
 // ---- messages (terrain.md §8, §12.1) -------------------------------------------------------------
 
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
-constexpr uint32_t kMsgPreCityShutdown = 0x26D31EC2;
 constexpr uint32_t kMsgViewUpdate = 0xA6B79602;      // §2.3, TR9
 constexpr uint32_t kMsgAnimationTick = 0x86AD10EE;  // §12.1
 constexpr uint32_t kMsgViewWindow = 0x470BD214;     // §12.1
@@ -89,9 +96,8 @@ constexpr uint32_t kMsgSimNewDay = 0x66956814;      // §10.3
 
 // What the original's terrain subscribes to (§12.1), minus the render-only
 // notifications and the script commands we do not implement.
-constexpr uint32_t kSubscribed[] = {kMsgPostCityInit, kMsgPreCityShutdown, kMsgViewUpdate,
-                                    kMsgAnimationTick, kMsgViewWindow,      kMsgReconcile,
-                                    kMsgSimNewDay};
+constexpr uint32_t kSubscribed[] = {kMsgPostCityInit, kMsgViewUpdate, kMsgAnimationTick,
+                                    kMsgViewWindow, kMsgReconcile, kMsgSimNewDay};
 
 // Vertex flags (§7).
 constexpr uint16_t kFlagEvenHidden = 0x0020;
@@ -117,7 +123,7 @@ std::atomic<TerrainDrawVertex*> g_drawVertices{nullptr};
 struct HostContext {
     cISC4City* city = nullptr;  // borrowed for one call
     cIGZUnknown* self = nullptr;  // the terrain, for the messages' IGZUnknown
-    void (*syncDraw)(void*) = nullptr;
+    void (*syncDraw)(void*, const fc4_terrain_post*) = nullptr;
     void* drawOwner = nullptr;
     int inside = 0;
     std::atomic<uint32_t> guardRefused{0};
@@ -257,7 +263,7 @@ void HostPost(void* u, const fc4_terrain_post* p) {
     if (c == nullptr || p == nullptr) return;
     c->posts.fetch_add(1, std::memory_order_relaxed);
     if ((p->msg_type == 0x278E6003u || p->msg_type == 0x678E6E3Au) && c->syncDraw != nullptr) {
-        c->syncDraw(c->drawOwner);
+        c->syncDraw(c->drawOwner, p);
     }
     if (c->testMode) return;
     cIGZMessageServer2Ptr ms;
@@ -341,6 +347,32 @@ bool ReadRef(cIGZIStream& in) {
 }
 
 bool WriteNullRef(cIGZOStream& out) { return out.SetUint32(0); }
+
+// The segment is borrowed from the queried stream (SDK cISC4DBSegment).
+template <class SegmentStream, class Stream>
+cIGZPersistDBSegment* TerrainSegment(Stream& stream, uint32_t iid) {
+    SegmentStream* extended = nullptr;
+    if (!stream.QueryInterface(iid, reinterpret_cast<void**>(&extended)) || !extended) return nullptr;
+    FC4_ACQUIRED(extended, "QueryInterface");
+    auto* segment = reinterpret_cast<cISC4DBSegment*>(static_cast<uintptr_t>(extended->GetSegment()));
+    cIGZPersistDBSegment* result = segment ? segment->AsIGZPersistDBSegment() : nullptr;
+    FC4_RELEASE(extended);
+    return result;
+}
+
+bool ReadTerrainRecord(cIGZPersistDBSegment* segment, uint32_t type, uint32_t instance,
+                       std::vector<uint8_t>& bytes) {
+    if (!segment) return false;
+    cIGZPersistDBRecord* record = nullptr;
+    const cGZPersistResourceKey key(type, kFC4_CLSID_cSTETerrain, instance);
+    if (!segment->OpenRecord(key, &record, cIGZFile::AccessMode::Read) || !record) return false;
+    FC4_ACQUIRED(record, "OpenRecord");
+    bytes.resize(record->GetSize());
+    const bool ok = record->GetFieldVoid(bytes.data(), static_cast<uint32_t>(bytes.size()));
+    const bool closed = segment->CloseRecord(record);
+    FC4_RELEASE_CREATED(record);
+    return ok && closed;
+}
 
 // ---- cFC4STESurfaceWater (§10) --------------------------------------------------------------------
 
@@ -426,6 +458,7 @@ public:
 
 private:
     ~cFC4STESurfaceWater() {
+        if (bodyGrid_ != 0) ReleaseGameGrid(bodyGrid_);
         std::lock_guard<std::mutex> guard(InstanceMutex());
         auto& instances = Instances();
         instances.erase(std::find(instances.begin(), instances.end(), this));
@@ -441,6 +474,8 @@ private:
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     mutable std::vector<uint16_t> bodyMap_;              // slot 9's backing grid
+    mutable uint64_t bodyGrid_ = 0;  // owned cISC4SimGrid<uint16_t>, not a raw value array
+    mutable std::mutex bodyMapMutex_;
     mutable float velocity_[3] = {0.0f, 0.0f, 0.0f};     // slot 11's shared vector
 };
 static_assert(offsetof(cFC4STESurfaceWater, vertices_) == 0x18, "native view water array");
@@ -471,13 +506,25 @@ bool cFC4STESurfaceWater::IsNavigable(int32_t x, int32_t z, int32_t r, cISC4Lot*
 }
 
 void* cFC4STESurfaceWater::GetBodyOfWaterMap() const {
+    std::lock_guard<std::mutex> guard(bodyMapMutex_);
     fc4_terrain* core = g_activeCore.load(std::memory_order_acquire);
     if (core == nullptr) return nullptr;
-    const size_t n = static_cast<size_t>(g_cellsX.load(std::memory_order_acquire)) *
-                     static_cast<size_t>(g_cellsZ.load(std::memory_order_acquire));
-    bodyMap_.assign(n == 0 ? 1 : n, 0);
-    if (n != 0) fc4_terrain_bodies_map(core, bodyMap_.data(), n);
-    return bodyMap_.data();
+    // terrain.md §10.2 and simgrid.md §2: the result is a borrowed grid
+    // object. 0x49B9E600 is the generic constructor ID; uint16 uses 0x49B9E604.
+    if (bodyGrid_ == 0) bodyGrid_ = CreateGameGrid("terrain water bodies", 0x49B9E604, 0x4BE3618B, 1);
+    if (bodyGrid_ == 0) return nullptr;
+    auto* grid = reinterpret_cast<cISC4SimGrid<uint16_t>*>(FromToken(bodyGrid_));
+    const uint32_t cx = g_cellsX.load(std::memory_order_acquire), cz = g_cellsZ.load(std::memory_order_acquire);
+    const size_t n = static_cast<size_t>(cx) * cz;
+    std::vector<uint16_t> values(n == 0 ? 1 : n, 0);
+    if (n != 0) fc4_terrain_bodies_map(core, values.data(), n);
+    if (values != bodyMap_) {
+        bodyMap_.swap(values);
+        for (uint32_t x = 0; x < cx; ++x) {
+            for (uint32_t z = 0; z < cz; ++z) grid->SetTractValue(x, z, bodyMap_[x + z * cx]);
+        }
+    }
+    return grid;
 }
 
 float cFC4STESurfaceWater::AltitudeAtWhichFloodingWillOccur(int32_t x, int32_t z) {
@@ -629,15 +676,21 @@ public:
 
     bool DoMessage(cIGZMessage2* msg) override;  // cIGZMessageTarget2 (§12.1)
 
-    // §13.2: u16 version 2 and a reference to the terrain view (class
-    // 0xC9B84E10). We hold no view, so the reference is read and dropped.
+    // §13.2: the class reference and the separate terrain records share a segment.
     bool Write(cIGZOStream& out) override {
-        Log("terrain: Write (class record, §13.2)");
-        return out.SetUint16(2) && WriteNullRef(out);
+        OStreamAdapter adapter(out);
+        return out.SetUint16(2) && adapter.WriteRef(TokenOf(f_.view)) &&
+               Save(TerrainSegment<cFC4ISC4DBSegmentOStream>(out, kFC4_IID_cISC4DBSegmentOStream));
     }
     bool Read(cIGZIStream& in) override {
         uint16_t version = 0;
-        const bool ok = in.GetUint16(version) && ReadRef(in);
+        if (!in.GetUint16(version) || version > 2) return false;
+        IStreamAdapter adapter(in);
+        fc4_ref view{};
+        if (!adapter.ReadRef(0xC9B84E10, &view)) return false;
+        if (f_.view) FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(f_.view));
+        f_.view = FromToken(view.token);
+        const bool ok = Load(TerrainSegment<cFC4ISC4DBSegmentIStream>(in, kFC4_IID_cISC4DBSegmentIStream));
         Log("terrain: Read (class record = version + ref, §13.2) -> ok=%d version=%u", ok ? 1 : 0, version);
         return ok;
     }
@@ -658,8 +711,9 @@ private:
     bool Enter() const;
     void Leave() const;
     bool CreateCore(uint32_t cellsX, uint32_t cellsZ);
+    void PublishCore();
     void DestroyCore();
-    void SyncDrawVertices();
+    void SyncDrawVertices(const fc4_terrain_post* changed = nullptr);
     void StopView();
     void Subscribe();
     void Unsubscribe();
@@ -701,7 +755,9 @@ cFC4STETerrain::cFC4STETerrain() {
     hostTable_ = MakeHost(&host_);
     host_.self = Primary();
     host_.drawOwner = this;
-    host_.syncDraw = [](void* owner) { static_cast<cFC4STETerrain*>(owner)->SyncDrawVertices(); };
+    host_.syncDraw = [](void* owner, const fc4_terrain_post* changed) {
+        static_cast<cFC4STETerrain*>(owner)->SyncDrawVertices(changed);
+    };
     // §1: the terrain owns the surface water at +0x24. The city may also build
     // one through the class factory; both are views over the same core.
     water_ = new cFC4STESurfaceWater();
@@ -786,7 +842,18 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
         Log("terrain: could not create the terrain core (%u x %u cells)", cellsX, cellsZ);
         return false;
     }
+    PublishCore();
+    return true;
+}
+
+void cFC4STETerrain::PublishCore() {
     fc4_terrain_set_default_brush_level(core_, f_.defaultBrushLevel);
+    const uint32_t cellsX = fc4_terrain_cell_count(core_, 0), cellsZ = fc4_terrain_cell_count(core_, 1);
+    fc4_terrain_state state{};
+    state.struct_size = sizeof(state);
+    fc4_terrain_get_state(core_, &state);
+    f_.terrainType = state.terrain_type;
+    f_.saved78 = state.saved_78;
     // §2.3: the grid fields the game reads directly.
     const uint32_t vx = cellsX + 1, vz = cellsZ + 1;
     f_.cellsX = cellsX;
@@ -824,14 +891,21 @@ bool cFC4STETerrain::CreateCore(uint32_t cellsX, uint32_t cellsZ) {
     g_cellsZ.store(cellsZ, std::memory_order_release);
     SyncDrawVertices();
     g_drawVertices.store(drawVertices_.data(), std::memory_order_release);
-    return true;
 }
 
-void cFC4STETerrain::SyncDrawVertices() {
+void cFC4STETerrain::SyncDrawVertices(const fc4_terrain_post* changed) {
     if (core_ == nullptr) return;
-    for (uint32_t i = 0; i < f_.vertexCount; ++i) {
-        const int32_t x = static_cast<int32_t>(i % f_.vertsX);
-        const int32_t z = static_cast<int32_t>(i / f_.vertsX);
+    // §8.1: each height/water notification carries the inclusive changed
+    // vertex rectangle. Re-reading the whole city for every small levelling
+    // notification makes city initialization exceed the watchdog deadline.
+    const uint32_t x0 = changed ? std::min(changed->data1 >> 16, f_.cellsX) : 0;
+    const uint32_t z0 = changed ? std::min(changed->data2 >> 16, f_.cellsZ) : 0;
+    const uint32_t x1 = changed ? std::min(changed->data1 & 0xFFFFu, f_.cellsX) : f_.cellsX;
+    const uint32_t z1 = changed ? std::min(changed->data2 & 0xFFFFu, f_.cellsZ) : f_.cellsZ;
+    for (uint32_t row = z0; row <= z1; ++row) {
+      for (uint32_t column = x0; column <= x1; ++column) {
+        const uint32_t i = column + row * f_.vertsX;
+        const int32_t x = static_cast<int32_t>(column), z = static_cast<int32_t>(row);
         auto& v = drawVertices_[i];
         v.altitude = fc4_terrain_altitude_at_index(core_, i);
         // SPEC-GAP: the core exposes face normals, not smoothed rendering normals; retain the face normal here.
@@ -844,6 +918,7 @@ void cFC4STETerrain::SyncDrawVertices() {
         w.depth = fc4_terrain_water_depth_at_index(core_, i);
         fc4_terrain_water_velocity(core_, x, z, w.velocity);
         w.sediment = fc4_terrain_sediment(core_, x, z);
+      }
     }
 }
 
@@ -898,6 +973,7 @@ bool cFC4STETerrain::Init() {
             break;
         }
         f_.city = CurrentCity();  // borrowed (§2.3 +0x1C)
+        host_.city = static_cast<cISC4City*>(f_.city);
         cISC4City* city = static_cast<cISC4City*>(f_.city);
         // Slot 54 (§15.1: `+0xE4`, exported as the folded GetSelectedCity)
         // is read as the city by the game: cSC4City::Init calls a method on
@@ -946,6 +1022,7 @@ bool cFC4STETerrain::Shutdown() {
     DestroyCore();
     f_.initialized = 0;
     f_.city = nullptr;
+    host_.city = nullptr;
     Leave();
     return true;
 }
@@ -1009,6 +1086,8 @@ void cFC4STETerrain::DoPostCityInit() {
                 f_.view, GetView(), Primary(), f_.vertices, f_.viewReady);
         }
         fc4_terrain_post_city_init(core_);
+        auto* city = static_cast<cISC4City*>(f_.city);
+        if (city != nullptr && city->GetEstablished()) fc4_terrain_update_bodies_of_water(core_);
     }
     Leave();
 }
@@ -1038,7 +1117,6 @@ bool cFC4STETerrain::DoMessage(cIGZMessage2* msg) {
     }
     switch (type) {
         case kMsgPostCityInit: DoPostCityInit(); break;
-        case kMsgPreCityShutdown: Shutdown(); break;
         case kMsgViewUpdate:
             Enter();
             OnViewUpdate(s);
@@ -1619,19 +1697,40 @@ void cFC4STETerrain::DeletingDestructor(uint32_t flags) {
 
 // ---- persistence (§13) ----------------------------------------------------------------------------
 
-bool cFC4STETerrain::Load(cIGZPersistDBSegment*) {
-    // §13.1: the misc, altitude and vertex property records (the edges are
-    // read on demand by the region code). The plugin's stream layer does not
-    // yet reach a DB segment, so the records cannot arrive here; Init builds
-    // the terrain from the city grid instead and the water is rebuilt from the
-    // sea level either way (§10.1; quirk 15: the sea level is not saved).
-    Log("terrain: Load (records) is not wired; starting from the city grid");
-    return false;
+bool cFC4STETerrain::Load(cIGZPersistDBSegment* segment) {
+    std::vector<uint8_t> misc, altitudes, properties;
+    if (!ReadTerrainRecord(segment, 0x8A91E7E3, 3, misc) ||
+        !ReadTerrainRecord(segment, 0xA9DD6FF4, 1, altitudes) ||
+        !ReadTerrainRecord(segment, 0x8A91E7E0, 2, properties)) return false;
+    int32_t error = FC4_OK;
+    fc4_terrain* loaded = fc4_terrain_load(&hostTable_, nullptr, misc.data(), misc.size(),
+                                         altitudes.data(), altitudes.size(), properties.data(), properties.size(), &error);
+    if (!loaded) {
+        Log("terrain: Load records failed: %d", error);
+        return false;
+    }
+    Enter();
+    DestroyCore();
+    core_ = loaded;
+    PublishCore();
+    Leave();
+    Log("terrain: loaded %u x %u vertices before Init", f_.vertsX, f_.vertsZ);
+    return true;
 }
 
-bool cFC4STETerrain::Save(cIGZPersistDBSegment*) {
-    Log("terrain: Save (records) is not wired");
-    return false;
+bool cFC4STETerrain::Save(cIGZPersistDBSegment* segment) {
+    if (!segment || !core_) return false;
+    const uint32_t records[] = {0, 1, 2, 0x64, 0x65, 0x66, 0x67};
+    for (uint32_t record : records) {
+        const uint32_t type = record == 0 ? 0x8A91E7E3 : record == 2 ? 0x8A91E7E0 : 0xA9DD6FF4;
+        const uint32_t instance = record == 0 ? 3 : record;
+        const size_t size = fc4_terrain_write_record(core_, record, nullptr, 0);
+        std::vector<uint8_t> bytes(size);
+        if (size == 0 || fc4_terrain_write_record(core_, record, bytes.data(), size) != size ||
+            !segment->WriteRecord(cGZPersistResourceKey(type, kFC4_CLSID_cSTETerrain, instance), bytes.data(),
+                                  static_cast<uint32_t>(size))) return false;
+    }
+    return true;
 }
 
 }  // namespace fc4
@@ -1745,6 +1844,42 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     in->postsSeen = 0;
     in->brushLevel = 0;
     in->mismatches = 0;
+
+    // A loaded terrain must publish its saved geometry before Init. In
+    // particular it must not inherit the 64-cell stand-in city's dimensions.
+    {
+        TerrainSegmentFixture segment;
+        const uint32_t records[] = {0, 1, 2, 0x64, 0x65, 0x66, 0x67};
+        const float heights[] = {251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262};
+        fc4_terrain_host host{};
+        host.struct_size = sizeof(host);
+        fc4_terrain* source = fc4_terrain_create_from_altitudes(&host, nullptr, 2, 3, heights, 12, 250);
+        auto check = [&](bool ok) { ++in->slotsChecked; if (!ok) ++in->mismatches; };
+        check(source != nullptr);
+        if (source) {
+            for (uint32_t record : records) {
+                const size_t size = fc4_terrain_write_record(source, record, nullptr, 0);
+                std::vector<uint8_t> bytes(size);
+                fc4_terrain_write_record(source, record, bytes.data(), size);
+                const uint32_t type = record == 0 ? 0x8A91E7E3 : record == 2 ? 0x8A91E7E0 : 0xA9DD6FF4;
+                segment.WriteRecord(cGZPersistResourceKey(type, kFC4_CLSID_cSTETerrain, record == 0 ? 3 : record),
+                                    bytes.data(), static_cast<uint32_t>(size));
+            }
+            fc4_terrain_destroy(source);
+            const auto original = segment.records;
+            auto* loaded = new cFC4STETerrain();
+            loaded->AddRef();
+            loaded->Host()->testMode = true;
+            check(loaded->Load(&segment));
+            check(!loaded->IsInitialized() && loaded->CellCountX() == 2 && loaded->CellCountZ() == 3);
+            check(loaded->f_.vertsX == 3 && loaded->f_.vertsZ == 4 && loaded->f_.vertexCount == 12);
+            check(loaded->GetAltitudeAt(0, 0) == 251 && loaded->GetAltitudeAt(32, 48) == 262);
+            check(loaded->Init());
+            check(loaded->CellCountX() == 2 && loaded->CellCountZ() == 3);
+            check(loaded->Save(&segment) && segment.records == original);
+            loaded->Release();
+        }
+    }
 
     auto* earlyWater = new cFC4STESurfaceWater();
     earlyWater->AddRef();
@@ -1930,6 +2065,14 @@ intptr_t TerrainGlueTest(FC4TerrainGlueTestInput* in) {
     checkView(view.draws == 1);
     draw(t->GetView(), context, 44, 3, uv, 1.0f, true);
     checkView(view.draws == 2 && (view.drawnFlags & 0x1000) != 0);
+    // Terrain section 12.1: teardown belongs to slot 4, after the city's
+    // pre-shutdown users have finished with the view and vertex arrays.
+    auto* preShutdown = cFC4Message2Standard::New();
+    preShutdown->AddRef();
+    preShutdown->SetType(0x26D31EC2);
+    checkView(t->Target()->DoMessage(preShutdown));
+    preShutdown->Release();
+    checkView(view.shutdownCalls == 0 && t->f_.vertices == vertices && t->IsInitialized());
     t->Shutdown();
     checkView(view.shutdownCalls == 1 && view.releases == 1 && view.errors == 0);
     g_terrainStaticFixture = nullptr;
