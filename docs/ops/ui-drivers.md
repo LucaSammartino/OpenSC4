@@ -25,6 +25,15 @@ qualification requires target-method reach and a clean verdict with no reference
 warnings. `ui_command_catalog=1` logs registered IDs/names/parameters on the first
 command for diagnosis; it does not execute the catalogue.
 
+An unfounded god-mode city has no new-day messages. Put `establish <city name>`
+first, dated at the city's saved date, before funded construction or UI input.
+This opt-in action calls the native city's `SetEstablished(true)`, which posts
+the establishment message and enables the simulator's established-city agents.
+The leading action and its same-date setup can run on a framework tick; later
+dates still require actual new days. `funds <amount>` then supplies construction
+money through the budget interface. Neither a queued script nor a load-only
+verdict proves that the city was founded or that placements succeeded.
+
 `uicontrol` refuses a control if it or any parent is hidden or disabled. A
 resource can contain overlapping hidden and visible buttons with different IDs.
 The budget panel must first be expanded with `aa3ac50e`; its visible education,
