@@ -4,8 +4,8 @@
 Every function of SimCity 4.exe (GOG 1.1.641) gets one owner by fixed rules, every owner one subsystem row of
 tools/coverage-map.tsv, and every row two yes/no statuses (specified, implemented). The report sums function body
 bytes and function counts per status, for the whole exe and per area, plus Reach (game code the corpus executes in the
-original, from a census's entry counters) and Exact-replaced (docs/NEXT_STEPS.md section 3; not measured until the
-reference store exists, so it reads "not measured"). Same inputs, same numbers:
+original, from the fixed-schedule references' entry counters, or a census's) and Exact-replaced (docs/NEXT_STEPS.md
+section 3, from the last `tools/check.py credit` run). Same inputs, same numbers:
 nothing depends on dict order, time or the machine, and the report lists the SHA-256 of every input (text inputs
 hashed with CRLF line endings normalised to LF, so a CRLF checkout and an LF checkout give the same report).
 
@@ -22,6 +22,8 @@ Inputs (all read-only):
   docs/specs/*.md, engine/core/src/*        existence of the spec files and core modules the map names
   engine/plugin/FC4Subsystems.cpp           the enable keys and which are on by default
   build-runs/suite/<tag>/       a census's reach counters (--suite; default build-runs/suite/CURRENT)
+  build-runs/golden/credit.json the last `tools/check.py credit` run (--credit): per scenario its verdict with the
+      credited owners switched on together, its reference's entry counters and the replace-mode run's
 
 Output: docs/coverage-report.md (counts, class names, address ranges and statuses only; no code), and with --owners
 a per-function TSV (address, bytes, owner, rule) for audits.
@@ -36,6 +38,7 @@ import csv
 import fnmatch
 import hashlib
 import importlib.util
+import json
 import os
 import re
 import struct
@@ -591,6 +594,46 @@ def kib(n):
 STAT = ("specified", "implemented")
 
 
+def credit_evidence(path, reached):
+    """A `tools/check.py credit` run: the scenarios whose reference enters each function, the functions any of its
+    replace-mode runs still enters (the original's code still running), and the exact scenarios. `missing` names the
+    entry-counter files that are absent; then Exact-replaced is not measured."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    by, still, missing, files = defaultdict(set), set(), [], []
+    for name, entry in sorted(data["scenarios"].items()):
+        reference = path.parent / (entry["reference"] or "-") / "reach.tsv"
+        run = Path(entry["run"] or "-") / "reach.tsv"
+        if not reference.is_file():
+            missing.append(f"{name} (reference)")
+            continue
+        files.append(reference)
+        for va in reached(reference)[0]:
+            by[va].add(name)
+        if run.is_file():
+            files.append(run)
+            still |= reached(run)[0]
+        elif entry["verdict"] == "exact":
+            missing.append(f"{name} (run)")
+    exact = {name for name, entry in data["scenarios"].items() if entry["verdict"] == "exact"}
+    return {"keys": set(data["keys"]), "dll_sha256": data["dll_sha256"], "n": len(data["scenarios"]),
+            "exact": exact, "by": by, "still": still, "missing": missing, "files": files}
+
+
+def credit_status(evidence, va, key):
+    """`credited`, or why a function of a switched-on owner is not: no scenario reaches it, a scenario that reaches
+    it differs, or the original's code still runs in replace mode. None: its owner is not switched on."""
+    if key not in evidence["keys"]:
+        return None
+    scenarios = evidence["by"].get(va)
+    if not scenarios:
+        return "unreached"
+    if va in evidence["still"]:
+        return "original-runs"
+    if not scenarios <= evidence["exact"]:
+        return "differs"
+    return "credited"
+
+
 def attribution_for_tree(repo, export, text_lo, text_hi):
     """Expose the report's attribution inputs for another tree, without changing the scoring rules."""
     return Attribution(export, repo / "re/names_windows.tsv", repo / "docs/abi/vtables.tsv",
@@ -693,7 +736,10 @@ def main():
                     "reaches: scenarios in order, each with the bytes it adds (tools/check.py selects by it)")
     current = REPO / "build-runs" / "suite" / "CURRENT"
     ap.add_argument("--suite", default=current.read_text(encoding="utf-8").strip() if current.is_file() else None,
-                    help="census tag whose original entry counters give Reach (default: suite/CURRENT)")
+                    help="census tag whose original entry counters give Reach without a credit run (default: "
+                    "suite/CURRENT); --owner-scenarios uses it")
+    ap.add_argument("--credit", default=str(REPO / "build-runs" / "golden" / "credit.json"),
+                    help="the `tools/check.py credit` result that gives Exact-replaced and, from its references, Reach")
     args = ap.parse_args()
     data = load_report_data(args.export, args.exe)
     export, exe_sha = data["export"], data["exe_sha"]
@@ -713,7 +759,22 @@ def main():
             if suite_coverage.clean(item["row"]):
                 reached |= item["reached"]
                 clean_runs += 1
-    stats = STAT + (("reach",) if suite_evidence else ())
+    reach_source = (f"`{args.suite}`, {clean_runs} clean of {len(suite_evidence['scenarios'])} census runs"
+                    if suite_evidence else None)
+    # A complete credit run measures Exact-replaced, and its references (the corpus under the fixed schedule) give
+    # Reach, so that both count the same runs.
+    evidence = None
+    if args.credit and Path(args.credit).is_file():
+        evidence = credit_evidence(Path(args.credit), _sibling("suite_coverage").reached)
+        if not evidence["missing"]:
+            reached = set(evidence["by"])
+            reach_source = f"the fixed-schedule references of {evidence['n']} scenarios"
+    measured = evidence is not None and not evidence["missing"]
+    stats = STAT + (("reach",) if reach_source else ()) + (("exact",) if measured else ())
+    status = {}
+    if measured:
+        for va, _size, i, _area in game:
+            status[va] = credit_status(evidence, va, rows[i]["replace"] if i is not None else "-")
 
     total_b = sum(att.funcs.values())
     total_n = len(att.order)
@@ -724,6 +785,8 @@ def main():
     def has(s, va, i):
         if s == "reach":
             return va in reached
+        if s == "exact":
+            return status.get(va) == "credited"
         return i is not None and rows[i][s]
 
     def tally(items):
@@ -802,18 +865,41 @@ def main():
     w(f"| **Implemented** | our clean-room code in engine/ implements the owning class | "
       f"**{pct(whole['implemented_b'], game_b)}** | {whole['implemented_b']:,} | {whole['implemented_n']:,} | "
       f"{gap} |")
-    w("| **Exact-replaced** | the owner is switched off in corpus runs (our code runs instead) and every checkpoint "
-      "of every scenario that reaches it is identical to the original's reference under the fixed schedule | "
-      "**not measured** | - | - | needs NEXT_STEPS step 2 (references and `check`) |")
-    if suite_evidence:
-        w(f"| Reach (the ceiling) | the corpus executes the code at all in the original (`{args.suite}`, "
-          f"{clean_runs} clean of {len(suite_evidence['scenarios'])} runs) | **{pct(whole['reach_b'], game_b)}** | "
-          f"{whole['reach_b']:,} | {whole['reach_n']:,} | - |")
+    meaning = ("its owner is switched on (our code runs instead) in every corpus scenario, the original's code of it "
+               "never runs there, and every scenario whose reference enters it is identical to the reference under the "
+               "fixed schedule")
+    if measured:
+        w(f"| **Exact-replaced** | {meaning} | **{pct(whole['exact_b'], game_b)}** | {whole['exact_b']:,} | "
+          f"{whole['exact_n']:,} | - |")
+    else:
+        why = ("no `tools/check.py credit` run" if evidence is None else
+               f"entry counters missing for {len(evidence['missing'])} scenarios ({', '.join(evidence['missing'][:4])})")
+        w(f"| **Exact-replaced** | {meaning} | **not measured** | - | - | {why} |")
+    if reach_source:
+        w(f"| Reach (the ceiling) | the corpus executes the code at all in the original ({reach_source}) | "
+          f"**{pct(whole['reach_b'], game_b)}** | {whole['reach_b']:,} | {whole['reach_n']:,} | - |")
     else:
         w("| Reach (the ceiling) | the corpus executes the code at all in the original | **not measured** | - | - | "
-          "no census evidence (`--suite`) |")
+          "no references with entry counters and no census (`--suite`) |")
     w("")
-    if suite_evidence:
+    if measured:
+        per_key = defaultdict(Counter)
+        for va, size, i, _area in game:
+            if status.get(va):
+                per_key[rows[i]["replace"]][status[va]] += size
+        w(f"The credit run switched on {len(evidence['keys'])} owners together ({', '.join(sorted(evidence['keys']))}) "
+          f"in {evidence['n']} scenarios, {len(evidence['exact'])} of them exact (DLL {evidence['dll_sha256'][:8]}). "
+          "Per owner, the bytes of its code the references enter, by why each byte is or is not credited:")
+        w("")
+        w("| Owner | Entered by the references | Credited | A scenario that enters it differs | "
+          "The original's code still runs | Unreached |")
+        w("|---|---:|---:|---:|---:|---:|")
+        for key in sorted(per_key, key=lambda k: (-sum(per_key[k].values()) + per_key[k]["unreached"], k)):
+            c = per_key[key]
+            w(f"| {key} | {sum(c.values()) - c['unreached']:,} | {c['credited']:,} | {c['differs']:,} | "
+              f"{c['original-runs']:,} | {c['unreached']:,} |")
+        w("")
+    if reach_source:
         w(f"Of the implemented owners' code, the corpus reaches {pct(whole['impl_reach_b'], whole['implemented_b'])} "
           f"({whole['impl_reach_b']:,} of {whole['implemented_b']:,} bytes), so Exact-replaced cannot exceed "
           f"{pct(whole['impl_reach_b'], game_b)} of game code until the corpus reaches more.")
@@ -840,7 +926,9 @@ def main():
       "specified or implemented; Reach counts every function the corpus entered.")
     w("")
     cols = [("Specified", "specified"), ("Implemented", "implemented")]
-    if suite_evidence:
+    if measured:
+        cols.append(("Exact-replaced", "exact"))
+    if reach_source:
         cols.append(("Reach", "reach"))
     w("| Area | Functions | Bytes | % of game | " + " | ".join(c for c, _ in cols) + " |")
     w("|---|---:|---:|---:|" + "---:|" * len(cols))
@@ -922,6 +1010,11 @@ def main():
         digest = hashlib.sha256("".join(text_sha256(p) for p in reach_files).encode()).hexdigest()
         w(f"| build-runs/suite/{args.suite}/*.reach.tsv | {digest[:16]} | {len(reach_files)} entry-counter files "
           "(hash of their hashes) |")
+    if evidence:
+        digest = hashlib.sha256("".join([text_sha256(Path(args.credit))] + [text_sha256(p) for p in evidence["files"]])
+                                .encode()).hexdigest()
+        w(f"| build-runs/golden/credit.json | {digest[:16]} | with {len(evidence['files'])} entry-counter files of its "
+          "references and runs (hash of their hashes) |")
     w("")
     w(f"On by default in FC4Subsystems.cpp: {', '.join(sorted(k for k, v in keys.items() if v))}.")
     w("")
@@ -963,12 +1056,22 @@ def main():
                     covered += gain
                     left -= hit
                     f.write(f"{key}\t{name}\t{gain}\t{covered}\t{total}\n")
+    if measured:
+        # Per function of a switched-on owner, why it is or is not credited: what an engine lane works from.
+        path = Path(args.credit).with_name("credit-functions.tsv")
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write("address\tbytes\tkey\towner\tstatus\tscenarios\n")
+            for va, size, i, _area in game:
+                if status.get(va) not in (None, "unreached"):
+                    f.write(f"{va:08x}\t{size}\t{rows[i]['replace']}\t{owner[va]}\t{status[va]}\t"
+                            f"{','.join(sorted(evidence['by'][va]))}\n")
     reach_text = (f"reach {pct(whole['reach_b'], game_b)} of game code, "
-                  f"{pct(whole['impl_reach_b'], whole['implemented_b'])} of implemented ({args.suite})"
-                  if suite_evidence else "reach not measured")
+                  f"{pct(whole['impl_reach_b'], whole['implemented_b'])} of implemented ({reach_source})"
+                  if reach_source else "reach not measured")
+    exact_text = f"exact-replaced {pct(whole['exact_b'], game_b)}" if measured else "exact-replaced not measured"
     print(f"coverage: game code {game_n} functions, {game_b} bytes; "
           + ", ".join(f"{s} {pct(whole[s + '_b'], game_b)}" for s in STAT)
-          + f"; exact-replaced not measured; {reach_text}; wrote {args.out}")
+          + f"; {exact_text}; {reach_text}; wrote {args.out}")
 
 
 if __name__ == "__main__":

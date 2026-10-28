@@ -10,7 +10,8 @@ The train instead:
   1. a finished lane writes `build-runs/merge-queue/<lane>.json` in its own worktree and stops;
   2. the train takes up to K ready lanes (oldest first), merges them one after another onto `integration/<n>`
      cut from main, resolving the known conflict hotspots once for the whole batch;
-  3. it runs the gate and the regress once for the whole batch;
+  3. it runs the gate and `tools/check.py run` (the credited owners and the batch's, exact against the
+     fixed-schedule references on their cover scenarios) once for the whole batch;
   4. on a pass main fast-forwards to the integration branch and each lane gets a merged notice;
   5. on a fail it bisects the batch (halves, gated in parallel) until the culprit lane is isolated, sends the
      failure back to that lane and lands the rest;
@@ -23,7 +24,7 @@ Usage (run from the repository root, on `main`):
   python tools/merge-train.py run   [--size 8] [--no-regress] [--land]
   python tools/merge-train.py merge-batch [--size 8]
   python tools/merge-train.py gate
-  python tools/merge-train.py regress [--add-replace occmgr,propmgr,lotcfg]
+  python tools/merge-train.py regress [--add-replace occmgr,propmgr]   (the check step)
   python tools/merge-train.py land
   python tools/merge-train.py bisect
   python tools/merge-train.py enqueue --lane L --branch B --kind engine|tools|docs|test [--abi]
@@ -1167,68 +1168,26 @@ def gated_dll(cur, wt):
     return path, ""
 
 
-def replacement_union(extra, script=None):
-    """Append candidate keys to every default replacement, before promoting the default list."""
-    if extra is None:
-        return None
-    keys = [k.strip().lower() for k in extra.split(",") if k.strip()]
-    if not keys or any(not re.fullmatch(r"[a-z][a-z0-9_]*", k) for k in keys):
-        raise ValueError("--add-replace needs comma-separated subsystem keys")
-    try:
-        text = (script or REPO / "tools" / "regress.ps1").read_text(encoding="utf-8-sig")
-    except (OSError, UnicodeError) as exc:
-        raise ValueError("cannot read the default replacement list") from exc
-    match = re.search(r'(?m)^\s*\[string\]\$Replace\s*=\s*"([^"]+)"', text)
-    if not match:
-        raise ValueError("cannot find the default replacement list")
-    defaults = [k.strip().lower() for k in match.group(1).split(",") if k.strip()]
-    if not defaults or any(not re.fullmatch(r"[a-z][a-z0-9_]*", k) for k in defaults):
-        raise ValueError("invalid default replacement list")
-    return ",".join(dict.fromkeys(defaults + keys))
+def credit_keys():
+    """The owners the last `tools/check.py credit` run switched on (build-runs/golden/credit.json)."""
+    path = REPO / "build-runs" / "golden" / "credit.json"
+    return json.loads(path.read_text(encoding="utf-8"))["keys"] if path.is_file() else []
 
 
-def candidate_shadows(extra):
-    """Extra verification keys append to, rather than replace, the house profile."""
-    if extra is None:
-        return None
-    keys = [k.strip().lower() for k in extra.split(",") if k.strip()]
-    if not keys or any(k != "occmgr_shadow_follow" and not re.fullmatch(r"[a-z][a-z0-9_]*_shadow", k)
-                       for k in keys):
-        raise ValueError("--add-shadow needs comma-separated *_shadow keys or occmgr_shadow_follow")
-    return ",".join(dict.fromkeys(keys))
-
-
-def run_regress(wt, tag, dll, replace=None, shadows=None, shadow_split=1):
-    """Submit the shadow groups and replacement through the queue and wait for all."""
-    log(f"regress {tag}: submitting to the game queue (about 10-20 min)")
-    command = [
-        "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(REPO / "tools" / "regress.ps1"),
-        # The shadows run takes 16-45 min when the queue is busy (train276: 44.5 min with 26 more shadows under load); 3600 s keeps a loaded
-        # queue from failing a batch on the timeout alone (1800 s did at 31 min in train255).
-        "-Tag", tag, "-Dll", str(dll), "-Queue", "-Turbo", "-TurboTimeout", "3600", "-QueueWait", "7200",
-        "-ShadowSplit", str(shadow_split),
-    ]
-    if replace is not None:
-        command += ["-Replace", replace]
-    if shadows is not None:
-        command += ["-AddShadows", shadows]
+def run_check(tag, dll, keys):
+    """`tools/check.py run` with those owners on, over their cover scenarios, against the fixed-schedule references:
+    the landing rule (docs/NEXT_STEPS.md step 3). PASS only when every scenario is exact."""
+    log(f"check {tag}: {', '.join(keys) or 'no owners'} on their cover scenarios (about 10-20 min)")
+    command = [sys.executable, str(REPO / "tools" / "check.py"), "run", "--dll", str(dll),
+               "--replace", ",".join(keys) or "none", "--jobs", "12"]
     p = sh(command, check=False, timeout=9000)
     out = (p.stdout or "") + (p.stderr or "")
-    (LOG_DIR / f"regress-{tag}.out").write_text(out, encoding="utf-8")
-    m = re.search(r"REGRESS\s+\S+:\s*(PASS|FAIL)", out)
-    verdict = m.group(1) if m else "FAIL"  # no REGRESS line: never a pass, whatever the exit code
-    (LOG_DIR / f"regress-{tag}.json").write_text(json.dumps({
-        "tag": tag, "dll": str(dll), "shadow_split": shadow_split,
-        "shadow_profile": "combined" if shadow_split == 1 else f"split {shadow_split}",
-        "verdict": verdict, "output": str(LOG_DIR / f"regress-{tag}.out"),
-    }, indent=2) + "\n", encoding="utf-8")
+    (LOG_DIR / f"check-{tag}.out").write_text(out, encoding="utf-8")
+    verdict = "PASS" if p.returncode == 0 else "FAIL"  # check exits 0 only when every scenario is exact
+    (LOG_DIR / f"check-{tag}.json").write_text(json.dumps({
+        "tag": tag, "dll": str(dll), "keys": keys, "verdict": verdict, "output": str(LOG_DIR / f"check-{tag}.out"),
+    }, indent=2) + NL, encoding="utf-8")
     return verdict, out[-4000:]
-
-
-def regress_shadow_split(batch_id, combined=False, split=False):
-    """Splitting is opt-in pending parity proof; every fourth batch stays combined."""
-    match = re.search(r"(\d+)$", batch_id)
-    return 1 if not split or combined or (match and int(match.group(1)) % 4 == 0) else 3
 
 
 # --- batch lifecycle ---------------------------------------------------------
@@ -1367,29 +1326,20 @@ def cmd_regress(args):
         cur["regress"] = {"ok": False, "verdict": "REFUSED", "why": why, "head": head}
         save_state(st)
         return 1
-    try:
-        replace = replacement_union(getattr(args, "add_replace", None))
-        shadows = candidate_shadows(getattr(args, "add_shadow", None))
-    except ValueError as exc:
-        cur["regress"] = {"ok": False, "verdict": "REFUSED", "why": str(exc), "head": head}
+    extra = [k.strip().lower() for k in (getattr(args, "add_replace", None) or "").split(",") if k.strip()]
+    if any(not re.fullmatch(r"[a-z][a-z0-9_]*", k) for k in extra):
+        cur["regress"] = {"ok": False, "verdict": "REFUSED", "why": "--add-replace needs subsystem keys", "head": head}
         save_state(st)
-        log(f"regress {cur['id']}: refused: {exc}")
         return 1
-    # An interrupted retry must not leave a previous PASS in place.
-    shadow_split = regress_shadow_split(cur["id"], getattr(args, "combined", False), getattr(args, "split", False))
-    cur["regress"] = {"ok": False, "verdict": "RUNNING", "head": head,
-                      "shadow_split": shadow_split,
-                      "shadow_profile": "combined" if shadow_split == 1 else f"split {shadow_split}",
-                      "record": str(LOG_DIR / f"regress-{cur['id']}.json")}
-    if replace is not None:
-        cur["regress"]["replace"] = replace
-    if shadows is not None:
-        cur["regress"]["extra_shadows"] = shadows
+    # The credited owners must stay exact, and the owners the batch switches on must become exact.
+    keys = sorted(set(credit_keys()) | set(extra))
+    cur["regress"] = {"ok": False, "verdict": "RUNNING", "head": head, "keys": keys,
+                      "record": str(LOG_DIR / f"check-{cur['id']}.json")}
     save_state(st)
-    verdict, tail = run_regress(wt, cur["id"], dll, replace, shadows, shadow_split=shadow_split)
+    verdict, tail = run_check(cur["id"], dll, keys)
     cur["regress"].update(ok=verdict == "PASS", verdict=verdict)
     save_state(st)
-    log(f"regress {cur['id']}: {verdict}")
+    log(f"check {cur['id']}: {verdict}")
     if verdict != "PASS":
         log(tail[-1500:])
     return 0 if verdict == "PASS" else 1
@@ -1450,12 +1400,6 @@ def cmd_land(args):
     touches = batch_touches_engine(wt)
     blockers = land_blockers(cur, head, touches, load_gate_record(cur["id"]) if touches else None,
                              main_moved_under(head))
-    # Two lanes editing the one shadows profile line can merge into two `shadows =` hash keys, which only the
-    # NEXT regress trips over (train164 landed one; train165's regress then failed to parse).
-    profile = git(["show", f"{head}:tools/regress.ps1"], check=False).stdout
-    n_shadows = len(re.findall(r"(?m)^\s*shadows\s*=", profile))
-    if n_shadows != 1:
-        blockers.append(f"tools/regress.ps1 has {n_shadows} 'shadows =' profile lines (must be exactly 1)")
     if blockers:
         die("refusing to land " + cur["id"] + ":\n  - " + "\n  - ".join(blockers)
             + "\nThere is no override: fix the tree on the integration branch, commit, `gate` again.")
@@ -1618,11 +1562,7 @@ def main():
     p = sub.add_parser("regress")
     profile = p.add_mutually_exclusive_group()
     profile.add_argument("--no-regress", action="store_true")
-    profile.add_argument("--add-replace", help="test candidate keys in addition to every default replacement")
-    p.add_argument("--add-shadow", help="append candidate *_shadow keys or occmgr_shadow_follow to the full shadow profile")
-    shadow_mode = p.add_mutually_exclusive_group()
-    shadow_mode.add_argument("--combined", action="store_true", help="run all house shadows in one process (the default)")
-    shadow_mode.add_argument("--split", action="store_true", help="opt in to three shadow groups (every fourth batch stays combined)")
+    profile.add_argument("--add-replace", help="owners the batch switches on, checked with the credited ones")
     p = sub.add_parser("land")
     p.add_argument("--force", action="store_true")
     sub.add_parser("bisect")
@@ -1633,12 +1573,8 @@ def main():
     p.add_argument("--lanes", default=None, help="comma-separated: batch exactly these queued lanes")
     p.add_argument("--land", action="store_true")
     p.add_argument("--no-regress", action="store_true")
-    shadow_mode = p.add_mutually_exclusive_group()
-    shadow_mode.add_argument("--combined", action="store_true", help="force the combined shadow regression")
-    shadow_mode.add_argument("--split", action="store_true", help="opt in to three shadow groups (every fourth batch stays combined)")
+    p.add_argument("--add-replace", help="owners the batch switches on, checked with the credited ones")
     args = ap.parse_args()
-    if args.cmd == "regress" and args.no_regress and args.add_shadow is not None:
-        ap.error("--add-shadow cannot be combined with --no-regress")
     return {"status": cmd_status, "plan": cmd_plan, "enqueue": cmd_enqueue,
             "merge-batch": cmd_merge_batch, "gate": cmd_gate, "regress": cmd_regress,
             "land": cmd_land, "bisect": cmd_bisect, "fail": cmd_fail, "run": cmd_run}[args.cmd](args)

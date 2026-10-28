@@ -20,6 +20,7 @@
 #include "FC4DbpfNative.h"
 #include "FC4HarnessLogic.h"
 #include "FC4Log.h"
+#include "FC4Reach.h"
 #include "FC4RefAudit.h"
 #include "FC4Schedule.h"
 #include "FC4Script.h"
@@ -116,6 +117,9 @@ Verdict EndVerdict() { return VerdictAtEnd(Counters(), g_cityEnded != 0); }
 // `julian` < 0: the published day. Returns true if written.
 bool WriteVerdict(Verdict v, unsigned wait, const char* reason, long julian = -1) {
     if (InterlockedCompareExchange(&g_verdict, static_cast<LONG>(v), 0) != 0) return false;
+    // reach = 1: the census goes to its file before the verdict line, because the harness collects the run's files
+    // once it sees the verdict and the process is terminated after it. Not on a foreign exception (its handler).
+    if (v != Verdict::Corrupt) ReachCheckpoint("verdict");
     const AutotestCounters c = Counters();
     const long j = julian < 0 ? PublishedJulian() : julian;
     // The run figures (the harness lane): the date reached, the real seconds

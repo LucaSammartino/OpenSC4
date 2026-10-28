@@ -97,7 +97,12 @@ const ENGINE = `You are a clean-room ENGINE IMPLEMENTER lane on FreeCity4 (OpenS
 ## Testing in the real game (docs/harness.md)
 - Build the plugin (qbuild leaves engine/build-x86/FreeCity4.dll), write <WT>/build-runs/game-queue/<label>.req with a new label each time, then wait in one call: \`python <MAIN>/.claude/lane-bin/qwait.py <WT>/build-runs/game-results/<label>.verdict\` and grep <label>.log for your lines. One request outstanding at a time. A verdict already written for a label is final; on failed-start or harness-error resend under a new label.
 - Prefer \`turbo = 1\` with an \`end_date\`. In-city actions go in \`script = <file>\`, never through the UI. Never start the game yourself or touch Documents/SimCity 4/.
-- Before state "ready": verdict clean, ref_warnings=0, and every difference you saw explained in your lane file. Owners count as done only when our replace-mode runs match the original's references under the fixed schedule (the coordinator's check); a shadow helps find a difference but is not proof.`
+- Before state "ready": verdict clean, ref_warnings=0, and every difference you saw explained in your lane file.
+
+## Exact (the only proof)
+- An owner is done when our code, switched on in replace mode, gives the original's results under the fixed schedule: \`python <MAIN>/.claude/lane-bin/qcheck.py --wt <WT> --replace <keys>\` runs your build on the scenarios that reach those owners against the original's references and prints exact, or where each scenario first differs (the first delivery whose rand() differs, the first DIGEST, the first save record whose content differs and its owner, the run directory). Start there: the first difference is where to look. A shadow helps find a difference but is not proof.
+- Save object IDs are numbered in save order, so one reference written out of order (or one object more or less) shifts every later ID: fix the first shifted ID before reading the records after it.
+- Work from one difference to the next and rerun qcheck after each fix; before "ready", qcheck exits 0 for your keys and \`--replace none --scenarios <the same names, comma-separated>\` stays exact.`
 
 const RE = `You are a SPEC WRITER (RE side) lane on FreeCity4 (OpenSC4), a clean-room reimplementation of SimCity 4 Deluxe (GOG 1.1.641). You read the original program and write behaviour specs in docs/specs/ for implementers who never see it. Your output is spec text, never code.
 

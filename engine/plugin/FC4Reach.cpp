@@ -668,9 +668,9 @@ void ReachLifecycleStart() {
         Log("reach lifecycle phase=load window=1 date=2000-01-01 sentinel=1");
 }
 
-void ReachCheckpoint() {
+void ReachCheckpoint(const char* phase) {
     if (!g_reachStarted || g_reachStopped) return;
-    Log("reach checkpoint phase=post-city-shutdown saved=%u output=%s",
+    Log("reach checkpoint phase=%s saved=%u output=%s", phase,
         g_reach->Write(g_reachOutput) ? 1u : 0u, g_reachOutput.c_str());
 }
 

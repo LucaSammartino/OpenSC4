@@ -83,7 +83,9 @@ void ReachStart(int32_t julian);
 // Opt-in natural application/city lifecycle. Window 1 has no city date yet.
 void ReachLifecycleStart();
 bool ReachLifecycleEnabled();
-void ReachCheckpoint();
+// Writes the census so far (reach_output) while tracing goes on: after the city shutdown, and before
+// the autotest verdict (autotest_end = terminate never reaches ReachStop).
+void ReachCheckpoint(const char* phase = "post-city-shutdown");
 void ReachNewMonth(int32_t julian);
 void ReachStop();
 

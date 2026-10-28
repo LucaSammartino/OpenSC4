@@ -9,6 +9,10 @@
   python tools/check.py run --dll <worktree or DLL> --replace each [--jobs 12]
       every owner alone on each scenario of its cover; per owner, how many are exact; the table is written to
       build-runs/golden/owner-check.tsv
+  python tools/check.py credit --dll <worktree or DLL> --replace <keys or exact> [--jobs 12]
+      every scenario (all) with those owners switched on together, written to build-runs/golden/credit.json, the
+      input of Exact-replaced in tools/coverage.py; `exact` is the owners exact on their whole cover in
+      owner-check.tsv (written with the same DLL) and the owners they need
 
 SEL is `cover` (the default: for each owner, the scenarios of its greedy reach cover in
 build-runs/golden/owner-scenarios.tsv, written by `tools/coverage.py --owner-scenarios`), `all`, a set from
@@ -20,6 +24,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 import csv
 import datetime as dt
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -179,11 +184,30 @@ def describe(name, report, owners, reference, replaced):
         key, cls = owners.get(kind, ('-', '-'))
         parts.append(f'{report["save"]["different_records"]} records differ{note}, first '
                      f'{"content " if note else ""}{first} (owner {key}, {cls})')
+    parts.append(f'run {report["run"]}')
     return '; '.join(parts)
 
 
 def alone(key):
     return [key] + REQUIRES.get(key, [])
+
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def exact_owners(dll):
+    """The owners exact on every run of their cover in owner-check.tsv (which must come from this DLL), and the
+    owners they need."""
+    path = REPO / 'build-runs/golden/owner-check.tsv'
+    lines = path.read_text(encoding='utf-8').splitlines() if path.is_file() else []
+    found = re.search(r'sha256 ([0-9a-f]{64})', lines[0]) if lines else None
+    if not found or found[1] != sha256(dll):
+        raise ValueError(f'{path} is not from this DLL; run: python tools/check.py run --dll <it> --replace each')
+    flags = {}
+    for row in csv.DictReader(lines[1:], delimiter='\t'):
+        flags.setdefault(row['key'], []).append(row['verdict'] == 'exact')
+    return sorted({k for key, f in flags.items() if all(f) for k in alone(key)})
 
 
 def run_each(args, rows, dll):
@@ -202,7 +226,7 @@ def run_each(args, rows, dll):
         exact.setdefault(key, []).append(report['verdict'] == 'exact')
     path = REPO / 'build-runs/golden/owner-check.tsv'
     with path.open('w', encoding='utf-8', newline='\n') as stream:
-        stream.write(f'# {dll} ({len(jobs)} runs)\nkey\tscenario\tverdict\tdetail\n')
+        stream.write(f'# {dll} sha256 {sha256(dll)} ({len(jobs)} runs)\nkey\tscenario\tverdict\tdetail\n')
         stream.writelines('\t'.join(row) + '\n' for row in table)
     whole = sorted(key for key, flags in exact.items() if all(flags))
     print(f'owners exact on their whole cover: {len(whole)} of {len(exact)}' + (f': {", ".join(whole)}' if whole else ''))
@@ -240,20 +264,49 @@ def run(args):
     return 2 if errors else 1 if failing else 0
 
 
+def credit(args):
+    rows = scenarios()
+    dll = args.dll / 'engine/build-x86/FreeCity4.dll' if args.dll.is_dir() else args.dll
+    keys = (exact_owners(dll) if args.replace == 'exact' else
+            sorted(set(filter(None, re.split(r'[,\s]+', args.replace)))))
+    names, _ = select('all', None, rows)
+    print(f'{len(names)} scenarios, owners {", ".join(keys)}', flush=True)
+    owners = record_owners()
+    with ThreadPoolExecutor(args.jobs) as pool:
+        reports = dict(zip(names, pool.map(lambda n: compare(rows[n], dll, keys), names)))
+    table = {}
+    for name in names:
+        report = reports[name]
+        line = describe(name, report, owners, REPO / 'build-runs/golden' / report.get('key', '-'), True)
+        print(line, flush=True)
+        table[name] = {'verdict': report['verdict'], 'reference': report.get('key'), 'run': report.get('run'),
+                       'detail': line.split(': ', 1)[1]}
+    path = REPO / 'build-runs/golden/credit.json'
+    path.write_text(json.dumps({'dll': str(dll), 'dll_sha256': sha256(dll), 'keys': keys,
+                                'written': dt.datetime.now().isoformat(timespec='seconds'), 'scenarios': table},
+                               indent=1), encoding='utf-8')
+    exact = sum(entry['verdict'] == 'exact' for entry in table.values())
+    print(f'exact: {exact} of {len(names)}; written to {path} (tools/coverage.py reads it)')
+    return 2 if any(entry['verdict'] == 'error' for entry in table.values()) else 0 if exact == len(names) else 1
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = p.add_subparsers(dest='command', required=True)
     rec = commands.add_parser('record')
     chk = commands.add_parser('run')
-    chk.add_argument('--dll', type=Path, required=True)
-    chk.add_argument('--replace', required=True)
+    cre = commands.add_parser('credit')
+    for sub in (chk, cre):
+        sub.add_argument('--dll', type=Path, required=True)
+        sub.add_argument('--replace', required=True)
     chk.add_argument('--no-bisect', action='store_true')
     for sub in (rec, chk):
         sub.add_argument('--scenarios', default='cover')
+    for sub in (rec, chk, cre):
         sub.add_argument('--jobs', type=int, default=12)
     args = p.parse_args(argv)
     try:
-        return record(args) if args.command == 'record' else run(args)
+        return {'record': record, 'run': run, 'credit': credit}[args.command](args)
     except (ValueError, OSError) as exc:
         print('check: ' + str(exc), file=sys.stderr)
         return 2
