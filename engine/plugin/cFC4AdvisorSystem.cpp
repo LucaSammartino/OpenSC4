@@ -527,8 +527,8 @@ uint64_t ForeignAdvisor(void*, uint64_t token, uint32_t operation, int32_t arg) 
     // Simulate return bool on the advisor interface (AL).
     switch (operation) {
         case 1: return a->Init(arg);
-        case 2: return a->Shutdown();
-        case 3: return a->Simulate(arg);
+        case 2: return a->Shutdown();  // [abi-ret] advisors.md §4.4, §12.2: AL bool.
+        case 3: return a->Simulate(arg);  // [abi-ret] advisors.md §5.3, §12.2: AL bool.
         case 4: return static_cast<uint32_t>(a->GetID());
         default: return 0;
     }
