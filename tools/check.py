@@ -150,7 +150,12 @@ def compare(row, dll, keys):
     code, out = golden('compare', row, '--dll', str(dll), '--replace', ','.join(keys) or 'simulator')
     path = re.search(r'^comparison: (.+)$', out, re.M)
     if code not in (0, 1) or not path:
-        return {'verdict': 'error', 'error': (re.findall(r'golden: (.*)', out) or [out.strip()[-300:]])[-1]}
+        error = {'verdict': 'error', 'error': (re.findall(r'golden: (.*)', out) or [out.strip()[-300:]])[-1]}
+        # golden prints the key before the run: an errored run still names its reference (coverage reads its reach)
+        key = re.search(r'^key: ([0-9a-f]{64})$', out, re.M)
+        if key and (REPO / 'build-runs/golden' / key[1]).is_dir():
+            error['key'] = key[1]
+        return error
     return json.loads(Path(path[1]).read_text(encoding='utf-8'))
 
 
