@@ -72,7 +72,8 @@ queue does not stop its games. Restart at a quiet moment: stop queue, `ingame_ru
 otherwise old games hold slots and results are lost while requests rerun. Inspect `-Status` first.
 
 **Your requests go first.** A request in the main checkout's `build-runs\game-queue\` is taken before any waiting lane
-request (a running game is never stopped; yours gets the next free slot). With `priority = high` it also goes before
+request (a running game is never stopped; yours gets the next free slot), except a lane request that has waited 15
+minutes, which then ranks with yours in queue order. With `priority = high` it also goes before
 your other requests and does not wait for them: several run at once, one slot each (the main checkout's normal
 requests still run one at a time, in order). `priority = high` in a lane's request is ignored and noted in its
 verdict. The queue's start line in the log says `priority: coordinator <root>`.
