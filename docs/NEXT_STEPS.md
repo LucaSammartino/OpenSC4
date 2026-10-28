@@ -5,7 +5,7 @@ replaces the whole file: no history, no logs, no "previously". Work that is done
 Evidence lives in git, in `docs/lanes/` and in `build-runs/`, never here. Where another document disagrees with this
 one, this one wins.
 
-State as of 2026-10-28 05:10: **run 8 is running** (12 Codex lanes, `build-runs/run8-state.json`). Steps 1-3 are done.
+State as of 2026-10-28 05:20: **run 8 is running** (12 Codex lanes, `build-runs/run8-state.json`). Steps 1-3 are done.
 The references are being re-recorded on a new pin (below), then the credit run re-measures Exact-replaced.
 
 ## 1. The goal, worked backwards
@@ -21,9 +21,11 @@ the **draw calls** into `cIGZGDriver`, **sound events**, **UI window state** and
 The reference store (`tools/golden.py`, `build-runs/golden`) keys each reference on the schedule code, the pinned DLL
 and the run settings, and refuses a candidate whose schedule code differs.
 
-**Pinned now:** sha cd3be219, schedule code bde008a451b1c7fb (commit c17dfc7c6: `fc4::ScheduleQpc` for our cores'
-stopwatch reads, and the neighbours simulator's adjacent cities in region position order). Re-recording all 177
-references started 05:02; `build-runs/golden/RECORDING` tells lanes to merge main and wait.
+**Pinned now:** sha d79069d9, schedule code bde008a451b1c7fb (main 0a970d24c: `fc4::ScheduleQpc` for our cores'
+stopwatch reads, the neighbours simulator's adjacent cities in region position order, and corpus34's UI input to the
+minimized window). Re-recording all references started 05:11; `build-runs/golden/RECORDING` tells lanes to merge main
+and wait. A plugin change that alters what the original does (the UI driver, the schedule) needs a repin even when the
+schedule code is unchanged: the store only refuses a different schedule code.
 
 **Schedule requests.** Lanes never edit `FC4Schedule.cpp`/`.h`; they write a "Schedule request" section in their lane
 file with the evidence. The coordinator finds the walk in the exe, adds the hook, states the order in simulator §5.8
@@ -34,7 +36,7 @@ every lane to merge main, so batch requests when more than one is open.
 **Address order.** Where the original walks a container keyed by object address, the schedule makes it walk in
 creation order or the order its spec states. Two detectors run the original with other addresses: `GOLDEN_INI_EXTRA=
 "heap perturb = holes"` (or `= reverse`) `python tools/check.py run --dll <copy> --replace none --scenarios all`.
-Both must stay 177 of 177 on each pin; the chain below runs them last.
+Both must stay exact on every recorded scenario of each pin; the chain below runs them last.
 
 ## 3. The metric
 
@@ -44,7 +46,8 @@ on together, `python tools/check.py credit --dll <copy> --replace exact`), and n
 code of it with the key on. **Reach** is the ceiling: the share of game code the references execute.
 
 First measurement (pin 1a5cc769, 2026-10-28 04:40): **Exact-replaced 0.0%** (1,442 bytes: crime 1,350, simgrids 46,
-aura 36, gzfw 10). **Reach 39.8%** of game code (44.3% of the implemented owners' code). 21 keys are exact alone on
+aura 36, gzfw 10). **Reach 39.8%** of game code (44.3% of the implemented owners' code); corpus34's three scenarios
+add 45,081 bytes (census reach 42.35% to 44.05%), counted from the next measurement. 21 keys are exact alone on
 their covers; with all 21 on together, 16 of 177 scenarios are exact.
 
 Worked backwards, three things stand between those 21 keys and credit, each with a lane:
@@ -89,12 +92,12 @@ ones for a relaunch with an answer. Codex "Selected model is at capacity" fails 
 | services-exact34 | power, pollution, landvalue, budget, ordinance, … | parks landed exact; budget next |
 | together34 | the 21 exact-alone keys | exact with all keys on |
 | wiring34 | span565, gzfw, simgrids, tract, … | the original's code of switched-on owners stops running |
-| corpus34 | scenarios | reach-gain scenarios, refused actions fixed |
+| corpus35 | scenarios | found unfounded cities (magnolia), budget panel, region view, next reach gains |
 | save-roundtrip33 | formats, save, persistence | 48 of 169 record types, 43.23% of bytes round-trip exactly |
 
 **Known issues.**
-- `paradis-magnolia` stalls under the fixed schedule: level-0 one-shot agents never finish, so its first day never
-  opens. It is the only scenario without a reference.
+- `paradis-magnolia` is clockless until a script can found it: an unfounded city's level-0 agents (flags 2) stay
+  disabled and hold the calendar (simulator §5.2 step 2).
 - Run-8 worktrees are 9-13 GB each: remove a merged lane's worktree at once (`cmd /c "rd /s /q \\?\<path>"`, then
   `git worktree prune`; plain removal fails on long paths). Disk at most 85%.
 
