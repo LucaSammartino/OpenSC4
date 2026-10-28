@@ -50,6 +50,7 @@
 #include "cRZCOMDllDirector.h"
 
 #include <atomic>
+#include <cstring>
 #include <new>
 #include <vector>
 
@@ -378,24 +379,24 @@ uint16_t BuildingCapacity(void*, uint32_t type) {
 
 bool BuildingFootprint(void*, uint32_t type, float* w, float* d) {
     cISC4City* c = AppCity();
-    cISC4BuildingDevelopmentSimulator* b =
-        c ? reinterpret_cast<cISC4BuildingDevelopmentSimulator*>(c->GetBuildingDevelopmentSimulator()) : nullptr;
-    // The building footprint is not a documented BDS slot (B5.5).
-    (void)b;
-    (void)type;
-    if (w != nullptr) *w = 0.0f;
-    if (d != nullptr) *d = 0.0f;
-    return false;
+    auto* b = c ? reinterpret_cast<cFC4ISC4BuildingDevelopmentSimulator*>(c->GetBuildingDevelopmentSimulator())
+                : nullptr;
+    // B5.5: slot 40 lends the profile; +0x20/+0x28 are its x/z sizes.
+    const FC4BuildingProfile* p = b ? b->GetBuildingProfilePtr(type) : nullptr;
+    if (p == nullptr) return false;
+    if (w != nullptr) *w = p->occupantSize[0];
+    if (d != nullptr) *d = p->occupantSize[2];
+    return true;
 }
 
 bool FloraRadius(void*, uint32_t id, float* radius) {
     cISC4City* c = AppCity();
     cISC4FloraSimulator* f = c ? c->GetFloraSimulator() : nullptr;
-    // The flora radius is not a documented slot (B5.5).
-    (void)f;
-    (void)id;
-    if (radius != nullptr) *radius = 0.0f;
-    return false;
+    // B5.5: slot 7 lends the flora profile, whose radius is at +0x3C.
+    const auto* p = f ? reinterpret_cast<const uint8_t*>(f->GetStaticFloraData(id)) : nullptr;
+    if (p == nullptr) return false;
+    if (radius != nullptr) std::memcpy(radius, p + 0x3C, sizeof(*radius));
+    return true;
 }
 
 bool IsFloraTypeValid(void*, uint32_t id) {
@@ -792,38 +793,27 @@ uint32_t cFC4LotConfigManager::FixLotConfiguration(cISC4LotConfiguration* config
 
 void cFC4LotConfigManager::GetMaxFootprintForBuildingFamilies(void const* families, cS3DRect2D& rect) {
     if (core_ == nullptr) return;
-    const auto* ids = static_cast<const uint32_t*>(families);
+    const auto* ids = static_cast<const SC4Vector<uint32_t>*>(families);
     float out4[4] = {};
-    if (!fc4_lot_config_max_footprint(core_, 0, ids, ids != nullptr ? 4 : 0, out4)) return;
-    // cS3DRect2D is only forward-declared in the plugin (its layout is not in
-    // docs/abi), and the shadow does not compare the footprints (B5.5). [choice]
-    // the rectangle is left alone.
-    (void)out4;
-    (void)rect;
+    if (!fc4_lot_config_max_footprint(core_, 0, ids ? ids->begin() : nullptr, ids ? ids->size() : 0, out4)) return;
+    // B5.5: four floats (width, depth, 0, 0), with no defined return.
+    std::memcpy(&rect, out4, sizeof(out4));
 }
 
 void cFC4LotConfigManager::GetMaxFootprintForFloraFamilies(void const* families, cS3DRect2D& rect) {
     if (core_ == nullptr) return;
-    const auto* ids = static_cast<const uint32_t*>(families);
+    const auto* ids = static_cast<const SC4Vector<uint32_t>*>(families);
     float out4[4] = {};
-    if (!fc4_lot_config_max_footprint(core_, 1, ids, ids != nullptr ? 4 : 0, out4)) return;
-    // cS3DRect2D is only forward-declared in the plugin (its layout is not in
-    // docs/abi), and the shadow does not compare the footprints (B5.5). [choice]
-    // the rectangle is left alone.
-    (void)out4;
-    (void)rect;
+    if (!fc4_lot_config_max_footprint(core_, 4, ids ? ids->begin() : nullptr, ids ? ids->size() : 0, out4)) return;
+    std::memcpy(&rect, out4, sizeof(out4));
 }
 
 void cFC4LotConfigManager::GetMaxFootprintForPropFamilies(void const* families, cS3DRect2D& rect) {
     if (core_ == nullptr) return;
-    const auto* ids = static_cast<const uint32_t*>(families);
+    const auto* ids = static_cast<const SC4Vector<uint32_t>*>(families);
     float out4[4] = {};
-    if (!fc4_lot_config_max_footprint(core_, 2, ids, ids != nullptr ? 4 : 0, out4)) return;
-    // cS3DRect2D is only forward-declared in the plugin (its layout is not in
-    // docs/abi), and the shadow does not compare the footprints (B5.5). [choice]
-    // the rectangle is left alone.
-    (void)out4;
-    (void)rect;
+    if (!fc4_lot_config_max_footprint(core_, 1, ids ? ids->begin() : nullptr, ids ? ids->size() : 0, out4)) return;
+    std::memcpy(&rect, out4, sizeof(out4));
 }
 
 void cFC4LotConfigManager::GetObjectIDArray(cSC4LotConfigurationObject* object, void* ids) {
