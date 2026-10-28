@@ -303,7 +303,15 @@ bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParamet
         // empty variant (docs/abi cIGZCommandParameterSet slot 5).
         // SetParameter inserts it.
         cFC4Variant result;
-        if constexpr (Kind == 0) result.SetValUint16(s->GetMissionSuccessCount(arg ? arg->GetValUint32() : 0));
+        if constexpr (Kind == 0) {
+            // lua-host.md §9.3: Lua numbers arrive as Float64 variants.
+            const uint32_t guid = arg ? static_cast<uint32_t>(static_cast<int64_t>(arg->GetValFloat64())) : 0;
+            const auto count = s->GetMissionSuccessCount(guid);
+            if (s->slotCalls[5].load() <= 12)
+                fc4::Log("citysit Lua: get_success_count guid=%08X count=%u type=%u", guid, count,
+                         arg ? arg->GetType() : 0u);
+            result.SetValUint16(count);
+        }
         if constexpr (Kind == 2) result.SetValUnknown(s->GetCurrentTarget());
         if constexpr (Kind == 3) result.SetValUnknown(s->GetActiveAuto());
         if constexpr (Kind == 4) {
