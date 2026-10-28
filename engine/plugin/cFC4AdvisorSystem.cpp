@@ -717,8 +717,10 @@ bool NeighborValue(void*, const fc4_adv_src* src, fc4_adv_val* out) {
         neighbors->FindDeals(static_cast<int32_t>(src->a),
             reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list));
         for (auto& p : list) {
+            auto* deal = reinterpret_cast<cISC4NeighborDeal*>(p);
+            FC4_ACQUIRED(deal, "FindDeals list");
             ++out->i;
-            FC4_RELEASE_CREATED(reinterpret_cast<cISC4NeighborDeal*>(p));
+            FC4_RELEASE(deal);
             p = nullptr;
         }
         return true;
@@ -729,8 +731,9 @@ bool NeighborValue(void*, const fc4_adv_src* src, fc4_adv_val* out) {
         neighbors->GetConnectionsOfType(static_cast<cISC4NeighborsSimulator::ConnectionType>(src->a),
             reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list));
         for (auto& p : list) {
+            FC4_ACQUIRED(p, "GetConnectionsOfType list");
             ++out->i;
-            FC4_RELEASE_CREATED(p);
+            FC4_RELEASE(p);
             p = nullptr;
         }
         return true;
@@ -811,15 +814,17 @@ int64_t cFC4AdvisorSystem::ReadNeighborList(uint32_t kind, uint32_t a, fc4_adv_i
             if (kind == 7) {
                 // The SDK mis-types deal lists as connection lists (neighbors.md section 1).
                 auto* deal = reinterpret_cast<cISC4NeighborDeal*>(p);
+                FC4_ACQUIRED(deal, "ProposeDeals list");
                 item.kind = static_cast<uint32_t>(deal->GetType());
                 FC4_RELEASE_CREATED(deal);
             } else {
+                FC4_ACQUIRED(p, "neighbor connections list");
                 item.kind = static_cast<uint32_t>(p->GetType());
                 int32_t x = 0, z = 0;
                 p->GetConnectionInnerCell(x, z);
                 item.x = static_cast<float>(x);
                 item.z = static_cast<float>(z);
-                FC4_RELEASE_CREATED(p);
+                FC4_RELEASE(p);
             }
             p = nullptr;  // already released; GameList owns only the node now
             items.push_back(item);
