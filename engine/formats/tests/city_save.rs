@@ -50,6 +50,83 @@ fn codecs_are_counted_separately_from_unknown_payloads_and_ids_survive() {
 }
 
 #[test]
+fn lots_units_and_walls_preserve_cycles_configuration_ids_and_saved_masks() {
+    use fc4_core::lot_records::{
+        BusinessUnitRecord, Lot, LotRecord, OccupantRecord, RetainingWallRecord, CLSID_BUSINESS_UNIT, CLSID_LOT,
+        CLSID_RETAINING_WALL_OCCUPANT,
+    };
+    use fc4_core::store::archive::references::{ReferenceWriter, SavedReferences};
+    use fc4_core::stream::{ByteReader, RefValue, SaveObject};
+    let lot_ref = RefValue::Host {
+        token: 719,
+        class_id: CLSID_LOT,
+    };
+    let lot = LotRecord {
+        configuration_id: 0xDEAD_BEEF,
+        business_unit: RefValue::Host {
+            token: 37,
+            class_id: CLSID_BUSINESS_UNIT,
+        },
+        travel_designate: lot_ref.clone(),
+        altitude: f32::from_bits(0x7fc0_1234),
+        slope: -0.0,
+        ..LotRecord::default()
+    };
+    let unit = BusinessUnitRecord {
+        lots: vec![lot_ref.clone(), RefValue::Null, lot_ref.clone()],
+    };
+    let mut wall = RetainingWallRecord::new();
+    wall.edge_mask = 0x80;
+    wall.edge_hashes = [31, 0, -17, 0];
+    wall.lot = lot_ref;
+    let mut lot_bytes = ReferenceWriter::default();
+    assert!(lot.write(&mut lot_bytes));
+    let lot_bytes = lot_bytes.into_bytes();
+    let mut wall_bytes = ReferenceWriter::default();
+    assert!(wall.write(&mut wall_bytes));
+    let wall_bytes = wall_bytes.into_bytes();
+    let mut unit_bytes = ReferenceWriter::default();
+    assert!(unit.write(&mut unit_bytes));
+    let mut builder = PackageBuilder::new();
+    for (class, id, payload) in [
+        (CLSID_LOT, 719, lot_bytes.clone()),
+        (CLSID_BUSINESS_UNIT, 37, unit_bytes.into_bytes()),
+        (CLSID_RETAINING_WALL_OCCUPANT, 83, wall_bytes.clone()),
+    ] {
+        let bytes = write_class(&[StoredObject { id, payload }]).unwrap();
+        builder
+            .add(Tgi::new(class, STORE_GROUP, 0), &bytes, Compression::Always)
+            .unwrap();
+    }
+    let source = Package::from_bytes(builder.build().unwrap()).unwrap();
+    let model = CitySave::read(&source).unwrap();
+    let output = model.write().unwrap();
+    let report = model.audit(&output).unwrap();
+    assert!(report.differences.is_empty());
+    for ty in [CLSID_LOT, CLSID_BUSINESS_UNIT, CLSID_RETAINING_WALL_OCCUPANT] {
+        assert_eq!(report.types[&ty].identical, 1);
+    }
+    // The live load still performs its mask fixup; the archive must not.
+    let mut refs = SavedReferences;
+    let mut live_wall = RetainingWallRecord::new();
+    assert!(live_wall.read(&mut ByteReader::with_resolver(&wall_bytes, &mut refs)));
+    assert_eq!(live_wall.edge_mask, 0x85);
+    // A live lot without Init still writes configuration 0. The record codec
+    // preserves it, and writes later edits from its fields rather than a cache.
+    let live_lot = Lot::constructed();
+    assert!(live_lot.read(&mut ByteReader::with_resolver(&lot_bytes, &mut refs)));
+    let mut live_bytes = ReferenceWriter::default();
+    assert!(live_lot.write(&mut live_bytes));
+    assert_eq!(&live_bytes.into_bytes()[2..6], &0u32.to_le_bytes());
+    let mut decoded = LotRecord::default();
+    assert!(decoded.read(&mut ByteReader::with_resolver(&lot_bytes, &mut refs)));
+    decoded.configuration_id = 43;
+    let mut changed = ReferenceWriter::default();
+    assert!(decoded.write(&mut changed));
+    assert_eq!(&changed.into_bytes()[2..6], &43u32.to_le_bytes());
+}
+
+#[test]
 fn damage_and_first_differences_are_reported() {
     let mut record = write_class(&[StoredObject {
         id: 3,
@@ -272,6 +349,16 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
         0xC97F_987C,
         0x49C0_5C8F,
         0x2990_C1BC,
+        0xC9BD_5D4A,
+        0x4A23_2DA8,
+        0x49C0_5C9F,
+        0xC9C0_5C6E,
+        0x49C1_A034,
+        0x49CC_1BCD,
+        0x8A4B_D52B,
+        0x49C0_5B9F,
+        0xCA16_374F,
+        0xC9C0_5C5D,
     ] {
         let stats = &total.types[&ty];
         assert_eq!(stats.identical, stats.count, "{ty:08X}: codec coverage regressed");

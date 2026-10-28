@@ -10,15 +10,21 @@ use fc4_core::clock24::{Clock24, CLSID_24_HOUR_CLOCK};
 use fc4_core::commercial::CommercialRecord;
 use fc4_core::commercial::IndustrialSim;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
+use fc4_core::lot_records::{
+    BusinessUnitRecord, LotRecord, OccupantRecord, RetainingWallRecord, CLSID_BUSINESS_UNIT, CLSID_LOT,
+    CLSID_RETAINING_WALL_OCCUPANT,
+};
+use fc4_core::network_occupants::archive::NetworkRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
 use fc4_core::prop_occupant::{
     read_effect_record, read_prop_record, write_effect_record, write_prop_record, EffectRecord, PropRecord, ReadOutcome,
 };
 use fc4_core::save::SaveRecord;
+use fc4_core::store::archive::references::{ReferenceWriter, SavedReferences};
 use fc4_core::store::archive::{read_class, write_class, ClassIndex, StoredObject};
 use fc4_core::store::{INDEX_TYPE, STORE_GROUP};
-use fc4_core::stream::{ByteReader, ByteWriter, SaveObject};
+use fc4_core::stream::{ByteReader, SaveObject};
 use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainViewRecord};
 use fc4_core::weather::{WeatherRng, WeatherSim};
 use std::collections::BTreeMap;
@@ -43,12 +49,17 @@ enum Payload {
     OrdinanceSimulator(OrdinanceSimulatorRecord),
     Prop(Box<PropRecord>),
     EffectProp(Box<EffectRecord>),
+    Lot(Box<LotRecord>),
+    BusinessUnit(BusinessUnitRecord),
+    RetainingWall(Box<RetainingWallRecord>),
+    Network(Box<NetworkRecord>),
     Unhandled(Vec<u8>),
 }
 
 impl Payload {
     fn read(class: u32, bytes: &[u8]) -> Result<Self, String> {
-        let mut r = ByteReader::new(bytes);
+        let mut references = SavedReferences;
+        let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
             0x2990_C1E5 => {
                 return SaveRecord::decode(bytes)
@@ -127,6 +138,27 @@ impl Payload {
                 let ok = record.read(&mut r);
                 (Self::Serializable(record), ok)
             }
+            CLSID_LOT => {
+                let mut record = Box::new(LotRecord::default());
+                let ok = record.read(&mut r);
+                (Self::Lot(record), ok)
+            }
+            CLSID_BUSINESS_UNIT => {
+                let mut record = BusinessUnitRecord::default();
+                let ok = record.read(&mut r);
+                (Self::BusinessUnit(record), ok)
+            }
+            CLSID_RETAINING_WALL_OCCUPANT => {
+                let mut record = Box::new(RetainingWallRecord::new());
+                let ok = record.read_saved(&mut r);
+                (Self::RetainingWall(record), ok)
+            }
+            _ if NetworkRecord::handles(class) => (
+                Self::Network(Box::new(
+                    NetworkRecord::read(class, &mut r).ok_or("network Read failed")?,
+                )),
+                true,
+            ),
             _ => match grids::create(class) {
                 Some(record) => {
                     let ok = record.read(&mut r);
@@ -145,7 +177,7 @@ impl Payload {
     }
 
     fn write(&self) -> Result<Vec<u8>, String> {
-        let mut w = ByteWriter::new();
+        let mut w = ReferenceWriter::default();
         let ok = match self {
             Self::Simulator(record) => return Ok(record.encode()),
             Self::Unhandled(bytes) => return Ok(bytes.clone()),
@@ -162,6 +194,10 @@ impl Payload {
             Self::OrdinanceSimulator(record) => record.write(&mut w),
             Self::Prop(record) => write_prop_record(record, &mut w),
             Self::EffectProp(record) => write_effect_record(record, false, &mut w),
+            Self::Lot(record) => record.write(&mut w),
+            Self::BusinessUnit(record) => record.write(&mut w),
+            Self::RetainingWall(record) => record.write(&mut w),
+            Self::Network(record) => record.write(&mut w),
         };
         if !ok {
             return Err("owner Write failed".into());

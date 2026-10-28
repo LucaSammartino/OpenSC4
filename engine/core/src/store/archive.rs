@@ -6,6 +6,8 @@ use super::{crc32_mpeg2, CRC_LIMIT, MAX_OBJECTS_PER_CLASS};
 use crate::stream::{ByteReader, ByteWriter, InStream, OutStream};
 use std::collections::BTreeSet;
 
+pub mod references;
+
 /// A saved identity, without constructing or renumbering the referenced owner.
 /// The null encoding omits the class word (foundations §2.7).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
