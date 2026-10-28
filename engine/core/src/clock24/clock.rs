@@ -485,7 +485,6 @@ impl Clock24 {
     }
 
     fn pause_counter(&mut self, on: bool, hidden: bool, other: i32) {
-        let now = self.now();
         let (count, message) = if hidden {
             (&mut self.hidden_pause_count, msg::HIDDEN_PAUSE_CHANGED)
         } else {
@@ -495,6 +494,7 @@ impl Clock24 {
             *count = count.wrapping_add(1);
             if *count == 1 {
                 if other == 0 {
+                    let now = self.now();
                     self.timer.stop(now);
                 }
                 self.host.post(message, 1, 0);
@@ -503,6 +503,7 @@ impl Clock24 {
             *count -= 1;
             if *count == 0 {
                 if other == 0 {
+                    let now = self.now();
                     self.timer.start(now);
                 }
                 self.host.post(message, 0, 0);

@@ -18,6 +18,7 @@
 #include "FC4Log.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "FC4Schedule.h"
 #include "FC4Streams.h"
 #include "cFC4Message2Standard.h"
 
@@ -73,9 +74,7 @@ uint64_t NowMicros(void*) {
     if (const FC4HistClockHooks* h = fc4::HistClockHooks()) return h->now_micros ? h->now_micros(h->ctx) : 0;
     static LARGE_INTEGER freq = {};
     if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    const unsigned long long t = static_cast<unsigned long long>(now.QuadPart);
+    const unsigned long long t = static_cast<unsigned long long>(fc4::ScheduleQpc());
     const unsigned long long f = static_cast<unsigned long long>(freq.QuadPart);
     return (t / f) * 1000000ull + ((t % f) * 1000000ull) / f;
 }
