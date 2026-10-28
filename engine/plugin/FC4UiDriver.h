@@ -29,25 +29,8 @@ inline bool IsAction(harness::ScriptOp op) {
         op == ScriptOp::UiKey || op == ScriptOp::UiText || op == ScriptOp::UiWait || op == ScriptOp::UiControl;
 }
 
-// The framework's host can be a zero-client message window. Input belongs to
-// this process's renderer window (the harness uses the same class check).
-// Never select by title: parallel slots share it.
-inline bool IsGameWindow(HWND window) {
-    DWORD pid = 0;
-    GetWindowThreadProcessId(window, &pid);
-    char name[128]{};
-    RECT client{};
-    return pid == GetCurrentProcessId() && GetClassNameA(window, name, sizeof(name)) &&
-        std::strncmp(name, "GDriverClass", 12) == 0 && GetClientRect(window, &client) &&
-        client.right > client.left && client.bottom > client.top;
-}
-
-inline BOOL CALLBACK FindGameWindow(HWND window, LPARAM result) {
-    if (!IsGameWindow(window)) return TRUE;
-    *reinterpret_cast<HWND*>(result) = window;
-    return FALSE;
-}
-
+// The framework supplies its actual host window; another slot may have the
+// same title, and the host need not have a particular Win32 class name.
 inline HWND GameWindow() {
     auto* fw = RZGetFrameWork();
     cIGZFrameWorkW32* win32 = nullptr;
@@ -57,10 +40,27 @@ inline HWND GameWindow() {
     // [abi-ret] public SDK cIGZFrameWorkW32::GetMainHWND returns HWND.
     HWND window = win32->GetMainHWND();
     FC4_RELEASE(win32);
-    if (IsGameWindow(window)) return window;
-    window = nullptr;
-    EnumWindows(FindGameWindow, reinterpret_cast<LPARAM>(&window));
-    return window;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    return pid == GetCurrentProcessId() ? window : nullptr;
+}
+
+inline bool InputClientRect(HWND window, RECT& client) {
+    if (!IsIconic(window)) return GetClientRect(window, &client) != 0;
+    // The fixed schedule deliberately minimizes the window (simulator.md 5.8).
+    // Its current client can be empty, but posted input still uses the normal
+    // client coordinates. Recover that extent without restoring/painting it.
+    WINDOWPLACEMENT placement{};
+    placement.length = sizeof(placement);
+    RECT frame{};
+    if (!GetWindowPlacement(window, &placement) ||
+        !AdjustWindowRectEx(&frame, static_cast<DWORD>(GetWindowLongA(window, GWL_STYLE)),
+                            GetMenu(window) != nullptr,
+                            static_cast<DWORD>(GetWindowLongA(window, GWL_EXSTYLE)))) return false;
+    const auto& normal = placement.rcNormalPosition;
+    client = RECT{0, 0, normal.right - normal.left - (frame.right - frame.left),
+                       normal.bottom - normal.top - (frame.bottom - frame.top)};
+    return client.right > 0 && client.bottom > 0;
 }
 
 inline std::string Command(uint32_t id) {
@@ -195,7 +195,7 @@ inline std::string Run(const harness::ScriptAction& a) {
         if (a.op == ScriptOp::UiCell && !CellPixel(a, x, y)) return "SKIPPED: cell projection unavailable";
         if (a.op == ScriptOp::UiControl && !ControlPixel(a.command, x, y)) return "SKIPPED: control unavailable";
         RECT client{};
-        if (!GetClientRect(window, &client) || !PtInRect(&client, POINT{x, y}))
+        if (!InputClientRect(window, client) || !PtInRect(&client, POINT{x, y}))
             return "SKIPPED: point outside game client";
         // SPEC-GAP: scenario mouse phases use posted Win32 client input; no
         // focus stealing or host cursor movement is needed for isolated slots.

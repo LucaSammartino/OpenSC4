@@ -59,6 +59,18 @@ def checkout(root):
 
 
 class SuiteParsingTests(unittest.TestCase):
+    def test_reach_uses_requesting_checkout_contracts_and_preserves_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            row = checkout(root)
+            (root / 'engine/build-x86/FreeCity4.dll').write_bytes(b'reach prepared functions=')
+            _, manifest = suite.make_batch(root, [row], 'plain', root, 'local', ['reach = 1'])
+            self.assertIn('reach_contracts = ' + (root / 'docs/abi/functions.tsv').as_posix(),
+                          manifest['requests'][0]['request'])
+            _, manifest = suite.make_batch(root, [row], 'plain', root, 'explicit',
+                                            ['reach = 1', 'reach_contracts = C:/contracts.tsv'])
+            self.assertIn('reach_contracts = C:/contracts.tsv\n', manifest['requests'][0]['request'])
+
     def test_reach_cli_preserves_explicit_roster(self):
         with patch.object(suite, 'read_scenarios', return_value=[]), \
              patch.object(suite, 'run_scenarios', return_value=(ROOT, {})) as run:

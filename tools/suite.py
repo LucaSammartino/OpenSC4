@@ -241,6 +241,9 @@ def make_batch(root, scenarios, profile, dll, tag, extra=()):
         for key, value in changes.items():
             (request if key in ('seconds', 'timeout', 'turbo', 'turbo_from', 'minimize', 'priority', 'parallel') else ini)[key] = value
         if ini.get('reach') == '1':
+            # A cached/native DLL can carry another worktree's source prefix.
+            # Entry contracts belong to the requesting checkout, not that path.
+            ini.setdefault('reach_contracts', (root / 'docs/abi/functions.tsv').as_posix())
             ini['reach_output'] = (directory / (row['name'] + '.reach.tsv')).as_posix()
         text = '\n'.join(f'{k} = {v}' for k, v in request.items()) + '\n[ini]\n'
         text += '\n'.join(f'{k} = {v}' for k, v in ini.items()) + '\n'
