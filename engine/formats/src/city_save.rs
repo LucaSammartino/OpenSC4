@@ -10,6 +10,8 @@ use fc4_core::clock24::{Clock24, CLSID_24_HOUR_CLOCK};
 use fc4_core::commercial::CommercialRecord;
 use fc4_core::commercial::IndustrialSim;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
+use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
+use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
 use fc4_core::save::SaveRecord;
 use fc4_core::store::archive::{read_class, write_class, ClassIndex, StoredObject};
 use fc4_core::store::{INDEX_TYPE, STORE_GROUP};
@@ -33,6 +35,8 @@ enum Payload {
     SurfaceWater(SurfaceWaterRecord),
     Commercial(CommercialRecord),
     Detail(DetailRecord),
+    Ordinance(OrdinanceRecord),
+    OrdinanceSimulator(OrdinanceSimulatorRecord),
     Unhandled(Vec<u8>),
 }
 
@@ -85,6 +89,16 @@ impl Payload {
                 Self::Detail(DetailRecord::read(&mut r).ok_or("city detail Read failed")?),
                 true,
             ),
+            CLSID_ORDINANCE_SIMULATOR => (
+                Self::OrdinanceSimulator(
+                    OrdinanceSimulatorRecord::read(&mut r).ok_or("ordinance simulator Read failed")?,
+                ),
+                true,
+            ),
+            _ if OrdinanceKind::of_class(class).is_some() => (
+                Self::Ordinance(OrdinanceRecord::read(&mut r).ok_or("ordinance Read failed")?),
+                true,
+            ),
             _ => match grids::create(class) {
                 Some(record) => {
                     let ok = record.read(&mut r);
@@ -116,6 +130,8 @@ impl Payload {
             Self::SurfaceWater(record) => record.write(&mut w),
             Self::Commercial(record) => record.write(&mut w),
             Self::Detail(record) => record.write(&mut w),
+            Self::Ordinance(record) => record.write(&mut w),
+            Self::OrdinanceSimulator(record) => record.write(&mut w),
         };
         if !ok {
             return Err("owner Write failed".into());
