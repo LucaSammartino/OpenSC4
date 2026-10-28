@@ -955,7 +955,10 @@ fn set(w: &World, op: &Json) -> R<()> {
         .transpose()?;
     w.mgr()?.with_state(|s| {
         if let Some(c) = counts {
-            s.success_counts = c;
+            s.success_counts.clear();
+            for (guid, count) in c {
+                s.success_counts.entry(guid, || count);
+            }
         }
         if let Some(l) = loaded {
             s.loaded_from_save = l;
@@ -1014,7 +1017,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
             Json::Object(
                 s.success_counts
                     .iter()
-                    .map(|(&g, &c)| (format!("0x{g:08X}"), ji(c)))
+                    .map(|(g, &c)| (format!("0x{g:08X}"), ji(c)))
                     .collect(),
             ),
         ),

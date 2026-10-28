@@ -17,3 +17,6 @@
 
   Follow-up diagnostic, qcheck-22.log / compare-20261028-043411-00875db2: at Jinae's failing call, the supplied output storage has vtable word 0, active advice 0 and target 0. Leaving it untouched again faults at +0x50E219. The replacement now initializes a native empty cRZString in this storage using the existing allocator-B string helper (SPEC-GAP), and uses a separate constructed-string helper for its own Lua callback. Please confirm the result-storage size/lifetime and empty-target contract in the spec and ABI row.
 
+<!-- from: advisors-exact33 (2026-10-28) -->
+- **CS20 - §7 success-map write order.** Please specify the GUID hash, initial bucket hint, growth/chain order and whether Read reserves for its incoming count. The section requires hash-map order but gives none of those parameters. After the target-name construction fix, qcheck-23 is 3/4 exact; East Weburg is clean with only `0BB14381/299B2D1B/0` different (79 bytes including the class-store wrapper, ten successes). The replacement formerly wrote a BTreeMap in ascending GUID order. It now uses the existing STLport identity-hash model with its default hint 100 (193 buckets), marked SPEC-GAP, preserving insertion order and profile overwrites.
+
