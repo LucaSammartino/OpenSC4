@@ -159,7 +159,9 @@ pub fn tuning_from(exemplar: Option<&PropertyHolder>) -> (f32, ResponseCurve) {
     match exemplar {
         None => (DEFAULT_THRESHOLD, ResponseCurve::default()),
         Some(h) => (
-            crate::props::f32_of(h, prop::DISTRESS_THRESHOLD).unwrap_or(DEFAULT_THRESHOLD),
+            crate::props::f32_of(h, prop::DISTRESS_THRESHOLD)
+                .map(|percent| percent * 0.01f32)
+                .unwrap_or(DEFAULT_THRESHOLD),
             crate::props::curve(h, prop::ESCAPE_CURVE)
                 .unwrap_or_else(|| ResponseCurve::from_points(&DEFAULT_ESCAPE_CURVE)),
         ),
