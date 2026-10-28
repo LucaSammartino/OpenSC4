@@ -18,7 +18,7 @@ it has no paint or input-message entry point of its own (§13).
 |---|---|
 | Object size | `0x20` bytes (factory `cGZUIScriptCOMDirector::CreateLegacyControl` `0x0094AF90` allocates `0x20` and runs the constructor `0x0095B8C4`) |
 | Primary vtable | `0x00AD5360`, 11 slots |
-| Second sub-object (`+0x04`) | vtable `0x00AD5344`, 8 slots: the control-area interface (§3, answers LC1) |
+| Second sub-object (`+0x04`) | vtable `0x00AD5344`, 7 slots: the control-area interface (§3, answers LC1) |
 | Third sub-object (`+0x08`), the legacy-control interface | vtable `0x00AD5324`, 8 slots |
 | IIDs answered by `QueryInterface` `0x0094C431` | `0x00000001` and `0x1A356083` → the object itself; `0x5A356159` → `this+4`; `0x9A4527CB` → `this+8` |
 
@@ -67,12 +67,11 @@ interface name is *[inferred]*). Raw slot words read from the image at `0x00AD53
 | 1 | `+0x04` | `0x009359BD` | `AddRef` | thunk to `0x0094C47C` |
 | 2 | `+0x08` | `0x0094C4C0` | `Release` | thunk to `0x0094C483` |
 | 3 | `+0x0C` | `0x0091559A` | (one argument) | returns true, argument ignored (ICF-shared `mov al,1; ret 4`) |
-| 4 | `+0x10` | `0x0091559A` | (one argument) | same body as slot 3 |
-| 5 | `+0x14` | `0x0094C3F5` | `SetArea(rect)` *[inferred name]* | control (object `+0x10`) null → false; else control `SetArea(rect)` (`cIGZWin` `+0xD8`), true |
-| 6 | `+0x18` | `0x0094C413` | `GetArea(rect)` *[inferred name]* | control null → false; else control `GetArea(rect)` (`cIGZWin` `+0xBC`), true |
-| 7 | `+0x1C` | `0x0092B33A` | (two arguments) | returns true, both arguments ignored (ICF-shared `mov al,1; ret 8`) |
+| 4 | `+0x10` | `0x0094C3F5` | `SetArea(rect)` *[inferred name]* | control (object `+0x10`) null → false; else control `SetArea(rect)` (`cIGZWin` `+0xD8`), true |
+| 5 | `+0x14` | `0x0094C413` | `GetArea(rect)` *[inferred name]* | control null → false; else control `GetArea(rect)` (`cIGZWin` `+0xBC`), true |
+| 6 | `+0x18` | `0x0092B33A` | (two arguments) | returns true, both arguments ignored (ICF-shared `mov al,1; ret 8`) |
 
-Slots 5 and 6 pass the caller's rectangle pointer through unchanged and return true even though the window
+Slots 4 and 5 pass the caller's rectangle pointer through unchanged and return true even though the window
 call's own result is discarded.
 
 Legacy-control interface vtable `0x00AD5324` (sub-object at `+0x08`; slots 0–2 and 4 are `this − 8` thunks):
