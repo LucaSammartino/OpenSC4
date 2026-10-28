@@ -483,6 +483,20 @@ fn ck12_08_pause_reads_clock_only_for_timer_transitions() {
 }
 
 #[test]
+fn ck12_08_stopped_timer_does_not_read_clock() {
+    let (f, mut c) = new();
+    c.on_idle();
+    assert_eq!(c.timer_elapsed_us(), 0);
+    c.pause(true);
+    c.pause(true);
+    c.pause(false);
+    assert_eq!(f.clock_reads.get(), 0);
+    c.pause(false);
+    assert!(c.timer().running);
+    assert_eq!(f.clock_reads.get(), 1);
+}
+
+#[test]
 fn ck12_08_pause_counters() {
     for hidden in [false, true] {
         let (f, mut c) = shipped();
