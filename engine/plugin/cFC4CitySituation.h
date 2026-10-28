@@ -132,6 +132,7 @@ public:
     void SetCity(cISC4City* c);
     void Send(uint32_t type, uint32_t data1, uint32_t data2, uint64_t object);
     void Post(uint32_t type, uint64_t object, uint32_t data1, uint32_t data2);
+    void FillCurrentTargetName(cIGZString& out);  // constructed string, for Lua
 
 private:
     uint32_t refCount_ = 0;

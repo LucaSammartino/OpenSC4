@@ -328,7 +328,7 @@ bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParamet
         if constexpr (Kind == 3) result.SetValUnknown(s->GetActiveAuto());
         if constexpr (Kind == 4) {
             cRZBaseString name;
-            s->GetCurrentTargetName(name);
+            s->FillCurrentTargetName(name);
             result.SetValString(name);
         }
         if constexpr (Kind == 6) result.SetValUint32(s->GetNumTargetsRemaining());
@@ -926,10 +926,21 @@ float cFC4CitySituationManager::GetCurrentTimeRemainingSeconds() { FC4_CS_CALL(1
     return fc4_citysit_time_remaining_seconds(core_);
 }
 
+void cFC4CitySituationManager::FillCurrentTargetName(cIGZString& out) {
+    fc4_citysit_current_target_name(core_, [](void* ctx, const uint8_t* data, size_t len) {
+        static_cast<cIGZString*>(ctx)->FromChar(reinterpret_cast<const char*>(data),
+                                               static_cast<uint32_t>(len));
+    }, &out);
+}
+
 cIGZString& cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) { FC4_CS_CALL(16, "GetCurrentTargetName");
-    // Slot 16 fills the caller's string (EAX = the argument). The name comes
-    // from the advice's target through the host, which this replacement does
-    // not wire: the string is left as it is.
+    // SPEC-GAP: slot 16 supplies unconstructed cRZString result storage (CS19).
+    // The caller destroys the result inline, so its buffer must use allocator B.
+    cRZBaseString name;
+    FillCurrentTargetName(name);
+    auto& result = *reinterpret_cast<fc4::GameString*>(&out);
+    if (!fc4::GameStringInit(result, name.ToChar(), name.Strlen()))
+        fc4::Log("citysit target-name: native string allocation unavailable");
     return out;
 }
 
