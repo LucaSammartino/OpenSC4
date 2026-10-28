@@ -37,31 +37,3 @@
   §18.3 literally: load each double without rounding, round each of the two sums and the final
   subtraction to 24-bit precision; retain the double storage and return type. Please reconcile §5.]
 
-<!-- from: region-exact33 (2026-10-28) -->
-- **RY-EXACT33-1 — foundations §11.4 / neighbors §9.1, §14.1 / simulator §5.8:** What fixed-schedule
-  ordering contract applies when regionalcity alone is replaced and the original neighbors simulator walks
-  the replacement regional-city objects by address? After binding region-owned deals to the current game's
-  interfaces (neighbors §5.3–§5.5), `owner27-resources` and `owner27-views` are exact. `paradis-karanes` has
-  no DIGEST or simulation-window difference and only `CA027EDB/CA027EE1/0` differs: 42 bytes, first byte 6734.
-  The two complete version-5 local-deal records at byte 6728 (76 bytes each) are byte-identical as a multiset;
-  the entire prefix and suffix also match. Reference other-side city order is `(16,32), (20,28)`; replacement
-  order is `(20,28), (16,32)`. The spec's position-order choice cannot govern an original simulator's pointer
-  walk. Please extend the fixed-schedule contract to this walk, reconciling the neighbor order question
-  NB-EXACT33-1, rather than requiring an implementation to reproduce allocation addresses. Evidence:
-  `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-030636-9d489870/result`; qcheck-11 exit 1,
-  2/3 exact, clean with ref_warnings=0. No behavior spec or ordering implementation was changed.
-
-  **Follow-up, region-exact33 round 3 (2026-10-28):** Qcheck-14 subsequently reports 3/3 exact without
-  a source or DLL change. Its Karanes run used DLL SHA256
-  `e5bc12cb0d0ceda7f1077d7741ed51fbbf3db832cc9864c93cea2af0f3bdaa9e`, as did the previous failing run.
-  The new 6900-byte regional-city record matches the previous reference byte for byte (SHA256
-  `4bddbe12bd4caba3222b7cb01f6e26cbed59f0ff7edd9dc4af116f4a0377a050`); the previous actual record's
-  SHA256 is `302ac87664e7be51220f9c417f4b65cea54e29306d6e354efb2285d237751ff5`. Both complete deals
-  are unchanged; their order alone moved into agreement. Evidence:
-  `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-032556-205995ee/result`.
-  Qcheck-17 also reports 3/3 with an experimental DLL whose neighbors-only change was disabled in these
-  runs. Neither pass resolves the fixed-schedule ordering contract or explains it as a behavior fix.
-  The final restored-source DLL (`cb4b6b4c462cf9fdb03b62b8a63f5a5fd998bf3ed92d20f09dcf69057f832228`)
-  reproduces the original failure in qcheck-18: 2/3 exact, Karanes first byte 6734, 42 differing bytes,
-  actual record SHA256 `302ac87664e7be51220f9c417f4b65cea54e29306d6e354efb2285d237751ff5` again.
-  Evidence: `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-040302-5a6376a6/result`.
