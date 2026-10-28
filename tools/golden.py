@@ -489,7 +489,9 @@ def run_game(args, generated, selected, dll, tag, *, allow_window_drift=False):
         _, stats = drawcheck.compare(result / 'draw.jsonl', result / 'draw.jsonl')
         if stats.frames != 10 * args.draw_frames:
             raise ValueError(f'draw capture has {stats.frames} frames, expected {10 * args.draw_frames}')
-        if not (result / 'reach.tsv').is_file():
+        # Like saves, a candidate can be compared without entry instrumentation.
+        # coverage.py withholds credit for an exact run missing its counters.
+        if tag != 'compare' and not (result / 'reach.tsv').is_file():
             raise ValueError(f'missing draw reach counters; not cached: {result}')
         write_json(result / 'verdict.json', {'verdict': verdict, 'draw_complete': True, **vars(stats)})
         write_json(result / 'summary.json', {'wall_seconds': time.perf_counter() - start,

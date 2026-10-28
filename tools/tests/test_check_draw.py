@@ -92,6 +92,57 @@ class DrawStoreTests(unittest.TestCase):
         _, reference = golden.pinned(self.root / 'other-output', store)
         self.assertEqual(reference, staged)
 
+    def test_candidate_draw_without_counters_compares_but_cannot_be_a_reference(self):
+        dll = self.root / 'candidate.dll'
+        dll.write_bytes(b'candidate')
+        config = self.root / 'engine/plugin/FC4Config.cpp'
+        config.parent.mkdir(parents=True)
+        config.write_text('', encoding='utf-8')
+        args = golden.parser().parse_args(['compare', '--city', 'City', '--until', '2000-01-01',
+            '--schedule', 'fixed', '--draw-capture', '--draw-frames', '1'])
+        args.output, args.harness_root, args.clock = self.root / 'output', self.root, 'fixed'
+
+        def queued(args, dll, ini, result, work):
+            result.mkdir()
+            base = capture()
+            stream = [dict(base[0], frames=10, scenarios=10)]
+            for i in range(10):
+                for row in json.loads(json.dumps(base[1:-1])):
+                    row['frame'] = i
+                    if row['type'] == 'frame':
+                        row.update(scenario=i, zoom=i // 2 + 1, rotation=i % 2)
+                    stream.append(row)
+            stream.append(dict(base[-1], frames=10, calls=10, draw_calls=10, ui_frames=10))
+            (result / 'draw.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in stream), encoding='utf-8')
+            (result / 'game.log').write_text("subsystem 'simulator': enabled\nAUTOTEST VERDICT: clean\n"
+                'sim_fixed_step ON: 64 agent deliveries/frame\nschedule: fixed (code fixture, test)\n',
+                encoding='utf-8')
+            golden.write_json(result / 'run.json', {'label': 'candidate'})
+
+        with patch.object(golden, 'validate_harness_sources'), patch.object(golden, 'reach_supported', return_value=True), \
+                patch.object(golden, 'subsystem_keys', return_value=['simulator']), \
+                patch.object(golden, 'schedule_code', return_value='fixture'), patch.object(golden, 'run_queued', side_effect=queued):
+            result = golden.run_game(args, '', [], dll, 'compare')
+            self.assertTrue(golden.load_json(result / 'verdict.json')['draw_complete'])
+            self.assertFalse((result / 'reach.tsv').exists())
+            with self.assertRaisesRegex(ValueError, 'reach.tsv'):
+                golden.cache_record(self.root / 'store', 'a' * 64, self.manifest, result)
+            with self.assertRaisesRegex(ValueError, 'missing draw reach counters'):
+                golden.run_game(args, '', [], dll, 'original')
+
+    def test_exact_candidate_draw_without_counters_withholds_coverage(self):
+        reference, candidate = self.run_dir('reference'), self.run_dir('candidate')
+        (candidate / 'reach.tsv').unlink()
+        path = self.root / 'credit.json'
+        golden.write_json(path, {'keys': ['ports'], 'dll_sha256': 'candidate', 'scenarios': {
+            'draw-city': {'kind': 'draw', 'verdict': 'exact', 'reference': reference.name,
+                          'run': str(candidate), 'detail': 'exact'}}})
+        spec = check.importlib.util.spec_from_file_location('fc4_test_coverage', check.REPO / 'tools/coverage.py')
+        coverage = check.importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(coverage)
+        evidence = coverage.credit_evidence(path, lambda _: ({0x401000}, set()))
+        self.assertEqual(evidence['missing'], ['draw-city (run)'])
+
 
 class DrawSelectionTests(unittest.TestCase):
     def setUp(self):
