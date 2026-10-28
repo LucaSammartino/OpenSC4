@@ -1,6 +1,6 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| corpus34: corpus from reach (tools) | Codex / .claude/worktrees/corpus34 / corpus34 (detached); commits aa24885e7..81a2394e9; ABI unchanged | ready; pytest 405; cargo 8410; clippy pass; ctest 147/147; c34-r1/r2 four clean dated pairs, DBPF 552/552 exact; shadows n/a; questions none | 1. Record the corpus34 references with the corrected minimized-input driver. 2. Qualify budget-panel and region-view drivers. |
+| corpus34: corpus from reach (tools) | Codex / .claude/worktrees/corpus34 / corpus34 (detached); commits aa24885e7..81a2394e9; ABI unchanged | continue: context guard blocked queue write; all gates passed; pytest 405; cargo 8410; clippy pass; ctest 147/147; c34-r1/r2 four clean dated pairs, DBPF 552/552 exact; shadows n/a; questions none | 1. Resume and write the ready merge-queue entry at the actual HEAD. 2. Coordinator records corpus34 references using the corrected driver. 3. Qualify budget-panel and region-view drivers. |
 
 Historical clean census plus admitted traces: **42.348% -> 44.047%**, 2,365,094 -> 2,459,937 bytes, +319 functions / +94,843 bytes (177 census traces).
 Frozen golden references separately: 277 reach files, 9,988 functions / 2,222,200 bytes (39.790%); admitted union 10,147 / 2,267,281 (40.597%).
@@ -24,3 +24,11 @@ Excluded budget pilot: c34-r1/r2 both clean/end reached but 10/39 controls unava
 Earlier attempts retained separately: c34-p1/p2 wrong calendar/export; c34-f1/f2 corrected calendar but export/input failures; c34-d1 rejected window-selection approach; c34-d2/d3 missing reach contracts and volcano date overrun. Final r1/r2 correct all admission requirements for the four table entries.
 Missing: qualified region-view and full budget-subpanel activation. The other historical refused actions remain; census overall was 8,080/30,174 executed actions refused. No changes to FC4Schedule.cpp/.h, coverage-map.tsv, regress.ps1 or C ABI exports.
 Artifacts: build-runs/corpus34-evidence.json (per-address/subsystem gains, full repeat diffs), corpus34-census-gain.json, reach-cli-qualified.json, suite/c34-r1 and c34-r2, suite/states/c34-r1 and c34-r2. Coordinator records references after landing; old pinned UI bounds refuse these minimized mouse inputs.
+
+## Handoff
+
+Goal: land the measured corpus work. Code and qualification are complete; no merge-queue file was written because the guard denied that exact operation at context 201k/200k.
+Done: aa24885e7 reach_gain.py/tests; e2d17805a initial driver/CLI; 807928fe4 corrected minimized-input bounds plus per-checkout reach contracts/tests; 81a2394e9 qualified scripts/rows; 4c5a1dd04 lane evidence. The rejected window-enumeration approach is absent from the final source.
+Next: obtain the actual 40-character HEAD after this handoff commit; create build-runs/merge-queue/corpus34.json with lane/branch corpus34, kind tools, abi false, state ready, that tip, summary of +159 functions/+45081 bytes over references and census 42.348% -> 44.047%. Do not rerun already-passing gates or game repeats without source changes.
+Game runs for the queue: suite-c34-r1-corpus34-tools-plain, suite-c34-r2-corpus34-tools-plain, suite-c34-r1-corpus34-options-plain, suite-c34-r2-corpus34-options-plain, suite-c34-r1-corpus34-volcano-plain, suite-c34-r2-corpus34-volcano-plain, suite-c34-r1-corpus34-funded-house-plain, suite-c34-r2-corpus34-funded-house-plain. Exclude panels.
+Facts: all spawned shell operations have terminal results. Full pytest 405 passed; qbuild all was run once, cargo 8410 passed, clippy exit 0, ctest 147/147, qbuild PASS. Worktree was clean at 4c5a1dd04; only this handoff is newer. Supervisor publishes detached HEAD to reserved branch corpus34. Schedule sources and ABI unchanged. No question IDs. Missing panel/region activation is explicitly documented above.
