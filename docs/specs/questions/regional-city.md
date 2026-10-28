@@ -50,3 +50,14 @@
   NB-EXACT33-1, rather than requiring an implementation to reproduce allocation addresses. Evidence:
   `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-030636-9d489870/result`; qcheck-11 exit 1,
   2/3 exact, clean with ref_warnings=0. No behavior spec or ordering implementation was changed.
+
+  **Follow-up, region-exact33 round 3 (2026-10-28):** Qcheck-14 subsequently reports 3/3 exact without
+  a source or DLL change. Its Karanes run used DLL SHA256
+  `e5bc12cb0d0ceda7f1077d7741ed51fbbf3db832cc9864c93cea2af0f3bdaa9e`, as did the previous failing run.
+  The new 6900-byte regional-city record matches the previous reference byte for byte (SHA256
+  `4bddbe12bd4caba3222b7cb01f6e26cbed59f0ff7edd9dc4af116f4a0377a050`); the previous actual record's
+  SHA256 is `302ac87664e7be51220f9c417f4b65cea54e29306d6e354efb2285d237751ff5`. Both complete deals
+  are unchanged; their order alone moved into agreement. Evidence:
+  `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-032556-205995ee/result`.
+  Qcheck-17 also reports 3/3 with an experimental DLL whose neighbors-only change was disabled in these
+  runs. Neither pass resolves the fixed-schedule ordering contract or explains it as a behavior fix.
