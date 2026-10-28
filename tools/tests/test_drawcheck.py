@@ -125,6 +125,16 @@ class DrawCheckTests(unittest.TestCase):
         self.write(a, b)
         self.assertIsNone(drawcheck.compare(self.left, self.right)[0])
 
+    def test_camera_hidden_pause_is_state_not_a_hidden_window(self):
+        records = capture()
+        records[1]["hidden"] = 1
+        self.write(records, records)
+        self.assertIsNone(drawcheck.compare(self.left, self.right)[0])
+        records[1]["paused"] = 0
+        self.write(records, records)
+        with self.assertRaisesRegex(drawcheck.InvalidStream, "not explicitly paused"):
+            drawcheck.compare(self.left, self.right)
+
     def test_trailing_garbage_and_bad_utf8(self):
         self.write(capture(), capture())
         with self.right.open("ab") as out:

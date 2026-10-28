@@ -87,7 +87,7 @@ def records(path: Path, stats: Stats) -> Iterator[dict]:
                 elif kind == "frame":
                     require(current is None, "previous frame has no end_frame")
                     require(record.get("frame") == stats.frames, "nonconsecutive frame index")
-                    require(record.get("paused") == 1 and record.get("hidden") == 0, "city is not visibly paused")
+                    require(record.get("paused") == 1 and record.get("hidden") in {0, 1}, "city is not explicitly paused")
                     require(record.get("zoom") in range(1, 6) and record.get("rotation") in range(4), "invalid camera")
                     current = stats.frames
                     calls = draws = nodes = 0
