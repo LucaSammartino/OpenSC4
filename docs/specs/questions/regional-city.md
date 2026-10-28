@@ -61,3 +61,7 @@
   `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-032556-205995ee/result`.
   Qcheck-17 also reports 3/3 with an experimental DLL whose neighbors-only change was disabled in these
   runs. Neither pass resolves the fixed-schedule ordering contract or explains it as a behavior fix.
+  The final restored-source DLL (`cb4b6b4c462cf9fdb03b62b8a63f5a5fd998bf3ed92d20f09dcf69057f832228`)
+  reproduces the original failure in qcheck-18: 2/3 exact, Karanes first byte 6734, 42 differing bytes,
+  actual record SHA256 `302ac87664e7be51220f9c417f4b65cea54e29306d6e354efb2285d237751ff5` again.
+  Evidence: `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-040302-5a6376a6/result`.

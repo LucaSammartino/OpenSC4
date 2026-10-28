@@ -13,3 +13,6 @@
   reverted; §9.1's specified position-order choice is retained. Please specify the fixed-schedule walk
   rather than requiring matching allocations. Evidence:
   `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-034447-2370da38/result`.
+  Final restored-source qcheck-19 returns to 1/2 exact: Indereast first byte 11881, 139 differing bytes,
+  with the same actual record SHA256 as before the experiment. Evidence:
+  `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-040727-e0a67421/result`.
