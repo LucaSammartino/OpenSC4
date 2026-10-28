@@ -76,7 +76,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FQ | flora |
 | FR | font-renderer |
 | FS | freshness, graphics-formats |
-| G | commercial-industrial |
+| G | commercial-industrial, lot-developer, residential |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GDR | game-data-registry |
@@ -265,7 +265,7 @@ generated index: the questions live one file per spec, so read only the file for
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 4 | 0 | CL5 | questions/command-line.md |
 | command-system | 8 | 0 | GC9 | questions/command-system.md |
-| commercial-industrial | 2 | 12 | CM11, G34, IN4 | questions/commercial-industrial.md |
+| commercial-industrial | 3 | 12 | CM11, G35, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 4 | 61 | EX59 | questions/data-formats.md |
@@ -314,7 +314,7 @@ generated index: the questions live one file per spec, so read only the file for
 | local-grid-helper | 1 | 0 | LGH2 | questions/local-grid-helper.md |
 | lot-configuration | 0 | 2 | GLUE23 | questions/lot-configuration.md |
 | lot-configuration-editor | 0 | 18 | LE19 | questions/lot-configuration-editor.md |
-| lot-developer | 3 | 36 | LD40 | questions/lot-developer.md |
+| lot-developer | 5 | 36 | G35, LD40 | questions/lot-developer.md |
 | lot-models | 3 | 5 | LM9 | questions/lot-models.md |
 | lot-records | 3 | 14 | LR18 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
@@ -376,7 +376,7 @@ generated index: the questions live one file per spec, so read only the file for
 | renderer-driver | 6 | 11 | RD13 | questions/renderer-driver.md |
 | renderer-gdrivers-director | 1 | 0 | GD2 | questions/renderer-gdrivers-director.md |
 | renderer-gdrivers-director-inventory | 2 | 0 | GI3 | questions/renderer-gdrivers-director-inventory.md |
-| residential | 0 | 17 | RS18 | - |
+| residential | 2 | 17 | G35, RS18 | questions/residential.md |
 | residential-education-health | 0 | 46 | AQ12, EH15, RG29 | - |
 | resource-catalog | 5 | 0 | RC6 | questions/resource-catalog.md |
 | resource-editor-views | 6 | 0 | REV7 | questions/resource-editor-views.md |
@@ -436,4 +436,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **624** | **1703** | | |
+| **total** | **629** | **1703** | | |
