@@ -601,7 +601,8 @@ def credit_evidence(path, reached):
     data = json.loads(path.read_text(encoding="utf-8"))
     by, still, missing, files, unrecorded = defaultdict(set), set(), [], [], []
     for name, entry in sorted(data["scenarios"].items()):
-        if entry["reference"] is None and "no golden baseline" in entry.get("detail", ""):
+        if (entry.get("kind") != "draw" and entry["reference"] is None
+                and "no golden baseline" in entry.get("detail", "")):
             unrecorded.append(name)  # no reference: not in the corpus (Reach comes from the references too)
             continue
         reference = path.parent / (entry["reference"] or "-") / "reach.tsv"

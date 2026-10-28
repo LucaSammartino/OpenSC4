@@ -151,11 +151,10 @@ def record(args):
         state = ('error: ' + (re.findall(r'golden: (.*)', out) or [out.strip()[-200:]])[-1] if code else
                  'cached' if re.search(r'^cached:', out, re.M) else 'recorded')
         if rows[name].get('kind') == 'draw':
-            state = '; '.join(line for line in out.splitlines()
+            detail = '; '.join(line for line in out.splitlines()
                               if line.startswith(('key:', 'recorded:', 'reproduced:', 'nondeterministic:',
-                                                  'cached:', 'first DRAW', 'baseline repeatability:'))) or state
-            if code:
-                state = f'ERROR ({code}) {state}'
+                                                  'cached:', 'first DRAW', 'baseline repeatability:')))
+            state = '; '.join(filter(None, [detail, state if code else ''])) or state
         return name, code, state
 
     with ThreadPoolExecutor(args.jobs) as pool:

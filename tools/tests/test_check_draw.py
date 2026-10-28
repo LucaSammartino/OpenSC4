@@ -152,6 +152,20 @@ class DrawSelectionTests(unittest.TestCase):
         self.assertEqual(scenarios['draw-city']['kind'], 'draw')
         self.assertEqual(scenarios['draw-city']['verdict'], 'error')
 
+    def test_missing_draw_reference_withholds_coverage_measurement(self):
+        path = self.root / 'credit.json'
+        golden.write_json(path, {'keys': ['span565'], 'dll_sha256': 'candidate', 'scenarios': {
+            'draw-city': {'kind': 'draw', 'verdict': 'error', 'reference': None, 'run': None,
+                          'detail': 'ERROR no golden baseline for this key; run record first'},
+            'save-unrecorded': {'kind': 'save', 'verdict': 'error', 'reference': None, 'run': None,
+                                'detail': 'ERROR no golden baseline for this key; run record first'}}})
+        spec = check.importlib.util.spec_from_file_location('fc4_test_coverage', check.REPO / 'tools/coverage.py')
+        coverage = check.importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(coverage)
+        evidence = coverage.credit_evidence(path, lambda _: ({}, {}))
+        self.assertEqual(evidence['missing'], ['draw-city (reference)'])
+        self.assertEqual(evidence['unrecorded'], ['save-unrecorded'])
+
     def test_old_save_only_owner_table_cannot_supply_exact_owners(self):
         path = self.root / 'owner-check.tsv'
         header = f'# candidate sha256 {check.sha256(self.dll)}\nkey\tscenario\tverdict\treference\n'
