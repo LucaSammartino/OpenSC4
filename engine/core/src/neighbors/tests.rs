@@ -1917,46 +1917,6 @@ fn test_12_deal_record() {
 
 // ---- lifecycle and messages (§14, §11.1) -------------------------------------------------------------
 
-#[test]
-fn native_city_order_controls_reload_and_clone_order() {
-    let (w, sim) = setup(true);
-    sim.set_native_city_order(true);
-    w.city(N, |c| c.established = false);
-    for city in [W, E, S] {
-        w.city(city, |c| {
-            c.local.push(DealData {
-                deal_type: E1,
-                city_side: c.pos,
-                other_side: (3, 3),
-                flags: flag::ACTIVE | flag::SILENT,
-                ..DealData::default()
-            });
-        });
-    }
-    w.reload_replaces.set(true);
-    assert!(sim.init());
-    let events: Vec<_> = w
-        .events()
-        .into_iter()
-        .filter(|e| matches!(e, Ev::Reload(_) | Ev::UpdateLocal(_)))
-        .collect();
-    assert_eq!(
-        events,
-        vec![
-            Ev::Reload(W),
-            Ev::Reload(E),
-            Ev::Reload(S),
-            Ev::UpdateLocal(R),
-            Ev::UpdateLocal(S + 0x100),
-            Ev::UpdateLocal(E + 0x100),
-            Ev::UpdateLocal(W + 0x100),
-        ]
-    );
-    let sides: Vec<_> = sim.find_deals_all().iter().map(|d| d.other_side()).collect();
-    assert_eq!(sides, vec![(3, 4), (4, 2), (1, 3)]);
-    assert_eq!(sim.adjacent_cities(false), vec![W + 0x100, E + 0x100, S + 0x100]);
-}
-
 /// §14.1 step 5 *[compat]*: `ReloadCity` replaces each adjacent city's
 /// object; steps 6-8 use only the cities asked for again after the reloads.
 #[test]

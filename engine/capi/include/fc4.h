@@ -13262,15 +13262,4 @@ bool fc4_neighbor_deal_clone_into(const fc4_neighbor_deal* src, fc4_neighbor_dea
 }
 #endif
 
-/* Native plugin hosts supply regional-city interface pointers as city tokens.
- * Enable neighbors §9.1's ascending pointer order before Init; portable hosts
- * default to region-position order. Does not change any host-table layout. */
-#ifdef __cplusplus
-extern "C" {
-#endif
-void fc4_neighbors_set_native_city_order(fc4_neighbors*, bool on);
-#ifdef __cplusplus
-}
-#endif
-
 #endif /* FC4_H */

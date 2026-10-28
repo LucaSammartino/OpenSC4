@@ -423,25 +423,6 @@ fn neighbors_create_rejects_a_short_table() {
 }
 
 #[test]
-fn neighbors_native_city_order_is_opt_in() {
-    let mut game = game();
-    const SOUTH: u64 = W - 2;
-    game.cities.insert(SOUTH, ((3, 4), (1, 1)));
-    unsafe {
-        let p = fc4_neighbors_create(&host(&game), 0x51, 7);
-        assert!(!p.is_null());
-        let cities = || collect(|cb, ctx| fc4_neighbors_cities(p, 0, false, cb, ctx));
-        assert_eq!(cities(), vec![W, SOUTH]);
-        fc4_neighbors_set_native_city_order(p, true);
-        assert_eq!(cities(), vec![SOUTH, W]);
-        fc4_neighbors_set_native_city_order(p, false);
-        assert_eq!(cities(), vec![W, SOUTH]);
-        fc4_neighbors_destroy(p);
-        fc4_neighbors_set_native_city_order(std::ptr::null_mut(), true);
-    }
-}
-
-#[test]
 fn neighbors_lifecycle_connections_and_save() {
     let game = game();
     let h = host(&game);
