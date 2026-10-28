@@ -799,50 +799,50 @@ impl ZoneManager {
     /// `Write` (§10.1). Returns `GetError() = 0`.
     pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
         let s = self.st.borrow();
-        let mut ok = out.put_u16(MANAGER_RECORD_VERSION);
+        out.put_u16(MANAGER_RECORD_VERSION);
         // 2. reference: zone grid.
         let gref = s.grid.as_ref().map_or(RefValue::Null, |g| g.save_ref());
-        ok &= out.put_ref(&gref);
+        out.put_ref(&gref);
         // 3..5. counts.
         for a in [&s.zone_count, &s.undeveloped, &s.unnamed_per_type] {
             for &v in a {
-                ok &= out.put_u32(v);
+                out.put_u32(v);
             }
         }
         // 6. four scalars.
         for v in [s.undeveloped_total, s.unnamed1, s.abandoned_tile_count, s.unnamed2] {
-            ok &= out.put_u32(v);
+            out.put_u32(v);
         }
         // 7. min then max sizes (s32).
         for &v in &s.tuning.min_size {
-            ok &= out.put_i32(v);
+            out.put_i32(v);
         }
         for &v in &s.tuning.max_size {
-            ok &= out.put_i32(v);
+            out.put_i32(v);
         }
         // 8. creation then destruction costs (s64).
         for &v in &s.tuning.create_cost {
-            ok &= out.put_i64(v);
+            out.put_i64(v);
         }
         for &v in &s.tuning.destroy_cost {
-            ok &= out.put_i64(v);
+            out.put_i64(v);
         }
         // 9. texture instances then drag colours (u32).
         for &v in &s.tuning.texture {
-            ok &= out.put_u32(v);
+            out.put_u32(v);
         }
         for &v in &s.tuning.drag_color {
-            ok &= out.put_u32(v);
+            out.put_u32(v);
         }
         // 10. display alpha (u8).
-        ok &= out.put_u8(s.tuning.display_alpha);
+        out.put_u8(s.tuning.display_alpha);
         // 11, 12. the two failure maps (ordered by result, then zone).
         for map in [&s.failure1, &s.failure2] {
-            ok &= out.put_u32(map.len() as u32);
+            out.put_u32(map.len() as u32);
             for (&(result, zone), &count) in map.iter() {
-                ok &= out.put_u8(zone);
-                ok &= out.put_u8(result);
-                ok &= out.put_u32(count);
+                out.put_u8(zone);
+                out.put_u8(result);
+                out.put_u32(count);
             }
         }
         // 13. five service references. The state borrow is dropped first: the
@@ -856,9 +856,11 @@ impl ZoneManager {
             super::Service::Pollution,
             super::Service::Budget,
         ] {
-            ok &= out.put_ref(&self.host.service_ref(svc));
+            out.put_ref(&self.host.service_ref(svc));
         }
-        ok & (out.error() == 0)
+        // §10.1: the stream error alone determines Write's result. A host
+        // setter's return value need not reflect the stream's error state.
+        out.error() == 0
     }
 
     /// `Read` (§10.1). Sets the loaded flag first ("sets the loaded flag;
