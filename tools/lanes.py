@@ -619,6 +619,12 @@ def cmd_check(ctx, a):
         # lanes the operator retired (one name per line in build-runs/lanes-retired.txt on main) are not duplicates
         retired_file = ctx.main / "build-runs" / "lanes-retired.txt"
         retired = set(read_text(retired_file).split()) if retired_file.is_file() else set()
+        # lanes the launcher started (build-runs/run*-state.json) declared their touches there: no prose matching
+        launched = {}
+        for state_file in (ctx.main / "build-runs").glob("run*-state.json"):
+            for name, entry in ((read_json(state_file) or {}).get("lanes") or {}).items():
+                if isinstance(entry, dict) and isinstance(entry.get("touches"), list):
+                    launched[name] = {str(k).strip().lower() for k in entry["touches"]}
         for b in sorted(allb - merged):
             if b == lane or b == ctx.branch or b in retired:
                 continue
@@ -641,6 +647,8 @@ def cmd_check(ctx, a):
             elif not pending and not wt:
                 continue
             declared = declared_touch_keys(texts, b, canonical)
+            if declared is None and b in launched:
+                declared = launched[b]
             for k in keys:
                 if declared is not None:
                     if k in declared:
@@ -1431,7 +1439,8 @@ def main(argv=None):
     p = sub.add_parser("slots", help="recommended max concurrent lanes, and whether a spawn is ok now")
     p.add_argument("--game-slots", type=int, help="game-queue slots (default: running queue, game_queue.ps1, else 6)")
     p.add_argument("--min-free-gb", type=float, default=40)
-    p.add_argument("--busy-pct", type=float, default=85)
+    p.add_argument("--busy-pct", type=float, default=float(os.environ.get("FC4_LANE_BUSY_PCT", 85)),
+                   help="cpu load that blocks a new lane (FC4_LANE_BUSY_PCT; 101 lets lanes start beside a full game queue)")
     p.add_argument("-v", "--verbose", action="store_true")
 
     p = sub.add_parser("check", help="refuse a spawn whose dependencies have not landed or that duplicates a lane")
