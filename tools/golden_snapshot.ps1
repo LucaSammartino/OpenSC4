@@ -13,7 +13,7 @@ param(
     [ValidateRange(60,7200)][int]$WaitSeconds = 600
 )
 $ErrorActionPreference = 'Stop'
-if ($City -notmatch '^[A-Za-z0-9 ._()-]+$' -or $Region -notmatch '^[A-Za-z0-9 ._()-]+$') { throw 'Invalid name' }
+if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$' -or $Region -notmatch '^[A-Za-z0-9 ._()''-]+$') { throw 'Invalid name' }
 $userDir = [IO.Path]::GetFullPath((Join-Path $HarnessRoot ("build-runs/sc4slots/slot{0:D2}" -f $Slot)))
 $locks = @()
 $sourceLog = Join-Path $userDir 'Plugins/FreeCity4.log'
@@ -65,7 +65,7 @@ try {
     $renamed = Select-String -LiteralPath $sourceLog -Pattern '\(SetEstablished\(true\); city name=(.+)\)\s*$' |
         Select-Object -Last 1
     if ($renamed) { $City = $renamed.Matches[0].Groups[1].Value }
-    if ($City -notmatch '^[A-Za-z0-9 ._()-]+$') { throw 'Invalid established name' }
+    if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$') { throw 'Invalid established name' }
     $source = Join-Path $userDir "Regions/FC4 Test/City - $City.sc4"
     Copy-Item -LiteralPath $source -Destination (Join-Path $Output 'end.sc4')
     Write-Output "golden snapshot: slot $Slot, matched completed log, copied end.sc4"

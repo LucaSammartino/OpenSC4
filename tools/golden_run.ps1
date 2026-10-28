@@ -17,7 +17,7 @@ $parameters = (Get-Command -Name $runner).Parameters
 if ($Region -ne 'FC4 Test' -and -not $parameters.ContainsKey('Region')) {
     throw "The harness does not support -Region yet; cannot run '$Region' (no fallback to FC4 Test)."
 }
-if ($City -notmatch '^[A-Za-z0-9 ._()-]+$' -or $Region -notmatch '^[A-Za-z0-9 ._()-]+$') {
+if ($City -notmatch '^[A-Za-z0-9 ._()''-]+$' -or $Region -notmatch '^[A-Za-z0-9 ._()''-]+$') {
     throw 'City and region must be single folder/save names.'
 }
 $Output = [IO.Path]::GetFullPath($Output)
