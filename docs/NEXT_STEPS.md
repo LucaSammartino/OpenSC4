@@ -5,8 +5,9 @@ replaces the whole file: no history, no logs, no "previously". Work that is done
 Evidence lives in git, in `docs/lanes/` and in `build-runs/`, never here. Where another document disagrees with this
 one, this one wins.
 
-State as of 2026-10-28 05:20: **run 8 is running** (12 Codex lanes, `build-runs/run8-state.json`). Steps 1-3 are done.
-The references are being re-recorded on a new pin (below), then the credit run re-measures Exact-replaced.
+State as of 2026-10-28 06:55: **run 8 is running** (12 Codex lanes, `build-runs/run8-state.json`). Steps 1-3 are done.
+All 179 references are recorded on pin r5; region-exact33 landed (train303, main 053144cee); the chain below
+re-measures Exact-replaced with main's DLL.
 
 ## 1. The goal, worked backwards
 
@@ -23,8 +24,8 @@ and the run settings, and refuses a candidate whose schedule code differs.
 
 **Pinned now:** sha d79069d9, schedule code bde008a451b1c7fb (main 0a970d24c: `fc4::ScheduleQpc` for our cores'
 stopwatch reads, the neighbours simulator's adjacent cities in region position order, and corpus34's UI input to the
-minimized window). Re-recording all references started 05:11; `build-runs/golden/RECORDING` tells lanes to merge main
-and wait. A plugin change that alters what the original does (the UI driver, the schedule) needs a repin even when the
+minimized window). While references are re-recorded, `build-runs/golden/RECORDING` tells lanes to merge main and
+wait. A plugin change that alters what the original does (the UI driver, the schedule) needs a repin even when the
 schedule code is unchanged: the store only refuses a different schedule code.
 
 **Schedule requests.** Lanes never edit `FC4Schedule.cpp`/`.h`; they write a "Schedule request" section in their lane
@@ -62,7 +63,8 @@ Worked backwards, three things stand between those 21 keys and credit, each with
 
 **The landing rule.** An engine lane lands only through `python tools/merge-train.py run --lanes <lane> --add-replace
 <keys>`, then `land`: its check runs the credit keys plus the lane's keys on their covers and must be exact
-(`regress --add-replace` reruns only the check). After each landing, re-run the chain so the new keys count.
+(`regress --add-replace` reruns only the check). After each landing, re-run the chain so the new keys count. While a
+train runs, commit nothing under tools/ or engine/ on main: `land` then refuses after a passing check.
 
 ## 4. The loops
 
@@ -71,7 +73,11 @@ Worked backwards, three things stand between those 21 keys and credit, each with
 | Reference recording | `python tools/check.py record --scenarios all --jobs 12` | about 45 min (5 scenarios: 1 min 48 s) |
 | Per change | the lane's build, then `.claude/lane-bin/qcheck.py --wt <WT> --replace <keys>` on its covers | 3-8 min |
 | Landing | merge-train run with `--add-replace`, then land | under 15 min |
-| The chain | record, plain repeat, each owner alone, credit, coverage, holes, reverse (`scratchpad/step3/chain2.sh DLL TAG`) | about 3 h |
+| The chain | record, each owner alone and credit with main's DLL, coverage; then plain repeat, holes, reverse with the pinned DLL (`scratchpad/step3/chain4.sh REF CAND TAG`; never edit it while it runs) | metric in about 1.5 h, all about 4 h |
+
+The game queue runs two instances on the same 12 slots: the default (started 10-27 16:19, older code) and `fair`
+(`-Instance fair`, commit 1b4bbe6b3), where a lane request waiting 15 minutes ranks with the coordinator's requests.
+Restart the default at a quiet moment only (stopping it loses its running games).
 
 ## 5. Run 8
 
@@ -85,7 +91,6 @@ ones for a relaunch with an answer. Codex "Selected model is at capacity" fails 
 | traffic-exact33 | traffic | first differences moved later; not exact |
 | automata-exact33 | automata | East Weburg clean; the rest outside |
 | network-exact33 | netmgr, netrules, nettool, netlot | save differences 103 → 6 |
-| region-exact33 | regionalcity, neighbors | remaining differences were deal order, answered by c17dfc7c6 |
 | disasters-exact33 | disasters, effects | crashes fixed; 91 → 17 and 93 → 68 differing records |
 | advisors-exact33 | advisors, citysit, mysims | not exact |
 | growth-exact34 | residential, commercial, development, demand, zones, … | zones landed exact |
@@ -94,6 +99,7 @@ ones for a relaunch with an answer. Codex "Selected model is at capacity" fails 
 | wiring34 | span565, gzfw, simgrids, tract, … | the original's code of switched-on owners stops running |
 | corpus35 | scenarios | found unfounded cities (magnolia), budget panel, region view, next reach gains |
 | save-roundtrip33 | formats, save, persistence | 48 of 169 record types, 43.23% of bytes round-trip exactly |
+| draw-check35 | draw references and the draw comparison in check.py | renderer and UI keys are exact only if their draw calls match too |
 
 **Known issues.**
 - `paradis-magnolia` is clockless until a script can found it: an unfounded city's level-0 agents (flags 2) stay
