@@ -461,7 +461,7 @@ fn pk12_02_tuning() {
     let f = fx_with(Some(shipped_tuning()));
     f.m.init();
     let s = f.m.snapshot();
-    assert_eq!(s.distress_threshold, 25.0);
+    assert_eq!(s.distress_threshold, 0.25);
     assert_eq!(s.escape_curve.points(), vec![(0.0, 40.0), (25.0, 10.0), (100.0, 1.0)]);
     // Without the curve property: the code default.
     let mut t = shipped_tuning();
@@ -487,7 +487,7 @@ fn pk12_02_tuning() {
     *f.h.tuning.borrow_mut() = None;
     f.m.shutdown();
     f.m.init();
-    assert_eq!(f.m.snapshot().distress_threshold, 25.0);
+    assert_eq!(f.m.snapshot().distress_threshold, 0.25);
 }
 
 // ================================================================ §12.3
@@ -691,16 +691,15 @@ fn pk12_06_shipped_threshold() {
     f.m.do_message(&ins(0x60));
     f.h.set_funding(1.2);
     f.m.monthly();
-    assert_eq!(f.h.conditions.borrow()[&la], 2);
-    // Funding is at most 1.2 (120 %), never above 25.0.
-    for f_ in [1.2, 0.5, 1.0, 0.0] {
-        f.h.set_funding(f_);
+    assert_eq!(f.h.conditions.borrow()[&la], 0);
+    // PK1/PK10: a percent getter scales 25 to 0.25 before comparison.
+    for (funding, condition) in [(1.2, 0), (0.5, 0), (1.0, 0), (0.25, 2), (0.0, 2), (0.250_000_03, 0)] {
+        f.h.set_funding(funding);
         f.m.monthly();
-        assert_eq!(f.h.conditions.borrow()[&la], 2, "never restored");
+        assert_eq!(f.h.conditions.borrow()[&la], condition, "funding {funding}");
+        assert_eq!(f.m.snapshot().underfunded, condition == 2);
     }
-    // The latch is not saved: a new session (Shutdown keeps it, a fresh
-    // object starts clear) runs it down again.
-    assert!(f.m.snapshot().underfunded);
+    assert!(!f.m.snapshot().underfunded);
 }
 
 // ================================================================ §12.7

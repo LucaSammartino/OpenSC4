@@ -10,10 +10,36 @@ The denominator is the game's own code: **5,584,344 bytes in 29,535 functions** 
 |---|---|---:|---:|---:|---|
 | **Specified** | a clean-room spec in docs/specs describes the owning class | **91.9%** | 5,132,879 | 25,599 | - |
 | **Implemented** | our clean-room code in engine/ implements the owning class | **63.0%** | 3,520,534 | 15,906 | 0.0% implemented without a spec |
-| **Exact-replaced** | the owner is switched off in corpus runs (our code runs instead) and every checkpoint of every scenario that reaches it is identical to the original's reference under the fixed schedule | **not measured** | - | - | needs NEXT_STEPS step 2 (references and `check`) |
-| Reach (the ceiling) | the corpus executes the code at all in the original (`census-1027`, 177 clean of 189 runs) | **42.4%** | 2,365,094 | 11,020 | - |
+| **Exact-replaced** | its owner is switched on (our code runs instead) in every corpus scenario, the original's code of it never runs there, and every scenario whose reference enters it is identical to the reference under the fixed schedule | **0.0%** | 1,442 | 6 | - |
+| Reach (the ceiling) | the corpus executes the code at all in the original (the fixed-schedule references of 176 scenarios) | **39.8%** | 2,222,200 | 9,988 | - |
 
-Of the implemented owners' code, the corpus reaches 45.0% (1,583,117 of 3,520,534 bytes), so Exact-replaced cannot exceed 28.3% of game code until the corpus reaches more.
+The credit run switched on 21 owners together (aura, citydetail, civic, crime, flammability, flora, gzfw, history, industrial, landfill, occmgr, plumbing, ports, propdev, protection, simgrids, span1555, span4444, span565, tract, weather) in 176 scenarios, 16 of them exact (DLL 1a5cc769); not in the corpus, no reference: paradis-magnolia. Per owner, the bytes of its code the references enter, by why each byte is or is not credited:
+
+| Owner | Entered by the references | Credited | A scenario that enters it differs | The original's code still runs | Unreached |
+|---|---:|---:|---:|---:|---:|
+| span565 | 36,854 | 0 | 0 | 36,854 | 2,197 |
+| tract | 26,725 | 0 | 25,529 | 1,196 | 10,086 |
+| plumbing | 14,324 | 0 | 14,303 | 21 | 5,733 |
+| propdev | 12,502 | 0 | 12,096 | 406 | 4,545 |
+| protection | 12,260 | 0 | 12,253 | 7 | 10,870 |
+| weather | 11,499 | 0 | 11,000 | 499 | 6,800 |
+| aura | 10,601 | 36 | 9,797 | 768 | 5,639 |
+| occmgr | 10,379 | 0 | 10,295 | 84 | 5,703 |
+| flora | 8,339 | 0 | 8,339 | 0 | 6,383 |
+| ports | 7,611 | 0 | 7,563 | 48 | 5,039 |
+| crime | 6,511 | 1,350 | 5,161 | 0 | 5,552 |
+| gzfw | 5,530 | 10 | 145 | 5,375 | 11,739 |
+| history | 4,798 | 0 | 4,744 | 54 | 1,487 |
+| landfill | 4,258 | 0 | 4,258 | 0 | 2,268 |
+| flammability | 3,800 | 0 | 3,800 | 0 | 2,201 |
+| civic | 2,702 | 0 | 2,702 | 0 | 1,761 |
+| simgrids | 2,650 | 46 | 1,471 | 1,133 | 7,681 |
+| citydetail | 153 | 0 | 153 | 0 | 1,928 |
+| industrial | 135 | 0 | 121 | 14 | 150 |
+| span1555 | 126 | 0 | 0 | 126 | 50,691 |
+| span4444 | 98 | 0 | 0 | 98 | 51,711 |
+
+Of the implemented owners' code, the corpus reaches 44.3% (1,558,042 of 3,520,534 bytes), so Exact-replaced cannot exceed 27.9% of game code until the corpus reaches more.
 
 ## Whole executable
 
@@ -31,139 +57,139 @@ Of the implemented owners' code, the corpus reaches 45.0% (1,583,117 of 3,520,53
 
 Share of each area's bytes at each step. Shared helpers and unattributed code have no owner, so they are never specified or implemented; Reach counts every function the corpus entered.
 
-| Area | Functions | Bytes | % of game | Specified | Implemented | Reach |
-|---|---:|---:|---:|---:|---:|---:|
-| simulation | 8,748 | 1,978,253 | 35.4% | 100.0% | 84.3% | 58.4% |
-| framework | 4,912 | 637,923 | 11.4% | 96.6% | 78.7% | 27.4% |
-| renderer | 5,244 | 1,222,529 | 21.9% | 99.2% | 70.7% | 44.2% |
-| ui | 5,210 | 1,124,610 | 20.1% | 87.7% | 38.3% | 22.1% |
-| audio | 1,981 | 214,477 | 3.8% | 100.0% | 9.4% | 43.7% |
-| region | 417 | 112,894 | 2.0% | 100.0% | 30.7% | 26.9% |
-| other | 187 | 17,873 | 0.3% | 68.4% | 0.0% | 46.5% |
-| shared | 2,005 | 189,808 | 3.4% | 0.0% | 0.0% | 52.0% |
-| unattributed | 831 | 85,977 | 1.5% | 0.0% | 0.0% | 18.1% |
-| **all game code** | **29,535** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **42.4%** |
+| Area | Functions | Bytes | % of game | Specified | Implemented | Exact-replaced | Reach |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| simulation | 8,748 | 1,978,253 | 35.4% | 100.0% | 84.3% | 0.1% | 59.6% |
+| framework | 4,912 | 637,923 | 11.4% | 96.6% | 78.7% | 0.0% | 20.1% |
+| renderer | 5,244 | 1,222,529 | 21.9% | 99.2% | 70.7% | 0.0% | 42.8% |
+| ui | 5,210 | 1,124,610 | 20.1% | 87.7% | 38.3% | 0.0% | 21.8% |
+| audio | 1,981 | 214,477 | 3.8% | 100.0% | 9.4% | 0.0% | 1.6% |
+| region | 417 | 112,894 | 2.0% | 100.0% | 30.7% | 0.0% | 26.0% |
+| other | 187 | 17,873 | 0.3% | 68.4% | 0.0% | 0.0% | 47.7% |
+| shared | 2,005 | 189,808 | 3.4% | 0.0% | 0.0% | 0.0% | 49.0% |
+| unattributed | 831 | 85,977 | 1.5% | 0.0% | 0.0% | 0.0% | 13.3% |
+| **all game code** | **29,535** | **5,584,344** | 100.0% | **91.9%** | **63.0%** | **0.0%** | **39.8%** |
 
 ## By subsystem
 
 One line per subsystem of `tools/coverage-map.tsv`, by area, then by size; each step is the share of the subsystem's bytes (function share in parentheses).
 
-| Area | Subsystem | Owners | Bytes | Specified | Implemented | Reach |
-|---|---|---:|---:|---:|---:|---:|
-| simulation | automata (vehicles, animation) | 33 | 231,259 | 100.0% (100.0%) | 26.1% (28.7%) | 57.7% (51.0%) |
-| simulation | traffic | 9 | 162,482 | 100.0% (100.0%) | 100.0% (100.0%) | 70.4% (69.3%) |
-| simulation | network tools | 12 | 150,282 | 100.0% (100.0%) | 94.3% (93.1%) | 74.7% (68.7%) |
-| simulation | network occupants | 28 | 123,459 | 100.0% (100.0%) | 48.3% (50.5%) | 70.8% (58.7%) |
-| simulation | automata (managers, records) | 13 | 121,603 | 100.0% (100.0%) | 99.5% (99.0%) | 42.9% (45.2%) |
-| simulation | terrain | 5 | 84,631 | 100.0% (100.0%) | 99.6% (99.4%) | 44.9% (50.2%) |
-| simulation | mysims | 8 | 80,498 | 100.0% (100.0%) | 100.0% (100.0%) | 11.3% (17.9%) |
-| simulation | advisors | 18 | 71,970 | 100.0% (100.0%) | 99.2% (97.6%) | 60.6% (39.9%) |
-| simulation | occupants and props | 38 | 70,035 | 100.0% (100.0%) | 37.9% (16.1%) | 76.4% (65.7%) |
-| simulation | development | 2 | 50,083 | 100.0% (100.0%) | 100.0% (100.0%) | 51.6% (60.0%) |
-| simulation | disasters | 17 | 46,988 | 100.0% (100.0%) | 100.0% (100.0%) | 52.0% (40.9%) |
-| simulation | network manager | 6 | 41,985 | 100.0% (100.0%) | 99.2% (98.2%) | 39.3% (41.3%) |
-| simulation | city situation | 1 | 41,919 | 100.0% (100.0%) | 100.0% (100.0%) | 17.5% (27.1%) |
-| simulation | zone developer / lot manager | 1 | 41,866 | 100.0% (100.0%) | 100.0% (100.0%) | 76.2% (62.7%) |
-| simulation | residential | 1 | 40,490 | 100.0% (100.0%) | 100.0% (100.0%) | 66.1% (61.0%) |
-| simulation | lot developer | 1 | 40,458 | 100.0% (100.0%) | 100.0% (100.0%) | 74.5% (76.5%) |
-| simulation | tract developer | 1 | 36,811 | 100.0% (100.0%) | 100.0% (100.0%) | 72.6% (49.6%) |
-| simulation | city and save file | 11 | 35,103 | 100.0% (100.0%) | 78.2% (79.3%) | 46.8% (63.8%) |
-| simulation | budget | 3 | 30,911 | 100.0% (100.0%) | 100.0% (100.0%) | 57.7% (57.3%) |
-| simulation | demand | 2 | 29,573 | 100.0% (100.0%) | 100.0% (100.0%) | 62.1% (49.5%) |
-| simulation | neighbours | 3 | 26,974 | 100.0% (100.0%) | 100.0% (100.0%) | 77.3% (72.2%) |
-| simulation | power | 1 | 26,475 | 100.0% (100.0%) | 100.0% (100.0%) | 75.3% (64.2%) |
-| simulation | lots and lot records | 5 | 24,896 | 100.0% (100.0%) | 100.0% (100.0%) | 84.6% (78.1%) |
-| simulation | pollution | 1 | 24,357 | 100.0% (100.0%) | 100.0% (100.0%) | 65.2% (60.6%) |
-| simulation | protection | 3 | 23,130 | 100.0% (100.0%) | 100.0% (100.0%) | 55.9% (48.0%) |
-| simulation | plumbing | 1 | 20,057 | 100.0% (100.0%) | 100.0% (100.0%) | 72.1% (63.0%) |
-| simulation | prop / lot configuration managers | 2 | 19,551 | 100.0% (100.0%) | 100.0% (100.0%) | 45.5% (49.6%) |
-| simulation | network rules | 8 | 19,340 | 100.0% (100.0%) | 94.0% (90.2%) | 9.9% (6.6%) |
-| simulation | landfill | 3 | 19,083 | 100.0% (100.0%) | 100.0% (100.0%) | 87.5% (81.6%) |
-| simulation | weather | 1 | 18,299 | 100.0% (100.0%) | 100.0% (100.0%) | 62.9% (52.9%) |
-| simulation | sim grids | 7 | 17,648 | 100.0% (100.0%) | 97.7% (96.5%) | 57.0% (55.8%) |
-| simulation | prop developer | 2 | 17,553 | 100.0% (100.0%) | 100.0% (100.0%) | 74.8% (65.5%) |
-| simulation | aura | 1 | 16,240 | 100.0% (100.0%) | 100.0% (100.0%) | 58.1% (63.6%) |
-| simulation | occupant manager | 1 | 16,082 | 100.0% (100.0%) | 100.0% (100.0%) | 75.8% (59.7%) |
-| simulation | flora | 3 | 15,743 | 100.0% (100.0%) | 100.0% (100.0%) | 59.8% (62.0%) |
-| simulation | tutorial | 5 | 15,194 | 100.0% (100.0%) | 98.5% (96.8%) | 44.4% (45.7%) |
-| simulation | port developers | 5 | 12,724 | 100.0% (100.0%) | 99.4% (99.1%) | 62.2% (52.3%) |
-| simulation | crime | 2 | 12,117 | 99.6% (98.2%) | 99.6% (98.2%) | 61.8% (66.1%) |
-| simulation | demolition | 2 | 10,968 | 100.0% (100.0%) | 100.0% (100.0%) | 92.0% (69.0%) |
-| simulation | other simulation | 3 | 10,201 | 100.0% (100.0%) | - | 67.8% (56.2%) |
-| simulation | lot configuration | 1 | 9,580 | 100.0% (100.0%) | 100.0% (100.0%) | 10.0% (45.9%) |
-| simulation | simulator | 2 | 9,529 | 100.0% (100.0%) | 98.1% (98.7%) | 0.5% (8.0%) |
-| simulation | ordinance | 8 | 9,326 | 100.0% (100.0%) | 100.0% (100.0%) | 44.0% (53.1%) |
-| simulation | dispatch | 1 | 7,425 | 100.0% (100.0%) | 100.0% (100.0%) | 20.0% (32.5%) |
-| simulation | landvalue | 1 | 6,711 | 100.0% (100.0%) | 100.0% (100.0%) | 63.6% (70.4%) |
-| simulation | zones | 1 | 6,513 | 100.0% (100.0%) | 100.0% (100.0%) | 62.3% (51.5%) |
-| simulation | history | 2 | 6,285 | 100.0% (100.0%) | 100.0% (100.0%) | 76.3% (71.4%) |
-| simulation | flammability | 1 | 6,001 | 100.0% (100.0%) | 100.0% (100.0%) | 63.5% (67.9%) |
-| simulation | civic buildings | 1 | 4,463 | 100.0% (100.0%) | 100.0% (100.0%) | 61.8% (66.7%) |
-| simulation | 24-hour clock | 1 | 3,693 | 100.0% (100.0%) | 100.0% (100.0%) | 43.8% (48.2%) |
-| simulation | parks | 1 | 3,006 | 100.0% (100.0%) | 100.0% (100.0%) | 43.7% (42.1%) |
-| simulation | city detail | 1 | 2,081 | 100.0% (100.0%) | 100.0% (100.0%) | 7.4% (38.5%) |
-| simulation | commercial/industrial | 2 | 2,022 | 100.0% (100.0%) | 100.0% (100.0%) | 42.4% (46.2%) |
-| simulation | automata groups | 2 | 1,662 | 100.0% (100.0%) | - | 13.2% (13.3%) |
-| simulation | foundations | 1 | 918 | 100.0% (100.0%) | 100.0% (100.0%) | 97.2% (85.7%) |
-| framework | application | 20 | 146,519 | 99.9% (99.3%) | 94.1% (84.9%) | 25.7% (25.4%) |
-| framework | persistence and resources | 53 | 87,967 | 100.0% (100.0%) | 53.1% (51.0%) | 16.0% (19.0%) |
-| framework | web and network | 12 | 86,316 | 85.2% (76.3%) | 85.3% (76.5%) | 7.8% (5.9%) |
-| framework | framework services (GZ) | 102 | 81,798 | 99.9% (98.6%) | 75.0% (58.1%) | 29.8% (18.8%) |
-| framework | data formats (DBPF, exemplars) | 27 | 72,307 | 100.0% (100.0%) | 98.6% (99.1%) | 42.8% (34.7%) |
-| framework | Lua host | 30 | 47,452 | 100.0% (100.0%) | 67.7% (50.2%) | 19.6% (23.7%) |
-| framework | strings and language | 15 | 44,336 | 95.1% (97.3%) | 62.4% (72.4%) | 46.0% (44.9%) |
-| framework | framework services (RZ) | 45 | 38,808 | 84.8% (77.5%) | 59.7% (34.3%) | 37.6% (40.9%) |
-| framework | foundations | 1 | 10,680 | 100.0% (100.0%) | 100.0% (100.0%) | 77.3% (52.4%) |
-| framework | dates and times | 3 | 3,746 | 100.0% (100.0%) | 100.0% (100.0%) | 48.9% (44.0%) |
-| framework | command system | 5 | 3,471 | 100.0% (100.0%) | 100.0% (100.0%) | 47.5% (46.8%) |
-| framework | timers | 3 | 3,386 | 100.0% (100.0%) | 66.5% (63.9%) | 60.1% (61.1%) |
-| framework | command line | 1 | 3,359 | 100.0% (100.0%) | 100.0% (100.0%) | 14.1% (5.3%) |
-| framework | streams | 5 | 2,517 | 100.0% (100.0%) | 54.6% (74.0%) | 3.6% (8.0%) |
-| framework | paths and directories | 10 | 2,377 | 100.0% (100.0%) | 100.0% (100.0%) | 57.7% (53.6%) |
-| framework | random numbers and seeding | 2 | 1,105 | 100.0% (100.0%) | 100.0% (100.0%) | 100.0% (100.0%) |
-| framework | feature manager | 1 | 897 | 100.0% (100.0%) | - | - |
-| framework | tree diagnostics | 1 | 768 | - | - | - |
-| framework | container helpers | 1 | 109 | 100.0% (100.0%) | - | 94.5% (66.7%) |
-| framework | cheats | 1 | 5 | - | - | - |
-| renderer | 3D scene and models | 19 | 177,441 | 100.0% (100.0%) | 62.6% (59.0%) | 61.9% (56.3%) |
-| renderer | effects | 72 | 171,628 | 100.0% (100.0%) | 93.8% (93.9%) | 25.8% (24.6%) |
-| renderer | 3D driver (DirectX 7) | 11 | 152,278 | 97.0% (95.7%) | 96.8% (95.6%) | 38.3% (19.2%) |
-| renderer | 2D drawing and fonts | 48 | 146,443 | 96.6% (97.5%) | 17.0% (25.0%) | 36.8% (34.7%) |
-| renderer | effects (particles, decals, visuals) | 28 | 72,393 | 100.0% (100.0%) | 4.5% (11.3%) | 80.9% (60.1%) |
-| renderer | 2D drawing (span render 4444) | 1 | 51,809 | 100.0% (100.0%) | 100.0% (100.0%) | 0.2% (0.6%) |
-| renderer | 2D drawing (span render 1555) | 1 | 50,817 | 100.0% (100.0%) | 100.0% (100.0%) | 0.2% (0.6%) |
-| renderer | 2D drawing (span render 565) | 1 | 39,051 | 100.0% (100.0%) | 100.0% (100.0%) | 94.4% (92.4%) |
-| renderer | 2D drawing (span render 8888) | 1 | 37,218 | 100.0% (100.0%) | 100.0% (100.0%) | 3.6% (5.2%) |
-| renderer | model maker | 2 | 35,327 | 100.0% (100.0%) | - | 85.5% (80.8%) |
-| renderer | terrain overlays | 1 | 30,436 | 100.0% (100.0%) | 100.0% (100.0%) | 72.1% (59.1%) |
-| renderer | 2D drawing (span render 8) | 1 | 24,545 | 100.0% (100.0%) | 100.0% (100.0%) | - |
-| renderer | lighting and shadows | 4 | 23,453 | 100.0% (100.0%) | 98.5% (96.2%) | 46.0% (42.3%) |
-| renderer | render properties | 79 | 23,179 | 100.0% (100.0%) | 100.0% (100.0%) | 0.2% (1.7%) |
-| renderer | graphics rules | 7 | 22,162 | 100.0% (100.0%) | 99.9% (98.2%) | - |
-| renderer | view utilities | 3 | 19,748 | 100.0% (100.0%) | 100.0% (100.0%) | 72.1% (82.0%) |
-| renderer | model instances | 8 | 15,346 | 100.0% (100.0%) | 100.0% (100.0%) | 73.4% (80.2%) |
-| renderer | terrain ripples and selection | 2 | 15,308 | 100.0% (100.0%) | 63.3% (64.6%) | 61.7% (52.3%) |
-| renderer | overlay views | 6 | 14,867 | 100.0% (100.0%) | 77.6% (72.2%) | 27.6% (38.9%) |
-| renderer | camera and projection | 2 | 14,793 | 100.0% (100.0%) | 65.1% (58.8%) | 73.3% (64.7%) |
-| renderer | 3D draw context | 2 | 14,598 | 100.0% (100.0%) | 100.0% (100.0%) | 74.2% (74.6%) |
-| renderer | lot models | 3 | 11,439 | 100.0% (100.0%) | 100.0% (100.0%) | 98.7% (85.4%) |
-| renderer | animated sprites | 2 | 10,482 | 100.0% (100.0%) | 99.2% (98.3%) | 68.7% (80.0%) |
-| renderer | model effects | 1 | 8,406 | 100.0% (100.0%) | 100.0% (100.0%) | 93.8% (91.3%) |
-| renderer | model background loader | 1 | 7,977 | 100.0% (100.0%) | - | 97.5% (86.4%) |
-| renderer | animation coordinator | 1 | 7,726 | 100.0% (100.0%) | - | 79.4% (66.7%) |
-| renderer | geometry utilities | 3 | 7,509 | 100.0% (100.0%) | - | 61.5% (51.4%) |
-| renderer | textures and materials | 9 | 4,883 | 100.0% (100.0%) | 10.6% (24.1%) | 60.0% (41.4%) |
-| renderer | glyph and string textures | 3 | 4,475 | 100.0% (100.0%) | - | 23.7% (30.2%) |
-| renderer | fire flames | 2 | 3,513 | 100.0% (100.0%) | - | 33.5% (37.5%) |
-| renderer | graphics formats (FSH, S3D) | 3 | 3,279 | 100.0% (100.0%) | 100.0% (100.0%) | 90.2% (82.4%) |
-| ui | widget toolkit | 123 | 466,421 | 87.4% (85.2%) | 51.0% (35.0%) | 29.1% (25.4%) |
-| ui | windows and panels | 72 | 404,342 | 93.6% (91.9%) | 25.7% (12.0%) | 23.3% (20.4%) |
-| ui | city tools and input | 34 | 184,793 | 100.0% (100.0%) | 41.0% (32.5%) | 9.8% (10.5%) |
-| ui | resource and exemplar editor | 26 | 69,054 | 21.8% (21.3%) | 19.5% (19.6%) | 0.2% (1.7%) |
-| audio | audio | 73 | 214,477 | 100.0% (99.9%) | 9.4% (4.5%) | 43.7% (32.3%) |
-| region | region | 29 | 112,894 | 100.0% (100.0%) | 30.7% (33.1%) | 26.9% (24.5%) |
-| other | other free functions | 93 | 10,444 | 75.1% (76.0%) | - | 47.2% (52.0%) |
-| other | other SC4 classes | 35 | 7,429 | 58.9% (66.7%) | - | 45.6% (44.8%) |
+| Area | Subsystem | Owners | Bytes | Specified | Implemented | Exact-replaced | Reach |
+|---|---|---:|---:|---:|---:|---:|---:|
+| simulation | automata (vehicles, animation) | 33 | 231,259 | 100.0% (100.0%) | 26.1% (28.7%) | - | 51.0% (45.1%) |
+| simulation | traffic | 9 | 162,482 | 100.0% (100.0%) | 100.0% (100.0%) | - | 70.1% (70.0%) |
+| simulation | network tools | 12 | 150,282 | 100.0% (100.0%) | 94.3% (93.1%) | - | 87.6% (82.4%) |
+| simulation | network occupants | 28 | 123,459 | 100.0% (100.0%) | 48.3% (50.5%) | - | 71.5% (59.0%) |
+| simulation | automata (managers, records) | 13 | 121,603 | 100.0% (100.0%) | 99.5% (99.0%) | - | 40.1% (40.8%) |
+| simulation | terrain | 5 | 84,631 | 100.0% (100.0%) | 99.6% (99.4%) | - | 44.4% (48.6%) |
+| simulation | mysims | 8 | 80,498 | 100.0% (100.0%) | 100.0% (100.0%) | - | 40.6% (37.0%) |
+| simulation | advisors | 18 | 71,970 | 100.0% (100.0%) | 99.2% (97.6%) | - | 60.8% (39.9%) |
+| simulation | occupants and props | 38 | 70,035 | 100.0% (100.0%) | 37.9% (16.1%) | - | 75.1% (62.2%) |
+| simulation | development | 2 | 50,083 | 100.0% (100.0%) | 100.0% (100.0%) | - | 48.8% (54.4%) |
+| simulation | disasters | 17 | 46,988 | 100.0% (100.0%) | 100.0% (100.0%) | - | 51.5% (39.5%) |
+| simulation | network manager | 6 | 41,985 | 100.0% (100.0%) | 99.2% (98.2%) | - | 37.3% (37.7%) |
+| simulation | city situation | 1 | 41,919 | 100.0% (100.0%) | 100.0% (100.0%) | - | 17.5% (26.5%) |
+| simulation | zone developer / lot manager | 1 | 41,866 | 100.0% (100.0%) | 100.0% (100.0%) | - | 70.7% (58.8%) |
+| simulation | residential | 1 | 40,490 | 100.0% (100.0%) | 100.0% (100.0%) | - | 66.1% (62.7%) |
+| simulation | lot developer | 1 | 40,458 | 100.0% (100.0%) | 100.0% (100.0%) | - | 74.2% (75.8%) |
+| simulation | tract developer | 1 | 36,811 | 100.0% (100.0%) | 100.0% (100.0%) | - | 72.6% (49.6%) |
+| simulation | city and save file | 11 | 35,103 | 100.0% (100.0%) | 78.2% (79.3%) | - | 46.7% (60.8%) |
+| simulation | budget | 3 | 30,911 | 100.0% (100.0%) | 100.0% (100.0%) | - | 44.9% (46.8%) |
+| simulation | demand | 2 | 29,573 | 100.0% (100.0%) | 100.0% (100.0%) | - | 62.1% (48.5%) |
+| simulation | neighbours | 3 | 26,974 | 100.0% (100.0%) | 100.0% (100.0%) | - | 77.2% (70.6%) |
+| simulation | power | 1 | 26,475 | 100.0% (100.0%) | 100.0% (100.0%) | - | 75.2% (60.5%) |
+| simulation | lots and lot records | 5 | 24,896 | 100.0% (100.0%) | 100.0% (100.0%) | - | 84.6% (77.5%) |
+| simulation | pollution | 1 | 24,357 | 100.0% (100.0%) | 100.0% (100.0%) | - | 65.1% (57.7%) |
+| simulation | protection | 3 | 23,130 | 100.0% (100.0%) | 100.0% (100.0%) | - | 53.0% (42.7%) |
+| simulation | plumbing | 1 | 20,057 | 100.0% (100.0%) | 100.0% (100.0%) | - | 71.4% (61.1%) |
+| simulation | prop / lot configuration managers | 2 | 19,551 | 100.0% (100.0%) | 100.0% (100.0%) | - | 36.8% (39.7%) |
+| simulation | network rules | 8 | 19,340 | 100.0% (100.0%) | 94.0% (90.2%) | - | 94.5% (88.5%) |
+| simulation | landfill | 3 | 19,083 | 100.0% (100.0%) | 100.0% (100.0%) | - | 84.7% (73.8%) |
+| simulation | weather | 1 | 18,299 | 100.0% (100.0%) | 100.0% (100.0%) | - | 62.8% (51.5%) |
+| simulation | sim grids | 7 | 17,648 | 100.0% (100.0%) | 97.7% (96.5%) | 0.3% (0.9%) | 56.3% (54.0%) |
+| simulation | prop developer | 2 | 17,553 | 100.0% (100.0%) | 100.0% (100.0%) | - | 74.1% (58.6%) |
+| simulation | aura | 1 | 16,240 | 100.0% (100.0%) | 100.0% (100.0%) | 0.2% (1.8%) | 65.3% (65.5%) |
+| simulation | occupant manager | 1 | 16,082 | 100.0% (100.0%) | 100.0% (100.0%) | - | 64.5% (55.8%) |
+| simulation | flora | 3 | 15,743 | 100.0% (100.0%) | 100.0% (100.0%) | - | 58.1% (57.0%) |
+| simulation | tutorial | 5 | 15,194 | 100.0% (100.0%) | 98.5% (96.8%) | - | 44.4% (45.7%) |
+| simulation | port developers | 5 | 12,724 | 100.0% (100.0%) | 99.4% (99.1%) | - | 60.4% (46.8%) |
+| simulation | crime | 2 | 12,117 | 99.6% (98.2%) | 99.6% (98.2%) | 11.1% (5.4%) | 54.2% (51.8%) |
+| simulation | demolition | 2 | 10,968 | 100.0% (100.0%) | 100.0% (100.0%) | - | 92.0% (69.0%) |
+| simulation | other simulation | 3 | 10,201 | 100.0% (100.0%) | - | - | 65.5% (46.6%) |
+| simulation | lot configuration | 1 | 9,580 | 100.0% (100.0%) | 100.0% (100.0%) | - | 9.1% (37.8%) |
+| simulation | simulator | 2 | 9,529 | 100.0% (100.0%) | 98.1% (98.7%) | - | 0.3% (5.3%) |
+| simulation | ordinance | 8 | 9,326 | 100.0% (100.0%) | 100.0% (100.0%) | - | 43.1% (48.1%) |
+| simulation | dispatch | 1 | 7,425 | 100.0% (100.0%) | 100.0% (100.0%) | - | 20.0% (32.5%) |
+| simulation | landvalue | 1 | 6,711 | 100.0% (100.0%) | 100.0% (100.0%) | - | 63.3% (59.3%) |
+| simulation | zones | 1 | 6,513 | 100.0% (100.0%) | 100.0% (100.0%) | - | 62.3% (51.5%) |
+| simulation | history | 2 | 6,285 | 100.0% (100.0%) | 100.0% (100.0%) | - | 76.3% (71.4%) |
+| simulation | flammability | 1 | 6,001 | 100.0% (100.0%) | 100.0% (100.0%) | - | 63.3% (64.3%) |
+| simulation | civic buildings | 1 | 4,463 | 100.0% (100.0%) | 100.0% (100.0%) | - | 60.5% (55.6%) |
+| simulation | 24-hour clock | 1 | 3,693 | 100.0% (100.0%) | 100.0% (100.0%) | - | 39.0% (35.7%) |
+| simulation | parks | 1 | 3,006 | 100.0% (100.0%) | 100.0% (100.0%) | - | 43.4% (36.8%) |
+| simulation | city detail | 1 | 2,081 | 100.0% (100.0%) | 100.0% (100.0%) | - | 7.4% (38.5%) |
+| simulation | commercial/industrial | 2 | 2,022 | 100.0% (100.0%) | 100.0% (100.0%) | - | 42.4% (46.2%) |
+| simulation | automata groups | 2 | 1,662 | 100.0% (100.0%) | - | - | 13.2% (13.3%) |
+| simulation | foundations | 1 | 918 | 100.0% (100.0%) | 100.0% (100.0%) | - | 97.2% (85.7%) |
+| framework | application | 20 | 146,519 | 99.9% (99.3%) | 94.1% (84.9%) | - | 6.3% (15.5%) |
+| framework | persistence and resources | 53 | 87,967 | 100.0% (100.0%) | 53.1% (51.0%) | - | 15.4% (17.5%) |
+| framework | web and network | 12 | 86,316 | 85.2% (76.3%) | 85.3% (76.5%) | - | 7.8% (5.9%) |
+| framework | framework services (GZ) | 102 | 81,798 | 99.9% (98.6%) | 75.0% (58.1%) | 0.0% (0.1%) | 17.1% (17.5%) |
+| framework | data formats (DBPF, exemplars) | 27 | 72,307 | 100.0% (100.0%) | 98.6% (99.1%) | - | 36.8% (31.9%) |
+| framework | Lua host | 30 | 47,452 | 100.0% (100.0%) | 67.7% (50.2%) | - | 16.3% (21.6%) |
+| framework | strings and language | 15 | 44,336 | 95.1% (97.3%) | 62.4% (72.4%) | - | 45.5% (42.7%) |
+| framework | framework services (RZ) | 45 | 38,808 | 84.8% (77.5%) | 59.7% (34.3%) | - | 39.6% (39.8%) |
+| framework | foundations | 1 | 10,680 | 100.0% (100.0%) | 100.0% (100.0%) | - | 72.6% (45.2%) |
+| framework | dates and times | 3 | 3,746 | 100.0% (100.0%) | 100.0% (100.0%) | - | 48.9% (44.0%) |
+| framework | command system | 5 | 3,471 | 100.0% (100.0%) | 100.0% (100.0%) | - | 41.3% (44.7%) |
+| framework | timers | 3 | 3,386 | 100.0% (100.0%) | 66.5% (63.9%) | - | 34.8% (44.4%) |
+| framework | command line | 1 | 3,359 | 100.0% (100.0%) | 100.0% (100.0%) | - | 14.1% (5.3%) |
+| framework | streams | 5 | 2,517 | 100.0% (100.0%) | 54.6% (74.0%) | - | 3.6% (8.0%) |
+| framework | paths and directories | 10 | 2,377 | 100.0% (100.0%) | 100.0% (100.0%) | - | 54.5% (42.9%) |
+| framework | random numbers and seeding | 2 | 1,105 | 100.0% (100.0%) | 100.0% (100.0%) | - | 75.5% (78.9%) |
+| framework | feature manager | 1 | 897 | 100.0% (100.0%) | - | - | - |
+| framework | tree diagnostics | 1 | 768 | - | - | - | - |
+| framework | container helpers | 1 | 109 | 100.0% (100.0%) | - | - | 26.6% (33.3%) |
+| framework | cheats | 1 | 5 | - | - | - | - |
+| renderer | 3D scene and models | 19 | 177,441 | 100.0% (100.0%) | 62.6% (59.0%) | - | 61.9% (56.2%) |
+| renderer | effects | 72 | 171,628 | 100.0% (100.0%) | 93.8% (93.9%) | - | 25.8% (24.6%) |
+| renderer | 3D driver (DirectX 7) | 11 | 152,278 | 97.0% (95.7%) | 96.8% (95.6%) | - | 38.0% (18.4%) |
+| renderer | 2D drawing and fonts | 48 | 146,443 | 96.6% (97.5%) | 17.0% (25.0%) | - | 35.9% (32.4%) |
+| renderer | effects (particles, decals, visuals) | 28 | 72,393 | 100.0% (100.0%) | 4.5% (11.3%) | - | 77.1% (57.7%) |
+| renderer | 2D drawing (span render 4444) | 1 | 51,809 | 100.0% (100.0%) | 100.0% (100.0%) | - | 0.2% (0.6%) |
+| renderer | 2D drawing (span render 1555) | 1 | 50,817 | 100.0% (100.0%) | 100.0% (100.0%) | - | 0.2% (0.6%) |
+| renderer | 2D drawing (span render 565) | 1 | 39,051 | 100.0% (100.0%) | 100.0% (100.0%) | - | 94.4% (92.4%) |
+| renderer | 2D drawing (span render 8888) | 1 | 37,218 | 100.0% (100.0%) | 100.0% (100.0%) | - | 3.6% (5.2%) |
+| renderer | model maker | 2 | 35,327 | 100.0% (100.0%) | - | - | 85.5% (80.8%) |
+| renderer | terrain overlays | 1 | 30,436 | 100.0% (100.0%) | 100.0% (100.0%) | - | 60.3% (54.8%) |
+| renderer | 2D drawing (span render 8) | 1 | 24,545 | 100.0% (100.0%) | 100.0% (100.0%) | - | - |
+| renderer | lighting and shadows | 4 | 23,453 | 100.0% (100.0%) | 98.5% (96.2%) | - | 46.0% (42.3%) |
+| renderer | render properties | 79 | 23,179 | 100.0% (100.0%) | 100.0% (100.0%) | - | 0.1% (0.8%) |
+| renderer | graphics rules | 7 | 22,162 | 100.0% (100.0%) | 99.9% (98.2%) | - | - |
+| renderer | view utilities | 3 | 19,748 | 100.0% (100.0%) | 100.0% (100.0%) | - | 72.1% (82.0%) |
+| renderer | model instances | 8 | 15,346 | 100.0% (100.0%) | 100.0% (100.0%) | - | 73.4% (80.2%) |
+| renderer | terrain ripples and selection | 2 | 15,308 | 100.0% (100.0%) | 63.3% (64.6%) | - | 61.7% (52.3%) |
+| renderer | overlay views | 6 | 14,867 | 100.0% (100.0%) | 77.6% (72.2%) | - | 27.3% (37.0%) |
+| renderer | camera and projection | 2 | 14,793 | 100.0% (100.0%) | 65.1% (58.8%) | - | 67.7% (60.3%) |
+| renderer | 3D draw context | 2 | 14,598 | 100.0% (100.0%) | 100.0% (100.0%) | - | 74.2% (74.6%) |
+| renderer | lot models | 3 | 11,439 | 100.0% (100.0%) | 100.0% (100.0%) | - | 98.7% (85.4%) |
+| renderer | animated sprites | 2 | 10,482 | 100.0% (100.0%) | 99.2% (98.3%) | - | 68.6% (78.3%) |
+| renderer | model effects | 1 | 8,406 | 100.0% (100.0%) | 100.0% (100.0%) | - | 93.8% (91.3%) |
+| renderer | model background loader | 1 | 7,977 | 100.0% (100.0%) | - | - | 2.8% (4.5%) |
+| renderer | animation coordinator | 1 | 7,726 | 100.0% (100.0%) | - | - | 79.4% (66.7%) |
+| renderer | geometry utilities | 3 | 7,509 | 100.0% (100.0%) | - | - | 62.7% (54.1%) |
+| renderer | textures and materials | 9 | 4,883 | 100.0% (100.0%) | 10.6% (24.1%) | - | 60.0% (41.4%) |
+| renderer | glyph and string textures | 3 | 4,475 | 100.0% (100.0%) | - | - | 23.5% (27.9%) |
+| renderer | fire flames | 2 | 3,513 | 100.0% (100.0%) | - | - | 36.8% (43.8%) |
+| renderer | graphics formats (FSH, S3D) | 3 | 3,279 | 100.0% (100.0%) | 100.0% (100.0%) | - | 90.2% (82.4%) |
+| ui | widget toolkit | 123 | 466,421 | 87.4% (85.2%) | 51.0% (35.0%) | - | 31.7% (25.5%) |
+| ui | windows and panels | 72 | 404,342 | 93.6% (91.9%) | 25.7% (12.0%) | - | 22.7% (18.9%) |
+| ui | city tools and input | 34 | 184,793 | 100.0% (100.0%) | 41.0% (32.5%) | - | 2.8% (7.2%) |
+| ui | resource and exemplar editor | 26 | 69,054 | 21.8% (21.3%) | 19.5% (19.6%) | - | 0.2% (1.7%) |
+| audio | audio | 73 | 214,477 | 100.0% (99.9%) | 9.4% (4.5%) | - | 1.6% (1.6%) |
+| region | region | 29 | 112,894 | 100.0% (100.0%) | 30.7% (33.1%) | - | 26.0% (23.0%) |
+| other | other free functions | 93 | 10,444 | 75.1% (76.0%) | - | - | 46.0% (54.0%) |
+| other | other SC4 classes | 35 | 7,429 | 58.9% (66.7%) | - | - | 50.2% (46.0%) |
 
 ## Excluded from the denominator
 
@@ -286,8 +312,9 @@ Text inputs are hashed with CRLF line endings normalised to LF (the text as git 
 | tools/coverage-ranges.tsv | f85c8d78de71c7f7 | |
 | tools/coverage-noncode-refs.tsv | b4c00fa8a9729a29 | |
 | tools/coverage-map.tsv | 60e13f4cdca84dd0 | |
-| engine/plugin/FC4Subsystems.cpp | 7af61f4ca0c55805 | |
+| engine/plugin/FC4Subsystems.cpp | aa6652da0f5852a0 | |
 | build-runs/suite/census-1027/*.reach.tsv | fcd7abd68d18afde | 179 entry-counter files (hash of their hashes) |
+| build-runs/golden/credit.json | 1ee659ee3fc7869e | with 351 entry-counter files of its references and runs (hash of their hashes) |
 
 On by default in FC4Subsystems.cpp: budget, simulator.
 

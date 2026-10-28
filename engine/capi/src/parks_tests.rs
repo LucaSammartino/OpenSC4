@@ -469,7 +469,7 @@ fn pk12_02_tuning_over_the_abi() {
         let p = ready(&g, t);
         fc4_props_destroy(t); // copied
         let s = state(p);
-        assert_eq!((s.distress_threshold, s.curve_points), (25.0, 3));
+        assert_eq!((s.distress_threshold, s.curve_points), (0.25, 3));
         // §4.6's table.
         assert_eq!(fc4_park_escape_probability(p, 0.5), f64::from(7.0f32 * 0.01f32));
         assert_eq!(fc4_park_escape_probability(p, 0.0), f64::from(0.399_999_98f32));
@@ -477,7 +477,7 @@ fn pk12_02_tuning_over_the_abi() {
         // The tuning is read at the first Init only.
         assert!(fc4_park_shutdown(p));
         assert!(fc4_park_init(p, std::ptr::null()));
-        assert_eq!(state(p).distress_threshold, 25.0);
+        assert_eq!(state(p).distress_threshold, 0.25);
         fc4_park_destroy(p);
     }
 }
@@ -546,17 +546,18 @@ fn pk12_05_pk12_06_distress_latch_over_the_abi() {
     assert_eq!(g.conditions.borrow()[&la], 0);
     unsafe { fc4_park_destroy(p) };
 
-    // PK1: the shipped 25.0 against a fraction: never restored.
+    // PK1/PK10: the shipped 25 percent becomes a fraction before comparison.
     let g = Game::new();
     let t = shipped();
     let p = ready(&g, t);
     unsafe { fc4_props_destroy(t) };
     let la = g.park(0x60, 1, 10, &[PARK]);
     msg(p, INSERTED, 0x60);
-    for f in [1.2, 0.5, 1.0, 0.0] {
+    for (f, condition) in [(1.2, 0), (0.5, 0), (1.0, 0), (0.25, 2), (0.0, 2), (0.250_000_03, 0)] {
         g.funding.set(f);
         msg(p, NEW_MONTH, 0);
-        assert_eq!(g.conditions.borrow()[&la], 2, "funding {f}");
+        assert_eq!(g.conditions.borrow()[&la], condition, "funding {f}");
+        assert_eq!(state(p).underfunded, u8::from(condition == 2));
     }
     unsafe { fc4_park_destroy(p) };
 }

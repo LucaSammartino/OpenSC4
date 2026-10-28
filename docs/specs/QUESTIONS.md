@@ -76,6 +76,7 @@ generated index: the questions live one file per spec, so read only the file for
 | FQ | flora |
 | FR | font-renderer |
 | FS | freshness, graphics-formats |
+| G | commercial-industrial |
 | GC | command-system |
 | GD | renderer-gdrivers-director |
 | GDR | game-data-registry |
@@ -264,7 +265,7 @@ generated index: the questions live one file per spec, so read only the file for
 | clock24 | 0 | 22 | CK23 | - |
 | command-line | 4 | 0 | CL5 | questions/command-line.md |
 | command-system | 8 | 0 | GC9 | questions/command-system.md |
-| commercial-industrial | 1 | 12 | CM11, IN4 | questions/commercial-industrial.md |
+| commercial-industrial | 2 | 12 | CM11, G34, IN4 | questions/commercial-industrial.md |
 | coverage-radius-effect-helper | 4 | 0 | CRH5 | questions/coverage-radius-effect-helper.md |
 | crime | 0 | 24 | CQ25 | - |
 | data-formats | 4 | 61 | EX59 | questions/data-formats.md |
@@ -435,4 +436,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **619** | **1703** | | |
+| **total** | **620** | **1703** | | |

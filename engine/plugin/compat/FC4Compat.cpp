@@ -1073,6 +1073,23 @@ bool FeatureManagerSupported(const void* object) {
     return count > 0 && count < 0x7ffffff0;
 }
 
+bool DrawCaptureTables(void*** tables) {
+    const auto* version = IdentifiedVersion();
+    if (version != &kVersions[0]) return false;
+    constexpr uintptr_t addresses[] = {0x00AC4660, 0x00AC36D0, 0x00ACC4D8};
+    for (unsigned d = 0; d < 3; ++d) {
+        if (!CheckImageVtable("draw capture driver", version, addresses[d])) return false;
+        MEMORY_BASIC_INFORMATION memory{};
+        auto** table = reinterpret_cast<void**>(addresses[d]);
+        if (VirtualQuery(table, &memory, sizeof(memory)) != sizeof(memory) ||
+            addresses[d] + 83 * sizeof(void*) > reinterpret_cast<uintptr_t>(memory.BaseAddress) + memory.RegionSize)
+            return false;
+        for (unsigned s = 0; s < 83; ++s)
+            if (!CheckCode("draw capture slot", reinterpret_cast<uintptr_t>(table[s]), version->imageBase)) return false;
+        tables[d] = table;
+    }
+    return true;
+}
 bool DrawStreamTables(void*** context, void*** tree, void*** list) {
     const auto* version = IdentifiedVersion();
     if (version != &kVersions[0]) return false;

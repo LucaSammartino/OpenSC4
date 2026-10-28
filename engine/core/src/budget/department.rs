@@ -712,7 +712,12 @@ impl SaveObject for Department {
             out.put_ref(&RefValue::Object(line.clone() as Rc<dyn SaveObject>));
         }
         out.put_u32(d.locals.len() as u32);
-        for (holder, purpose) in &d.locals {
+        // Section 7.1: the original registry orders holders by address. Its
+        // section 11.2 references must follow that order, independently of
+        // the insertion-order choice used for funding remainder distribution.
+        let mut locals = d.locals;
+        locals.sort_unstable();
+        for (holder, purpose) in &locals {
             out.put_ref(&RefValue::Host {
                 token: *holder,
                 class_id: self.host.class_of(*holder),

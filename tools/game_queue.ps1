@@ -350,6 +350,10 @@ function Finish($job) {
         Copy-Item -LiteralPath $luaLog -Destination (Join-Path $res "$($job.label).lua.log") -Force
     }
     # End optional Lua transcript.
+    $drawStream = Join-Path $Out "$($job.runLabel).draw.jsonl"
+    if (Test-Path -LiteralPath $drawStream) {
+        Copy-Item -LiteralPath $drawStream -Destination (Join-Path $res "$($job.label).draw.jsonl") -Force
+    }
     foreach ($png in @(Get-ChildItem -Path (Join-Path $Out "$($job.runLabel)-*.png") -ErrorAction SilentlyContinue)) {
         Copy-Item -LiteralPath $png.FullName -Destination (Join-Path $res ($png.Name -replace "^$([regex]::Escape($job.runLabel))", $job.label)) -Force
     }

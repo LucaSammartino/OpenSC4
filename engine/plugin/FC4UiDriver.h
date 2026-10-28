@@ -45,6 +45,24 @@ inline HWND GameWindow() {
     return pid == GetCurrentProcessId() ? window : nullptr;
 }
 
+inline bool InputClientRect(HWND window, RECT& client) {
+    if (!IsIconic(window)) return GetClientRect(window, &client) != 0;
+    // The fixed schedule deliberately minimizes the window (simulator.md 5.8).
+    // Its current client can be empty, but posted input still uses the normal
+    // client coordinates. Recover that extent without restoring/painting it.
+    WINDOWPLACEMENT placement{};
+    placement.length = sizeof(placement);
+    RECT frame{};
+    if (!GetWindowPlacement(window, &placement) ||
+        !AdjustWindowRectEx(&frame, static_cast<DWORD>(GetWindowLongA(window, GWL_STYLE)),
+                            GetMenu(window) != nullptr,
+                            static_cast<DWORD>(GetWindowLongA(window, GWL_EXSTYLE)))) return false;
+    const auto& normal = placement.rcNormalPosition;
+    client = RECT{0, 0, normal.right - normal.left - (frame.right - frame.left),
+                       normal.bottom - normal.top - (frame.bottom - frame.top)};
+    return client.right > 0 && client.bottom > 0;
+}
+
 inline std::string Command(uint32_t id) {
     auto* fw = RZGetFrameWork();
     cIGZCommandServer* server = nullptr;
@@ -177,7 +195,7 @@ inline std::string Run(const harness::ScriptAction& a) {
         if (a.op == ScriptOp::UiCell && !CellPixel(a, x, y)) return "SKIPPED: cell projection unavailable";
         if (a.op == ScriptOp::UiControl && !ControlPixel(a.command, x, y)) return "SKIPPED: control unavailable";
         RECT client{};
-        if (!GetClientRect(window, &client) || !PtInRect(&client, POINT{x, y}))
+        if (!InputClientRect(window, client) || !PtInRect(&client, POINT{x, y}))
             return "SKIPPED: point outside game client";
         // SPEC-GAP: scenario mouse phases use posted Win32 client input; no
         // focus stealing or host cursor movement is needed for isolated slots.

@@ -5,165 +5,119 @@ replaces the whole file: no history, no logs, no "previously". Work that is done
 Evidence lives in git, in `docs/lanes/` and in `build-runs/`, never here. Where another document disagrees with this
 one, this one wins.
 
-State as of 2026-10-27: **run 7 is halted.** No lanes, trains, operator or conductor are running (the shared game
-queue service is up). The user approved the plan below. **Step 2 is done** (2026-10-27); step 3 is next.
+State as of 2026-10-28 05:20: **run 8 is running** (12 Codex lanes, `build-runs/run8-state.json`). Steps 1-3 are done.
+The references are being re-recorded on a new pin (below), then the credit run re-measures Exact-replaced.
 
 ## 1. The goal, worked backwards
 
-**Goal:** a standalone game written in Rust/C++ that behaves exactly like SimCity 4. Replacing `SimCity 4.exe` is not
-the goal by itself; replacing it with a game that is exactly like it is.
-
-**Exactly like (agreed with the user):** the same inputs under the same work schedule give identical results.
-SimCity 4 itself is not deterministic (machine speed through CPU-cycle time limits, wall-clock timers, clock-derived
-seeds, one shared C runtime `rand()`, heap addresses as object IDs). So both games run one **fixed schedule**
-(section 2), and the original run under that schedule is the reference.
-
-For this to be true at the end:
-1. Every behaviour of the exe exists in our code: simulation (35% of the exe's game code), renderer (22%), UI (20%),
-   framework and data (11%), audio (4%), region (2%).
-2. Our own host runs it, with no exe.
-3. Each behaviour is proven exact at a boundary that still exists once the exe is gone: the **save file** (city
-   state, compared as decompressed records), the **draw calls** into the graphics driver interface `cIGZGDriver`,
-   **sound events**, **UI window state** and **resource lookups**. The C ABI seam `fc4.h` is scaffolding between our
-   core and the original's objects; it disappears in the standalone game, so checks at that seam are debugging aids,
-   not proof.
+**Goal:** a standalone game written in Rust/C++ that behaves exactly like SimCity 4: the same inputs under the fixed
+schedule give identical results at the boundaries that survive the exe: the **save file** (decompressed records),
+the **draw calls** into `cIGZGDriver`, **sound events**, **UI window state** and **resource lookups**. The C ABI seam
+`fc4.h` is scaffolding; checks there are debugging aids, not proof.
 
 ## 2. The fixed schedule
 
-The schedule is `docs/specs/simulator.md` §5.8. The original follows it through `FreeCity4.dll`
-(`engine/plugin/FC4Schedule.cpp`, `schedule = fixed`; in-memory hooks only, never an edit of the exe file).
+`docs/specs/simulator.md` §5.8, applied to the original by `engine/plugin/FC4Schedule.cpp` (in-memory hooks only).
+The reference store (`tools/golden.py`, `build-runs/golden`) keys each reference on the schedule code, the pinned DLL
+and the run settings, and refuses a candidate whose schedule code differs.
 
-**The reference store** (`tools/golden.py`, `build-runs/golden`) keys a fixed-schedule reference on the schedule code
-(sha256 of `FC4Schedule.cpp` and `.h`), the pinned reference DLL and the run settings; it requires exact equality and
-refuses a candidate whose schedule code differs. Any edit of `FC4Schedule.cpp` or `.h` means: rebuild, `python
-tools/golden.py pin --dll <new dll> --repin`, re-record. Pinned now: sha 265d2a2e, schedule code a33857dd12297904
-(commit bb6d427d0); its 55 references are recorded (walk census on) and the original repeats every one of them (55
-of 55 exact). Fixed-schedule runs end at the end date's save (`autotest_end = terminate`): the original's quit after it
-can crash in the city teardown.
+**Pinned now:** sha d79069d9, schedule code bde008a451b1c7fb (main 0a970d24c: `fc4::ScheduleQpc` for our cores'
+stopwatch reads, the neighbours simulator's adjacent cities in region position order, and corpus34's UI input to the
+minimized window). Re-recording all references started 05:11; `build-runs/golden/RECORDING` tells lanes to merge main
+and wait. A plugin change that alters what the original does (the UI driver, the schedule) needs a repin even when the
+schedule code is unchanged: the store only refuses a different schedule code.
 
-**Comparison:** the save at each scenario's end date, record by record after decompression (`golden_dbpf` ignores
-container layout; our QFS compressor is our own design), plus the DIGEST lines and the schedule's per-delivery digests.
+**Schedule requests.** Lanes never edit `FC4Schedule.cpp`/`.h`; they write a "Schedule request" section in their lane
+file with the evidence. The coordinator finds the walk in the exe, adds the hook, states the order in simulator §5.8
+(Address order row) and the owner's spec, commits, repins (`python tools/golden.py pin --dll <copy> --repin`),
+records the requesting lane's scenarios first, then everything, and answers in the lane's spec task. A repin forces
+every lane to merge main, so batch requests when more than one is open.
 
 **Address order.** Where the original walks a container keyed by object address, the schedule makes it walk in
-creation order (or the order its spec states); simulator.md §5.8's Address order row lists every such walk, and each
-is in its owner's spec. Two detectors run the original with other addresses, so a result that still follows
-addresses changes: `GOLDEN_INI_EXTRA="heap perturb = holes"` (or `= reverse`) `python tools/check.py run --dll <copy
-of the build> --replace none`. On the pin: holes 55 of 55 exact, reverse 55 of 55, plain 55 of 55. Run both
-whenever the corpus grows. `walk census = on` digests the order of every hash-table walk (`hashtable::begin`,
-0x004B0390) per call site; red-black tree walks and some hash scans are inline and not counted, so find those from the
-record that differs.
+creation order or the order its spec states. Two detectors run the original with other addresses: `GOLDEN_INI_EXTRA=
+"heap perturb = holes"` (or `= reverse`) `python tools/check.py run --dll <copy> --replace none --scenarios all`.
+Both must stay exact on every recorded scenario of each pin; the chain below runs them last.
 
-**Seeds.** Every generator our cores seed with derive(S, K) gets the same seed in the original (simulator.md §5.8,
-Random numbers). The game logs name the clock seeds that keep the schedule's `time()`/`clock()` ("a clock seed at
-...", nine today); none is a generator of our cores. When a core adopts one, map it in the schedule.
+## 3. The metric
 
-## 3. The metric (agreed with the user)
+**Exact-replaced** (`tools/coverage.py`, rule in `docs/COVERAGE.md`): an owner's bytes count only if its key is in the
+credit run's keys, a reference enters its code, every scenario entering it is exact in the credit run (all exact keys
+on together, `python tools/check.py credit --dll <copy> --replace exact`), and no scenario still enters the original's
+code of it with the key on. **Reach** is the ceiling: the share of game code the references execute.
 
-**Exact-replaced:** the share of the exe's game code (bytes, `tools/coverage.py` attribution) whose owners are
-switched off in corpus runs (our code runs instead) while every checkpoint of every scenario that reaches them is
-identical to the reference. **Reach** is the ceiling: the share of game code the corpus executes at all in the
-original. Specified and Implemented stay as the pipeline in front. `tools/coverage.py` reports exactly these four
-(definitions in `docs/COVERAGE.md`); until step 3, Exact-replaced reads "not measured".
+First measurement (pin 1a5cc769, 2026-10-28 04:40): **Exact-replaced 0.0%** (1,442 bytes: crime 1,350, simgrids 46,
+aura 36, gzfw 10). **Reach 39.8%** of game code (44.3% of the implemented owners' code); corpus34's three scenarios
+add 45,081 bytes (census reach 42.35% to 44.05%), counted from the next measurement. 21 keys are exact alone on
+their covers; with all 21 on together, 16 of 177 scenarios are exact.
 
-Deleted on 2026-10-27, never to be quoted again: the house-city "Verified", "strict", single-method credit,
-shadow-based credit and "Replaced" measured on the house run. Shadows (`<x>_shadow = 1`) stay only as a debugging aid.
+Worked backwards, three things stand between those 21 keys and credit, each with a lane:
+1. **Exact alone, not together** (`together34`): in most outside scenarios nothing diverges; a few save records
+   differ, first from plumbing (30 scenarios), weather 12, aura 11, occmgr 9, history 6, power 2, civic 1.
+   Data: `build-runs/run8/together34.txt`.
+2. **The original's code still runs with the key on** (`wiring34`): span565 134 functions (36,854 bytes, entered in
+   every scenario), gzfw 40, simgrids 27, tract 4, aura 4, propdev 3, weather 2 and 1-3 each for plumbing, span1555,
+   span4444, occmgr, history, ports, protection, industrial. Data: `build-runs/run8/wiring34.tsv`.
+3. **Deliveries that diverge:** delivery #21 to the lot developer (vtable 0x00AB1B88) is the most common first
+   difference in the engine lanes' owners.
 
-Today (`docs/coverage-report.md`, Reach from the 177 clean runs of census-1027): Specified 91.9%, Implemented 63.0%,
-Exact-replaced not measured, Reach 42.4% of game code. The corpus reaches 45.0% of the implemented owners' code, so
-Exact-replaced cannot exceed 28.3% of game code until the corpus reaches more.
+**The landing rule.** An engine lane lands only through `python tools/merge-train.py run --lanes <lane> --add-replace
+<keys>`, then `land`: its check runs the credit keys plus the lane's keys on their covers and must be exact
+(`regress --add-replace` reruns only the check). After each landing, re-run the chain so the new keys count.
 
 ## 4. The loops
 
 | Loop | What runs | Duration |
 |---|---|---|
-| **Reference recording** | the original under the fixed schedule, once per scenario (`python tools/check.py record`) | measured: 1.6-7.3 game days/s per game, about 15 s outside the simulation, about 1.2 s a save; 12 games in parallel. Redone only when the corpus, the schedule or the run settings change |
-| **Per change (inner loop)** | incremental build, then our game in replace mode on the owner's cover scenarios against the references (`python tools/check.py run`) | estimate 3-8 min |
-| **Landing** | merge, gate (409 s today), the same check on main | estimate under 15 min |
-| **Nightly** | the whole corpus, ours against references | the same as one reference recording |
-| **Later: standalone headless** | our own exe, no game process, against the same references | seconds per scenario (estimate) |
+| Reference recording | `python tools/check.py record --scenarios all --jobs 12` | about 45 min (5 scenarios: 1 min 48 s) |
+| Per change | the lane's build, then `.claude/lane-bin/qcheck.py --wt <WT> --replace <keys>` on its covers | 3-8 min |
+| Landing | merge-train run with `--add-replace`, then land | under 15 min |
+| The chain | record, plain repeat, each owner alone, credit, coverage, holes, reverse (`scratchpad/step3/chain2.sh DLL TAG`) | about 3 h |
 
-## 5. Steps
+## 5. Run 8
 
-### Step 3: Exact-replaced in `tools/coverage.py`, and the landing rule
+Lanes start with `FC4_LANE_BUSY_PCT=101 python tools/lane_launch.py build-runs/run8/specs/<name>.spec.json --state
+build-runs/run8-state.json` (concurrency 12). A later round needs `"resume": true`; a merged branch continues under a
+new name (growth-exact34). A relaunch loop restarts any lane whose round ended wip; ready lanes wait for review, blocked
+ones for a relaunch with an answer. Codex "Selected model is at capacity" fails a round: relaunch.
 
-Step 3 adds Exact-replaced from `check` results and makes an exact `check` the landing rule for an engine lane that
-switches owners on.
+| Lane | Owners | Aim |
+|---|---|---|
+| traffic-exact33 | traffic | first differences moved later; not exact |
+| automata-exact33 | automata | East Weburg clean; the rest outside |
+| network-exact33 | netmgr, netrules, nettool, netlot | save differences 103 → 6 |
+| region-exact33 | regionalcity, neighbors | remaining differences were deal order, answered by c17dfc7c6 |
+| disasters-exact33 | disasters, effects | crashes fixed; 91 → 17 and 93 → 68 differing records |
+| advisors-exact33 | advisors, citysit, mysims | not exact |
+| growth-exact34 | residential, commercial, development, demand, zones, … | zones landed exact |
+| services-exact34 | power, pollution, landvalue, budget, ordinance, … | parks landed exact; budget next |
+| together34 | the 21 exact-alone keys | exact with all keys on |
+| wiring34 | span565, gzfw, simgrids, tract, … | the original's code of switched-on owners stops running |
+| corpus35 | scenarios | found unfounded cities (magnolia), budget panel, region view, next reach gains |
+| save-roundtrip33 | formats, save, persistence | 48 of 169 record types, 43.23% of bytes round-trip exactly |
 
-The input is the per-owner table: `python tools/check.py run --dll <copy of the build> --replace each` runs each
-owner alone over its cover (`build-runs/golden/owner-scenarios.tsv`, 55 scenarios; an owner that needs others runs
-with them: mysims with advisors, netrules with netmgr and nettool) and writes `build-runs/golden/owner-check.tsv`. On
-the pin: 32 of 108 runs exact; 22 keys exact on every run of their cover (aura, citydetail, civic, crime,
-flammability, flora, gzfw, history, industrial, landfill, occmgr, plumbing, ports, propdev, protection, simgrids,
-span1555, span4444, span565, span8888, tract, weather); 57 outside; 19 errors (automata 8, disasters 3, netmgr 3,
-regionalcity 3, effects, terrain: foreign exceptions, stalls, crashes).
+**Known issues.**
+- `paradis-magnolia` is clockless until a script can found it: an unfounded city's level-0 agents (flags 2) stay
+  disabled and hold the calendar (simulator §5.2 step 2).
+- Run-8 worktrees are 9-13 GB each: remove a merged lane's worktree at once (`cmd /c "rd /s /q \\?\<path>"`, then
+  `git worktree prune`; plain removal fails on long paths). Disk at most 85%.
 
-### Step 4: restart engine lanes (about 9, no operator layer)
+## 6. The standalone track
 
-Each lane takes implemented owners, switches them on in replace mode and makes `check` exact on their scenarios. Each
-names the owners and the scenarios it will make exact. Specs and RE answers feed them as before (clean room unchanged).
-Every outside run in the table starts in its owner: a delivery whose `rand()` differs, a DIGEST, or save object IDs
-that shift from one of its own objects (IDs are numbered in save order, so one reference out of order shifts every
-later ID; `check` names the first shifted ID and the first record whose content still differs, and
-`tools/golden_relabel.py` compares two saves the same way). The errors come first.
-
-### Step 5: the corpus, built from reach (1 lane, ongoing)
-
-- Exact-replaced cannot exceed what the corpus reaches (section 3).
-- In census-1027, 8,080 of 30,174 actions failed (26.8%: insufficient funds, blocked placement). Fix the action
-  drivers so scripts do what they intend.
-- 10 of 189 scenarios wrote no reach counters; find out why.
-- Add scenarios for unreached code (tools, panels, disasters, region, save and load, options) and UI input scripts.
-  The user records short play sessions for what scripts cannot reach.
-
-### Step 6: the standalone track (1-2 lanes, in parallel from step 2)
-
-1. **Save round trip.** What exists: a DBPF writer (`PackageBuilder`, `engine/formats` dbpf.rs) and class-store save
-   and load (store.rs). A round trip needs all 128 saved classes plus the terrain and view records ("city and save
-   file" shows 78% implemented, but that is one 35 KB row). Milestone: on saves written by 1.1.641, our load-and-write
-   gives identical records after decompression and ID renumbering; the shipped saves (404 of 417 written by older
-   builds) only need to come back unchanged on a second write. Needs no game runs.
-2. **Headless host.** Our exe loads the player's data files and a save, runs N days under the fixed schedule, writes a
-   save, compared with the same references. It implements the host side of `fc4.h` (58 host tables, 2,366
-   callbacks) over our own world model; there is no host crate yet. First the host and city specs INVENTORY-M6 §9
-   asks for; note the zone developer's `Init` needs the 3D view (§8).
-3. **Renderer and UI checks:** capture the `cIGZGDriver` call stream and the UI window state on paused saves in the
-   original and in ours (deterministic even without the schedule); then live, under the fixed schedule.
+1. **Save round trip** (save-roundtrip33): load a 1.1.641 save into our data model and write identical records after
+   decompression and ID renumbering; corpus = the references' end saves.
+2. **Headless host:** our exe loads the data files and a save, runs N days under the fixed schedule, writes a save
+   compared with the same references. It implements the host side of `fc4.h` over our own world model; no host crate
+   yet.
+3. **Renderer and UI checks:** the draw-call capture and `tools/drawcheck.py` are on main (draw-oracle33); next,
+   streams from ours against the original's on paused saves, then live under the fixed schedule.
 4. Then a standalone renderer behind the same interface, UI, audio.
 
-## 6. What we stopped, and why (do not restart)
+## 7. Stopped (do not restart)
 
-- **Record/replay at the `fc4.h` seam as the main loop** (former E1): it checks a seam the standalone game deletes;
-  traces depend on the exact order of our core's callbacks, so they go stale whenever an owner's queries change;
-  recording overhead grew from 14.3x to 24.3x (trace-replay31, Aquaton 186.6 s against 7.7 s); one 60-day window with
-  5 owners is 2.2 GB raw. The 5 covered owners (budget, power, pollution, traffic, terrain) keep replay as unit tests.
-- **House-city verified, strict and shadow-based credit**, the census with shadows as the source of credit, and the
-  tools that computed them.
-- **Single-method credit lanes** (`method-*`): all method evidence together was 23,555 bytes, 0.4% of game code.
-- **Merge-train regress as the credit gate:** it stays only as a landing check until step 3 adds `check`.
+Record/replay at the `fc4.h` seam as the main loop; house-city verified, strict and shadow-based credit; single-method
+credit lanes; an operator layer between the coordinator and the lanes.
 
-## 7. What the user does (5-minute checks)
+## 8. What the user does (5-minute checks)
 
 Any check that costs the coordinator about an hour once and the user about 5 minutes: comparing UI screens, clicking
 through dialogs, and playing and recording short sessions for the corpus. Give exact steps and what to look for.
-
-## 8. Picking up from the halt
-
-**Census-1027** (189 scenarios, 177 clean, 179 with reach counters; `build-runs/suite/census-1027/`) gives Reach;
-`build-runs/suite/CURRENT` names it, so `python tools/coverage.py` uses it by default.
-
-**Saved work** (all local; nothing was pushed or deleted):
-- 51 branches `halt-1027/<worktree>` hold every lane worktree's work.
-- Held game requests: `build-runs/game-queue-halted-1027/`. Lane specs: `build-runs/run7/specs/`.
-
-**Merge queue** (50 entries, `python tools/merge-train.py status`). The credit hold is gone, so many entries now show
-READY: none of that is a judgement. Re-judge every entry against this plan and land only explicit batches
-(`merge-batch --lanes`):
-- Drop the `method-*` entries.
-- `trace-replay31`: land only its load-stall fix if its gate passes; no further recorder work.
-- Tools that speed the loop (`build-speed32`) and spec answers (`re-*`) can land after a gate.
-- `replace-*`, `shadow-*`, `glue-*` and the other engine entries wait for `check` and land by its result.
-- Entries that touch the deleted tools (coverage credit, ledger, census replay) need rebasing or dropping.
-
-**Known state.**
-- `effectsres` is off the replace list after a start-up crash (EF28); spec question re-ef32 is answered.
-- `git push` reports that the repository moved to https://github.com/tloriato/OpenSC4.git; pushes still work.
