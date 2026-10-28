@@ -1,25 +1,25 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| advisors-exact33; engine; saved advisor identity | Codex; advisors-exact33 worktree/reserved branch; detached HEAD; code ae97762f6..cb3113fca | WIP; no owner exact; cargo 8410 passed, clippy 0 diagnostics, CTest 146/146; C exports unchanged; questions none | 1. Fix Rivertner's first shifted ID/class. 2. Implement standalone mysims activation. 3. Wire citysit dependencies and rerun exact checks. |
+| advisors-exact33; engine; citysit tracking and subscriptions | Codex; advisors-exact33 worktree/reserved branch; detached HEAD; code 14f975842, 7db24ce97 | WIP; no newly exact owner; cargo 8410 passed, clippy 0 diagnostics, CTest 146/146; C exports unchanged; CS16 | 1. Check advisor-29 map walk and Lua publication. 2. Fix advisors' first shifted ID. 3. Implement standalone mysims activation. |
 
-Registered 13 implemented advisor/advice/subject child factories alongside the system so the class store loads saved counters, advice order and subjects into our code instead of dropping native references and recreating advisors from Lua.
-Retained other owners' native advisors (MySim/MyStreetSim) with acquired-reference ownership, interface Init/Shutdown/Simulate forwarding, and native serialization identity. Added a core regression and exercised every child factory in the registration test.
-Appended one callback to fc4_advisor_host; synchronized Rust/C++/C layout assertions (272 bytes x86, 544 x64). No C export added/removed; no ABI-version bump.
-Final qbuild all PASS: cargo 8410/0, clippy 0 diagnostics, native build 5/5 edges, CTest 146/146. Earlier attempts failed on layout assertions, registration count and return-channel review; those failures are corrected. Logs: build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log.
-Core fmt: five owned files pass. capi/src/advisors.rs has 205 lines of pre-existing formatting differences outside the changed blocks; left them unchanged.
-advisors NOT EXACT: qcheck-4.log, exit 1, 0/4. Rivertner 72 -> 70 differing records; Mitras 70 -> 63; no exact credit.
-- maxisland-rivertner: shift now ID 44235/class 49B9E602 (previously 42438/CA2C2A2F); 51 only relabelled; first content 2A134F42/299B2D1B/0 (cSC4NeighborDeal), replacing the previous MyStreetSim first content difference.
-- paradis-mitras: shift ID 195187/class 49B9E602; 46 only relabelled; first content 2A134F42/299B2D1B/0.
-- timbuktu-rush-hour: first rand delivery 2010-05-03 #5, reference vt 00AB2214; 101 different/51 relabelled; shift 4017/2977AA47; first content 098F964D/299B2D1B/0 (occmgr).
-- ui29-bevopolis: 71 different/45 relabelled; shift 417/896E75AF; first content 0A413481/299B2D1B/0 (civic).
-citysit NOT EXACT: qcheck-5.log, exit 1, 0/4; no source changes to this owner.
-- maxisland-east-weburg: 7 different; paradis-jinae: 3 different; both first 096E75F5/299B2D1B/0 (watercraft).
-- gen28-konradshohe-s2-churn: 57 different/43 relabelled; shift 12/6A3848DB; first content civic 0A413481/299B2D1B/0.
-- timbuktu-rush-hour: 10 different/2 relabelled; shift 1465/C9C05C6E; first content occmgr 098F964D/299B2D1B/0.
-mysims NOT EXACT/NOT ACTIVATED: qcheck-6.log, exit 2, both gen28-tegel-s0-churn and ui29-house rejected: expected mysims+simulator, logged only simulator. The existing dependency guard disables mysims without advisors. These are invalid replacement checks, not save-difference evidence.
-Baseline checks: qcheck-3 none/maxisland-rivertner exact (1/1); qcheck-7 none/maxisland-east-weburg,paradis-jinae exact (2/2). Do not attribute those owners' observed differences to baseline drift.
-All eight valid replacement runs verdict clean, ref_warnings=0. watchdog_stalls=1 despite clean on advisors/Rivertner and citysit/Jinae; others 0. Both invalid mysims runs also clean/ref_warnings=0, but owner was off. No shadow exactness claimed.
-Advisors labels: golden-2ad62b05d5984ad996f7aeb6ebdd9ed1, golden-10fe79ebb00c41a883196161c0e28c69, golden-ebe66770b0114ceebf7371726c635298, golden-b5e1dd8f7cd6428c86f907d4bccf18d4.
-Citysit labels: golden-80e41f0c4e7d4eeda74042f10f7d34c6, golden-356c1dc39886449e93780c0d1ada8566, golden-7ea1728a9f2746a5bad3bd0c31eb9055, golden-a8e2a2e793804b2c9c382f7aa4d0a31c.
-Run directories and exact comparison details are in qcheck-4/5/6/7.log; each run's game.log was checked for initialization, activation and verdict counters. Initial qcheck-1 lacked references; later checks have references and supersede it.
-Next: fix the first shifted 49B9E602 object ID before interpreting later neighbor-deal bytes; inspect the missing system GetAdvisors/AddAdvisor/event interface plumbing; make mysims replace independently without silently replacing advisors; then investigate citysit tracking/Lua callbacks from its spec. No ready entry: no newly exact owner.
+This round resolves the city at Init, loads max-CSI tuning (5 in these runs), enumerates advisor 29 and group candidates, wires native dispatch indicators and automaton callbacks, and normalizes notification pointers. Init remains idempotent.
+Fixed an existing dead gate: Server() returned null because msgServerHeld was never set, silently skipping all ten subscriptions. The constructor already held the server reference; Server() now returns it.
+Native indicator calls are version checked in compat; original citysit implementations are not forwarded. Candidate creation-order stamps remain unavailable to this host; pointer order is marked SPEC-GAP.
+Final qbuild all PASS on 7db24ce97: cargo 8410/0, clippy 0 diagnostics, native build 6/6 edges, CTest 146/146. Logs: build-runs/qbuild-{test,clippy}.log and fc4verify-{build,ctest}.log. No Rust files changed; no fmt needed.
+Earlier gate failed only ret_channel_check; the CheckAutomataFlag return-channel citation fixes it. The final gate supersedes that failure.
+citysit NOT EXACT: final qcheck-14.log, exit 1, 0/4, with the server fix and diagnostics compiled. Differences are unchanged from the previous round:
+- maxisland-east-weburg: 7 different; paradis-jinae: 3 different; first 096E75F5/299B2D1B/0 (watercraft) in both.
+- gen28-konradshohe-s2-churn: 57 different/43 relabelled; first shifted ID 12/class 6A3848DB; first content 0A413481/299B2D1B/0 (civic).
+- timbuktu-rush-hour: 10 different/2 relabelled; first shifted ID 1465/class C9C05C6E; first content 098F964D/299B2D1B/0 (occmgr).
+Final diagnostics: PostCityInit now reaches the enumeration callback in all four cities, which reports 0 advices; all final track_entries/tracked counts are 0. Candidate/indicator branches remain unexercised. Check WalkGameMap status/count before concluding the native active map is empty, then inspect the missing sitmgr publication (existing CS13).
+Baseline qcheck-13.log: --replace none on those same four scenarios exits 0, 4/4 exact. It used the pre-server-fix DLL with citysit disabled; do not blame baseline drift for the unchanged observed differences.
+Final four citysit verdicts clean: foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0. No shadow exactness claimed.
+Final labels in scenario order above (churn, east-weburg, jinae, rush-hour): golden-5aa2a54bd2e44a96a22ea8be85b2a172, golden-d10cb0311ee64449b52da0c7733d5c3c, golden-4f291bbabbb24c0ebc5e23e42e6bc2e9, golden-a55eb03cca954b80b5b4c48bd504f2d0.
+qcheck-8/10/11 are earlier Jinae probes (3 different). qcheck-9 was rejected before gameplay because a proposed schedule accessor changed the pinned source hash; that accessor was removed completely.
+qcheck-12 was the full pre-server-fix check (0/4); east-weburg had watchdog_stalls=1 despite clean. Its zero tracking counts led to the server fix. qcheck-14 supersedes it.
+advisors NOT EXACT, unchanged/not rerun this round: qcheck-4.log exit 1, 0/4; inherited child-factory/native-advisor fixes remain on HEAD.
+- Rivertner: 70 different/51 relabelled, shift 44235/49B9E602; Mitras: 63 different/46 relabelled, shift 195187/49B9E602; first content neighbor deal 2A134F42/299B2D1B/0 in both.
+- Rush Hour: first rand delivery 2010-05-03 #5, reference vt 00AB2214; 101 different/51 relabelled, shift 4017/2977AA47, first content occmgr. Bevopolis: 71 different/45 relabelled, shift 417/896E75AF, first content civic.
+mysims NOT EXACT/NOT ACTIVATED, unchanged/not rerun: qcheck-6.log exit 2 on gen28-tegel-s0-churn and ui29-house. Resolve disables mysims without advisors; factories require CurrentAdvisorCore. Enabling the flag alone cannot make a valid standalone check.
+Filed CS16 in docs/specs/questions/city-situation.md for indicator number/label/untrack arguments. CS17 draft was withdrawn after finding the dead server flag. C ABI exports unchanged; no ABI-version bump.
+Next: validate advisor-29 map walking and Lua table publication; rerun citysit from its first difference. Then fix advisors' first shifted simgrid ID and build a native-advisor-compatible MySims host. No owner earned exact credit; queue WIP.
