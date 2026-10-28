@@ -1615,7 +1615,7 @@ public:
     virtual float GetCurrentTimeLimitSeconds() = 0;                                                // 13 ST0
     virtual float GetCurrentSituationTime() = 0;                                                   // 14 ST0
     virtual float GetCurrentTimeRemainingSeconds() = 0;                                            // 15 ST0
-    virtual void GetCurrentTargetName(cIGZString& out) = 0;                                        // 16 EAX = &out
+    virtual cIGZString& GetCurrentTargetName(cIGZString& out) = 0;                                 // 16 EAX = &out
     virtual bool GetSituationAura(float& radius, float& magnitude) = 0;                            // 17
     virtual bool GetSituationMoney(int64_t& money) = 0;                                            // 18
     virtual bool IsSituationAvailable(cISC4Automaton* automaton) = 0;                              // 19

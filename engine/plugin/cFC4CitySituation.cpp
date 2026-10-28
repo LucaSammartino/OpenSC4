@@ -926,11 +926,11 @@ float cFC4CitySituationManager::GetCurrentTimeRemainingSeconds() { FC4_CS_CALL(1
     return fc4_citysit_time_remaining_seconds(core_);
 }
 
-void cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) { FC4_CS_CALL(16, "GetCurrentTargetName");
+cIGZString& cFC4CitySituationManager::GetCurrentTargetName(cIGZString& out) { FC4_CS_CALL(16, "GetCurrentTargetName");
     // Slot 16 fills the caller's string (EAX = the argument). The name comes
     // from the advice's target through the host, which this replacement does
     // not wire: the string is left as it is.
-    (void)out;
+    return out;
 }
 
 bool cFC4CitySituationManager::GetSituationAura(float& radius, float& magnitude) { FC4_CS_CALL(17, "GetSituationAura");

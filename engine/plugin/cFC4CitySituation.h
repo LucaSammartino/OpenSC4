@@ -89,7 +89,7 @@ public:
     float GetCurrentTimeLimitSeconds() override;
     float GetCurrentSituationTime() override;
     float GetCurrentTimeRemainingSeconds() override;
-    void GetCurrentTargetName(cIGZString& out) override;
+    cIGZString& GetCurrentTargetName(cIGZString& out) override;
     bool GetSituationAura(float& radius, float& magnitude) override;
     bool GetSituationMoney(int64_t& money) override;
     bool IsSituationAvailable(cISC4Automaton* automaton) override;
