@@ -1,0 +1,27 @@
+| Lane | Agent/worktree | State at stop | Next steps |
+|---|---|---|---|
+| services-exact34 engine: budget percentage scaling and service exactness | Codex / services-exact34 / reserved services-exact34 (detached HEAD) | wip; no newly exact owner; code cb2acfe42, question 45e4b6cfc; C ABI exports unchanged; cargo 8411, clippy clean, CTest 147/147; manual stalled/ref0, control pending; shadow n/a; OR-SE34-1 | 1. Collect the existing control request. 2. Authorize/import the coordinator pin. 3. Verify budget and none on all three scenarios. 4. Resume the remaining owners. |
+
+Code: cb2acfe42 uses foundations 18.3's float32 0.01f constant in both department local-funding percentage updates; adds a bit-exact ABI regression test in a separate file, with an additive test-fixture module declaration.
+Diagnosis: historical paradis-zoe budget result compare-20261028-043829-cd77cd08 differs only in Power department 2931's percentage, payload offset 20: reference 3F59B30B, replacement 3F59B30C, plus checksum. No delivery or DIGEST difference. This motivates the fix; its game exactness is unproved.
+Gate: focused budget ABI tests 6/6; owned Rust fmt 2/2; qbuild all PASS, cargo 8411 passed/0 failed, clippy 0 diagnostics, CMake 10/10 edges, CTest 147/147. Full logs in this worktree's build-runs.
+Qcheck: qcheck-1/2/3 report missing golden references; qcheck-3 covers maxisland-wrenton, reach29-growth and paradis-zoe. These are unavailable comparisons, not observed replacement differences. No fresh none control or exact owner claim.
+Game: services34-budget-zoe-1 stalled on 2047-01-03; foreign exceptions 0, ref_warnings 0. Fixed schedule plus turbo=1; after script speed 0, ticks continue but hours_complete=0 and DAY_GATE_OPEN=0. No local-funding update calls were logged before the stall.
+Control: services34-budget-zoe-control-1 leaves budget original with otherwise identical settings. Two qwait operations timed out; no verdict at finish. This request is still outstanding: collect it before another request or DLL update. Stall attribution remains unresolved.
+The remaining-owner differences below are historical facts from the brief/services-exact33, not fresh measurements of this fix or the new pin.
+NOT EXACT budget: fresh comparison unavailable. Earlier own cover maxisland-wrenton/reach29-growth was exact; paradis-zoe's first content difference is E990BFFC as diagnosed above.
+NOT EXACT power: paradis-berner, first delivery 2039-10-07 #5, plumbing target vt 00AB2214; first content 098F964D (occmgr).
+NOT EXACT pollution: ui29-bevopolis first A9BD882D (1 record), paradis-stohess first 8A22BEBE (3 records); variant tags and landfill maintenance properties await PL-SE33-1/2.
+NOT EXACT landvalue: ui29-weburg, only helicopter 8BA98EDA object 636, seven payload bytes in motion/position floats; land-value records, delivery rand and DIGESTs matched in SE33; LV-SE33-1 remains open.
+NOT EXACT ordinance: reach29-growth, 20 ordinance records; first 00D0723D. Historical payload differs only in availability chance, 0.00005f reference versus 0.005f replacement; OR-SE34-1 asks for the missing conversion/refresh contract.
+NOT EXACT clock24: timbuktu-rush-hour, first content 6A0F82B2; five records, IDs shift at 1359/class C9C05C6E.
+NOT EXACT demolition: gen28-tegel-s2-default, delivery 2029-08-30 #21 vt 00AB1B88 (lot developer); DIGEST 2029-09-01 funds/income/expense; first content 096E75F5.
+NOT EXACT dispatch: maxisland-norte-delano first content 098F964D; ui29-volcano first 2977AA48; timbuktu-big-city first 896E75AF.
+NOT EXACT tutorial: timbuktu-rush-hour delivery 2010-05-03 #5 vt 00AB2214, first content 098F964D; ui29-weburg was exact in the supplied baseline.
+NOT EXACT terrain (SE33 qcheck-4): paradis-jinae delivery 2047-04-06 #26 vt 00AB127C, first content 096E75F5; ui29-volcano delivery 2026-01-28 #95 vt 00AB2214, first content 098F964D. Earlier startup/shutdown errors were resolved in SE33; simulation differs.
+Questions: OR-SE34-1 in docs/specs/questions/ordinance.md, committed 45e4b6cfc. Behavior specs were not edited.
+
+## Schedule request
+Qcheck-3 now requires coordinator main 0a970d24c and reference schedule bde008a451b1c7fb (ScheduleQpc export, neighbor ordering, minimized-window input). Our built DLL logs schedule a33857dd12297904. References were reported as being re-recorded from 05:11.
+The lane rule forbids merging main without task authorization. Authorization to import that pin was requested asynchronously and remains unanswered. No main merge or FC4Schedule edit was made.
+Next: collect services34-budget-zoe-control-1; authorize/import the pinned coordinator base and wait for its references; rerun budget on maxisland-wrenton,reach29-growth,paradis-zoe, then none on the same scenarios; resolve OR-SE34-1 and resume the other nine owners from their first differences. Hold WIP until at least one owner is newly exact and its none control is exact.
