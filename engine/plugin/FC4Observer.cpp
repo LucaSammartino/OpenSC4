@@ -38,6 +38,7 @@
 #include "FC4Log.h"
 #include "FC4Reach.h"
 #include "FC4DrawStreamCapture.h"
+#include "FC4DrawCapture.h"
 #include "FC4Streams.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
@@ -624,6 +625,7 @@ public:
         AutoloadOnTick();
         const int speed = AutotestOnTick();
         if (speed != 0) Unpause(speed);
+        DrawCaptureTick(CurrentCity()); // default off; fixed-schedule frame boundary
         return true;
     }
     bool OnIdle(uint32_t) override { return true; }

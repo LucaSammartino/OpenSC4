@@ -1,10 +1,11 @@
 # Berlin: Konradshohe. Hand-authored local patch (fits a 64-cell tile).
 # Roads=0 rail=1 streets=3 pipes=4 power=5 avenues=6; nine zone densities/types.
 # Fire/riot may pause the calendar: run them on the end date, then save/quit on a framework tick.
+2026-01-29 funds 25000000
 2026-01-29 mark berlin-konradshohe: begin local build patch
 2026-01-29 speed 0
 2026-01-30 terrain 4 4 54 54 280 1
-2026-01-31 dezone 4 4 54 54
+2026-02-03 dezone 6 6 9 9
 2026-02-01 network 4 14 52 14 0
 2026-02-01 network 4 28 28 28 3
 2026-02-01 network 32 4 32 50 6

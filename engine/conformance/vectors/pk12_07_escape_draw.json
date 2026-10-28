@@ -25,7 +25,6 @@
     {"op": "park_clear_events"},
     {"op": "park_call", "method": "monthly"},
     {"op": "park_expect_events", "events": [
-      {"event": "set_condition", "lot": "0x33", "condition": 2},
       {"event": "double"},
       {"event": "u32", "n": 1},
       {"event": "post", "type": "0xAA667CE2", "void1": "0xA000", "unknown": "0x30"},

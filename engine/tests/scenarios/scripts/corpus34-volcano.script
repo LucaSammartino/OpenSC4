@@ -1,0 +1,10 @@
+# Fresh, funded tile; deterministic input waits use the fixed virtual clock.
+2000-01-01 establish Tempelhof
+2000-01-01 funds 25000000
+2000-01-09 terrain 48 48 80 80 270 1
+2000-01-09 pause
+2000-01-09 disaster volcano 64 64
+2000-01-09 uiwait 55000
+2000-01-09 resume
+2000-01-15 save
+2000-01-15 digest

@@ -76,6 +76,7 @@ constexpr uintptr_t kTempPathASlot = 0x00A8029C;      // the import slot of GetT
 constexpr uintptr_t kControllerWriteSlot = 0x00A9602C;  // the automata controller manager's Write (0x005174D0), a vtable slot
 constexpr uintptr_t kTrafficMapWriteSlot = 0x00A8FEAC;  // the traffic network map's Write (0x004B1CE0), a vtable slot
 constexpr uintptr_t kWatercraftWriteSlot = 0x00A9DF1C;  // the watercraft manager's Write (0x0056FA70), a vtable slot
+constexpr uintptr_t kAdjacentCitiesSlot = 0x00AB1F30;  // the neighbours simulator's GetAdjacentCities (0x006D01E0), a vtable slot
 constexpr uintptr_t kTempPathW = 0x00B62904;          // cRZFile's GetTempPathW, from GetProcAddress at start-up
 constexpr uintptr_t kForeground = 0x005F85F0;         // "the game is the foreground window", asked by the save's thumbnail
 const uint8_t kForegroundBytes[] = {0x56, 0xFF, 0x15, 0x0C, 0x05, 0xA8, 0x00};  // push esi; call [GetForegroundWindow]
@@ -1622,6 +1623,45 @@ bool __fastcall WatercraftWrite(uint8_t* self, void*, void* stream) {
     return reinterpret_cast<SerializeFn>(g_realWatercraftWrite)(self, nullptr, stream);
 }
 
+// The neighbours simulator's GetAdjacentCities (0x006D01E0, neighbors.md §9.1; thiscall (list, includeUnestablished)):
+// the original collects the cities into a set of pointers, so the list it appends to is in address order. The cities
+// it appends are put in region position order (x, then z: the regional city's slot 5, GetPosition(x&, z&)), §9.1's
+// order, which Init's reloads and clones (§14.1 steps 5-7) and the proposals and pushes follow. The list is an STLport
+// list of city references: its first word is the sentinel node {next, prev}; a node is {next, prev, city}.
+using AdjacentCitiesFn = uint32_t(__fastcall*)(void*, void*, void**, uint32_t);
+void* g_realAdjacentCities = nullptr;
+
+uint32_t __fastcall AdjacentCities(void* self, void*, void** list, uint32_t includeUnestablished) {
+    auto* sentinel = static_cast<void**>(list[0]);
+    auto* last = static_cast<void**>(sentinel[1]);  // the last node before the call (the sentinel when empty)
+    const uint32_t r = reinterpret_cast<AdjacentCitiesFn>(g_realAdjacentCities)(self, nullptr, list, includeUnestablished);
+    struct Entry {
+        void** node;
+        int32_t x, z;
+    };
+    std::vector<Entry> added;
+    for (auto* n = static_cast<void**>(last[0]); n != sentinel; n = static_cast<void**>(n[0])) {
+        Entry e{n, 0, 0};
+        if (void* city = n[2]) {
+            using GetPositionFn = void(__thiscall*)(void*, int32_t*, int32_t*);
+            reinterpret_cast<GetPositionFn>((*static_cast<void***>(city))[5])(city, &e.x, &e.z);
+        }
+        added.push_back(e);
+    }
+    std::stable_sort(added.begin(), added.end(),
+                     [](const Entry& a, const Entry& b) { return a.x != b.x ? a.x < b.x : a.z < b.z; });
+    void** prev = last;
+    for (const Entry& e : added) {
+        prev[0] = e.node;
+        e.node[1] = prev;
+        prev = e.node;
+    }
+    prev[0] = sentinel;
+    sentinel[1] = prev;
+    InterlockedExchangeAdd(&g_ordered, static_cast<LONG>(added.size()));
+    return r;
+}
+
 // A walk of an STLport hash table of object pointers that may change the table: the walk's begin call
 // (hashtable::begin, 0x004B0390: thiscall, the table {?, buckets begin, buckets end}, out {node, table}) goes to
 // OrderedBegin and its step to the next node to OrderedNext. The walk visits the keys present at its start in
@@ -2222,6 +2262,8 @@ void ScheduleStartup() {
          &g_realTrafficMapWrite},
         {"the watercraft manager's Write", kWatercraftWriteSlot, reinterpret_cast<void*>(&WatercraftWrite),
          &g_realWatercraftWrite},
+        {"the neighbours simulator's GetAdjacentCities", kAdjacentCitiesSlot, reinterpret_cast<void*>(&AdjacentCities),
+         &g_realAdjacentCities},
     };
     if (const char* err = TempStart()) {
         all = false;
@@ -2430,6 +2472,12 @@ void ScheduleFrame() {
     g_qpc += g_frameTicks;
     MinimizeWindows();
     TimersFrame();
+}
+
+int64_t ScheduleQpc() {
+    LARGE_INTEGER now{};
+    VirtualQpc(&now);
+    return now.QuadPart;
 }
 
 uint32_t ScheduleClockMs() {

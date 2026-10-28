@@ -599,8 +599,11 @@ def credit_evidence(path, reached):
     replace-mode runs still enters (the original's code still running), and the exact scenarios. `missing` names the
     entry-counter files that are absent; then Exact-replaced is not measured."""
     data = json.loads(path.read_text(encoding="utf-8"))
-    by, still, missing, files = defaultdict(set), set(), [], []
+    by, still, missing, files, unrecorded = defaultdict(set), set(), [], [], []
     for name, entry in sorted(data["scenarios"].items()):
+        if entry["reference"] is None and "no golden baseline" in entry.get("detail", ""):
+            unrecorded.append(name)  # no reference: not in the corpus (Reach comes from the references too)
+            continue
         reference = path.parent / (entry["reference"] or "-") / "reach.tsv"
         run = Path(entry["run"] or "-") / "reach.tsv"
         if not reference.is_file():
@@ -615,8 +618,8 @@ def credit_evidence(path, reached):
         elif entry["verdict"] == "exact":
             missing.append(f"{name} (run)")
     exact = {name for name, entry in data["scenarios"].items() if entry["verdict"] == "exact"}
-    return {"keys": set(data["keys"]), "dll_sha256": data["dll_sha256"], "n": len(data["scenarios"]),
-            "exact": exact, "by": by, "still": still, "missing": missing, "files": files}
+    return {"keys": set(data["keys"]), "dll_sha256": data["dll_sha256"], "n": len(data["scenarios"]) - len(unrecorded),
+            "exact": exact, "by": by, "still": still, "missing": missing, "files": files, "unrecorded": unrecorded}
 
 
 def credit_status(evidence, va, key):
@@ -888,8 +891,9 @@ def main():
             if status.get(va):
                 per_key[rows[i]["replace"]][status[va]] += size
         w(f"The credit run switched on {len(evidence['keys'])} owners together ({', '.join(sorted(evidence['keys']))}) "
-          f"in {evidence['n']} scenarios, {len(evidence['exact'])} of them exact (DLL {evidence['dll_sha256'][:8]}). "
-          "Per owner, the bytes of its code the references enter, by why each byte is or is not credited:")
+          f"in {evidence['n']} scenarios, {len(evidence['exact'])} of them exact (DLL {evidence['dll_sha256'][:8]})"
+          + (f"; not in the corpus, no reference: {', '.join(evidence['unrecorded'])}" if evidence["unrecorded"] else "")
+          + ". Per owner, the bytes of its code the references enter, by why each byte is or is not credited:")
         w("")
         w("| Owner | Entered by the references | Credited | A scenario that enters it differs | "
           "The original's code still runs | Unreached |")

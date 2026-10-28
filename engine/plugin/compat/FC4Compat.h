@@ -419,5 +419,8 @@ bool DrawStreamTables(void*** context, void*** tree, void*** list);
 // map-view §1.3/4.4 and map-color-buffer §1. Version-checked observer sites.
 uintptr_t MapViewDrawStreamEntry(unsigned which);
 void** MapViewDrawStreamTable(unsigned which);
+// renderer-driver.md 1: DX7, OpenGL and software cIGZGDriver tables, 83 slots.
+// Validated in full before the default-off call recorder patches live memory.
+bool DrawCaptureTables(void*** tables);
 }  // namespace compat
 }  // namespace fc4
