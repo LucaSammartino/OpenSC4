@@ -221,6 +221,7 @@ bool UiNode(cIGZWin* win, int parent, unsigned depth) {
           ",\"parent\":" + std::to_string(parent) + ",\"id\":" + Number(win->GetID()) +
           ",\"rect\":[" + std::to_string(rect[0]) + ',' + std::to_string(rect[1]) + ',' +
           std::to_string(rect[2]) + ',' + std::to_string(rect[3]) + "],\"visible\":" +
+          // [abi-ret] SDK cIGZWin slot 71 bool is observation-only; log its AL, never drive game state.
           Number(win->IsVisible()) + ",\"buffers\":{" + b.json + "}}");
     Children children{static_cast<int>(node), depth+1};
     reinterpret_cast<cFC4IGZWin*>(win)->EnumChildren(kFC4_IID_cIGZWin, reinterpret_cast<void*>(&UiChild), &children);
@@ -302,6 +303,12 @@ void DrawCaptureStartup() {
 }
 void DrawCaptureTick(cISC4City* city) {
     if (!enabled || finished || !city) return;
+    // Camera changes can pump modal framework ticks before returning. Those
+    // ticks must not advance the scenario or exhaust its wait budget.
+    static bool ticking = false;
+    if (ticking) return;
+    struct TickScope { bool& value; ~TickScope() { value = false; } } tickScope{ticking};
+    ticking = true;
     try {
         std::lock_guard<std::recursive_mutex> lock(captureMutex);
         EndFrame();
@@ -312,7 +319,7 @@ void DrawCaptureTick(cISC4City* city) {
         auto* root = app ? app->GetMainWindow() : nullptr;
         auto* view = View(root);
         auto* sim = city->GetSimulator();
-        if (!view || !sim || sim->IsHiddenPaused()) {
+        if (!view || !sim || (scenario == 0 && warmup == 0 && sim->IsHiddenPaused())) {
             if (view) view->Release(); if (app) app->Release();
             if (++waitTicks == 3600) { ++incomplete; Finish(); }
             return;
@@ -326,7 +333,12 @@ void DrawCaptureTick(cISC4City* city) {
         auto* renderer = view->GetRenderer();
         if (renderer) renderer->ForceFullRedraw();
         view->Release();
-        if (++warmup <= warmupFrames) { if (app) app->Release(); return; }
+        ++warmup;
+        // Rotation temporarily hidden-pauses the simulator. Continue requesting
+        // redraws while it settles; never record the transition as a paused view.
+        if (warmup <= warmupFrames || sim->IsHiddenPaused()) {
+            if (app) app->Release(); return;
+        }
         if (!stream) {
             const std::string path = std::string(LogPath()) + ".draw.jsonl";
             stream = std::fopen(path.c_str(), "wb");
