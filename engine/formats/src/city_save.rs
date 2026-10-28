@@ -4,28 +4,38 @@
 
 use crate::dbpf::{Compression, DIR_TGI};
 use crate::{Package, PackageBuilder, Source, Tgi};
+use fc4_core::aura::archive::AuraRecord;
 use fc4_core::automata::archive::AutomataRecord;
+use fc4_core::budget::archive::{BudgetRecord, DepartmentRecord, LineItemRecord};
 use fc4_core::camera::{CameraControl, CAMERA_CONTROL_CLASS_ID};
 use fc4_core::city_detail::DetailRecord;
 use fc4_core::clock24::{Clock24, CLSID_24_HOUR_CLOCK};
 use fc4_core::commercial::CommercialRecord;
 use fc4_core::commercial::IndustrialSim;
+use fc4_core::crime::archive::CrimeRecord;
+use fc4_core::demand::archive::{DemandNodeRecord, DemandRecord};
+use fc4_core::flammability::archive::FlammabilityRecord;
 use fc4_core::flora::archive::FloraSimulatorRecord;
 use fc4_core::flora::occupant::FloraInstance;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
+use fc4_core::landvalue::archive::LandValueRecord;
 use fc4_core::lot_records::{
     BusinessUnitRecord, LotRecord, OccupantRecord, RetainingWallRecord, CLSID_BUSINESS_UNIT, CLSID_LOT,
     CLSID_RETAINING_WALL_OCCUPANT,
 };
+use fc4_core::model_maker::archive::ModelMakerRecord;
 use fc4_core::network_occupants::archive::NetworkRecord;
 use fc4_core::occupant_manager::archive::OccupantManagerRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
 use fc4_core::plumbing::archive::PlumbingRecord;
+use fc4_core::pollution::archive::PollutionRecord;
 use fc4_core::power::archive::PowerRecord;
 use fc4_core::prop_occupant::{
     read_effect_record, read_prop_record, write_effect_record, write_prop_record, EffectRecord, PropRecord, ReadOutcome,
 };
+use fc4_core::protection::archive::ProtectionRecord;
+use fc4_core::render3d::archive::RendererRecord;
 use fc4_core::save::SaveRecord;
 use fc4_core::store::archive::references::{ReferenceWriter, SavedReferences};
 use fc4_core::store::archive::{read_class, write_class, ClassIndex, StoredObject};
@@ -33,6 +43,7 @@ use fc4_core::store::{INDEX_TYPE, STORE_GROUP};
 use fc4_core::stream::{ByteReader, SaveObject};
 use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainViewRecord};
 use fc4_core::traffic_simulator::archive::TrafficRecord;
+use fc4_core::ui_windows::view3d::archive::View3DArchive;
 use fc4_core::weather::{WeatherRng, WeatherSim};
 use fc4_core::zones::archive::ZoneRecord;
 use std::collections::BTreeMap;
@@ -43,6 +54,19 @@ mod hosts;
 mod terrain;
 
 enum Payload {
+    ModelMaker(ModelMakerRecord),
+    Renderer(RendererRecord),
+    Protection(Box<ProtectionRecord>),
+    Crime(CrimeRecord),
+    Pollution(Box<PollutionRecord>),
+    Aura(AuraRecord),
+    LandValue(LandValueRecord),
+    Flammability(FlammabilityRecord),
+    Budget(Box<BudgetRecord>),
+    Department(DepartmentRecord),
+    LineItem(LineItemRecord),
+    Demand(DemandRecord),
+    DemandNode(DemandNodeRecord),
     Simulator(SaveRecord),
     History(Box<HistoryWarehouse>),
     Clock(Box<Clock24>),
@@ -77,6 +101,54 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0xA9C7_41B3 => (
+                Self::ModelMaker(ModelMakerRecord::read(&mut r).ok_or("model maker Read failed")?),
+                true,
+            ),
+            0xE9C6_22D8 => (
+                Self::Renderer(RendererRecord::read(&mut r).ok_or("renderer Read failed")?),
+                true,
+            ),
+            0x2990_C05A | 0x6990_C04F => (
+                Self::Protection(Box::new(
+                    ProtectionRecord::read(class, &mut r).ok_or("protection Read failed")?,
+                )),
+                true,
+            ),
+            0x8990_C09A => (Self::Crime(CrimeRecord::read(&mut r).ok_or("crime Read failed")?), true),
+            0x8990_C065 => (
+                Self::Pollution(Box::new(PollutionRecord::read(&mut r).ok_or("pollution Read failed")?)),
+                true,
+            ),
+            0x0990_BDD8 => (Self::Aura(AuraRecord::read(&mut r).ok_or("aura Read failed")?), true),
+            0xE990_C18E => (
+                Self::LandValue(LandValueRecord::read(&mut r).ok_or("land value Read failed")?),
+                true,
+            ),
+            0xE990_C045 => (
+                Self::Flammability(FlammabilityRecord::read(&mut r).ok_or("flammability Read failed")?),
+                true,
+            ),
+            0xE990_BE01 => (
+                Self::Budget(Box::new(BudgetRecord::read(&mut r).ok_or("budget Read failed")?)),
+                true,
+            ),
+            0xE990_BFFC => (
+                Self::Department(DepartmentRecord::read(&mut r).ok_or("department Read failed")?),
+                true,
+            ),
+            0xAA31_3C9F => (
+                Self::LineItem(LineItemRecord::read(&mut r).ok_or("line item Read failed")?),
+                true,
+            ),
+            0x2990_BFF2 => (
+                Self::Demand(DemandRecord::read(&mut r).ok_or("demand Read failed")?),
+                true,
+            ),
+            0x8990_C12D => (
+                Self::DemandNode(DemandNodeRecord::read(&mut r).ok_or("demand node Read failed")?),
+                true,
+            ),
             0x0990_C005 => (
                 Self::Power(Box::new(PowerRecord::read(&mut r).ok_or("power Read failed")?)),
                 true,
@@ -232,6 +304,19 @@ impl Payload {
     fn write(&self) -> Result<Vec<u8>, String> {
         let mut w = ReferenceWriter::default();
         let ok = match self {
+            Self::ModelMaker(record) => record.write(&mut w),
+            Self::Renderer(record) => record.write(&mut w),
+            Self::Protection(record) => record.write(&mut w),
+            Self::Crime(record) => record.write(&mut w),
+            Self::Pollution(record) => record.write(&mut w),
+            Self::Aura(record) => record.write(&mut w),
+            Self::LandValue(record) => record.write(&mut w),
+            Self::Flammability(record) => record.write(&mut w),
+            Self::Budget(record) => record.write(&mut w),
+            Self::Department(record) => record.write(&mut w),
+            Self::LineItem(record) => record.write(&mut w),
+            Self::Demand(record) => record.write(&mut w),
+            Self::DemandNode(record) => record.write(&mut w),
             Self::Simulator(record) => return Ok(record.encode()),
             Self::Unhandled(bytes) => return Ok(bytes.clone()),
             Self::History(record) => record.write(&mut w),
@@ -272,6 +357,7 @@ impl Payload {
 }
 
 enum RecordData {
+    View3D(View3DArchive),
     Index(ClassIndex),
     Class(Vec<(u32, Payload)>),
     Terrain(Rc<Terrain>, terrain::Part),
@@ -290,6 +376,13 @@ struct Record {
 impl Record {
     fn write(&self) -> Result<Vec<u8>, String> {
         match &self.data {
+            RecordData::View3D(record) => {
+                let mut w = ReferenceWriter::default();
+                if !record.write(&mut w) {
+                    return Err("View3D Write failed".into());
+                }
+                Ok(w.into_bytes())
+            }
             RecordData::Index(index) => Ok(index.write()),
             RecordData::Class(objects) => write_class(
                 &objects
@@ -310,7 +403,7 @@ impl Record {
 
     fn handled(&self) -> bool {
         match &self.data {
-            RecordData::Index(_) => true,
+            RecordData::Index(_) | RecordData::View3D(_) => true,
             RecordData::Terrain(..) | RecordData::Edge(_) => true,
             RecordData::Class(objects) => objects.iter().all(|(_, p)| p.handled()),
             RecordData::Unhandled(_) => false,
@@ -356,6 +449,13 @@ impl CitySave {
                 RecordData::Terrain(terrain.clone().ok_or("missing terrain")?, part)
             } else if terrain::is_edge(key) {
                 RecordData::Edge(Terrain::read_edge(&original).map_err(|e| format!("terrain edge Read: {e:?}"))?)
+            } else if key == Tgi::new(0xA9C8_647C, 0xE9C8_647E, 1) {
+                let mut r = ByteReader::new(&original);
+                let record = View3DArchive::read(&mut r).ok_or("View3D Read failed")?;
+                if r.remaining() != 0 {
+                    return Err("trailing View3D bytes".into());
+                }
+                RecordData::View3D(record)
             } else {
                 RecordData::Unhandled(original.clone())
             };

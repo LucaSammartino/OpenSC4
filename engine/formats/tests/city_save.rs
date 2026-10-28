@@ -297,7 +297,11 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
         );
         total.merge(report);
     }
-    eprintln!("{} golden saves\n{}", paths.len(), total.table());
+    let summary = format!("{} golden saves, 0 failed\n{}", paths.len(), total.table());
+    if let Some(path) = std::env::var_os("FC4_ROUNDTRIP_REPORT") {
+        std::fs::write(path, &summary).expect("write requested round-trip report");
+    }
+    eprintln!("{summary}");
     // Keep the measured milestone honest if a dispatch arm is accidentally
     // removed: a retained payload must not silently replace a tested codec.
     for ty in [
@@ -379,6 +383,21 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
         0x896E_714A,
         0x4A22_2B98,
         0x4A5B_69ED,
+        0xE990_BE01,
+        0xE990_BFFC,
+        0xAA31_3C9F,
+        0x2990_BFF2,
+        0x8990_C12D,
+        0x0990_BDD8,
+        0xE990_C18E,
+        0xE990_C045,
+        0x8990_C065,
+        0x8990_C09A,
+        0x2990_C05A,
+        0x6990_C04F,
+        0xA9C7_41B3,
+        0xA9C8_647C,
+        0xE9C6_22D8,
     ] {
         let stats = &total.types[&ty];
         assert_eq!(stats.identical, stats.count, "{ty:08X}: codec coverage regressed");
