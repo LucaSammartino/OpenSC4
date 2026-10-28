@@ -48,6 +48,8 @@
 #include "cISC4OccupantManager.h"
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
+#include "cISCExemplarPropertyHolder.h"
+#include "cISCPropertyHolder.h"
 #include "cISTETerrain.h"
 #include "cRZCOMDllDirector.h"
 
@@ -309,10 +311,27 @@ void SetPropType(void*, uint64_t prop, uint32_t id) {
 }
 
 fc4_props* AttachExemplar(void*, uint64_t prop, uint32_t t, uint32_t g, uint32_t i, bool) {
+    // §A6.1 step 5: attach through the occupant's holder before reading its
+    // properties. Loading a Rust copy alone leaves the native prop unconfigured.
+    ScopedOcc occ(prop);
+    cISCPropertyHolder* holder = occ.get() != nullptr ? occ.get()->AsPropertyHolder() : nullptr;
+    if (holder == nullptr) return nullptr;
+    void* q = nullptr;
+    if (!holder->QueryInterface(GZIID_cISCExemplarPropertyHolder, &q) || q == nullptr) return nullptr;
+    auto* defaults = static_cast<cISCExemplarPropertyHolder*>(q);
+    FC4_ACQUIRED(defaults, "QueryInterface");
     fc4::props::Exemplar ex;
-    if (!ex.Load(t, g, i)) return nullptr;
-    (void)prop;
-    return fc4::props::ToCoreAll(ex);
+    if (!ex.Load(t, g, i)) {
+        FC4_RELEASE(defaults);
+        return nullptr;
+    }
+    // Slot 3 has no defined return value; do not test the SDK's leftover AL.
+    defaults->SetDefaultExemplar(ex.Resource());
+    FC4_RELEASE(defaults);
+    // Query the effective value directly: the holder's own-property enumeration
+    // excludes properties provided by the default exemplar.
+    static constexpr fc4::props::Spec size[] = {{0x27812810, fc4::props::Kind::F32}};
+    return fc4::props::ToCore(holder, size, 1);
 }
 
 void SetBoundingBox(void*, uint64_t prop, const float* min3, const float* max3) {
@@ -376,7 +395,8 @@ void LotCellRect(void*, uint64_t lot, fc4_cell_rect* out) {
     cISC4Lot* l = reinterpret_cast<cISC4Lot*>(static_cast<uintptr_t>(lot));
     if (l == nullptr) return;
     SC4Rect<int32_t> r;
-    if (!l->GetBoundingRect(r)) return;  // lot slot 14
+    // Lot slot 14 fills the rectangle; its return value is undefined (ABI).
+    l->GetBoundingRect(r);
     out->x1 = r.topLeftX;
     out->z1 = r.topLeftY;
     out->x2 = r.bottomRightX;
