@@ -305,6 +305,13 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
     // Keep the measured milestone honest if a dispatch arm is accidentally
     // removed: a retained payload must not silently replace a tested codec.
     for ty in [
+        0x0990_C38A,
+        0xA990_BD10,
+        0x2990_62C0,
+        0x49DD_6F4C,
+        0xEA3F_F4F5,
+        0x0B7D_45E0,
+        0xCA02_7EDB,
         0x2990_C1E5,
         0x499B_23FE,
         0x49B9_E602,

@@ -5,6 +5,7 @@
 use crate::dbpf::{Compression, DIR_TGI};
 use crate::{Package, PackageBuilder, Source, Tgi};
 use fc4_core::advisors::archive::AdvisorArchive;
+use fc4_core::application::archive::ApplicationRecord;
 use fc4_core::aura::archive::AuraRecord;
 use fc4_core::automata::archive::AutomataRecord;
 use fc4_core::budget::archive::{BudgetRecord, DepartmentRecord, LineItemRecord};
@@ -16,6 +17,7 @@ use fc4_core::commercial::CommercialRecord;
 use fc4_core::commercial::IndustrialSim;
 use fc4_core::crime::archive::CrimeRecord;
 use fc4_core::demand::archive::{DemandNodeRecord, DemandRecord};
+use fc4_core::demolition::archive::DemolitionRecord;
 use fc4_core::development_simulator::archive::DevelopmentRecord;
 use fc4_core::dispatch::archive::DispatchManagerRecord;
 use fc4_core::flammability::archive::FlammabilityRecord;
@@ -25,6 +27,7 @@ use fc4_core::growth_developer::archive::GrowthRecord;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
 use fc4_core::landfill::archive::{LandfillOccupantRecord, LandfillRecord};
 use fc4_core::landvalue::archive::LandValueRecord;
+use fc4_core::lot_config_manager::archive::LotConfigManagerRecord;
 use fc4_core::lot_developer::archive::LotDeveloperRecord;
 use fc4_core::lot_records::{
     BusinessUnitRecord, LotRecord, OccupantRecord, RetainingWallRecord, CLSID_BUSINESS_UNIT, CLSID_LOT,
@@ -44,10 +47,12 @@ use fc4_core::pollution::archive::PollutionRecord;
 use fc4_core::port_developer::archive::PortRecord;
 use fc4_core::power::archive::PowerRecord;
 use fc4_core::prop_developer::archive::PropDeveloperRecord;
+use fc4_core::prop_manager::archive::PropManagerRecord;
 use fc4_core::prop_occupant::{
     read_effect_record, read_prop_record, write_effect_record, write_prop_record, EffectRecord, PropRecord, ReadOutcome,
 };
 use fc4_core::protection::archive::ProtectionRecord;
+use fc4_core::regional_city::archive::RegionalCityRecord;
 use fc4_core::render3d::archive::RendererRecord;
 use fc4_core::residential::archive::ResidentialRecord;
 use fc4_core::save::SaveRecord;
@@ -69,6 +74,9 @@ mod hosts;
 mod terrain;
 
 enum Payload {
+    Demolition(DemolitionRecord),
+    PropManager(PropManagerRecord),
+    LotConfigManager(LotConfigManagerRecord),
     NetworkManager(NetworkManagerArchive),
     Pole(Box<PoleArchive>),
     Connection(Box<ConnectionArchive>),
@@ -135,6 +143,20 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0x0990_C38A => (
+                Self::Demolition(DemolitionRecord::read(&mut r).ok_or("demolition Read failed")?),
+                true,
+            ),
+            0xA990_BD10 => (
+                Self::PropManager(PropManagerRecord::read(&mut r).ok_or("prop manager Read failed")?),
+                true,
+            ),
+            0x2990_62C0 => (
+                Self::LotConfigManager(
+                    LotConfigManagerRecord::read(&mut r).ok_or("lot configuration manager Read failed")?,
+                ),
+                true,
+            ),
             0xC990_BD46 | 0xE9A6_CD3B => (
                 Self::NetworkManager(NetworkManagerArchive::read(class, &mut r).ok_or("network manager Read failed")?),
                 true,
@@ -410,6 +432,9 @@ impl Payload {
     fn write(&self) -> Result<Vec<u8>, String> {
         let mut w = ReferenceWriter::default();
         let ok = match self {
+            Self::Demolition(record) => record.write(&mut w),
+            Self::PropManager(record) => record.write(&mut w),
+            Self::LotConfigManager(record) => record.write(&mut w),
             Self::NetworkManager(record) => record.write(&mut w),
             Self::Pole(record) => record.write(&mut w),
             Self::Connection(record) => record.write(&mut w),
@@ -482,6 +507,8 @@ impl Payload {
 }
 
 enum RecordData {
+    Application(ApplicationRecord),
+    RegionalCity(Box<RegionalCityRecord>),
     View3D(View3DArchive),
     Index(ClassIndex),
     Class(Vec<(u32, Payload)>),
@@ -501,6 +528,20 @@ struct Record {
 impl Record {
     fn write(&self) -> Result<Vec<u8>, String> {
         match &self.data {
+            RecordData::Application(record) => {
+                let mut w = ReferenceWriter::default();
+                if !record.write(&mut w) {
+                    return Err("application Write failed".into());
+                }
+                Ok(w.into_bytes())
+            }
+            RecordData::RegionalCity(record) => {
+                let mut w = ReferenceWriter::default();
+                if !record.write(&mut w) {
+                    return Err("regional city Write failed".into());
+                }
+                Ok(w.into_bytes())
+            }
             RecordData::View3D(record) => {
                 let mut w = ReferenceWriter::default();
                 if !record.write(&mut w) {
@@ -528,6 +569,8 @@ impl Record {
 
     fn handled(&self) -> bool {
         match &self.data {
+            RecordData::Application(_) => true,
+            RecordData::RegionalCity(_) => true,
             RecordData::Index(_) | RecordData::View3D(_) => true,
             RecordData::Terrain(..) | RecordData::Edge(_) => true,
             RecordData::Class(objects) => objects.iter().all(|(_, p)| p.handled()),
@@ -574,6 +617,26 @@ impl CitySave {
                         })
                         .collect::<Result<_, String>>()?,
                 )
+            } else if [
+                Tgi::new(0x49DD_6F4C, 0x49DD_6F4E, 1),
+                Tgi::new(0xEA3F_F4F5, 0xEA3F_F506, 0xEA3F_F4F5),
+                Tgi::new(0x0B7D_45E0, 0x0B7D_45E1, 0x0B7D_45E2),
+            ]
+            .contains(&key)
+            {
+                let mut r = ByteReader::new(&original);
+                let record = ApplicationRecord::read(key.type_id, &mut r).ok_or("application Read failed")?;
+                if r.remaining() != 0 {
+                    return Err("trailing application bytes".into());
+                }
+                RecordData::Application(record)
+            } else if key == Tgi::new(0xCA02_7EDB, 0xCA02_7EE1, 0) {
+                let mut r = ByteReader::new(&original);
+                let record = RegionalCityRecord::read(&mut r).ok_or("regional city Read failed")?;
+                if r.remaining() != 0 {
+                    return Err("trailing regional city bytes".into());
+                }
+                RecordData::RegionalCity(Box::new(record))
             } else if let Some(part) = terrain::Part::from_key(key) {
                 RecordData::Terrain(terrain.clone().ok_or("missing terrain")?, part)
             } else if terrain::is_edge(key) {
