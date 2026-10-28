@@ -8,7 +8,7 @@
   specifies every field in wire order. `0xCA0F81B9` is the IID; `0x6A0F82B2` is the class/record type.
   The writer emits v7; the reader rejects v0–2, accepts v3+ without an upper-version check, and gates the v4–7
   additions. Intersections and the final occupant-to-four-lists table follow simulator §5.8 creation order.
-  Twenty reference end saves / twenty map objects / 37,968,364 decompressed record bytes consumed exactly;
+  All 547 available reference end saves / 547 map objects / 583,750,387 decompressed record bytes consumed exactly;
   legacy gates and empty marked-train/keyed-reference lists are supported by executable evidence.
 
 - **SR33-3 — City and auxiliary city record:** What surrounds the component references in class
@@ -17,5 +17,5 @@
   specifies the inline property holder, own fields, six strings, references and final byte. Read accepts only
   v8–12: v10 adds the state byte, v9/v11/v12 add component references 51/52/53. [save-records §2.1](../../save-records.md#21-city-auxiliary-cheat-state-record-compat)
   specifies the separate v1 auxiliary record and its nested, byte-counted cheat-code data, including the
-  original enabled-ID overread and the bounded standalone rule. Twenty city objects / 11,649 bytes and twenty
-  auxiliary records / 520 bytes consumed exactly, including the inner cheat-data framing.
+  original enabled-ID overread and the bounded standalone rule. All 547 city objects / 318,073 bytes and 547
+  auxiliary records / 14,222 bytes consumed exactly, including the inner cheat-data framing.

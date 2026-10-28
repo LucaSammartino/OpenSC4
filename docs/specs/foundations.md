@@ -421,6 +421,15 @@ and CRC (§3.3–§3.4). In particular, the property's version/count and all six
 looking for component references. The two name strings and two description strings in each pair are distinct
 serialized fields, even if one is empty or their contents match.
 
+**Byte-size check.** Let `H` be the complete inline holder's byte size, `C` the number of component-reference
+slots for the city version, `U` the number of those slots that are non-null, and `D` the total encoded data
+bytes in the six strings, excluding their six headers. The payload size is
+**`104 + H + (1 if version ≥ 10, otherwise 0) + 4×C + 4×U + D`**. Reference bytes inside properties belong to
+H, not U. For example, a v12 payload with an empty holder (`H = 6`), six empty strings (`D = 0`) and all 53
+component references non-null occupies **535 bytes**, or **547 bytes** with its class-entry header. Omitting
+the state byte for v8/v9 and the absent reference slots changes the size; adding null placeholders does not
+reproduce those legacy layouts.
+
 **Legacy differences and load effects.** The own-field sequence above is shared by v8–12 apart from row 9.
 For v8/v9 there is **no state byte** between established and the first string. Read synthesizes city state
 0 when established is zero, otherwise 2 (`0x0045CBB8`–`0x0045CBE0`). Versions 10–12 read the state byte
@@ -512,11 +521,12 @@ record. Its payload holds cheat-code save data; the full outer and inner layouts
 [save-records §2.1](save-records.md#21-city-auxiliary-cheat-state-record-compat). These bytes are never
 appended to the city class entry. Retained-record writes also target separate DBPF records.
 
-**SR33-3 proof, 2026-10-28.** The first 20 lexicographically keyed reference `build-runs/golden/<key>/end.sc4`
-files were read in place. A throwaway parser consumed all 20 city class records (v12, 11,649 decompressed bytes
-including entry headers), all 1,060 component-reference slots and all 20 auxiliary records (v1, 520 bytes,
-including their inner cheat-data framing), with zero bytes left over in any record. The city's inline property
-holders were empty in this sample. Legacy city gates and nonempty property holders follow the executable
+**SR33-3 proof, 2026-10-28.** All **547** available reference `build-runs/golden/<key>/end.sc4` files were read
+in place. A throwaway parser consumed all 547 city class records (v12, **318,073 decompressed bytes** including
+entry headers), all **28,991** component-reference slots and all 547 auxiliary records (v1, **14,222 bytes**,
+including their inner cheat-data framing), with zero bytes left over in any record. The size equation in
+§3.6.1 also matched every city payload. The city's inline property holders were empty in this corpus.
+Legacy city gates and nonempty property holders follow the executable
 and §10.2; this check is not a claim of legacy save fixtures.
 
 **What a replacement subsystem must do to interoperate** *[compat]*:

@@ -1598,12 +1598,34 @@ therefore cannot terminate that loop normally (`0x004B5A38`, `0x004B5AF8`–`0x0
 such malformed lists and all counts/indices that cannot fit the enclosing record or allocated cell table;
 do not reproduce an unbounded read. Successful ordinary Read/Write returns “stream not in error.”
 
-**Corpus proof (SR33-2, 2026-10-28).** A throwaway parser checked the first 20 lexicographically keyed reference
-`build-runs/golden/<key>/end.sc4` files, in place. All 20 v7 map objects consumed their complete decompressed
-class records (37,968,364 bytes including the 12-byte entry headers), with zero bytes left over. This included
-87,983 tiles, 3,027,869 path pairs, 2,785 tile-list references, 112,980 extra triples, 6,859 intersections and
-18 final occupant entries with 36 list values. The marked-train and keyed-reference lists were empty in that
-sample; their layouts and the legacy gates are executable evidence, not exercised legacy save fixtures.
+#### 6.2.5 Byte-size checks and corpus proof
+
+These sizes exclude class-entry framing. Let `R` be the sum of the actual reference widths **within the
+record being sized**, `S` a tile's path-side vector size, `P` its total path-pair count, and `X` its extra-triple
+count. In particular, a null reference contributes 4 to R; a non-null reference contributes 8.
+
+| Record | Wire bytes |
+|---|---|
+| Tile, v3 | `109 + R + 8×S + 8×P` |
+| Tile, v4 | `75 + R + 8×S + 8×P` |
+| Tile, v5+ | `79 + R + 8×S + 8×P + 10×X` |
+| Intersection, v3–6 | `68 + R` |
+| Intersection, v7+ | `73 + R`, including the marked-train references in R |
+| Keyed-reference group | `8 + R` |
+| Final occupant entry, v6+ | `24 + R + 4×(sum of its four list lengths)` |
+
+The complete map payload is **44 bytes** in v3–5, or **48 bytes** in v6+, **plus** the sizes of all its tiles,
+intersections, keyed-reference groups and final occupant entries. Those fixed bytes include the outer counts
+and the 26-byte scalar tail. For example, a v7 map with all four outer element counts zero occupies 48 payload
+bytes, or 60 bytes including its class-entry header. No cell bucket emits a placeholder for an empty chain.
+
+**Corpus proof (SR33-2, 2026-10-28).** A throwaway parser checked all **547** available reference
+`build-runs/golden/<key>/end.sc4` files, in place. All 547 v7 map objects consumed their complete decompressed
+class records (**583,750,387 bytes**, including the 12-byte entry headers), with zero bytes left over. This
+included 1,602,187 tiles, 44,270,243 path pairs, 95,284 tile-list references, 1,608,109 extra triples,
+110,768 intersections and 245 final occupant entries with 498 list values. The size equations above also
+matched every map payload. The marked-train and keyed-reference lists were empty in this corpus; their layouts
+and the legacy gates are executable evidence, not exercised legacy save fixtures.
 
 ---
 

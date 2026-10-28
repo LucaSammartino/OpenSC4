@@ -118,7 +118,7 @@ the inner lengths against N, consumes only E/4 IDs, and never reads beyond the r
 byte-count convention in the writer; do not change E to an element count to compensate for the original bug.
 
 **Worked empty-state record.** Version 1, N = 20, duplicate N = 20, P = B = H = E = 0 gives **26 bytes**, with
-no password, history or state IDs. All 20 checked reference end saves have exactly that record. Both layers
+no password, history or state IDs. All 547 checked reference end saves have exactly that record. Both layers
 were parsed to their exact end, not just skipped using the DBPF size (foundations §3.6.3).
 
 ## 3. Class store: inventory
