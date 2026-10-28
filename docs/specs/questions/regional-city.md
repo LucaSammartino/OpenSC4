@@ -36,3 +36,17 @@
   exact): native -11584.5830078125 versus core -11584.583251953125, for example. [Apply foundations
   §18.3 literally: load each double without rounding, round each of the two sums and the final
   subtraction to 24-bit precision; retain the double storage and return type. Please reconcile §5.]
+
+<!-- from: region-exact33 (2026-10-28) -->
+- **RY-EXACT33-1 — foundations §11.4 / neighbors §9.1, §14.1 / simulator §5.8:** What fixed-schedule
+  ordering contract applies when regionalcity alone is replaced and the original neighbors simulator walks
+  the replacement regional-city objects by address? After binding region-owned deals to the current game's
+  interfaces (neighbors §5.3–§5.5), `owner27-resources` and `owner27-views` are exact. `paradis-karanes` has
+  no DIGEST or simulation-window difference and only `CA027EDB/CA027EE1/0` differs: 42 bytes, first byte 6734.
+  The two complete version-5 local-deal records at byte 6728 (76 bytes each) are byte-identical as a multiset;
+  the entire prefix and suffix also match. Reference other-side city order is `(16,32), (20,28)`; replacement
+  order is `(20,28), (16,32)`. The spec's position-order choice cannot govern an original simulator's pointer
+  walk. Please extend the fixed-schedule contract to this walk, reconciling the neighbor order question
+  NB-EXACT33-1, rather than requiring an implementation to reproduce allocation addresses. Evidence:
+  `C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-030636-9d489870/result`; qcheck-11 exit 1,
+  2/3 exact, clean with ref_warnings=0. No behavior spec or ordering implementation was changed.
