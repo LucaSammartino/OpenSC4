@@ -20,6 +20,7 @@
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4GameList.h"
+#include "FC4HostGrid.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4LotDevInterfaces.h"  // animation-tick manager slots 5/6
@@ -51,6 +52,7 @@
 #include "cISC4NetworkOccupant.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
+#include "cISC4SimGrid.h"
 #include "cIGZCOM.h"
 #include "cRZCOMDllDirector.h"
 #include "SC4List.h"
@@ -458,6 +460,7 @@ public:
 
 private:
     ~cFC4STESurfaceWater() {
+        if (bodyGrid_ != 0) ReleaseGameGrid(bodyGrid_);
         std::lock_guard<std::mutex> guard(InstanceMutex());
         auto& instances = Instances();
         instances.erase(std::find(instances.begin(), instances.end(), this));
@@ -473,6 +476,8 @@ private:
     uint32_t refCount_ = 0;
     bool destroying_ = false;
     mutable std::vector<uint16_t> bodyMap_;              // slot 9's backing grid
+    mutable uint64_t bodyGrid_ = 0;  // owned cISC4SimGrid<uint16_t>, not a raw value array
+    mutable std::mutex bodyMapMutex_;
     mutable float velocity_[3] = {0.0f, 0.0f, 0.0f};     // slot 11's shared vector
 };
 static_assert(offsetof(cFC4STESurfaceWater, vertices_) == 0x18, "native view water array");
@@ -503,13 +508,25 @@ bool cFC4STESurfaceWater::IsNavigable(int32_t x, int32_t z, int32_t r, cISC4Lot*
 }
 
 void* cFC4STESurfaceWater::GetBodyOfWaterMap() const {
+    std::lock_guard<std::mutex> guard(bodyMapMutex_);
     fc4_terrain* core = g_activeCore.load(std::memory_order_acquire);
     if (core == nullptr) return nullptr;
-    const size_t n = static_cast<size_t>(g_cellsX.load(std::memory_order_acquire)) *
-                     static_cast<size_t>(g_cellsZ.load(std::memory_order_acquire));
-    bodyMap_.assign(n == 0 ? 1 : n, 0);
-    if (n != 0) fc4_terrain_bodies_map(core, bodyMap_.data(), n);
-    return bodyMap_.data();
+    // terrain.md §10.2 and simgrid.md §2: the result is a borrowed grid
+    // object. 0x49B9E600 is the generic constructor ID; uint16 uses 0x49B9E604.
+    if (bodyGrid_ == 0) bodyGrid_ = CreateGameGrid("terrain water bodies", 0x49B9E604, 0x4BE3618B, 1);
+    if (bodyGrid_ == 0) return nullptr;
+    auto* grid = reinterpret_cast<cISC4SimGrid<uint16_t>*>(FromToken(bodyGrid_));
+    const uint32_t cx = g_cellsX.load(std::memory_order_acquire), cz = g_cellsZ.load(std::memory_order_acquire);
+    const size_t n = static_cast<size_t>(cx) * cz;
+    std::vector<uint16_t> values(n == 0 ? 1 : n, 0);
+    if (n != 0) fc4_terrain_bodies_map(core, values.data(), n);
+    if (values != bodyMap_) {
+        bodyMap_.swap(values);
+        for (uint32_t x = 0; x < cx; ++x) {
+            for (uint32_t z = 0; z < cz; ++z) grid->SetTractValue(x, z, bodyMap_[x + z * cx]);
+        }
+    }
+    return grid;
 }
 
 float cFC4STESurfaceWater::AltitudeAtWhichFloodingWillOccur(int32_t x, int32_t z) {
@@ -958,6 +975,7 @@ bool cFC4STETerrain::Init() {
             break;
         }
         f_.city = CurrentCity();  // borrowed (§2.3 +0x1C)
+        host_.city = static_cast<cISC4City*>(f_.city);
         cISC4City* city = static_cast<cISC4City*>(f_.city);
         // Slot 54 (§15.1: `+0xE4`, exported as the folded GetSelectedCity)
         // is read as the city by the game: cSC4City::Init calls a method on
@@ -1006,6 +1024,7 @@ bool cFC4STETerrain::Shutdown() {
     DestroyCore();
     f_.initialized = 0;
     f_.city = nullptr;
+    host_.city = nullptr;
     Leave();
     return true;
 }
@@ -1069,6 +1088,8 @@ void cFC4STETerrain::DoPostCityInit() {
                 f_.view, GetView(), Primary(), f_.vertices, f_.viewReady);
         }
         fc4_terrain_post_city_init(core_);
+        auto* city = static_cast<cISC4City*>(f_.city);
+        if (city != nullptr && city->GetEstablished()) fc4_terrain_update_bodies_of_water(core_);
     }
     Leave();
 }
