@@ -14,12 +14,5 @@ numbers (its Q26-Q42) are given in parentheses; the current choice is in bracket
 - **DS28:** (Q29) toxic spill, terrain, pipe burst and volcano are not mirrored: no start path was exercised. [fire and
   riot only]
 
-<!-- from: verify-disasters4 (2026-10-21) -->
-- **DS41:** §5.4 step 4 says an occupant rectangle with no overlap with the city "gives an empty rectangle", then
-  averages it with `GetAverageValueInCellRect(x, z, w, h)` (`sum / (w × h)`). With w × h = 0 the division (and
-  simgrid §4.1 step 1's one-tract test with `x + w − 1 < x`) is not specified: what coverage byte does the original's
-  step 4 (and §5.6's spread) read for such an occupant, and does it refuse? [the plugin reads 0 coverage, so it does
-  not refuse at step 4; unreachable for an occupant inside the city]
-
 <!-- from: glue-disasters-house11 (2026-10-24) -->
 - **DS47 - sections 7-10, extending the exact same-process shadow:** what supported observation contract supplies the original pipe leak's sampled burst time/effect-created result, toxic occupant amount/hosed state, and quake/volcano deformation completion to a read-only mirror? Section 7 explicitly permits a different fault line, section 8 leaves effect creation without a view unresolved, section 9 describes amounts without a typed getter contract, and section 10 delegates lava to terrain. Please specify typed interfaces/slots and return/ownership contracts (or explicitly define which independent bookkeeping outputs constitute exactness for these short-form disasters). [The opt-in house schedule exercises fire and riot only; no guessed signatures, forced completion, native state copied into the core, or verification claim for these other types. DS28 remains open.]

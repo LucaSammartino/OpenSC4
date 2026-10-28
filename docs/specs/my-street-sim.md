@@ -292,6 +292,26 @@ are prepared before A+0x14 but belong to TrackOccupant. They must not be
 mistaken for arguments to descriptor retrieval. No residence assignment,
 ordinary move-in, direct advisor event or generic commute transition is added.
 
+### 3.5.1 What the raw identities mean (ST4) *[compat]*
+
+- **`B+0x12C` = `0x0BFA331E`** is the **image instance** of the street sim's location indicator: step 7 of Attach
+  passes it as the "number" argument of `TrackOccupant` with kind 3 (an image indicator, dispatch-vehicle-view.md
+  §2: for kind 3 with no label the argument is the instance of the image resource, looked up with the resource
+  type of that view). It is a constant of the constructor; nothing else reads it.
+- **`B+0x150` (T)** is the **indicator handle** that `TrackOccupant` returned, `−1` meaning none; Detach releases
+  it with `UntrackOccupant(handle, false)` (not immediate).
+- **Category C** (`B+0x2BC`) uses the same codes as the MySim travel mode (mysims.md "Transport handoff waits"):
+  0 walk, 1 car, 2 bus, 3 train (rail), 7 elevated (light) rail, 8 monorail; 9 means none/unclassified. The
+  subway code 6 is never produced here.
+- **The descriptor group IDs** of the classification table are the occupant groups of the automaton: `0x4001` the
+  pedestrian group; `0x420B` the car group; `0x4200` the bus group (also the bus-stop boarding group,
+  mysims.md); `0x4201` and `0x4215` the train car and train engine families (vehicles.md Train Init);
+  `0x422C`/`0x422D` the elevated-rail engine and car families; `0x422E`/`0x422F` the monorail engine and car families.
+- **State** (`B+0xC0`): 0 detached/idle, 6 on foot. For vehicles the state is 4 or 5 chosen by one uniform
+  random draw (5 when the draw is below `0x7FFFFFFF`); no other use of 4 and 5 is visible in this class, so what the
+  two values stand for is not established.
+- The timer threshold units and the unnamed private hooks of §3 remain unnamed.
+
 ### 3.6 Message chronology and acceptance
 
 `0043DFD0` receives message identity B+16 and one message M, pop 4. First

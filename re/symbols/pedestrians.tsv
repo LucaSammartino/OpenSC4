@@ -48,3 +48,4 @@ va	name	evidence	mac_x86
 0054a500	cSC4SimFireCrew::~cSC4SimFireCrew	pedestrians.md §1	
 00552b80	cSC4TrafficEffectManager::StopEffect	pedestrians.md §5	
 00554040	cSC4TrafficEffectManager::CreateAccident	pedestrians.md §5	
+004ad9e0	cSC4ToxicOccupant::AddHosed	pedestrians.md §4.4; interface 0xABF98CB3 slot 5, hosed counter at +0x3C	

@@ -24,14 +24,24 @@ player can choose, as arrow pictures, with the chosen one highlighted.
 
 ## 1. The path-info view (`SC4PathInfoView`) *[compat]*
 
-- Made and initialised by the automata manager's cheat handler (`0x0050DD30`, automata.md §9). `Init`
+- Made and initialised by the automata manager's cheat handler (`0x0050DD30`, automata.md §9), which the manager
+  registers as five cheat codes when its class initialisation runs (`0x00513910`): `DrawPaths [n]`
+  (`0xE97FCBC8`) creates the view when none exists (a 0x1C-byte object, depth test ignored, added to the renderer at
+  layer 5, priority 1000; the one view is kept in a process-wide pointer, `0x00B21BA0`) and then (also when the view
+  already existed) sets the filter to `atol` of the line's second word, or to −1 (all) when there is none *[compat]*; `HidePaths` (`0xE97FCBC9`) removes it from the
+  renderer, shuts it down and releases it. The same handler serves `udriveit` (`0x0B70C96D`, enter the player-drive
+  view), `NoCSI` (`0x6BB354C7`, hide the situation indicators: `ShowAllIndicators(4, false)`) and `Casper`
+  (`0xCC478B79`, global byte `0x00B09968` := 0 when the second word is `off`, else 1). "Route line" in other
+  descriptions of these codes is this path-info view. `Init`
   (`0x00542EE0`): untextured source-alpha blending; alpha test disabled (function/reference fields greater/0),
   without depth write; with the depth test less-or-equal unless the view was told to ignore depth.
 - `Update(context)` (`0x00542FC0`), each draw:
   1. A process-wide pulse byte becomes 0 if its old value is 255, otherwise increases by 5 modulo 256.
   2. Over the network manager's visible cell rectangle, each network occupant on each cell gives its path info
-     (occupant slot 49), and each of its paths is drawn when the view's path-type filter (`+0x18`, −1 = all) is −1
-     or equals the path key's bits 16–23.
+     (occupant slot 49), and each of its paths is drawn when the view's filter (`+0x18`, −1 = all) is −1 or equals
+     the path key's bits 16–23. In the key layout of traffic-network.md §7.3 those bits are the **lane index**, so the
+     argument of `DrawPaths n` selects a lane (0, 1, …), not a path type *[compat]*; the path type is bits 24–27
+     (below).
   3. A path whose key has any of bits 28–31 set is drawn as a red cross, spanning 4 m on each axis, at its first point.
   4. Otherwise its points (at most 25) form one line strip, each point 0.5 m above the path's height (or the
      ground under it when the path has no heights), in a colour (alpha 200) chosen by the key's bits 24–27: 1 light
@@ -154,6 +164,15 @@ a flagged three-point path in B's first Update: its strip RGBA is **(255,10,10,2
 **0A 0A FF C8**. Destroying A does not reset that shared pulse. This case distinguishes a late
 setter repack, byte-truncated filter, per-instance pulse and draw-only pulse advancement.
 
+### 1.2 What the key denotes (NOV1) *[compat]*
+
+A path key is the traffic-network path key (traffic-network.md §7.3): bits 0–7 the exit side (0–3, `0xFF` = the
+turn-around path of the entry), bits 8–15 the entry side (0–3), bits 16–23 the lane index, bits 24–27 the path type
+and bits 28–31 flags (zero for ordinary paths; any set bit draws the red cross). The type nibble colours are therefore
+by travel type: 1 car (light green), 2 pedestrian (blue), 4 subway (yellow), 6 elevated rail and 7 monorail (magenta);
+every other value, including 3 (train) and 0, is light red. The start bar (step 6) marks a path whose entry byte is `0xFF`, the end bar a path (with a
+non-`0xFF` entry byte) whose exit byte is `0xFF`, which is the turn-around path of traffic-network.md.
+
 ## 2. The train-junction view (`SC4TrainJunctionView`) *[compat]*
 
 - Made by the U-Drive-It train control (`cSC4ViewInputControlPlayerDrive::Init`, `0x00565A10`). `Init`
@@ -169,8 +188,10 @@ setter repack, byte-truncated filter, per-instance pulse and draw-only pulse adv
   Each route but the chosen one gets its plain picture (`GetPathBitmap`, `0x00564A60`): with d the unit direction
   of the route's last segment (taken over its last three points, or the whole route when that is shorter than
   0.25 m) and e the entry direction, c = d.x e.z − d.z e.x chooses the picture pair `0x6BE09923`/`24` below −0.25,
-  `0x6BE09925`/`26` up to 0.25 (no turn) and `0x6BE09921`/`22` above (plain, selected) *[inferred: the two turn
-  directions]*. The picture is a quad at the entry edge, 12 m into the cell (`GetArrowBitmapQuad`, `0x005637E0`), at the
+  `0x6BE09925`/`26` up to 0.25 (no turn) and `0x6BE09921`/`22` above (plain, selected). With the cell's edge table
+  (north is the edge at z = 0, east is +x) and c the cross product above: c > 0.25 is a **left** turn for a driver
+  heading along the route (e.g. a route from the west edge to the north edge), c < −0.25 a **right** turn (west edge
+  to south edge), so `…21`/`22` is the left-turn pair, `…23`/`24` the right-turn pair and `…25`/`26` the straight pair. The picture is a quad at the entry edge, 12 m into the cell (`GetArrowBitmapQuad`, `0x005637E0`), at the
   ground height (3 m higher on elevated rail, track type 7), each one a little above the last (+0.01 per quad). The
   chosen route is drawn last in its selected picture, then the marker model is placed there 0.2 m up (3 m more on
   elevated rail) and drawn.
@@ -330,8 +351,7 @@ The automata manager (cheat) and the U-Drive-It player train control.
 
 ## 5. Open questions
 
-See [questions/network-overlay-views.md](questions/network-overlay-views.md): NOV1 retains the cheat
-and path-key meanings. NOV2 is answered by §§1.1–1.2, including loader-zero pulse and folded/inline setters;
+NOV1 is answered by §1 and §1.2 (cheat codes, key bytes) and §2 (turn pairs). NOV2 is answered by §§1.1–1.2, including loader-zero pulse and folded/inline setters;
 NOV3 is answered by §§2.1–2.2: hover/pressed cells, exact marker basis/state and observed owning
 caller Shutdown discipline. Overlay-views §3.4 supplies shared lifetime. All worked cases remain
 static expectations, not runtime verification.

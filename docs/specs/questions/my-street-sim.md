@@ -12,6 +12,10 @@
 
 <!-- from: re-my-street-sim4 (2026-10-23) -->
 - **ST4 — §§2–3 semantic identities:** What are the semantic names/units for raw `0x0BFA331E`, category/state codes, descriptor group IDs, timer threshold units, and unnamed private hooks? The literal branch behavior, script keys and known public budget purpose are preserved. [Unknown labels/units remain raw; do not infer from UI purpose or a folded export name.]
+  PARTIAL 2026-10-27 (re-x-sims): 0x0BFA331E is the image instance passed to TrackOccupant (kind 3) for the street
+  sim's location indicator and +0x150 is the indicator handle; category C uses the MySim travel-mode codes (0 walk, 1
+  car, 2 bus, 3 train, 7 elevated rail, 8 monorail, 9 none); the group IDs map to those modes (§3.5.1). The meaning of
+  the vehicle states 4 and 5 (random coin flip) and the units of the timer threshold are not determined.
 
 <!-- from: re-my-street-sim4 (2026-10-23) -->
 - **ST5 — §3.9 exceptional/lifetime domains:** Are callback reentrancy, container mutation, null outputs on true QI, nested allocation failures, and nonreturning/throwing inherited operations excluded by a broader owner contract? [Unknown; no transactional rollback, null fallback, normalized false result, or sole-reference self-attachment golden is claimed.]

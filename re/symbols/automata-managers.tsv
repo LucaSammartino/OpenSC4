@@ -130,3 +130,5 @@ va	name	evidence	mac_x86
 0055df50	cSC4Vehicle::GetSpeedModifier	automata-managers.md §5; automata.md §11	
 0055fb50	cSC4VehicleManager::cSC4VehicleManager	automata-managers.md §1, §4	
 00574860	cSC4WatercraftManager::cSC4WatercraftManager	automata-managers.md §1, §4	
+0054ed90	cSC4TrafficAutomataManager::HandleNetworkOccupantRemoved	automata-managers.md §2.2 slot 52; detaches automata standing on the occupant	
+0055dbe0	cSC4Vehicle::SetLights	automata-managers.md §5 slot 176; lights on/off with a deferred random countdown	

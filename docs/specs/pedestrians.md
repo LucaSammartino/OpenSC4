@@ -262,7 +262,10 @@ tweened to 1.0 over `T+0xBC` (slot 33).
      `0xA9E3B6E2` with (1, `0x50`); then it goes back to the truck (truck slot 199) or, without a truck, is
      removed;
    - **a target**: the crew turns toward it, creates the two hose effects from the effect manager when it has none,
-     and aims them at the target; at level 2 the aim wanders by a uniform ±75 on x and z, smoothed by a factor of
+     and aims them at the target. The first (the stream) is named by the crew's level and by whether the target is a
+     toxic spill: `water_stream` for levels 0 and 1 and `water_sputter` for level 2 against a fire, `foam_stream`
+     (levels 0, 1) and `foam_sputter` (level 2) against a toxic occupant; the second (the splash) is `water_splash`
+     against a fire and `foam_splash` against a toxic occupant *[compat]*; at level 2 the aim wanders by a uniform ±75 on x and z, smoothed by a factor of
      0.002 × the frame time; the first effect restarts when it stops; the second starts once the hose has run for
      0.8 s (time += frame time × 0.001).
 3. Otherwise it sends message `0x8A0F3F7B` to the truck with the level's value and stops the hose effects.
@@ -272,12 +275,19 @@ tweened to 1.0 over `T+0xBC` (slot 33).
 ### 4.4 Hosing and messages
 
 The crew counts on its fire: assigning a fire adds the crew's strength, 2 (1 at level 2), to the fire occupant's
-hosed count (fire slot 12 `AddHosed`, disasters.md §5.11) and to the target occupant (slot 5 of interface
-`0xABF98CB3` *[inferred: the same count on the burning building]*); releasing the fire takes it away. The fire is
+hosed count (fire slot 12 `AddHosed`, disasters.md §5.11) and to the toxic occupant it is hosing (slot 5 of interface `0xABF98CB3`, which is the toxic occupant's own
+interface: `0x004AD9E0`, the same kind of hosed counter at occupant `+0x3C` that the toxic spill's Update reads, with
+a negative delta clamped at 0; disasters.md §9); releasing the fire or the toxic occupant takes the strength
+away again with the opposite sign. A crew with a fire target uses its fire slot; one with a toxic target uses
+the toxic one *[compat]*. The fire is
 released when the crew shuts down (`0x00547D90`, which also sends crowd message `0xA9E3B6E2`, stops and releases
 both hose effects and drops the message registration) and on message `0x99EF1143` naming the fire or the target
 (`0x00548DC0`), which also stops both hose effects (with the arguments 1 and 0). `SendFireCrewMessage`
-(`0x00546D20`) posts a `cRZMessage2Standard` of the given type with the given data to the message server.
+(`0x00546D20`) posts a `cRZMessage2Standard` of the given type with the given data to the message server. The two
+truck messages `0xAA0F3F75` (the crew's setup, `0x00547EF0`; also sent by the riot police's setup, `0x00546F30`) and
+`0x8A0F3F7B` (the tick's not-hosing branch, `0x00549A50`; also the riot police's tick, `0x00547530`) are only sent:
+a scan of every code and data word of the executable finds no comparison, switch case or subscription with these two
+IDs, so the executable itself does nothing with them (a script or plug-in may subscribe) *[compat]*.
 
 ### 4.5 Record (Write `0x00547BD0`, Read `0x00547C80`)
 

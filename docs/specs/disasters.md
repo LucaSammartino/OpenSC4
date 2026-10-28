@@ -690,7 +690,7 @@ Returns true if the occupant burns afterwards.
 | step 1 (`0x0057A80D`) | not `force`, not emergency-paused (simulator slot 17), paused (slot 15) | |
 | step 2 (`0x0057A907`) | type not flora, prop or building | |
 | step 3 | flammability `0x29244DB5` = 0 | read through the occupant's own property holder (occupant slot 6) with the property helper `0x005FD480`, as an unsigned integer (variant slot 25, converting); a missing property reads 0 |
-| step 4 | not `force` and `round(D9(coverage)) > 0` | the rectangle is the occupant's `GetBoundingCityCells` (occupant slot 11) intersected with the city (`0x0048ED90`; no overlap gives an empty rectangle); the average is `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`: sum / (w × h), truncated by `_ftol`, as a byte); D9 is the curve at instance `+0xA4`; the rounding uses the 12582912 constant at `0x00A9E434` |
+| step 4 | not `force` and `round(D9(coverage)) > 0` | the rectangle is the occupant's `GetBoundingCityCells` (occupant slot 11) intersected with the city (`0x0048ED90`; with no overlap it writes the corner cell (0, 0) as a rectangle of one cell and its result is not tested: the width and height below become 1, never 0, so such an occupant reads the coverage of cell (0, 0)); the average is `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`: sum / (w × h), truncated by `_ftol`, as a byte); D9 is the curve at instance `+0xA4`; the rounding uses the 12582912 constant at `0x00A9E434` |
 | step 5 | target's `0x69DBEBE1` true and not `force` | |
 
 **Why a *spread* target is refused (DS38 leftover — ANSWERED 2026-10-16 by re-answers31: it is always exit 4).**
@@ -713,8 +713,9 @@ already covered" — not a "burning" check. re-answers23's guess that the likeli
 (step 5) is ruled out by `burning=0` and by `exits=none-of-1,2,3,5` being logged at all.
 
 **The change to make.** The mirror must not ignite these. Reproduce step 4 exactly: take the occupant's
-`GetBoundingCityCells` (occupant slot 11), intersect it with the city (`0x0048ED90`; no overlap ⇒ an empty
-rectangle), average the coverage over it with `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`:
+`GetBoundingCityCells` (occupant slot 11), intersect it with the city (`0x0048ED90`; no overlap ⇒ the one-cell
+rectangle at (0, 0), because the caller computes width and height as `max − min + 1` and ignores the intersection's
+result), average the coverage over it with `GetAverageValueInCellRect(x, z, w, h)` (`0x0045DE50`:
 `sum / (w × h)`, truncated by `_ftol`, as a byte), push that through the **D9 curve at instance `+0xA4`**, round
 with the 12582912 constant at `0x00A9E434`, and refuse when the result is `> 0` and the call is not forced. The
 logged `rect=56,86..56,87` is a 1×2 cell rectangle, so the average is the mean of the two coverage bytes.

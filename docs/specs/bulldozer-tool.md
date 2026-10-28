@@ -29,7 +29,8 @@ marked-cell view in one colour pair when the demolition is possible and another 
   (overlay-views.md §2) that does not ignore depth, uses the water altitude when the terrain shows its water surface
   (terrain slot 83), with cells of 16 × 16, added to the renderer at layer 5, priority 1000 (slot 32); the terrain
   view's automatic cell cursor off (slot 10). Held: the budget (`0x00B43D64`), the city (`0x00B43CEC`), the
-  demolition utility (`0x00B43D00`), an object of the building development simulator (slot 36), the lot manager
+  demolition utility (`0x00B43D00`), the lot developer (the building development simulator's slot 36,
+  `GetLotDeveloper`, from the global `0x00B43D68`; building-development.md), the lot manager
   (`0x00B43D08`), the occupant manager (`0x00B43D0C`) and the tool's filter (§1.1). Four colours (four floats each)
   are copied from the renderer's draw context (its `+0x54` object): the valid outline (`+0x50`), the invalid outline
   (`+0x60`), the valid fill (`+0x90`) and the invalid fill (`+0xA0`).
@@ -55,7 +56,8 @@ Props (`0xA823821E`) only when they are signposts (prop type `0xAB72FBB3`).
   is in a demolishable state (`IsInDemolishableState`, lot slot 39) and either has no building, or the view filter
   (city view slot 18) is missing, or the filter accepts the building: `rect` := the lot's rectangle (lot slot 14).
   Otherwise: a picked power pole (`cISC4PowerPoleOccupant`, `0xA8C86142`) gives its cell (its slot 8); another
-  picked occupant its cell rectangle (its slot 11); nothing picked, the cell. True.
+  picked occupant its cell rectangle (its slot 11, `GetBoundingCityCells`: the minimum and maximum cell of the
+  occupant's bounding box, written as four integers min x, min z, max x, max z); nothing picked, the cell. True.
 
 ## 3. Input *[compat]*
 
@@ -87,10 +89,16 @@ Props (`0xA823821E`) only when they are signposts (prop type `0xAB72FBB3`).
    the region is the union rectangle with the cells of `R` set and every cell of such a lot set.
 4. **The preview:** a picked signpost → `DemolishOccupant(false, o, 1, 1, &cost, false, null)`; otherwise
    `DemolishRegion(false, region, 1, 1, false, null, &cost, null, null, 0, 0)`. The result is the validity (`+0x6C`).
-5. **Highlight:** the previous highlighted occupant is reset (occupant slot 17 with its handle and 0) and dropped.
-   For a click: the picked signpost, or the building of the lot at the lot cell, or, without a lot, the first
-   network occupant at that cell (occupant manager slot 41, type `0xC772BF98`) that the filter accepts, is
-   highlighted: its handle := occupant slot 16, then occupant slot 17 with 5.
+5. **Highlight:** the previous highlighted occupant gets its saved highlight level back (occupant slot 17,
+   `SetHighlight(saved, 0)`) and is dropped. For a click: the picked signpost, or the building of the lot at the lot
+   cell, or, without a lot, the first network occupant at that cell (occupant manager slot 41, type `0xC772BF98`)
+   that the filter accepts, is highlighted: its current level is saved (+0x78; occupant slot 16, `GetHighlight`) and
+   then level 5 is set (slot 17, `SetHighlight(5, 0)`), whether the preview is valid or not. The "handle" is thus
+   only the previous highlight level. A highlight level is a 4-bit value (0 to 15) kept in the upper half of the
+   occupant's flag byte at `+0x2E`; setting a different level, on an initialised occupant, notifies the rest of the
+   game: with the second argument 0 a message `0xE6E85114` (occupant, old level, new level) is posted to the message
+   server, and with a non-zero second argument message `0x99EF1145` is delivered to the occupant at once (its slot
+   15). Setting the level it already has does nothing *[compat]*.
 6. **Drawing:** the marked-cell view gets the valid or invalid fill (`SetCellColor`) and outline (`0x007DC2F0`,
    which also turns the outline on); its cells are cleared (`0x007DCD00`) and the region's set cells added
    (`0x004B9250`).
@@ -110,8 +118,7 @@ dropped.
 
 ## 6. Open questions
 
-See [questions/bulldozer-tool.md](questions/bulldozer-tool.md): BT1 (occupant slots 11, 16,
-17 here, and the building development simulator object the tool holds).
+None open (BT1 answered: slots 11, 16, 17 and the lot developer, §§1, 2, 4).
 
 ## 7. Conformance tests
 

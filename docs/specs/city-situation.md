@@ -158,9 +158,13 @@ Messages it sends or posts:
    register with the animation tick manager.
 3. Hold the four automata managers (city slots 43, 45, 44 and 46, in that order) in the vector at `+0x9F8`.
 4. Hold the lot manager, the MySim agent simulator and the Lua interpreter.
-5. Create the Lua table `sitmgr` with `get_success_count`, `activate_situation`, `get_current_target`,
-   `get_active_auto`, `get_target_name`, `show_CSI`, `num_targets_remaining` (functions) and `num_targets`,
-   `cur_target_index` (variables bound to `+0xA5C` and `+0xA60`).
+5. Publish the `sitmgr` node (§4.6.1): it is a node of the game-data registry (system service `0xEBE0E860`, IID
+   `0xE898ED03`, the same mechanism as budget.md §4.4), not a table made on the held Lua interpreter, which the
+   registry's Lua layer exposes as `sc4game.sitmgr`. Functions `get_success_count`, `activate_situation`,
+   `get_current_target`, `get_active_auto`, `get_target_name`, `show_CSI`, `num_targets_remaining` and read-only
+   variables `num_targets`, `cur_target_index` (bound to `+0xA5C` and `+0xA60`), added in the order
+   `get_success_count`, `activate_situation`, `get_current_target`, `get_active_auto`, `num_targets`,
+   `cur_target_index`, `get_target_name`, `show_CSI`, `num_targets_remaining`.
 6. `HandleTuningParametersChanged` (slot 31): `SetMaxCSI(GetMaxCSI())`.
 7. `indicatorView.ShowAllIndicators(4, indicatorsVisible)`.
 8. **Rewards from the profile.** For each non-zero GUID at the start of the user preferences' 64-entry reward list
@@ -171,7 +175,7 @@ Messages it sends or posts:
 `Shutdown`, if `initialized`: release the held window, MySim simulator, Lua interpreter, lot manager and effect handles;
 free the coverage cells; release the four automata managers; unregister from the animation tick manager; release the
 indicator view; unsubscribe the ten messages; `DeactivateSituation` (slot 38); clear the Lua references and the track
-list; remove the `sitmgr` table; unregister the cheat (when the debug flag is set); clear `initialized`. Return true.
+list; remove the `sitmgr` node with `RemoveChildEntry(manager as cIGZUnknown)` (the node and all its children go); unregister the cheat (when the debug flag is set); clear `initialized`. Return true.
 `successCounts` and `indicatorsVisible` are kept.
 
 ### 4.2 Triggered situations and indicators
@@ -182,7 +186,8 @@ advisors.md); the advisor posts AdviceAdded. On **situation triggered** (`0x0052
 automata groups that the player can drive (`CanPlayerDrive`, `0x005245F0`: automaton flag 2 set, flags 1,
 `0x8000000` and `0x10000000` clear, automaton type not `0x34` and not `0x14`) and that is not tracked yet. If the
 number of tracked vehicles is below `GetMaxCSI()`, track it: the dispatch indicator view shows an indicator over it
-(`TrackOccupant(…, 4, …)`), and the vehicle gets the manager as a listener. Otherwise the advice may take over the
+(`TrackOccupant(occupant, 4, instance, null)`, see "Indicator arguments" below), and the vehicle gets the manager as
+a listener. Otherwise the advice may take over the
 vehicle of another entry. On **situation untriggered** (`0x0052A650`): untrack its vehicle, drop the entry, and
 give free indicator slots to entries that have none, while the tracked count is below `GetMaxCSI()`.
 
@@ -206,6 +211,24 @@ can happen only if some advice's priority changed since the last sort. In shippe
 *[inferred]*. The per-automaton side (`HandleInsertAutomaton`, `0x005291C0`, the `0x99EF1142` handler and slot 25)
 uses the same takeover rule, and stops once the number of entries holding a vehicle reaches `GetMaxCSI()`. Both
 sides track through `TrackAutomaton` (`0x00528ED0`): indicator kind 4, and the manager added as a listener.
+
+**Indicator arguments** (`TrackAutomaton(automaton, track, &handle)`, `0x00528ED0`, callee pops 12) *[compat]*. The
+view is taken fresh from the dispatch manager (`0x00B43D04` slot 22) at each call, not from the `+0xA2C` member, and
+nothing happens when it, or the automaton, is null. Tracking: the indicator's occupant is the automaton's slot-5
+object; the kind is 4; the "number" argument (for kind 4 the indicator's image instance, dispatch-vehicle-view.md §2)
+is the first non-zero indicator instance found on the automaton's occupant-group template (its slot 67) at template
+offset `+0x68`, walking up through the parent template at `+0x0C` until one is found; when the template or every
+instance is zero the call does nothing at all (no track, no listener). The label is null. The returned handle is
+written to `*handle` (even if the automaton was already tracked); only when the automaton is not yet in the tracked
+set (`+0xA08`) is it inserted, the manager added as a listener (automaton slot 39, the manager's
+`cIGZMessageTarget2` sub-object at +4) and a reference to the automaton taken (the set holds it). Untracking
+(`track` false): with a non-zero `*handle`, `UntrackOccupant(handle, false)` (not immediate: the indicator fades
+out), then `*handle := 0`; when the automaton is in the tracked set it is erased, the listener removed (automaton
+slot 40) and that reference released. Nothing in the view's interface is virtual here: `ShowAllIndicators`
+(`0x0046D3A0`, `(kind, show)`, callee pops 8, no result used), `TrackOccupant` (`0x0046F240`, four arguments, handle
+in EAX) and `UntrackOccupant` (`0x0046EFB0`, `(handle, immediate)`, callee pops 8, AL) are direct calls with the view
+pointer in ECX (dispatch.md §4.1.3, dispatch-vehicle-view.md). `Init` and `SetCSIVisible` (slot 29) call
+`ShowAllIndicators(4, flag)` on the held `+0xA2C` view when it exists (`SetCSIVisible` first stores the flag).
 
 Nothing here touches the simulation: it only marks vehicles.
 
@@ -350,11 +373,48 @@ Shipped amounts (`sit_constants`, Lua): success 5,000 / 10,000 / 20,000 / 40,000
 ### 4.6 Debug and script entry points
 
 - Cheat `csitrigger <hex GUID>` (only with debug functionality): posts `0xAC1045EF` (data1 = GUID, data2 = 1).
-- Lua `sc4game.sitmgr.activate_situation(guid [, showBriefing])` (`0x00525550`): the same post, data2 = the
-  boolean; returns whether it posted.
-- Lua `get_success_count(guid)` returns `successCounts[guid]` (0 when absent).
 - A debug cheat of the automata manager (`0x0050DD30`) calls slot 33 (ported name `ResetTutorials`,
   `0x005266E0`): clear `successCounts`, zero all 64 reward entries in the preferences and save them.
+
+#### 4.6.1 The `sitmgr` registry node (CS13) *[compat]*
+
+`Init` step 5 looks up the game-data registry fresh before each entry and adds, under the registry root (the node's
+key is the manager as `cIGZUnknown`, flags 0, context null):
+
+- **Call entries** (`AddChildEntry` with a raw key equal to the callback's own address, flags 1, context = the
+  manager, parent = the `sitmgr` node). Each callback has the registry signature `(key, input, output, registry)`,
+  looks the manager up as `registry.GetEntryContext(registry.GetEntryID(key))` and always returns true. Its single
+  result is written with `output.SetParameter(1, variant)` (parameter ID 1; cIGZCommandParameterSet slot 7). The
+  results are variants of these types:
+
+| Name | Callback | Argument 0 | Result (parameter 1) |
+|---|---|---|---|
+| `get_success_count` | `0x00524760` | the mission GUID (below); read with `GetParameter(0)`, absent argument → GUID 0 | uint16 variant (type 4): `GetMissionSuccessCount(guid)` (slot 5); 0 without manager or when the GUID is 0 or absent |
+| `activate_situation` | `0x00525550` | GUID (below), argument 1 the briefing bool | bool variant: true only when the manager exists, the GUID is non-zero, and the post happened (below) |
+| `get_current_target` | `0x005247E0` | none | `cIGZUnknown` variant holding `GetCurrentTarget()` (slot 9); no manager test, so a missing manager crashes |
+| `get_active_auto` | `0x00524830` | none | `cIGZUnknown` variant holding `GetActiveAuto()` (slot 8); same, no manager test |
+| `get_target_name` | `0x0052DB50` | none | string variant: empty when there is no manager; otherwise the string behind `GetCurrentTargetName` (slot 16) |
+| `show_CSI` | `0x00524880` | bool | bool variant: see below |
+| `num_targets_remaining` | `0x00524910` | none | 32-bit integer variant (type 6): `GetNumTargetsRemaining()` (slot 12), or 1 when there is no manager |
+
+  `show_CSI(b)` is both getter and setter: with a manager it reads argument 0 as a bool (its initial value is true, kept when the argument cannot be converted), reads the old `GetCSIVisible()` (slot 30), then calls `SetCSIVisible(b)` (slot 29); the result is
+  the **old** value. Without a manager the result is true and nothing is set. `activate_situation(guid [, showBriefing])`
+  converts argument 0 to the GUID, reads argument 1 as a bool (**not defaulted**: the callback gives it no initial
+  value, so an absent or non-bool argument leaves an unspecified value *[quirk]*), and, with a manager and a non-zero GUID, posts message
+  `0xAC1045EF` with data1 = GUID and data2 = the bool to the message server (the same post as the `csitrigger`
+  cheat) and answers true. The manager is not called directly.
+- **GUID argument conversion** (`GetHexFromVariant`, `0x0051D120`): a string variant (type `0x800E`) is parsed in
+  base 16 with the C library's unsigned conversion (leading white space, an optional sign and an optional `0x`/`0X`
+  prefix are accepted; parsing stops at the first non-digit and the digits read so far are the value; no digits →
+  0; a value over 32 bits clamps to `0xFFFFFFFF`). Any other variant type is read with the variant's own unsigned 32-bit read, and when that read fails the GUID is 0. A numeric argument is therefore the
+  GUID itself, not hexadecimal text *[compat]* (CS18).
+- **Variables** (exchange entries, raw key = the address of the manager's field, parent = the node, callback
+  `0x00524560`, flags 2 = read-only, context null): `num_targets` (`+0xA5C`) and `cur_target_index` (`+0xA60`). A
+  read writes the field as a 32-bit integer variant (type 6); a write from Lua is refused by the registry before
+  the callback.
+
+`show_CSI`, `get_current_target`, `get_active_auto` and the other callbacks are invoked from Lua scripts only; the
+shipped scripts use the names listed in lua-host.md §8.5.
 
 ### 4.7 Automaton notifications (`0x09D92FC3`) and removals (CS10)
 

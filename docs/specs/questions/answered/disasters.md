@@ -260,3 +260,14 @@ numbers (its Q6-Q25, continuing disasters.md §17) are given in parentheses; the
   the supported lifetime/layout or owner-dependency boundary for an independent `fireocc` key while the native
   fire manager/instance remains active. No guessed factory ID, native layout or patch is implemented.~~
   **ANSWERED 2026-10-26 (re-lotocc29):** DIFFERS — §§5.4/5.11/5.11.1 identify class/factory key 0x29D25F1D, occupant type 0x69D25C5F and IID 0x69D25C60 separately. Native ignition directly allocates/constructs the fire and the native owner uses +4 and +0x50/direct Extinguish. An independent factory does not replace that owner; replace the owning manager/instance paths together or prove a complete installation/layout/lifetime/restoration bridge. The explicit-factory/native-ignition/extinguish/kill worked case specifies the distinction.
+
+<!-- from: verify-disasters4 (2026-10-21) -->
+- ~~**DS41:** §5.4 step 4 says an occupant rectangle with no overlap with the city "gives an empty rectangle", then
+  averages it with `GetAverageValueInCellRect(x, z, w, h)` (`sum / (w × h)`). With w × h = 0 the division (and
+  simgrid §4.1 step 1's one-tract test with `x + w − 1 < x`) is not specified: what coverage byte does the original's
+  step 4 (and §5.6's spread) read for such an occupant, and does it refuse? [the plugin reads 0 coverage, so it does
+  not refuse at step 4; unreachable for an occupant inside the city]~~
+  **ANSWERED 2026-10-27 (re-x-sims):** DIFFERS — the case never reaches a zero-sized average: the city intersection
+  (0x0048ED90) writes (0, 0, 0, 0) for no overlap, the Ignite caller (0x0057A7D0) ignores its result and computes
+  width and height as max - min + 1, so it averages the one cell at (0, 0) and reads that tract's coverage byte; the
+  plugin's 0 differs unless cell (0, 0) has no coverage (sections 5.4, step 4). 

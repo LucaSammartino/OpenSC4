@@ -251,14 +251,14 @@ generated index: the questions live one file per spec, so read only the file for
 | budget | 0 | 8 | BQ9 | - |
 | budget-window | 6 | 19 | BW27 | questions/budget-window.md |
 | building-development | 0 | 39 | DG40 | - |
-| bulldozer-tool | 1 | 0 | BT2 | questions/bulldozer-tool.md |
+| bulldozer-tool | 0 | 1 | BT2 | questions/bulldozer-tool.md |
 | callout-box | 3 | 0 | WCB4 | questions/callout-box.md |
 | camera | 2 | 8 | CA11 | questions/camera.md |
 | catalog-view | 2 | 0 | CV3 | questions/catalog-view.md |
 | cheat-codes | 1 | 0 | CCM2 | questions/cheat-codes.md |
 | cheat-dialog | 3 | 0 | CCD4 | questions/cheat-dialog.md |
 | city-detail | 3 | 5 | CD9 | questions/city-detail.md |
-| city-situation | 6 | 11 | CS21 | questions/city-situation.md |
+| city-situation | 2 | 15 | CS21 | questions/city-situation.md |
 | city-tools | 7 | 0 | CT18 | questions/city-tools.md |
 | city-tools-input | 15 | 16 | CT28 | questions/city-tools-input.md |
 | civic-buildings | 0 | 19 | CB20 | - |
@@ -273,12 +273,12 @@ generated index: the questions live one file per spec, so read only the file for
 | demand | 0 | 13 | DQ14 | questions/demand.md |
 | demand-trend-bars | 1 | 0 | RCI2 | questions/demand-trend-bars.md |
 | demolition | 0 | 16 | DM15, DQ5 | - |
-| disasters | 3 | 44 | DS48 | questions/disasters.md |
+| disasters | 2 | 45 | DS48 | questions/disasters.md |
 | dispatch | 0 | 13 | DP14 | questions/dispatch.md |
 | dispatch-vehicle-view | 0 | 0 | - | questions/dispatch-vehicle-view.md |
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
 | drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
-| drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
+| drive-tool | 5 | 3 | DR9 | questions/drive-tool.md |
 | effects | 0 | 31 | EF28, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
 | feature-manager | 2 | 3 | FM6 | questions/feature-manager.md |
@@ -333,7 +333,7 @@ generated index: the questions live one file per spec, so read only the file for
 | network-geometry | 1 | 8 | NG16 | questions/network-geometry.md |
 | network-manager | 3 | 20 | NM21 | questions/network-manager.md |
 | network-occupants | 16 | 35 | NO48 | questions/network-occupants.md |
-| network-overlay-views | 1 | 2 | NOV4 | questions/network-overlay-views.md |
+| network-overlay-views | 0 | 3 | NOV4 | questions/network-overlay-views.md |
 | network-routines | 1 | 0 | NRT2 | questions/network-routines.md |
 | network-rules | 3 | 12 | NR18 | questions/network-rules.md |
 | network-tool-ui | 0 | 0 | - | questions/network-tool-ui.md |
@@ -352,7 +352,7 @@ generated index: the questions live one file per spec, so read only the file for
 | particles | 0 | 13 | PT14 | questions/particles.md |
 | pathfinder | 0 | 15 | PF16 | - |
 | paths | 5 | 0 | PA11 | questions/paths.md |
-| pedestrians | 2 | 1 | PN4 | questions/pedestrians.md |
+| pedestrians | 1 | 2 | PN4 | questions/pedestrians.md |
 | persistence | 8 | 1 | PR14 | questions/persistence.md |
 | persistence-manager | 4 | 1 | PR10 | questions/persistence-manager.md |
 | plumbing | 1 | 8 | PS10 | questions/plumbing.md |
@@ -438,4 +438,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **629** | **1705** | | |
+| **total** | **618** | **1716** | | |

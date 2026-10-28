@@ -8,6 +8,11 @@
 <!-- from: re-comdir (2026-10-21) -->
 - **AD2 - §2.2, §5:** what the base manager's slots 51, 52 and 56 do, and the roles of the vehicle slots marked
   *[summary]* (151, 165, 168–170, 176, 181–189). [as read]
+  PARTIAL 2026-10-27 (re-x-sims): slots 51 and 52 (network occupant usable / removed, shared stub in all managers,
+  real override only in the vehicle and pedestrian managers), slot 56 (base: reap flagged automata, tick others,
+  optional group recount), slot 151 (gap ahead, vehicles.md), 176 (SetLights with a deferred random countdown) and 181
+  (occupant history) are written in sections 2.2 and 5; slots 165, 168-170, 182, 185-189 are still only outlined (188
+  and 189 partly), and the traffic slot 56 body is not read in full.
 
 <!-- from: glue-automata-managers4 (2026-10-22) -->
 - **AD3 - §§1, 2.1–2.2, 4; automata.md §§7, 11, 15:** Please publish the complete inherited
