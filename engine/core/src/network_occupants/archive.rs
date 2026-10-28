@@ -11,6 +11,9 @@ use super::underground::{
 };
 use crate::stream::{InStream, OutStream, RefValue};
 
+mod utility;
+pub use utility::{ConnectionArchive, PoleArchive};
+
 pub enum NetworkRecord {
     Base(NetworkBaseRecord),
     Prebuilt(PrebuiltRecord),

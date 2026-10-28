@@ -33,7 +33,8 @@ use fc4_core::lot_records::{
 use fc4_core::model_maker::archive::ModelMakerRecord;
 use fc4_core::mysims::archive::{dispatch::DispatchRecord, MySimRecord};
 use fc4_core::neighbors::archive::NeighborsRecord;
-use fc4_core::network_occupants::archive::NetworkRecord;
+use fc4_core::network_manager::archive::NetworkManagerArchive;
+use fc4_core::network_occupants::archive::{ConnectionArchive, NetworkRecord, PoleArchive};
 use fc4_core::occupant_manager::archive::OccupantManagerRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
@@ -68,6 +69,9 @@ mod hosts;
 mod terrain;
 
 enum Payload {
+    NetworkManager(NetworkManagerArchive),
+    Pole(Box<PoleArchive>),
+    Connection(Box<ConnectionArchive>),
     Civic(CivicRecord),
     Development(DevelopmentRecord),
     DispatchManager(DispatchManagerRecord),
@@ -131,6 +135,20 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0xC990_BD46 | 0xE9A6_CD3B => (
+                Self::NetworkManager(NetworkManagerArchive::read(class, &mut r).ok_or("network manager Read failed")?),
+                true,
+            ),
+            0x09C0_5C6A => (
+                Self::Pole(Box::new(PoleArchive::read(&mut r).ok_or("pole Read failed")?)),
+                true,
+            ),
+            0xEA0A_5ACF | 0xCA15_ED6B => (
+                Self::Connection(Box::new(
+                    ConnectionArchive::read(&mut r).ok_or("connection Read failed")?,
+                )),
+                true,
+            ),
             0x0A41_3481 => (Self::Civic(CivicRecord::read(&mut r).ok_or("civic Read failed")?), true),
             0x8990_BE7A => (
                 Self::Development(DevelopmentRecord::read(&mut r).ok_or("development Read failed")?),
@@ -392,6 +410,9 @@ impl Payload {
     fn write(&self) -> Result<Vec<u8>, String> {
         let mut w = ReferenceWriter::default();
         let ok = match self {
+            Self::NetworkManager(record) => record.write(&mut w),
+            Self::Pole(record) => record.write(&mut w),
+            Self::Connection(record) => record.write(&mut w),
             Self::Civic(record) => record.write(&mut w),
             Self::Development(record) => record.write(&mut w),
             Self::DispatchManager(record) => record.write(&mut w),

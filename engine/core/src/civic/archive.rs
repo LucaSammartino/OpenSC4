@@ -87,11 +87,8 @@ mod tests {
         // Both keys have bucket 1 in the specified 193-bucket hash table.
         // Live Read reverses the chain; an archive must retain its order.
         let bytes = [
-            6, 0, 0, 0, 0, 0, 2, 0, 0, 0,
-            194, 0, 0, 0, 3, 2, 0, 1, 0, 0, 0, b'A',
-            1, 0, 0, 0, 7, 4, 0, 0, 0, 0, 0,
-            19, 0, 0, 0, 0xFC, 0xBF, 0x90, 0xE9,
-            0, 0, 0, 0, 0, 0, 0, 0,
+            6, 0, 0, 0, 0, 0, 2, 0, 0, 0, 194, 0, 0, 0, 3, 2, 0, 1, 0, 0, 0, b'A', 1, 0, 0, 0, 7, 4, 0, 0, 0, 0, 0, 19,
+            0, 0, 0, 0xFC, 0xBF, 0x90, 0xE9, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         let mut r = ByteReader::new(&bytes);
         let mut record = CivicRecord::read(&mut r).unwrap();
