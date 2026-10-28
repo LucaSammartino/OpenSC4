@@ -612,6 +612,13 @@ std::string Setting(const char* iniKey, const char* envName, const char** source
 // as is; empty or unparsable = `fallback`.
 long SettingInt(const char* iniKey, const char* envName, long fallback);
 
+// draw_capture = 1: record every cIGZGDriver input call to LogPath()+.draw.jsonl.
+// Default off. draw_capture_frames (4) per camera, draw_capture_warmup (30)
+// framework ticks before each camera's window. Always pauses the loaded city.
+// draw_capture_scenarios = 1 sweeps zoom 1..5 x rotation 0,1; otherwise use
+// draw_capture_zoom (3), draw_capture_rotation (0). Keep autotest_unpause = 0.
+// draw_capture_export = path optionally copies the completed stream before slot reuse.
+
 // The switches off at the last ConfigReload, comma-separated without spaces,
 // or "-" (static buffer; lock-free readers such as the autotest verdict).
 const char* SwitchesOffList();

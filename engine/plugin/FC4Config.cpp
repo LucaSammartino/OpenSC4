@@ -461,6 +461,10 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "trace_record", "trace_scenario",
                                   // View3D invocation-method differential, default off.
                                   "view3d_shadow",
+                                  // Driver input stream oracle (default off).
+                                  "draw_capture", "draw_capture_frames", "draw_capture_warmup",
+                                  "draw_capture_scenarios", "draw_capture_zoom", "draw_capture_rotation",
+                                  "draw_capture_export",
 };
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

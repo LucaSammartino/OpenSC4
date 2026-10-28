@@ -15,10 +15,18 @@ def test_every_integration_suite_still_has_a_module():
         directory = ROOT / "engine" / crate
         manifest = tomllib.loads((directory / "Cargo.toml").read_text())
         assert manifest["package"]["autotests"] is False
-        assert manifest["test"] == [{"name": "integration", "path": "tests/integration.rs"}]
+        expected = [{"name": "integration", "path": "tests/integration.rs"}]
+        # host_crt owns process-global rand() state and intentionally runs in
+        # its own process rather than the aggregated integration executable.
+        if crate == "core":
+            expected.append({"name": "host_crt", "path": "tests/host_crt.rs"})
+        assert manifest["test"] == expected
+        separate = {Path(t["path"]).name for t in expected[1:]}
         included = re.findall(r'#\[path = "([^"]+)"\]',
                               (directory / "tests/integration.rs").read_text())
-        existing = {p.name for p in (directory / "tests").glob("*.rs") if p.name != "integration.rs"}
+        existing = {p.name for p in (directory / "tests").glob("*.rs")
+                    if p.name != "integration.rs" and p.name not in separate}
+        assert all((directory / t["path"]).is_file() for t in expected)
         suites = [p for p in included if "/" not in p]
         assert set(suites) == existing
         assert len(suites) == len(existing)
