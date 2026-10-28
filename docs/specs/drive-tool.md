@@ -43,7 +43,7 @@ simulation runs again. Escape, or the vehicle's removal, ends the tool.
   panel messages of §7); the tool subscribes `0xA6B79602` first and then these three, and registers the same three
   with the framework service as its last step. The four interface objects are small message-target objects created
   in order and registered with the resource system in the order fourth, first, third, second, before the four
-  managers are fetched. The tool holds no automaton and no hovered automaton when `Init` ends, and `Init` does
+  managers are fetched. The tool holds no automaton and no hovered automaton when `Init` ends *[inferred]*, and `Init` does
   nothing when the tool is already initialised *[compat]*. The initial reference counts of the created objects are not
   determined here (DR8).
 - **`Shutdown`** (`0x00563970`, only when initialised; clears the initialised flag first) undoes these in this

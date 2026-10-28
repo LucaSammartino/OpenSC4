@@ -191,7 +191,7 @@ non-`0xFF` entry byte) whose exit byte is `0xFF`, which is the turn-around path 
   `0x6BE09925`/`26` up to 0.25 (no turn) and `0x6BE09921`/`22` above (plain, selected). With the cell's edge table
   (north is the edge at z = 0, east is +x) and c the cross product above: c > 0.25 is a **left** turn for a driver
   heading along the route (e.g. a route from the west edge to the north edge), c < −0.25 a **right** turn (west edge
-  to south edge), so `…21`/`22` is the left-turn pair, `…23`/`24` the right-turn pair and `…25`/`26` the straight pair. The picture is a quad at the entry edge, 12 m into the cell (`GetArrowBitmapQuad`, `0x005637E0`), at the
+  to south edge), so `…21`/`22` is the left-turn pair, `…23`/`24` the right-turn pair and `…25`/`26` the straight pair (the left/right wording is *[inferred]* from the axis convention; the thresholds and pairs are exact). The picture is a quad at the entry edge, 12 m into the cell (`GetArrowBitmapQuad`, `0x005637E0`), at the
   ground height (3 m higher on elevated rail, track type 7), each one a little above the last (+0.01 per quad). The
   chosen route is drawn last in its selected picture, then the marker model is placed there 0.2 m up (3 m more on
   elevated rail) and drawn.

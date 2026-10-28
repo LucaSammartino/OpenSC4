@@ -58,7 +58,7 @@
   [as read]~~
   **ANSWERED 2026-10-27 (re-x-sims):** DIFFERS — the codes are the cheats DrawPaths [n] (0xE97FCBC8, creates the view;
   the optional word is an atol filter) and HidePaths (0xE97FCBC9). The filter compares the key's bits 16-23, which are
-  the lane index in traffic-network terms, not the path type, so n selects a lane. The key is exit 0-7 (0xFF =
+  the lane index in traffic-network terms, not the path type, so n selects a lane. The key is exit side 0-3 (0xFF =
   turn-around), entry 8-15, lane 16-23, path type 24-27 (1 car, 2 pedestrian, 4 subway, 6 elevated rail, 7 monorail;
   others light red), flags 28-31. The junction arrow pairs are 21/22 left turn, 23/24 right turn, 25/26 straight (§1,
   §1.2, §2).
