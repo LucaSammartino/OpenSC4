@@ -2432,6 +2432,12 @@ void ScheduleFrame() {
     TimersFrame();
 }
 
+int64_t ScheduleQpc() {
+    LARGE_INTEGER now{};
+    VirtualQpc(&now);
+    return now.QuadPart;
+}
+
 uint32_t ScheduleClockMs() {
     if (!g_fixed || !g_virtual || g_qpcPerMs == 0) return 0;
     return static_cast<uint32_t>((g_qpc - g_loadQpc) / g_qpcPerMs);
