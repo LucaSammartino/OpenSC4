@@ -325,13 +325,18 @@ void DrawCaptureTick(cISC4City* city) {
             return;
         }
         if (!sim->IsPaused()) sim->Pause();
+        auto* renderer = view->GetRenderer();
+        if (!renderer) { view->Release(); if (app) app->Release(); return; }
         if (warmup == 0) {
             if (sweep) { zoom = static_cast<int>(scenario / 2) + 1; rotation = scenario % 2; }
-            view->SetZoomAndRotation(zoom, rotation);
+            // view3d-window.md 6f: the UI wrapper forwards here, then starts a
+            // 2000-ms hidden pause. The fixed schedule's paused clock does not
+            // expire that UI hold in observed runs. Set the public renderer's
+            // camera directly, keeping the city paused without adding the hold.
+            renderer->SetZoomAndRotation(zoom, rotation);
             Log("draw capture: scenario=%u zoom=%d rotation=%d paused=%u hidden=%u", scenario, zoom, rotation, sim->IsPaused(), sim->IsHiddenPaused());
         }
-        auto* renderer = view->GetRenderer();
-        if (renderer) renderer->ForceFullRedraw();
+        renderer->ForceFullRedraw();
         view->Release();
         ++warmup;
         // Rotation temporarily hidden-pauses the simulator. Continue requesting

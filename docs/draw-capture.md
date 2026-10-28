@@ -36,6 +36,13 @@ the loaded save's view position. A single-camera capture instead uses
 ticks per camera. Keep the game visible (`minimize = 0` in queue requests).
 Do not move the mouse or send input during a paired run.
 
+Camera setup calls the public renderer directly. The UI window's camera
+wrapper also starts a 2000-ms hidden pause (view3d-window.md 6f); under the
+observed paused fixed schedule that timer did not expire. Calling the
+renderer avoids introducing this UI hold. The wrapper's zoom-button updates
+and camera-transition UI effects are consequently outside this scenario.
+Nested modal ticks during setup are excluded from scenario advancement.
+
 ```text
 python tools/drawcheck.py build-runs/a.draw.jsonl build-runs/b.draw.jsonl
 ```
