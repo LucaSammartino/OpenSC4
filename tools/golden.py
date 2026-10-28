@@ -120,7 +120,7 @@ def date(value):
 
 
 def safe_name(value):
-    if not re.fullmatch(r'[A-Za-z0-9 ._()-]+', value) or value in ('.', '..'):
+    if not re.fullmatch(r"[A-Za-z0-9 ._()'-]+", value) or value in ('.', '..'):
         raise ValueError(f'not a single city/region name: {value!r}')
     return value
 
