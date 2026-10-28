@@ -1,0 +1,4 @@
+# Residential simulator questions
+
+<!-- from: growth-exact34 r4 (2026-10-28) -->
+- **G34-RS1 - EH14 validation timing versus unread references.** May the loaded R$ population grid's own tract-size check run at Init, after the store has read the grid? Residential sections 5.5 and 9.2 put this check in Read, but foundations section 2.7 permits references to objects whose Read has not run. In g34r4-residential-replace-1 on Konradshohe, the host refuses that early geometry access, the empty geometry fails EH14, residential Read returns 0, and Init resets population to 0 (native February DIGEST: 15025). The core now defers this referenced-grid check to Init, still rejects invalid P/E directly in Read, and refuses invalid loaded grid sizes at Init. The existing damaged-grid regression covers the deferred refusal. This reconciles valid loading with the safety choice; please clarify the specification's timing. No exactness claim: the new reference pin is still recording.

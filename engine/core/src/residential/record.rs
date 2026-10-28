@@ -27,8 +27,9 @@
 //! grids are dropped). A record is damaged when a coverage or building-list
 //! vector count is not 7 (school) / 3 (hospital), the saved state is above
 //! 15, or a tract size is outside 1…256 read as **signed** (so 0 and every
-//! negative value are rejected): P, E, or the loaded R$ population grid's own
-//! `GetTractSize()`, which is state 4's S (§5.5). The original keeps them all
+//! negative value are rejected): P or E. The loaded R$ population grid's
+//! own size (state 4's S) is checked at Init, after the store has read that
+//! referenced object (foundations §2.7). The original keeps them all
 //! unchecked (EH14).
 //!
 //! *[choice]* (RS12) Null list entries are dropped, not appended: a null
@@ -62,8 +63,8 @@ pub const SCHOOL_VECTOR_LEN: u32 = 7;
 pub const HOSPITAL_VECTOR_LEN: u32 = 3;
 /// The largest saved state (§5.1, RS14); above it the record is damaged.
 pub const MAX_SAVED_STATE: u32 = 15;
-/// The largest tract size `Read` accepts for P, E and the loaded R$
-/// population grid (§5.5 RS15, EH14); below 1 is damaged too.
+/// The largest accepted P, E or loaded R$ population-grid tract size
+/// (§5.5 RS15, EH14); below 1 is damaged too.
 pub const MAX_SAVED_TRACT_SIZE: i32 = 256;
 
 /// A tract size `Read` accepts (§5.5 *[choice]*, EH14): 1…256 as signed.
@@ -276,12 +277,8 @@ impl Parse<'_> {
         }
         self.s.population_size = p;
         self.s.grids.population = self.grids3(inp)?;
-        // EH14: state 4's S is the R$ population grid's own size.
-        if let Some(g) = &self.s.grids.population[0] {
-            if !tract_size_ok(g.geometry().tract_size) {
-                return None;
-            }
-        }
+        // The store may not have read these referenced grids yet (§2.7).
+        // Init validates the R$ grid's own size once its record is loaded.
         self.s.grids.age = self.grid(inp)?;
         self.s.grids.school_coverage = self.grid_vector::<{ SCHOOL_VECTOR_LEN as usize }>(inp)?;
         self.s.grids.hospital_coverage = self.grid_vector::<{ HOSPITAL_VECTOR_LEN as usize }>(inp)?;

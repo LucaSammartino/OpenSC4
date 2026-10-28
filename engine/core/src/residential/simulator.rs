@@ -460,6 +460,13 @@ impl ResidentialSim {
     /// `Init` (§4.1). Returns false if the demand node, the message server or
     /// the simulator is missing.
     pub fn init(&self) -> bool {
+        // SPEC-GAP: defer EH14's referenced-grid validation until Init; Read precedes that grid's own Read.
+        if self.s.borrow().grids.population[wealth::LOW]
+            .as_ref()
+            .is_some_and(|g| !(1..=super::record::MAX_SAVED_TRACT_SIZE).contains(&g.geometry().tract_size))
+        {
+            return false;
+        }
         let h = &*self.host;
         // Step 1: services, developers and the demand node; only the demand
         // node is tested.

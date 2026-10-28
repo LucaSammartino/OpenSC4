@@ -3895,15 +3895,17 @@ fn rs11_14_15_damaged_records() {
     let (ok, fx) = read(&patched(E_AT, &256i32.to_le_bytes()));
     assert!(ok);
     assert_eq!(fx.s.snapshot().eq_size, 256);
-    // EH14 [choice]: the loaded R$ population grid's own size (state 4's S).
+    // EH14 [choice]: the referenced R$ grid is validated only at Init,
+    // after the store has read its own record (foundations §2.7).
     for size in [0, -4, 512] {
         let b = Fx::new(8);
         let g = SimGrid::<u16>::create(&CityDims::square(8), 0, size);
         b.s.with_state(|s| s.grids.population[0] = Some(g as Rc<dyn crate::grid::TractGrid<u16>>));
         let (bytes, entries) = record(&b.s);
         let fx = Fx::constructed(CityDims::square(8), 4, None);
-        assert!(!load(&fx, &bytes, &entries), "R$ population grid size {size}");
-        assert_constructed(&fx);
+        assert!(load(&fx, &bytes, &entries), "deferred R$ population grid size {size}");
+        assert!(!fx.s.init(), "R$ population grid size {size}");
+        assert!(!fx.s.snapshot().initialized);
     }
 }
 
