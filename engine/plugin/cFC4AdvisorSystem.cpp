@@ -523,6 +523,8 @@ uint64_t ForeignAdvisor(void*, uint64_t token, uint32_t operation, int32_t arg) 
     }
     auto* a = reinterpret_cast<cISC4Advisor*>(static_cast<uintptr_t>(token));
     if (!a) return 0;
+    // [abi-ret] advisors.md §4.4 / §5.3 / §12.2: Init, Shutdown and
+    // Simulate return bool on the advisor interface (AL).
     switch (operation) {
         case 1: return a->Init(arg);
         case 2: return a->Shutdown();
