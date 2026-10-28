@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <algorithm>
 
@@ -279,6 +280,18 @@ public:
     virtual Entry* GetRoot() const = 0;  // 21
 };
 
+uint32_t SituationLuaGuid(const cFC4IGZVariant* arg) {
+    if (!arg) return 0;
+    if (arg->GetType() == cIGZVariant::RZCharArray || arg->GetType() == cIGZVariant::CharArray) {
+        cRZBaseString text;
+        if (!arg->GetValString(text)) return 0;
+        // SPEC-GAP: string GUIDs are hexadecimal, with optional 0x prefix (CS13).
+        return static_cast<uint32_t>(std::strtoul(text.ToChar(), nullptr, 16));
+    }
+    // lua-host.md §9.3: Lua numbers arrive as Float64 variants.
+    return static_cast<uint32_t>(static_cast<int64_t>(arg->GetValFloat64()));
+}
+
 template <int Kind>
 bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParameterSet* out,
                       cISC4GameDataRegistry* native) {
@@ -293,7 +306,7 @@ bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParamet
     if constexpr (Kind == 1) {
         auto* briefing = in ? fc4::AsGame(in->GetParameter(1)) : nullptr;
         // SPEC-GAP: the optional briefing argument defaults to true (CS13).
-        s->Post(kMsgInitiateByGuid, 0, arg ? arg->GetValUint32() : 0,
+        s->Post(kMsgInitiateByGuid, 0, SituationLuaGuid(arg),
                 !briefing || briefing->GetValBool() ? 1u : 0u);
     } else if constexpr (Kind == 5) {
         if (arg) s->SetCSIVisible(arg->GetValBool());
@@ -304,8 +317,7 @@ bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParamet
         // SetParameter inserts it.
         cFC4Variant result;
         if constexpr (Kind == 0) {
-            // lua-host.md §9.3: Lua numbers arrive as Float64 variants.
-            const uint32_t guid = arg ? static_cast<uint32_t>(static_cast<int64_t>(arg->GetValFloat64())) : 0;
+            const uint32_t guid = SituationLuaGuid(arg);
             const auto count = s->GetMissionSuccessCount(guid);
             if (s->slotCalls[5].load() <= 12)
                 fc4::Log("citysit Lua: get_success_count guid=%08X count=%u type=%u", guid, count,
