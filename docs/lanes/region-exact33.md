@@ -1,23 +1,23 @@
 | Lane | Agent/worktree | State at stop | Next steps |
 |---|---|---|---|
-| region-exact33 — engine: regionalcity, neighbors | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/region-exact33; detached HEAD, reserved branch region-exact33; code 51f302734, 7edfd67ec; question 8191c9b4d; ABI/seam reservations none | wip; 0 owners fully exact; regionalcity 1/3, neighbors 1/2; cargo 8410 passed, clippy 0 diagnostics, CTest 146/146; game clean/ref_warnings=0; shadow n/a; NB-EXACT33-1 | 1. Resolve NB-EXACT33-1 ordering contract. 2. Diagnose regionalcity first differences, including first shifted ID. 3. Rerun each owner alone and none on its same scenarios. |
+| region-exact33 — engine: regionalcity, neighbors | Codex; C:/Users/tlori/FreeCity4/.claude/worktrees/region-exact33; detached HEAD, reserved branch region-exact33; code af415eb50 (inherits 51f302734, 7edfd67ec); question 86e5b32b8; two additive C exports, no slot/seam reservations | wip; 0 owners fully exact; regionalcity 2/3, neighbors 1/2; cargo 8411 passed, clippy 0 diagnostics, CTest 146/146; game clean/ref_warnings=0; shadow n/a; RY-EXACT33-1, NB-EXACT33-1 | 1. Resolve both fixed-schedule city-order questions. 2. Apply the specified ordering contract. 3. Rerun each owner alone and none on its same scenarios. |
 
-- Fixed regional-city load/cache access violation: pass the demand simulator an STLport-layout map with B-allocated header/nodes, then walk and free it through existing game-map helpers.
-- Fixed neighbor commodity statistics to round each arithmetic operation at PC24 before storing doubles; added a denominator-rounding regression at 2^24.
-- Final gate: qbuild all PASS; 8410 Rust tests, clippy zero diagnostics, native build PASS, CTest 146/146. Focused core tests 5718 passed; owned-file fmt 2/2 passed.
-- **regionalcity not exact:** qcheck-7 exit 1, 1/3. `owner27-views` exact.
-- `owner27-resources`: first DIGEST 2006-04-01 income/expense; 27 differing records, 2 only relabelled. Object IDs shift from 1, class 2A5F877D; inspect that shift before later records. First reported content is 0990C075/299B2D1B/0, plumbing / cSC4PlumbingSimulator.
-- Resources evidence: C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-021925-0d3b259a/result.
-- `paradis-karanes`: first DIGEST 2016-07-01 income/expense; 11 differing records, first 2A134F42/299B2D1B/0. Cause remains for the next round.
-- Karanes evidence: C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-022258-67ac4b8c/result.
-- **neighbors not exact:** qcheck-6 exit 1, 1/2. `paradis-ragako` exact after the PC24 fix (previously its power/water cost-per-unit doubles differed).
-- `maxisland-indereast`: only CA027EDB/CA027EE1/0 differs; first byte 11881, 139 bytes. All seven complete local-deal records are identical as a multiset; the difference is order alone. Commodity values now match exactly.
-- Indereast actual other-side city groups: (1,6), (0,7), (0,5); reference: (0,7), (0,5), (1,6). Current reverse-position order follows neighbors §9.1/§14.1; NB-EXACT33-1 requests its fixed-schedule contract.
-- Indereast evidence: C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-021402-82bbf8a5/result.
-- Final original-only qcheck-8 exit 0, **5/5 exact**: maxisland-indereast, owner27-resources, owner27-views, paradis-karanes, paradis-ragako, with the final DLL.
-- Latest replacement runs inspected: golden-ef979c64df19444b97bcfbb5196c2028 (Indereast), golden-aaf072f155af4cfd87d0a2860d469287 (resources), golden-329e24533d7c436d96d24672a9adb54e (Karanes): clean, ref_warnings=0, no foreign exception/stall/RTC/overrun.
-- Direct replacement smoke labels region-exact33-cache-2, region-exact33-views-1, region-exact33-karanes-1: all clean at their end dates, ref_warnings=0. These establish crash recovery, not exactness.
-- region-exact33-cache-1 was rejected before launch because script was outside [ini]; cache-2 corrected that placement. Initial qcheck-1/-2/-3 lacked references; later comparisons supersede them. qcheck-5 predates the PC24 fix and is superseded by qcheck-6.
-- Logs contain the documented startup x87 warnings; golden requests also contain ignored `pacing` input. Final original-only comparison remains exact. No shadows run, C ABI exports unchanged, no ABI version bump.
-- Question: NB-EXACT33-1 in docs/specs/questions/neighbors.md. No behavior spec was edited; glue-regionalcity-replace23 was not merged.
-- Next: retain WIP until an owner's complete cover is exact; resolve ordering from the spec, then investigate regional-city deal/statistic queries at the earliest DIGEST and the first shifted save ID.
+- Inherited fixes: regional-city population summary uses the game's STLport map ABI (51f302734); neighbor commodity statistics round each operation at PC24 (7edfd67ec).
+- New fix: region-owned deals bind a copied host table to the current game's interfaces without requiring a replacement neighbors simulator. This restores Clone's side/type swap, pricing, amount changes, state checks and status reports. Clone identity exists before SetFlags posts a report.
+- Added a regression for endpoint/type swaps, status identity, native pricing, state flags, unchanged source and synchronous MessageSend re-entry into getters/setters.
+- Final gate: qbuild all PASS once; 8411 Rust tests, clippy zero diagnostics, native build PASS, CTest 146/146. Quick gate: 6437 tests and native build PASS. Owned-file fmt 4/4 PASS.
+- **regionalcity not exact:** qcheck-11 exit 1, **2/3**: `owner27-resources` and `owner27-views` exact; `paradis-karanes` differs only in the regional-city record. No simulation-window/DIGEST difference remains.
+- Resources' prior 27 differing records, including the first shifted ID 1/class 2A5F877D, are gone. qcheck-9 reproduced that baseline; qcheck-10 and qcheck-11 became exact after the host fix.
+- Karanes' prior eleven differing records and income/expense mismatch are gone. Remaining `CA027EDB/CA027EE1/0`: 42 differing bytes, first byte 6734; its two complete 76-byte local deals at offset 6728 are identical as a multiset. Entire prefix and suffix match.
+- Karanes actual other-side city order: (20,28), (16,32); reference: (16,32), (20,28). Native neighbors walks replacement regional-city pointers; a deterministic fixed-schedule contract for that walk is missing (RY-EXACT33-1).
+- Karanes evidence: C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-030636-9d489870/result.
+- **neighbors not exact:** qcheck-12 exit 1, **1/2**: `paradis-ragako` exact; `maxisland-indereast` still differs only in `CA027EDB/CA027EE1/0`, first byte 11881, 139 bytes. No simulation-window/DIGEST difference.
+- Indereast's seven complete deals are identical as a multiset; prefix and suffix match. Actual city groups (1,6), (0,7), (0,5); reference (0,7), (0,5), (1,6). Current position order follows neighbors §9.1/§14.1; NB-EXACT33-1 requests reconciliation with exactness.
+- Indereast evidence: C:/Users/tlori/FreeCity4/build-runs/golden-runs/compare-20261028-031059-6228e784/result.
+- Final original-only qcheck-13 exit 0, **5/5 exact**, with the final DLL: maxisland-indereast, owner27-resources, owner27-views, paradis-karanes, paradis-ragako. Both remaining differences are replacement-specific.
+- Replacement labels: golden-152f4a616c9d4268ba332fc3916c8e78 (resources), golden-eb2adeaded8d4625ae54e2dc34c9a0d0 (views), golden-a3e7aab37f2b40acbc07e6954da578a1 (Karanes), golden-e2fa95769f9a4005b744acab4840dd96 (Indereast), golden-e1d983a9ff8f49ce8c21573f3a781cc3 (Ragako).
+- All five replacement runs and all five original-only controls: clean, ref_warnings=0, no foreign exception/stall/RTC/overrun. No shadows run. Startup x87/ignored pacing warnings remain; original-only stays exact.
+- New C ABI exports: fc4_neighbor_deal_bind_host, fc4_neighbor_deal_clone_into. No ABI version bump or GZ interface-slot change.
+- New question RY-EXACT33-1: docs/specs/questions/regional-city.md. Existing NB-EXACT33-1: docs/specs/questions/neighbors.md. No behavior spec changed; glue-regionalcity-replace23 was not merged.
+- Earlier rejected-script/missing-reference attempts and qcheck-5/-6/-7/-8 are superseded by the final checks. This round's Bash-wrapper failure made no source edit; relative fmt arguments failed and were corrected to absolute paths.
+- Next: hold WIP, with no owner credit, until the fixed-schedule ordering contracts resolve both remaining save differences; rerun each owner alone and original-only controls afterward.
