@@ -709,8 +709,9 @@ behaviour); it is off by default and must not change saves.
 
 The regional cities in the region cells that touch the current city's footprint: for each region column
 `px .. px+sx−1` the cells just north (`pz − 1`) and south (`pz + sz`), and for each row the cells just west and
-east. Each city once; established only unless the flag is set. The original orders them by object address;
-*[choice]* FreeCity4 orders them by region position (x, then z).
+east. Each city once; established only unless the flag is set, in region position order (x, then z). The original
+orders them by object address; under the fixed schedule its list is put in position order too (simulator.md §5.8,
+Address order), so the order below is exact, not a choice.
 
 How the original orders them (NB14; `0x006D01E0`):
 
@@ -729,7 +730,7 @@ The order shows in four places:
 Mostly only the order of messages and of list entries changes. There is one exception: with
 `ProposeDeals(…, true)`, the re-entrant runs (§7.1) refresh `R`'s statistics between cities. An earlier buy
 proposal's cost of 1 then enters `P`, `W` or `G`, and through them our cost per unit, which prices a later sell
-proposal's budget test. Because the original's order is not reproducible, the *[choice]* stands.
+proposal's budget test. The fixed schedule's position order makes these results repeat.
 
 ### 9.2 Pushing to the region (`update_deals_in_regional_cities(deals, stats)`) *[compat]*
 
