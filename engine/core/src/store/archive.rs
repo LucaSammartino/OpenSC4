@@ -7,6 +7,7 @@ use crate::stream::{ByteReader, ByteWriter, InStream, OutStream};
 use std::collections::BTreeSet;
 
 pub mod references;
+pub mod fields;
 
 /// A saved identity, without constructing or renumbering the referenced owner.
 /// The null encoding omits the class word (foundations §2.7).

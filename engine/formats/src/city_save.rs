@@ -4,11 +4,14 @@
 
 use crate::dbpf::{Compression, DIR_TGI};
 use crate::{Package, PackageBuilder, Source, Tgi};
+use fc4_core::automata::archive::AutomataRecord;
 use fc4_core::camera::{CameraControl, CAMERA_CONTROL_CLASS_ID};
 use fc4_core::city_detail::DetailRecord;
 use fc4_core::clock24::{Clock24, CLSID_24_HOUR_CLOCK};
 use fc4_core::commercial::CommercialRecord;
 use fc4_core::commercial::IndustrialSim;
+use fc4_core::flora::archive::FloraSimulatorRecord;
+use fc4_core::flora::occupant::FloraInstance;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
 use fc4_core::lot_records::{
     BusinessUnitRecord, LotRecord, OccupantRecord, RetainingWallRecord, CLSID_BUSINESS_UNIT, CLSID_LOT,
@@ -18,6 +21,8 @@ use fc4_core::network_occupants::archive::NetworkRecord;
 use fc4_core::occupant_manager::archive::OccupantManagerRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
+use fc4_core::plumbing::archive::PlumbingRecord;
+use fc4_core::power::archive::PowerRecord;
 use fc4_core::prop_occupant::{
     read_effect_record, read_prop_record, write_effect_record, write_prop_record, EffectRecord, PropRecord, ReadOutcome,
 };
@@ -29,6 +34,7 @@ use fc4_core::stream::{ByteReader, SaveObject};
 use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainViewRecord};
 use fc4_core::traffic_simulator::archive::TrafficRecord;
 use fc4_core::weather::{WeatherRng, WeatherSim};
+use fc4_core::zones::archive::ZoneRecord;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -57,6 +63,12 @@ enum Payload {
     Network(Box<NetworkRecord>),
     OccupantManager(OccupantManagerRecord),
     Traffic(Box<TrafficRecord>),
+    Flora(Box<FloraInstance>),
+    FloraSimulator(FloraSimulatorRecord),
+    Power(Box<PowerRecord>),
+    Plumbing(Box<PlumbingRecord>),
+    Zone(ZoneRecord),
+    Automata(AutomataRecord),
     Unhandled(Vec<u8>),
 }
 
@@ -65,6 +77,27 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0x0990_C005 => (
+                Self::Power(Box::new(PowerRecord::read(&mut r).ok_or("power Read failed")?)),
+                true,
+            ),
+            0x0990_C075 => (
+                Self::Plumbing(Box::new(PlumbingRecord::read(&mut r).ok_or("plumbing Read failed")?)),
+                true,
+            ),
+            0xC990_C034 => (
+                Self::FloraSimulator(FloraSimulatorRecord::read(&mut r).ok_or("flora simulator Read failed")?),
+                true,
+            ),
+            0xA9C0_5C85 => {
+                let mut record = Box::new(FloraInstance::default());
+                let ok = record.read(&mut r);
+                (Self::Flora(record), ok)
+            }
+            _ if ZoneRecord::handles(class) => (
+                Self::Zone(ZoneRecord::read(class, &mut r).ok_or("zones Read failed")?),
+                true,
+            ),
             0x6990_C1AA => (
                 Self::Traffic(Box::new(TrafficRecord::read(&mut r).ok_or("traffic Read failed")?)),
                 true,
@@ -178,7 +211,13 @@ impl Payload {
                     let ok = record.read(&mut r);
                     (Self::Serializable(record), ok)
                 }
-                None => return Ok(Self::Unhandled(bytes.to_vec())),
+                None => match AutomataRecord::create(class) {
+                    Some(mut record) => {
+                        let ok = record.read(&mut r);
+                        (Self::Automata(record), ok)
+                    }
+                    None => return Ok(Self::Unhandled(bytes.to_vec())),
+                },
             },
         };
         if !ok || r.remaining() != 0 {
@@ -214,6 +253,12 @@ impl Payload {
             Self::Network(record) => record.write(&mut w),
             Self::OccupantManager(record) => record.write(&mut w),
             Self::Traffic(record) => record.write(&mut w),
+            Self::Flora(record) => record.write(&mut w),
+            Self::FloraSimulator(record) => record.write(&mut w),
+            Self::Power(record) => record.write(&mut w),
+            Self::Plumbing(record) => record.write(&mut w),
+            Self::Zone(record) => record.write(&mut w),
+            Self::Automata(record) => record.write(&mut w),
         };
         if !ok {
             return Err("owner Write failed".into());
@@ -462,6 +507,15 @@ impl Report {
                 s.count, s.bytes, s.identical, s.differs, s.not_handled
             ));
         }
+        let exact_types = self.types.values().filter(|s| s.identical == s.count).count();
+        let bytes: u64 = self.types.values().map(|s| s.bytes).sum();
+        let exact_bytes: u64 = self.types.values().map(|s| s.exact_bytes).sum();
+        let opaque: u64 = self.types.values().map(|s| s.not_handled).sum();
+        out.push_str(&format!(
+            "\nFully handled types: {exact_types}/{}; decoded identical bytes: {exact_bytes}/{bytes}; \
+             not handled records: {opaque}. Retained payloads do not count as codec coverage.\n",
+            self.types.len()
+        ));
         out
     }
 }
