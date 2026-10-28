@@ -59,7 +59,7 @@ not ≥ minimum (`0x00761B86–0x00761C9E`). Rejected short traces still consume
 **The two vertex flags** *(WR2, answered 2026-10-27, re-x-net)* *[compat]*. Terrain vertices carry a 16-bit flag word
 (terrain.md §7). Flag `0x10` is the **shore mark**. The refresh (`0x007428E0`) first clears it on every vertex, then
 tests every vertex (`0x00741B80`): a vertex gets the mark when its own altitude is strictly above the terrain's
-sea level (a NaN altitude or one at or below sea level never does) and at least one of its four edge-neighbours
+sea level (one at or below sea level never does; a NaN altitude is treated as above sea level and can be marked) and at least one of its four edge-neighbours
 (west, north, east, south, those inside the grid) has an altitude strictly below sea level (a NaN neighbour counts as
 below). The test compares altitudes with the sea level, not with any per-vertex water depth. Flag `0x01` has no
 lasting meaning: it is the **visited mark** of the tracing walks below (and of other terrain walks), set while a

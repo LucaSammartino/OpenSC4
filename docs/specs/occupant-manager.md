@@ -1118,7 +1118,7 @@ meanings below come from where the executable tests them.
   occupant's own rotation). The model maker, its reload decision and the missing-pack check all pass it
   (model-maker.md).
 - **Property `0x29F013E6`** (bool) is set to true by the tools on their preview ("ghost") occupants (the lot placement
-  preview `0x004C0873`, the toll booth `0x004DA53E`, the network tool); the immovability filter used when levelling terrain
+  preview `0x004C0873`, the toll booth `0x004DA53E`); the immovability filter used when levelling terrain
   (§13.2.6) skips occupants for which it is true, so previews do not block or count in the levelling test.
 
 **The view-level filter** (`cSC4ViewLevelOccupantFilter`, vtable `0x00A8FAD4`). A level at `+0xC`.
