@@ -4,6 +4,7 @@
 
 use crate::dbpf::{Compression, DIR_TGI};
 use crate::{Package, PackageBuilder, Source, Tgi};
+use fc4_core::advisors::archive::AdvisorArchive;
 use fc4_core::aura::archive::AuraRecord;
 use fc4_core::automata::archive::AutomataRecord;
 use fc4_core::budget::archive::{BudgetRecord, DepartmentRecord, LineItemRecord};
@@ -17,6 +18,7 @@ use fc4_core::demand::archive::{DemandNodeRecord, DemandRecord};
 use fc4_core::flammability::archive::FlammabilityRecord;
 use fc4_core::flora::archive::FloraSimulatorRecord;
 use fc4_core::flora::occupant::FloraInstance;
+use fc4_core::growth_developer::archive::GrowthRecord;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
 use fc4_core::landvalue::archive::LandValueRecord;
 use fc4_core::lot_records::{
@@ -24,6 +26,8 @@ use fc4_core::lot_records::{
     CLSID_RETAINING_WALL_OCCUPANT,
 };
 use fc4_core::model_maker::archive::ModelMakerRecord;
+use fc4_core::mysims::archive::{dispatch::DispatchRecord, MySimRecord};
+use fc4_core::neighbors::archive::NeighborsRecord;
 use fc4_core::network_occupants::archive::NetworkRecord;
 use fc4_core::occupant_manager::archive::OccupantManagerRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
@@ -31,17 +35,20 @@ use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
 use fc4_core::plumbing::archive::PlumbingRecord;
 use fc4_core::pollution::archive::PollutionRecord;
 use fc4_core::power::archive::PowerRecord;
+use fc4_core::prop_developer::archive::PropDeveloperRecord;
 use fc4_core::prop_occupant::{
     read_effect_record, read_prop_record, write_effect_record, write_prop_record, EffectRecord, PropRecord, ReadOutcome,
 };
 use fc4_core::protection::archive::ProtectionRecord;
 use fc4_core::render3d::archive::RendererRecord;
+use fc4_core::residential::archive::ResidentialRecord;
 use fc4_core::save::SaveRecord;
 use fc4_core::store::archive::references::{ReferenceWriter, SavedReferences};
 use fc4_core::store::archive::{read_class, write_class, ClassIndex, StoredObject};
 use fc4_core::store::{INDEX_TYPE, STORE_GROUP};
 use fc4_core::stream::{ByteReader, SaveObject};
 use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainViewRecord};
+use fc4_core::tract_developer::archive::TractRecord;
 use fc4_core::traffic_simulator::archive::TrafficRecord;
 use fc4_core::ui_windows::view3d::archive::View3DArchive;
 use fc4_core::weather::{WeatherRng, WeatherSim};
@@ -54,6 +61,14 @@ mod hosts;
 mod terrain;
 
 enum Payload {
+    Residential(Box<ResidentialRecord>),
+    Growth(GrowthRecord),
+    Tract(TractRecord),
+    Neighbors(Box<NeighborsRecord>),
+    MySim(Box<MySimRecord>),
+    Dispatch(Box<DispatchRecord>),
+    Advisor(Box<AdvisorArchive>),
+    PropDeveloper(PropDeveloperRecord),
     ModelMaker(ModelMakerRecord),
     Renderer(RendererRecord),
     Protection(Box<ProtectionRecord>),
@@ -101,6 +116,41 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0x4990_C013 => (
+                Self::Residential(Box::new(
+                    ResidentialRecord::read(&mut r).ok_or("residential Read failed")?,
+                )),
+                true,
+            ),
+            0x0990_C138 => (
+                Self::Growth(GrowthRecord::read(&mut r).ok_or("growth Read failed")?),
+                true,
+            ),
+            0x2990_C142 => (Self::Tract(TractRecord::read(&mut r).ok_or("tract Read failed")?), true),
+            0xC990_C0A4 | 0x0A13_4F24 | 0x2A13_4F42 => (
+                Self::Neighbors(Box::new(
+                    NeighborsRecord::read(class, &mut r).ok_or("neighbors Read failed")?,
+                )),
+                true,
+            ),
+            0x4A1D_BBBF | 0x0BF6_06A5 => (
+                Self::MySim(Box::new(MySimRecord::read(&mut r).ok_or("MySim Read failed")?)),
+                true,
+            ),
+            0xCBC1_4674 => (
+                Self::Dispatch(Box::new(DispatchRecord::read(&mut r).ok_or("dispatch Read failed")?)),
+                true,
+            ),
+            _ if AdvisorArchive::handles(class) => (
+                Self::Advisor(Box::new(
+                    AdvisorArchive::read(class, &mut r).ok_or("advisor Read failed")?,
+                )),
+                true,
+            ),
+            0x89C4_8F47 => (
+                Self::PropDeveloper(PropDeveloperRecord::read(&mut r).ok_or("prop developer Read failed")?),
+                true,
+            ),
             0xA9C7_41B3 => (
                 Self::ModelMaker(ModelMakerRecord::read(&mut r).ok_or("model maker Read failed")?),
                 true,
@@ -304,6 +354,14 @@ impl Payload {
     fn write(&self) -> Result<Vec<u8>, String> {
         let mut w = ReferenceWriter::default();
         let ok = match self {
+            Self::Residential(record) => record.write(&mut w),
+            Self::Growth(record) => record.write(&mut w),
+            Self::Tract(record) => record.write(&mut w),
+            Self::Neighbors(record) => record.write(&mut w),
+            Self::MySim(record) => record.write(&mut w),
+            Self::Dispatch(record) => record.write(&mut w),
+            Self::Advisor(record) => record.write(&mut w),
+            Self::PropDeveloper(record) => record.write(&mut w),
             Self::ModelMaker(record) => record.write(&mut w),
             Self::Renderer(record) => record.write(&mut w),
             Self::Protection(record) => record.write(&mut w),
@@ -442,7 +500,11 @@ impl CitySave {
                 RecordData::Class(
                     objects
                         .into_iter()
-                        .map(|o| Ok((o.id, Payload::read(key.type_id, &o.payload)?)))
+                        .map(|o| {
+                            let payload = Payload::read(key.type_id, &o.payload)
+                                .map_err(|error| format!("class {:08X} object {}: {error}", key.type_id, o.id))?;
+                            Ok((o.id, payload))
+                        })
                         .collect::<Result<_, String>>()?,
                 )
             } else if let Some(part) = terrain::Part::from_key(key) {
