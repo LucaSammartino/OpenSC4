@@ -66,6 +66,7 @@ pub use brush::{
 pub use field::{Post, Terrain, TerrainTuning, VertRect, WaterVertex, MAX_CELLS};
 pub use lava::{FireMode, Lava, LavaHost, LavaTuning, BURN_DRAWS_PER_TICK, BURN_HALF_WIDTH, NEIGHBOURS};
 pub use records::{RecordError, ALTITUDES_VERSION, EDGE_VERSION, MISC_VERSION, PROPERTIES_VERSION};
+pub use records::{SurfaceWaterRecord, TerrainRecord, TerrainViewRecord};
 pub use water::{compute_bodies, BodiesOfWater, Bridge, NavigationHost, OpenWater};
 pub use view::{
     cell_triangle_indices, PlainViewRow, TerrainViewHeights, TerrainViewIndices, ViewHeightError, ViewRowCall,
