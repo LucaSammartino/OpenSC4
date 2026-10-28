@@ -659,10 +659,9 @@ impl NeighborsSimulator {
             .collect()
     }
 
-    /// `GetAdjacentCities(list, includeUnestablished)` (§9.1). *[choice]*
-    /// (NB14) Ordered by region position (x, then z): the original collects
-    /// into a `std::set` of pointers (`0x006D01E0`), ordered by heap address,
-    /// which cannot be reproduced.
+    /// `GetAdjacentCities(list, includeUnestablished)` (§9.1). *[compat]*
+    /// Ordered by region position (x, then z), matching the original's list
+    /// under the fixed schedule (simulator §5.8, Address order).
     pub fn adjacent_cities(&self, include_unestablished: bool) -> Vec<CityId> {
         let Some((_, (px, pz), (sx, sz))) = self.current_geometry() else {
             return Vec::new();
