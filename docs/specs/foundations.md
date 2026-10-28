@@ -1039,8 +1039,8 @@ RNG-free quantities (clock, budget arithmetic) or distributions (growth statisti
 2. **Text encoding** of `SetGZStr` for non-ASCII city, mayor and department names. A save with an accented city
    name would confirm UTF-8 (or reveal a code page).
 3. ~~**Variant tags** (§2.8)~~: answered in §9 (tag table) and §10 (property holders, the records that use them).
-4. **Other city-file records** (§3.2): `0x89D9B9EE/0x69D9B9F1`, region, thumbnail and terrain records, and
-   unnamed message `0x26C63346`. Not needed for simulator replacement, but needed for standalone mode.
+4. **Other city-file records** (§3.2): region, thumbnail and terrain records, and unnamed message `0x26C63346`.
+   The auxiliary `0x89D9B9EE/0x69D9B9F1` record is answered in save-records §2.1 (SR33-3).
 5. ~~**C runtime `rand()`** seeding~~: answered in §12 (never seeded by the game; algorithm and users listed).
 6. **RNG vectors** (§7 items 13–14): confirm with a runtime capture from the original (force a seed and log the
    first outputs).

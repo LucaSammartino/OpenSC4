@@ -1563,8 +1563,10 @@ although its memory element is 16 bytes. An extra triple is 10 on disk, although
 The four timers are held internally as `u16` (`T+0x2C` onwards), but are **always written as `f32`**, including
 v7 (`0x004B1EA4`–`0x004B1EB7`). Their four associated values are the `u16[4][4]` beginning at `T+0x34` in
 row order, not column order. Read converts the timers and the legacy v3 float values to `u16` using the game's
-single-precision add/bit conversion, with the out-of-range result `0xFFFF` (`0x004B5240`–`0x004B5274`,
-`0x004B5295`–`0x004B52CA`; arithmetic conventions in foundations §18). The flag, three state words, timing
+single-precision add/bit conversion: add **12,582,912.0** (constant `0x00A8FDF4`) to the input and round the sum
+to binary32; add `0xB4C00000` to that sum's bit pattern modulo 2³². Use the resulting unsigned integer when it
+is at most 65,535, otherwise `0xFFFF` (`0x004B5240`–`0x004B5274`, `0x004B5295`–`0x004B52CA`; arithmetic
+conventions in foundations §18). The flag, three state words, timing
 rows and discard are present even for an empty path vector and an empty occupant list.
 
 #### 6.2.3 Intersection record and its four sides
