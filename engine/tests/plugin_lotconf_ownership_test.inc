@@ -28,6 +28,20 @@ int LotConfigurationOwnershipTest(const std::string& dll, const std::string& ini
         CHECK(config != nullptr);
         if (config && raw) {
             auto* manager = static_cast<cFC4ISC4LotConfigurationManager*>(raw);
+            // B5.5: the input is a vector, and even without city providers
+            // each method fills exactly four floats with its minimum footprint.
+            uint32_t ids[] = {1, 2, 3, 4, 5, 6};
+            struct IdVector { uint32_t* begin; uint32_t* end; uint32_t* capacity; } families{ids, ids + 6, ids + 6};
+            for (unsigned kind = 0; kind < 3; ++kind) {
+                float out[] = {-11.0f, -22.0f, -33.0f, -44.0f, -55.0f, -66.0f};
+                auto& rect = *reinterpret_cast<cS3DRect2D*>(out + 1);
+                if (kind == 0) manager->GetMaxFootprintForBuildingFamilies(&families, rect);
+                else if (kind == 1) manager->GetMaxFootprintForFloraFamilies(&families, rect);
+                else manager->GetMaxFootprintForPropFamilies(&families, rect);
+                const float minimum = kind == 0 ? 4.0f : 2.0f;
+                CHECK(out[0] == -11.0f && out[5] == -66.0f);
+                CHECK(out[1] == minimum && out[2] == minimum && out[3] == 0.0f && out[4] == 0.0f);
+            }
             CHECK(config->GetID() == 0 && config->GetLotConfigurationObjectCount() == 0);
             uint32_t x = 99, z = 99; config->GetSize(x, z); CHECK(x == 0 && z == 0);
             CHECK(config->GetMaximumSlope() == 90.0f && config->GetMinBuildingCapacity() == 0xFFFF);

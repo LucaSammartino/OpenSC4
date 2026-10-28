@@ -19,6 +19,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Schedule.h"
 #include "FC4Streams.h"
 
 #include "GZServPtrs.h"
@@ -485,6 +486,14 @@ bool cFC4CommercialSimulator::DoMessage(cIGZMessage2* pMessage) {
     }
     int32_t before = kStateIdle;
     if (type == kMsgSimIdle || type == kMsgSimNewDay) {
+        // §4.3 starts an unused framework stopwatch on every idle/daily step.
+        // SPEC-GAP: its unit is unspecified; use the performance counter (timers §1.2, units 1–6).
+        if (fc4::ScheduleFixed()) {
+            (void)fc4::ScheduleQpc();
+        } else {
+            LARGE_INTEGER stamp{};
+            QueryPerformanceCounter(&stamp);
+        }
         fc4_commercial_state st{};
         st.struct_size = sizeof(st);
         if (fc4_commercial_get_state(core_, &st)) before = st.state;

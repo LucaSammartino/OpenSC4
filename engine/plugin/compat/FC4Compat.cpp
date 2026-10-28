@@ -138,7 +138,8 @@ const ExecutableVersion kVersions[] = {
             0x007D2F50,  // alpha function/reference,
             0x0046F240,  // dispatch.md §4.1.3: TrackOccupant
             0x0046EFB0,  // dispatch.md §4.1.3: UntrackOccupant
-            0x0046D3A0,  // functions.tsv: ShowAllIndicators
+            0x0046D3A0,  // functions.tsv: ShowAllIndicators,
+            0x0088FF19,  // cRZTimer::GetTimerCycle (timers §1.3; functions.tsv, cdecl out pointer),
         },
         {0x00AB1160, 0x00AB2490},  // fire / police primary vtables (protection.md §15.1, §15.2)
         0x00AB3118,  // cSC4TractDeveloper primary vtable (tract-developer.md §1.1, §7.1)
@@ -627,6 +628,7 @@ uintptr_t DirectCall(Direct which) {
                                          "overlay alpha enable", "overlay alpha function",
                                          "dispatch TrackOccupant", "dispatch UntrackOccupant",
                                          "dispatch ShowAllIndicators",
+                                         "timer counter",
 };
     static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
     static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused

@@ -16,3 +16,18 @@
   Runs under `build-runs/golden-runs/`: `compare-20261028-020554-ca3c0b7f` and
   `compare-20261028-020949-f9fa67d3`; both clean, ref_warnings=0, logged x87 PC=24 during simulation.
   Please specify any such effect or other missing observable behavior; no vehicle-byte compensation was added.
+
+<!-- from: growth-exact34 r2 (2026-10-28) -->
+- **G34-CM2 - §4.3: unused stopwatch's counter and fixed-schedule effect.** Which unit does the
+  stopwatch started at every `DoIdle` entry use? Is there exactly one counter read, including idle
+  state 3 and out-of-range states, with no read on destruction? §4.3 documents the start but omits
+  the unit; timers §1.2 maps units 1–6 to `QueryPerformanceCounter` and unit 0 to the CPU counter.
+  Simulator §5.8 makes each main-thread performance-counter read advance the shared virtual counter.
+  Our commercial glue omitted this start, so the unused stopwatch could explain G33-CM1's later
+  vehicle floats without changing commercial's grids, DIGESTs or sampled RNG. The r2 candidate
+  preserves one read for each daily/idle delivery via a new internal schedule API and marks the
+  unspecified unit with SPEC-GAP. This is a hypothesis, not an exactness result: qcheck-8 rejects
+  the candidate before running because the schedule source fingerprint changes from
+  `a33857dd12297904` to `7bc01a9a908a6189`. A matching none check is recorded in the lane report.
+  Please confirm the stopwatch contract; the coordinator must also provide/re-pin references for
+  the new API before this candidate can receive any exactness credit. No fingerprint bypass was made.

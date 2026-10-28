@@ -152,6 +152,7 @@ enum class Direct : unsigned {
     DispatchTrackOccupant,  // dispatch.md §4.1.3: thiscall (occupant,kind,number,label), EAX handle
     DispatchUntrackOccupant,  // thiscall (handle,immediate), AL
     DispatchShowAllIndicators,  // functions.tsv 0046d3a0: thiscall (kind,visible), void
+    TimerGetCycle,                   // cRZTimer static counter getter: cdecl (uint64_t*), timers §1.3
     Count
 };
 
