@@ -90,7 +90,7 @@ Each record carries a one-byte **native-order flag**, fixed at construction. The
 and the bitmap-resource record (`0x0097CCFF`) pass 1. The DBPF packed-file records do **not** take the value
 from their segment: every one of the five construction sites (read records from the open-record routine
 `0x009701FD`, write records from `0x00971178` and `0x009712D7`) passes the constant 1, and the segment has no
-setting that could change it (`0x00970291`, `0x009702C5`, `0x009703A0`, `0x00970C71`, `0x00970E87` and the
+setting that could change it (`0x00970291`, `0x009702C7`, `0x009703A0`, `0x00970C71`, `0x00970E87` and the
 call sites above). No shipped path can create a big-endian packed-file record; the flag is always 1
 *[compat]*.
 

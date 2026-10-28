@@ -405,7 +405,7 @@ entries 70.0 *[choice]*; ids absent → unchanged *[compat]*.
    each side is the larger of the two minima and the smaller of the two maxima; rectangles that merely touch still
    intersect; when they are disjoint all four stored floats become 0.0 and the clip reports failure, which the
    caller ignores. Both corners of the stored rectangle then go to cells through occupant-manager slot `+0x4C`.
-   This stored f32 rectangle (not the cell rectangle) is what stages 0/1 hand to every layer's `BeginUpdate`
+   This stored f32 rectangle (not the cell rectangle) is what stage 0 hands to every layer's `BeginUpdate`
    (§5): the layer copies those 16 bytes verbatim and uses them as the world-space attention rectangle
    (`0x004EA1B5`–`0x004EA1F6`, `0x004E4CE0`); the even cell rectangle `+0x6C` only seeds the block iterator.
 4. Clamp each cell coordinate to `[0, n − 1]` (the city's cell counts), then clear bit 0 (round down to even).

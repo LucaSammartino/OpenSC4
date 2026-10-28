@@ -1,6 +1,6 @@
 # Spec: the hardware 3D driver (`nSGLDX7::cGDriver`, "Maxis 3D GDriver DirectX")
 
-Status: **implementation spec (interface coverage; residual questions RD1, RD3, RD4, RD6-RD7)**, clean-room input. The
+Status: **implementation spec (interface coverage; residual question RD3)**, clean-room input. The
 83 graphics slots have a contract or an explicit unsupported/no-op classification (§12); the owner inventory
 distinguishes auxiliary interfaces and unresolved pixel-converter details. This document describes *behaviour*, not code. It was
 written by the analysis team from observing the original program. Implementers must work from this spec, the public
@@ -1474,7 +1474,7 @@ recorded during setup is not the sole source of window position.
 A zero-width or zero-height client rectangle returns `0x887601C2` before either blit (`0x0088C43E`–`0x0088C450`,
 `0x0088C4B1`). If neither presentation path is active, the incoming flags/result word is returned without
 presenting. The normal `Flush` caller supplies zero. This establishes presentation independently of EndScene;
-it does not establish which clients consume the device-lost message (RD4).
+it does not establish which clients consume the device-lost message (no handler is inferred, see RD4 in §14).
 
 ### 14.4 Mode descriptor enrichment
 
@@ -1579,6 +1579,6 @@ The checklist covers the 83-slot graphics interface, including explicit no-ops. 
 coverage of undefined invalid-pointer/overflow inputs. Available pixel converters and CopyColorBuffer
 are specified in §§9.6 and 12.6; RD12 surface aliases/ownership are in §14.2. RD6/RD7/RD12
 have vectors DX7-32–62. RD8–RD11 are
-answered in §§2, 4.1, 8.3, 8.6, 10.1 and 14.2 with vectors DX7-19–31. RD1, RD3 and RD4 retain their
+answered in §§2, 4.1, 8.3, 8.6, 10.1 and 14.2 with vectors DX7-19–31. RD3 retains its
 specifically listed caller, descriptor and message gaps.
 No C ABI proposal or implementation behavior is inferred from those open items.
