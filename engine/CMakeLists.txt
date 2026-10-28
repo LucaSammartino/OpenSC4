@@ -1600,3 +1600,8 @@ add_custom_target(fc4_capi_ready ALL
     COMMENT "Rust static archive ready"
     VERBATIM)
 add_dependencies(fc4_capi_ready fc4_capi_cargo)
+
+# Advisor list reads snapshot side effects across the C host's size/fill pair.
+add_executable(fc4_advisor_list_read_test tests/advisor_list_read_test.cpp)
+target_include_directories(fc4_advisor_list_read_test PRIVATE plugin capi/include)
+add_test(NAME advisor_list_read COMMAND fc4_advisor_list_read_test)

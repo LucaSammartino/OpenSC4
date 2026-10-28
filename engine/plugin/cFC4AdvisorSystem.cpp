@@ -44,6 +44,9 @@
 #include "cISC4App.h"
 #include "cISC4Advisor.h"
 #include "cISC4City.h"
+#include "cISC4NeighborsSimulator.h"
+#include "cISC4NeighborConnection.h"
+#include "cISC4NeighborDeal.h"
 #include "cISC4View3DWin.h"
 #include "cISCLua.h"
 #include "cRZBaseString.h"
@@ -700,6 +703,46 @@ void RegisterApi(void* u, bool global) {
 
 void ReloadScriptsCb(void* u) { Self(u)->ReloadScripts(); }
 
+// advisors.md section 7.8: these lists own references supplied by the game
+// (neighbors.md section 1). AppCity and its simulator getter are borrowed.
+bool NeighborValue(void*, const fc4_adv_src* src, fc4_adv_val* out) {
+    if (!src || !out) return false;
+    cISC4City* city = AppCity();
+    auto* neighbors = city ? city->GetNeighborsSimulator() : nullptr;
+    if (!neighbors) return false;
+    *out = {};
+    if (src->kind == FC4_ADV_SRC_DEAL_COUNT) {
+        fc4::GameList<cISC4NeighborConnection*> list;
+        if (!list.valid()) return false;
+        neighbors->FindDeals(static_cast<int32_t>(src->a),
+            reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list));
+        for (auto& p : list) {
+            ++out->i;
+            FC4_RELEASE_CREATED(reinterpret_cast<cISC4NeighborDeal*>(p));
+            p = nullptr;
+        }
+        return true;
+    }
+    if (src->kind == FC4_ADV_SRC_CONNECTIONS_OF_TYPE) {
+        fc4::GameList<cISC4NeighborConnection*> list;
+        if (!list.valid()) return false;
+        neighbors->GetConnectionsOfType(static_cast<cISC4NeighborsSimulator::ConnectionType>(src->a),
+            reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list));
+        for (auto& p : list) {
+            ++out->i;
+            FC4_RELEASE_CREATED(p);
+            p = nullptr;
+        }
+        return true;
+    }
+    return false;
+}
+
+int64_t NeighborList(void* u, uint32_t kind, uint32_t a, const uint32_t*, size_t,
+                     fc4_adv_item* out, size_t capacity) {
+    return Self(u)->ReadNeighborList(kind, a, out, capacity);
+}
+
 fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     fc4_advisor_host h{};
     h.struct_size = sizeof(h);
@@ -744,10 +787,47 @@ fc4_advisor_host MakeHost(cFC4AdvisorSystem* s) {
     h.object_dropped = &ObjectDroppedCb;
     h.rebuild_text = &RebuildTextCb;
     h.foreign_advisor = &ForeignAdvisor;
+    h.value = &NeighborValue;
+    h.list = &NeighborList;
     return h;
 }
 
 }  // namespace
+
+int64_t cFC4AdvisorSystem::ReadNeighborList(uint32_t kind, uint32_t a, fc4_adv_item* out, size_t capacity) {
+    return neighborLists_.Read(kind, a, out, capacity, [kind, a](std::vector<fc4_adv_item>& items) {
+        if (kind != 6 && kind != 7) return false;
+        cISC4City* city = AppCity();
+        auto* neighbors = city ? city->GetNeighborsSimulator() : nullptr;
+        if (!neighbors) return false;
+        fc4::GameList<cISC4NeighborConnection*> list;
+        if (!list.valid()) return false;
+        auto& sdkList = reinterpret_cast<SC4List<cISC4NeighborConnection*>&>(list);
+        if (kind == 7) neighbors->ProposeDeals(sdkList, false);
+        else if (a == 0) neighbors->GetAllConnections(sdkList);
+        else neighbors->GetConnectionsOfType(static_cast<cISC4NeighborsSimulator::ConnectionType>(a), sdkList);
+        for (auto& p : list) {
+            fc4_adv_item item{};
+            if (kind == 7) {
+                // The SDK mis-types deal lists as connection lists (neighbors.md section 1).
+                auto* deal = reinterpret_cast<cISC4NeighborDeal*>(p);
+                item.kind = static_cast<uint32_t>(deal->GetType());
+                FC4_RELEASE_CREATED(deal);
+            } else {
+                item.kind = static_cast<uint32_t>(p->GetType());
+                int32_t x = 0, z = 0;
+                p->GetConnectionInnerCell(x, z);
+                item.x = static_cast<float>(x);
+                item.z = static_cast<float>(z);
+                FC4_RELEASE_CREATED(p);
+            }
+            p = nullptr;  // already released; GameList owns only the node now
+            items.push_back(item);
+        }
+        if (kind == 7) fc4::Log("advisors neighbor proposals: %zu (single snapshot)", items.size());
+        return true;
+    });
+}
 
 fc4_advisors* fc4::CurrentAdvisorCore() { return g_live != nullptr ? g_live->Core() : nullptr; }
 

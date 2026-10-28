@@ -23,6 +23,7 @@
 #pragma once
 
 #include "FC4AdvisorApi.h"
+#include "FC4AdvisorListRead.h"
 #include "FC4AdvisorMaps.h"
 #include "FC4AdvisorWindow.h"
 #include "FC4GameList.h"
@@ -149,6 +150,7 @@ public:
     void Cheat(uint32_t id, const char* name, bool on);
     void WindowCallback(bool start);
     void ReloadScripts();  // §4.2 steps 1-3 (AD10)
+    int64_t ReadNeighborList(uint32_t kind, uint32_t a, fc4_adv_item* out, size_t capacity);
 
 private:
     uint32_t refCount_ = 0;
@@ -159,6 +161,7 @@ private:
     fc4_advisors* core_ = nullptr;
     fc4_adv_obj* self_ = nullptr;  // the core's system object (token = Primary())
     cISCLua* lua_ = nullptr;      // the app's Lua context, one reference held between Init and Shutdown
+    fc4::AdvisorListRead neighborLists_;
     cFC4AdvisorCheatHandler cheat_;
     fc4::AdvisorWindowSlot window_;
     fc4::CoreLock lock_;
