@@ -116,6 +116,21 @@ pub struct NeighborDeal {
     /// Set for a foreign deal: the host that answers for it (held strongly,
     /// so the release at the end always reaches it).
     foreign: RefCell<Option<Rc<dyn NeighborsHost>>>,
+    /// A regional-city-owned deal can use the game's simulator without a
+    /// replacement NeighborsSimulator being present.
+    host: RefCell<Option<Rc<dyn DealHost>>>,
+}
+
+/// The current game's interfaces needed by an independently owned deal
+/// (neighbors §5.3–§5.5). No simulator state or ownership is implied.
+pub trait DealHost {
+    fn current_city(&self) -> Option<super::CityId>;
+    fn city_at(&self, x: i32, z: i32) -> Option<super::CityId>;
+    fn neighbors_available(&self) -> bool;
+    fn deal_cost(&self, t: u32, amount: f64, other: Option<super::CityId>) -> f64;
+    fn city_budget(&self, city: super::CityId) -> f64;
+    fn suitable_connection(&self, t: u32, other: super::CityId) -> bool;
+    fn report(&self, token: u64, status: u32, sent: bool);
 }
 
 impl std::fmt::Debug for NeighborDeal {
@@ -206,6 +221,14 @@ impl NeighborDeal {
 
     fn simulator(&self) -> Option<Rc<NeighborsSimulator>> {
         self.sim.borrow().upgrade()
+    }
+
+    pub fn bind_host(&self, host: Rc<dyn DealHost>) {
+        *self.host.borrow_mut() = Some(host);
+    }
+
+    fn independent_host(&self) -> Option<Rc<dyn DealHost>> {
+        self.host.borrow().clone()
     }
 
     /// A deal of ours: the token of its host object (a foreign deal keeps
@@ -364,6 +387,8 @@ impl NeighborDeal {
         }
         if let Some(sim) = self.simulator() {
             sim.host().post_status(Some(self), s);
+        } else if let Some(host) = self.independent_host() {
+            host.report(self.token(), s, false);
         }
     }
 
@@ -384,7 +409,21 @@ impl NeighborDeal {
         if self.call(DealCall::SetAmount(a)).is_some() {
             return;
         }
-        let Some(sim) = self.simulator() else { return };
+        let Some(sim) = self.simulator() else {
+            let Some(host) = self.independent_host() else { return };
+            if host.current_city().is_none()
+                || !host.neighbors_available()
+                || self.check_flags_or(flag::GRACE | flag::PROBATION)
+            {
+                return;
+            }
+            self.d.borrow_mut().amount = a;
+            if !self.is_silent() {
+                host.report(self.token(), status::CHANGED, true);
+            }
+            self.update_cost();
+            return;
+        };
         if sim.host().current_city().is_none() {
             return;
         }
@@ -409,10 +448,18 @@ impl NeighborDeal {
         if self.check_flags_or(flag::GRACE | flag::PROBATION) {
             return;
         }
-        let Some(sim) = self.simulator() else { return };
-        let other = self.other_city_with(&sim);
         let (t, amount) = (self.deal_type(), self.amount());
-        let mut cost = trunc_s64(sim.get_deal_cost(t, f64::from(amount), other));
+        let price = if let Some(sim) = self.simulator() {
+            sim.get_deal_cost(t, f64::from(amount), self.other_city_with(&sim))
+        } else if let Some(host) = self.independent_host() {
+            if !host.neighbors_available() {
+                return;
+            }
+            host.deal_cost(t, f64::from(amount), self.other_city())
+        } else {
+            return;
+        };
+        let mut cost = trunc_s64(price);
         if cost == 0 {
             cost = 1;
         }
@@ -501,8 +548,12 @@ impl NeighborDeal {
     /// `GetCityOnOtherSideOfConnection()`: the regional city at the other-side
     /// region cell, or null.
     pub fn other_city(&self) -> Option<super::CityId> {
-        let sim = self.simulator()?;
-        self.other_city_with(&sim)
+        if let Some(sim) = self.simulator() {
+            self.other_city_with(&sim)
+        } else {
+            let (x, z) = self.other_side();
+            self.independent_host()?.city_at(x, z)
+        }
     }
 
     fn other_city_with(&self, sim: &NeighborsSimulator) -> Option<super::CityId> {
@@ -517,6 +568,41 @@ impl NeighborDeal {
         }
         if let Some(sim) = self.simulator() {
             sim.update_deal_state(self);
+        } else if let Some(host) = self.independent_host() {
+            let t = self.deal_type();
+            if deal_type::is_buy(t)
+                && host
+                    .current_city()
+                    .is_some_and(|r| host.city_budget(r) < self.cost() as f64)
+            {
+                self.set_flags(flag::CANNOT_AFFORD, true);
+                return;
+            }
+            if !self.other_city().is_some_and(|c| host.suitable_connection(t, c)) {
+                self.set_flags(flag::NO_CONNECTION, true);
+            }
+        }
+    }
+
+    /// Clone into an already materialized host object, so status reports
+    /// carry that object's identity even during SetFlags (§5.5).
+    pub fn clone_into(self: &Rc<Self>, src: &NeighborDeal, silent: bool) {
+        self.copy_from(&src.data());
+        self.set_flags(flag::SILENT, silent);
+        let Some(host) = self.independent_host() else { return };
+        let (cx, cz) = self.city_side();
+        let (ox, oz) = self.other_side();
+        match (host.city_at(cx, cz), host.city_at(ox, oz)) {
+            (Some(a), Some(_)) => {
+                if Some(a) != host.current_city() {
+                    self.set_city_side(ox, oz);
+                    self.set_other_side(cx, cz);
+                    self.set_type(deal_type::toggled(self.deal_type()));
+                }
+            }
+            _ => {
+                self.set_flags(flag::CANCELLED, true);
+            }
         }
     }
 

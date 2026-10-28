@@ -42,8 +42,9 @@ use std::ffi::{c_char, c_void};
 use std::rc::Rc;
 
 use fc4_core::neighbors::{
-    CityHandle, CityId, ConnectionRequest, ConnectionState, DealCall, DealData, ForeignConnection, NeighborConnection,
-    NeighborDeal, NeighborsHost, NeighborsMessage, NeighborsSimulator, Stat, UtilityFigures, CLSID_NEIGHBOR_CONNECTION,
+    CityHandle, CityId, ConnectionRequest, ConnectionState, DealCall, DealData, DealHost, ForeignConnection,
+    NeighborConnection, NeighborDeal, NeighborsHost, NeighborsMessage, NeighborsSimulator, Stat, UtilityFigures,
+    CLSID_NEIGHBOR_CONNECTION,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::stream::SaveObject;
@@ -1372,6 +1373,90 @@ fn with_deal<R>(h: *const fc4_neighbor_deal, fallback: R, f: impl FnOnce(&Rc<Nei
         return fallback;
     };
     guard(fallback, || f(&d.deal))
+}
+
+/// Interfaces for a deal loaded by a regional-city replacement while the
+/// current neighbors simulator belongs to the host game. The table is copied;
+/// callbacks and ctx must outlive the bound deal.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct fc4_neighbor_deal_host {
+    pub struct_size: u32,
+    pub ctx: U,
+    pub current_city: Option<unsafe extern "C" fn(U) -> u64>,
+    pub city_at: Option<unsafe extern "C" fn(U, i32, i32) -> u64>,
+    pub neighbors_available: Option<unsafe extern "C" fn(U) -> bool>,
+    pub deal_cost: Option<unsafe extern "C" fn(U, u32, f64, u64) -> f64>,
+    pub city_budget: Option<unsafe extern "C" fn(U, u64) -> f64>,
+    pub suitable_connection: Option<unsafe extern "C" fn(U, u32, u64) -> bool>,
+    pub report: Option<unsafe extern "C" fn(U, u64, u32, bool)>,
+}
+
+struct CDealHost(fc4_neighbor_deal_host);
+impl DealHost for CDealHost {
+    fn current_city(&self) -> Option<CityId> {
+        opt(unsafe { self.0.current_city.map_or(0, |f| f(self.0.ctx)) })
+    }
+    fn city_at(&self, x: i32, z: i32) -> Option<CityId> {
+        opt(unsafe { self.0.city_at.map_or(0, |f| f(self.0.ctx, x, z)) })
+    }
+    fn neighbors_available(&self) -> bool {
+        unsafe { self.0.neighbors_available.is_some_and(|f| f(self.0.ctx)) }
+    }
+    fn deal_cost(&self, t: u32, amount: f64, other: Option<CityId>) -> f64 {
+        unsafe {
+            self.0
+                .deal_cost
+                .map_or(0.0, |f| f(self.0.ctx, t, amount, other.unwrap_or(0)))
+        }
+    }
+    fn city_budget(&self, city: CityId) -> f64 {
+        unsafe { self.0.city_budget.map_or(0.0, |f| f(self.0.ctx, city)) }
+    }
+    fn suitable_connection(&self, t: u32, other: CityId) -> bool {
+        unsafe { self.0.suitable_connection.is_some_and(|f| f(self.0.ctx, t, other)) }
+    }
+    fn report(&self, token: u64, status: u32, sent: bool) {
+        if let Some(f) = self.0.report {
+            unsafe { f(self.0.ctx, token, status, sent) };
+        }
+    }
+}
+
+/// Bind the game's interfaces without creating or initializing a replacement
+/// simulator. A replacement simulator's later claim takes precedence.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_neighbor_deal_bind_host(
+    h: *mut fc4_neighbor_deal,
+    host: *const fc4_neighbor_deal_host,
+) -> bool {
+    let Some(host) = host.as_ref() else { return false };
+    if (host.struct_size as usize) < std::mem::size_of::<fc4_neighbor_deal_host>() {
+        return false;
+    }
+    with_deal(h, false, |d| {
+        d.bind_host(Rc::new(CDealHost(*host)));
+        true
+    })
+}
+
+/// Complete Clone on an already wrapped destination, so every status report
+/// carries the destination's identity. Source and destination must be distinct.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_neighbor_deal_clone_into(
+    src: *const fc4_neighbor_deal,
+    dst: *mut fc4_neighbor_deal,
+    silent: bool,
+) -> bool {
+    if src == dst.cast_const() {
+        return false;
+    }
+    with_deal(src, false, |source| {
+        with_deal(dst, false, |dest| {
+            dest.clone_into(source, silent);
+            true
+        })
+    })
 }
 
 /// A new deal (Proposed + Silent, §5.1), linked to no simulator; the caller

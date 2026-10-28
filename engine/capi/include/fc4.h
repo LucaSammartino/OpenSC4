@@ -13237,4 +13237,29 @@ bool fc4_advisors_shadow_last_day(fc4_advisors* p, int32_t last_day);
 }
 #endif
 
+/* Regional-city-owned neighbor deals can call the current game's simulator
+ * even when neighbors replacement is off. Copied table; ctx and callbacks
+ * outlive the bound deal. Calls use the plugin's neighbor lock. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct fc4_neighbor_deal_host {
+    uint32_t struct_size;
+    void* ctx;
+    uint64_t (*current_city)(void*);
+    uint64_t (*city_at)(void*, int32_t, int32_t);
+    bool (*neighbors_available)(void*);
+    double (*deal_cost)(void*, uint32_t, double, uint64_t);
+    double (*city_budget)(void*, uint64_t);
+    bool (*suitable_connection)(void*, uint32_t, uint64_t);
+    void (*report)(void*, uint64_t, uint32_t, bool);
+} fc4_neighbor_deal_host;
+bool fc4_neighbor_deal_bind_host(fc4_neighbor_deal*, const fc4_neighbor_deal_host*);
+/* Clone into a distinct, already materialized destination. Its identity must
+ * be set before this call, because SetFlags may post a status report. */
+bool fc4_neighbor_deal_clone_into(const fc4_neighbor_deal* src, fc4_neighbor_deal* dst, bool silent);
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* FC4_H */
