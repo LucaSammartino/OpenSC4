@@ -72,7 +72,7 @@ fn damage_and_first_differences_are_reported() {
         if entry.tgi.type_id == 0x2990_C1E5 {
             bytes[12] ^= 1;
         }
-        changed.add(entry.tgi, &bytes, Compression::None).unwrap();
+        changed.add(entry.tgi, &bytes, Compression::Always).unwrap();
     }
     let report = model.audit(&changed.build().unwrap()).unwrap();
     assert_eq!(report.types[&0x2990_C1E5].differs, 1);
@@ -84,7 +84,7 @@ fn terrain_field_edges_and_class_references_roundtrip_independently() {
     use fc4_core::store::archive::ObjectReference;
     use fc4_core::stream::{ByteWriter, OutStream};
     use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainTuning, TerrainViewRecord};
-    let terrain = Terrain::blank(2, 2, TerrainTuning::default(), 308.0).unwrap();
+    let terrain = Terrain::create(2, 2, TerrainTuning::default()).unwrap();
     let mut builder = PackageBuilder::new();
     for (key, bytes) in [
         (Tgi::new(0x8A91_E7E3, 0xE98F_9525, 3), terrain.write_misc()),
@@ -221,7 +221,33 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
         total.merge(report);
     }
     eprintln!("{} golden saves\n{}", paths.len(), total.table());
-    assert!(total.types[&0x2990_C1E5].identical > 0);
+    // Keep the measured milestone honest if a dispatch arm is accidentally
+    // removed: a retained payload must not silently replace a tested codec.
+    for ty in [
+        0x2990_C1E5,
+        0x499B_23FE,
+        0x49B9_E602,
+        0x49B9_E603,
+        0x49B9_E604,
+        0x49B9_E605,
+        0x49B9_E606,
+        0x49B9_E60A,
+        0x8990_C080,
+        0x89EF_A536,
+        0x8A91_E7E0,
+        0x8A91_E7E3,
+        0xA7E7_F929,
+        0xA990_C022,
+        0xA9DD_6FF4,
+        0xC9B8_4E10,
+        0xC9C6_28EC,
+        0xE86B_1EEF,
+        0xE98F_9525,
+        0xEAD4_BA36,
+    ] {
+        let stats = &total.types[&ty];
+        assert_eq!(stats.identical, stats.count, "{ty:08X}: codec coverage regressed");
+    }
 }
 
 #[test]
