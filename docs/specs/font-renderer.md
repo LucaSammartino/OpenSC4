@@ -212,6 +212,16 @@ other values outside 1/2/3 leave local format 3 and make the 16-bit blend path a
 Mode 2 still reads palette[0] before pixel iteration even though zero coverage preserves.
 Palette indices are raw bytes, without clamping to 127; callers must provide addressed entries.
 
+**What the font really supplies in mode 2** (FR2, partly answered). The font's palette (`SetCurrentPalette`,
+`0x0089838C`) is a block of 0x200 bytes, 128 entries, so only coverage 0..127 is backed. The coverage bytes the font
+itself stores are not limited to that range: a 256-level glyph load (every antialiasing mode except 1) gives
+coverage up to 255, and the 256-entry antialiasing remap table, when present, never clamps to 127
+(drawing-fonts.md §7, §10); a one-bit glyph is expanded to 0 or 0xFF (`0x00897810`..`0x00897870`); the underline
+and strike-through rows are filled with 0xFF (`0x0089794B`..`0x0089795F`, `0x008979C9`..`0x008979DD`). Nothing
+in the font clamps these values or enlarges the palette, so a mode-2 draw of such a glyph or line reads palette
+entries 128..255, up to 0x200 bytes past the block, whatever the heap holds there *[quirk]*. No producer guarantees
+coverage below 128. Which backing a record's source dimensions need is still not settled.
+
 The constructor checks byte `00B5C418`; if zero it fills **32×32×32 bytes** starting at
 `00B54418`, then writes flag 1 (`0089772F–0089773D`). Indices are foreground component f,
 background component d, and quantized coverage q, each 0..31. Entry index is

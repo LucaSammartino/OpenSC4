@@ -13,7 +13,3 @@
 <!-- from: re-minimap7 (2026-10-23) -->
 - **MMW3 - §8.3, §10.1.1:** which object `city` slot 49 and its slot 9 return (the blinking marker's subject), and
   what its slot 6 tests on the tick. [unknown]
-
-<!-- from: re-minimap7 (2026-10-23) -->
-- **MMW4 - §1, §7:** the surface service `0xC416025C` and the lock codes `0x8001`, `0x8040`, `0x8010`, and the
-  surface format `(9, 32)` given at creation. [inferred: a 32-bit ARGB surface, read/write and read-only locks]

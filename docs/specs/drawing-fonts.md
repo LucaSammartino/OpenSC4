@@ -143,7 +143,7 @@ Note pointSize 16 is non-zero, so Init always calls SetSize(16) unless a size wa
 | 25 | IsCodePageAvailable(cp) | §6 probe table |
 | 26 | IsCharEncodingAvailable(e) | `e == 2` |
 | 29/30 | Get/SetScaling(x, y) | clamp each to [0.01, 1000]; on change clear both caches and re-apply the char size at 72×72 dpi |
-| 31/32 | Get/SetAdvanceScaling | Get returns (advanceScale, 1.0); Set clamps [0.1, 10], on change clears both caches |
+| 31/32 | Get/SetAdvanceScaling | Get returns (advanceScale, 1.0); Set clamps [0.1, 10], on change clears both caches. A NaN passes both clamp tests unchanged, is stored, and always counts as a change (`0x0089865F`..`0x008986B7`); infinities are clamped *[quirk]* |
 | 33/34 | Get/SetSpacingAdjustment(char, line) | plain store |
 | 53/54 | Get/SetRenderer | §9 |
 
@@ -254,7 +254,19 @@ line height 17, above 15, below 2.
 Strings arrive as bytes in the font's codePage. `ConvertCharToUnicode` (`0x0089671F`): length 0 → 0; codePage
 0x10 → the UTF-16 unit, length 2; a byte < 0x80 → itself, length 1; codePage 0 and byte ≥ 0x80 → one byte through
 the system converter, length 1; any other codePage → the multibyte character length for that code page, converted
-to one UTF-16 unit. `GetTextAsUnicode` converts a whole string into scratch vector *k* (codePage 0x10: copy only
+to one UTF-16 unit. **Incomplete input** (FN21). The count `n` given to the converting entry points is in *units* of the font's
+code page: for UTF-16 (`0x10`) the conversion copies exactly `2n` bytes (`0x00899A15`), so an odd byte length cannot
+be expressed there. For UTF-8 (code page 8) the converter (`ConvertStringEncoding`, `0x00910E18`) decodes one
+sequence at a time into **one 16-bit unit each** (the low 16 bits of the code point; no surrogate pair is made for
+four-byte or longer forms) and **stops silently** at the first sequence that is invalid (lead byte below `0xC2`,
+a trail byte outside `0x80`-`0xBF`, an over-long second byte) or that does not fit in the bytes that remain, or when
+the output vector is full. The units decoded before that point are kept and counted; the rest of the input is
+dropped, with no replacement character. The byte routine `Find` (`0x0089738F`, used by `CalculateTextArea`)
+treats `n` as a **byte** count in every encoding and steps by the length `ConvertCharToUnicode` reports for each
+character, so in UTF-16 it covers only the first `n / 2` units, and an odd `n` ends with a unit read across the
+end of the range. (Other multi-byte code pages and the system code page were not traced.)
+
+`GetTextAsUnicode` converts a whole string into scratch vector *k* (codePage 0x10: copy only
 when it needs Thai substitution, else the input is used as is), then applies §11 when the text contains Thai
 characters that need it. Measuring functions temporarily set codePage to 0x10 while they walk the converted text
 and restore it afterwards.
@@ -304,7 +316,12 @@ first absent probe returns false). The table, read from the switch at `0x00898A7
     (A space that would reach the full unscaled width is shortened by one pixel.)
   - t < s < 1.0 and ch != U+0020: **ignore s**, and use adv / 65536, as in the s == 1.0 case
     (`0x008991BF`..`0x008991F2`). This corrects the earlier description of the non-space branch.
-  - Other s: advance = ftol(adv · s · 2^-16), evaluated as below.
+  - Other s: advance = ftol(adv · s · 2^-16), evaluated as below. A **NaN** `s` (the only stored value outside
+    [0.1, 10], see §4) takes this branch, because every ordered test against 1.0 and 0.98 fails for it
+    (`0x00899196`..`0x008991AD`); the product is NaN and `_ftol2` returns the x87 integer indefinite
+    (`0x8000000000000000`: low word 0) for it and for any result outside the signed 64-bit range, so the stored
+    advance is **0**. With the C runtime's default masked x87 exceptions there is no fault (the precision setter
+    `0x008929E0` changes only the precision bits). The space adjustment cannot be reached with a NaN (FN18).
   - The result is stored as s16. U+200B and U+FEFF then get advance 0 (not in the space branch, which cannot
     apply to them).
   Example: adv = 0x00058000 (5.5 px), s = 0.99, ch = space: v = trunc(5.445) = 5; 5 + 1 > 5 → advance 4.
@@ -512,7 +529,8 @@ Signed compares except where marked:
 1. lh = GetLineHeight; maxH = max(maxH, lh).
 2. If minW or maxW is −1: aw = CharWidth('a'); minW −1 → 12·aw; maxW −1 → 32·aw; then if maxW ≤ minW,
    maxW = 2·minW (this repair runs only in this branch).
-3. w = 1. If the text contains no U+000A (`Find(s, n, 10)` `0x0089738F` = −1): w = GetStringWidth(s, n), and
+3. w = 1. If the text contains no U+000A (`Find(s, n, 10)` `0x0089738F` = −1; `Find` reads `n` as bytes, so in UTF-16
+   only the first `n / 2` units are searched, §6): w = GetStringWidth(s, n), and
    a. if w < minW: one line {w, lh} (right = left + w, bottom = top + lh), true;
    b. if w < 2·minW: W2 = CalculateWidthOfLines(s, n, 2·lh); if W2 < maxW (unsigned) and 2·lh ≤ maxH:
       {W2, 2·lh}, true;
@@ -556,9 +574,28 @@ surface lock fails, else `initialised`:
 4. With a target and ≥ 1 record, call renderer +0x1C with the records and either the current palette (palette
    mode) or the fg colour. Write the pen back; unlock if this call locked.
 
-`DrawTextParagraph(target, rect, text, n, align, fg, bg, clip, pen)` (slot 52): lines are taken with
-CalculateWordsToFitInWidth(mode 2) against the rect width; x = left (align 0), left + w/2 − lineWidth/2 (1, integer
-halves), right − lineWidth (2); trailing CR/LF are not drawn; y advances by line height while y < rect.bottom.
+`DrawTextParagraph(target, rect, text, n, align, fg, bg, clip, pen)` (slot 52, `0x0089A35B`, nine arguments;
+`pen` is a pointer to an (x, y) pair, or null) *(FN19)*:
+
+1. Not initialised, or `n` is 0: return the initialised flag at once, drawing nothing. Otherwise the text is converted to
+   UTF-16 once (`GetTextAsUnicode`, scratch 0) and the code page (+0x7C) is set to `0x10` for the whole call (the
+   old value is restored on every exit), so the lines below are plain UTF-16.
+2. With a target and surfaceLockCount 0, the surface is locked once through the renderer (+0x14); a failed lock
+   restores the code page and returns **false** with nothing drawn. A successful lock is counted and undone at
+   the end (renderer +0x18, count decremented), so the per-line calls do not lock again.
+3. Starting x is `rect.left`, or `pen.x` when a pen is given and differs from `rect.left`; this start is used
+   unchanged only for an `align` other than 0, 1 and 2. A line is taken with CalculateWordsToFitInWidth(mode 2)
+   against the rect width; per line x = `rect.left` (align 0), `rect.left + w/2 − lineWidth/2` (1, each half
+   truncated toward zero) or `rect.right − lineWidth` (2). Trailing CR and LF **units** are trimmed from the
+   line before it is drawn (all encodings, since the text is already UTF-16); a line that trims to nothing is
+   skipped but still consumes its characters. y starts at `rect.top` and advances by the line height while
+   y < `rect.bottom`.
+4. When a pen was given, every line's DrawTextLine receives a pen (the line's x, y) held in a local pair, which
+   overrides its position and is updated by DrawTextLine to the end of the line. The line calls' own results
+   are ignored. On leaving the loop the local pair is copied into `*pen`. If the loop did not run its first
+   line because `rect.top >= rect.bottom`, that pair was never written and `*pen` receives stale stack data
+   *[quirk]*; if the text was empty, `*pen` is not written.
+5. Result: the initialised flag (true) in every case except the lock failure above.
 
 `SetRenderer(r)`: if different, AddRef and attach r (r +0x0C with the font), detach (r +0x10) and Release the old
 one.
@@ -879,7 +916,8 @@ s = {"Tahoma", "Verdana"}; GetSubstitutions("arial", s, 2) → 0 (keys are exact
 
 FN1-FN17 are answered (FN7-FN14 by re-font-core-answers4; FN15-FN17 by re-font-final-gaps4)
 (archive: `docs/specs/questions/answered/drawing-fonts.md`); open entries, if any, are in
-`docs/specs/questions/drawing-fonts.md` (FN18-FN23; FN23 is §15's).
+`docs/specs/questions/drawing-fonts.md` (FN18 and FN19 were answered by re-x-ui, FN21 partly; FN20, FN22 and FN23 stay
+open; FN23 is §15's).
 
 ## 14. MXF font files *[compat]*
 

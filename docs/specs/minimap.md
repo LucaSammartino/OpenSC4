@@ -47,9 +47,10 @@ here. Globals:
   - releases the overlay `+0xF4` and the surface `+0xF0`;
   - `cGZWin::~cGZWin`.
 - **`Init`** (`0x007A8BD0`, slot 4): already initialised → true. Otherwise:
-  1. Get the framework service `0xC416025C` (IID `0x0073283C`). Into `+0xF0`, its slot 3 creates the drawing
+  1. Get the framework service `0xC416025C` (IID `0x0073283C`: the graphic system, gz-graphics.md §5). Into `+0xF0`, its slot 3 creates the drawing
      surface: false ends with false.
-  2. The surface's slot 3 `(n, n, {9, 32})`, with `n` = `+0xE4`: failure releases it and returns false.
+  2. The surface's slot 3 `(n, n, {9, 32})`, with `n` = `+0xE4`: failure releases it and returns false. The pair is
+     colour type 9 (32-bit A8R8G8B8, the type the screen buffer also uses above 16 bits per pixel) and 32 bits per pixel.
   3. When the surface locks (slot 6, `0x8001`): clear it to colour (100, 100, 127, 0) (slots 30 and 18), then unlock
      (slot 7).
   4. `cGZWin::Init`: failure calls `Shutdown` and returns false.
@@ -210,6 +211,12 @@ and "has a network" (bit `b+1`):
    pixel of the cell's 2×2 or 4×4 *[quirk]*.
 
 ## 7. `Update` (`0x007A8640`, `+0xD8` slot 9) and the blits *[compat]*
+
+*Lock codes (MMW4).* The codes `0x8001`, `0x8040` and `0x8010` are bit masks chosen by the caller, not read/write modes:
+the surface's `Lock(mask)` (`0x00826AA0`) fails (false) only when the buffer has no pixel base, otherwise it ORs the mask
+into the buffer's flag word (`+0x44`) and counts the lock (`+0x38`), and a mask with bit `0x8000` also increments the
+dword at `+0x30`; `Unlock(mask)` (`0x00826490`) clears the same bits and uncounts. Nothing there distinguishes reading
+from writing, so a re-implementation needs only a lock that yields the pixels and a matching unlock.
 
 1. When the window is not visible up its parent chain (`GZWinIsVisibleRecursive`, `0x007A6590`: every window to the
    root answers slot 71), free the map pixels.

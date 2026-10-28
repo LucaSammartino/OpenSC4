@@ -156,11 +156,19 @@ The result container of a script (class `0x5A354595`). Its two own functions are
 | 10 `GetCount()` | `0x0094BDE0` | |
 | 11 `Dispatch(iid, arg)` | `0x0094BDEA` | each element answering `iid` gets its slot 8 `(set, index, iid, arg)` while every call so far returned true; the result is whether all did |
 
-Second interface (`0xFA35615F`): slot 3 (`0x0094BE64`) gives `arg` to every element's `0x5A356159` interface slot
-3; slot 4 (`0x0094BEBA`), from the last element to the first, asks that interface's slot 5 for a rectangle, and when
-it contains the point `p`, calls its slot 6 `(p, arg)`; the first true ends it. For a legacy control these two slots
-are `SetArea(rect)` and `GetArea(rect)`, so this dispatch does not fit it *[quirk]* (UIS1). Helpers: `0x0094BCEB`,
-`0x0094BD13` (copies), `0x0094BD38` (point in rectangle, inclusive), `0x0094BF3B`, `0x0094C037` (append and grow),
-`0x0094C113` (erase a range), `0x0094C0E4` (Release thunk).
+Second interface (`0xFA35615F`, the five-slot table `0x00AD5234`): slot 3 (`0x0094BE64`) asks every element for
+its `0x5A356159` face and calls that face's slot 3 with `arg`; slot 4 (`0x0094BEBA`, `(point, arg)`), from the last
+element to the first, asks the element for the face, calls the face's slot 5 with an output rectangle (an element
+that has none, or whose slot 5 says false, is skipped) and, when the rectangle contains the point `p` (inclusive on
+all four sides, `0x0094BD38`), calls the face's slot 6 `(p, arg)`; the first true ends the walk. **It returns false
+in every case** (the final result is cleared, the walk's outcome is not returned) *[quirk]*. For the legacy
+control the `0x5A356159` face is the seven-slot table `0x00AD5344` (legacy-control.md): slot 3 is the shared
+"true, one argument" body, slot 4 `SetArea` (`0x0094C3F5`), slot 5 `GetArea(rect)` (`0x0094C413`; false when the
+control is absent) and slot 6 the shared "true, two arguments" body (`0x0092B33A`). So the dispatch fits the legacy
+control: slot 5 is a rectangle getter and slot 6 a point-taker that accepts and does nothing (UIS1: the earlier
+reading of that table, with a duplicated slot 3, shifted `SetArea` into slot 5). No code in the executable asks
+for IID `0xFA35615F` except this class's own `QueryInterface`, so nothing in the shipped game calls slots 3 or
+4. Helpers: `0x0094BCEB`, `0x0094BD13` (copies), `0x0094BD38` (point in rectangle, inclusive), `0x0094BF3B`,
+`0x0094C037` (append and grow), `0x0094C113` (erase a range), `0x0094C0E4` (Release thunk).
 
 Not covered: the interpreter and scope classes, and the tag objects other than the legacy control.

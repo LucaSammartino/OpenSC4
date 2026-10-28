@@ -277,7 +277,7 @@ generated index: the questions live one file per spec, so read only the file for
 | dispatch | 0 | 13 | DP14 | questions/dispatch.md |
 | dispatch-vehicle-view | 0 | 0 | - | questions/dispatch-vehicle-view.md |
 | draw-context | 3 | 6 | DC10 | questions/draw-context.md |
-| drawing-fonts | 6 | 17 | FN24 | questions/drawing-fonts.md |
+| drawing-fonts | 4 | 19 | FN24 | questions/drawing-fonts.md |
 | drive-tool | 8 | 0 | DR9 | questions/drive-tool.md |
 | effects | 0 | 31 | EF28, EFP7 | questions/effects.md |
 | effects-parser | 0 | 1 | EFP8 | questions/effects-parser.md |
@@ -319,7 +319,7 @@ generated index: the questions live one file per spec, so read only the file for
 | lot-records | 3 | 14 | LR18 | questions/lot-records.md |
 | lua-host | 0 | 9 | LH8 | questions/lua-host.md |
 | map-view | 1 | 16 | DS30, QV17 | questions/map-view.md |
-| minimap | 4 | 0 | MMW5 | questions/minimap.md |
+| minimap | 3 | 1 | MMW5 | questions/minimap.md |
 | missing-plugin-reporter | 1 | 0 | MPR5 | questions/missing-plugin-reporter.md |
 | model-instances | 5 | 1 | MI15 | questions/model-instances.md |
 | model-maker | 1 | 1 | MM3 | questions/model-maker.md |
@@ -414,13 +414,13 @@ generated index: the questions live one file per spec, so read only the file for
 | tutorial-window | 4 | 2 | TUW7 | questions/tutorial-window.md |
 | ui-feedback-owners | 0 | 0 | - | questions/ui-feedback-owners.md |
 | ui-helpers | 3 | 0 | UIH4 | questions/ui-helpers.md |
-| ui-script-service | 1 | 0 | UIS2 | questions/ui-script-service.md |
+| ui-script-service | 0 | 1 | UIS2 | questions/ui-script-service.md |
 | ui-windows | 1 | 0 | UI30 | questions/ui-windows.md |
 | underground-occupants | 1 | 4 | UG6 | questions/underground-occupants.md |
 | unsorted | 0 | 0 | - | questions/unsorted.md |
 | vehicles | 0 | 11 | VH12 | questions/vehicles.md |
 | video-preferences | 0 | 5 | VP6 | questions/video-preferences.md |
-| view-input-controls | 7 | 0 | VIC8 | questions/view-input-controls.md |
+| view-input-controls | 3 | 4 | VIC8 | questions/view-input-controls.md |
 | view-utilities | 2 | 16 | VU20 | questions/view-utilities.md |
 | view3d-window | 0 | 19 | VW20 | questions/view3d-window.md |
 | water-ripples | 3 | 11 | WR15 | questions/water-ripples.md |
@@ -438,4 +438,4 @@ generated index: the questions live one file per spec, so read only the file for
 | win-grid | 2 | 7 | WG10 | questions/win-grid.md |
 | zone-tool | 1 | 0 | ZT2 | questions/zone-tool.md |
 | zones | 2 | 56 | ZG43, ZQ17 | questions/zones.md |
-| **total** | **629** | **1705** | | |
+| **total** | **621** | **1713** | | |

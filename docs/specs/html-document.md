@@ -86,6 +86,13 @@ Copies `min(count, 7)` 32-bit sizes from the given array to the start of the tab
 `count` keep their old values), then sets both face sizes (0x54, 0x6c) to entry 3 (0x1b4). Example: the
 default table gives face size 14; a 3-entry table `{6,7,8}` leaves entry 3 unchanged.
 
+The window that owns the document can override the default table. `cGZWinHTML::SetTextSizeTable` (window slot 33,
+`0x008FB66F`) stores seven sizes in the window (`0x204` from the window object), and `InternalSetDocument` (`0x008FBDE4`)
+calls `SetFontSizeTable(window table, 7)` on each new document only when that table's first entry is non-zero.
+The credits dialog does this with `{8, 10, 12, 16, 19, 24, 48}` (`0x00AB4AD0`, small-windows.md §1); it is the only
+caller found that passes a constant table, so a document whose window was never given a table keeps the
+`{8, 10, 12, 14, 18, 24, 36}` default of §1.1.
+
 ### 1.5 COM surface
 
 - `QueryInterface` (008fe759): IID 1 (`kGZIID_cIGZUnknown`) and IID 0xe0eca23a return the primary base;

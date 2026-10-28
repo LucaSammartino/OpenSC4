@@ -1,3 +1,4 @@
 # auto-game-pause: open questions
 
 - **AGP1 — auto-game-pause §3.1:** What is the intended typed interface and semantic operation name for F1? The matching Windows 1.1.641 PE/export literally requests framework service `0xC416025C` with IID `0x0073283C`, then calls no-argument slots `+0x48` / `+0x4C`. The public ID table labels the service graphic system; the familiar sound label is not established by these instructions. Do not substitute a guessed sound IID or direct native target. The raw lookup/slot/Release contract is known; typed semantics remain open.
+  PARTIAL 2026-10-27 (re-x-ui): `0xC416025C` is the graphic-system service; slots `+0x48`, `+0x4C` and `+0x50` of its `0x0073283C` face increment, decrement and test a dword counter (system `+0x64`); no other caller or reader of the counter was found, so the purpose and name of the operation remain open (auto-game-pause.md section 3.1).

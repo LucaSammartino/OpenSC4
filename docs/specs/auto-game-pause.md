@@ -20,7 +20,7 @@ No native execution or equivalence result is claimed.
 |---|---|---|
 | Class constructor `0x005F9320` | `005F9320–005F9353`, 52 bytes | Supported normal field/call/return contract, §2 |
 | Class destructor `0x005F9360` | `005F9360–005F9380`, 33 bytes | Supported normal read/call contract, §2 |
-| Separate `fn:SC4GamePause`, `0x005F91C0` | `005F91C0–005F931E`, 351 bytes | Supported own control flow, §3; Partial typed first-participant identity (AGP1) |
+| Separate `fn:SC4GamePause`, `0x005F91C0` | `005F91C0–005F931E`, 351 bytes | Supported own control flow, §3; First participant typed as the graphic system's counter (AGP1, consumer open) |
 | Shared cleanup `0x004495C0`, `0x005F8F20` | Only null test and slot `+0x08` boundary used | Foreign utility; normal Release behavior verified, no exception contract credited |
 | Framework, animation, simulator, app, city, clock, first participant | Individual replies/calls only | Foreign; no participant body credit |
 | Allocation, factory/COM identity, copies/moves, exceptional lifetime | Not established | Unknown/Unsupported |
@@ -96,16 +96,21 @@ Unselected stages perform no framework, lookup, operation or cleanup calls.
 
 | Stage | Lookup `(service ID, IID)` | Nonnull participant operation when D≠0 | When D=0 | Positive instruction evidence |
 |---|---|---|---|---|
-| F1 (typed identity unresolved) | `(0xC416025C,0x0073283C)` | slot `+0x48`, no arguments | slot `+0x4C`, no arguments | Gate `005F91C0–91C9`; lookup `91CB–91EB`; pointer/direction/calls `91EE–9205`; cleanup `9208–920C` |
+| F1 graphic system | `(0xC416025C,0x0073283C)` | slot `+0x48` (18), no arguments: counter increment | slot `+0x4C` (19), no arguments: counter decrement | Gate `005F91C0–91C9`; lookup `91CB–91EB`; pointer/direction/calls `91EE–9205`; cleanup `9208–920C` |
 | F2 animation | `(0x86AD10EC,0x86AD10ED)` | `PauseAnimationSystem(1)`, slot `+0x30` | same slot with 0 | Gate `005F9211–9215`; lookup `9217–9237`; pointer/direction/calls `923A–9254`; cleanup `9257–925B` |
 | F3 simulator | `(0x46956659,0x8695664E)` | `HiddenPause()`, slot `+0x28` | `HiddenResume()`, slot `+0x34` | Gate `005F9260–9264`; lookup `9266–9286`; pointer/direction/calls `9289–92A0`; cleanup `92A3–92A7` |
 | F4 application → current city → clock | `(0x66,0x26CE01C0)` | clock `HiddenPause(1)`, slot `+0x68` | same slot with 0 | Gate `005F92AC–92B0`; lookup `92B2–92CF`; chain `92D2–92F4`; direction/calls `92F6–9300`, `930D–9310`; cleanup `9303–9308`, `9313–9318` |
 
 The F1 constants are literal PE instructions, including the unusual IID whose
-numeric value lies inside another exported function. The public ID table calls
-`0xC416025C` the graphic-system service. This evidence does not justify calling
-the returned interface a sound interface or mapping its operations to another
-service. AGP1 remains open; the boundary is a raw lookup reply and individual
+numeric value lies inside another exported function. `0xC416025C` is the graphic-system
+service (`cGZGraphicSystem`; the shipped Windows subclass, whose `0x0073283C` face is the table
+`0x00ADAA58`, gz-graphics-w32.md §2). Its slot 18 (`0x0098AE40`) adds 1 to a dword counter held at `+0x48` of
+that face (`+0x64` of the system object), slot 19 (`0x0098DFA0`) subtracts 1, and slot 20 (`0x0098DFB0`) reports
+whether the counter is non-zero; none of the three checks a bound. F1 therefore raises the counter on a pause and
+lowers it on a resume (nesting). No other call to these three slots, and no reader of the counter, was found in
+the executable, so what the counter changes is not observable from the executable's own code; the operation
+has no name in the executable (AGP1). This evidence does not justify calling the returned interface a sound
+interface or mapping its operations to another service. The boundary is a raw lookup reply and individual
 virtual operations, not a direct native-address fallback. The animation method
 name/slot comes from the public ABI table; simulator/clock names match the
 existing advisor and clock projections. Participant internals are not reopened.
@@ -286,8 +291,7 @@ expectations only. No native game, engine, test-source or oracle comparison was
 performed. Lookup ownership rules and participant pause/counter semantics remain
 the public foreign interfaces' responsibility; the helper does not verify them.
 
-[AGP1](questions/auto-game-pause.md) is the remaining typed first-participant
-question. No defaults, native COM/factory identity, allocation protocol, exception
+[AGP1](questions/auto-game-pause.md) keeps only the consumer of the graphic system's counter open. No defaults, native COM/factory identity, allocation protocol, exception
 recovery or unsupported lifetime behavior is supplied by analogy. No ABI rows or
 native C exports are proposed. This bounded class/helper spec does not change
 the capped families or reopen their internal algorithms.

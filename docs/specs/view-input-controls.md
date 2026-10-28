@@ -87,7 +87,13 @@ releases the picture and calls the base `Shutdown`.
 
 ## 3. The levelling tool (`cSC4ViewInputControlLevelTerrain`) *[compat]*
 
-- Made by the city view's `RunGlobalTerrainTool` (`0x007E75B0`) for command 7 and made current. Construction
+- Made by the city view's `RunGlobalTerrainTool` (`0x007E75B0`) for item 7 and made current (mode 2; the object is
+  0x58 bytes). That routine is reached from the view's catalog-item handler (`InvokeCatalogItemCommand`) for the
+  terrain-tool catalog kind `0x6A5AC478`, not from `ProcessCommand`; after the terrain sound it acts on the item:
+  0 opens the change-terrain-type dialog and applies its result, 1 and 2 call terrain slots 43 and 44 with 1, 3 and 4
+  raise and lower the whole terrain by the terrain's default step (slots 47 and 48), 5 and 6 post notice
+  `0x470BD214` with data 0 and 1, 7 is this tool, anything above 7 does nothing (names of 0-6: view3d-window.md §6i,
+  confirmed against the jump table at `0x007E77C8`). Construction
   (`0x004BDC60`): id `0x88CEA620`, cursor `0x071E5703`. `Init` (`0x004BDC90`): base `Init`, then the terrain
   (`0x00B43CF4`, held), its cell width `w` (slot 6) and its terrain view (slot 66, held). Keys are passed on.
 - **Press** (`0x004BDCE0`): false without the city view. The city view's `PickTerrain(x, y, &p, 0)` (slot 36); on a
@@ -107,8 +113,9 @@ releases the picture and calls the base `Shutdown`.
 
 ### 4.1 Making and finding labels
 
-- Made by the city view's `ProcessCommand` (slot 7, `0x007F1C10`). Construction (`0x004BD230`): idle, no selection,
-  orientation 1. `Init` (`0x004BC980`): id `0x8B3CE416`, cursor `0xEB72FEF4`; the prop developer's
+- Made by the city view's `ProcessCommand` (slot 7, `0x007F1C10`) for command `0x0B980587` (`LabelTool`), sent by the
+  label button `0xCB95412C` of the view's button handler; there is no established-city test. The object is 0x44
+  bytes and is made current with mode 2. Construction (`0x004BD230`): idle, no selection, orientation 1. `Init` (`0x004BC980`): id `0x8B3CE416`, cursor `0xEB72FEF4`; the prop developer's
   `ShowSignsAndLabels(true)`; base `Init`.
 - A **label** is a text-decal occupant (`cSC4TextDecalOccupant`, interface `0x2B3B7D86`): slot 3 `AsOccupant`, 4
   `SetText`, 5 `GetText`, 6 `SetTextHeight`, 7 `SetDynamic`, 8 `SetTextColor(r, g, b)`, 9 `SetOrientation`, 10
@@ -188,9 +195,11 @@ an offset `(ox, oz)`; the height is kept; the orientation starts at 1 with no of
 
 ### 5.1 Making signs
 
-- Made by the city view's `ProcessCommand`. `Init` (`0x004D7BE0`): id `0x8B4CE5A0`, cursor `0x6B72FECF`; the
-  framework's code page (`+0x64`); the framework service `0x27EBFFFD` (interface `0x07EC0010`, held) *[inferred:
-  the clipboard]*; the message server's notification `0x0BE10A20` for the tool (§5.4); `ShowSignsAndLabels(true)`.
+- Made by the city view's `ProcessCommand` for command `0x0B980581` (`SignTool`), sent by the sign button
+  `0x0B954123`; again no established-city test, a 0x80-byte object made current with mode 2. `Init`
+  (`0x004D7BE0`): id `0x8B4CE5A0`, cursor `0x6B72FECF`; the
+  framework's code page (`+0x64`); the framework service `0x27EBFFFD` (interface `0x07EC0010`, held): the **clipboard manager**
+  (clipboard.md; its slot 18 is `GetClipboardText(out, id)`); the message server's notification `0x0BE10A20` for the tool (§5.4); `ShowSignsAndLabels(true)`.
 - A **sign** is a signpost occupant (`cSC4SignpostOccupant`, interface `0x4B44FBE2`): slot 3 `AsOccupant`, 4
   `SetText`, 5 `GetText`, 6 `SetDynamic`, 7 `SetEditMode`; prop type `0xAB72FBB3`. Signs are found by the
   renderer's `Pick(x, y, filter, &instance)` (slot 65) with a filter for props answering that interface
@@ -208,22 +217,37 @@ an offset `(ox, oz)`; the height is kept; the orientation starts at 1 with no of
   `SetEditMode(true)`; sound `0x2C16DA29`. True.
 - **Move** (`0x004D84B0`): pressed with a selection → dragging. Dragging: the terrain hit at the mouse point plus the
   kept offset is the sign's new position. Idle: the sign under the mouse, or none, becomes the selection. True.
-- **Release** (`0x004D8730`): dragging → sound `0x2C16DA29`. Pressed, or dragging a sign with an empty text →
-  typing: the edit text and its backup (`+0x50`) := the sign's text, `SetEditMode(true)`. Otherwise idle. True.
+- **Release** (`0x004D8730`): dragging → sound `0x2C16DA29` (whatever the text). Pressed, or dragging a sign whose
+  text is empty → typing: the edit text and its backup (`+0x50`) := the sign's text, `SetEditMode(true)`. Afterwards
+  the state is set to idle **unless it is typing**: a release in state 3 leaves it at 3, so the release that ends the
+  press which created a new sign keeps the tool typing (VIC7); from idle it stays idle. True.
 
 ### 5.3 Typing
 
-- **`OnCharacter(c)`** (`0x004D8830`), typing only (else false). The code page is multi-byte when it is 8 or at
-  least 100. Escape: nothing. Enter: `SetEditMode(false)`, `SetDynamic(true)`, no selection (an empty sign is
-  removed, §5.1), idle. Backspace: the last character (multi-byte aware) is cut and the sign's text set. Other codes
-  below `0x20`: nothing. Others: with a multi-byte code page, a lead byte starts a pending character and the next
-  bytes join it until it is whole; the whole character, or the single byte otherwise, is appended. True.
-- **Appending** (`AppendText(s)`, `0x004D8670`): `k :=` the glyph count of the edit text; for each character of `s`
-  while `k ≤ 32`: a newline is skipped, any other character appended; `k += 1` either way. Then the sign's text is
-  set.
+- **`OnCharacter(c)`** (`0x004D8830`), typing only (else false); only the low byte of `c` is used. The framework's
+  code page (`+0x64`) is read from `0x00940DA8`, which returns the constant 8 (UTF-8) in the shipped build; the
+  tool treats a code page as multi-byte when it is 8 or at least 100, so the single-byte branches (code pages
+  below 100 other than 8) cannot run, and the only live path is UTF-8. Escape: nothing (true). Enter:
+  `SetEditMode(false)`, `SetDynamic(true)`, no selection (an empty sign is removed, §5.1), idle. Backspace: with a
+  non-empty edit text the last character is cut and the sign's text set; in UTF-8 the cut removes the trailing run
+  of continuation bytes (`0x80`-`0xBF`) and the one byte before it, without checking that this byte is a lead
+  byte. Other codes below `0x20`: nothing, **also in the middle of a pending character**. Others: a lead byte
+  (`0xC0`-`0xFD`) with no pending bytes starts a pending character (nothing is appended yet); every later byte
+  is added to the pending character whatever its value, until it has `1 +` the lead's trailing-byte count
+  (`0xC2`-`0xDF` 1, `0xE0`-`0xEF` 2, `0xF0`-`0xF7` 3, `0xF8`-`0xFB` 4, `0xFC`-`0xFD` 5; `0xC0` and `0xC1` count 0, so
+  the next byte completes them). A byte that is not a lead with nothing pending is a complete character on its
+  own. A complete character goes to `AppendText`, then the pending bytes are cleared. The pending bytes are not
+  touched by Enter, Escape, a new press or `Shutdown`; an abandoned lead byte therefore joins the next
+  characters typed *[quirk]*. True.
+- **Appending** (`AppendText(s)`, `0x004D8670`): `k :=` the glyph count of the edit text (the number of bytes that are
+  not continuation bytes, `0x009107D8`); for each character of `s` while `k ≤ 32`: the character's length is
+  `0x009106A9` (a lead byte `0xC0`-`0xFD` whose next byte is a continuation byte: 2 for a lead below `0xE0`, 3 below
+  `0xF0`, 4 below `0xF8`, 5 below `0xFC`, else 6; any other byte: 1; the length is not checked against what is
+  left); a character whose first byte is a line feed (`0x0A`) is skipped, any other character, a carriage return or
+  tab included, appended; `k += 1` either way. Then the sign's text is set.
 - **`OnKeyDown(key, modifiers)`** (`0x004D89D0`): typing: Escape restores the backup into the sign and the edit text
-  and returns false; Ctrl+V (modifier bit 1, without bits 0 and 2) appends the service's text (§5.1, slot 18) when
-  it gives one; other keys are taken (true). Not typing: Delete with a selection removes the sign; idle; true. Other
+  and returns false; Ctrl+V (key `0x56`, modifier bit 1, without bits 0 and 2) appends the clipboard text
+  (`GetClipboardText(out, 0)`, the system clipboard) when it gives one; other keys are taken (true). Not typing: Delete with a selection removes the sign; idle; true. Other
   keys: false.
 
 ### 5.4 Messages and shutdown
@@ -232,13 +256,21 @@ an offset `(ox, oz)`; the height is kept; the orientation starts at 1 with no of
 - `DoMessage` (`0x004D7D70`, the target at `+0x28`): message `0x0BE10A20` while typing with a selection is answered
   (its `+4 := 1`) with a screen point in `+8`, `+0x0C`: of the two corners `a`, `b` that occupant slot 10 gives,
   `((a.x + b.x) / 2, b.y, (a.z + b.z) / 2)`, projected by `SC4ViewUtilities::ProjectPointToViewportCoordinates2D`
-  *[inferred: where the input-method window goes]*. Never consumed (false).
+  *[inferred: where the input-method window goes]*. Never consumed (false). The only sender in the executable is the
+  input-method proxy (`cGZWinIMEProxy::OnTick`, `0x00993CE7`; the message is built at `0x00993DE0`). Every fourth
+  tick (every eighth while the focus object is unchanged), when its own flag (`+0x38`) is clear and the focused
+  window answers none of the interfaces `0x231A1C57`, `0x2AC44A90` and `0x2AC44A93` (the standard text controls),
+  it sends the message at once through the message server with the answered flag 0 and the point (2, 2). A listener
+  that sets the flag supplies the point, which the proxy keeps (`+0x30`, `+0x34`; initial value `0x7FFFFFFF` for both)
+  *[inferred: the position for the input-method window; the consumer was not traced]*; with no answer it calls
+  its helper's slot 8 and, when that says yes, the helper's slot 9 with 0 (VIC2).
 - `Shutdown` (`0x004D8130`): typing → `SetEditMode(false)`, `SetDynamic(true)`; no selection; the service released;
   the notification removed; base `Shutdown`.
 
 ## 6. The sign and label bulldozer (`cSC4ViewInputControlSignLabelDemolish`) *[compat]*
 
-- Made by the city view's `ProcessCommand`. `Init` (`0x004D7710`): id `0xCBCC987E`, cursor `0x8BD4B428`; the filter
+- Made by the city view's `ProcessCommand` for command `0xABCDEE11` (`DemolishSignsAndLabels`), sent by the button
+  `0xABA7ED0A`; a 0x30-byte object made current with mode 2. `Init` (`0x004D7710`): id `0xCBCC987E`, cursor `0x8BD4B428`; the filter
   `cSC4SignOrLabelFilter` (`0x004D7680`: props whose prop type is `0xAB72FBB3` or `0xCB79919B`);
   `ShowSignsAndLabels(true)`.
 - **Hover** (`0x004D7AC0`): `PickSignOrLabel` (`0x004D7820`): the renderer's `Pick` with the filter; else
@@ -261,16 +293,17 @@ The tools post the start-sound event `0xEA451903` with the sound id to the sound
    the turn (§4.5).
 3. Off networks a label keeps `p` exactly, and so does an avenue tile with no avenue piece found, while a road label
    always moves to the cell's centre (§4.4).
-4. A sign holds up to 33 glyphs: the limit is tested before each append (§5.3). Pasted newlines are dropped but
-   still counted.
+4. A sign holds up to 33 glyphs: the limit is tested before each append (§5.3). Pasted line feeds are dropped but
+   still counted; carriage returns are kept.
 5. Escape while typing restores the text but stays in typing mode and passes the key on (§5.3).
 6. The levelling press returns true even when the terrain is missed (§3).
 7. The scroll thresholds apply to half the mouse offset (§2.3).
 
 ## 9. Open questions
 
-See [questions/view-input-controls.md](questions/view-input-controls.md): VIC1 (the commands that make the label,
-sign and bulldozer tools, and global terrain command 7), VIC2 (message `0x0BE10A20` and service `0x27EBFFFD`).
+See [questions/view-input-controls.md](questions/view-input-controls.md): VIC3 to VIC6 (boundary, inventory and failure
+contracts). The makers of the tools, global terrain items 0-7, the clipboard service, message `0x0BE10A20`, the text
+encoding and the release-while-typing rule (VIC1, VIC2, VIC4, VIC7) are answered above.
 
 ## 10. Conformance tests
 

@@ -24,6 +24,13 @@ its called transform `00407000` remains unproved. Remaining U:17 bodies/17,137 B
 exact dependencies are retained
 in the spec rather than removed from the attributable scope.
 
+PARTIAL 2026-10-27 (re-x-ui): the call chain and roles in the residual table of tools-com-director.md section 1.1
+(scale-factor decoding, Huffman reads, requantisation, stereo processing, reordering, hybrid transform, synthesis
+and PCM store) are the stages of an MPEG audio layer III decoder that the registered decoder objects drive, with
+the layer-3 side-information parser and the frame-header parser as its front end; so the `00A66xxx` to `00A6Cxxx`
+rows and `00407000` belong to a decoder library, not to the director class. Moving them out of the director's
+inventory is the coordinator's attribution decision; their numeric contracts are still not specified.
+
 **TD4 - Numeric-table reference incorrectly counted as a body**
 
 Should the coordinator correct the 21-byte `00420036` body/owner attribution?
