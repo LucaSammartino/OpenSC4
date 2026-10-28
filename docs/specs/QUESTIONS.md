@@ -344,7 +344,7 @@ generated index: the questions live one file per spec, so read only the file for
 | occupant-groups | 4 | 0 | OG5 | questions/occupant-groups.md |
 | occupant-manager | 1 | 6 | OM11 | questions/occupant-manager.md |
 | occupants-props | 6 | 14 | OP20 | questions/occupants-props.md |
-| ordinance | 0 | 1 | SV3 | - |
+| ordinance | 0 | 1 | SV3 | questions/ordinance.md |
 | output-streams | 3 | 4 | OS8 | questions/output-streams.md |
 | overlay-manager | 5 | 14 | OV20 | questions/overlay-manager.md |
 | overlay-views | 1 | 6 | OVV8 | questions/overlay-views.md |
