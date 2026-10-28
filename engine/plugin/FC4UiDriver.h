@@ -29,8 +29,25 @@ inline bool IsAction(harness::ScriptOp op) {
         op == ScriptOp::UiKey || op == ScriptOp::UiText || op == ScriptOp::UiWait || op == ScriptOp::UiControl;
 }
 
-// The framework supplies its actual host window; another slot may have the
-// same title, and the host need not have a particular Win32 class name.
+// The framework's host can be a zero-client message window. Input belongs to
+// this process's renderer window (the harness uses the same class check).
+// Never select by title: parallel slots share it.
+inline bool IsGameWindow(HWND window) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    char name[128]{};
+    RECT client{};
+    return pid == GetCurrentProcessId() && GetClassNameA(window, name, sizeof(name)) &&
+        std::strncmp(name, "GDriverClass", 12) == 0 && GetClientRect(window, &client) &&
+        client.right > client.left && client.bottom > client.top;
+}
+
+inline BOOL CALLBACK FindGameWindow(HWND window, LPARAM result) {
+    if (!IsGameWindow(window)) return TRUE;
+    *reinterpret_cast<HWND*>(result) = window;
+    return FALSE;
+}
+
 inline HWND GameWindow() {
     auto* fw = RZGetFrameWork();
     cIGZFrameWorkW32* win32 = nullptr;
@@ -40,9 +57,10 @@ inline HWND GameWindow() {
     // [abi-ret] public SDK cIGZFrameWorkW32::GetMainHWND returns HWND.
     HWND window = win32->GetMainHWND();
     FC4_RELEASE(win32);
-    DWORD pid = 0;
-    GetWindowThreadProcessId(window, &pid);
-    return pid == GetCurrentProcessId() ? window : nullptr;
+    if (IsGameWindow(window)) return window;
+    window = nullptr;
+    EnumWindows(FindGameWindow, reinterpret_cast<LPARAM>(&window));
+    return window;
 }
 
 inline std::string Command(uint32_t id) {
