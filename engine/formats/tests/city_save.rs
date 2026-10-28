@@ -265,10 +265,105 @@ fn golden_supported_owners_roundtrip_when_corpus_is_present() {
         0xC2F6_E81F,
         0xE0D0_722E,
         0xE0D0_7233,
+        0x2977_AA47,
+        0x2977_AA49,
+        0xA9BC_9AB6,
+        0xA9BD_882D,
+        0xC97F_987C,
+        0x49C0_5C8F,
+        0x2990_C1BC,
     ] {
         let stats = &total.types[&ty];
         assert_eq!(stats.identical, stats.count, "{ty:08X}: codec coverage regressed");
     }
+}
+
+#[test]
+fn occupant_archive_keeps_parent_keys_frames_and_nonlive_effect_names() {
+    use fc4_core::lot_records::{BaseTextureRecord, OccupantRecord, TextureRecord};
+    use fc4_core::prop_occupant::{write_effect_record, write_prop_record, EffectRecord, EffectRecordHead, PropRecord};
+    use fc4_core::stream::{ByteWriter, OutStream, ResKey};
+    use fc4_core::variant::{Elem, Variant};
+    use std::rc::Rc;
+
+    let mut prop = PropRecord::default();
+    prop.base.removal = 257;
+    prop.base.flags = 0x85;
+    prop.base.holder.parent = Some((
+        ResKey {
+            type_id: 0x6534_284A,
+            group: 71,
+            instance: 93,
+        },
+        Rc::new(fc4_core::property::PropertyHolder::new()),
+    ));
+    prop.base
+        .holder
+        .own
+        .add(17, Variant::Scalar(Elem::F32(f32::from_bits(0x7fc0_1234))));
+    prop.prop_type = 0xDEAD_BEEF;
+    prop.bounds.0[1] = -0.0;
+    prop.timer_bits = 15;
+    let mut w = ByteWriter::new();
+    assert!(write_prop_record(&prop, &mut w));
+    let mut builder = PackageBuilder::new();
+    let prop_bytes = write_class(&[StoredObject {
+        id: 71,
+        payload: w.into_bytes(),
+    }])
+    .unwrap();
+    builder
+        .add(Tgi::new(0x2977_AA47, STORE_GROUP, 0), &prop_bytes, Compression::Always)
+        .unwrap();
+
+    let effect = EffectRecord {
+        version: 3,
+        prop,
+        head: EffectRecordHead { byte0: 1, byte1: 0 },
+        name: b"welding_sparks".to_vec(),
+        trailer: 0x1234_5678,
+    };
+    let mut w = ByteWriter::new();
+    assert!(write_effect_record(&effect, false, &mut w));
+    let effect_bytes = write_class(&[StoredObject {
+        id: 72,
+        payload: w.into_bytes(),
+    }])
+    .unwrap();
+    builder
+        .add(
+            Tgi::new(0x2977_AA49, STORE_GROUP, 0),
+            &effect_bytes,
+            Compression::Always,
+        )
+        .unwrap();
+
+    let mut texture = BaseTextureRecord::new();
+    let mut w = ByteWriter::new();
+    w.put_u32(0x1234_5678);
+    w.put_bytes(&[1, 2, 3, 1, 0xFF, 0xB2, 0x33, 0xAA, 3, 0xFF]);
+    let mut cell = TextureRecord::default();
+    cell.read(&mut fc4_core::stream::ByteReader::new(w.bytes())).unwrap();
+    texture.textures.push(cell);
+    let mut w = ByteWriter::new();
+    assert!(texture.write(&mut w));
+    let texture_bytes = write_class(&[StoredObject {
+        id: 73,
+        payload: w.into_bytes(),
+    }])
+    .unwrap();
+    builder
+        .add(
+            Tgi::new(0xC97F_987C, STORE_GROUP, 0),
+            &texture_bytes,
+            Compression::Always,
+        )
+        .unwrap();
+    let source = Package::from_bytes(builder.build().unwrap()).unwrap();
+    let model = CitySave::read(&source).unwrap();
+    let report = model.audit(&model.write().unwrap()).unwrap();
+    assert!(report.differences.is_empty());
+    assert!(report.types.values().all(|s| s.not_handled == 0 && s.identical == 1));
 }
 
 #[test]

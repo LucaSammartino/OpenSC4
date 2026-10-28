@@ -12,11 +12,15 @@ use fc4_core::commercial::IndustrialSim;
 use fc4_core::history::{HistoryWarehouse, CLSID_HISTORY_WAREHOUSE};
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
+use fc4_core::prop_occupant::{
+    read_effect_record, read_prop_record, write_effect_record, write_prop_record, EffectRecord, PropRecord, ReadOutcome,
+};
 use fc4_core::save::SaveRecord;
 use fc4_core::store::archive::{read_class, write_class, ClassIndex, StoredObject};
 use fc4_core::store::{INDEX_TYPE, STORE_GROUP};
 use fc4_core::stream::{ByteReader, ByteWriter, SaveObject};
 use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainViewRecord};
+use fc4_core::weather::{WeatherRng, WeatherSim};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -37,6 +41,8 @@ enum Payload {
     Detail(DetailRecord),
     Ordinance(OrdinanceRecord),
     OrdinanceSimulator(OrdinanceSimulatorRecord),
+    Prop(Box<PropRecord>),
+    EffectProp(Box<EffectRecord>),
     Unhandled(Vec<u8>),
 }
 
@@ -99,6 +105,28 @@ impl Payload {
                 Self::Ordinance(OrdinanceRecord::read(&mut r).ok_or("ordinance Read failed")?),
                 true,
             ),
+            0x2977_AA47 => {
+                let ReadOutcome::Ok(record) = read_prop_record(&mut r) else {
+                    return Err("prop Read failed".into());
+                };
+                (Self::Prop(Box::new(record)), true)
+            }
+            0x2977_AA49 => (
+                Self::EffectProp(Box::new(read_effect_record(&mut r).ok_or("effect prop Read failed")?)),
+                true,
+            ),
+            0xA9BC_9AB6 | 0xA9BD_882D | 0xC97F_987C | 0x49C0_5C8F => {
+                let Some(fc4_core::stream::RefValue::Object(record)) = fc4_core::lot_records::create(class) else {
+                    return Err("occupant factory failed".into());
+                };
+                let ok = record.read(&mut r);
+                (Self::Serializable(record), ok)
+            }
+            0x2990_C1BC => {
+                let record = WeatherSim::new(Rc::new(hosts::Offline), 0, Box::new(WeatherRng::from_session(0)));
+                let ok = record.read(&mut r);
+                (Self::Serializable(record), ok)
+            }
             _ => match grids::create(class) {
                 Some(record) => {
                     let ok = record.read(&mut r);
@@ -132,6 +160,8 @@ impl Payload {
             Self::Detail(record) => record.write(&mut w),
             Self::Ordinance(record) => record.write(&mut w),
             Self::OrdinanceSimulator(record) => record.write(&mut w),
+            Self::Prop(record) => write_prop_record(record, &mut w),
+            Self::EffectProp(record) => write_effect_record(record, false, &mut w),
         };
         if !ok {
             return Err("owner Write failed".into());
