@@ -20,6 +20,7 @@
 #include "FC4Streams.h"
 #include "FC4GameList.h"
 #include "FC4Properties.h"
+#include "cFC4Variant.h"
 #include "cFC4AdvisorObjects.h"
 #include "cFC4Message2Standard.h"
 #include "FC4LotDevInterfaces.h"  // cFC4ISC4AnimationTickManager (lot-developer.md §6.7.8)
@@ -35,6 +36,9 @@
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
+#include "cIGZCommandParameterSet.h"
+#include "cISC4GameDataRegistry.h"
+#include "cISCLua.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
 #include "cISC4AuraSimulator.h"
@@ -128,9 +132,7 @@ cISC4App* App() {
 //
 // Tracking uses advisor 29, automata group queries and the dispatch view's
 // direct native boundary (dispatch.md §4.1.3). Stubs: the cheat (the cheat
-// code manager is not in this lane's interface set), the `sitmgr` Lua table
-// (question CS13: its registry
-// entries are not specified), and the mission gameplay — targets and their
+// code manager is not in this lane's interface set) and the mission gameplay — targets and their
 // names, coverage cells, pursuit, CheckForSuccess's steps 2-4, the countdown
 // and outcome effects, the player-drive mode, the joyride, the mission script
 // and the popup. city-situation.md §0 puts the gameplay out of a
@@ -234,10 +236,119 @@ bool AcquireLotManager(void*) { return false; }
 void ReleaseLotManager(void*) {}
 bool AcquireMysim(void*) { return false; }
 void ReleaseMysim(void*) {}
-bool AcquireLua(void*) { return false; }
-void ReleaseLua(void*) {}
-void CreateLuaTable(void*) {}
-void RemoveLuaTable(void*) {}
+bool AcquireLua(void* u) {
+    auto* s = Self(u);
+    if (!s->lua) if (auto* app = App()) {
+        s->lua = app->GetLuaInterpreter();  // borrowed, lua-host.md §11
+        if (s->lua) FC4_ADDREF(s->lua);
+        FC4_RELEASE(app);
+    }
+    return s->lua != nullptr;
+}
+void ReleaseLua(void* u) {
+    auto* s = Self(u);
+    if (s->lua) FC4_RELEASE(s->lua);
+    s->lua = nullptr;
+}
+
+// foundations.md §17.7 / game-data-registry.md §1: compiled prefix through
+// slot 21. The SDK reverses overload groups; do not call them through it.
+class SituationRegistry : public cIGZUnknown {
+public:
+    using Entry = cISC4GameDataRegistry::cEntry;
+    using Call = cISC4GameDataRegistry::AddChildEntryCallback2;
+    using Exchange = cISC4GameDataRegistry::AddChildEntryCallback1;
+    virtual Entry* AddCall(void*, const char*, Call, Entry*, int32_t, void*) = 0;  // 3
+    virtual Entry* AddExchange(void*, const char*, Exchange, Entry*, int32_t, void*) = 0;  // 4
+    virtual Entry* AddNode(cIGZUnknown*, const char*, Entry*, int32_t, void*) = 0;  // 5
+    virtual bool RemoveRaw(void*) = 0;  // 6
+    virtual bool RemoveNode(cIGZUnknown*) = 0;  // 7
+    virtual Entry* FindRaw(void*) const = 0;  // 8
+    virtual Entry* FindNode(cIGZUnknown*) const = 0;  // 9
+    virtual Entry* GetNode(Entry*) const = 0;  // 10
+    virtual void* GetValue(Entry*) const = 0;  // 11
+    virtual bool IsValid(Entry*) const = 0;  // 12
+    virtual bool IsNode(Entry*) const = 0;  // 13
+    virtual cIGZString* GetName(Entry*) const = 0;  // 14
+    virtual bool ExchangeValue(Entry*, cIGZVariant&, bool) = 0;  // 15
+    virtual bool CallValue(Entry*, cIGZCommandParameterSet*, cIGZCommandParameterSet*) = 0;  // 16
+    virtual bool SetContext(Entry*, void*) = 0;  // 17
+    virtual void* GetContext(Entry*) const = 0;  // 18
+    virtual bool CheckFlags(Entry*, int32_t) const = 0;  // 19
+    virtual Entry* GetParent(Entry*) const = 0;  // 20
+    virtual Entry* GetRoot() const = 0;  // 21
+};
+
+template <int Kind>
+bool SituationLuaCall(void* u, cIGZCommandParameterSet* in, cIGZCommandParameterSet* out,
+                      cISC4GameDataRegistry*) {
+    auto* s = Self(u);
+    std::lock_guard<std::recursive_mutex> lock(s->mu);
+    auto* arg = in ? fc4::AsGame(in->GetParameter(0)) : nullptr;
+    if constexpr (Kind == 1) {
+        auto* briefing = in ? fc4::AsGame(in->GetParameter(1)) : nullptr;
+        // SPEC-GAP: the optional briefing argument defaults to true (CS13).
+        s->Post(kMsgInitiateByGuid, 0, arg ? arg->GetValUint32() : 0,
+                !briefing || briefing->GetValBool() ? 1u : 0u);
+    } else if constexpr (Kind == 5) {
+        if (arg) s->SetCSIVisible(arg->GetValBool());
+    } else if (out) {
+        // lua-host.md §9.4: parameter 0 is the first Lua return value.
+        auto* result = fc4::AsGame((*out)[0]);
+        if constexpr (Kind == 0) result->SetValUint16(s->GetMissionSuccessCount(arg ? arg->GetValUint32() : 0));
+        if constexpr (Kind == 2) result->SetValUnknown(s->GetCurrentTarget());
+        if constexpr (Kind == 3) result->SetValUnknown(s->GetActiveAuto());
+        if constexpr (Kind == 4) {
+            cRZBaseString name;
+            s->GetCurrentTargetName(name);
+            result->SetValString(name);
+        }
+        if constexpr (Kind == 6) result->SetValUint32(s->GetNumTargetsRemaining());
+    }
+    return true;
+}
+
+template <bool Index>
+bool SituationLuaVariable(void* u, cIGZVariant& value, bool set, cISC4GameDataRegistry*) {
+    auto* s = Self(u);
+    std::lock_guard<std::recursive_mutex> lock(s->mu);
+    // SPEC-GAP: mission counters are exposed read-only until CS13 specifies writes.
+    if (set) return false;
+    fc4::AsGame(&value)->SetValUint32(Index ? s->GetCurrentTargetIndex() : s->GetNumTargets());
+    return true;
+}
+
+void CreateLuaTable(void* u) {
+    auto* s = Self(u);
+    if (s->dataRegistry) return;
+    cISC4GameDataRegistryPtr service;
+    if (!service) return;
+    auto* registry = reinterpret_cast<SituationRegistry*>(static_cast<cISC4GameDataRegistry*>(service));
+    // SPEC-GAP: publish through the sc4game mirror, keyed by this manager (CS13).
+    auto* node = registry->AddNode(s->Primary(), "sitmgr", registry->GetRoot(), 0, nullptr);
+    if (!node) return;
+    s->dataRegistry = registry;
+    FC4_ADDREF(s->dataRegistry);
+    const SituationRegistry::Call calls[] = {&SituationLuaCall<0>, &SituationLuaCall<1>, &SituationLuaCall<2>,
+        &SituationLuaCall<3>, &SituationLuaCall<4>, &SituationLuaCall<5>, &SituationLuaCall<6>};
+    const char* names[] = {"get_success_count", "activate_situation", "get_current_target", "get_active_auto",
+        "get_target_name", "show_CSI", "num_targets_remaining"};
+    for (size_t i = 0; i < 7; ++i)
+        registry->AddCall(reinterpret_cast<void*>(calls[i]), names[i], calls[i], node, 1, s);
+    registry->AddExchange(reinterpret_cast<void*>(&SituationLuaVariable<false>), "num_targets",
+                          &SituationLuaVariable<false>, node, 0, s);
+    registry->AddExchange(reinterpret_cast<void*>(&SituationLuaVariable<true>), "cur_target_index",
+                          &SituationLuaVariable<true>, node, 0, s);
+    fc4::Log("citysit Lua: published sc4game.sitmgr (seven calls, two counters)");
+}
+void RemoveLuaTable(void* u) {
+    auto* s = Self(u);
+    auto* registry = reinterpret_cast<SituationRegistry*>(s->dataRegistry);
+    if (!registry) return;
+    s->dataRegistry = nullptr;
+    registry->RemoveNode(s->Primary());  // also removes leaves, game-data-registry.md §4
+    FC4_RELEASE(registry);
+}
 void ReleaseMissionResources(void*) {}
 
 void ShowAllIndicators(void* u, uint32_t kind, bool visible) {
@@ -316,9 +427,11 @@ void AdvisorAdvices(void* u, fc4_token_callback cb, void* ctx) {
     // advisors.md §12.2: slots 10/11 return a pointer-keyed map, not the
     // SDK's obsolete list. Snapshot before callbacks may change the tracking.
     std::vector<uint64_t> advices;
-    fc4::WalkGameMap(static_cast<fc4::GameMapObject*>(advisor->GetCurrentAdvices()), 100000,
+    const auto status = fc4::WalkGameMap(static_cast<fc4::GameMapObject*>(advisor->GetCurrentAdvices()), 100000,
                     [&](const fc4::GameMapNode& node) { advices.push_back(node.key); });
-    fc4::Log("citysit tracking: PostCityInit has %u advices", static_cast<unsigned>(advices.size()));
+    fc4::Log("citysit tracking: PostCityInit map=%s, %u advices", fc4::GameMapStatusName(status),
+             static_cast<unsigned>(advices.size()));
+    if (status != fc4::GameMapStatus::Ok) return;
     for (auto advice : advices) cb(ctx, advice);
 }
 uint64_t FindAdvice(void* u, uint32_t guid) {

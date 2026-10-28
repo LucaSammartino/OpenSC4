@@ -57,6 +57,7 @@
 class cIGZMessageServer2;
 class cISC4City;
 class cISC4AutomataManager;
+class cISCLua;
 
 static const uint32_t kFC4_CLSID_cSC4CitySituationManager = 0x0BB14381;
 static const uint32_t kFC4_IID_cISC4CitySituationManager = 0x6BB1437A;
@@ -156,6 +157,8 @@ public:
     std::atomic<uint32_t> messages{0};
     bool tickRegistered = false;
     cIGZUnknown* indicatorView = nullptr;  // acquired primary; dispatch.md §4.1.3
+    cISCLua* lua = nullptr;  // held between Init and Shutdown (§4.1)
+    cIGZUnknown* dataRegistry = nullptr;  // held while sitmgr is published
     std::vector<cISC4AutomataManager*> automataManagers;  // borrowed from the core's holds
     void Note(int slot, const char* name);
 };
