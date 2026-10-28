@@ -15,6 +15,7 @@ use fc4_core::lot_records::{
     CLSID_RETAINING_WALL_OCCUPANT,
 };
 use fc4_core::network_occupants::archive::NetworkRecord;
+use fc4_core::occupant_manager::archive::OccupantManagerRecord;
 use fc4_core::ordinance::record::{OrdinanceRecord, OrdinanceSimulatorRecord};
 use fc4_core::ordinance::{OrdinanceKind, CLSID_ORDINANCE_SIMULATOR};
 use fc4_core::prop_occupant::{
@@ -26,6 +27,7 @@ use fc4_core::store::archive::{read_class, write_class, ClassIndex, StoredObject
 use fc4_core::store::{INDEX_TYPE, STORE_GROUP};
 use fc4_core::stream::{ByteReader, SaveObject};
 use fc4_core::terrain::{SurfaceWaterRecord, Terrain, TerrainRecord, TerrainViewRecord};
+use fc4_core::traffic_simulator::archive::TrafficRecord;
 use fc4_core::weather::{WeatherRng, WeatherSim};
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -53,6 +55,8 @@ enum Payload {
     BusinessUnit(BusinessUnitRecord),
     RetainingWall(Box<RetainingWallRecord>),
     Network(Box<NetworkRecord>),
+    OccupantManager(OccupantManagerRecord),
+    Traffic(Box<TrafficRecord>),
     Unhandled(Vec<u8>),
 }
 
@@ -61,6 +65,14 @@ impl Payload {
         let mut references = SavedReferences;
         let mut r = ByteReader::with_resolver(bytes, &mut references);
         let (record, ok) = match class {
+            0x6990_C1AA => (
+                Self::Traffic(Box::new(TrafficRecord::read(&mut r).ok_or("traffic Read failed")?)),
+                true,
+            ),
+            0x098F_964D => (
+                Self::OccupantManager(OccupantManagerRecord::read(&mut r).ok_or("occupant manager Read failed")?),
+                true,
+            ),
             0x2990_C1E5 => {
                 return SaveRecord::decode(bytes)
                     .map(Self::Simulator)
@@ -159,6 +171,8 @@ impl Payload {
                 )),
                 true,
             ),
+            // SPEC-GAP: traffic network map persistence awaits SR33-2; opaque bytes are not codec coverage.
+            0x6A0F_82B2 => return Ok(Self::Unhandled(bytes.to_vec())),
             _ => match grids::create(class) {
                 Some(record) => {
                     let ok = record.read(&mut r);
@@ -198,6 +212,8 @@ impl Payload {
             Self::BusinessUnit(record) => record.write(&mut w),
             Self::RetainingWall(record) => record.write(&mut w),
             Self::Network(record) => record.write(&mut w),
+            Self::OccupantManager(record) => record.write(&mut w),
+            Self::Traffic(record) => record.write(&mut w),
         };
         if !ok {
             return Err("owner Write failed".into());

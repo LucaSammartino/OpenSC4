@@ -10,7 +10,7 @@ pub mod references;
 
 /// A saved identity, without constructing or renumbering the referenced owner.
 /// The null encoding omits the class word (foundations §2.7).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ObjectReference {
     pub id: u32,
     pub class: u32,
