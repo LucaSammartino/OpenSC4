@@ -1582,7 +1582,7 @@ There are no side tags or counts around these four sides (`0x004B2030`–`0x004B
 Versions 3–6 consume neither the intersection flag nor that list; the list starts empty. New-intersection
 scalar initialization in reference runs follows simulator §5.8 **Uninitialised values**. On every load the
 reader also clears unsaved per-side byte `I+0x0D+0x14×side` and intersection byte `I+0x6C`; these are not wire
-fields (`0x004B566A`, `0x004B5730`).
+fields (`0x004B566A`, `0x004B5728`).
 
 #### 6.2.4 Final network occupant → four lists record (v6+)
 
