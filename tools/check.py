@@ -88,8 +88,9 @@ def draw_references(rows):
 
 def draw_names(keys, references):
     # Missing evidence fails closed: run the row, which reports an error rather than granting exactness.
+    switched = {dependency for key in keys for dependency in alone(key)}
     return {name for name, entry in references.items()
-            if not keys or entry['keys'] is None or set(keys) & set(entry['keys'])}
+            if not keys or entry['keys'] is None or switched & set(entry['keys'])}
 
 
 def owner_covers():

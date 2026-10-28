@@ -126,6 +126,13 @@ class DrawSelectionTests(unittest.TestCase):
         self.assertEqual(set(calls), {'save-city', 'draw-city'})
         self.assertEqual(check.draw_names(['unknown'], {'draw-missing': {'keys': None}}), {'draw-missing'})
 
+    def test_draw_selection_includes_required_owners_for_run_and_credit(self):
+        references = {'draw-network': {'keys': ['netmgr']},
+                      'draw-unrelated': {'keys': ['span565']}}
+        self.assertEqual(check.draw_names(['netrules'], references), {'draw-network'})
+        self.assertEqual(check.draw_names(['mysims'], {'draw-advisors': {'keys': ['advisors']}}),
+                         {'draw-advisors'})
+
     def test_each_draw_failure_changes_owner_verdict_and_preserves_save_table(self):
         (self.root / 'owner-check.tsv').write_text('save-only evidence', encoding='utf-8')
         def compare(row, dll, keys):
