@@ -280,9 +280,14 @@ public:
 };
 
 template <int Kind>
-bool SituationLuaCall(void* u, cIGZCommandParameterSet* in, cIGZCommandParameterSet* out,
-                      cISC4GameDataRegistry*) {
-    auto* s = Self(u);
+bool SituationLuaCall(void* key, cIGZCommandParameterSet* in, cIGZCommandParameterSet* out,
+                      cISC4GameDataRegistry* native) {
+    // game-data-registry.md §3.3: the callback receives its raw key, not
+    // the separately stored context. Resolve the publisher through that key.
+    auto* registry = reinterpret_cast<SituationRegistry*>(native);
+    auto* entry = registry ? registry->FindRaw(key) : nullptr;
+    auto* s = entry ? Self(registry->GetContext(entry)) : nullptr;
+    if (!s) return false;
     std::lock_guard<std::recursive_mutex> lock(s->mu);
     auto* arg = in ? fc4::AsGame(in->GetParameter(0)) : nullptr;
     if constexpr (Kind == 1) {
@@ -294,23 +299,30 @@ bool SituationLuaCall(void* u, cIGZCommandParameterSet* in, cIGZCommandParameter
         if (arg) s->SetCSIVisible(arg->GetValBool());
     } else if (out) {
         // lua-host.md §9.4: parameter 0 is the first Lua return value.
-        auto* result = fc4::AsGame((*out)[0]);
-        if constexpr (Kind == 0) result->SetValUint16(s->GetMissionSuccessCount(arg ? arg->GetValUint32() : 0));
-        if constexpr (Kind == 2) result->SetValUnknown(s->GetCurrentTarget());
-        if constexpr (Kind == 3) result->SetValUnknown(s->GetActiveAuto());
+        // operator[] does not insert: on an empty set it returns a shared
+        // empty variant (docs/abi cIGZCommandParameterSet slot 5).
+        // SetParameter inserts it.
+        cFC4Variant result;
+        if constexpr (Kind == 0) result.SetValUint16(s->GetMissionSuccessCount(arg ? arg->GetValUint32() : 0));
+        if constexpr (Kind == 2) result.SetValUnknown(s->GetCurrentTarget());
+        if constexpr (Kind == 3) result.SetValUnknown(s->GetActiveAuto());
         if constexpr (Kind == 4) {
             cRZBaseString name;
             s->GetCurrentTargetName(name);
-            result->SetValString(name);
+            result.SetValString(name);
         }
-        if constexpr (Kind == 6) result->SetValUint32(s->GetNumTargetsRemaining());
+        if constexpr (Kind == 6) result.SetValUint32(s->GetNumTargetsRemaining());
+        out->SetParameter(0, *fc4::AsSdk(&result));
     }
     return true;
 }
 
 template <bool Index>
-bool SituationLuaVariable(void* u, cIGZVariant& value, bool set, cISC4GameDataRegistry*) {
-    auto* s = Self(u);
+bool SituationLuaVariable(void* key, cIGZVariant& value, bool set, cISC4GameDataRegistry* native) {
+    auto* registry = reinterpret_cast<SituationRegistry*>(native);
+    auto* entry = registry ? registry->FindRaw(key) : nullptr;
+    auto* s = entry ? Self(registry->GetContext(entry)) : nullptr;
+    if (!s) return false;
     std::lock_guard<std::recursive_mutex> lock(s->mu);
     // SPEC-GAP: mission counters are exposed read-only until CS13 specifies writes.
     if (set) return false;
