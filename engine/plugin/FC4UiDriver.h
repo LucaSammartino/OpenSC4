@@ -202,16 +202,18 @@ inline std::string Run(const harness::ScriptAction& a) {
         // widget-winmgr.md section 6.1: normal hit testing, capture and focus.
         // Dispatch the canvas's mouse record, not the Win32 conversion in
         // GZWinMsgPostMouse (section 5); modifiers occupy its high 16 bits.
-        cGZMessage mouse(13);
-        mouse.dwData1 = static_cast<uint32_t>(x);
-        mouse.dwData2 = static_cast<uint32_t>(y);
-        manager->ProcessMouseMessage(mouse);
-        mouse.dwMessageType = 7;
-        mouse.dwData3 = 0x10u << 16;
-        manager->ProcessMouseMessage(mouse);
-        mouse.dwMessageType = 10;
-        mouse.dwData3 = 0;
-        manager->ProcessMouseMessage(mouse);
+        const auto dispatch = [&](uint32_t type, uint32_t buttons) {
+            // ProcessCursorMessage converts the record's coordinates in place
+            // (widget-toolkit.md section 15.1). Each event needs screen coords.
+            cGZMessage mouse(type);
+            mouse.dwData1 = static_cast<uint32_t>(x);
+            mouse.dwData2 = static_cast<uint32_t>(y);
+            mouse.dwData3 = buttons << 16;
+            manager->ProcessMouseMessage(mouse);
+        };
+        dispatch(13, 0);
+        dispatch(7, 0x10);
+        dispatch(10, 0);
         FC4_RELEASE(manager);
         return "delivered native mouse (qualify with reach) client=" + std::to_string(x) + "," + std::to_string(y);
     }
