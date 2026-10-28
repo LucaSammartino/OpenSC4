@@ -590,7 +590,9 @@ void cFC4CitySituationManager::Note(int slot, const char* name) {
     if (slotCalls[slot].fetch_add(1) == 0) fc4::Log("citysit trace: first call of slot %d %s", slot, name);
 }
 
-cIGZMessageServer2* cFC4CitySituationManager::Server() { return msgServerHeld ? msgServer_ : nullptr; }
+// The constructor acquires msgServer_ and the destructor releases it. Do not
+// gate the held pointer on a second flag: that silently disables all §3 subscriptions.
+cIGZMessageServer2* cFC4CitySituationManager::Server() { return msgServer_; }
 void cFC4CitySituationManager::SetServer(cIGZMessageServer2* ms) { msgServer_ = ms; }
 cISC4City* cFC4CitySituationManager::City() { return city_; }
 void cFC4CitySituationManager::SetCity(cISC4City* c) {

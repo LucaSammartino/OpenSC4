@@ -125,7 +125,6 @@ public:
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
     cIGZUnknown* Primary() { return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4CitySituationManager*>(this)); }
 
-    bool msgServerHeld = false;
     cIGZMessageServer2* Server();
     void SetServer(cIGZMessageServer2* ms);
     cISC4City* City();
