@@ -126,7 +126,7 @@ driver's AddRef quirk. Do not add an implicit texture upload or draw flush to th
 1. If a scene is open, it is ended (§4.4 rule for errors) and the "scene open" flag cleared.
 2. `mode == -1`: if a mode is current and a window exists, the 3D environment is destroyed (§4.5), the window is
    destroyed and the current mode becomes -1. Return.
-3. Otherwise the fourth argument's low byte is stored (request for a flipping surface chain, §14.2; caller usage remains RD1). If `mode` ≥ the mode count the error
+3. Otherwise the fourth argument's low byte is stored (request for a flipping surface chain, §14.2; callers are described after the failure-path note below). If `mode` ≥ the mode count the error
    becomes 2 and the call returns without change.
 4. If a mode is current, the driver first calls its own slot 66 with `(-1, 0, 0, 0)`.
 5. The window procedure is remembered (`DefWindowProcA` when null). The driver fills its current-mode record from
@@ -144,7 +144,18 @@ driver's AddRef quirk. Do not add an implicit texture upload or draw flush to th
 `0xFFFFFFFF` through it after cleanup. It does not write the current-mode index there. The same argument's low
 byte was used as the flip request earlier. Passing a small boolean or null can therefore fault on this path.
 The supported success path does not perform that write. An implementation must not promise a clean error-only
-return for failed setup; caller intent behind this overloaded argument remains RD1.
+return for failed setup.
+
+*[compat]* **Callers of the fourth argument.** The only caller in the executable that requests a real mode is the
+canvas window-realization helper (`0x0098D9C0`, call at `0x0098DB08`). It passes the matched mode index, its window
+procedure bridge, show = 0, and as the fourth argument the result of slot 23 of the graphics system's
+driver-control interface (`0x00741740`, reads the one-byte "page flipping" flag; construction sets that flag to 1,
+`0x0098FF40`; slot 22, `0x0098AD30`, writes it). The value reaching the driver is therefore exactly 0 or 1, never a
+pointer, and with the default flag the flip-chain request is on. Every other caller passes mode −1 with all other
+arguments 0 (or 1, 1 from the canvas teardown, `0x0098DBC9`), which returns before the fourth argument is read.
+Consequently a failed setup in the realization helper executes the failure write into address 0 or 1 (an access
+violation), exactly the hazard above; the intended meaning of the argument is "request flipping", not a result
+pointer, and the failure write is a latent defect of the original.
 
 ### 4.3 Setting up the 3D environment (`SetupViewport 0x00888E10`, `Initialize3DEnvironment 0x00887A10`)
 
@@ -193,7 +204,7 @@ otherwise not, and the error code follows §3. It then resets every texture-stag
   is ended (`0x00887260`, §11.1; it does not present), the context presents (§14.3), the
   vertex buffer is recreated if it was lost (`0x00889260`), and a new scene is begun.
 * **Device just lost** (the cooperative-level test fails and the driver was not already lost): the driver marks
-  itself lost, posts message `0xAACB92A3` (*[unlisted]*) through the message server, drops its texture surfaces
+  itself lost, posts message `0xAACB92A3` (*[unlisted]*; *[inferred]* no receiver exists: the only occurrence of that 32-bit value anywhere in the executable image, code or data, is this post at `0x00884E25`, so no handler or subscription names it) through the message server, drops its texture surfaces
   (`0x0088A400`), stops the primitive manager, swaps in a placeholder device object and releases the real
   DirectX objects. `IsDeviceReady` (slot 81) now returns false.
 * **Lost, cooperative level restored**: the driver asks its context to restore the surfaces; on failure it ends the
