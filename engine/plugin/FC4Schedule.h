@@ -35,4 +35,7 @@ void ScheduleBeforeDelivery(const void* target, uint32_t msgType);
 void ScheduleMonthLine(int32_t julian);  // counters, once a month
 void ScheduleStampsRestart();       // [diagnostic] after `heap perturb`'s blocks: the next block gets stamp 1 again
 
+// Read the stopwatch counter, including its one-tick advance under the fixed schedule (§5.8).
+void ScheduleCounterRead();
+
 }  // namespace fc4

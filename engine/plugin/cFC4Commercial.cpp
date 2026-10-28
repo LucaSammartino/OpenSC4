@@ -20,6 +20,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4Schedule.h"
 
 #include "GZServPtrs.h"
 #include "cIGZApp.h"
@@ -485,6 +486,9 @@ bool cFC4CommercialSimulator::DoMessage(cIGZMessage2* pMessage) {
     }
     int32_t before = kStateIdle;
     if (type == kMsgSimIdle || type == kMsgSimNewDay) {
+        // §4.3 starts an unused stopwatch; its counter read still advances the fixed clock (§5.8).
+        // SPEC-GAP: §4.3 omits the timer unit; use the performance counter (timers §1.2, units 1–6).
+        fc4::ScheduleCounterRead();
         fc4_commercial_state st{};
         st.struct_size = sizeof(st);
         if (fc4_commercial_get_state(core_, &st)) before = st.state;

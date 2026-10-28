@@ -2437,6 +2437,12 @@ uint32_t ScheduleClockMs() {
     return static_cast<uint32_t>((g_qpc - g_loadQpc) / g_qpcPerMs);
 }
 
+void ScheduleCounterRead() {
+    LARGE_INTEGER now{};
+    if (ScheduleFixed()) VirtualQpc(&now);
+    else QueryPerformanceCounter(&now);
+}
+
 void ScheduleBeforeDelivery(const void* target, uint32_t msgType) {
     if (!g_fixed) return;
     {
