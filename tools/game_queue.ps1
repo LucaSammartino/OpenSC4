@@ -29,7 +29,8 @@ Usage (the coordinator starts it detached and leaves it running):
 
 Per root: <root>\build-runs\game-queue\*.req, oldest first, one at a time (submission order); different roots run
 in parallel. Priority: the coordinator's requests (the main checkout's build-runs\game-queue\) are taken before any
-waiting lane request (a running game is never stopped); a coordinator request with "priority = high" also goes
+waiting lane request (a running game is never stopped), except a lane request waiting 15 minutes, which then ranks
+with them in queue order; a coordinator request with "priority = high" also goes
 before the coordinator's other requests and does not wait for them (several run at once, one slot each; regress.ps1
 -Queue uses it). Results: <root>\build-runs\game-results\<label>.log (the plugin log), <label>.verdict (first line
 "verdict: <word>", then the harness lines and the run summary), <label>.running while it runs, pictures
@@ -449,10 +450,14 @@ function Waiting($mine) {
             # waited up to 2.4 h while 8 of 12 slots sat idle).
             $parallel = (PeekParallel $r.FullName) -or ($prio -ne 0 -and ((Get-Date) - $r.LastWriteTime).TotalMinutes -ge $StarvedMinutes)
             if ($prio -ne 0 -and -not $parallel) { $head = -not $headSeen; $headSeen = $true }
-            $all += @{ root = $root; req = $r; prio = $prio; young = $young; parallel = $parallel; head = ($prio -eq 0 -or $parallel -or $head); rootBusy = $busy; i = $order++ }
+            # A lane request starved that long also ranks with the coordinator's normal requests, in queue order: a
+            # coordinator run of hundreds of games (check.py --jobs 12) otherwise holds every slot for hours
+            # (2026-10-28 lane requests waited 73 min and counting behind the reference chain).
+            $rank = if ($prio -eq 2 -and ((Get-Date) - $r.LastWriteTime).TotalMinutes -ge $StarvedMinutes) { 1 } else { $prio }
+            $all += @{ root = $root; req = $r; prio = $prio; rank = $rank; young = $young; parallel = $parallel; head = ($prio -eq 0 -or $parallel -or $head); rootBusy = $busy; i = $order++ }
         }
     }
-    return @($all | Sort-Object { $_.prio }, { $_.req.LastWriteTime }, { $_.i })
+    return @($all | Sort-Object { $_.rank }, { $_.req.LastWriteTime }, { $_.i })
 }
 
 # ---- -Status ----------------------------------------------------------------------------------------------------
