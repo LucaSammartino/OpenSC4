@@ -91,6 +91,8 @@ pub struct NeighborsSimulator {
     /// The two-curve switch (§8.3 *[choice]*, off by default): the scarcity
     /// curve kept apart from the garbage curve.
     two_curves: Cell<bool>,
+    /// Plugin mode can retain the native regional-city pointer order (§9.1).
+    native_city_order: Cell<bool>,
     price_curve: RefCell<ResponseCurve>,
     garbage_curve: RefCell<ResponseCurve>,
     deals_dirty: Cell<bool>,
@@ -126,6 +128,7 @@ impl NeighborsSimulator {
             tuning: RefCell::new(Tuning::default()),
             curve: RefCell::new(ResponseCurve::default()),
             two_curves: Cell::new(false),
+            native_city_order: Cell::new(false),
             price_curve: RefCell::new(ResponseCurve::default()),
             garbage_curve: RefCell::new(ResponseCurve::default()),
             deals_dirty: Cell::new(true),
@@ -186,6 +189,12 @@ impl NeighborsSimulator {
     /// The two-curve switch (§8.3 *[choice]*); off by default.
     pub fn set_two_curves(&self, on: bool) {
         self.two_curves.set(on);
+    }
+
+    /// Use §9.1's native ordering when city tokens are the game's actual
+    /// regional-city interface pointers. Portable hosts keep position order.
+    pub fn set_native_city_order(&self, on: bool) {
+        self.native_city_order.set(on);
     }
 
     /// The curve `GetDealCost` evaluates (§8.3).
@@ -660,9 +669,8 @@ impl NeighborsSimulator {
     }
 
     /// `GetAdjacentCities(list, includeUnestablished)` (§9.1). *[choice]*
-    /// (NB14) Ordered by region position (x, then z): the original collects
-    /// into a `std::set` of pointers (`0x006D01E0`), ordered by heap address,
-    /// which cannot be reproduced.
+    /// Portable hosts use region position (x, then z). The plugin can use
+    /// NB14's ascending native pointers when its tokens are those pointers.
     pub fn adjacent_cities(&self, include_unestablished: bool) -> Vec<CityId> {
         let Some((_, (px, pz), (sx, sz))) = self.current_geometry() else {
             return Vec::new();
@@ -684,7 +692,11 @@ impl NeighborsSimulator {
                 }
             }
         }
-        out.sort_by_key(|&c| self.host.city_position(c));
+        if self.native_city_order.get() {
+            out.sort_unstable();
+        } else {
+            out.sort_by_key(|&c| self.host.city_position(c));
+        }
         out
     }
 

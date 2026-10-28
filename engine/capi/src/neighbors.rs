@@ -896,6 +896,13 @@ pub unsafe extern "C" fn fc4_neighbors_set_two_curves(p: *mut fc4_neighbors, on:
     sim(p, (), |h| h.sim.set_two_curves(on))
 }
 
+/// Select §9.1's native pointer order. Only enable when the host's city
+/// tokens are the actual regional-city interface pointers; default is off.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_neighbors_set_native_city_order(p: *mut fc4_neighbors, on: bool) {
+    sim(p, (), |h| h.sim.set_native_city_order(on))
+}
+
 /// `Init` (§14.1): true for a live object.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_neighbors_init(p: *mut fc4_neighbors) -> bool {

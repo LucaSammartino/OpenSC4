@@ -1910,6 +1910,10 @@ cFC4NeighborsSimulator::cFC4NeighborsSimulator() {
     bool fixed = false;
     const uint32_t seed = SessionSeed(&fixed);
     core_ = fc4_neighbors_create(&host_, TokenOf(Primary()), seed);
+    // NB14: these tokens are the game's real regional-city pointers, so its
+    // address order is available without recreating the native allocator.
+    // SPEC-GAP: §9.1's position-order choice does not distinguish plugin hosts with native city pointers.
+    fc4_neighbors_set_native_city_order(core_, true);
     twoCurves_ = fc4::SettingInt("neighbors_two_curves", "FC4_NEIGHBORS_TWO_CURVES", 0) != 0;
     if (core_ != nullptr && twoCurves_) fc4_neighbors_set_two_curves(core_, true);
     Register(g_sims, this);
