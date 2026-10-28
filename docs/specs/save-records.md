@@ -119,6 +119,10 @@ of the brief. The owner column names the spec section with the layout.
 
 The pathfinder has no record (pathfinder §6). Its compressed routes are saved inside the lots' trip data (§8).
 
+The separate traffic **network map**, city component 42 (IID `0xCA0F81B9`, class/record type `0x6A0F82B2`),
+has its full versioned wire layout in [traffic-network.md §6.2](traffic-network.md#62-traffic-network-map-0x6a0f82b2-compat),
+including tiles, intersections, reference lists and the final occupant-to-four-lists table.
+
 ### 3.2 Classes FreeCity4 does not replace
 
 City `0x8990C372`; history warehouse `0x89EFA536`; demolition `0x0990C38A`; dispatch manager `0x4990BD93`;
