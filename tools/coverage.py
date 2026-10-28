@@ -729,6 +729,16 @@ def load_report_data(export=None, exe=None):
                 warnings=warnings, game=game, fun_row=fun_row, lib_b=lib_b, lib_n=lib_n)
 
 
+def replacement_code(data=None):
+    """Original entry addresses by replace key, for save and draw scenario reach selection."""
+    data = load_report_data() if data is None else data
+    code = defaultdict(set)
+    for va, _size, i, _area in data['game']:
+        for key in split_list(data['rows'][i]['replace']) if i is not None else ():
+            code[key].add(va)
+    return dict(code)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--export", help="Ghidra export directory (default ghidra/export/windows)")
